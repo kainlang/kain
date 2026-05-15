@@ -194,6 +194,7 @@ pub struct RustFfiRegistryCrateSection {
 pub struct CffiSection {
     pub include_paths: Vec<PathBuf>,
     pub defines: Vec<String>,
+    pub link_libs: Vec<String>,
     pub cpp_options: Vec<String>,
     pub cpp_command: Option<String>,
     pub libraries: Vec<CffiLibrarySection>,
@@ -209,6 +210,7 @@ pub struct CffiLibrarySection {
     pub symbols: BTreeMap<String, String>,
     pub include_paths: Vec<PathBuf>,
     pub defines: Vec<String>,
+    pub link_libs: Vec<String>,
     pub cpp_options: Vec<String>,
     pub cpp_command: Option<String>,
 }
@@ -234,6 +236,7 @@ pub struct ResolvedCffiLibrary {
     pub shared_lib: Option<PathBuf>,
     pub include_paths: Vec<PathBuf>,
     pub defines: Vec<String>,
+    pub link_libs: Vec<String>,
     pub cpp_options: Vec<String>,
 }
 
@@ -741,6 +744,12 @@ fn resolved_c_ffi_libraries(root: &Path, section: &CffiSection) -> Vec<ResolvedC
                 .map(|path| resolve_path(root, path))
                 .collect(),
             defines: library.defines.clone(),
+            link_libs: library
+                .link_libs
+                .iter()
+                .cloned()
+                .chain(section.link_libs.iter().cloned())
+                .collect(),
             cpp_options: library.cpp_options.clone(),
         })
         .collect()

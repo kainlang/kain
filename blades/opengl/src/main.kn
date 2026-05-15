@@ -1,0 +1,30 @@
+// style: raw win32/wgl compatibility proof
+use c::opengl_bridge
+use opengl::opengl_frames_presented
+use opengl::opengl_probe
+use opengl::opengl_run_window
+use opengl::opengl_triangles_drawn
+use opengl::opengl_write_report
+
+fn main() -> Int:
+    if opengl_probe() != 1:
+        println("opengl probe failed")
+        return 10
+
+    let status = opengl_run_window(
+        "OpenGL // Raw WGL Compatibility Blade",
+        1280,
+        720,
+        180,
+        10,
+        16,
+        24,
+        80,
+        220,
+        255
+    )
+    let _report_status = opengl_write_report(".kain/run/opengl_report.txt")
+    println("frames=" + str(opengl_frames_presented()) + " triangles=" + str(opengl_triangles_drawn()))
+    if status != 0:
+        return 20
+    return 0

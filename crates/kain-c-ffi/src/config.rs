@@ -9,6 +9,8 @@ pub struct CFfiConfig {
     #[serde(default)]
     pub defines: Vec<String>,
     #[serde(default)]
+    pub link_libs: Vec<String>,
+    #[serde(default)]
     pub cpp_options: Vec<String>,
     #[serde(default)]
     pub cpp_command: Option<String>,
@@ -28,6 +30,8 @@ pub struct CLibraryConfig {
     pub include_paths: Vec<PathBuf>,
     #[serde(default)]
     pub defines: Vec<String>,
+    #[serde(default)]
+    pub link_libs: Vec<String>,
     #[serde(default)]
     pub cpp_options: Vec<String>,
     #[serde(default)]

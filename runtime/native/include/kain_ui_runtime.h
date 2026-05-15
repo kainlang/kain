@@ -85,6 +85,7 @@ typedef struct {
     char tag[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
     char scene[KAIN_UI_COMPILED_BUNDLE_MAX_TAG];
     char layout_kind[KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT];
+    char persistent_layout_id[KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT_ID];
     char value[KAIN_UI_COMPILED_BUNDLE_MAX_TEXT];
     size_t value_length;
     size_t cursor;
@@ -121,13 +122,49 @@ typedef struct {
     KainUiRuntimeComponentState components[KAIN_UI_RUNTIME_MAX_COMPONENTS];
 } KainUiRuntimeState;
 
+typedef struct {
+    int preserve_focus;
+    int preserve_active_edit_component;
+    int preserve_hovered_component;
+    int preserve_component_values;
+    int preserve_dirty_state;
+} KainUiRuntimeReloadOptions;
+
+typedef struct {
+    int attempted;
+    int applied;
+    int compatible;
+    int preserved_focus;
+    int preserved_active_edit_component;
+    int preserved_hovered_component;
+    int transferred_component_count;
+    unsigned int previous_sequence;
+    unsigned int next_sequence;
+    char summary[KAIN_UI_COMPILED_BUNDLE_MAX_TEXT];
+    KainUiRuntimeValidationReport validation;
+} KainUiRuntimeReloadReport;
+
 void kain_ui_runtime_state_init(KainUiRuntimeState* state);
 void kain_ui_runtime_validation_init(KainUiRuntimeValidationReport* report);
+void kain_ui_runtime_reload_options_init(KainUiRuntimeReloadOptions* options);
+void kain_ui_runtime_reload_report_init(KainUiRuntimeReloadReport* report);
 int kain_ui_runtime_validate_bundle(const KainUiCompiledBundle* bundle, KainUiRuntimeValidationReport* report);
 int kain_ui_runtime_state_load_bundle(KainUiRuntimeState* state, const KainUiCompiledBundle* bundle);
 int kain_ui_runtime_state_load_from_json(KainUiRuntimeState* state, const char* json);
 int kain_ui_runtime_state_load_from_path(KainUiRuntimeState* state, const char* path);
 int kain_ui_runtime_state_load_from_env(KainUiRuntimeState* state, const char* env_name);
+int kain_ui_runtime_reload_bundle(
+    KainUiRuntimeState* state,
+    const KainUiCompiledBundle* bundle,
+    const KainUiRuntimeReloadOptions* options,
+    KainUiRuntimeReloadReport* report
+);
+int kain_ui_runtime_reload_from_path(
+    KainUiRuntimeState* state,
+    const char* path,
+    const KainUiRuntimeReloadOptions* options,
+    KainUiRuntimeReloadReport* report
+);
 const KainUiRuntimeComponentState* kain_ui_runtime_find_component(
     const KainUiRuntimeState* state,
     unsigned long long component_id

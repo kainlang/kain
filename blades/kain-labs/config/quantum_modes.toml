@@ -6,7 +6,7 @@ fluid_width = 256
 fluid_height = 256
 fluid_depth = 4
 target_backend = "vulkan"
-ui_backend = "win32-gl"
+ui_backend = "software"
 
 [[mode]]
 id = 0

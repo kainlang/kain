@@ -245,22 +245,6 @@ const KainViewportProfile* kain_find_viewport_profile(const char* id) {
     return &g_kain_viewport_profiles[0];
 }
 
-void kain_gl_perspective(double fov_y_degrees, double aspect, double near_clip, double far_clip) {
-    double f_height = tan((fov_y_degrees * M_PI / 360.0)) * near_clip;
-    double f_width = f_height * aspect;
-    glFrustum(-f_width, f_width, -f_height, f_height, near_clip, far_clip);
-}
-
-void kain_gl_draw_rect(float x, float y, float w, float h, float r, float g, float b, float a) {
-    glColor4f(r, g, b, a);
-    glBegin(GL_QUADS);
-    glVertex2f(x, y);
-    glVertex2f(x + w, y);
-    glVertex2f(x + w, y + h);
-    glVertex2f(x, y + h);
-    glEnd();
-}
-
 KainVec3 kain_vec3_make(double x, double y, double z) {
     KainVec3 v;
     v.x = x;
@@ -299,19 +283,5 @@ KainVec3 kain_vec3_normalize(KainVec3 v) {
         return kain_vec3_make(0.0, 1.0, 0.0);
     }
     return kain_vec3_scale(v, 1.0 / length);
-}
-
-void kain_gl_look_at(KainVec3 eye, KainVec3 center, KainVec3 up) {
-    KainVec3 forward = kain_vec3_normalize(kain_vec3_sub(center, eye));
-    KainVec3 side = kain_vec3_normalize(kain_vec3_cross(forward, up));
-    KainVec3 up_fixed = kain_vec3_cross(side, forward);
-    double matrix[16] = {
-        side.x, up_fixed.x, -forward.x, 0.0,
-        side.y, up_fixed.y, -forward.y, 0.0,
-        side.z, up_fixed.z, -forward.z, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    };
-    glMultMatrixd(matrix);
-    glTranslated(-eye.x, -eye.y, -eye.z);
 }
 #endif

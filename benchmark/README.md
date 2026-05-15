@@ -1,21 +1,21 @@
-# Kain vs Rust LLVM Benchmarks
+# Kain Multi-Language Benchmarks
 
-This folder is a paired benchmark lane for native Kain LLVM output against Rust LLVM output.
+This folder is the native benchmark lane for Kain LLVM against Rust LLVM, JavaScript on Node, and Python on CPython.
 
 The contract is intentionally simple:
 
-- Every Kain benchmark in `cases/<case>/main.kn` must have a Rust sibling at `cases/<case>/main.rs`.
+- Every benchmark in `cases/<case>/` must have dependency-free `main.kn`, `main.rs`, `main.js`, and `main.py` sources unless the manifest explicitly excludes a language.
 - Case programs may import local files later, but they must not use external packages or crates.
 - Build time is recorded separately; timed samples run the already-built executables.
-- The runner prefers a release-built `kain.exe` and passes a benchmark-native tuning profile into the Kain compiler unless you override it.
-- Every run writes `out/reports/latest.html`, a timestamped HTML report, and `out/reports/latest.json`.
+- The runner prefers a release-built `kain.exe`, pins Kain benchmark links to `runtime/native_core_runtime.toml`, and passes a benchmark-native tuning profile into the Kain compiler unless you override it.
+- Every run writes `out/reports/latest.llm.md`, a timestamped `.llm.md` report, and `out/reports/latest.json`. Stale `latest.html` is removed.
 - The report includes a maturity/fairness note per case. Some pressure tests are honest proxies until Kain exposes the matching runtime primitive directly in LLVM.
 
 Current pressure cases:
 
-- `contention_wall`: Rust 100-thread atomic contention versus Kain `collapse` exclusive ownership over the same total increment count.
-- `ghost_mirror`: Rust std TCP transfer of a 1 MiB payload versus Kain entangle-backed world mirroring plus in-process payload mutation.
-- `evolutionary_loop`: Rust runtime feature-detected lane choice versus Kain `converge` / `orchestrate` dispatch syntax.
+- `contention_wall`: Rust 100-thread atomic contention versus Kain `collapse`; JavaScript and Python use scalar proxy lanes so the report does not confuse runtime lock/GIL overhead with language semantics.
+- `ghost_mirror`: std TCP loopback payload transfer for Rust/JavaScript/Python versus Kain entangle-backed world mirroring plus payload mutation.
+- `evolutionary_loop`: runtime feature-detected lane choice versus Kain `converge` / `orchestrate` dispatch syntax.
 
 Current basic language-edge cases:
 
@@ -46,7 +46,21 @@ Useful variants:
 ```powershell
 python benchmark/run.py --runs 9 --warmups 2
 python benchmark/run.py --case ownership_memory
+python benchmark/run.py --languages kain,rust,javascript,python
+python benchmark/run.py --languages js,py --runs 1 --warmups 0
 python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe
 ```
 
-The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning.
+Native benchmark blade:
+
+```powershell
+.\benchmark\kain-benchmark.exe
+```
+
+The blade source lives in `benchmark/blades/kain-benchmark`. It renders a compact native UI for the case/language inventory, latest LLM report preview, report paths, quick runs, and full runs. Build it from repo root with:
+
+```powershell
+.\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName D:\Kain-Lang\benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm
+```
+
+The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. Kain benchmark builds set `KAIN_RUNTIME_MANIFEST_PATH` to the lean core runtime manifest; use the broad runtime manifest only for app/vendor/UI lanes. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning.

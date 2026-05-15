@@ -35,11 +35,10 @@ sources = [
     "native/src/asset/kain_asset_gltf.c",
     "native/src/platform/kain_runtime_platform.c",
     "native/src/ui/kain_ui_compiled_bundle.c",
-    "native/src/ui/kain_ui_compiled_overlay.c",
     "native/src/ui/kain_native_ui_system.c",
     "native/src/ui/kain_native_ui_host_adapter.c",
-    "native/src/ui/kain_ui_overlay.c",
     "native/src/ui/kain_ui_runtime.c",
+    "native/src/ui/kain_ui_hot_reload.c",
     "3rdparty/quickjs/cutils.c",
     "3rdparty/quickjs/dtoa.c",
     "3rdparty/quickjs/libregexp.c",
@@ -169,14 +168,10 @@ sources = [
 ]
 
 windows_sources = [
-    "native/src/gfx/opengl/kain_gl_win32_host.c",
     "native/src/platform/win32/kain_win32_app_host.c",
     "native/src/platform/win32/kain_win32_input_host.c",
     "native/src/platform/win32/kain_runtime_win32_graphics.c",
     "native/src/platform/win32/kain_runtime_win32_shared.c",
-    "native/src/ui/kain_native_ui_host_win32_gl.c",
-    "native/src/platform/win32/kain_runtime_viewport_win32.c",
-    "native/src/platform/win32/kain_runtime_sculpt_win32.c",
     "3rdparty/libuv/src/win/async.c",
     "3rdparty/libuv/src/win/core.c",
     "3rdparty/libuv/src/win/detect-wakeup.c",
@@ -853,6 +848,6 @@ description = "Rpmalloc-backed allocation lane for Kain runtime experiments"
 
 # Platform-Specific Link Dependencies
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32", "winhttp", "psapi", "advapi32", "iphlpapi", "userenv", "dbghelp", "ole32", "shell32"]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "ws2_32", "winhttp", "psapi", "advapi32", "iphlpapi", "userenv", "dbghelp", "ole32", "shell32"]
 linux = ["pthread", "dl", "rt", "m", "GL", "EGL", "X11", "Xext"]
 macos = []

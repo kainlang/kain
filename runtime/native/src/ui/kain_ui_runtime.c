@@ -267,6 +267,11 @@ static int kain_ui_runtime_build_component_state(
     kain_ui_runtime_copy_string(out_state->tag, sizeof(out_state->tag), node->tag);
     kain_ui_runtime_copy_string(out_state->scene, sizeof(out_state->scene), node->scene);
     kain_ui_runtime_copy_string(out_state->layout_kind, sizeof(out_state->layout_kind), node->layout_kind);
+    kain_ui_runtime_copy_string(
+        out_state->persistent_layout_id,
+        sizeof(out_state->persistent_layout_id),
+        node->persistent_layout_id
+    );
     kain_ui_runtime_copy_string(out_state->value, sizeof(out_state->value), node->text);
     out_state->value_length = strlen(out_state->value);
     out_state->cursor = out_state->value_length;
@@ -490,6 +495,111 @@ static int kain_ui_runtime_rebuild_components(KainUiRuntimeState* state) {
 
     kain_ui_runtime_refresh_state_capabilities(state);
     return 1;
+}
+
+static int kain_ui_runtime_component_matches_transfer_key(
+    const KainUiRuntimeComponentState* source,
+    const KainUiRuntimeComponentState* target
+) {
+    if (!source || !target) {
+        return 0;
+    }
+
+    if (source->id != 0ull && source->id == target->id) {
+        return 1;
+    }
+
+    if (source->persistent_layout_id[0] &&
+        target->persistent_layout_id[0] &&
+        _stricmp(source->persistent_layout_id, target->persistent_layout_id) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static const KainUiRuntimeComponentState* kain_ui_runtime_find_transfer_source(
+    const KainUiRuntimeState* state,
+    const KainUiRuntimeComponentState* target
+) {
+    int index;
+
+    if (!state || !target || !state->loaded) {
+        return NULL;
+    }
+
+    for (index = 0; index < state->component_count; ++index) {
+        if (kain_ui_runtime_component_matches_transfer_key(&state->components[index], target)) {
+            return &state->components[index];
+        }
+    }
+
+    return NULL;
+}
+
+static int kain_ui_runtime_find_transfer_target_index(
+    const KainUiRuntimeState* state,
+    const KainUiRuntimeComponentState* source
+) {
+    int index;
+
+    if (!state || !source || !state->loaded) {
+        return -1;
+    }
+
+    for (index = 0; index < state->component_count; ++index) {
+        if (kain_ui_runtime_component_matches_transfer_key(source, &state->components[index])) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+static void kain_ui_runtime_transfer_component_state(
+    KainUiRuntimeComponentState* target,
+    const KainUiRuntimeComponentState* source,
+    const KainUiRuntimeReloadOptions* options
+) {
+    if (!target || !source || !options) {
+        return;
+    }
+
+    if (options->preserve_component_values) {
+        kain_ui_runtime_copy_string(target->value, sizeof(target->value), source->value);
+        target->value_length = strlen(target->value);
+        target->cursor = source->cursor <= target->value_length ? source->cursor : target->value_length;
+        if (source->value[0] && target->text[0] == '\0') {
+            kain_ui_runtime_copy_string(target->text, sizeof(target->text), source->value);
+        }
+    }
+
+    if (options->preserve_dirty_state) {
+        target->dirty = source->dirty;
+        target->dirty_reason_mask = source->dirty_reason_mask;
+        target->last_event_kind = source->last_event_kind;
+    }
+
+    if (source->revision > target->revision) {
+        target->revision = source->revision;
+    }
+}
+
+static void kain_ui_runtime_refresh_dirty_component_count(KainUiRuntimeState* state) {
+    int index;
+    unsigned int dirty_count = 0u;
+
+    if (!state) {
+        return;
+    }
+
+    for (index = 0; index < state->component_count; ++index) {
+        if (state->components[index].dirty) {
+            dirty_count += 1u;
+        }
+    }
+
+    state->dirty_component_count = dirty_count;
 }
 
 static int kain_ui_runtime_set_focus_by_index(KainUiRuntimeState* state, int index) {
@@ -735,6 +845,28 @@ void kain_ui_runtime_validation_init(KainUiRuntimeValidationReport* report) {
     kain_ui_runtime_validation_init_inner(report);
 }
 
+void kain_ui_runtime_reload_options_init(KainUiRuntimeReloadOptions* options) {
+    if (!options) {
+        return;
+    }
+
+    ZeroMemory(options, sizeof(*options));
+    options->preserve_focus = 1;
+    options->preserve_active_edit_component = 1;
+    options->preserve_hovered_component = 1;
+    options->preserve_component_values = 1;
+    options->preserve_dirty_state = 1;
+}
+
+void kain_ui_runtime_reload_report_init(KainUiRuntimeReloadReport* report) {
+    if (!report) {
+        return;
+    }
+
+    ZeroMemory(report, sizeof(*report));
+    kain_ui_runtime_validation_init(&report->validation);
+}
+
 void kain_ui_runtime_state_init(KainUiRuntimeState* state) {
     if (!state) {
         return;
@@ -816,6 +948,154 @@ int kain_ui_runtime_state_load_from_env(KainUiRuntimeState* state, const char* e
     }
 
     return kain_ui_runtime_state_load_bundle(state, &bundle);
+}
+
+int kain_ui_runtime_reload_bundle(
+    KainUiRuntimeState* state,
+    const KainUiCompiledBundle* bundle,
+    const KainUiRuntimeReloadOptions* options,
+    KainUiRuntimeReloadReport* report
+) {
+    KainUiRuntimeReloadOptions default_options;
+    KainUiRuntimeReloadReport local_report;
+    KainUiRuntimeReloadReport* active_report = report;
+    const KainUiRuntimeReloadOptions* active_options = options;
+    KainUiRuntimeState candidate;
+    const KainUiRuntimeComponentState* old_focused = NULL;
+    const KainUiRuntimeComponentState* old_active_edit = NULL;
+    const KainUiRuntimeComponentState* old_hovered = NULL;
+    int index;
+
+    if (!state || !bundle) {
+        return 0;
+    }
+
+    if (!active_options) {
+        kain_ui_runtime_reload_options_init(&default_options);
+        active_options = &default_options;
+    }
+    if (!active_report) {
+        active_report = &local_report;
+    }
+    kain_ui_runtime_reload_report_init(active_report);
+    active_report->attempted = 1;
+    active_report->previous_sequence = state->sequence;
+
+    kain_ui_runtime_state_init(&candidate);
+    candidate.bundle = *bundle;
+    kain_ui_runtime_validate_bundle(&candidate.bundle, &candidate.validation);
+    active_report->validation = candidate.validation;
+    if (!candidate.bundle.loaded || !candidate.validation.valid) {
+        snprintf(
+            active_report->summary,
+            sizeof(active_report->summary),
+            "reload rejected: %s",
+            candidate.validation.summary[0] ? candidate.validation.summary : "bundle failed validation"
+        );
+        return 0;
+    }
+
+    candidate.loaded = 1;
+    if (!kain_ui_runtime_rebuild_components(&candidate)) {
+        snprintf(active_report->summary, sizeof(active_report->summary), "%s", "reload rejected: component rebuild failed");
+        return 0;
+    }
+
+    active_report->compatible = 1;
+    if (state->loaded) {
+        old_focused = kain_ui_runtime_find_component(state, state->focused_component_id);
+        old_active_edit = kain_ui_runtime_find_component(state, state->active_edit_component_id);
+        old_hovered = kain_ui_runtime_find_component(state, state->hovered_component_id);
+        for (index = 0; index < candidate.component_count; ++index) {
+            const KainUiRuntimeComponentState* source =
+                kain_ui_runtime_find_transfer_source(state, &candidate.components[index]);
+            if (source) {
+                kain_ui_runtime_transfer_component_state(
+                    &candidate.components[index],
+                    source,
+                    active_options
+                );
+                active_report->transferred_component_count += 1;
+            }
+        }
+    }
+
+    kain_ui_runtime_refresh_dirty_component_count(&candidate);
+
+    if (active_options->preserve_focus && old_focused) {
+        int focus_index = kain_ui_runtime_find_transfer_target_index(&candidate, old_focused);
+        if (focus_index >= 0 && kain_ui_runtime_set_focus_by_index(&candidate, focus_index)) {
+            active_report->preserved_focus = 1;
+        }
+    }
+
+    if (active_options->preserve_active_edit_component && old_active_edit) {
+        int edit_index = kain_ui_runtime_find_transfer_target_index(&candidate, old_active_edit);
+        if (edit_index >= 0 && candidate.components[edit_index].editable) {
+            candidate.active_edit_component_id = candidate.components[edit_index].id;
+            if (!candidate.focused_component_id &&
+                (candidate.components[edit_index].focusable || candidate.components[edit_index].editable)) {
+                candidate.focused_component_id = candidate.components[edit_index].id;
+            }
+            active_report->preserved_active_edit_component = 1;
+        }
+    }
+
+    if (active_options->preserve_hovered_component && old_hovered) {
+        int hover_index = kain_ui_runtime_find_transfer_target_index(&candidate, old_hovered);
+        if (hover_index >= 0) {
+            candidate.hovered_component_id = candidate.components[hover_index].id;
+            active_report->preserved_hovered_component = 1;
+        }
+    }
+
+    candidate.sequence = state->loaded ? (state->sequence + 1u) : 1u;
+    active_report->next_sequence = candidate.sequence;
+    *state = candidate;
+    active_report->validation = state->validation;
+    active_report->applied = 1;
+    snprintf(
+        active_report->summary,
+        sizeof(active_report->summary),
+        "reload applied: nodes=%d transferred=%d focus=%d edit=%d hover=%d",
+        state->component_count,
+        active_report->transferred_component_count,
+        active_report->preserved_focus,
+        active_report->preserved_active_edit_component,
+        active_report->preserved_hovered_component
+    );
+    return 1;
+}
+
+int kain_ui_runtime_reload_from_path(
+    KainUiRuntimeState* state,
+    const char* path,
+    const KainUiRuntimeReloadOptions* options,
+    KainUiRuntimeReloadReport* report
+) {
+    KainUiCompiledBundle bundle;
+    KainUiRuntimeReloadReport local_report;
+    KainUiRuntimeReloadReport* active_report = report ? report : &local_report;
+
+    if (!state || !path) {
+        return 0;
+    }
+
+    kain_ui_runtime_reload_report_init(active_report);
+    active_report->attempted = 1;
+    active_report->previous_sequence = state->sequence;
+    kain_ui_compiled_bundle_init(&bundle);
+    if (!kain_ui_compiled_bundle_load_from_path(path, &bundle)) {
+        snprintf(
+            active_report->summary,
+            sizeof(active_report->summary),
+            "reload rejected: failed to load bundle path %s",
+            path
+        );
+        return 0;
+    }
+
+    return kain_ui_runtime_reload_bundle(state, &bundle, options, active_report);
 }
 
 const KainUiRuntimeComponentState* kain_ui_runtime_find_component(

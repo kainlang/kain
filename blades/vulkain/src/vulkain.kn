@@ -1,0 +1,14 @@
+pub fn vulkain_probe() -> Int:
+    return vulkain_native_probe()
+
+pub fn vulkain_frames_presented() -> Int:
+    return vulkain_native_frames_presented()
+
+pub fn vulkain_vertices_drawn() -> Int:
+    return vulkain_native_vertices_drawn()
+
+pub fn vulkain_run_window(title: String, width: Int, height: Int, frame_budget: Int, clear_red: Int, clear_green: Int, clear_blue: Int, accent_red: Int, accent_green: Int, accent_blue: Int, vertex_shader_path: String, fragment_shader_path: String) -> Int:
+    return vulkain_native_run_window(title, width, height, frame_budget, clear_red, clear_green, clear_blue, accent_red, accent_green, accent_blue, vertex_shader_path, fragment_shader_path)
+
+pub fn vulkain_write_report(path: String) -> Int:
+    return vulkain_native_write_report(path)

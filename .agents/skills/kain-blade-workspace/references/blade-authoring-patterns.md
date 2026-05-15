@@ -102,7 +102,7 @@ If a blade has `reference/`, treat it as the design/spec corpus:
 
 ## Blade-Local Executable Loop
 
-Use the bundled script from repo root. It prefers Bazel, runs the direct `bazel-bin/crates/cli/kain.exe` artifact, places the `.exe` in the blade root, and moves compiler sidecars into the blade's `.kain/out/<exe-name>/` folder:
+Use the bundled script from repo root. It prefers Bazel, runs the direct `bazel-bin/crates/cli/kain.exe` artifact from the discovered blade root so local module roots resolve even for nested blade workspaces, places the `.exe` in the blade root by default, and moves compiler sidecars into the blade's `.kain/out/<exe-name>/` folder:
 
 ```powershell
 .\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry blades\my-blade\src\main.kn -OutputName my-blade.exe -Run
@@ -119,7 +119,7 @@ $kainBin = Join-Path $bazelBin "crates\cli\kain.exe"
 .\blades\my-blade\my-blade.exe
 ```
 
-Use `-BazelConfig release` for hotter compiler builds. Use `-CompilerBuild auto` only when the host may not have Bazel; `auto` can fall back to existing Cargo artifacts. Do not prefer PATH launcher shims for scripted compile proof because forwarding Kain's own `-o` flag through wrappers can be ambiguous. Use `-OutputPlacement repo-root` only when the user explicitly asks for a repo-root executable.
+Use `-BazelConfig release` for hotter compiler builds. Use `-CompilerBuild auto` only when the host may not have Bazel; `auto` can fall back to existing Cargo artifacts. Do not prefer PATH launcher shims for scripted compile proof because forwarding Kain's own `-o` flag through wrappers can be ambiguous. Use `-OutputPlacement repo-root` or an absolute `-OutputName` only when the user explicitly asks for a repo-root or shared executable.
 
 If the compiler writes `.ll` next to the requested output, validate it:
 

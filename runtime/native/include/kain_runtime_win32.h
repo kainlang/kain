@@ -4,7 +4,6 @@
 #include "kain_runtime_base.h"
 
 typedef struct KainWin32AppHost KainWin32AppHost;
-typedef struct KainWin32GlSurface KainWin32GlSurface;
 typedef struct KainWin32MouseCapture KainWin32MouseCapture;
 
 typedef struct {
@@ -70,14 +69,6 @@ typedef LRESULT (*KainWin32AppMessageFn)(
     int* handled
 );
 
-struct KainWin32GlSurface {
-    HDC dc;
-    HGLRC glrc;
-    GLuint font_base;
-    int font_ready;
-    int font_pixel_height;
-};
-
 struct KainWin32MouseCapture {
     HWND hwnd;
     int pointer_locked;
@@ -121,14 +112,6 @@ struct KainWin32AppHost {
 
 int kain_win32_app_run(KainWin32AppHost* host, const KainWin32AppConfig* config, void* user_data);
 void kain_win32_app_request_close(KainWin32AppHost* host);
-int kain_win32_gl_boot(HWND hwnd, HDC* dc, HGLRC* glrc);
-void kain_win32_gl_shutdown(HWND hwnd, HDC* dc, HGLRC* glrc, GLuint* font_base, int* font_ready);
-void kain_win32_gl_ensure_font(HDC dc, GLuint* font_base, int* font_ready, int pixel_height);
-void kain_win32_gl_draw_text(GLuint font_base, int font_ready, float x, float y, const char* text);
-int kain_win32_gl_surface_boot(HWND hwnd, KainWin32GlSurface* surface, int font_pixel_height);
-void kain_win32_gl_surface_shutdown(HWND hwnd, KainWin32GlSurface* surface);
-void kain_win32_gl_surface_present(KainWin32GlSurface* surface);
-void kain_win32_gl_surface_draw_text(KainWin32GlSurface* surface, float x, float y, const char* text);
 void kain_win32_mouse_capture_bind(KainWin32MouseCapture* capture, HWND hwnd);
 void kain_win32_mouse_capture_set_pointer_lock(KainWin32MouseCapture* capture, int enabled);
 void kain_win32_mouse_capture_begin_drag(KainWin32MouseCapture* capture, HWND hwnd);
@@ -137,9 +120,6 @@ void kain_win32_mouse_capture_release_all(KainWin32MouseCapture* capture);
 int kain_win32_mouse_capture_sample_relative(KainWin32MouseCapture* capture, int* delta_x, int* delta_y);
 void kain_win32_frame_timer_begin(LARGE_INTEGER* perf_freq, LARGE_INTEGER* prev_counter, double* fps_accumulator, int* fps_frames, double* frame_fps);
 double kain_win32_frame_timer_step(LARGE_INTEGER* perf_freq, LARGE_INTEGER* prev_counter, double* fps_accumulator, int* fps_frames, double* frame_fps, double min_dt, double max_dt);
-void kain_gl_perspective(double fov_y_degrees, double aspect, double near_clip, double far_clip);
-void kain_gl_draw_rect(float x, float y, float w, float h, float r, float g, float b, float a);
-void kain_gl_look_at(KainVec3 eye, KainVec3 center, KainVec3 up);
 #endif
 
 #endif

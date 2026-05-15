@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Paired Kain LLVM vs Rust LLVM benchmark runner.
+Kain multi-language benchmark runner.
 
-The benchmark cases themselves stay dependency-free. This runner uses only the
-Python standard library so the lane remains easy to run on a fresh workstation.
+The benchmark cases stay dependency-free. This runner uses only the Python
+standard library for orchestration, timing, JSON, and LLM-readable report output.
 """
 
 from __future__ import annotations
 
 import argparse
-import html
 import json
 import os
 import re
@@ -29,7 +28,22 @@ REPO_ROOT = BENCHMARK_ROOT.parent
 OUT_ROOT = BENCHMARK_ROOT / "out"
 BUILD_ROOT = OUT_ROOT / "build"
 REPORT_ROOT = OUT_ROOT / "reports"
+NATIVE_CORE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+LANGUAGE_ORDER = ["kain", "rust", "javascript", "python"]
+LANGUAGE_LABELS = {
+    "kain": "Kain LLVM",
+    "rust": "Rust LLVM",
+    "javascript": "JavaScript Node",
+    "python": "Python CPython",
+}
+LANGUAGE_SOURCE_KEYS = {
+    "kain": "kain",
+    "rust": "rust",
+    "javascript": "javascript",
+    "python": "python",
+}
 
 
 @dataclass
@@ -94,7 +108,9 @@ def repo_relative(path: Path) -> str:
         return str(path)
 
 
-def display_command(command: list[str]) -> str:
+def display_command(command: list[str] | None) -> str:
+    if not command:
+        return "n/a"
     return " ".join(command)
 
 
@@ -138,6 +154,12 @@ def find_line_that_looks_like_path(output: str) -> str | None:
     return None
 
 
+def executable_name(stem: str) -> str:
+    if os.name == "nt":
+        return f"{stem}.exe"
+    return stem
+
+
 def resolve_kain_exe(explicit: str | None, timeout: int) -> ResolvedExecutable:
     candidates: list[ResolvedExecutable] = []
 
@@ -154,7 +176,8 @@ def resolve_kain_exe(explicit: str | None, timeout: int) -> ResolvedExecutable:
         build_command = [bazel, "build", "//:kain", "--config=release"]
         build = run_command(build_command, timeout=compiler_timeout)
         info = run_command(
-            [bazel, "info", "bazel-bin", "--config=release"], timeout=compiler_timeout
+            [bazel, "info", "bazel-bin", "--config=release"],
+            timeout=compiler_timeout,
         )
         info_line = find_line_that_looks_like_path(info.stdout)
         if info_line:
@@ -180,19 +203,17 @@ def resolve_kain_exe(explicit: str | None, timeout: int) -> ResolvedExecutable:
         build = run_command(build_command, timeout=compiler_timeout)
         release_candidate = REPO_ROOT / "target" / "release" / executable_name("kain")
         if release_candidate.exists() and build.returncode == 0:
-            candidates.append(
-                ResolvedExecutable(
-                    release_candidate,
-                    "cargo --release -p cli",
-                    build_command,
-                )
+            return ResolvedExecutable(
+                release_candidate.resolve(),
+                "cargo --release -p cli",
+                build_command,
             )
 
-    candidates.append(
-        ResolvedExecutable(REPO_ROOT / "target" / "release" / executable_name("kain"), "target/release")
-    )
-    candidates.append(
-        ResolvedExecutable(REPO_ROOT / "target" / "debug" / executable_name("kain"), "target/debug")
+    candidates.extend(
+        [
+            ResolvedExecutable(REPO_ROOT / "target" / "release" / executable_name("kain"), "target/release"),
+            ResolvedExecutable(REPO_ROOT / "target" / "debug" / executable_name("kain"), "target/debug"),
+        ]
     )
 
     path_kain = shutil.which("kain")
@@ -204,15 +225,12 @@ def resolve_kain_exe(explicit: str | None, timeout: int) -> ResolvedExecutable:
             candidate.path = candidate.path.resolve()
             return candidate
 
-    raise RuntimeError(
-        "Could not find kain compiler. Set KAIN_EXE or pass --kain-exe."
-    )
+    raise RuntimeError("Could not find kain compiler. Set KAIN_EXE or pass --kain-exe.")
 
 
-def executable_name(stem: str) -> str:
-    if os.name == "nt":
-        return f"{stem}.exe"
-    return stem
+def resolve_tool(explicit: str | None, env_key: str, default_name: str) -> str:
+    requested = explicit or os.environ.get(env_key) or default_name
+    return shutil.which(requested) or requested
 
 
 def resolved_kain_native_tuning(args: argparse.Namespace) -> dict[str, str]:
@@ -221,13 +239,12 @@ def resolved_kain_native_tuning(args: argparse.Namespace) -> dict[str, str]:
     opt_level = args.kain_native_opt_level.strip() if args.kain_native_opt_level else ""
     target_cpu = args.kain_native_target_cpu.strip() if args.kain_native_target_cpu else ""
     debug_info = args.kain_native_debug_info.strip() if args.kain_native_debug_info else ""
-    tuning = {
+    return {
         "profile": defaults["KAIN_NATIVE_PROFILE"],
         "opt_level": opt_level or defaults["KAIN_NATIVE_OPT_LEVEL"],
         "target_cpu": target_cpu or defaults["KAIN_NATIVE_TARGET_CPU"],
         "debug_info": debug_info or defaults["KAIN_NATIVE_DEBUG_INFO"],
     }
-    return tuning
 
 
 def kain_native_env_from_tuning(tuning: dict[str, str]) -> dict[str, str]:
@@ -235,6 +252,7 @@ def kain_native_env_from_tuning(tuning: dict[str, str]) -> dict[str, str]:
         "KAIN_NATIVE_PROFILE": tuning["profile"],
         "KAIN_NATIVE_OPT_LEVEL": tuning["opt_level"],
         "KAIN_NATIVE_DEBUG_INFO": tuning["debug_info"],
+        "KAIN_RUNTIME_MANIFEST_PATH": str(NATIVE_CORE_RUNTIME_MANIFEST),
     }
     if tuning["target_cpu"]:
         env["KAIN_NATIVE_TARGET_CPU"] = tuning["target_cpu"]
@@ -259,13 +277,62 @@ def selected_cases(manifest: dict[str, Any], only_case: str | None) -> list[dict
     return selected
 
 
-def validate_case_files(case: dict[str, Any]) -> None:
-    kain_path = BENCHMARK_ROOT / case["kain"]
-    rust_path = BENCHMARK_ROOT / case["rust"]
-    if not kain_path.exists():
-        raise FileNotFoundError(f"missing Kain benchmark: {kain_path}")
-    if not rust_path.exists():
-        raise FileNotFoundError(f"missing Rust benchmark: {rust_path}")
+def parse_languages(raw_languages: str | None) -> list[str]:
+    if not raw_languages:
+        return LANGUAGE_ORDER.copy()
+    requested = [item.strip().lower() for item in raw_languages.split(",") if item.strip()]
+    aliases = {
+        "js": "javascript",
+        "node": "javascript",
+        "py": "python",
+        "cpython": "python",
+        "rs": "rust",
+        "kn": "kain",
+    }
+    normalized: list[str] = []
+    for language in requested:
+        language = aliases.get(language, language)
+        if language not in LANGUAGE_ORDER:
+            valid = ", ".join(LANGUAGE_ORDER)
+            raise ValueError(f"unknown language '{language}'. Valid languages: {valid}")
+        if language not in normalized:
+            normalized.append(language)
+    return normalized
+
+
+def case_source_relative(case: dict[str, Any], language: str) -> str:
+    key = LANGUAGE_SOURCE_KEYS[language]
+    language_sources = case.get("languages", {})
+    if isinstance(language_sources, dict) and language in language_sources:
+        return str(language_sources[language])
+    if key in case:
+        return str(case[key])
+    raise KeyError(f"case {case['id']} has no source for {language}")
+
+
+def case_source_path(case: dict[str, Any], language: str) -> Path:
+    return BENCHMARK_ROOT / case_source_relative(case, language)
+
+
+def validate_case_files(case: dict[str, Any], languages: list[str]) -> None:
+    for language in languages:
+        path = case_source_path(case, language)
+        if not path.exists():
+            raise FileNotFoundError(f"missing {language} benchmark: {path}")
+
+
+def missing_tool_build(language: str, command: list[str], error: str) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "language": language,
+        "exe": "",
+        "run_command": command,
+        "command": command,
+        "build_ms": 0.0,
+        "stdout": "",
+        "stderr": "",
+        "error": error,
+    }
 
 
 def build_kain_case(
@@ -283,7 +350,7 @@ def build_kain_case(
 
     command = [
         str(kain_exe.path),
-        repo_relative(BENCHMARK_ROOT / case["kain"]),
+        repo_relative(case_source_path(case, "kain")),
         "-t",
         "llvm",
         "-o",
@@ -295,6 +362,7 @@ def build_kain_case(
             "ok": exe_path.exists(),
             "language": "kain",
             "exe": str(exe_path),
+            "run_command": [str(exe_path)],
             "command": command,
             "env": env_overrides,
             "build_ms": 0.0,
@@ -315,6 +383,7 @@ def build_kain_case(
         "ok": ok,
         "language": "kain",
         "exe": str(exe_path),
+        "run_command": [str(exe_path)],
         "command": command,
         "env": env_overrides,
         "build_ms": result.elapsed_ms,
@@ -336,7 +405,7 @@ def build_rust_case(
     exe_path = build_dir / executable_name(case_id)
     command = [
         rustc,
-        repo_relative(BENCHMARK_ROOT / case["rust"]),
+        repo_relative(case_source_path(case, "rust")),
         *RUST_RELEASE_FLAGS,
         "-o",
         repo_relative(exe_path),
@@ -347,6 +416,7 @@ def build_rust_case(
             "ok": exe_path.exists(),
             "language": "rust",
             "exe": str(exe_path),
+            "run_command": [str(exe_path)],
             "command": command,
             "flags": RUST_RELEASE_FLAGS,
             "build_ms": 0.0,
@@ -361,6 +431,7 @@ def build_rust_case(
         "ok": ok,
         "language": "rust",
         "exe": str(exe_path),
+        "run_command": [str(exe_path)],
         "command": command,
         "flags": RUST_RELEASE_FLAGS,
         "build_ms": result.elapsed_ms,
@@ -370,11 +441,112 @@ def build_rust_case(
     }
 
 
-def run_executable(exe: str, timeout: int) -> CommandResult:
-    return run_command([exe], timeout=timeout)
+def build_javascript_case(
+    case: dict[str, Any],
+    node: str,
+    timeout: int,
+    no_build: bool,
+) -> dict[str, Any]:
+    source = case_source_path(case, "javascript")
+    run_command_text = [node, repo_relative(source)]
+    command = [node, "--check", repo_relative(source)]
+
+    if not shutil.which(node) and not Path(node).exists():
+        return missing_tool_build("javascript", command, f"Node executable not found: {node}")
+
+    if no_build:
+        return {
+            "ok": source.exists(),
+            "language": "javascript",
+            "exe": "",
+            "run_command": run_command_text,
+            "command": command,
+            "build_ms": 0.0,
+            "stdout": "",
+            "stderr": "",
+            "error": "" if source.exists() else f"missing JavaScript source {source}",
+        }
+
+    result = run_command(command, timeout=timeout)
+    ok = result.returncode == 0
+    return {
+        "ok": ok,
+        "language": "javascript",
+        "exe": "",
+        "run_command": run_command_text,
+        "command": command,
+        "build_ms": result.elapsed_ms,
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "error": "" if ok else "JavaScript syntax check failed.",
+    }
 
 
-def measure_executable(
+def build_python_case(
+    case: dict[str, Any],
+    python_exe: str,
+    timeout: int,
+    no_build: bool,
+) -> dict[str, Any]:
+    source = case_source_path(case, "python")
+    run_command_text = [python_exe, repo_relative(source)]
+    command = [python_exe, "-m", "py_compile", repo_relative(source)]
+
+    if not shutil.which(python_exe) and not Path(python_exe).exists():
+        return missing_tool_build("python", command, f"Python executable not found: {python_exe}")
+
+    if no_build:
+        return {
+            "ok": source.exists(),
+            "language": "python",
+            "exe": "",
+            "run_command": run_command_text,
+            "command": command,
+            "build_ms": 0.0,
+            "stdout": "",
+            "stderr": "",
+            "error": "" if source.exists() else f"missing Python source {source}",
+        }
+
+    result = run_command(command, timeout=timeout)
+    ok = result.returncode == 0
+    return {
+        "ok": ok,
+        "language": "python",
+        "exe": "",
+        "run_command": run_command_text,
+        "command": command,
+        "build_ms": result.elapsed_ms,
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "error": "" if ok else "Python py_compile failed.",
+    }
+
+
+def build_language_case(
+    case: dict[str, Any],
+    language: str,
+    tools: dict[str, Any],
+    timeout: int,
+    no_build: bool,
+    kain_native_env: dict[str, str],
+) -> dict[str, Any]:
+    if language == "kain":
+        return build_kain_case(case, tools["kain"], timeout, no_build, kain_native_env)
+    if language == "rust":
+        return build_rust_case(case, tools["rustc"], timeout, no_build)
+    if language == "javascript":
+        return build_javascript_case(case, tools["node"], timeout, no_build)
+    if language == "python":
+        return build_python_case(case, tools["python"], timeout, no_build)
+    raise ValueError(f"unsupported language: {language}")
+
+
+def run_program(command: list[str], timeout: int) -> CommandResult:
+    return run_command(command, timeout=timeout)
+
+
+def measure_program(
     build: dict[str, Any],
     warmups: int,
     runs: int,
@@ -391,16 +563,17 @@ def measure_executable(
             "error": build["error"],
         }
 
+    command = build["run_command"]
     warmup_results = []
     for _ in range(warmups):
-        result = run_executable(build["exe"], timeout=timeout)
+        result = run_program(command, timeout=timeout)
         warmup_results.append(result.elapsed_ms)
         if result.returncode != 0:
             return failed_run_result(result, warmup_results)
 
     samples = []
     for _ in range(runs):
-        result = run_executable(build["exe"], timeout=timeout)
+        result = run_program(command, timeout=timeout)
         samples.append(result.elapsed_ms)
         if result.returncode != 0:
             return failed_run_result(result, warmup_results, samples)
@@ -430,70 +603,82 @@ def failed_run_result(
         "mean_ms": None,
         "error": (
             f"Executable failed with exit code {result.returncode}.\n"
+            f"command:\n{display_command(result.command)}\n"
             f"stdout:\n{result.stdout[-2000:]}\n"
             f"stderr:\n{result.stderr[-2000:]}"
         ),
     }
 
 
+def compute_winner(run_results: dict[str, dict[str, Any]], languages: list[str]) -> tuple[str, float | None]:
+    winners: list[tuple[str, float]] = []
+    for language in languages:
+        run = run_results[language]
+        if run["ok"] and run["median_ms"] is not None:
+            winners.append((language, float(run["median_ms"])))
+    if not winners:
+        return "n/a", None
+    winners.sort(key=lambda item: item[1])
+    return winners[0]
+
+
+def compute_relative_to_fastest(
+    run_results: dict[str, dict[str, Any]],
+    fastest_ms: float | None,
+    languages: list[str],
+) -> dict[str, float | None]:
+    ratios: dict[str, float | None] = {}
+    for language in languages:
+        median = run_results[language]["median_ms"]
+        if fastest_ms is None or median is None or fastest_ms <= 0:
+            ratios[language] = None
+        else:
+            ratios[language] = float(median) / fastest_ms
+    return ratios
+
+
 def benchmark_case(
     case: dict[str, Any],
-    kain_exe: ResolvedExecutable,
-    rustc: str,
+    languages: list[str],
+    tools: dict[str, Any],
     warmups: int,
     runs: int,
     timeout: int,
     no_build: bool,
     kain_native_env: dict[str, str],
 ) -> dict[str, Any]:
-    validate_case_files(case)
-    kain_build = build_kain_case(case, kain_exe, timeout, no_build, kain_native_env)
-    rust_build = build_rust_case(case, rustc, timeout, no_build)
-    kain_run = measure_executable(kain_build, warmups, runs, timeout)
-    rust_run = measure_executable(rust_build, warmups, runs, timeout)
+    validate_case_files(case, languages)
+    build_results: dict[str, dict[str, Any]] = {}
+    run_results: dict[str, dict[str, Any]] = {}
 
-    speedup = None
-    winner = "n/a"
-    if kain_run["ok"] and rust_run["ok"]:
-        kain_median = float(kain_run["median_ms"])
-        rust_median = float(rust_run["median_ms"])
-        if kain_median > 0:
-            speedup = rust_median / kain_median
-        if kain_median < rust_median:
-            winner = "kain"
-        elif rust_median < kain_median:
-            winner = "rust"
-        else:
-            winner = "tie"
+    for language in languages:
+        build_results[language] = build_language_case(
+            case,
+            language,
+            tools,
+            timeout,
+            no_build,
+            kain_native_env,
+        )
+        run_results[language] = measure_program(build_results[language], warmups, runs, timeout)
 
+    winner, fastest_ms = compute_winner(run_results, languages)
     return {
         "id": case["id"],
         "title": case.get("title", case["id"]),
         "description": case.get("description", ""),
         "maturity": case.get("maturity", "implemented"),
         "fairness_note": case.get("fairness_note", ""),
+        "language_notes": case.get("language_notes", {}),
         "source": {
-            "kain": case["kain"],
-            "rust": case["rust"],
+            language: case_source_relative(case, language)
+            for language in languages
         },
-        "build": {
-            "kain": kain_build,
-            "rust": rust_build,
-        },
-        "toolchain": {
-            "kain_exe": str(kain_exe.path),
-            "kain_exe_source": kain_exe.source,
-            "kain_exe_build_command": kain_exe.build_command,
-            "kain_native_env": kain_native_env,
-            "rustc": rustc,
-            "rust_flags": RUST_RELEASE_FLAGS,
-        },
-        "run": {
-            "kain": kain_run,
-            "rust": rust_run,
-        },
-        "speedup_rust_over_kain": speedup,
+        "build": build_results,
+        "run": run_results,
         "winner": winner,
+        "fastest_median_ms": fastest_ms,
+        "relative_to_fastest": compute_relative_to_fastest(run_results, fastest_ms, languages),
     }
 
 
@@ -507,221 +692,166 @@ def fmt_ratio(value: Any) -> str:
     if value is None:
         return "n/a"
     ratio = float(value)
-    if ratio >= 1.0:
-        return f"Kain {ratio:.2f}x faster"
-    return f"Rust {(1.0 / ratio):.2f}x faster"
+    if ratio <= 1.001:
+        return "fastest"
+    return f"{ratio:.2f}x slower"
 
 
 def render_samples(samples: list[float]) -> str:
-    return ", ".join(f"{sample:.2f}" for sample in samples)
+    if not samples:
+        return "[]"
+    return "[" + ", ".join(f"{sample:.3f}" for sample in samples) + "]"
 
 
-def render_html(report: dict[str, Any]) -> str:
-    generated = html.escape(report["generated_at"])
-    rows = []
-    detail_sections = []
-    max_median = 0.0
+def status_text(ok: bool) -> str:
+    return "PASS" if ok else "FAIL"
+
+
+def markdown_table_row(cells: list[str]) -> str:
+    escaped = [cell.replace("|", "\\|").replace("\n", " ") for cell in cells]
+    return "| " + " | ".join(escaped) + " |"
+
+
+def render_summary_table(report: dict[str, Any]) -> str:
+    languages = report["languages"]
+    header = ["case", "maturity", "winner"] + [f"{language} median ms" for language in languages]
+    divider = ["---"] * len(header)
+    rows = [markdown_table_row(header), markdown_table_row(divider)]
     for case in report["cases"]:
-        for lang in ("kain", "rust"):
-            median = case["run"][lang]["median_ms"]
-            if median is not None:
-                max_median = max(max_median, float(median))
-
-    for case in report["cases"]:
-        kain_run = case["run"]["kain"]
-        rust_run = case["run"]["rust"]
-        ratio = fmt_ratio(case["speedup_rust_over_kain"])
-        winner = case["winner"]
-        kain_bar = bar_width(kain_run["median_ms"], max_median)
-        rust_bar = bar_width(rust_run["median_ms"], max_median)
-        rows.append(
-            "<tr>"
-            f"<td><strong>{html.escape(case['id'])}</strong><br><span>{html.escape(case['title'])}</span><br><em>{html.escape(case.get('maturity', 'implemented'))}</em></td>"
-            f"<td class='num'>{fmt_ms(kain_run['median_ms'])}</td>"
-            f"<td><div class='bar kain' style='width:{kain_bar}%'></div></td>"
-            f"<td class='num'>{fmt_ms(rust_run['median_ms'])}</td>"
-            f"<td><div class='bar rust' style='width:{rust_bar}%'></div></td>"
-            f"<td>{html.escape(winner)}</td>"
-            f"<td>{html.escape(ratio)}</td>"
-            "</tr>"
-        )
-        detail_sections.append(render_case_detail(case))
-
-    status_class = "ok" if report["ok"] else "bad"
-    status_text = "PASS" if report["ok"] else "CHECK FAILURES"
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kain vs Rust LLVM Benchmarks</title>
-<style>
-:root {{
-  --ink: #17130d;
-  --muted: #756c5f;
-  --paper: #f7efe1;
-  --panel: #fffaf0;
-  --line: #d8c8ad;
-  --kain: #c45a2e;
-  --rust: #355f72;
-  --good: #2d7d46;
-  --bad: #9e2f2f;
-}}
-* {{ box-sizing: border-box; }}
-body {{
-  margin: 0;
-  color: var(--ink);
-  background:
-    radial-gradient(circle at 12% 10%, rgba(196, 90, 46, .20), transparent 28rem),
-    radial-gradient(circle at 90% 4%, rgba(53, 95, 114, .18), transparent 26rem),
-    linear-gradient(135deg, #f7efe1, #ead9bb);
-  font: 15px/1.45 Georgia, "Times New Roman", serif;
-}}
-main {{ max-width: 1160px; margin: 0 auto; padding: 30px 18px 44px; }}
-header {{ display: grid; gap: 10px; margin-bottom: 18px; }}
-h1 {{ margin: 0; font-size: clamp(32px, 6vw, 72px); letter-spacing: -0.06em; line-height: .92; }}
-h2 {{ margin: 28px 0 10px; font-size: 24px; }}
-.lede {{ max-width: 860px; color: var(--muted); font-size: 17px; }}
-.pill {{
-  display: inline-block; width: fit-content; padding: 4px 10px;
-  border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.35);
-  font: 12px/1.2 Consolas, monospace; letter-spacing: .06em;
-}}
-.pill.ok {{ color: var(--good); border-color: rgba(45,125,70,.35); }}
-.pill.bad {{ color: var(--bad); border-color: rgba(158,47,47,.35); }}
-table {{ width: 100%; border-collapse: collapse; background: rgba(255,250,240,.78); box-shadow: 0 18px 60px rgba(65,45,20,.10); }}
-th, td {{ border-bottom: 1px solid var(--line); padding: 10px; text-align: left; vertical-align: middle; }}
-th {{ font: 12px/1.2 Consolas, monospace; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }}
-td.num {{ font: 14px/1.2 Consolas, monospace; text-align: right; white-space: nowrap; }}
-td span {{ color: var(--muted); }}
-.bar {{ height: 12px; min-width: 2px; border-radius: 999px; }}
-.bar.kain {{ background: var(--kain); }}
-.bar.rust {{ background: var(--rust); }}
-section.case {{ margin-top: 16px; padding: 14px; border: 1px solid var(--line); background: rgba(255,250,240,.58); }}
-pre {{ overflow: auto; padding: 10px; background: #201b15; color: #ffe9c2; font: 12px/1.4 Consolas, monospace; }}
-code {{ font-family: Consolas, monospace; }}
-.grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }}
-.meta {{ color: var(--muted); }}
-@media (max-width: 820px) {{ .grid {{ grid-template-columns: 1fr; }} table {{ font-size: 13px; }} }}
-</style>
-</head>
-<body>
-<main>
-<header>
-<span class="pill {status_class}">{status_text}</span>
-<h1>Kain vs Rust LLVM</h1>
-<p class="lede">Paired native benchmarks. Programs use no external packages; the runner builds Kain LLVM and Rust LLVM artifacts, times executable samples, and rewrites this report every run.</p>
-<p class="meta">Generated {generated}. Warmups: {report['warmups']}. Timed runs: {report['runs']}. Host: {html.escape(report['platform'])}.</p>
-</header>
-{render_toolchain_summary(report)}
-<table>
-<thead>
-<tr><th>Case</th><th>Kain median ms</th><th>Kain</th><th>Rust median ms</th><th>Rust</th><th>Winner</th><th>Ratio</th></tr>
-</thead>
-<tbody>
-{''.join(rows)}
-</tbody>
-</table>
-<h2>Details</h2>
-{''.join(detail_sections)}
-</main>
-</body>
-</html>
-"""
+        cells = [case["id"], case["maturity"], case["winner"]]
+        for language in languages:
+            cells.append(fmt_ms(case["run"][language]["median_ms"]))
+        rows.append(markdown_table_row(cells))
+    return "\n".join(rows)
 
 
-def bar_width(value: Any, max_value: float) -> int:
-    if value is None or max_value <= 0:
-        return 0
-    return max(2, int((float(value) / max_value) * 100))
-
-
-def render_case_detail(case: dict[str, Any]) -> str:
-    parts = [
-        f"<section class='case'><h3>{html.escape(case['id'])}: {html.escape(case['title'])}</h3>",
-        f"<p>{html.escape(case['description'])}</p>",
-        f"<p><strong>Maturity:</strong> {html.escape(case.get('maturity', 'implemented'))}</p>",
-        f"<p><strong>Fairness note:</strong> {html.escape(case.get('fairness_note', ''))}</p>",
-        "<div class='grid'>",
-    ]
-    for lang in ("kain", "rust"):
-        build = case["build"][lang]
-        run = case["run"][lang]
-        source = html.escape(case["source"][lang])
-        parts.append(
-            "<div>"
-            f"<h4>{lang}</h4>"
-            f"<p><code>{source}</code></p>"
-            f"<p>build: {fmt_ms(build['build_ms'])} ms | min: {fmt_ms(run['min_ms'])} ms | median: {fmt_ms(run['median_ms'])} ms | mean: {fmt_ms(run['mean_ms'])} ms</p>"
-            f"<p>samples: <code>{html.escape(render_samples(run['samples_ms']))}</code></p>"
-            f"<pre>{html.escape(display_command(build['command']))}</pre>"
-            f"{render_error(build, run)}"
-            "</div>"
-        )
-    parts.append("</div></section>")
-    return "".join(parts)
-
-
-def render_toolchain_summary(report: dict[str, Any]) -> str:
+def render_toolchain(report: dict[str, Any]) -> str:
     toolchain = report.get("toolchain", {})
     kain_native_env = toolchain.get("kain_native_env", {})
-    native_summary = ", ".join(
-        f"{key}={html.escape(value)}"
-        for key, value in (
-            ("profile", kain_native_env.get("KAIN_NATIVE_PROFILE", "n/a")),
-            ("opt_level", kain_native_env.get("KAIN_NATIVE_OPT_LEVEL", "n/a")),
-            ("target_cpu", kain_native_env.get("KAIN_NATIVE_TARGET_CPU") or "none"),
-            ("debug_info", kain_native_env.get("KAIN_NATIVE_DEBUG_INFO", "n/a")),
+    lines = [
+        "## Toolchain",
+        "",
+        f"- kain_exe: `{toolchain.get('kain_exe', 'n/a')}`",
+        f"- kain_exe_source: `{toolchain.get('kain_exe_source', 'n/a')}`",
+        f"- kain_exe_build_command: `{display_command(toolchain.get('kain_exe_build_command'))}`",
+        f"- kain_native_env: `{json.dumps(kain_native_env, sort_keys=True)}`",
+        f"- rustc: `{toolchain.get('rustc', 'n/a')}`",
+        f"- rust_flags: `{display_command(toolchain.get('rust_flags', []))}`",
+        f"- node: `{toolchain.get('node', 'n/a')}`",
+        f"- python: `{toolchain.get('python', 'n/a')}`",
+    ]
+    return "\n".join(lines)
+
+
+def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
+    lines = [
+        f"### {case['id']} - {case['title']}",
+        "",
+        f"- maturity: `{case.get('maturity', 'implemented')}`",
+        f"- winner: `{case.get('winner', 'n/a')}`",
+        f"- fastest_median_ms: `{fmt_ms(case.get('fastest_median_ms'))}`",
+        f"- description: {case.get('description', '')}",
+        f"- fairness_note: {case.get('fairness_note', '')}",
+    ]
+
+    language_notes = case.get("language_notes", {})
+    if language_notes:
+        lines.append("- language_notes:")
+        for language in languages:
+            note = language_notes.get(language)
+            if note:
+                lines.append(f"  - {language}: {note}")
+
+    lines.extend(["", "Sources:"])
+    for language in languages:
+        lines.append(f"- {language}: `{case['source'][language]}`")
+
+    lines.extend(["", "Measurements:"])
+    for language in languages:
+        build = case["build"][language]
+        run = case["run"][language]
+        lines.extend(
+            [
+                f"- {language}:",
+                f"  - build_ok: `{status_text(build['ok'])}`",
+                f"  - run_ok: `{status_text(run['ok'])}`",
+                f"  - build_ms: `{fmt_ms(build['build_ms'])}`",
+                f"  - min_ms: `{fmt_ms(run['min_ms'])}`",
+                f"  - median_ms: `{fmt_ms(run['median_ms'])}`",
+                f"  - mean_ms: `{fmt_ms(run['mean_ms'])}`",
+                f"  - relative_to_fastest: `{fmt_ratio(case['relative_to_fastest'][language])}`",
+                f"  - samples_ms: `{render_samples(run['samples_ms'])}`",
+                f"  - build_command: `{display_command(build.get('command'))}`",
+                f"  - run_command: `{display_command(build.get('run_command'))}`",
+            ]
         )
-    )
-    rust_flags = toolchain.get("rust_flags", [])
-    rust_flags_text = " ".join(rust_flags) if rust_flags else "n/a"
-    build_command = toolchain.get("kain_exe_build_command")
-    build_command_text = display_command(build_command) if build_command else "n/a"
-    return (
-        "<section class='case'><h2>Toolchain</h2>"
-        f"<p><strong>Kain exe:</strong> <code>{html.escape(toolchain.get('kain_exe', 'n/a'))}</code></p>"
-        f"<p><strong>Kain source:</strong> {html.escape(toolchain.get('kain_exe_source', 'n/a'))}</p>"
-        f"<p><strong>Kain native:</strong> <code>{native_summary}</code></p>"
-        f"<p><strong>Kain build:</strong></p><pre>{html.escape(build_command_text)}</pre>"
-        f"<p><strong>Rust flags:</strong> <code>{html.escape(rust_flags_text)}</code></p>"
-        "</section>"
-    )
+        if build.get("error") or run.get("error"):
+            error_text = (build.get("error", "") + "\n" + run.get("error", "")).strip()
+            lines.append("  - error:")
+            for line in error_text.splitlines():
+                lines.append(f"    {line}")
+
+    return "\n".join(lines)
 
 
-def render_error(build: dict[str, Any], run: dict[str, Any]) -> str:
-    errors = []
-    if build.get("error"):
-        errors.append(build["error"])
-    if run.get("error"):
-        errors.append(run["error"])
-    if not errors:
-        return ""
-    return f"<pre>{html.escape(chr(10).join(errors))}</pre>"
+def render_llm_report(report: dict[str, Any]) -> str:
+    languages = report.get("languages", [])
+    lines = [
+        "# Kain Benchmark Report",
+        "",
+        f"- status: `{status_text(report.get('ok', False))}`",
+        f"- generated_at: `{report.get('generated_at', 'n/a')}`",
+        f"- suite: `{report.get('suite', 'n/a')}`",
+        f"- platform: `{report.get('platform', 'n/a')}`",
+        f"- warmups: `{report.get('warmups', 'n/a')}`",
+        f"- timed_runs: `{report.get('runs', 'n/a')}`",
+        f"- languages: `{', '.join(languages)}`",
+        f"- json_report: `benchmark/out/reports/latest.json`",
+        "",
+    ]
+    if report.get("fatal_error"):
+        lines.extend(["## Fatal Error", "", report["fatal_error"], ""])
+    lines.extend([render_toolchain(report), "", "## Summary", "", render_summary_table(report), "", "## Case Details", ""])
+    for case in report.get("cases", []):
+        lines.extend([render_case_detail(case, languages), ""])
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def write_reports(report: dict[str, Any]) -> Path:
     REPORT_ROOT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    html_path = REPORT_ROOT / f"{stamp}.html"
-    latest_html = REPORT_ROOT / "latest.html"
+    json_text = json.dumps(report, indent=2)
+    llm_text = render_llm_report(report)
+
+    json_path = REPORT_ROOT / f"{stamp}.json"
+    llm_path = REPORT_ROOT / f"{stamp}.llm.md"
     latest_json = REPORT_ROOT / "latest.json"
-    html_text = render_html(report)
-    html_path.write_text(html_text, encoding="utf-8")
-    latest_html.write_text(html_text, encoding="utf-8")
-    latest_json.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    return latest_html
+    latest_llm = REPORT_ROOT / "latest.llm.md"
+
+    json_path.write_text(json_text, encoding="utf-8")
+    latest_json.write_text(json_text, encoding="utf-8")
+    llm_path.write_text(llm_text, encoding="utf-8")
+    latest_llm.write_text(llm_text, encoding="utf-8")
+
+    stale_latest_html = REPORT_ROOT / "latest.html"
+    if stale_latest_html.exists():
+        stale_latest_html.unlink()
+
+    return latest_llm
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=str(BENCHMARK_ROOT / "benchmarks.json"))
     parser.add_argument("--case", dest="only_case")
+    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,javascript,python")
     parser.add_argument("--runs", type=int)
     parser.add_argument("--warmups", type=int)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--kain-exe")
     parser.add_argument("--rustc", default=os.environ.get("RUSTC", "rustc"))
+    parser.add_argument("--node", default=os.environ.get("NODE", "node"))
+    parser.add_argument("--python", default=os.environ.get("PYTHON", sys.executable))
     parser.add_argument(
         "--kain-native-profile",
         choices=sorted(KAIN_NATIVE_PROFILE_DEFAULTS.keys()),
@@ -737,40 +867,53 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     manifest = load_manifest(Path(args.manifest))
+    languages = parse_languages(args.languages)
     warmups = args.warmups if args.warmups is not None else int(manifest.get("default_warmups", 2))
     runs = args.runs if args.runs is not None else int(manifest.get("default_runs", 7))
     kain_native_tuning = resolved_kain_native_tuning(args)
     kain_native_env = kain_native_env_from_tuning(kain_native_tuning)
 
     report: dict[str, Any] = {
-        "suite": manifest.get("suite", "kain-vs-rust-llvm"),
+        "suite": manifest.get("suite", "kain-multi-language-benchmarks"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "platform": sys.platform,
         "warmups": warmups,
         "runs": runs,
+        "languages": languages,
+        "language_labels": {language: LANGUAGE_LABELS[language] for language in languages},
         "cases": [],
         "ok": False,
         "toolchain": {},
     }
 
     try:
-        kain_exe = resolve_kain_exe(args.kain_exe, args.timeout)
-        rustc_path = shutil.which(args.rustc) or args.rustc
+        kain_exe = resolve_kain_exe(args.kain_exe, args.timeout) if "kain" in languages else None
+        rustc_path = resolve_tool(args.rustc, "RUSTC", "rustc")
+        node_path = resolve_tool(args.node, "NODE", "node")
+        python_path = resolve_tool(args.python, "PYTHON", sys.executable)
+        tools: dict[str, Any] = {
+            "kain": kain_exe,
+            "rustc": rustc_path,
+            "node": node_path,
+            "python": python_path,
+        }
         report["toolchain"] = {
-            "kain_exe": str(kain_exe.path),
-            "kain_exe_source": kain_exe.source,
-            "kain_exe_build_command": kain_exe.build_command,
+            "kain_exe": str(kain_exe.path) if kain_exe else "not selected",
+            "kain_exe_source": kain_exe.source if kain_exe else "not selected",
+            "kain_exe_build_command": kain_exe.build_command if kain_exe else None,
             "kain_native_tuning": kain_native_tuning,
             "kain_native_env": kain_native_env,
             "rustc": rustc_path,
             "rust_flags": RUST_RELEASE_FLAGS,
+            "node": node_path,
+            "python": python_path,
         }
         for case in selected_cases(manifest, args.only_case):
             print(f"[bench] {case['id']}")
             result = benchmark_case(
                 case=case,
-                kain_exe=kain_exe,
-                rustc=rustc_path,
+                languages=languages,
+                tools=tools,
                 warmups=warmups,
                 runs=runs,
                 timeout=args.timeout,
@@ -779,8 +922,9 @@ def main() -> int:
             )
             report["cases"].append(result)
         report["ok"] = all(
-            case["run"]["kain"]["ok"] and case["run"]["rust"]["ok"]
+            case["run"][language]["ok"]
             for case in report["cases"]
+            for language in languages
         )
     except Exception as exc:
         report["fatal_error"] = str(exc)

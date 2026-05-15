@@ -1,0 +1,45 @@
+[package]
+name = "vulkain"
+version = "0.1.0"
+description = "Raw reusable Vulkan window package for Kain LLVM blades."
+
+[blade]
+name = "vulkain"
+kind = "kain_library"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/vulkain.kn",
+  "config/vulkain.runtime.json",
+  "native/vulkain_bridge.h",
+  "native/vulkain_bridge.c",
+  "native/shaders/vulkain_basic.vert",
+  "native/shaders/vulkain_basic.frag",
+]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+header = "native/vulkain_bridge.h"
+sources = ["native/vulkain_bridge.c"]
+shared_lib = ".kain/native/${kain_dynlib:vulkain_bridge}"

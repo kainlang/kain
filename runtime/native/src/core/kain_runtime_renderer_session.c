@@ -65,7 +65,7 @@ static KainRendererSceneExecutorKind kain_renderer_session_executor_for_platform
 
     switch (platform_kind) {
         case KAIN_PLATFORM_KIND_WIN32:
-            return KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_GL;
+            return KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE;
         case KAIN_PLATFORM_KIND_LINUX:
             return KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE;
         default:
@@ -331,8 +331,7 @@ const char* kain_runtime_renderer_scene_executor_name(
 int kain_runtime_renderer_session_should_use_gl_compat(
     const KainRuntimeRendererSession* session
 ) {
-    return session &&
-        session->executor_kind == KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_GL;
+    return 0;
 }
 
 void kain_runtime_renderer_session_format_summary(

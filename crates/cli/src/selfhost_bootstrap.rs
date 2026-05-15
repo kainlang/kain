@@ -1350,7 +1350,6 @@ fn default_native_runtime_link_libs() -> Vec<String> {
             "legacy_stdio_definitions".to_string(),
             "user32".to_string(),
             "gdi32".to_string(),
-            "opengl32".to_string(),
             "ws2_32".to_string(),
         ]
     } else if cfg!(target_os = "linux") {
@@ -1552,5 +1551,16 @@ source_order = ["src/core/first.kn", "src/core/second.kn"]
             Path::new(&contract.source_root),
             repo_root.join("src/core").as_path()
         );
+    }
+
+    #[test]
+    fn windows_default_runtime_link_libs_do_not_force_opengl() {
+        if cfg!(windows) {
+            assert!(
+                !super::default_native_runtime_link_libs()
+                    .iter()
+                    .any(|value| value == "opengl32")
+            );
+        }
     }
 }

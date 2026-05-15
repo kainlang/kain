@@ -28,7 +28,7 @@ else
 fi
 
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    LDFLAGS="-lws2_32 -luser32 -lgdi32 -lopengl32 -lshell32"
+    LDFLAGS="-lws2_32 -luser32 -lgdi32 -lshell32"
     PLATFORM_SHARED_SOURCE="$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c"
 else
     LDFLAGS="-lpthread -lm"
@@ -50,18 +50,9 @@ echo "Compiling supporting runtime objects..."
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_diagnostics.c" -o "$BIN_DIR/kain_runtime_diagnostics.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_bundle.c" -o "$BIN_DIR/kain_ui_compiled_bundle.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_runtime.c" -o "$BIN_DIR/kain_ui_runtime.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_hot_reload.c" -o "$BIN_DIR/kain_ui_hot_reload.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_native_ui_host_adapter.c" -o "$BIN_DIR/kain_native_ui_host_adapter.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_native_ui_system.c" -o "$BIN_DIR/kain_native_ui_system.o"
-
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/gfx/opengl/kain_gl_win32_host.c" -o "$BIN_DIR/kain_gl_win32_host.o"
-    "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_native_ui_host_win32_gl.c" -o "$BIN_DIR/kain_native_ui_host_win32_gl.o"
-    PLATFORM_OBJECTS+=("$BIN_DIR/kain_gl_win32_host.o" "$BIN_DIR/kain_native_ui_host_win32_gl.o")
-fi
-
-echo "Compiling overlay sources (compile-only smoke)..."
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_overlay.c" -o "$BIN_DIR/kain_ui_compiled_overlay.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_overlay.c" -o "$BIN_DIR/kain_ui_overlay.o"
 
 echo ""
 echo "Compiling test_ui_runtime_bundle..."
@@ -72,6 +63,9 @@ echo "Compiling test_ui_runtime_focus..."
 
 echo "Compiling test_ui_runtime_parity..."
 "$C_COMPILER" $CFLAGS test_ui_runtime_parity.c "$BIN_DIR/kain_ui_runtime.o" "$BIN_DIR/kain_ui_compiled_bundle.o" "$BIN_DIR/kain_runtime_platform_shared.o" -o "$BIN_DIR/test_ui_runtime_parity.exe" $LDFLAGS
+
+echo "Compiling test_ui_runtime_reload..."
+"$C_COMPILER" $CFLAGS test_ui_runtime_reload.c "$BIN_DIR/kain_ui_runtime.o" "$BIN_DIR/kain_ui_compiled_bundle.o" "$BIN_DIR/kain_ui_hot_reload.o" "$BIN_DIR/kain_runtime_platform_shared.o" -o "$BIN_DIR/test_ui_runtime_reload.exe" $LDFLAGS
 
 echo "Compiling test_native_ui_system_kernel..."
 "$C_COMPILER" $CFLAGS test_native_ui_system_kernel.c "$BIN_DIR/kain_native_ui_system.o" "$BIN_DIR/kain_native_ui_host_adapter.o" "${PLATFORM_OBJECTS[@]}" "$BIN_DIR/kain_runtime_platform_shared.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_kernel.exe" $LDFLAGS

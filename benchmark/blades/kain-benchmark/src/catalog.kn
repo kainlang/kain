@@ -1,0 +1,73 @@
+pub fn benchmark_language_count() -> Int:
+    return 4
+
+pub fn benchmark_language_label(index: Int) -> String:
+    if index == 0:
+        return "KAIN LLVM"
+    if index == 1:
+        return "RUST LLVM"
+    if index == 2:
+        return "NODE JS"
+    return "CPYTHON"
+
+pub fn benchmark_language_cli() -> String:
+    return "kain,rust,javascript,python"
+
+pub fn benchmark_case_count() -> Int:
+    return 14
+
+pub fn benchmark_case_id(index: Int) -> String:
+    if index == 0:
+        return "contention_wall"
+    if index == 1:
+        return "ghost_mirror"
+    if index == 2:
+        return "evolutionary_loop"
+    if index == 3:
+        return "ownership_memory"
+    if index == 4:
+        return "branch_dispatch"
+    if index == 5:
+        return "call_chain"
+    if index == 6:
+        return "memory_stream"
+    if index == 7:
+        return "alloc_churn"
+    if index == 8:
+        return "scalar_mix"
+    if index == 9:
+        return "recursive_sum"
+    if index == 10:
+        return "string_ops"
+    if index == 11:
+        return "array_scan"
+    if index == 12:
+        return "struct_method"
+    return "option_result"
+
+pub fn benchmark_case_maturity(index: Int) -> String:
+    if index == 0:
+        return "proxy"
+    if index == 1:
+        return "semantic-proxy"
+    if index == 2:
+        return "dispatch-skeleton"
+    return "implemented"
+
+pub fn benchmark_case_line(index: Int) -> String:
+    return benchmark_case_id(index) + " / " + benchmark_case_maturity(index)
+
+pub fn benchmark_case_overview_a() -> String:
+    return benchmark_case_line(0) + "  |  " + benchmark_case_line(1) + "  |  " + benchmark_case_line(2)
+
+pub fn benchmark_case_overview_b() -> String:
+    return benchmark_case_line(3) + "  |  " + benchmark_case_line(4) + "  |  " + benchmark_case_line(5)
+
+pub fn benchmark_case_overview_c() -> String:
+    return benchmark_case_line(6) + "  |  " + benchmark_case_line(7) + "  |  " + benchmark_case_line(8)
+
+pub fn benchmark_case_overview_d() -> String:
+    return benchmark_case_line(9) + "  |  " + benchmark_case_line(10) + "  |  " + benchmark_case_line(11)
+
+pub fn benchmark_case_overview_e() -> String:
+    return benchmark_case_line(12) + "  |  " + benchmark_case_line(13)

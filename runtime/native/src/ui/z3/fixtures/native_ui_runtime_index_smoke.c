@@ -276,19 +276,6 @@ int main(void) {
     if (!require_true(kain_native_ui_host_frame_hash(session) > 0, "host frame hash")) {
         return 1;
     }
-    if (strcmp(backend, "win32-gl") == 0) {
-        int present_loop = 0;
-        while (!kain_native_ui_host_should_close(session) && present_loop < 8) {
-            if (!require_true(kain_native_ui_host_present(session) == 4, "win32-gl repeat present")) {
-                return 1;
-            }
-            present_loop += 1;
-        }
-        if (!require_true(kain_native_ui_host_should_close(session) == 1, "win32-gl close signal")) {
-            return 1;
-        }
-    }
-
     hot_reload_commit = kain_native_ui_hot_reload_commit(session);
     if (!require_true(hot_reload_commit == 1, "hot reload commit")) {
         return 1;

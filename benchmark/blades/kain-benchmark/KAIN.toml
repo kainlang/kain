@@ -1,0 +1,34 @@
+[package]
+name = "kain-benchmark"
+version = "0.1.0"
+description = "Native Kain benchmark console for running and reading the multi-language benchmark lane."
+
+[blade]
+name = "kain-benchmark"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/catalog.kn",
+  "src/layout.kn",
+  "src/runner.kn",
+  "src/theme.kn",
+]

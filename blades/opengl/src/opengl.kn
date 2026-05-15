@@ -1,0 +1,14 @@
+pub fn opengl_probe() -> Int:
+    return opengl_native_probe()
+
+pub fn opengl_frames_presented() -> Int:
+    return opengl_native_frames_presented()
+
+pub fn opengl_triangles_drawn() -> Int:
+    return opengl_native_triangles_drawn()
+
+pub fn opengl_run_window(title: String, width: Int, height: Int, frame_budget: Int, clear_red: Int, clear_green: Int, clear_blue: Int, accent_red: Int, accent_green: Int, accent_blue: Int) -> Int:
+    return opengl_native_run_window(title, width, height, frame_budget, clear_red, clear_green, clear_blue, accent_red, accent_green, accent_blue)
+
+pub fn opengl_write_report(path: String) -> Int:
+    return opengl_native_write_report(path)

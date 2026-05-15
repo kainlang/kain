@@ -1,0 +1,44 @@
+[package]
+name = "opengl"
+version = "0.1.0"
+description = "Raw reusable Win32/WGL compatibility blade package for native LLVM Kain work."
+
+[blade]
+name = "opengl"
+kind = "kain_library"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/opengl.kn",
+  "native/opengl_bridge.h",
+  "native/opengl_bridge.c",
+  "build-opengl.ps1",
+  "run.ps1",
+]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "opengl_bridge"
+header = "native/opengl_bridge.h"
+shared_lib = ".kain/native/opengl_bridge.obj"
+link_libs = ["user32", "gdi32", "opengl32"]

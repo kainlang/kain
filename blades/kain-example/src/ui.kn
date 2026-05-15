@@ -464,7 +464,7 @@ fn main() -> Int:
     let labs_mandelbrot_svg_path = cookiecutter_output_path("mandelbrot.svg")
     let labs_html_path = cookiecutter_output_path("showcase.html")
 
-    let session = ui_host_session_create("kain-example-workbench", "Kain Example Native Workbench", episode_window_width(), episode_window_height(), "win32-gl")
+    let session = ui_host_session_create("kain-example-workbench", "Kain Example Native Workbench", episode_window_width(), episode_window_height(), "software")
     let generation = native_ui_hot_reload_begin(session, "kain-example.workbench.rev-c")
     let body_font = native_ui_font_create(session, "font.ep2.body", "Inter", 14.0)
     let title_font = native_ui_font_create(session, "font.ep2.title", "Inter", 24.0)
@@ -541,7 +541,7 @@ fn main() -> Int:
     let _accent_label_c_theme = apply_metric_text(session, accent_label_c_node)
     let _accent_label_d_theme = apply_metric_text(session, accent_label_d_node)
 
-    let _root_draw = ui_state_draw(session, root, "scene.compositor", "win32-gl")
+    let _root_draw = ui_state_draw(session, root, "scene.compositor", "software")
     let _hero_shape = ui_state_shape(session, hero_panel, "episode.viewport.card", "author=Kain;mode=viewport;shader=true")
     let _hero_hit = ui_state_hit(session, hero_panel, "rect", "hero-panel")
     let _hero_draw = ui_state_draw(session, hero_panel, "canvas.shader", "episode-two.viewport.fragment")

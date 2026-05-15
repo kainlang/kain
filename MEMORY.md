@@ -1,5 +1,63 @@
 # Kain Memory
 
+# 2026-05-15 - Runtime-owned OpenGL presenter lane was evicted into `blades/opengl`
+
+The native runtime no longer owns a live OpenGL presenter. Win32/WGL compatibility now lives as a blade-owned package under `blades/opengl`, while `runtime/native` keeps only the passive host substrate and generic UI ABI.
+
+What changed:
+
+- Removed the runtime-owned Win32/OpenGL presenter sources from the active runtime manifests and moved the legacy implementation into `blades/opengl/reference/runtime_legacy/` for salvage only.
+- `runtime/native/src/ui/kain_native_ui_host_adapter.c` is now a passive host boundary. The active runtime only accepts passive backends such as `software`, `memory`, and `headless`; `win32-gl` is explicitly rejected instead of being treated as a default path.
+- Removed `opengl32` from the runtime-owned default link library sets in both CLI bootstrap paths, and added per-`[c_ffi]` `link_libs` resolution so blade-owned native packages can own system libraries themselves.
+- Removed the runtime-owned GL/helper declarations and overlay compile ownership from the active runtime headers, manifests, umbrella compile unit, metadata, and conformance compile script.
+- Repointed authored Kain examples and smokes away from `win32-gl` so the teaching surface now reflects the passive runtime boundary.
+- Added `blades/opengl/` as the raw reusable Win32/WGL compatibility blade package, with blade-local C bridge code, Kain wrappers, `build-opengl.ps1`, `run.ps1`, report output under `.kain/run/`, and screenshot capture through `OPENGL_BLADE_SCREENSHOT_PATH`.
+- Fixed a blade-local LLVM collision by importing `c::opengl_bridge` only once at the app entry boundary, matching the proven `blades/vulkain` FFI pattern.
+- Fixed the OpenGL screenshot path by capturing the rendered backbuffer before `SwapBuffers`; the first version produced a black BMP because readback happened after the swap.
+
+Validation:
+
+- `py -3 tools/bazel/sync_native_runtime_builds.py`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bash runtime/conformance/ui_runtime/compile_tests.sh`
+- `cargo test -p blade --target-dir target\\codex-opengl-runtime-decouple -- --nocapture`
+- `cargo test -p cli windows_default_native_runtime --target-dir target\\codex-opengl-runtime-decouple -- --nocapture`
+- `powershell -ExecutionPolicy Bypass -File blades/opengl/run.ps1 -NoRun`
+- `powershell -ExecutionPolicy Bypass -Command "$env:OPENGL_BLADE_SCREENSHOT_PATH='D:\Kain-Lang\blades\opengl\.kain\run\opengl.bmp'; & 'D:\Kain-Lang\blades\opengl\run.ps1'"`
+- `blades/opengl/.kain/run/opengl_report.txt` now reports `frames=180`, `triangles=180`, `last_error=ok`
+- `blades/opengl/.kain/run/opengl.bmp` is a nonblank 1280x720 render proof showing the compatibility triangle from the blade-owned presenter path
+- `samply --help` still confirms this Windows host can load profiles but cannot record them
+
+Current notes:
+
+- The broad `cargo test -p cli` suite is still not fully green in this checkout because of pre-existing unrelated failures outside this refactor (`import_c::tests::test_import_with_target` and `selfhost::tests::indent_repaired_block_matches_nested_selfhost_layout`).
+- Historical `win32-gl` references still remain in old memory entries and archived Z3 assumption files; those are no longer part of the active runtime contract.
+
+# 2026-05-15 - `blades/vulkain` is now the raw reusable Vulkan blade package
+
+`blades/vulkain` now exists as the minimal reusable Vulkan package blade for native LLVM Kain work. The design intentionally stays raw: the public Kain surface is only probe/counter/run/report calls over a blade-local C bridge, while app-specific policy belongs in consuming blades instead of in the package itself.
+
+What changed:
+
+- Added `blades/vulkain/` with `KAIN.toml`, `src/vulkain.kn`, `src/main.kn`, `build-vulkain.ps1`, `run.ps1`, `native/vulkain_bridge.c/.h`, GLSL shaders under `native/shaders/`, a runtime manifest example under `config/`, and a durable SMT proof at `native/z3/vulkain_bridge_bounds.smt2`.
+- `src/vulkain.kn` is intentionally tiny: `vulkain_probe`, `vulkain_frames_presented`, `vulkain_vertices_drawn`, `vulkain_run_window`, and `vulkain_write_report`. This blade is the reference pattern for “raw package first, policy later.”
+- `build-vulkain.ps1` now keeps all blade-local outputs under `.kain/`: SPIR-V in `.kain/gpu/basic_window/`, bridge DLL/import-lib in `.kain/native/`, and reports in `.kain/run/`. It also links `user32` explicitly for the Win32 window path.
+- `run.ps1` now compiles `blades/vulkain/vulkain.exe`, copies `vulkain_bridge.dll` beside the root exe for easy testing, and runs the exe from the blade root so relative shader paths resolve correctly.
+- Patched `crates/cli/src/main.rs` so Windows C FFI link resolution prefers a sibling import library (`.lib`) when a blade declares a shared library (`.dll`). Without this, LLVM/native link steps tried to feed the DLL itself to the linker and failed with `LNK1107`.
+
+Validation:
+
+- `.\\blades\\vulkain\\run.ps1 -NoRun` now succeeds, leaving `blades/vulkain/vulkain.exe`, `blades/vulkain/vulkain_bridge.dll`, and all side artifacts under `blades/vulkain/.kain/`.
+- `.\\blades\\vulkain\\run.ps1` exits `0`, presents `240` frames, draws `720` vertices, and writes `.kain/run/vulkain_report.txt` with `last_error=ok`.
+- `spirv-val --target-env vulkan1.3` accepts both `.kain/gpu/basic_window/vulkain_basic.vert.spv` and `.kain/gpu/basic_window/vulkain_basic.frag.spv`.
+- Z3 MCP returned five `unsat` checks for `blades/vulkain/native/z3/vulkain_bridge_bounds.smt2` after tightening the shader-size claim into a real accepted-word-count invariant.
+- `samply --help` still confirms the Windows host can load profiles but cannot record them.
+
+Current notes:
+
+- The MCP screenshot enumerator did not surface the short-lived Vulkan window during validation even though the executable presented all frames and wrote a clean report; use the frame/report proof as the reliable artifact here unless the window-capture tooling is extended for this path.
+- The current frontend import-scan still dislikes multiline `pub fn` signatures in blade helper modules. Keep exported helper signatures on one line unless you are fixing that parser path directly.
+
 # 2026-05-15 - KQuantum now drives a real Vulkan particle window through C FFI
 
 `blades/kain-labs` now has a blade-local Win32 Vulkan bridge for KQuantum instead of only metadata-level native graphics reporting. Kain still owns the app, UI, worlds, entangle state, actors, reports, and orchestration; the C bridge owns the platform Vulkan surface/swapchain/pipeline ABI and is imported through `[c_ffi]`.

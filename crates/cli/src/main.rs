@@ -132,6 +132,12 @@ struct NativeRuntimeCompiledArtifacts {
     static_archives: Vec<PathBuf>,
 }
 
+#[derive(Debug, Default)]
+struct CffiNativeLinkInputs {
+    shared_libraries: Vec<PathBuf>,
+    link_libs: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NativeToolchainProfile {
     Debug,
@@ -968,7 +974,7 @@ fn run_source(
                     let mut runtime_artifacts = NativeRuntimeCompiledArtifacts::default();
                     let cffi_link_inputs = match resolve_c_ffi_shared_libraries_for_linking(&source)
                     {
-                        Ok(paths) => paths,
+                        Ok(inputs) => inputs,
                         Err(err) => {
                             eprintln!(" Failed to resolve C FFI link inputs: {}", err);
                             return false;
@@ -1021,12 +1027,17 @@ fn run_source(
                         cmd.arg("-Wno-override-module");
                     }
 
-                    for shared_library in cffi_link_inputs {
+                    for shared_library in cffi_link_inputs.shared_libraries {
                         cmd.arg(shared_library);
                     }
 
                     runtime_link_libs = unique_link_libs(
-                        [runtime_link_libs, default_native_runtime_link_libs()].concat(),
+                        [
+                            runtime_link_libs,
+                            cffi_link_inputs.link_libs,
+                            default_native_runtime_link_libs(),
+                        ]
+                        .concat(),
                     );
 
                     for link_lib in runtime_link_libs {
@@ -3207,7 +3218,7 @@ fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>
     Ok(None)
 }
 
-fn resolve_c_ffi_shared_libraries_for_linking(source: &str) -> Result<Vec<PathBuf>, String> {
+fn resolve_c_ffi_shared_libraries_for_linking(source: &str) -> Result<CffiNativeLinkInputs, String> {
     let prepare = CPrepareContext {
         current_dir: std::env::current_dir().ok(),
         manifest_path: None,
@@ -3223,6 +3234,7 @@ fn resolve_c_ffi_shared_libraries_for_linking(source: &str) -> Result<Vec<PathBu
     .map_err(|err| err.to_string())?;
 
     let mut shared_libraries = Vec::new();
+    let mut link_libs = Vec::new();
     for output in outputs {
         let shared_lib_path = output.resolved.shared_lib_path.ok_or_else(|| {
             format!(
@@ -3236,10 +3248,27 @@ fn resolve_c_ffi_shared_libraries_for_linking(source: &str) -> Result<Vec<PathBu
                 shared_lib_path.display()
             ));
         }
-        shared_libraries.push(shared_lib_path);
+        let mut link_input_path = shared_lib_path.clone();
+        if cfg!(windows)
+            && shared_lib_path
+                .extension()
+                .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("dll"))
+                .unwrap_or(false)
+        {
+            let import_library_path = shared_lib_path.with_extension("lib");
+            if import_library_path.exists() {
+                link_input_path = import_library_path;
+            }
+        }
+        shared_libraries.push(link_input_path);
+        link_libs.extend(output.resolved.global_config.link_libs.iter().cloned());
+        link_libs.extend(output.resolved.config.link_libs.iter().cloned());
     }
 
-    Ok(shared_libraries)
+    Ok(CffiNativeLinkInputs {
+        shared_libraries,
+        link_libs: unique_link_libs(link_libs),
+    })
 }
 
 fn load_native_runtime_manifest(
@@ -4079,7 +4108,6 @@ fn default_native_runtime_link_libs() -> Vec<String> {
             "legacy_stdio_definitions".to_string(),
             "user32".to_string(),
             "gdi32".to_string(),
-            "opengl32".to_string(),
             "ws2_32".to_string(),
         ]
     } else if cfg!(target_os = "linux") {
@@ -4175,6 +4203,17 @@ mod tests {
         );
         assert!(candidates.contains(&PathBuf::from("runtime/native_runtime.toml")));
         assert!(candidates.contains(&PathBuf::from("runtime/native/runtime.toml")));
+    }
+
+    #[test]
+    fn windows_default_native_runtime_link_libs_do_not_force_opengl() {
+        if cfg!(windows) {
+            assert!(
+                !default_native_runtime_link_libs()
+                    .iter()
+                    .any(|value| value == "opengl32")
+            );
+        }
     }
 
     #[test]

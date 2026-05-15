@@ -1,0 +1,83 @@
+pub fn bench_window_width() -> Int:
+    return 1220
+
+pub fn bench_window_height() -> Int:
+    return 760
+
+pub fn bench_window_width_f() -> Float:
+    return 1220.0
+
+pub fn bench_window_height_f() -> Float:
+    return 760.0
+
+pub fn topbar_x() -> Float:
+    return 0.0
+
+pub fn topbar_y() -> Float:
+    return 0.0
+
+pub fn topbar_w() -> Float:
+    return 1220.0
+
+pub fn topbar_h() -> Float:
+    return 54.0
+
+pub fn action_x(index: Int) -> Float:
+    return 22.0 + (210.0 * index)
+
+pub fn action_y() -> Float:
+    return 72.0
+
+pub fn action_w() -> Float:
+    return 188.0
+
+pub fn action_h() -> Float:
+    return 40.0
+
+pub fn stat_x(index: Int) -> Float:
+    return 22.0 + (292.0 * index)
+
+pub fn stat_y() -> Float:
+    return 130.0
+
+pub fn stat_w() -> Float:
+    return 270.0
+
+pub fn stat_h() -> Float:
+    return 58.0
+
+pub fn catalog_x() -> Float:
+    return 22.0
+
+pub fn catalog_y() -> Float:
+    return 210.0
+
+pub fn catalog_w() -> Float:
+    return 1176.0
+
+pub fn catalog_h() -> Float:
+    return 170.0
+
+pub fn report_x() -> Float:
+    return 22.0
+
+pub fn report_y() -> Float:
+    return 402.0
+
+pub fn report_w() -> Float:
+    return 1176.0
+
+pub fn report_h() -> Float:
+    return 286.0
+
+pub fn status_x() -> Float:
+    return 22.0
+
+pub fn status_y() -> Float:
+    return 706.0
+
+pub fn status_w() -> Float:
+    return 1176.0
+
+pub fn status_h() -> Float:
+    return 34.0

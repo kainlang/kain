@@ -1744,7 +1744,7 @@ fn platform_link_libs(link: &NativeRuntimeLinkManifest) -> Array<String>:
 
 fn default_native_runtime_link_libs() -> Array<String>:
     if cfg!(windows):
-        [("legacy_stdio_definitions").to_string(), ("user32").to_string(), ("gdi32").to_string(), ("opengl32").to_string(), ("ws2_32").to_string()]
+        [("legacy_stdio_definitions").to_string(), ("user32").to_string(), ("gdi32").to_string(), ("ws2_32").to_string()]
     elif cfg!(target_os = "linux"):
         [("m").to_string()]
     else:

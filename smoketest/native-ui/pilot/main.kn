@@ -11,7 +11,7 @@ fn render_pilot_frame(session: Int, root: Int, title: Int, command: Int, viewpor
 
 fn main() -> Int:
     let _reset = native_ui_reset()
-    let session = ui_host_session_create("native-ui-pilot", "Kain Native UI Pilot", 960, 540, "win32-gl")
+    let session = ui_host_session_create("native-ui-pilot", "Kain Native UI Pilot", 960, 540, "software")
     let generation = native_ui_hot_reload_begin(session, "pilot-episode-one")
 
     let body_font = native_ui_font_create(session, "font.body", "Inter", 14.0)

@@ -246,10 +246,10 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_GFX_VIEWPORT,
         "Native Viewport",
-        "Win32 viewport host and OpenGL rendering",
+        "Platform window handles and presenter attachment contract; concrete compatibility presenters now live in blade-owned packages",
         KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_REQUIRED,
+        KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL
     },

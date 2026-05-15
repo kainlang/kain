@@ -1,0 +1,31 @@
+use c::vulkain_bridge
+use vulkain::vulkain_frames_presented
+use vulkain::vulkain_probe
+use vulkain::vulkain_run_window
+use vulkain::vulkain_vertices_drawn
+use vulkain::vulkain_write_report
+
+fn main() -> Int:
+    if vulkain_probe() != 1:
+        println("vulkain probe failed")
+        return 10
+
+    let status = vulkain_run_window(
+        "Vulkain // Raw Vulkan Core",
+        1280,
+        720,
+        240,
+        10,
+        18,
+        30,
+        54,
+        192,
+        255,
+        ".kain/gpu/basic_window/vulkain_basic.vert.spv",
+        ".kain/gpu/basic_window/vulkain_basic.frag.spv"
+    )
+    let _report_status = vulkain_write_report(".kain/run/vulkain_report.txt")
+    println("frames=" + str(vulkain_frames_presented()) + " vertices=" + str(vulkain_vertices_drawn()))
+    if status != 0:
+        return 20
+    return 0

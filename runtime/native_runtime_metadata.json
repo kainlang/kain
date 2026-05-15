@@ -72,12 +72,9 @@
       "native/src/platform/kain_runtime_platform.c"
     ],
     "platform_win32": [
-      "native/src/gfx/opengl/kain_gl_win32_host.c",
       "native/src/platform/win32/kain_win32_app_host.c",
       "native/src/platform/win32/kain_win32_input_host.c",
       "native/src/platform/win32/kain_runtime_win32_shared.c",
-      "native/src/platform/win32/kain_runtime_viewport_win32.c",
-      "native/src/platform/win32/kain_runtime_sculpt_win32.c",
       "3rdparty/libuv/src/win/async.c",
       "3rdparty/libuv/src/win/core.c",
       "3rdparty/libuv/src/win/detect-wakeup.c",
@@ -145,9 +142,8 @@
     ],
     "ui": [
       "native/src/ui/kain_ui_compiled_bundle.c",
-      "native/src/ui/kain_ui_compiled_overlay.c",
-      "native/src/ui/kain_ui_overlay.c",
-      "native/src/ui/kain_ui_runtime.c"
+      "native/src/ui/kain_ui_runtime.c",
+      "native/src/ui/kain_ui_hot_reload.c"
     ],
     "vendor_runtime": [
       "native/src/vendor/kain_runtime_vendor_lane.c",
@@ -423,9 +419,9 @@
       "key": "gfx.viewport",
       "name": "Native Viewport",
       "provider": "platform-win32",
-      "requirement": "required",
-      "status": "available",
-      "description": "Win32 viewport host and OpenGL rendering",
+      "requirement": "optional",
+      "status": "degraded",
+      "description": "Platform window handles and presenter attachment contract; concrete compatibility presenters now live in blade-owned packages",
       "platforms": [
         "windows"
       ]
@@ -995,7 +991,6 @@
       "legacy_stdio_definitions",
       "user32",
       "gdi32",
-      "opengl32",
       "ws2_32",
       "psapi",
       "advapi32",

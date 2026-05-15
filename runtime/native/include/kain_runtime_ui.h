@@ -11,32 +11,6 @@
 #define KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT 32
 #define KAIN_UI_COMPILED_BUNDLE_MAX_LAYOUT_ID 96
 #define KAIN_UI_COMPILED_BUNDLE_MAX_TAB_GROUPS 32
-#define KAIN_UI_COMPILED_OVERLAY_MAX_LINES 8
-
-typedef struct {
-    float panel_color[4];
-    float title_color[4];
-    float text_color[4];
-    float accent_color[4];
-    float crosshair_color[4];
-    float padding_x;
-    float title_y;
-    float subtitle_y;
-    float line_y_start;
-    float line_gap;
-} KainUiOverlayTheme;
-
-typedef struct {
-    float x;
-    float y;
-    float width;
-    float height;
-    const char* title;
-    const char* subtitle;
-    const char** lines;
-    int line_count;
-} KainUiOverlayPanel;
-
 typedef enum {
     KAIN_UI_COMPILED_NODE_UNKNOWN = 0,
     KAIN_UI_COMPILED_NODE_ELEMENT,
@@ -97,28 +71,6 @@ typedef struct {
     KainUiCompiledNode nodes[KAIN_UI_COMPILED_BUNDLE_MAX_NODES];
 } KainUiCompiledBundle;
 
-typedef struct {
-    const KainViewportProfile* profile;
-    float x;
-    float y;
-    float width;
-    float panel_alpha;
-    int show_help;
-    int draw_crosshair;
-    const char* diagnostic_title;
-    const char* diagnostic_subtitle;
-    const char** live_lines;
-    int live_line_count;
-    const char** help_lines;
-    int help_line_count;
-    const char* diagnostic_hint;
-} KainUiCompiledOverlaySpec;
-
-void kain_ui_overlay_begin(int viewport_width, int viewport_height);
-void kain_ui_overlay_end(void);
-void kain_ui_overlay_draw_panel(KainWin32GlSurface* surface, const KainUiOverlayTheme* theme, const KainUiOverlayPanel* panel);
-void kain_ui_overlay_draw_crosshair(int viewport_width, int viewport_height, const float color[4]);
-void kain_ui_overlay_make_default_theme(const KainViewportProfile* profile, float panel_alpha, KainUiOverlayTheme* theme);
 void kain_ui_compiled_bundle_init(KainUiCompiledBundle* bundle);
 int kain_ui_compiled_bundle_load_from_json(const char* json, KainUiCompiledBundle* bundle);
 int kain_ui_compiled_bundle_load_from_path(const char* path, KainUiCompiledBundle* bundle);
@@ -126,13 +78,6 @@ int kain_ui_compiled_bundle_load_from_env(const char* env_name, KainUiCompiledBu
 const KainUiCompiledNode* kain_ui_compiled_bundle_find_first_kind(
     const KainUiCompiledBundle* bundle,
     KainUiCompiledNodeKind kind
-);
-void kain_ui_compiled_overlay_render(
-    KainWin32GlSurface* surface,
-    int viewport_width,
-    int viewport_height,
-    const KainUiCompiledBundle* bundle,
-    const KainUiCompiledOverlaySpec* spec
 );
 
 #endif

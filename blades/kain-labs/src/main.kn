@@ -228,7 +228,7 @@ fn main() -> Int:
     let pipeline = create_quantum_pipeline(graphics_session, backend)
     let first_present = submit_quantum_draw(graphics_session, pipeline, mesh, KQUANTUM_PARTICLE_COUNT)
 
-    let session = ui_host_session_create(KQUANTUM_NAME, "KQuantum Native GPU Particle Lab", lab_width(), lab_height(), "win32-gl")
+    let session = ui_host_session_create(KQUANTUM_NAME, "KQuantum Native GPU Particle Lab", lab_width(), lab_height(), "software")
     let generation = native_ui_hot_reload_begin(session, "kain-labs.kquantum.rev-a")
     let body_font = native_ui_font_create(session, "font.kq.body", "JetBrains Mono", 13.0)
     let title_font = native_ui_font_create(session, "font.kq.title", "Space Grotesk", 22.0)

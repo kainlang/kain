@@ -15,10 +15,11 @@ Use this skill to turn a requested Kain idea into a real blade workspace with th
 4. If the requested blade already exists, preserve its identity and work inside it. If it has a `reference/` folder, read the relevant reference files first and recreate the requested Kain file from those references as faithfully as possible, including UI/layout/style/interaction details.
 5. If the blade does not exist, create `blades/<blade-name>/KAIN.toml`, `src/main.kn`, and focused helper modules under `src/`. Prefer manifest data and local config files over hardcoded routes, modes, large string tables, or file lists.
 6. Author expressive Kain. Use modules, top-level constants, named helper functions, `world`, `entangle`, `actor`, `component`, native UI, native graphics, filesystem, process, net, and ownership features when they fit. Do not collapse everything into "function and let soup."
-7. Compile the selected entry to the blade root, not the repo root: `blades/<blade-name>/<blade-name>.exe` unless the user explicitly asks for a shared artifact elsewhere. Keep `.ll`, `.bc`, `.pdb`, `.ilk`, runtime contract JSON, realtime app JSON, SPIR-V artifacts, screenshots, profiles, and scratch outputs under the blade's `.kain/`. Use `scripts/compile_kain_blade_to_root.ps1` when possible; it defaults to a direct Bazel-built `//:kain` compiler artifact, runs Kain from the discovered blade root so nested blades resolve local modules, and avoids stale Cargo binaries or launcher shims.
-8. Run the executable from the blade root. For UI/interactivity, capture a screenshot under the blade's `.kain/` directory and verify it is non-empty. If `samply` can record on the host, store the profile under `.kain/`; if it cannot, record that limitation.
-9. If compilation fails because Kain, the runtime, bootstrap, stdlib, native UI, graphics, GPU, or build lane is missing real capability, patch the root cause instead of giving up or dumbing the Kain file down. Add the smallest durable regression proof/test for the owning subsystem.
-10. Update `ARCHITECTURE.md`, `MEMORY.md`, and any relevant Kain skill when the work adds a meaningful pipeline, subsystem behavior, recurring gotcha, or validation lane.
+7. Keep current parser reality in mind: exported helper signatures should stay on one line unless you are actively fixing the frontend import-scan path. Multiline `pub fn` signatures in blade helper modules are still a live footgun in this checkout.
+8. Compile the selected entry to the blade root, not the repo root: `blades/<blade-name>/<blade-name>.exe` unless the user explicitly asks for a shared artifact elsewhere. Keep `.ll`, `.bc`, `.pdb`, `.ilk`, runtime contract JSON, realtime app JSON, SPIR-V artifacts, screenshots, profiles, and scratch outputs under the blade's `.kain/`. Use `scripts/compile_kain_blade_to_root.ps1` when possible; it defaults to a direct Bazel-built `//:kain` compiler artifact, runs Kain from the discovered blade root so nested blades resolve local modules, and avoids stale Cargo binaries or launcher shims.
+9. Run the executable from the blade root. For UI/interactivity, capture a screenshot under the blade's `.kain/` directory and verify it is non-empty. If `samply` can record on the host, store the profile under `.kain/`; if it cannot, record that limitation.
+10. If compilation fails because Kain, the runtime, bootstrap, stdlib, native UI, graphics, GPU, or build lane is missing real capability, patch the root cause instead of giving up or dumbing the Kain file down. Add the smallest durable regression proof/test for the owning subsystem.
+11. Update `ARCHITECTURE.md`, `MEMORY.md`, and any relevant Kain skill when the work adds a meaningful pipeline, subsystem behavior, recurring gotcha, or validation lane.
 
 ## Reference Loading
 
@@ -61,6 +62,8 @@ For Vulkan or D3D-style bridges, dogfood the actual window path from Kain, then 
 - A direct C harness under `.kain/native/` when the failure might be C/Vulkan rather than Kain.
 - Z3 for fixed-array bounds, shader byte counts, draw-counter overflow, and cleanup-after-partial-init invariants.
 - A non-empty screenshot/report under `.kain/run/` and a blade-root exe left ready to launch.
+
+`blades/vulkain` is the current reference for the minimal raw package pattern: keep the Kain surface tiny, compile bridge/shader artifacts under `.kain/`, and let consuming blades own higher-level intent. On Windows, if the bridge is a blade-local DLL, stage that DLL beside the blade-root exe for direct testing even though link-time should prefer the sibling `.lib`.
 
 ## Failure Policy
 
