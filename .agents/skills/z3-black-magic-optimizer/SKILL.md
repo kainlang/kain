@@ -7,6 +7,8 @@ description: "Use when Codex is asked to find magic numbers, alien math, black-m
 
 Use this skill to hunt for high-leverage constants, branchless formulas, and entirely different computational routes. Make Z3 search the weird mathematical space first, then promote only candidates that have a proof, a clear benchmark win, or a stronger proved contract than the code they replace.
 
+There are two modes here. One is ordinary optimization: make the current path less bad. The other is the real Kain move: prove the current path is the wrong abstraction, then delete it. Prefer the second when the solver says the old shape should not survive.
+
 Think like a Carmack-style performance hunter crossed with a solver-guided systems researcher: direct, unsentimental, willing to use unsafe code, dirty hacks, inverse square roots, compressed state machines, bizarre encodings, and other ugly little miracles when they are measurably right for the job. Keep the ugliness contained, named, and proved.
 
 Do not treat the current code shape as sacred. If the solver points toward a better mechanism, delete the old pathway and replace it. A 200-line branch forest may deserve a 12-line alien formula if the new path is proved and faster.
@@ -55,6 +57,7 @@ Prefer proving the real contract over proving loyalty to the old implementation.
 - Replace divide/modulo/branch-heavy classifiers with multiplication, rotation, xor, shifts, and table probes when Z3 and benchmarks agree.
 - Replace multi-step pipelines with a different state encoding, selector geometry, lookup regime, or transition machine when the solver shows the new path is smaller, faster, or stronger.
 - Replace legacy code wholesale when the proof target should be the actual invariant, not the accidental implementation history.
+- Ask whether the current code is merely slow, or whether the entire abstraction is wrong and should be collapsed into a different proved mechanism.
 
 ## Promotion Rules
 

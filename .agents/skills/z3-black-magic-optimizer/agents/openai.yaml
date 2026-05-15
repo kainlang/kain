@@ -1,4 +1,4 @@
 interface:
   display_name: "Z3 Black Magic Optimizer"
   short_description: "Find solver-backed alien math and replacement pathways"
-  default_prompt: "Use $z3-black-magic-optimizer to hunt for solver-backed magic numbers, branchless replacements, and entirely new proof-backed computational pathways in this code path without defaulting to enterprise-safe or human-comfortable rewrites."
+  default_prompt: "Use $z3-black-magic-optimizer to decide whether this code path just needs ordinary optimization or whether the abstraction itself is wrong and should be replaced with a proof-backed alien mechanism."
