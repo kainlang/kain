@@ -6,20 +6,27 @@ use crate::supervision::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const NATIVE_ACTOR_ABI_VERSION: u32 = 1;
+pub const NATIVE_ACTOR_ABI_VERSION: u32 = 2;
 pub const NATIVE_ACTOR_ID_BITS: u16 = 64;
+pub const NATIVE_ACTOR_REF_GENERATION_BITS: u16 = 32;
 pub const NATIVE_ACTOR_UNBOUNDED_MAILBOX_CAPACITY: usize = 0;
 pub const NATIVE_ACTOR_NAME_MAX_BYTES: usize = 128;
 pub const NATIVE_ACTOR_TABLE_CAPACITY: usize = 1024;
 pub const NATIVE_ACTOR_REGISTRY_CAPACITY: usize = 256;
 pub const NATIVE_ACTOR_SCHEDULER_WORKER_COUNT: usize = 4;
 pub const NATIVE_ACTOR_MONITOR_EXIT_TAG_BASE: u64 = 0xDEAD_0000;
+pub const NATIVE_ACTOR_DEFAULT_EXECUTION_CLASS: u32 = 1;
+pub const NATIVE_ACTOR_DEFAULT_LOCALITY_CLASS: u32 = 1;
+pub const NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_EXECUTION_CLASS: u32 = 6;
+pub const NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_LOCALITY_CLASS: u32 = 1;
 
 pub const REQUIRED_NATIVE_ACTOR_SYMBOLS: &[&str] = &[
     "kain_actor_runtime_init",
     "kain_actor_runtime_shutdown",
     "kain_actor_abi_descriptor",
     "kain_actor_abi_descriptor_is_compatible",
+    "kain_actor_ref_from_id",
+    "kain_actor_ref_is_live",
     "kain_actor_spawn_config_init",
     "kain_actor_spawn",
     "kain_actor_send",
@@ -27,8 +34,10 @@ pub const REQUIRED_NATIVE_ACTOR_SYMBOLS: &[&str] = &[
     "kain_actor_try_receive",
     "kain_actor_reply_port_new",
     "kain_actor_reply_port_actor_id",
+    "kain_actor_reply_port_actor_ref",
     "kain_actor_reply_port_destroy",
     "kain_actor_reply_port_send",
+    "kain_actor_reply_port_send_ref",
     "kain_actor_reply_port_wait",
     "kain_actor_reply_port_wait_i64",
     "kain_actor_shutdown",
@@ -88,7 +97,12 @@ pub const REQUIRED_NATIVE_STDLIB_ACTOR_SYMBOLS: &[&str] = &[
 pub struct NativeActorAbi {
     pub abi_version: u32,
     pub actor_id_bits: u16,
+    pub actor_ref_generation_bits: u16,
     pub invalid_actor_id: u64,
+    pub default_execution_class: u32,
+    pub default_locality_class: u32,
+    pub synthetic_reply_port_execution_class: u32,
+    pub synthetic_reply_port_locality_class: u32,
     pub default_mailbox_capacity: usize,
     pub unbounded_mailbox_capacity: usize,
     pub default_ask_timeout_ms: u64,
@@ -108,7 +122,14 @@ impl Default for NativeActorAbi {
         Self {
             abi_version: NATIVE_ACTOR_ABI_VERSION,
             actor_id_bits: NATIVE_ACTOR_ID_BITS,
+            actor_ref_generation_bits: NATIVE_ACTOR_REF_GENERATION_BITS,
             invalid_actor_id: ActorId::INVALID_RAW,
+            default_execution_class: NATIVE_ACTOR_DEFAULT_EXECUTION_CLASS,
+            default_locality_class: NATIVE_ACTOR_DEFAULT_LOCALITY_CLASS,
+            synthetic_reply_port_execution_class:
+                NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_EXECUTION_CLASS,
+            synthetic_reply_port_locality_class:
+                NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_LOCALITY_CLASS,
             default_mailbox_capacity: DEFAULT_MAILBOX_CAPACITY,
             unbounded_mailbox_capacity: NATIVE_ACTOR_UNBOUNDED_MAILBOX_CAPACITY,
             default_ask_timeout_ms: DEFAULT_ASK_TIMEOUT_MS,
@@ -159,10 +180,32 @@ pub enum NativeRestartPolicyDiscriminant {
     Transient = 2,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NativeActorExecutionClassDiscriminant {
+    Invalid = 0,
+    Microcell = 1,
+    Worldcell = 2,
+    Netcell = 3,
+    Hostcell = 4,
+    AcceleratorCell = 5,
+    SyntheticReplyPort = 6,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NativeActorLocalityClassDiscriminant {
+    Invalid = 0,
+    Local = 1,
+    WorldAffine = 2,
+    HostAffine = 3,
+    Remote = 4,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NativeActorAbiLayout {
+    pub actor_ref_type_name: String,
     pub message_type_name: String,
     pub spawn_config_type_name: String,
+    pub actor_ref_fields: Vec<String>,
     pub message_fields: Vec<String>,
     pub spawn_config_fields: Vec<String>,
 }
@@ -170,8 +213,15 @@ pub struct NativeActorAbiLayout {
 impl Default for NativeActorAbiLayout {
     fn default() -> Self {
         Self {
+            actor_ref_type_name: "KainActorRef".to_string(),
             message_type_name: "KainActorMessage".to_string(),
             spawn_config_type_name: "KainActorSpawnConfig".to_string(),
+            actor_ref_fields: vec![
+                "KainActorId actor_id".to_string(),
+                "unsigned int generation".to_string(),
+                "unsigned int execution_class".to_string(),
+                "unsigned int locality_class".to_string(),
+            ],
             message_fields: vec![
                 "unsigned long long type_tag".to_string(),
                 "void* data".to_string(),

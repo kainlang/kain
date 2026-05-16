@@ -120,7 +120,24 @@ fn native_actor_abi_defaults_match_runtime_contract() {
 
     assert_eq!(abi.abi_version, NATIVE_ACTOR_ABI_VERSION);
     assert_eq!(abi.actor_id_bits, NATIVE_ACTOR_ID_BITS);
+    assert_eq!(abi.actor_ref_generation_bits, NATIVE_ACTOR_REF_GENERATION_BITS);
     assert_eq!(abi.invalid_actor_id, ActorId::INVALID_RAW);
+    assert_eq!(
+        abi.default_execution_class,
+        NATIVE_ACTOR_DEFAULT_EXECUTION_CLASS
+    );
+    assert_eq!(
+        abi.default_locality_class,
+        NATIVE_ACTOR_DEFAULT_LOCALITY_CLASS
+    );
+    assert_eq!(
+        abi.synthetic_reply_port_execution_class,
+        NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_EXECUTION_CLASS
+    );
+    assert_eq!(
+        abi.synthetic_reply_port_locality_class,
+        NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_LOCALITY_CLASS
+    );
     assert_eq!(abi.default_mailbox_capacity, DEFAULT_MAILBOX_CAPACITY);
     assert_eq!(
         abi.unbounded_mailbox_capacity,
@@ -148,6 +165,15 @@ fn native_actor_abi_defaults_match_runtime_contract() {
         NATIVE_ACTOR_MONITOR_EXIT_TAG_BASE
     );
     assert_eq!(
+        layout.actor_ref_fields,
+        vec![
+            "KainActorId actor_id".to_string(),
+            "unsigned int generation".to_string(),
+            "unsigned int execution_class".to_string(),
+            "unsigned int locality_class".to_string(),
+        ]
+    );
+    assert_eq!(
         layout.message_fields,
         vec![
             "unsigned long long type_tag".to_string(),
@@ -167,7 +193,16 @@ fn native_actor_abi_defaults_match_runtime_contract() {
         .contains(&"kain_actor_abi_descriptor"));
     assert!(contract
         .required_runtime_symbols()
+        .contains(&"kain_actor_ref_from_id"));
+    assert!(contract
+        .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_actor_ref"));
+    assert!(contract
+        .required_runtime_symbols()
         .contains(&"kain_actor_reply_port_send"));
+    assert!(contract
+        .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_send_ref"));
     assert!(contract
         .required_runtime_symbols()
         .contains(&"kain_actor_reply_port_wait"));
@@ -187,9 +222,10 @@ fn native_actor_header_stays_in_sync_with_rust_contract() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", header_path.display()));
 
     let expected_macros = [
-        "#define KAIN_ACTOR_ABI_VERSION 1U",
+        "#define KAIN_ACTOR_ABI_VERSION 2U",
         "#define KAIN_ACTOR_ID_BITS 64U",
         "#define KAIN_ACTOR_ID_INVALID 0ULL",
+        "#define KAIN_ACTOR_REF_GENERATION_BITS 32U",
         "#define KAIN_SUPERVISION_MAX_RESTARTS 5",
         "#define KAIN_SUPERVISION_RESTART_WINDOW_MILLIS 60000ULL",
         "#define KAIN_MAILBOX_DEFAULT_CAPACITY 1024",
@@ -219,9 +255,17 @@ fn native_actor_header_stays_in_sync_with_rust_contract() {
 
     assert!(header.contains("typedef struct {"));
     assert!(header.contains("unsigned int abi_version;"));
+    assert!(header.contains("unsigned short actor_ref_generation_bits;"));
+    assert!(header.contains("unsigned int default_execution_class;"));
+    assert!(header.contains("unsigned int synthetic_reply_port_execution_class;"));
     assert!(header.contains("size_t default_mailbox_capacity;"));
     assert!(header.contains("int retain_user_data;"));
     assert!(header.contains("unsigned long long monitor_exit_tag_base;"));
+    assert!(header.contains("typedef struct {"));
+    assert!(header.contains("KainActorId actor_id;"));
+    assert!(header.contains("unsigned int generation;"));
+    assert!(header.contains("unsigned int execution_class;"));
+    assert!(header.contains("unsigned int locality_class;"));
 }
 
 #[test]

@@ -711,6 +711,12 @@ converge choose_value(value: Int) -> Int:
         return value + 1
     fast interpret_lane when target("interpret"):
         return value + 1
+    fast llvm_lane when target("llvm"):
+        return value + 1
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return value + 1
+    fast native_lane when capability("native.actor"):
+        return value + 1
 
 fn stage_bias(value: Int) -> Int:
     return value + 2
@@ -757,12 +763,19 @@ fn main() -> Int:
     assert!(llvm.contains("call i64 @kain_native_entangle_record_i64"));
     assert!(llvm.contains("define i64 @choose_value__spec"));
     assert!(llvm.contains("define i64 @choose_value__fast_interpret_lane"));
-    assert!(llvm.contains("call i64 @kain_native_converge_record_i64"));
+    assert!(llvm.contains("define i64 @choose_value__fast_llvm_lane"));
+    assert!(llvm.contains("define i64 @choose_value__fast_avx2_lane"));
+    assert!(llvm.contains("define i64 @choose_value__fast_native_lane"));
+    assert!(llvm.contains("call i64 @kain_native_cpu_capability_mask_for_key"));
+    assert!(llvm.contains("call i64 @kain_native_cpu_feature_mask()"));
+    assert!(llvm.contains("call i64 @kain_native_converge_select_lane_for_key"));
+    assert!(llvm.contains("switch i64"));
     assert!(llvm.contains("call i64 @kain_native_orchestrate_stage_begin"));
     assert!(llvm.contains("call i64 @kain_native_orchestrate_stage_end_i64"));
     assert!(llvm.contains("Studio.counter"));
     assert!(llvm.contains("Mirror.counter"));
     assert!(llvm.contains("single_writer"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "multi-lane-converge-selector");
 }
 
 #[test]
@@ -1411,11 +1424,12 @@ fn drive() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("%KainReplyPort = type { i64 }"));
+    assert!(llvm.contains("%KainActorRef = type { i64, i32, i32, i32 }"));
+    assert!(llvm.contains("%KainReplyPort = type { %KainActorRef }"));
     assert!(llvm.contains("call i8* @kain_actor_reply_port_new()"));
-    assert!(llvm.contains("call i64 @kain_actor_reply_port_actor_id(i8*"));
-    assert!(llvm.contains("declare i32 @kain_actor_reply_port_send(i64, i8*, i64)"));
-    assert!(llvm.contains("call i32 @kain_actor_reply_port_send(i64 "));
+    assert!(llvm.contains("call void @kain_actor_reply_port_actor_ref(i8*"));
+    assert!(llvm.contains("declare i32 @kain_actor_reply_port_send_ref(%KainActorRef*, i8*, i64)"));
+    assert!(llvm.contains("call i32 @kain_actor_reply_port_send_ref(%KainActorRef* "));
     assert!(llvm.contains("call i64 @kain_actor_reply_port_wait_i64(i8*"));
     assert!(llvm.contains("call void @kain_actor_reply_port_destroy(i8*"));
     assert!(llvm.contains("extractvalue %KainReplyPort"));

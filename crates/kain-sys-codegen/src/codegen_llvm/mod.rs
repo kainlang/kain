@@ -6,8 +6,8 @@
 
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
-    BinaryOp, Block, ElseBranch, Expr, JSXAttrValue, JSXNode, Pattern, Stmt, Type, UnaryOp,
-    VariantPatternFields,
+    BinaryOp, Block, ConvergeSelector, ElseBranch, Expr, JSXAttrValue, JSXNode, Pattern, Stmt,
+    Type, UnaryOp, VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{
@@ -103,8 +103,10 @@ const KAIN_NATIVE_TAG_OPTION_SOME_LLVM: i64 = 1;
 const KAIN_NATIVE_TAG_RESULT_OK_LLVM: i64 = 2;
 const KAIN_NATIVE_TAG_RESULT_ERR_LLVM: i64 = 3;
 const KAIN_NATIVE_DEFAULT_ASK_TIMEOUT_MS_LLVM: i64 = 30_000;
+const KAIN_NATIVE_ACTOR_REF_TYPE: &str = "%KainActorRef";
 const KAIN_NATIVE_REPLY_PORT_ACTOR_NAME: &str = "KainReplyPort";
 const KAIN_NATIVE_REPLY_PORT_TYPE: &str = "%KainReplyPort";
+const KAIN_CONVERGE_LANE_MAX_LLVM: usize = 8;
 
 fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
     match name {
@@ -321,6 +323,54 @@ impl LlvmGenerator {
             "unnamed".to_string()
         } else {
             sanitized
+        }
+    }
+
+    fn stable_runtime_hash64(text: &str) -> u64 {
+        let mut hash = 0xcbf29ce484222325u64;
+        for byte in text.bytes() {
+            hash ^= byte as u64;
+            hash = hash.wrapping_mul(0x100000001b3u64);
+        }
+        hash
+    }
+
+    fn llvm_i64_literal_for_u64(value: u64) -> String {
+        (value as i64).to_string()
+    }
+
+    fn converge_capability_is_cpu_selector(capability: &str) -> bool {
+        capability.starts_with("cpu.")
+            || capability.starts_with("x86.")
+            || matches!(
+                capability,
+                "sse2"
+                    | "avx"
+                    | "avx2"
+                    | "avx512"
+                    | "avx512f"
+                    | "avx512dq"
+                    | "avx512bw"
+                    | "avx512vl"
+                    | "fma"
+                    | "bmi2"
+            )
+    }
+
+    fn converge_selector_static_eligibility(selector: Option<&ConvergeSelector>) -> Option<bool> {
+        match selector {
+            None => Some(true),
+            Some(ConvergeSelector::Target(target)) => Some(matches!(
+                target.as_str(),
+                "llvm" | "native" | "native.llvm" | "compiled" | "kain.native"
+            )),
+            Some(ConvergeSelector::Capability(capability)) => {
+                if Self::converge_capability_is_cpu_selector(capability) {
+                    None
+                } else {
+                    Some(true)
+                }
+            }
         }
     }
 
@@ -4016,19 +4066,19 @@ impl LlvmGenerator {
         None
     }
 
-    fn compile_actor_handle_id(
+    fn compile_actor_handle_ref_value(
         &mut self,
         handle_val: &str,
         handle_ty: &str,
         span: Span,
     ) -> KainResult<String> {
         if self.llvm_type_is_reply_port(handle_ty) {
-            let actor_id = self.next_reg();
+            let actor_ref = self.next_reg();
             self.emit(&format!(
                 "  {} = extractvalue {} {}, 0",
-                actor_id, handle_ty, handle_val
+                actor_ref, handle_ty, handle_val
             ));
-            return Ok(actor_id);
+            return Ok(actor_ref);
         }
 
         let actor_name = self.actor_name_for_handle_type(handle_ty).ok_or_else(|| {
@@ -4042,8 +4092,26 @@ impl LlvmGenerator {
             "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 0",
             actor_id_ptr, actor_name, handle_ty, handle_val
         ));
+        let actor_ref = self.next_reg();
+        self.emit(&format!(
+            "  {} = load {}, {}* {}",
+            actor_ref, KAIN_NATIVE_ACTOR_REF_TYPE, KAIN_NATIVE_ACTOR_REF_TYPE, actor_id_ptr
+        ));
+        Ok(actor_ref)
+    }
+
+    fn compile_actor_handle_id(
+        &mut self,
+        handle_val: &str,
+        handle_ty: &str,
+        span: Span,
+    ) -> KainResult<String> {
+        let actor_ref = self.compile_actor_handle_ref_value(handle_val, handle_ty, span)?;
         let actor_id = self.next_reg();
-        self.emit(&format!("  {} = load i64, i64* {}", actor_id, actor_id_ptr));
+        self.emit(&format!(
+            "  {} = extractvalue {} {}, 0",
+            actor_id, KAIN_NATIVE_ACTOR_REF_TYPE, actor_ref
+        ));
         Ok(actor_id)
     }
 
@@ -4143,15 +4211,27 @@ impl LlvmGenerator {
             "  {} = call i8* @kain_actor_reply_port_new()",
             reply_port_handle
         ));
-        let reply_port_actor_id = self.next_reg();
+        let reply_port_ref_ptr = self.next_reg();
+        self.emit_entry_alloca(&reply_port_ref_ptr, KAIN_NATIVE_ACTOR_REF_TYPE);
         self.emit(&format!(
-            "  {} = call i64 @kain_actor_reply_port_actor_id(i8* {})",
-            reply_port_actor_id, reply_port_handle
+            "  call void @kain_actor_reply_port_actor_ref(i8* {}, {}* {})",
+            reply_port_handle, KAIN_NATIVE_ACTOR_REF_TYPE, reply_port_ref_ptr
+        ));
+        let reply_port_actor_ref = self.next_reg();
+        self.emit(&format!(
+            "  {} = load {}, {}* {}",
+            reply_port_actor_ref,
+            KAIN_NATIVE_ACTOR_REF_TYPE,
+            KAIN_NATIVE_ACTOR_REF_TYPE,
+            reply_port_ref_ptr
         ));
         let reply_port_value = self.next_reg();
         self.emit(&format!(
-            "  {} = insertvalue {} zeroinitializer, i64 {}, 0",
-            reply_port_value, KAIN_NATIVE_REPLY_PORT_TYPE, reply_port_actor_id
+            "  {} = insertvalue {} zeroinitializer, {} {}, 0",
+            reply_port_value,
+            KAIN_NATIVE_REPLY_PORT_TYPE,
+            KAIN_NATIVE_ACTOR_REF_TYPE,
+            reply_port_actor_ref
         ));
 
         let request_payload_ty = format!("%{}", request_payload_name);
@@ -4800,7 +4880,10 @@ impl LlvmGenerator {
         self.emit_runtime_abi_types();
         self.struct_defs.insert(
             KAIN_NATIVE_REPLY_PORT_ACTOR_NAME.to_string(),
-            vec![("__actor_id".to_string(), "i64".to_string())],
+            vec![(
+                "__actor_ref".to_string(),
+                KAIN_NATIVE_ACTOR_REF_TYPE.to_string(),
+            )],
         );
 
         // 2a. Pre-scan Structs to register and emit definitions
@@ -4843,8 +4926,8 @@ impl LlvmGenerator {
                     .insert(component.ast.name.clone(), "i8*".to_string());
             } else if let TypedItem::Actor(a) = item {
                 let mut fields = Vec::new();
-                // Actor ID is always field 0 so handles can address the canonical runtime ABI.
-                fields.push(("__actor_id".to_string(), "i64".into()));
+                // Actor ref is always field 0 so handles can address the canonical runtime ABI.
+                fields.push(("__actor_ref".to_string(), KAIN_NATIVE_ACTOR_REF_TYPE.into()));
 
                 for state in &a.ast.state {
                     if let Some(res_ty) = a.state_types.get(&state.name) {
@@ -4998,12 +5081,15 @@ impl LlvmGenerator {
             "  {} = bitcast i8* %user_data to {}*",
             self_ptr, struct_ty
         ));
-        let actor_id_ptr = self.next_reg();
+        let actor_ref_ptr = self.next_reg();
         self.emit(&format!(
             "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
-            actor_id_ptr, struct_ty, struct_ty, self_ptr
+            actor_ref_ptr, struct_ty, struct_ty, self_ptr
         ));
-        self.emit(&format!("  store i64 %actor_id, i64* {}", actor_id_ptr));
+        self.emit(&format!(
+            "  call void @kain_actor_ref_from_id(i64 %actor_id, {}* {})",
+            KAIN_NATIVE_ACTOR_REF_TYPE, actor_ref_ptr
+        ));
         self.locals
             .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
         self.borrowed_locals.insert("self".to_string());
@@ -5158,8 +5244,9 @@ impl LlvmGenerator {
 
     fn emit_runtime_abi_types(&mut self) {
         self.emit("; Canonical native runtime ABI types");
+        self.emit("%KainActorRef = type { i64, i32, i32, i32 }");
         self.emit("%KainActorMessage = type { i64, i8*, i64, i64 }");
-        self.emit("%KainReplyPort = type { i64 }");
+        self.emit("%KainReplyPort = type { %KainActorRef }");
         self.emit(&format!(
             "%KainActorSpawnConfig = type {{ i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [{} x i8] }}",
             NATIVE_ACTOR_NAME_MAX_BYTES
@@ -5214,6 +5301,10 @@ impl LlvmGenerator {
         self.emit("declare i64 @kain_native_entangle_record_i64(i8*, i8*, i64)");
         self.emit("declare i64 @kain_native_converge_record_i64(i8*, i8*, i64, i64)");
         self.emit("declare i64 @kain_native_converge_record_bool(i8*, i8*, i32)");
+        self.emit("declare i64 @kain_native_cpu_feature_mask()");
+        self.emit("declare i64 @kain_native_cpu_capability_mask_for_key(i8*)");
+        self.emit("declare i64 @kain_native_converge_select_lane_for_key(i64, i64, i64, i64)");
+        self.emit("declare i64 @kain_native_converge_record_telemetry(i64, i64, i64, i64, i64)");
         self.emit("declare i64 @kain_native_orchestrate_stage_begin(i8*, i8*)");
         self.emit("declare i64 @kain_native_orchestrate_stage_end_i64(i8*, i8*, i64)");
 
@@ -5222,10 +5313,14 @@ impl LlvmGenerator {
         self.emit("declare i64 @kain_actor_spawn(%KainActorSpawnConfig*, i8*)");
         self.emit("declare i32 @kain_actor_send(i64, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_receive(i8*, %KainActorMessage*, i8*)");
+        self.emit("declare void @kain_actor_ref_from_id(i64, %KainActorRef*)");
+        self.emit("declare i32 @kain_actor_ref_is_live(%KainActorRef*)");
         self.emit("declare i8* @kain_actor_reply_port_new()");
         self.emit("declare i64 @kain_actor_reply_port_actor_id(i8*)");
+        self.emit("declare void @kain_actor_reply_port_actor_ref(i8*, %KainActorRef*)");
         self.emit("declare void @kain_actor_reply_port_destroy(i8*)");
         self.emit("declare i32 @kain_actor_reply_port_send(i64, i8*, i64)");
+        self.emit("declare i32 @kain_actor_reply_port_send_ref(%KainActorRef*, i8*, i64)");
         self.emit("declare i32 @kain_actor_reply_port_wait(i8*, i64, i8*, i64, i64*)");
         self.emit("declare i64 @kain_actor_reply_port_wait_i64(i8*, i64)");
         self.emit("declare void @KAIN_set_destructor(i8*, void(i8*)*)");
@@ -5769,7 +5864,7 @@ impl LlvmGenerator {
     }
 
     fn compile_converge(&mut self, converge: &kain_core::types::TypedConverge) -> KainResult<()> {
-        let Some(fast_lane) = converge.ast.fast_lanes.first() else {
+        if converge.ast.fast_lanes.is_empty() {
             return self.compile_named_callable(
                 &converge.ast.name,
                 &converge.ast.params,
@@ -5779,13 +5874,37 @@ impl LlvmGenerator {
                 converge.ast.span,
             );
         };
+        if converge.ast.fast_lanes.len() > KAIN_CONVERGE_LANE_MAX_LLVM {
+            return Err(KainError::codegen(
+                format!(
+                    "converge '{}' has {} fast lanes; LLVM currently supports at most {} selector lanes",
+                    converge.ast.name,
+                    converge.ast.fast_lanes.len(),
+                    KAIN_CONVERGE_LANE_MAX_LLVM
+                ),
+                converge.ast.span,
+            ));
+        }
 
         let spec_name = format!("{}__spec", converge.ast.name);
-        let fast_name = format!(
-            "{}__fast_{}",
-            converge.ast.name,
-            Self::sanitize_type_fragment(&fast_lane.lane_name)
+        let mut fast_names = Vec::new();
+        let mut used_fast_names = HashSet::new();
+        for (index, lane) in converge.ast.fast_lanes.iter().enumerate() {
+            let fragment = Self::sanitize_type_fragment(&lane.lane_name);
+            let mut fast_name = format!("{}__fast_{}", converge.ast.name, fragment);
+            if !used_fast_names.insert(fast_name.clone()) {
+                fast_name = format!("{}__fast_{}_{}", converge.ast.name, index, fragment);
+                used_fast_names.insert(fast_name.clone());
+            }
+            fast_names.push(fast_name);
+        }
+
+        let cached_lane_global = format!(
+            "@__kain_converge_cached_lane_{}",
+            Self::sanitize_symbol_fragment(&converge.ast.name)
         );
+        self.emit(&format!("{} = internal global i64 -2", cached_lane_global));
+        self.emit("");
 
         self.compile_named_callable(
             &spec_name,
@@ -5795,14 +5914,16 @@ impl LlvmGenerator {
             &converge.resolved_type,
             converge.ast.span,
         )?;
-        self.compile_named_callable(
-            &fast_name,
-            &converge.ast.params,
-            converge.ast.return_type.as_ref(),
-            &fast_lane.body,
-            &converge.resolved_type,
-            converge.ast.span,
-        )?;
+        for (lane, fast_name) in converge.ast.fast_lanes.iter().zip(fast_names.iter()) {
+            self.compile_named_callable(
+                fast_name,
+                &converge.ast.params,
+                converge.ast.return_type.as_ref(),
+                &lane.body,
+                &converge.resolved_type,
+                converge.ast.span,
+            )?;
+        }
 
         self.reg_count = 0;
         self.locals.clear();
@@ -5841,116 +5962,201 @@ impl LlvmGenerator {
             .collect::<Vec<_>>()
             .join(", ");
 
+        let mut static_eligible_mask = 0u64;
+        let mut dynamic_cpu_lanes = Vec::new();
+        for (index, lane) in converge.ast.fast_lanes.iter().enumerate() {
+            let lane_bit = 1u64 << index;
+            match Self::converge_selector_static_eligibility(lane.selector.as_ref()) {
+                Some(true) => static_eligible_mask |= lane_bit,
+                Some(false) => {}
+                None => {
+                    if let Some(ConvergeSelector::Capability(capability)) = lane.selector.as_ref() {
+                        dynamic_cpu_lanes.push((index, capability.clone()));
+                    }
+                }
+            }
+        }
+
         self.emit(&format!(
             "define {} @{}({}) {{",
             ret_type, converge.ast.name, params
         ));
         self.emit_label("entry");
 
-        if ret_type == "void" {
-            self.emit(&format!("  call void @{}({})", spec_name, args));
-            self.emit(&format!("  call void @{}({})", fast_name, args));
-            let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
-            let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
-            let _status = self.next_reg();
-            self.emit(&format!(
-                "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 1)",
-                _status, converge_name, lane_name
-            ));
-            self.emit("  ret void");
+        if dynamic_cpu_lanes.is_empty() {
+            let selected_name = if static_eligible_mask == 0 {
+                &spec_name
+            } else {
+                let selected_index = static_eligible_mask.trailing_zeros() as usize;
+                &fast_names[selected_index]
+            };
+            if ret_type == "void" {
+                self.emit(&format!("  call void @{}({})", selected_name, args));
+                self.emit("  ret void");
+            } else {
+                let value = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call {} @{}({})",
+                    value, ret_type, selected_name, args
+                ));
+                self.emit(&format!("  ret {} {}", ret_type, value));
+            }
             self.emit("}");
             self.emit("");
             self.current_return_type = None;
             return Ok(());
         }
 
-        let spec_value = self.next_reg();
+        let cached_lane = self.next_reg();
         self.emit(&format!(
-            "  {} = call {} @{}({})",
-            spec_value, ret_type, spec_name, args
+            "  {} = load i64, i64* {}",
+            cached_lane, cached_lane_global
         ));
-        let fast_value = self.next_reg();
+        let cached_valid = self.next_reg();
         self.emit(&format!(
-            "  {} = call {} @{}({})",
-            fast_value, ret_type, fast_name, args
+            "  {} = icmp ne i64 {}, -2",
+            cached_valid, cached_lane
+        ));
+        let tune_block = self.next_label();
+        let dispatch_block = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            cached_valid, dispatch_block, tune_block
         ));
 
-        let matches = self.next_reg();
-        match ret_type.as_str() {
-            "i64" => {
+        self.emit_label(&tune_block);
+
+        let mut eligible_mask = static_eligible_mask.to_string();
+        for (index, capability) in dynamic_cpu_lanes {
+            let capability_key = self.compile_static_c_string_literal(&capability);
+            let required_mask = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_native_cpu_capability_mask_for_key(i8* {})",
+                required_mask, capability_key
+            ));
+            let cpu_mask = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_native_cpu_feature_mask()",
+                cpu_mask
+            ));
+            let present_mask = self.next_reg();
+            self.emit(&format!(
+                "  {} = and i64 {}, {}",
+                present_mask, cpu_mask, required_mask
+            ));
+            let has_required = self.next_reg();
+            self.emit(&format!(
+                "  {} = icmp eq i64 {}, {}",
+                has_required, present_mask, required_mask
+            ));
+            let required_nonzero = self.next_reg();
+            self.emit(&format!(
+                "  {} = icmp ne i64 {}, 0",
+                required_nonzero, required_mask
+            ));
+            let eligible_bool = self.next_reg();
+            self.emit(&format!(
+                "  {} = and i1 {}, {}",
+                eligible_bool, has_required, required_nonzero
+            ));
+            let lane_mask = self.next_reg();
+            self.emit(&format!(
+                "  {} = select i1 {}, i64 {}, i64 0",
+                lane_mask,
+                eligible_bool,
+                1u64 << index
+            ));
+            let merged_mask = self.next_reg();
+            self.emit(&format!(
+                "  {} = or i64 {}, {}",
+                merged_mask, eligible_mask, lane_mask
+            ));
+            eligible_mask = merged_mask;
+        }
+
+        let converge_key =
+            Self::llvm_i64_literal_for_u64(Self::stable_runtime_hash64(&converge.ast.name));
+        let selected_lane = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @kain_native_converge_select_lane_for_key(i64 {}, i64 0, i64 {}, i64 -1)",
+            selected_lane, converge_key, eligible_mask
+        ));
+        self.emit(&format!(
+            "  store i64 {}, i64* {}",
+            selected_lane, cached_lane_global
+        ));
+        self.emit(&format!("  br label %{}", dispatch_block));
+
+        let spec_block = self.next_label();
+        let merge_block = self.next_label();
+        let fast_blocks = (0..fast_names.len())
+            .map(|_| self.next_label())
+            .collect::<Vec<_>>();
+        let switch_cases = fast_blocks
+            .iter()
+            .enumerate()
+            .map(|(index, label)| format!("i64 {}, label %{}", index, label))
+            .collect::<Vec<_>>()
+            .join(" ");
+        self.emit_label(&dispatch_block);
+        let dispatch_lane = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i64 [{}, %entry], [{}, %{}]",
+            dispatch_lane, cached_lane, selected_lane, tune_block
+        ));
+        self.emit(&format!(
+            "  switch i64 {}, label %{} [ {} ]",
+            dispatch_lane, spec_block, switch_cases
+        ));
+
+        let mut incoming_values = Vec::new();
+        for (index, fast_name) in fast_names.iter().enumerate() {
+            let fast_block = &fast_blocks[index];
+            self.emit_label(fast_block);
+            if ret_type == "void" {
+                self.emit(&format!("  call void @{}({})", fast_name, args));
+                self.emit(&format!("  br label %{}", merge_block));
+            } else {
+                let value = self.next_reg();
                 self.emit(&format!(
-                    "  {} = icmp eq i64 {}, {}",
-                    matches, spec_value, fast_value
+                    "  {} = call {} @{}({})",
+                    value, ret_type, fast_name, args
                 ));
-                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
-                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
-                let status = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @kain_native_converge_record_i64(i8* {}, i8* {}, i64 {}, i64 {})",
-                    status, converge_name, lane_name, spec_value, fast_value
-                ));
-            }
-            "i1" => {
-                self.emit(&format!(
-                    "  {} = icmp eq i1 {}, {}",
-                    matches, spec_value, fast_value
-                ));
-                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
-                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
-                let matches_i32 = self.next_reg();
-                self.emit(&format!("  {} = zext i1 {} to i32", matches_i32, matches));
-                let status = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 {})",
-                    status, converge_name, lane_name, matches_i32
-                ));
-            }
-            "double" => {
-                self.emit(&format!(
-                    "  {} = fcmp oeq double {}, {}",
-                    matches, spec_value, fast_value
-                ));
-                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
-                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
-                let matches_i32 = self.next_reg();
-                self.emit(&format!("  {} = zext i1 {} to i32", matches_i32, matches));
-                let status = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 {})",
-                    status, converge_name, lane_name, matches_i32
-                ));
-            }
-            "i8*" => {
-                self.emit(&format!(
-                    "  {} = call i1 @deep_eq(i8* {}, i8* {})",
-                    matches, spec_value, fast_value
-                ));
-                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
-                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
-                let matches_i32 = self.next_reg();
-                self.emit(&format!("  {} = zext i1 {} to i32", matches_i32, matches));
-                let status = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 {})",
-                    status, converge_name, lane_name, matches_i32
-                ));
-            }
-            _ => {
-                self.emit("  ; converge verification fallback: returning spec lane for unsupported result ABI");
-                self.emit(&format!("  ret {} {}", ret_type, spec_value));
-                self.emit("}");
-                self.emit("");
-                self.current_return_type = None;
-                return Ok(());
+                self.emit(&format!("  br label %{}", merge_block));
+                incoming_values.push((value, fast_block.clone()));
             }
         }
 
-        let selected = self.next_reg();
-        self.emit(&format!(
-            "  {} = select i1 {}, {} {}, {} {}",
-            selected, matches, ret_type, fast_value, ret_type, spec_value
-        ));
-        self.emit(&format!("  ret {} {}", ret_type, selected));
+        self.emit_label(&spec_block);
+        if ret_type == "void" {
+            self.emit(&format!("  call void @{}({})", spec_name, args));
+            self.emit(&format!("  br label %{}", merge_block));
+        } else {
+            let spec_value = self.next_reg();
+            self.emit(&format!(
+                "  {} = call {} @{}({})",
+                spec_value, ret_type, spec_name, args
+            ));
+            self.emit(&format!("  br label %{}", merge_block));
+            incoming_values.push((spec_value, spec_block.clone()));
+        }
+
+        self.emit_label(&merge_block);
+        if ret_type == "void" {
+            self.emit("  ret void");
+        } else {
+            let selected_value = self.next_reg();
+            let phi_values = incoming_values
+                .iter()
+                .map(|(value, block)| format!("[{}, %{}]", value, block))
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.emit(&format!(
+                "  {} = phi {} {}",
+                selected_value, ret_type, phi_values
+            ));
+            self.emit(&format!("  ret {} {}", ret_type, selected_value));
+        }
         self.emit("}");
         self.emit("");
         self.current_return_type = None;
@@ -7560,7 +7766,7 @@ impl LlvmGenerator {
                 // Initialize fields.
                 let mut provided: HashMap<String, Expr> = init.iter().cloned().collect();
                 for (i, (field_name, field_ty)) in def.iter().enumerate() {
-                    if field_name == "__actor_id" {
+                    if field_name == "__actor_ref" {
                         continue;
                     }
 
@@ -7597,12 +7803,15 @@ impl LlvmGenerator {
                     actor_id_reg, config_ptr
                 ));
 
-                let actor_id_ptr = self.next_reg();
+                let actor_ref_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
-                    actor_id_ptr, struct_ty, struct_ty, struct_ptr
+                    actor_ref_ptr, struct_ty, struct_ty, struct_ptr
                 ));
-                self.emit(&format!("  store i64 {}, i64* {}", actor_id_reg, actor_id_ptr));
+                self.emit(&format!(
+                    "  call void @kain_actor_ref_from_id(i64 {}, {}* {})",
+                    actor_id_reg, KAIN_NATIVE_ACTOR_REF_TYPE, actor_ref_ptr
+                ));
 
                 Ok((struct_ptr, format!("%{}*", actor)))
             }
@@ -7622,9 +7831,9 @@ impl LlvmGenerator {
                         *span,
                     )
                 })?;
-                let target_id = self.compile_actor_handle_id(&target_val, &target_ty, *span)?;
-
                 if actor_name == KAIN_NATIVE_REPLY_PORT_ACTOR_NAME {
+                    let target_ref =
+                        self.compile_actor_handle_ref_value(&target_val, &target_ty, *span)?;
                     let (payload_mem, message_size) = if message != "Reply" {
                         return Err(KainError::codegen(
                             format!(
@@ -7654,25 +7863,33 @@ impl LlvmGenerator {
                             .compile_payload_pointer_from_value(&payload_value, &payload_ty, *span)?;
                         (payload_ptr, payload_size.to_string())
                     };
+                    let target_ref_ptr = self.next_reg();
+                    self.emit_entry_alloca(&target_ref_ptr, KAIN_NATIVE_ACTOR_REF_TYPE);
+                    self.emit(&format!(
+                        "  store {} {}, {}* {}",
+                        KAIN_NATIVE_ACTOR_REF_TYPE,
+                        target_ref,
+                        KAIN_NATIVE_ACTOR_REF_TYPE,
+                        target_ref_ptr
+                    ));
                     let send_status = self.next_reg();
                     self.emit(&format!(
-                        "  {} = call i32 @kain_actor_reply_port_send(i64 {}, i8* {}, i64 {})",
-                        send_status, target_id, payload_mem, message_size
+                        "  {} = call i32 @kain_actor_reply_port_send_ref({}* {}, i8* {}, i64 {})",
+                        send_status,
+                        KAIN_NATIVE_ACTOR_REF_TYPE,
+                        target_ref_ptr,
+                        payload_mem,
+                        message_size
                     ));
                     return Ok(("0".into(), "i64".into()));
                 }
 
+                let target_id = self.compile_actor_handle_id(&target_val, &target_ty, *span)?;
+
                 let sender_id = if let Some((self_addr, self_ty)) = self.locals.get("self").cloned()
                 {
                     if self_ty.starts_with('%') {
-                        let self_id_ptr = self.next_reg();
-                        self.emit(&format!(
-                            "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
-                            self_id_ptr, self_ty, self_ty, self_addr
-                        ));
-                        let self_id = self.next_reg();
-                        self.emit(&format!("  {} = load i64, i64* {}", self_id, self_id_ptr));
-                        self_id
+                        self.compile_actor_handle_id(&self_addr, &self_ty, *span)?
                     } else {
                         "0".to_string()
                     }

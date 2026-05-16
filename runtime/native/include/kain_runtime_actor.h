@@ -33,9 +33,10 @@ typedef struct MessageNode MessageNode;
 /* Actor ID Type */
 typedef unsigned long long KainActorId;
 
-#define KAIN_ACTOR_ABI_VERSION 1U
+#define KAIN_ACTOR_ABI_VERSION 2U
 #define KAIN_ACTOR_ID_BITS 64U
 #define KAIN_ACTOR_ID_INVALID 0ULL
+#define KAIN_ACTOR_REF_GENERATION_BITS 32U
 
 /* Actor State */
 typedef enum {
@@ -71,6 +72,40 @@ typedef enum {
     KAIN_RESTART_POLICY_TRANSIENT,      /* Restart only on abnormal exit */
 } KainRestartPolicy;
 
+/* Actor Execution Class */
+typedef enum {
+    KAIN_ACTOR_EXECUTION_CLASS_INVALID = 0,
+    KAIN_ACTOR_EXECUTION_CLASS_MICROCELL = 1,
+    KAIN_ACTOR_EXECUTION_CLASS_WORLDCELL = 2,
+    KAIN_ACTOR_EXECUTION_CLASS_NETCELL = 3,
+    KAIN_ACTOR_EXECUTION_CLASS_HOSTCELL = 4,
+    KAIN_ACTOR_EXECUTION_CLASS_ACCELERATOR_CELL = 5,
+    KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT = 6,
+} KainActorExecutionClass;
+
+/* Actor Locality Class */
+typedef enum {
+    KAIN_ACTOR_LOCALITY_INVALID = 0,
+    KAIN_ACTOR_LOCALITY_LOCAL = 1,
+    KAIN_ACTOR_LOCALITY_WORLD_AFFINE = 2,
+    KAIN_ACTOR_LOCALITY_HOST_AFFINE = 3,
+    KAIN_ACTOR_LOCALITY_REMOTE = 4,
+} KainActorLocalityClass;
+
+/*
+ * Actor Reference
+ *
+ * Generation-tagged actor reference that makes execution class and locality
+ * first-class runtime truth instead of assuming every actor handle is a raw
+ * local mailbox slot.
+ */
+typedef struct {
+    KainActorId actor_id;
+    unsigned int generation;
+    unsigned int execution_class;
+    unsigned int locality_class;
+} KainActorRef;
+
 /* Supervision Configuration */
 #define KAIN_SUPERVISION_MAX_RESTARTS 5
 #define KAIN_SUPERVISION_RESTART_WINDOW_SECONDS 60
@@ -103,7 +138,12 @@ typedef enum {
 typedef struct {
     unsigned int abi_version;
     unsigned short actor_id_bits;
+    unsigned short actor_ref_generation_bits;
     KainActorId invalid_actor_id;
+    unsigned int default_execution_class;
+    unsigned int default_locality_class;
+    unsigned int synthetic_reply_port_execution_class;
+    unsigned int synthetic_reply_port_locality_class;
     size_t default_mailbox_capacity;
     size_t unbounded_mailbox_capacity;
     unsigned long long default_ask_timeout_ms;
@@ -319,6 +359,9 @@ typedef struct KainActorSchedulerNode {
 typedef struct {
     /* Identity */
     KainActorId actor_id;
+    unsigned int ref_generation;
+    unsigned int execution_class;
+    unsigned int locality_class;
     char name[KAIN_ACTOR_NAME_MAX];
     unsigned long long spawn_sequence;
     
@@ -447,6 +490,19 @@ KainActorAbiDescriptor kain_actor_abi_descriptor(void);
 int kain_actor_abi_descriptor_is_compatible(const KainActorAbiDescriptor* expected);
 
 /*
+ * Fill a generation-tagged actor reference from a raw actor ID.
+ *
+ * If the actor is not live, out_ref is zeroed to an invalid reference.
+ */
+void kain_actor_ref_from_id(KainActorId actor_id, KainActorRef* out_ref);
+
+/*
+ * Validate that an actor reference still names the same live actor generation,
+ * execution class, and locality.
+ */
+int kain_actor_ref_is_live(const KainActorRef* actor_ref);
+
+/*
  * Shutdown Actor Runtime
  *
  * Terminates all actors and cleans up resources.
@@ -511,14 +567,21 @@ int kain_actor_try_receive(
  * Native LLVM reply-port bridge.
  *
  * These helpers back compiler-lowered `ask` / `ask_timeout` roundtrips. A reply
- * port is a tiny runtime-owned actor handle that accepts the first reply payload
- * and lets the compiler wait or cancel without inventing a second mailbox ABI.
+ * port is a synthetic generation-tagged actor ref that accepts the first reply
+ * payload and lets the compiler wait or cancel without inventing a second
+ * mailbox ABI or a useless waiting OS thread.
  */
 void* kain_actor_reply_port_new(void);
 KainActorId kain_actor_reply_port_actor_id(void* reply_port_handle);
+void kain_actor_reply_port_actor_ref(void* reply_port_handle, KainActorRef* out_ref);
 void kain_actor_reply_port_destroy(void* reply_port_handle);
 int kain_actor_reply_port_send(
     KainActorId reply_port_actor_id,
+    const void* reply_data,
+    size_t reply_size
+);
+int kain_actor_reply_port_send_ref(
+    const KainActorRef* reply_port_ref,
     const void* reply_data,
     size_t reply_size
 );

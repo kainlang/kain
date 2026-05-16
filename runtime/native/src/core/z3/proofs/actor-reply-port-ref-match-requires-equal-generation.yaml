@@ -1,0 +1,85 @@
+version: 1
+id: kain.native.core.proofs.actor_reply_port_ref_match_requires_equal_generation
+kind: find_counterexample
+description: A stale synthetic reply-port ref with an older generation cannot
+  match a rebound live actor slot even when the slot id, execution class, and
+  locality class all line up.
+tags:
+- actor
+- reply-port
+- generation
+- identity
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  symbol: kain_actor_table_ref_matches_locked
+  start_line: 1020
+  reason: live actor ref validation requires exact slot, generation, execution class,
+    and locality equality
+case:
+  declarations:
+  - name: slot
+    sort:
+      kind: int
+  - name: stale_generation
+    sort:
+      kind: int
+  - name: live_generation
+    sort:
+      kind: int
+  - name: execution_class
+    sort:
+      kind: int
+  - name: locality_class
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - slot
+    - 1
+  - op: lt
+    args:
+    - slot
+    - 1024
+  - op: ge
+    args:
+    - stale_generation
+    - 0
+  - op: ge
+    args:
+    - live_generation
+    - 0
+  - op: le
+    args:
+    - stale_generation
+    - 4294967295
+  - op: le
+    args:
+    - live_generation
+    - 4294967295
+  - op: gt
+    args:
+    - live_generation
+    - stale_generation
+  claim:
+    op: not
+    args:
+    - op: and
+      args:
+      - op: eq
+        args:
+        - slot
+        - slot
+      - op: eq
+        args:
+        - stale_generation
+        - live_generation
+      - op: eq
+        args:
+        - execution_class
+        - execution_class
+      - op: eq
+        args:
+        - locality_class
+        - locality_class

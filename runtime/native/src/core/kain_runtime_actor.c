@@ -31,6 +31,7 @@
 
 typedef struct {
     KainActorState_Internal* actors[KAIN_ACTOR_TABLE_SIZE];
+    unsigned int generations[KAIN_ACTOR_TABLE_SIZE];
     uint64_t occupancy_words[KAIN_ACTOR_TABLE_WORD_COUNT];
 #ifdef _WIN32
     CRITICAL_SECTION lock;
@@ -103,7 +104,7 @@ static unsigned long long g_actor_spawn_sequence = 1;
 #define KAIN_ACTOR_REPLY_PORT_INLINE_PAYLOAD_CAPACITY 24u
 
 typedef struct {
-    KainActorId actor_id;
+    KainActorRef actor_ref;
     int completed;
     void* reply_data;
     size_t reply_size;
@@ -149,17 +150,44 @@ static void kain_actor_finalize_exit_state(
 );
 static void kain_actor_complete_exit_side_effects(KainActorState_Internal* actor);
 static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src);
-static KainActorExitReason kain_actor_reply_port_bootstrap(
-    KainActorId actor_id,
-    KainActorMailbox* mailbox,
-    void* user_data
+static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity);
+static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox);
+static void kain_actor_ref_zero(KainActorRef* actor_ref);
+static void kain_actor_ref_write_live(
+    KainActorRef* actor_ref,
+    const KainActorState_Internal* actor
 );
+static void kain_actor_reply_port_state_acquire(KainActorReplyPortState* state);
 static void kain_actor_reply_port_state_release(KainActorReplyPortState* state);
 static void kain_actor_reply_port_state_reset(KainActorReplyPortState* state);
 static int kain_actor_reply_port_state_complete_copied(
     KainActorReplyPortState* state,
     const void* reply_data,
     size_t reply_size
+);
+static void kain_actor_reply_port_state_set_actor_ref(
+    KainActorReplyPortState* state,
+    const KainActorRef* actor_ref
+);
+static void kain_actor_reply_port_state_copy_actor_ref(
+    KainActorReplyPortState* state,
+    KainActorRef* out_actor_ref
+);
+static void kain_actor_reply_port_state_take_actor_ref(
+    KainActorReplyPortState* state,
+    KainActorRef* out_actor_ref
+);
+static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortState* state);
+static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPortState* state);
+static KainActorState_Internal* kain_actor_table_get(KainActorId actor_id);
+static KainActorId kain_actor_table_insert(KainActorState_Internal* actor);
+static int kain_actor_table_copy_ref(KainActorId actor_id, KainActorRef* out_actor_ref);
+static int kain_actor_table_ref_matches_locked(
+    const KainActorRef* actor_ref,
+    KainActorState_Internal** out_actor
+);
+static KainActorState_Internal* kain_actor_table_remove_ref(
+    const KainActorRef* actor_ref
 );
 
 static uint64_t kain_actor_isolate_low_bit_u64(uint64_t value) {
@@ -180,6 +208,120 @@ static unsigned int kain_actor_low_bit_index_u64(uint64_t one_hot) {
     return debruijn_index[(one_hot * 0x03f79d71b4cb0a89ULL) >> 58u];
 }
 
+static void kain_actor_ref_zero(KainActorRef* actor_ref) {
+    if (actor_ref == NULL) {
+        return;
+    }
+    actor_ref->actor_id = KAIN_ACTOR_ID_INVALID;
+    actor_ref->generation = 0u;
+    actor_ref->execution_class = KAIN_ACTOR_EXECUTION_CLASS_INVALID;
+    actor_ref->locality_class = KAIN_ACTOR_LOCALITY_INVALID;
+}
+
+static void kain_actor_ref_write_live(
+    KainActorRef* actor_ref,
+    const KainActorState_Internal* actor
+) {
+    if (actor_ref == NULL) {
+        return;
+    }
+    if (actor == NULL) {
+        kain_actor_ref_zero(actor_ref);
+        return;
+    }
+    actor_ref->actor_id = actor->actor_id;
+    actor_ref->generation = actor->ref_generation;
+    actor_ref->execution_class = actor->execution_class;
+    actor_ref->locality_class = actor->locality_class;
+}
+
+static void kain_actor_reply_port_state_acquire(KainActorReplyPortState* state) {
+    if (state == NULL) {
+        return;
+    }
+#ifdef _WIN32
+    EnterCriticalSection(&state->lock);
+    state->references++;
+    LeaveCriticalSection(&state->lock);
+#else
+    pthread_mutex_lock(&state->lock);
+    state->references++;
+    pthread_mutex_unlock(&state->lock);
+#endif
+}
+
+static void kain_actor_reply_port_state_set_actor_ref(
+    KainActorReplyPortState* state,
+    const KainActorRef* actor_ref
+) {
+    if (state == NULL) {
+        return;
+    }
+#ifdef _WIN32
+    EnterCriticalSection(&state->lock);
+    if (actor_ref != NULL) {
+        state->actor_ref = *actor_ref;
+    } else {
+        kain_actor_ref_zero(&state->actor_ref);
+    }
+    LeaveCriticalSection(&state->lock);
+#else
+    pthread_mutex_lock(&state->lock);
+    if (actor_ref != NULL) {
+        state->actor_ref = *actor_ref;
+    } else {
+        kain_actor_ref_zero(&state->actor_ref);
+    }
+    pthread_mutex_unlock(&state->lock);
+#endif
+}
+
+static void kain_actor_reply_port_state_copy_actor_ref(
+    KainActorReplyPortState* state,
+    KainActorRef* out_actor_ref
+) {
+    if (out_actor_ref == NULL) {
+        return;
+    }
+    kain_actor_ref_zero(out_actor_ref);
+    if (state == NULL) {
+        return;
+    }
+#ifdef _WIN32
+    EnterCriticalSection(&state->lock);
+    *out_actor_ref = state->actor_ref;
+    LeaveCriticalSection(&state->lock);
+#else
+    pthread_mutex_lock(&state->lock);
+    *out_actor_ref = state->actor_ref;
+    pthread_mutex_unlock(&state->lock);
+#endif
+}
+
+static void kain_actor_reply_port_state_take_actor_ref(
+    KainActorReplyPortState* state,
+    KainActorRef* out_actor_ref
+) {
+    if (out_actor_ref == NULL) {
+        return;
+    }
+    kain_actor_ref_zero(out_actor_ref);
+    if (state == NULL) {
+        return;
+    }
+#ifdef _WIN32
+    EnterCriticalSection(&state->lock);
+    *out_actor_ref = state->actor_ref;
+    kain_actor_ref_zero(&state->actor_ref);
+    LeaveCriticalSection(&state->lock);
+#else
+    pthread_mutex_lock(&state->lock);
+    *out_actor_ref = state->actor_ref;
+    kain_actor_ref_zero(&state->actor_ref);
+    pthread_mutex_unlock(&state->lock);
+#endif
+}
+
 static int kain_actor_reply_port_state_uses_inline_payload(
     const KainActorReplyPortState* state,
     const void* reply_data
@@ -187,51 +329,6 @@ static int kain_actor_reply_port_state_uses_inline_payload(
     return state != NULL
         && reply_data != NULL
         && reply_data == (const void*)state->inline_reply_data;
-}
-
-static void kain_actor_reply_port_state_complete(
-    KainActorReplyPortState* state,
-    void* reply_data,
-    size_t reply_size
-) {
-    int should_free_reply_data = 0;
-
-    if (state == NULL) {
-        if (reply_data != NULL) {
-            free(reply_data);
-        }
-        return;
-    }
-#ifdef _WIN32
-    EnterCriticalSection(&state->lock);
-    if (!state->completed) {
-        state->completed = 1;
-        state->reply_data = reply_data;
-        state->reply_size = reply_size;
-        SetEvent(state->completed_event);
-    } else {
-        should_free_reply_data =
-            reply_data != NULL
-            && !kain_actor_reply_port_state_uses_inline_payload(state, reply_data);
-    }
-    LeaveCriticalSection(&state->lock);
-#else
-    pthread_mutex_lock(&state->lock);
-    if (!state->completed) {
-        state->completed = 1;
-        state->reply_data = reply_data;
-        state->reply_size = reply_size;
-        pthread_cond_signal(&state->completed_cond);
-    } else {
-        should_free_reply_data =
-            reply_data != NULL
-            && !kain_actor_reply_port_state_uses_inline_payload(state, reply_data);
-    }
-    pthread_mutex_unlock(&state->lock);
-#endif
-    if (should_free_reply_data) {
-        free(reply_data);
-    }
 }
 
 static int kain_actor_reply_port_state_complete_copied(
@@ -495,37 +592,76 @@ static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) 
 #endif
 }
 
-static KainActorExitReason kain_actor_reply_port_bootstrap(
-    KainActorId actor_id,
-    KainActorMailbox* mailbox,
-    void* user_data
-) {
-    KainActorReplyPortState* state = (KainActorReplyPortState*)user_data;
-    KainDiagnostic diag;
+static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortState* state) {
+    KainActorState_Internal* actor;
+    KainActorRef actor_ref;
+    KainActorId actor_id;
 
-    (void)actor_id;
-    kain_diagnostic_init(&diag);
+    if (state == NULL) {
+        return -1;
+    }
 
-    if (mailbox == NULL || state == NULL) {
+    actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));
+    if (actor == NULL) {
+        return -1;
+    }
+
+    actor->state = KAIN_ACTOR_STATE_RUNNING;
+    actor->exit_reason = KAIN_ACTOR_EXIT_NORMAL;
+    actor->execution_class = KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT;
+    actor->locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
+    actor->user_data = state;
+    actor->supervisor.supervisor_id = KAIN_ACTOR_ID_INVALID;
+    actor->spawn_config.mailbox_capacity = 1u;
+    kain_actor_copy_name(actor->name, sizeof(actor->name), "kain-reply-port");
+    kain_actor_copy_name(
+        actor->spawn_config.name,
+        sizeof(actor->spawn_config.name),
+        "kain-reply-port"
+    );
+
+    if (kain_actor_mailbox_init(&actor->mailbox, 1u) != 0) {
+        free(actor);
+        return -1;
+    }
+
+    kain_actor_reply_port_state_acquire(state);
+    actor_id = kain_actor_table_insert(actor);
+    if (actor_id == KAIN_ACTOR_ID_INVALID) {
         kain_actor_reply_port_state_release(state);
-        return KAIN_ACTOR_EXIT_CRASHED;
+        kain_actor_mailbox_destroy(&actor->mailbox);
+        free(actor);
+        return -1;
     }
 
-    while (1) {
-        KainActorMessage message;
+    kain_actor_ref_write_live(&actor_ref, actor);
+    kain_actor_reply_port_state_set_actor_ref(state, &actor_ref);
+    return 0;
+}
 
-        memset(&message, 0, sizeof(message));
-        if (kain_actor_receive(mailbox, &message, &diag) != 0) {
-            break;
-        }
+static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPortState* state) {
+    KainActorRef actor_ref;
+    KainActorState_Internal* actor;
 
-        kain_actor_reply_port_state_complete(state, message.data, message.data_size);
-        message.data = NULL;
-        message.data_size = 0u;
+    if (state == NULL) {
+        return;
     }
 
-    kain_actor_reply_port_state_release(state);
-    return KAIN_ACTOR_EXIT_NORMAL;
+    kain_actor_reply_port_state_take_actor_ref(state, &actor_ref);
+    if (actor_ref.actor_id == KAIN_ACTOR_ID_INVALID) {
+        return;
+    }
+
+    actor = kain_actor_table_remove_ref(&actor_ref);
+    if (actor == NULL) {
+        return;
+    }
+
+    actor->state = KAIN_ACTOR_STATE_TERMINATED;
+    actor->exit_reason = KAIN_ACTOR_EXIT_SHUTDOWN;
+    kain_actor_close_mailbox(actor);
+    kain_actor_cleanup(actor);
+    free(actor);
 }
 
 /*
@@ -548,6 +684,7 @@ void kain_actor_runtime_init(void) {
 
     g_actor_table.next_id = 1;
     memset(g_actor_table.actors, 0, sizeof(g_actor_table.actors));
+    memset(g_actor_table.generations, 0, sizeof(g_actor_table.generations));
     memset(g_actor_table.occupancy_words, 0, sizeof(g_actor_table.occupancy_words));
     g_actor_table.occupancy_words[0] = 1ULL;
     memset(g_actor_registry.buckets, 0, sizeof(g_actor_registry.buckets));
@@ -572,7 +709,13 @@ KainActorAbiDescriptor kain_actor_abi_descriptor(void) {
 
     descriptor.abi_version = KAIN_ACTOR_ABI_VERSION;
     descriptor.actor_id_bits = (unsigned short)KAIN_ACTOR_ID_BITS;
+    descriptor.actor_ref_generation_bits = (unsigned short)KAIN_ACTOR_REF_GENERATION_BITS;
     descriptor.invalid_actor_id = KAIN_ACTOR_ID_INVALID;
+    descriptor.default_execution_class = KAIN_ACTOR_EXECUTION_CLASS_MICROCELL;
+    descriptor.default_locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
+    descriptor.synthetic_reply_port_execution_class =
+        KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT;
+    descriptor.synthetic_reply_port_locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
     descriptor.default_mailbox_capacity = KAIN_MAILBOX_DEFAULT_CAPACITY;
     descriptor.unbounded_mailbox_capacity = KAIN_MAILBOX_UNBOUNDED_CAPACITY;
     descriptor.default_ask_timeout_ms = KAIN_ACTOR_DEFAULT_ASK_TIMEOUT_MS;
@@ -598,7 +741,14 @@ int kain_actor_abi_descriptor_is_compatible(const KainActorAbiDescriptor* expect
     current = kain_actor_abi_descriptor();
     return expected->abi_version == current.abi_version &&
            expected->actor_id_bits == current.actor_id_bits &&
+           expected->actor_ref_generation_bits == current.actor_ref_generation_bits &&
            expected->invalid_actor_id == current.invalid_actor_id &&
+           expected->default_execution_class == current.default_execution_class &&
+           expected->default_locality_class == current.default_locality_class &&
+           expected->synthetic_reply_port_execution_class ==
+               current.synthetic_reply_port_execution_class &&
+           expected->synthetic_reply_port_locality_class ==
+               current.synthetic_reply_port_locality_class &&
            expected->default_mailbox_capacity == current.default_mailbox_capacity &&
            expected->unbounded_mailbox_capacity == current.unbounded_mailbox_capacity &&
            expected->default_ask_timeout_ms == current.default_ask_timeout_ms &&
@@ -610,6 +760,34 @@ int kain_actor_abi_descriptor_is_compatible(const KainActorAbiDescriptor* expect
            expected->actor_table_capacity == current.actor_table_capacity &&
            expected->registry_capacity == current.registry_capacity &&
            expected->monitor_exit_tag_base == current.monitor_exit_tag_base;
+}
+
+void kain_actor_ref_from_id(KainActorId actor_id, KainActorRef* out_ref) {
+    kain_actor_runtime_ensure_initialized();
+    (void)kain_actor_table_copy_ref(actor_id, out_ref);
+}
+
+int kain_actor_ref_is_live(const KainActorRef* actor_ref) {
+    int is_live = 0;
+
+    if (actor_ref == NULL) {
+        return 0;
+    }
+
+    kain_actor_runtime_ensure_initialized();
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+    is_live = kain_actor_table_ref_matches_locked(actor_ref, NULL);
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+    return is_live;
 }
 
 /*
@@ -625,6 +803,7 @@ void kain_actor_runtime_shutdown(void) {
     if (g_actor_reply_port_tls != NULL) {
         KainActorReplyPortState* cached_reply_port = g_actor_reply_port_tls;
         g_actor_reply_port_tls = NULL;
+        kain_actor_reply_port_state_unbind_synthetic_actor(cached_reply_port);
         kain_actor_reply_port_state_release(cached_reply_port);
     }
 
@@ -767,6 +946,64 @@ static KainActorState_Internal* kain_actor_table_get(KainActorId actor_id) {
     return g_actor_table.actors[actor_id];
 }
 
+static int kain_actor_table_copy_ref(KainActorId actor_id, KainActorRef* out_actor_ref) {
+    int found = 0;
+
+    kain_actor_ref_zero(out_actor_ref);
+    if (actor_id == KAIN_ACTOR_ID_INVALID || actor_id >= KAIN_ACTOR_TABLE_SIZE) {
+        return 0;
+    }
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+    if (g_actor_table.actors[actor_id] != NULL) {
+        kain_actor_ref_write_live(out_actor_ref, g_actor_table.actors[actor_id]);
+        found = 1;
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+
+    return found;
+}
+
+static int kain_actor_table_ref_matches_locked(
+    const KainActorRef* actor_ref,
+    KainActorState_Internal** out_actor
+) {
+    KainActorState_Internal* actor;
+
+    if (out_actor != NULL) {
+        *out_actor = NULL;
+    }
+    if (actor_ref == NULL ||
+        actor_ref->actor_id == KAIN_ACTOR_ID_INVALID ||
+        actor_ref->actor_id >= KAIN_ACTOR_TABLE_SIZE) {
+        return 0;
+    }
+
+    actor = g_actor_table.actors[actor_ref->actor_id];
+    if (actor == NULL) {
+        return 0;
+    }
+    if (g_actor_table.generations[actor_ref->actor_id] != actor_ref->generation ||
+        actor->ref_generation != actor_ref->generation ||
+        actor->execution_class != actor_ref->execution_class ||
+        actor->locality_class != actor_ref->locality_class) {
+        return 0;
+    }
+
+    if (out_actor != NULL) {
+        *out_actor = actor;
+    }
+    return 1;
+}
+
 static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
     size_t word_index;
 #ifdef _WIN32
@@ -788,9 +1025,21 @@ static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
             unsigned int bit_index = kain_actor_low_bit_index_u64(low_bit);
             id = (KainActorId)(word_index * KAIN_ACTOR_TABLE_WORD_BITS + bit_index);
             if (id != KAIN_ACTOR_ID_INVALID && id < KAIN_ACTOR_TABLE_SIZE) {
+                unsigned int next_generation = g_actor_table.generations[id] + 1u;
+                if (next_generation == 0u) {
+                    next_generation = 1u;
+                }
                 actor->actor_id = id;
+                actor->ref_generation = next_generation;
+                if (actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_INVALID) {
+                    actor->execution_class = KAIN_ACTOR_EXECUTION_CLASS_MICROCELL;
+                }
+                if (actor->locality_class == KAIN_ACTOR_LOCALITY_INVALID) {
+                    actor->locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
+                }
                 actor->spawn_sequence = g_actor_spawn_sequence++;
                 g_actor_table.actors[id] = actor;
+                g_actor_table.generations[id] = next_generation;
                 g_actor_table.occupancy_words[word_index] |= low_bit;
             } else {
                 id = KAIN_ACTOR_ID_INVALID;
@@ -875,6 +1124,39 @@ static void* kain_actor_thread_proc(void* param) {
 #endif
 }
 
+static KainActorState_Internal* kain_actor_table_remove_ref(const KainActorRef* actor_ref) {
+    KainActorState_Internal* actor = NULL;
+    size_t word_index;
+    uint64_t bit_mask;
+
+    if (actor_ref == NULL ||
+        actor_ref->actor_id == KAIN_ACTOR_ID_INVALID ||
+        actor_ref->actor_id >= KAIN_ACTOR_TABLE_SIZE) {
+        return NULL;
+    }
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+    if (kain_actor_table_ref_matches_locked(actor_ref, &actor)) {
+        g_actor_table.actors[actor_ref->actor_id] = NULL;
+        word_index = (size_t)(actor_ref->actor_id / KAIN_ACTOR_TABLE_WORD_BITS);
+        bit_mask = 1ULL << (unsigned int)(actor_ref->actor_id % KAIN_ACTOR_TABLE_WORD_BITS);
+        g_actor_table.occupancy_words[word_index] &= ~bit_mask;
+    } else {
+        actor = NULL;
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+
+    return actor;
+}
+
 static void kain_actor_finalize_exit_state(
     KainActorState_Internal* actor,
     KainActorExitReason bootstrap_exit_reason
@@ -933,14 +1215,19 @@ void kain_actor_spawn_config_init(KainActorSpawnConfig* config) {
 
 void* kain_actor_reply_port_new(void) {
     KainActorReplyPortState* state;
-    KainActorSpawnConfig config;
-    KainActorId actor_id;
 
     kain_actor_runtime_ensure_initialized();
 
     if (g_actor_reply_port_tls != NULL) {
-        kain_actor_reply_port_state_reset(g_actor_reply_port_tls);
-        return g_actor_reply_port_tls;
+        state = g_actor_reply_port_tls;
+        kain_actor_reply_port_state_unbind_synthetic_actor(state);
+        kain_actor_reply_port_state_reset(state);
+        if (kain_actor_reply_port_state_bind_synthetic_actor(state) != 0) {
+            g_actor_reply_port_tls = NULL;
+            kain_actor_reply_port_state_release(state);
+            return NULL;
+        }
+        return state;
     }
 
     state = (KainActorReplyPortState*)calloc(1, sizeof(KainActorReplyPortState));
@@ -948,11 +1235,11 @@ void* kain_actor_reply_port_new(void) {
         return NULL;
     }
 
-    state->actor_id = KAIN_ACTOR_ID_INVALID;
+    kain_actor_ref_zero(&state->actor_ref);
     state->completed = 0;
     state->reply_data = NULL;
     state->reply_size = 0u;
-    state->references = 2;
+    state->references = 1;
     memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
 #ifdef _WIN32
     InitializeCriticalSection(&state->lock);
@@ -967,49 +1254,47 @@ void* kain_actor_reply_port_new(void) {
     pthread_cond_init(&state->completed_cond, NULL);
 #endif
 
-    kain_actor_spawn_config_init(&config);
-    config.bootstrap_fn = kain_actor_reply_port_bootstrap;
-    config.user_data = state;
-    config.mailbox_capacity = 1u;
-    kain_actor_copy_name(config.name, sizeof(config.name), "kain-reply-port");
-    actor_id = kain_actor_spawn_internal(&config, 1, NULL);
-    if (actor_id == KAIN_ACTOR_ID_INVALID) {
-#ifdef _WIN32
-        CloseHandle(state->completed_event);
-        DeleteCriticalSection(&state->lock);
-#else
-        pthread_cond_destroy(&state->completed_cond);
-        pthread_mutex_destroy(&state->lock);
-#endif
-        free(state);
+    if (kain_actor_reply_port_state_bind_synthetic_actor(state) != 0) {
+        kain_actor_reply_port_state_release(state);
         return NULL;
     }
 
-    state->actor_id = actor_id;
-    kain_actor_reply_port_state_reset(state);
     g_actor_reply_port_tls = state;
     return state;
 }
 
 KainActorId kain_actor_reply_port_actor_id(void* reply_port_handle) {
     KainActorReplyPortState* state = (KainActorReplyPortState*)reply_port_handle;
+    KainActorRef actor_ref;
+
     if (state == NULL) {
         return KAIN_ACTOR_ID_INVALID;
     }
-    return state->actor_id;
+    kain_actor_reply_port_state_copy_actor_ref(state, &actor_ref);
+    return actor_ref.actor_id;
+}
+
+void kain_actor_reply_port_actor_ref(void* reply_port_handle, KainActorRef* out_ref) {
+    KainActorReplyPortState* state = (KainActorReplyPortState*)reply_port_handle;
+
+    kain_actor_ref_zero(out_ref);
+    if (state == NULL || out_ref == NULL) {
+        return;
+    }
+    kain_actor_reply_port_state_copy_actor_ref(state, out_ref);
 }
 
 void kain_actor_reply_port_destroy(void* reply_port_handle) {
     KainActorReplyPortState* state = (KainActorReplyPortState*)reply_port_handle;
+
     if (state == NULL) {
         return;
     }
     if (g_actor_reply_port_tls == state) {
         g_actor_reply_port_tls = NULL;
     }
-    if (state->actor_id != KAIN_ACTOR_ID_INVALID) {
-        (void)kain_actor_shutdown(state->actor_id, NULL);
-    }
+    kain_actor_reply_port_state_unbind_synthetic_actor(state);
+    kain_actor_reply_port_state_reset(state);
     kain_actor_reply_port_state_release(state);
 }
 
@@ -1018,20 +1303,63 @@ int kain_actor_reply_port_send(
     const void* reply_data,
     size_t reply_size
 ) {
-    KainActorState_Internal* actor = kain_actor_table_get(reply_port_actor_id);
-    KainActorReplyPortState* state;
+    KainActorRef actor_ref;
 
-    if (actor == NULL) {
+    kain_actor_ref_from_id(reply_port_actor_id, &actor_ref);
+    if (actor_ref.actor_id == KAIN_ACTOR_ID_INVALID) {
         return -1;
     }
-    if (actor->bootstrap_fn != kain_actor_reply_port_bootstrap) {
+    return kain_actor_reply_port_send_ref(&actor_ref, reply_data, reply_size);
+}
+
+int kain_actor_reply_port_send_ref(
+    const KainActorRef* reply_port_ref,
+    const void* reply_data,
+    size_t reply_size
+) {
+    KainActorState_Internal* actor = NULL;
+    KainActorReplyPortState* state;
+    int result;
+
+    if (reply_port_ref == NULL) {
         return -1;
     }
+
+    kain_actor_runtime_ensure_initialized();
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+    if (!kain_actor_table_ref_matches_locked(reply_port_ref, &actor) ||
+        actor == NULL ||
+        actor->execution_class != KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT) {
+#ifdef _WIN32
+        LeaveCriticalSection(&g_actor_table.lock);
+#else
+        pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+        return -1;
+    }
+
     state = (KainActorReplyPortState*)actor->user_data;
+    if (state != NULL) {
+        kain_actor_reply_port_state_acquire(state);
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+
     if (state == NULL) {
         return -1;
     }
-    return kain_actor_reply_port_state_complete_copied(state, reply_data, reply_size);
+
+    result = kain_actor_reply_port_state_complete_copied(state, reply_data, reply_size);
+    kain_actor_reply_port_state_release(state);
+    return result;
 }
 
 int kain_actor_reply_port_wait(
@@ -1058,11 +1386,11 @@ int kain_actor_reply_port_wait(
         out_reply_capacity,
         out_reply_size
     );
-    if (!completed && state->actor_id != KAIN_ACTOR_ID_INVALID) {
+    if (!completed) {
         if (g_actor_reply_port_tls == state) {
             g_actor_reply_port_tls = NULL;
         }
-        (void)kain_actor_shutdown(state->actor_id, NULL);
+        kain_actor_reply_port_state_unbind_synthetic_actor(state);
         kain_actor_reply_port_state_release(state);
         if (out_reply_size != NULL) {
             *out_reply_size = 0u;
@@ -1132,6 +1460,9 @@ static KainActorId kain_actor_spawn_internal(
     actor->exit_reason = KAIN_ACTOR_EXIT_NORMAL;
     actor->bootstrap_fn = config->bootstrap_fn;
     actor->user_data = config->user_data;
+    actor->ref_generation = 0u;
+    actor->execution_class = KAIN_ACTOR_EXECUTION_CLASS_MICROCELL;
+    actor->locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
     actor->monitors = NULL;
     actor->links = NULL;
     actor->in_scheduler_queue = 0;
@@ -1614,6 +1945,14 @@ static void kain_actor_cleanup(KainActorState_Internal* actor) {
 
     /* Destroy mailbox */
     kain_actor_mailbox_destroy(&actor->mailbox);
+
+    if (actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT &&
+        actor->user_data != NULL) {
+        KainActorReplyPortState* reply_port_state =
+            (KainActorReplyPortState*)actor->user_data;
+        actor->user_data = NULL;
+        kain_actor_reply_port_state_release(reply_port_state);
+    }
 
     /* Release the compiler-owned actor state once the runtime no longer
      * needs to keep the actor alive. */

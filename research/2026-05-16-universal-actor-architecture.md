@@ -106,7 +106,14 @@ What appears strongest so far:
 - `plausible`: UE and networking do not want a separate concurrency model; they want explicit execution classes beneath one actor contract.
 - `speculative`: Kain's ownership/world features could make this stronger than plain actors by giving explicit zero-copy teleport/handoff semantics between classes.
 
+Implementation update on 2026-05-16:
+
+- The first prototype is now real in the native ABI and LLVM lane:
+  - `KainActorRef` exists with generation / execution-class / locality metadata.
+  - LLVM actor state field 0 now stores that ref instead of a raw id.
+  - reply ports are synthetic refs, not waiting actor threads.
+  - TLS reply-port reuse now rebinds a fresh synthetic actor generation so stale late replies are rejected.
+
 Best next experiment:
 
-- Prototype a `KainActorRef` with generation tags and an `execution_class` field, then redesign reply ports as synthetic refs instead of real waiting actors.
-- After that, prototype a scheduler-owned ready queue with bounded actor turns before attempting deeper UE/network unification.
+- Prototype a scheduler-owned ready queue with bounded actor turns and execution-class-aware dispatch before attempting deeper UE/network unification.

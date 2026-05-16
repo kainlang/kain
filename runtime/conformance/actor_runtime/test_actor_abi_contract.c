@@ -242,6 +242,112 @@ int main(void) {
     }
 
     {
+        KainActorId actor_id = spawn_named_actor(
+            "ref_contract",
+            blocking_actor_bootstrap,
+            NULL,
+            KAIN_ACTOR_ID_INVALID,
+            KAIN_RESTART_POLICY_TEMPORARY
+        );
+        KainActorRef actor_ref;
+
+        memset(&actor_ref, 0, sizeof(actor_ref));
+        status = expect_true(actor_id != KAIN_ACTOR_ID_INVALID, 26, "ref actor spawn");
+        if (status != 0) return status;
+        kain_actor_ref_from_id(actor_id, &actor_ref);
+        status = expect_true(actor_ref.actor_id == actor_id, 27, "actor ref id mirrors actor id");
+        if (status != 0) return status;
+        status = expect_true(actor_ref.generation != 0u, 28, "actor ref generation is minted");
+        if (status != 0) return status;
+        status = expect_true(
+            actor_ref.execution_class == KAIN_ACTOR_EXECUTION_CLASS_MICROCELL,
+            29,
+            "actor ref execution class"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            actor_ref.locality_class == KAIN_ACTOR_LOCALITY_LOCAL,
+            30,
+            "actor ref locality class"
+        );
+        if (status != 0) return status;
+        status = expect_true(kain_actor_ref_is_live(&actor_ref), 31, "actor ref live");
+        if (status != 0) return status;
+        status = expect_true(kain_actor_shutdown(actor_id, &diag) == 0, 32, "ref actor shutdown");
+        if (status != 0) return status;
+    }
+
+    {
+        void* reply_port = kain_actor_reply_port_new();
+        KainActorRef first_reply_ref;
+        KainActorRef stale_reply_ref;
+        KainActorRef rebound_reply_ref;
+        long long first_value = 41;
+        long long second_value = 99;
+        long long received_value = 0;
+
+        memset(&first_reply_ref, 0, sizeof(first_reply_ref));
+        memset(&stale_reply_ref, 0, sizeof(stale_reply_ref));
+        memset(&rebound_reply_ref, 0, sizeof(rebound_reply_ref));
+
+        status = expect_true(reply_port != NULL, 33, "reply port allocates");
+        if (status != 0) return status;
+        kain_actor_reply_port_actor_ref(reply_port, &first_reply_ref);
+        stale_reply_ref = first_reply_ref;
+
+        status = expect_true(first_reply_ref.actor_id != KAIN_ACTOR_ID_INVALID, 34, "reply ref actor id");
+        if (status != 0) return status;
+        status = expect_true(
+            first_reply_ref.execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT,
+            35,
+            "reply ref execution class"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            first_reply_ref.locality_class == KAIN_ACTOR_LOCALITY_LOCAL,
+            36,
+            "reply ref locality class"
+        );
+        if (status != 0) return status;
+        status = expect_true(kain_actor_ref_is_live(&first_reply_ref), 37, "reply ref live");
+        if (status != 0) return status;
+        status = expect_true(
+            kain_actor_reply_port_send_ref(&first_reply_ref, &first_value, sizeof(first_value)) == 0,
+            38,
+            "reply ref accepts direct send"
+        );
+        if (status != 0) return status;
+        received_value = kain_actor_reply_port_wait_i64(reply_port, 1000);
+        status = expect_true(received_value == first_value, 39, "reply wait returns first payload");
+        if (status != 0) return status;
+
+        reply_port = kain_actor_reply_port_new();
+        status = expect_true(reply_port != NULL, 40, "reply port rebind allocates");
+        if (status != 0) return status;
+        kain_actor_reply_port_actor_ref(reply_port, &rebound_reply_ref);
+        status = expect_true(!kain_actor_ref_is_live(&stale_reply_ref), 41, "stale reply ref is dead after rebind");
+        if (status != 0) return status;
+        status = expect_true(
+            kain_actor_reply_port_send_ref(&stale_reply_ref, &second_value, sizeof(second_value)) != 0,
+            42,
+            "stale reply ref send rejected"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            kain_actor_reply_port_send_ref(&rebound_reply_ref, &second_value, sizeof(second_value)) == 0,
+            43,
+            "rebound reply ref accepts direct send"
+        );
+        if (status != 0) return status;
+        received_value = kain_actor_reply_port_wait_i64(reply_port, 1000);
+        status = expect_true(received_value == second_value, 44, "reply wait returns rebound payload");
+        if (status != 0) return status;
+        kain_actor_reply_port_destroy(reply_port);
+        status = expect_true(!kain_actor_ref_is_live(&rebound_reply_ref), 45, "reply ref dies after destroy");
+        if (status != 0) return status;
+    }
+
+    {
         EchoProbe probe;
         KainActorId actor_id;
         KainActorMessage first;

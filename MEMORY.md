@@ -1,5 +1,57 @@
 # Kain Memory
 
+# 2026-05-16 - Universal-actor foundation slice landed: native actor refs are now generation-tagged runtime truth, and LLVM reply ports are synthetic refs instead of waiting actor threads
+
+This pass landed the first concrete slice of the universal-actor architecture thesis without pretending to solve the entire scheduler/world/network problem in one shot. The native runtime and LLVM lowering now agree that an actor handle is not just a raw slot id anymore.
+
+What changed:
+
+- `runtime/native/include/kain_runtime_actor.h` now defines `KainActorRef` with:
+  - `actor_id`
+  - `generation`
+  - `execution_class`
+  - `locality_class`
+- The native actor ABI descriptor now exposes the actor-ref generation bit width plus default execution/locality classes and the synthetic reply-port class/locality.
+- `runtime/native/src/core/kain_runtime_actor.c` now keeps generation counters in the actor table and stamps every live actor with:
+  - `ref_generation`
+  - `execution_class`
+  - `locality_class`
+- The new runtime seam is:
+  - `kain_actor_ref_from_id(...)`
+  - `kain_actor_ref_is_live(...)`
+  - `kain_actor_reply_port_actor_ref(...)`
+  - `kain_actor_reply_port_send_ref(...)`
+- LLVM actor state field 0 is now a `%KainActorRef`, not a raw `i64`. Native LLVM spawn/run paths call `kain_actor_ref_from_id(...)` to populate self handles, and reply-port sends now lower through `kain_actor_reply_port_send_ref(...)`.
+- The old reply-port implementation spawned a real direct-thread actor that just blocked on mailbox receive. That is gone. Reply ports are now synthetic actor-table entries with execution class `SYNTHETIC_REPLY_PORT`.
+- Successful `ask` / `ask_timeout` still keep the TLS reply-port state cached, but the next `kain_actor_reply_port_new()` now:
+  - unbinds the previous synthetic actor ref,
+  - resets reply payload state,
+  - binds a fresh synthetic actor generation.
+  This closes the stale-late-reply hazard across reply-port reuse.
+
+Proof and validation:
+
+- `cargo test -p kain-actor`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_generates_actor_ask_reply_roundtrip_paths -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_generates_typed_actor_ask_reply_wait_for_bool_payloads -- --nocapture`
+- `cargo test -p kain-core ask_timeout_builtin_round_trips_actor_reply -- --nocapture`
+- direct native LLVM compile+run:
+  - `target\\debug\\kain.exe blades/actor-ask-roundtrip/src/main.kn -t llvm -o blades/actor-ask-roundtrip/actor-ask-roundtrip.exe -r`
+- actor runtime conformance:
+  - `bash runtime/conformance/actor_runtime/run_tests.sh --verbose`
+  - the ABI contract test now directly exercises `kain_actor_ref_*` plus synthetic reply-port rebind / stale-ref rejection
+- actor proof lane:
+  - `uv run --project C:\\Dev\\polytools\\z3-mcp --no-sync z3-mcp-batch --pack-path D:\\Kain-Lang\\runtime\\native\\src\\core --lane actor`
+  - result: `8/8 proved`
+- raw Z3 proof:
+  - `z3 runtime/native/src/core/z3/proofs-experimental/actor-reply-port-generation-rebind-never-reuses-prior-generation.smt2`
+  - result: `unsat`
+
+Durable lesson:
+
+- This is the right first slice because it upgrades actor identity truth before the bigger scheduler rewrite. It removes one wasted reply-port thread today, closes stale reply-port reuse aliasing, and gives future world/host/remote classes a real ABI slot to stand on.
+- The next serious architectural move is still scheduler-owned ready queues with explicit execution classes. `KainActorRef` is the substrate; it is not the end state.
+
 # 2026-05-16 - Native stdlib domains now have public `std.*` mirrors and clean aliases
 
 This pass normalized the native stdlib authoring surface so Kain code can import the same style everywhere instead of spelling `std::native::*` or `native_*` wrapper names for ordinary app code. The native backend profile still loads `stdlib/native`, but those files now expose clean public aliases beside the legacy ABI-shaped names, and root `stdlib/*.kn` mirrors exist for all current native domains.
