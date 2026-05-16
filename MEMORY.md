@@ -34,6 +34,7 @@ What changed:
   - `run.py` orchestrates the lane, compiles the native helper into both object and shared forms, writes a local `KAIN.toml`, builds/runs the variants, and emits `benchmark/out/reports/ffi_boundary_latest.llm.md` plus JSON and timestamped `*.ffi_boundary.*` reports.
   - `native/ffi_boundary.h` and `native/ffi_boundary.c` define the tiny C helper used for object/shared boundary tests.
   - `sources/llvm_pure.kn`, `llvm_object.kn`, `llvm_shared.kn`, `interpret_pure.kn`, and `interpret_shared.kn` keep the benchmarked work deterministic and checksum-guarded.
+  - The generated object/shared/import-library sidecars now live under `benchmark/out/build/ffi_boundary/native/` instead of the source tree, so reruns stay clean and git never needs to see Windows `.lib` / `.exp` byproducts.
 - Fixed the direct `kain.exe <file>.kn -t llvm` / `-t c` CLI seam in `crates/cli/src/main.rs`. The first benchmark run proved the LLVM lane was compiling call sites before the generated C FFI modules existed, which produced undefined `@ffi_boundary_mix` calls. The correct fix was not to rewrite the source in place; it was to force `kain_c_ffi::import_libraries_for_source(..., Generate, ...)` before frontend compile so `.kain/cache/c_ffi/.../*.kn` bindings exist when import resolution runs.
 - Updated `ARCHITECTURE.md` and `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future agents know that `benchmark/ffi_boundary/` is the ABI-tax probe and that undefined `use c::...` symbols on direct LLVM/C compile point at the CLI pre-generation seam.
 
@@ -46,17 +47,17 @@ Validation:
 
 Current benchmark reality from `benchmark/out/reports/ffi_boundary_latest.llm.md`:
 
-- `Kain LLVM Pure`: `96.481 ms` median over `10,000,000` calls, about `9.65 ns/call`
-- `Kain LLVM C Object`: `102.862 ms`, about `10.29 ns/call`
-- `Kain LLVM C Shared`: `100.170 ms`, about `10.02 ns/call`
-- `Kain Interpret Pure`: `114.597 ms` over `10,000` calls, about `11,459.71 ns/call`
-- `Kain Interpret C Shared`: `6267.941 ms`, about `626,794.14 ns/call`
+- `Kain LLVM Pure`: `95.884 ms` median over `10,000,000` calls, about `9.59 ns/call`
+- `Kain LLVM C Object`: `104.738 ms`, about `10.47 ns/call`
+- `Kain LLVM C Shared`: `104.706 ms`, about `10.47 ns/call`
+- `Kain Interpret Pure`: `135.488 ms` over `10,000` calls, about `13,548.82 ns/call`
+- `Kain Interpret C Shared`: `3112.769 ms`, about `311,276.85 ns/call`
 
 Durable conclusion:
 
-- The native LLVM lane is exactly the story we wanted: direct C boundary tax is tiny. On this host, the direct object path is only about `6.6%` slower than pure LLVM, and the shared-library path is only about `3.8%` slower.
-- The interpreter/live bridge path is not “a little slower”; it is orders of magnitude slower. Even the pure interpret variant is about `1188x` slower per call than pure LLVM on this benchmark, and the current shared-library bridge path is roughly `64,963x` slower per call than pure LLVM on the reported median.
-- The `interpret_shared` samples also descended sharply across warmups/runs (`~15.8 s` warmup down to `~3.46 s` best measured run) because the generated Rust bridge still pays repeated dynamic-library/symbol plumbing inside the call path. That means the cold-to-warm range matters, but the architectural takeaway does not change: the native LLVM FFI lane is lean; the interpreter/live bridge is the expensive Rust-hosted lane.
+- The native LLVM lane is exactly the story we wanted: direct C boundary tax is tiny. On this host, both the direct object and direct shared-library paths are only about `9.2%` slower than pure LLVM.
+- The interpreter/live bridge path is not “a little slower”; it is orders of magnitude slower. Even the pure interpret variant is about `1410x` slower per call than pure LLVM on this benchmark, and the current shared-library bridge path is roughly `32,458x` slower per call than pure LLVM on the reported median.
+- `interpret_shared` still has a brutal cold-start cost because the generated Rust bridge is built on first use (`~82.8 s` prime on the clean rerun), but the measured warm samples settle around the low-single-digit seconds for `10,000` calls. That means the exact median will move with cache warmth, yet the architectural takeaway stays fixed: the native LLVM FFI lane is lean; the interpreter/live bridge is the expensive Rust-hosted lane.
 
 # 2026-05-15 - Kaintana is now a real blade-owned UI framework package with desktop and Vulkan acceptance proofs
 

@@ -29,6 +29,7 @@ OUT_ROOT = REPO_ROOT / "benchmark" / "out"
 BUILD_ROOT = OUT_ROOT / "build" / "ffi_boundary"
 REPORT_ROOT = OUT_ROOT / "reports"
 NATIVE_ROOT = CASE_ROOT / "native"
+GENERATED_NATIVE_ROOT = BUILD_ROOT / "native"
 SOURCE_ROOT = CASE_ROOT / "sources"
 MANIFEST_PATH = CASE_ROOT / "KAIN.toml"
 NATIVE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
@@ -194,8 +195,10 @@ def shared_runtime_env(shared_directory: Path) -> dict[str, str]:
 
 
 def write_case_manifest() -> None:
-    object_artifact = object_name("ffi_boundary_object")
-    shared_artifact = dynamic_library_name("ffi_boundary_shared")
+    object_artifact = path_for_manifest(GENERATED_NATIVE_ROOT / object_name("ffi_boundary_object"))
+    shared_artifact = path_for_manifest(
+        GENERATED_NATIVE_ROOT / dynamic_library_name("ffi_boundary_shared")
+    )
     manifest = f"""[package]
 name = "ffi_boundary"
 version = "0.1.0"
@@ -206,23 +209,23 @@ description = "Dedicated Kain FFI boundary benchmark."
 [[c_ffi.libraries]]
 name = "ffi_boundary_object"
 header = "native/ffi_boundary.h"
-shared_lib = "native/{object_artifact}"
+shared_lib = "{object_artifact}"
 
 [[c_ffi.libraries]]
 name = "ffi_boundary_shared"
 header = "native/ffi_boundary.h"
-shared_lib = "native/{shared_artifact}"
+shared_lib = "{shared_artifact}"
 """
     MANIFEST_PATH.write_text(manifest, encoding="utf-8")
 
 
 def compile_native_artifacts(clang: Path, timeout: int) -> dict[str, Path]:
-    NATIVE_ROOT.mkdir(parents=True, exist_ok=True)
+    GENERATED_NATIVE_ROOT.mkdir(parents=True, exist_ok=True)
     source_path = NATIVE_ROOT / "ffi_boundary.c"
-    object_path = NATIVE_ROOT / object_name("ffi_boundary_object")
-    shared_path = NATIVE_ROOT / dynamic_library_name("ffi_boundary_shared")
+    object_path = GENERATED_NATIVE_ROOT / object_name("ffi_boundary_object")
+    shared_path = GENERATED_NATIVE_ROOT / dynamic_library_name("ffi_boundary_shared")
     link_artifact_path = shared_link_artifact_name("ffi_boundary_shared")
-    shared_link_path = NATIVE_ROOT / link_artifact_path if link_artifact_path else None
+    shared_link_path = GENERATED_NATIVE_ROOT / link_artifact_path if link_artifact_path else None
 
     object_command = [str(clang), "-c", "-O3", str(source_path), "-o", str(object_path)]
     object_result = run_command(object_command, cwd=CASE_ROOT, timeout=timeout)
@@ -255,6 +258,10 @@ def compile_native_artifacts(clang: Path, timeout: int) -> dict[str, Path]:
         "shared": shared_path,
         "shared_link": shared_link_path if shared_link_path and shared_link_path.exists() else shared_path,
     }
+
+
+def path_for_manifest(path: Path) -> str:
+    return os.path.relpath(path, CASE_ROOT).replace("\\", "/")
 
 
 def build_llvm_variant(

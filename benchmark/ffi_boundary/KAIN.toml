@@ -8,9 +8,9 @@ description = "Dedicated Kain FFI boundary benchmark."
 [[c_ffi.libraries]]
 name = "ffi_boundary_object"
 header = "native/ffi_boundary.h"
-shared_lib = "native/ffi_boundary_object.obj"
+shared_lib = "../out/build/ffi_boundary/native/ffi_boundary_object.obj"
 
 [[c_ffi.libraries]]
 name = "ffi_boundary_shared"
 header = "native/ffi_boundary.h"
-shared_lib = "native/ffi_boundary_shared.dll"
+shared_lib = "../out/build/ffi_boundary/native/ffi_boundary_shared.dll"

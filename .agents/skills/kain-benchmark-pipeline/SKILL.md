@@ -37,7 +37,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Dedicated FFI boundary lane: `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
   - This is a specialized benchmark outside `benchmarks.json`; it exists to compare `llvm_pure`, direct LLVM object/shared-library C FFI, `interpret_pure`, and the interpreter/live bridge path in one place.
   - Reports land in `benchmark/out/reports/ffi_boundary_latest.llm.md`, `ffi_boundary_latest.json`, and timestamped `*.ffi_boundary.*` siblings.
-  - The runner writes its own `benchmark/ffi_boundary/KAIN.toml`, compiles `native/ffi_boundary.c` into both object and shared forms, and keeps runtime tuning pinned to the normal benchmark-release native profile.
+  - The runner writes its own `benchmark/ffi_boundary/KAIN.toml`, compiles `native/ffi_boundary.c` into both object and shared forms under `benchmark/out/build/ffi_boundary/native/`, and keeps runtime tuning pinned to the normal benchmark-release native profile.
   - If `kain.exe <file>.kn -t llvm` starts failing with undefined `use c::...` symbols on this lane, inspect the direct CLI compile prep in `crates/cli/src/main.rs`: the LLVM/C path must generate `.kain/cache/c_ffi/.../*.kn` bindings before frontend import resolution, not after.
 
 ## Blade Console
