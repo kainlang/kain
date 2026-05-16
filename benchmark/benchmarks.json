@@ -177,6 +177,19 @@
       }
     },
     {
+      "id": "semantic_singularity_crucible",
+      "title": "Semantic Singularity Crucible",
+      "description": "Kain-only native LLVM crucible: the fused semantic_singularity hot loop plus enum match, trait/impl syntax, top-level const/type alias, comptime, shader declarations, vector/format/text lowering, Option/Result/Future/await, bitwise packet math, and raw realloc/collapse/observe/decay memory.",
+      "maturity": "kain-llvm-crucible",
+      "fairness_note": "This is intentionally Kain-only and is not a fairness row. It is the single-file 'pile everything on it' pressure test for native LLVM codegen and runtime surface composition.",
+      "language_notes": {
+        "kain": "Extends semantic_singularity without mutating the ablation matrix row. The preflight checksum exercises ordinary language constructs and dirty low-level memory before the actor/world/shatter/converge hot loop begins."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_crucible/main.kn"
+      }
+    },
+    {
       "id": "semantic_singularity_no_actor",
       "title": "Semantic Singularity No Actor",
       "description": "Ablation of the fused Kain semantic pressure case that replaces actor ask/reply with an equivalent inline fold while keeping machine-stones, world/entangle, patch/law, converge/orchestrate, and collapse/observe/decay live.",

@@ -6290,16 +6290,30 @@ impl LlvmGenerator {
             }
         }
 
-        if let Err(error) = self.compile_block(body) {
-            return Err(match error {
-                KainError::Codegen { message, span } => KainError::codegen(
-                    format!("while compiling '{}': {}", callable_name, message),
-                    span,
-                ),
-                other => other,
-            });
-        }
+        let body_result = match self.compile_block_with_result(body) {
+            Ok(result) => result,
+            Err(error) => {
+                return Err(match error {
+                    KainError::Codegen { message, span } => KainError::codegen(
+                        format!("while compiling '{}': {}", callable_name, message),
+                        span,
+                    ),
+                    other => other,
+                });
+            }
+        };
         self.emit_scope_exit();
+
+        let final_result = if let Some((value, value_ty)) = body_result {
+            if ret_type == "void" {
+                self.emit_release(&value, &value_ty);
+                None
+            } else {
+                Some(self.coerce_compiled_value_to_target_type(value, &value_ty, &ret_type)?)
+            }
+        } else {
+            None
+        };
 
         if let Some(patch_name) = self.current_patch_name.clone() {
             let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
@@ -6308,6 +6322,14 @@ impl LlvmGenerator {
                 "  {} = call i64 @abi_patch_commit(i8* {})",
                 status, patch_name_ptr
             ));
+        }
+
+        if let Some((value, value_ty)) = final_result {
+            self.emit(&format!("  ret {} {}", value_ty, value));
+            self.emit("}");
+            self.emit("");
+            self.current_return_type = None;
+            return Ok(());
         }
 
         if ret_type == "void" {

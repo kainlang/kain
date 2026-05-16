@@ -57,6 +57,15 @@ fn typed_program_from_source(source: &str) -> TypedProgram {
     types::check(&program, &mapper, "<llvm-test>").expect("typecheck should succeed")
 }
 
+fn llvm_function_ir<'a>(llvm: &'a str, signature: &str) -> &'a str {
+    let start = llvm
+        .find(signature)
+        .expect("function signature should exist");
+    let rest = &llvm[start..];
+    let end = rest.find("\n}").expect("function body should close");
+    &rest[..end]
+}
+
 fn verify_llvm_ir_with_repo_llvm_as(llvm: &str, test_name: &str) {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let llvm_as = manifest_dir
@@ -2233,6 +2242,10 @@ fn classify(kind: AssetKind) -> Int:
     assert!(llvm.contains("%AssetKind = type { i64, i8* }"));
     assert!(llvm.contains("define i64 @classify(%AssetKind* %arg0)"));
     assert!(llvm.contains("getelementptr inbounds %AssetKind, %AssetKind*"));
+    let classify_ir = llvm_function_ir(&llvm, "define i64 @classify(%AssetKind* %arg0)");
+    assert!(classify_ir.contains("phi i64"));
+    assert!(classify_ir.contains("ret i64 %"));
+    assert!(!classify_ir.trim_end().ends_with("unreachable\n}"));
 }
 
 #[test]

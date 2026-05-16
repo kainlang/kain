@@ -1,5 +1,27 @@
 # Kain Memory
 
+# 2026-05-16 - Semantic Singularity Crucible became the single-file native LLVM torture lane
+
+`benchmark/cases/semantic_singularity_crucible/main.kn` is now the "pile everything onto one Kain file" benchmark. It preserves the existing `semantic_singularity` matrix instead of mutating it, then adds a preflight layer for enum `match`, trait/impl syntax, top-level const/type alias, `comptime`, shader declarations, `vec!`/`format!`/string indexing, Option/Result/Future/`await`, bitwise packet math, and raw `realloc_mem` plus `collapse`/`observe`/`decay` before the fused actor/world/shatter/converge/orchestrate hot loop.
+
+What changed:
+
+- Added `semantic_singularity_crucible` to `benchmark/benchmarks.json` as a Kain-only `kain-llvm-crucible` row.
+- Added local proofs under `benchmark/cases/semantic_singularity_crucible/z3`: `semantic_singularity_crucible_bounds.smt2` and `semantic_singularity_crucible_bitmix.smt2`.
+- The crucible preflight checksum is `1094`; the full executable checksum is `594833340`.
+- Latest benchmark smoke: `py -3 benchmark\run.py --case semantic_singularity_crucible --languages kain --runs 1 --warmups 0 --timeout 900 --kain-exe target\debug\kain.exe` passed with Kain median `363.026 ms`.
+
+Compiler seam found while dogfooding:
+
+- Native LLVM functions whose body ended with a final expression, especially expression-bodied enum `match`, compiled to a PHI and then fell through to the non-main fallback `unreachable`. In benchmark-release, clang optimized that into an `int3` trap (`0x80000003`) at `crucible_control_lane`.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs::compile_named_callable` now uses `compile_block_with_result`, coerces a final expression to the declared return type, emits patch commit cleanup when needed, and returns the value before the fallback unreachable path.
+- Regression test: `llvm_lowers_enum_match_parameters_as_native_enum_pointers` now asserts the expression-bodied match emits `ret i64 %...`.
+- Durable proof: `crates/kain-sys-codegen/z3/proofs/control-final-expression-return-beats-fallback-unreachable.yaml`; control lane report `D:\Kain-Lang\crates\kain-sys-codegen\z3\reports\20260516T140626Z-semantic-crucible-final-expression-return.json` proved `6/6` with `unsat`.
+
+Current caveat:
+
+- Full `cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture` still has the known pre-existing `llvm_lowers_option_result_future_to_native_tagged_runtime` retain-path assertion failure. Focused match/codegen tests and the crucible executable pass.
+
 # 2026-05-16 - Quantumerlang flex row maps Erlang's swarm shape onto Kain semantics
 
 `benchmark/cases/quantumerlang` is the intentionally unfair Kain-vs-Erlang flex row requested after the actor-mailbox work. It keeps Erlang doing what Erlang is good at: 64 long-lived stateful processes, synchronous request/reply mailboxes, and a deterministic 300,000-round fold. Kain computes the same checksum through `shatter struct` lane metadata, one ownership-collapsed cell ring, `converge` lowering, and a boot-time `teleport` plus entangled world patch so the semantic substrate is live without paying per-round actor mailbox tax.
