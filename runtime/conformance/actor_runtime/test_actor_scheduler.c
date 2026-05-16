@@ -1,7 +1,7 @@
 /*
  * Actor Runtime Conformance Test: Scheduler
  *
- * Tests work-stealing scheduler with worker pool.
+ * Tests scheduler-owned microcell turns with legacy bootstrap compatibility.
  *
  * Requirements: 6.5, 6.6
  */
@@ -21,7 +21,7 @@
 
 /* Counter for completed actors */
 static int g_completed_count = 0;
-static int g_overflow_actor_completed = 0;
+static int g_microcell_probe_completed = 0;
 
 #ifdef _WIN32
 static CRITICAL_SECTION g_count_lock;
@@ -29,21 +29,30 @@ static CRITICAL_SECTION g_count_lock;
 static pthread_mutex_t g_count_lock = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-/* Simple actor that increments counter and exits */
-static KainActorExitReason counter_actor_bootstrap(
+/* Simple microcell actor that increments counter once per delivered message. */
+static KainActorTurnStatus counter_actor_turn(
     KainActorId actor_id,
     KainActorMailbox* mailbox,
-    void* user_data
+    void* user_data,
+    unsigned int budget
 ) {
-    (void)mailbox;
     int* value = (int*)user_data;
+    KainActorMessage msg;
+    KainDiagnostic diag;
+    unsigned int processed = 0;
 
-    printf("Actor %llu executing with value %d\n", actor_id, *value);
-
-    /* Simulate some work */
-    for (int i = 0; i < 1000000; i++) {
-        /* Busy work */
+    while (processed < budget && kain_actor_try_receive(mailbox, &msg, &diag) == 0) {
+        if (msg.data != NULL) {
+            free(msg.data);
+        }
+        processed++;
     }
+
+    if (processed == 0) {
+        return KAIN_ACTOR_TURN_IDLE;
+    }
+
+    printf("Microcell actor %llu executing with value %d\n", actor_id, *value);
 
 #ifdef _WIN32
     EnterCriticalSection(&g_count_lock);
@@ -59,8 +68,8 @@ static KainActorExitReason counter_actor_bootstrap(
     pthread_mutex_unlock(&g_count_lock);
 #endif
 
-    printf("Actor %llu completed\n", actor_id);
-    return KAIN_ACTOR_EXIT_NORMAL;
+    printf("Microcell actor %llu completed turn\n", actor_id);
+    return processed >= budget ? KAIN_ACTOR_TURN_YIELDED : KAIN_ACTOR_TURN_IDLE;
 }
 
 static KainActorExitReason blocking_actor_bootstrap(
@@ -84,29 +93,39 @@ static KainActorExitReason blocking_actor_bootstrap(
     return KAIN_ACTOR_EXIT_SHUTDOWN;
 }
 
-static KainActorExitReason overflow_probe_bootstrap(
+static KainActorTurnStatus microcell_probe_turn(
     KainActorId actor_id,
     KainActorMailbox* mailbox,
-    void* user_data
+    void* user_data,
+    unsigned int budget
 ) {
-    (void)mailbox;
     (void)user_data;
+    (void)budget;
+    KainActorMessage msg;
+    KainDiagnostic diag;
 
-    printf("Overflow probe actor %llu completed via overflow path\n", actor_id);
+    if (kain_actor_try_receive(mailbox, &msg, &diag) != 0) {
+        return KAIN_ACTOR_TURN_IDLE;
+    }
+    if (msg.data != NULL) {
+        free(msg.data);
+    }
+
+    printf("Microcell probe actor %llu completed while legacy actors blocked\n", actor_id);
 
 #ifdef _WIN32
     EnterCriticalSection(&g_count_lock);
 #else
     pthread_mutex_lock(&g_count_lock);
 #endif
-    g_overflow_actor_completed++;
+    g_microcell_probe_completed++;
 #ifdef _WIN32
     LeaveCriticalSection(&g_count_lock);
 #else
     pthread_mutex_unlock(&g_count_lock);
 #endif
 
-    return KAIN_ACTOR_EXIT_NORMAL;
+    return KAIN_ACTOR_TURN_IDLE;
 }
 
 int main(void) {
@@ -120,7 +139,7 @@ int main(void) {
     /* Initialize actor runtime (will init scheduler) */
     kain_actor_runtime_init();
 
-    printf("Spawning 20 actors to test scheduler work distribution...\n\n");
+    printf("Spawning 20 microcell actors to test scheduler-ready turns...\n\n");
 
     /* Spawn multiple actors to test scheduler */
     #define NUM_ACTORS 20
@@ -132,7 +151,8 @@ int main(void) {
 
         KainActorSpawnConfig config;
         kain_actor_spawn_config_init(&config);
-        config.bootstrap_fn = counter_actor_bootstrap;
+        config.entry_kind = KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN;
+        config.turn_fn = counter_actor_turn;
         config.user_data = &actor_values[i];
         snprintf(config.name, KAIN_ACTOR_NAME_MAX, "actor_%d", i);
 
@@ -140,6 +160,15 @@ int main(void) {
 
         if (actor_ids[i] == KAIN_ACTOR_ID_INVALID) {
             printf("FAIL: Actor %d spawn failed: %s\n", i, diag.message);
+            return 1;
+        }
+
+        KainActorMessage msg;
+        memset(&msg, 0, sizeof(msg));
+        msg.type_tag = 1;
+        msg.sender_id = KAIN_ACTOR_ID_INVALID;
+        if (kain_actor_send(actor_ids[i], &msg, &diag) != 0) {
+            printf("FAIL: Actor %d send failed: %s\n", i, diag.message);
             return 1;
         }
     }
@@ -198,17 +227,17 @@ int main(void) {
     }
 
     /* Verify actor states */
-    int terminated_count = 0;
+    int running_count = 0;
     for (int i = 0; i < NUM_ACTORS; i++) {
         KainActorState state = kain_actor_get_state(actor_ids[i]);
-        if (state == KAIN_ACTOR_STATE_TERMINATED) {
-            terminated_count++;
+        if (state == KAIN_ACTOR_STATE_RUNNING) {
+            running_count++;
         }
     }
 
-    printf("Actors in TERMINATED state: %d / %d\n", terminated_count, NUM_ACTORS);
+    printf("Actors in RUNNING state: %d / %d\n", running_count, NUM_ACTORS);
 
-    printf("\nSpawning blocking actors to saturate the pooled scheduler...\n\n");
+    printf("\nSpawning blocking legacy actors; microcell scheduler must keep moving...\n\n");
 
     #define NUM_BLOCKING_ACTORS 4
     KainActorId blocking_ids[NUM_BLOCKING_ACTORS];
@@ -235,31 +264,40 @@ int main(void) {
 
     sleep(1);
 
-    KainActorSpawnConfig overflow_config;
-    kain_actor_spawn_config_init(&overflow_config);
-    overflow_config.bootstrap_fn = overflow_probe_bootstrap;
-    snprintf(overflow_config.name, KAIN_ACTOR_NAME_MAX, "overflow_probe");
+    KainActorSpawnConfig microcell_config;
+    kain_actor_spawn_config_init(&microcell_config);
+    microcell_config.entry_kind = KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN;
+    microcell_config.turn_fn = microcell_probe_turn;
+    snprintf(microcell_config.name, KAIN_ACTOR_NAME_MAX, "microcell_probe");
 
-    KainActorId overflow_actor_id = kain_actor_spawn(&overflow_config, &diag);
-    if (overflow_actor_id == KAIN_ACTOR_ID_INVALID) {
-        printf("FAIL: Overflow probe actor spawn failed: %s\n", diag.message);
+    KainActorId microcell_actor_id = kain_actor_spawn(&microcell_config, &diag);
+    if (microcell_actor_id == KAIN_ACTOR_ID_INVALID) {
+        printf("FAIL: Microcell probe actor spawn failed: %s\n", diag.message);
+        return 1;
+    }
+
+    KainActorMessage probe_msg;
+    memset(&probe_msg, 0, sizeof(probe_msg));
+    probe_msg.type_tag = 2;
+    if (kain_actor_send(microcell_actor_id, &probe_msg, &diag) != 0) {
+        printf("FAIL: Microcell probe send failed: %s\n", diag.message);
         return 1;
     }
 
     sleep(1);
 
-    KainActorSchedulerSnapshot overflow_snapshot;
-    kain_actor_scheduler_snapshot(&overflow_snapshot);
+    KainActorSchedulerSnapshot microcell_snapshot;
+    kain_actor_scheduler_snapshot(&microcell_snapshot);
 
-    printf("Overflow probe completions: %d\n", g_overflow_actor_completed);
-    printf("Scheduler overflow thread spawns: %zu\n", overflow_snapshot.overflow_thread_spawns);
+    printf("Microcell probe completions: %d\n", g_microcell_probe_completed);
+    printf("Scheduler overflow thread spawns: %zu\n", microcell_snapshot.overflow_thread_spawns);
 
-    if (g_overflow_actor_completed != 1) {
-        printf("FAIL: Overflow probe actor should complete even while pooled workers are blocked\n");
+    if (g_microcell_probe_completed != 1) {
+        printf("FAIL: Microcell probe actor should complete even while legacy actors are blocked\n");
         return 1;
     }
-    if (overflow_snapshot.overflow_thread_spawns < 1) {
-        printf("FAIL: Scheduler should record at least one overflow thread spawn under saturation\n");
+    if (microcell_snapshot.overflow_thread_spawns != 0) {
+        printf("FAIL: Microcell scheduler should not spawn overflow OS threads\n");
         return 1;
     }
 
@@ -280,6 +318,6 @@ int main(void) {
 #endif
 
     printf("\nPASS: Actor scheduler test completed successfully\n");
-    printf("Note: Scheduler uses worker pool to avoid unbounded thread creation\n");
+    printf("Note: Scheduler uses ready turns for microcells; legacy bootstrap actors stay off the pool\n");
     return 0;
 }

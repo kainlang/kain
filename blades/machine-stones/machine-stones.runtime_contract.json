@@ -3,14 +3,24 @@
   "target": "llvm",
   "required_capabilities": [
     {
-      "key": "actors.syntax",
-      "source": "kain-core",
-      "detail": "Program declares actor items that require runtime-backed semantics."
-    },
-    {
       "key": "compiler.typed-program",
       "source": "kain-core",
       "detail": "Typed frontend output is available for runtime packaging."
+    },
+    {
+      "key": "interop.zero-copy-handoff",
+      "source": "kain-core.runtime",
+      "detail": "Teleport expressions require no-copy destination ownership materialization."
+    },
+    {
+      "key": "machine.axiom",
+      "source": "kain-core.runtime",
+      "detail": "Program declares compiler-accepted machine/environment truths with fallbacks."
+    },
+    {
+      "key": "memory.ownership",
+      "source": "kain-ownership",
+      "detail": "Program uses compiler-owned collapse/observe/decay memory ownership scopes."
     },
     {
       "key": "memory.raw-ops",
@@ -23,27 +33,62 @@
       "detail": "Target accepts raw pointer lowering."
     },
     {
+      "key": "memory.shatter",
+      "source": "kain-core.runtime",
+      "detail": "Program declares silicon-oriented structure-of-arrays layout intent."
+    },
+    {
       "key": "native.raw-runtime",
       "source": "runtime/native",
       "detail": "Program targets the raw native runtime lane."
     },
     {
+      "key": "native.viewport-host",
+      "source": "runtime/native",
+      "detail": "Program requires raw native window, input, and presenter-attachment substrate."
+    },
+    {
       "key": "runtime.contract.bundle",
       "source": "kain-core",
       "detail": "Compiler-owned runtime contract scaffolding emitted."
+    },
+    {
+      "key": "time.hardware-timer",
+      "source": "runtime/native",
+      "detail": "Pulse contracts can lower to native timer-backed scheduling lanes."
+    },
+    {
+      "key": "time.pulse",
+      "source": "kain-core.runtime",
+      "detail": "Program declares first-class temporal pulse execution beats."
+    },
+    {
+      "key": "ui.components",
+      "source": "kain-core",
+      "detail": "Program contains declarative UI components."
+    },
+    {
+      "key": "ui.runtime-bundle",
+      "source": "kain-core.ui",
+      "detail": "Program can participate in compiled UI bundle materialization."
+    },
+    {
+      "key": "world.native-ui",
+      "source": "kain-core.runtime_contract",
+      "detail": "Program declares compiler-owned native UI world projections."
+    },
+    {
+      "key": "world.teleport",
+      "source": "kain-core.runtime",
+      "detail": "Program uses destructive zero-copy ownership handoff across worlds."
+    },
+    {
+      "key": "world.viewport3d",
+      "source": "kain-core.runtime_contract",
+      "detail": "Program declares compiler-owned viewport3d world projections."
     }
   ],
   "service_bindings": [
-    {
-      "service": "actor.registry",
-      "provider": "runtime/native",
-      "lane": "raw-native"
-    },
-    {
-      "service": "actor.runtime",
-      "provider": "runtime/native",
-      "lane": "raw-native"
-    },
     {
       "service": "base.diagnostics",
       "provider": "runtime/native",
@@ -60,21 +105,56 @@
       "lane": "raw-native"
     },
     {
+      "service": "gfx.viewport",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
       "service": "memory.ownership",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "platform.app-host",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "platform.input",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "ui.bundle",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "ui.component",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "world.native-ui",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "world.viewport3d",
       "provider": "runtime/native",
       "lane": "raw-native"
     }
   ],
   "items": [
     {
-      "id": "actor:Echo",
-      "name": "Echo",
-      "kind": "actor"
+      "id": "axiom:native_atomic_mask_truth",
+      "name": "native_atomic_mask_truth",
+      "kind": "axiom"
     },
     {
-      "id": "actor:Gate",
-      "name": "Gate",
-      "kind": "actor"
+      "id": "component:MachineStonePanel",
+      "name": "MachineStonePanel",
+      "kind": "component"
     },
     {
       "id": "function:abi_actor_abi_version",
@@ -3132,6 +3212,11 @@
       "kind": "function"
     },
     {
+      "id": "function:machine_stone_score",
+      "name": "machine_stone_score",
+      "kind": "function"
+    },
+    {
       "id": "function:main",
       "name": "main",
       "kind": "function"
@@ -4674,6 +4759,11 @@
     {
       "id": "function:patch_status",
       "name": "patch_status",
+      "kind": "function"
+    },
+    {
+      "id": "function:portable_mask_update",
+      "name": "portable_mask_update",
       "kind": "function"
     },
     {
@@ -6377,9 +6467,14 @@
       "kind": "function"
     },
     {
-      "id": "use:std::net",
-      "name": "std::net",
-      "kind": "use"
+      "id": "pulse:agent_sinus",
+      "name": "agent_sinus",
+      "kind": "pulse"
+    },
+    {
+      "id": "shatter:AgentParticle",
+      "name": "AgentParticle",
+      "kind": "shatter"
     },
     {
       "id": "use:std::net",
@@ -6390,13 +6485,114 @@
       "id": "use:std::net",
       "name": "std::net",
       "kind": "use"
+    },
+    {
+      "id": "use:std::net",
+      "name": "std::net",
+      "kind": "use"
+    },
+    {
+      "id": "world:GpuWorld",
+      "name": "GpuWorld",
+      "kind": "world"
+    },
+    {
+      "id": "world:NativeWorld",
+      "name": "NativeWorld",
+      "kind": "world"
+    }
+  ],
+  "axioms": [
+    {
+      "name": "native_atomic_mask_truth",
+      "predicates": [
+        {
+          "kind": "target",
+          "value": "llvm"
+        },
+        {
+          "kind": "arch",
+          "value": "x86_64"
+        },
+        {
+          "kind": "capability",
+          "value": "atomic.bitmask"
+        }
+      ],
+      "guarantees": [
+        "single-copy atomic bit-mask lane is supplied by this exact machine profile"
+      ],
+      "fallback": "portable_mask_update"
+    }
+  ],
+  "pulses": [
+    {
+      "name": "agent_sinus",
+      "interval": "16ms",
+      "interval_ms": 16,
+      "jitter": "1ms",
+      "body_ownership_ops": true,
+      "body_teleports": true
+    }
+  ],
+  "shatters": [
+    {
+      "name": "AgentParticle",
+      "layout": "structure-of-arrays",
+      "field_lanes": [
+        "x",
+        "y",
+        "vx",
+        "vy",
+        "alive"
+      ]
+    }
+  ],
+  "worlds": [
+    {
+      "name": "GpuWorld",
+      "state_slots": [
+        {
+          "name": "beat",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "viewport3d",
+          "authored_expr": "\"gpu-machine-world\""
+        }
+      ]
+    },
+    {
+      "name": "NativeWorld",
+      "state_slots": [
+        {
+          "name": "beat",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "MachineStonePanel"
+        },
+        {
+          "kind": "viewport3d",
+          "authored_expr": "\"native-machine-world\""
+        }
+      ]
     }
   ],
   "reflection": {
     "emitted": true,
     "schema_names": [
-      "Echo",
-      "Gate"
+      "AgentParticle",
+      "GpuWorld",
+      "MachineStonePanel",
+      "NativeWorld"
     ],
     "notes": [
       "Full reflection payload emitted from kain-core.",
@@ -6441,7 +6637,67 @@
   },
   "reflection_payload": {
     "schema_version": 1,
-    "types": [],
+    "types": [
+      {
+        "type_id": 1,
+        "name": "NativeWorld",
+        "kind": "world",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "beat",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 2,
+        "name": "GpuWorld",
+        "kind": "world",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "beat",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 3,
+        "name": "AgentParticle",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "x",
+            "type_name": "Float",
+            "offset_hint": null
+          },
+          {
+            "name": "y",
+            "type_name": "Float",
+            "offset_hint": null
+          },
+          {
+            "name": "vx",
+            "type_name": "Float",
+            "offset_hint": null
+          },
+          {
+            "name": "vy",
+            "type_name": "Float",
+            "offset_hint": null
+          },
+          {
+            "name": "alive",
+            "type_name": "Bool",
+            "offset_hint": null
+          }
+        ]
+      }
+    ],
     "items": [
       {
         "item_id": 1,
@@ -15258,45 +15514,63 @@
       },
       {
         "item_id": 1260,
-        "name": "Echo",
-        "kind": "actor",
+        "name": "MachineStonePanel",
+        "kind": "component",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 1261,
-        "name": "Gate",
-        "kind": "actor",
+        "name": "NativeWorld",
+        "kind": "world",
+        "module_path": "",
+        "type_id": 1
+      },
+      {
+        "item_id": 1262,
+        "name": "GpuWorld",
+        "kind": "world",
+        "module_path": "",
+        "type_id": 2
+      },
+      {
+        "item_id": 1263,
+        "name": "AgentParticle",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 3
+      },
+      {
+        "item_id": 1264,
+        "name": "portable_mask_update",
+        "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 1262,
+        "item_id": 1265,
+        "name": "machine_stone_score",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 1266,
         "name": "main",
         "kind": "function",
         "module_path": "",
         "type_id": null
       }
     ],
-    "actors": [
+    "actors": [],
+    "components": [
       {
         "item_id": 1260,
-        "name": "Echo",
-        "message_types": [
-          "Call"
-        ],
-        "state_type": "EchoState"
-      },
-      {
-        "item_id": 1261,
-        "name": "Gate",
-        "message_types": [
-          "Probe"
-        ],
-        "state_type": "GateState"
+        "name": "MachineStonePanel",
+        "props": [],
+        "state_type": null
       }
     ],
-    "components": [],
     "messages": []
   }
 }

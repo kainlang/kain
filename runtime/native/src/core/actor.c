@@ -128,9 +128,9 @@ static void kain_actor_propagate_links(KainActorState_Internal* actor);
 static unsigned int kain_actor_registry_hash(const char* name);
 static void kain_scheduler_init(void);
 static void kain_scheduler_shutdown(void);
-static void kain_scheduler_enqueue(KainActorState_Internal* actor);
+static void kain_scheduler_ready_actor(KainActorState_Internal* actor);
 static KainActorId kain_scheduler_dequeue(void);
-static int kain_scheduler_should_overflow(void);
+static void kain_scheduler_finish_turn(KainActorState_Internal* actor);
 static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDiagnostic* diag);
 static KainActorId kain_actor_spawn_internal(
     const KainActorSpawnConfig* config,
@@ -152,6 +152,7 @@ static void kain_actor_complete_exit_side_effects(KainActorState_Internal* actor
 static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src);
 static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity);
 static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox);
+static int kain_actor_is_microcell_turn_actor(const KainActorState_Internal* actor);
 static void kain_actor_ref_zero(KainActorRef* actor_ref);
 static void kain_actor_ref_write_live(
     KainActorRef* actor_ref,
@@ -727,6 +728,7 @@ KainActorAbiDescriptor kain_actor_abi_descriptor(void) {
     descriptor.actor_table_capacity = KAIN_ACTOR_TABLE_CAPACITY;
     descriptor.registry_capacity = KAIN_ACTOR_REGISTRY_CAPACITY;
     descriptor.monitor_exit_tag_base = KAIN_ACTOR_MONITOR_EXIT_TAG_BASE;
+    descriptor.default_microcell_turn_budget = KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET;
 
     return descriptor;
 }
@@ -759,7 +761,8 @@ int kain_actor_abi_descriptor_is_compatible(const KainActorAbiDescriptor* expect
            expected->scheduler_worker_count == current.scheduler_worker_count &&
            expected->actor_table_capacity == current.actor_table_capacity &&
            expected->registry_capacity == current.registry_capacity &&
-           expected->monitor_exit_tag_base == current.monitor_exit_tag_base;
+           expected->monitor_exit_tag_base == current.monitor_exit_tag_base &&
+           expected->default_microcell_turn_budget == current.default_microcell_turn_budget;
 }
 
 void kain_actor_ref_from_id(KainActorId actor_id, KainActorRef* out_ref) {
@@ -911,6 +914,12 @@ static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox) {
     pthread_cond_destroy(&mailbox->not_empty);
     pthread_cond_destroy(&mailbox->not_full);
 #endif
+}
+
+static int kain_actor_is_microcell_turn_actor(const KainActorState_Internal* actor) {
+    return actor != NULL &&
+           actor->entry_kind == KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN &&
+           actor->turn_fn != NULL;
 }
 
 static void kain_actor_close_mailbox(KainActorState_Internal* actor) {
@@ -1211,6 +1220,10 @@ void kain_actor_spawn_config_init(KainActorSpawnConfig* config) {
     config->restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
     config->supervisor_id = KAIN_ACTOR_ID_INVALID;
     config->retain_user_data = 0;
+    config->entry_kind = KAIN_ACTOR_ENTRY_KIND_LEGACY_BOOTSTRAP;
+    config->microcell_turn_budget = KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET;
+    config->execution_class = KAIN_ACTOR_EXECUTION_CLASS_MICROCELL;
+    config->locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
 }
 
 void* kain_actor_reply_port_new(void) {
@@ -1428,18 +1441,51 @@ static KainActorId kain_actor_spawn_internal(
     int force_direct_thread,
     KainDiagnostic* diag
 ) {
+    KainActorEntryKind entry_kind;
+    unsigned int turn_budget;
+
     kain_actor_runtime_ensure_initialized();
 
-    if (config == NULL || config->bootstrap_fn == NULL) {
+    if (config == NULL) {
         if (diag != NULL) {
             kain_diagnostic_init(diag);
             diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
             diag->severity = KAIN_DIAG_SEVERITY_ERROR;
             diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
             snprintf(diag->message, sizeof(diag->message), "Invalid spawn configuration");
-            snprintf(diag->detail, sizeof(diag->detail), "Bootstrap function is required");
+            snprintf(diag->detail, sizeof(diag->detail), "Spawn configuration is required");
         }
         return KAIN_ACTOR_ID_INVALID;
+    }
+
+    entry_kind = config->entry_kind;
+    if (entry_kind == KAIN_ACTOR_ENTRY_KIND_INVALID) {
+        entry_kind = (config->turn_fn != NULL)
+            ? KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN
+            : KAIN_ACTOR_ENTRY_KIND_LEGACY_BOOTSTRAP;
+    }
+    if ((entry_kind == KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN && config->turn_fn == NULL) ||
+        (entry_kind != KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN && config->bootstrap_fn == NULL)) {
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
+            snprintf(diag->message, sizeof(diag->message), "Invalid spawn configuration");
+            snprintf(
+                diag->detail,
+                sizeof(diag->detail),
+                entry_kind == KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN
+                    ? "Microcell turn function is required"
+                    : "Bootstrap function is required"
+            );
+        }
+        return KAIN_ACTOR_ID_INVALID;
+    }
+
+    turn_budget = config->microcell_turn_budget;
+    if (turn_budget == 0u) {
+        turn_budget = KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET;
     }
 
     /* Allocate actor state */
@@ -1458,14 +1504,22 @@ static KainActorId kain_actor_spawn_internal(
     /* Initialize actor state */
     actor->state = KAIN_ACTOR_STATE_INITIALIZING;
     actor->exit_reason = KAIN_ACTOR_EXIT_NORMAL;
+    actor->entry_kind = entry_kind;
     actor->bootstrap_fn = config->bootstrap_fn;
+    actor->turn_fn = config->turn_fn;
+    actor->microcell_turn_budget = turn_budget;
     actor->user_data = config->user_data;
     actor->ref_generation = 0u;
-    actor->execution_class = KAIN_ACTOR_EXECUTION_CLASS_MICROCELL;
-    actor->locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
+    actor->execution_class = config->execution_class != KAIN_ACTOR_EXECUTION_CLASS_INVALID
+        ? config->execution_class
+        : KAIN_ACTOR_EXECUTION_CLASS_MICROCELL;
+    actor->locality_class = config->locality_class != KAIN_ACTOR_LOCALITY_INVALID
+        ? config->locality_class
+        : KAIN_ACTOR_LOCALITY_LOCAL;
     actor->monitors = NULL;
     actor->links = NULL;
     actor->in_scheduler_queue = 0;
+    actor->in_scheduler_turn = 0;
     actor->spawn_sequence = 0;
 
     kain_actor_copy_name(actor->name, sizeof(actor->name), config->name);
@@ -1505,6 +1559,11 @@ static KainActorId kain_actor_spawn_internal(
     actor->spawn_config.restart_policy = config->restart_policy;
     actor->spawn_config.supervisor_id = config->supervisor_id;
     actor->spawn_config.retain_user_data = config->retain_user_data;
+    actor->spawn_config.entry_kind = entry_kind;
+    actor->spawn_config.turn_fn = config->turn_fn;
+    actor->spawn_config.microcell_turn_budget = turn_budget;
+    actor->spawn_config.execution_class = actor->execution_class;
+    actor->spawn_config.locality_class = actor->locality_class;
     kain_actor_copy_name(
         actor->spawn_config.name,
         sizeof(actor->spawn_config.name),
@@ -1537,36 +1596,12 @@ static KainActorId kain_actor_spawn_internal(
         return KAIN_ACTOR_ID_INVALID;
     }
 
-    /* Spawn thread or enqueue to scheduler */
-    if (KAIN_SCHEDULER_USE_POOLED && !force_direct_thread) {
-        if (kain_scheduler_should_overflow()) {
-#ifdef _WIN32
-            EnterCriticalSection(&g_scheduler.lock);
-#else
-            pthread_mutex_lock(&g_scheduler.lock);
-#endif
-            g_scheduler.overflow_thread_spawns++;
-#ifdef _WIN32
-            LeaveCriticalSection(&g_scheduler.lock);
-#else
-            pthread_mutex_unlock(&g_scheduler.lock);
-#endif
-
-            if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
-                kain_actor_table_remove(actor_id);
-                if (actor->user_data != NULL && config->retain_user_data) {
-                    rc_release(actor->user_data);
-                }
-                kain_actor_mailbox_destroy(&actor->mailbox);
-                free(actor);
-                return KAIN_ACTOR_ID_INVALID;
-            }
-        } else {
-            /* Use scheduler work queue */
-            kain_scheduler_enqueue(actor);
-        }
+    if (kain_actor_is_microcell_turn_actor(actor)) {
+        actor->state = KAIN_ACTOR_STATE_RUNNING;
     } else {
-        /* Use dedicated thread per actor */
+        (void)force_direct_thread;
+        /* Legacy bootstrap actors may block inside kain_actor_receive; keep them
+         * off the microcell scheduler so LLVM actor turns cannot be starved. */
         if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
             kain_actor_table_remove(actor_id);
             if (actor->user_data != NULL && config->retain_user_data) {
@@ -1686,6 +1721,10 @@ int kain_actor_send(
         mailbox->tail = node;
     }
     mailbox->count++;
+
+    if (kain_actor_is_microcell_turn_actor(actor)) {
+        kain_scheduler_ready_actor(actor);
+    }
 
     /* Signal not empty */
 #ifdef _WIN32
@@ -1856,6 +1895,9 @@ int kain_actor_shutdown(
     actor->state = KAIN_ACTOR_STATE_SHUTTING_DOWN;
     actor->exit_reason = KAIN_ACTOR_EXIT_SHUTDOWN;
     kain_actor_close_mailbox(actor);
+    if (kain_actor_is_microcell_turn_actor(actor)) {
+        kain_scheduler_ready_actor(actor);
+    }
 
     return 0;
 }
@@ -1883,6 +1925,9 @@ int kain_actor_kill(
     actor->exit_reason = KAIN_ACTOR_EXIT_KILLED;
     actor->state = KAIN_ACTOR_STATE_FAILED;
     kain_actor_close_mailbox(actor);
+    if (kain_actor_is_microcell_turn_actor(actor)) {
+        kain_scheduler_ready_actor(actor);
+    }
 
     return 0;
 }
@@ -2563,9 +2608,63 @@ static void* kain_scheduler_worker_thread(void* param) {
             continue;
         }
 
-        /* Execute actor bootstrap */
         KainActorState_Internal* actor = kain_actor_table_get(actor_id);
-        if (actor != NULL && actor->state == KAIN_ACTOR_STATE_INITIALIZING) {
+        if (actor != NULL && kain_actor_is_microcell_turn_actor(actor)) {
+            KainActorTurnStatus turn_status = KAIN_ACTOR_TURN_IDLE;
+            if (actor->state == KAIN_ACTOR_STATE_INITIALIZING) {
+                actor->state = KAIN_ACTOR_STATE_RUNNING;
+            }
+            if (actor->state == KAIN_ACTOR_STATE_RUNNING) {
+#ifdef _WIN32
+                EnterCriticalSection(&g_scheduler.lock);
+#else
+                pthread_mutex_lock(&g_scheduler.lock);
+#endif
+                g_scheduler.busy_workers++;
+                if (g_scheduler.busy_workers > g_scheduler.max_busy_workers) {
+                    g_scheduler.max_busy_workers = g_scheduler.busy_workers;
+                }
+#ifdef _WIN32
+                LeaveCriticalSection(&g_scheduler.lock);
+#else
+                pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+
+                turn_status = actor->turn_fn(
+                    actor->actor_id,
+                    &actor->mailbox,
+                    actor->user_data,
+                    actor->microcell_turn_budget
+                );
+
+                if (turn_status == KAIN_ACTOR_TURN_STOPPED) {
+                    kain_actor_finalize_exit_state(actor, KAIN_ACTOR_EXIT_NORMAL);
+                    kain_actor_complete_exit_side_effects(actor);
+                } else if (turn_status == KAIN_ACTOR_TURN_CRASHED) {
+                    kain_actor_finalize_exit_state(actor, KAIN_ACTOR_EXIT_CRASHED);
+                    kain_actor_complete_exit_side_effects(actor);
+                }
+
+#ifdef _WIN32
+                EnterCriticalSection(&g_scheduler.lock);
+#else
+                pthread_mutex_lock(&g_scheduler.lock);
+#endif
+                if (g_scheduler.busy_workers > 0) {
+                    g_scheduler.busy_workers--;
+                }
+#ifdef _WIN32
+                LeaveCriticalSection(&g_scheduler.lock);
+#else
+                pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+            } else if (actor->state == KAIN_ACTOR_STATE_SHUTTING_DOWN ||
+                       actor->state == KAIN_ACTOR_STATE_FAILED) {
+                kain_actor_finalize_exit_state(actor, actor->exit_reason);
+                kain_actor_complete_exit_side_effects(actor);
+            }
+            kain_scheduler_finish_turn(actor);
+        } else if (actor != NULL && actor->state == KAIN_ACTOR_STATE_INITIALIZING) {
 #ifdef _WIN32
             EnterCriticalSection(&g_scheduler.lock);
 #else
@@ -2605,11 +2704,15 @@ static void* kain_scheduler_worker_thread(void* param) {
 #else
             pthread_mutex_unlock(&g_scheduler.lock);
 #endif
+            kain_scheduler_finish_turn(actor);
         } else if (actor != NULL &&
                    (actor->state == KAIN_ACTOR_STATE_SHUTTING_DOWN ||
                     actor->state == KAIN_ACTOR_STATE_FAILED)) {
             kain_actor_finalize_exit_state(actor, actor->exit_reason);
             kain_actor_complete_exit_side_effects(actor);
+            kain_scheduler_finish_turn(actor);
+        } else if (actor != NULL) {
+            kain_scheduler_finish_turn(actor);
         }
     }
 
@@ -2717,13 +2820,16 @@ static void kain_scheduler_shutdown(void) {
 
 }
 
-static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
+static void kain_scheduler_ready_actor(KainActorState_Internal* actor) {
     KainActorId actor_id;
     if (actor == NULL) {
         return;
     }
 
     actor_id = actor->actor_id;
+    if (actor_id == KAIN_ACTOR_ID_INVALID) {
+        return;
+    }
 
 #ifdef _WIN32
     EnterCriticalSection(&g_scheduler.lock);
@@ -2733,6 +2839,8 @@ static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
 
     if (g_scheduler.shutdown ||
         actor->in_scheduler_queue ||
+        actor->in_scheduler_turn ||
+        actor->state == KAIN_ACTOR_STATE_TERMINATED ||
         g_scheduler.queue_depth >= KAIN_SCHEDULER_QUEUE_CAPACITY) {
 #ifdef _WIN32
         LeaveCriticalSection(&g_scheduler.lock);
@@ -2741,8 +2849,8 @@ static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
 #endif
         return;
     }
-    actor->in_scheduler_queue = 1;
 
+    actor->in_scheduler_queue = 1;
     g_scheduler.queue[g_scheduler.enqueue_cursor & KAIN_SCHEDULER_QUEUE_MASK] = actor_id;
     g_scheduler.enqueue_cursor++;
     g_scheduler.queue_depth++;
@@ -2760,27 +2868,52 @@ static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
 #endif
 }
 
-static int kain_scheduler_should_overflow(void) {
-    int saturated = 0;
-
-    if (!KAIN_SCHEDULER_USE_POOLED) {
-        return 0;
+static void kain_scheduler_finish_turn(KainActorState_Internal* actor) {
+    int should_requeue;
+    if (actor == NULL) {
+        return;
     }
+
+#ifdef _WIN32
+    EnterCriticalSection(&actor->mailbox.lock);
+#else
+    pthread_mutex_lock(&actor->mailbox.lock);
+#endif
+    should_requeue = kain_actor_is_microcell_turn_actor(actor) &&
+                     actor->state == KAIN_ACTOR_STATE_RUNNING &&
+                     actor->mailbox.count > 0u;
 
 #ifdef _WIN32
     EnterCriticalSection(&g_scheduler.lock);
 #else
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
-    saturated = (!g_scheduler.shutdown &&
-                 g_scheduler.busy_workers >= (size_t)KAIN_SCHEDULER_WORKER_COUNT);
+    actor->in_scheduler_turn = 0;
+    if (should_requeue &&
+        !g_scheduler.shutdown &&
+        !actor->in_scheduler_queue &&
+        g_scheduler.queue_depth < KAIN_SCHEDULER_QUEUE_CAPACITY) {
+        actor->in_scheduler_queue = 1;
+        g_scheduler.queue[g_scheduler.enqueue_cursor & KAIN_SCHEDULER_QUEUE_MASK] = actor->actor_id;
+        g_scheduler.enqueue_cursor++;
+        g_scheduler.queue_depth++;
+        g_scheduler.total_enqueued++;
+        if (g_scheduler.queue_depth > g_scheduler.max_queue_depth) {
+            g_scheduler.max_queue_depth = g_scheduler.queue_depth;
+        }
+#ifdef _WIN32
+        SetEvent(g_scheduler.work_available);
+#else
+        pthread_cond_signal(&g_scheduler.work_available);
+#endif
+    }
 #ifdef _WIN32
     LeaveCriticalSection(&g_scheduler.lock);
+    LeaveCriticalSection(&actor->mailbox.lock);
 #else
     pthread_mutex_unlock(&g_scheduler.lock);
+    pthread_mutex_unlock(&actor->mailbox.lock);
 #endif
-
-    return saturated;
 }
 
 static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDiagnostic* diag) {
@@ -2838,6 +2971,7 @@ static KainActorId kain_scheduler_dequeue(void) {
         KainActorState_Internal* actor = kain_actor_table_get(actor_id);
         if (actor != NULL) {
             actor->in_scheduler_queue = 0;
+            actor->in_scheduler_turn = 1;
         }
     }
 
@@ -2941,6 +3075,11 @@ static KainActorId kain_actor_restart_child(KainActorState_Internal* child, Kain
     config.supervisor_id = child->spawn_config.supervisor_id;
     config.restart_policy = child->spawn_config.restart_policy;
     config.retain_user_data = child->spawn_config.retain_user_data;
+    config.entry_kind = child->spawn_config.entry_kind;
+    config.turn_fn = child->spawn_config.turn_fn;
+    config.microcell_turn_budget = child->spawn_config.microcell_turn_budget;
+    config.execution_class = child->spawn_config.execution_class;
+    config.locality_class = child->spawn_config.locality_class;
 
     kain_actor_copy_name(config.name, sizeof(config.name), child->spawn_config.name);
 

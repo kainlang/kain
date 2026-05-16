@@ -21,11 +21,13 @@
 #endif
 #include <windows.h>
 #else
+#include <pthread.h>
 #include <time.h>
 #endif
 
 #define KAIN_MACHINE_PULSE_SLOT_COUNT 64u
 #define KAIN_MACHINE_PULSE_SLOT_MASK (KAIN_MACHINE_PULSE_SLOT_COUNT - 1u)
+#define KAIN_MACHINE_PULSE_SCHEDULER_IDLE_SLEEP_NS UINT64_C(1000000)
 #define KAIN_MACHINE_SHATTER_SLOT_BYTES UINT64_C(8)
 #define KAIN_MACHINE_TOKEN_SIG(length, first, second, last) \
     ((((uint32_t)(length)) << 24u) ^ (((uint32_t)(uint8_t)(first)) << 16u) ^ \
@@ -39,8 +41,18 @@ typedef struct KainMachinePulseSlot {
     uint64_t token;
     uint64_t last_ns;
     uint64_t tick;
+    uint64_t interval_ns;
+    uint64_t jitter_ns;
+    uint64_t next_due_ns;
+    uint64_t fire_count;
+    KainMachinePulseFireFn fire;
     uint8_t occupied;
+    uint8_t scheduled;
 } KainMachinePulseSlot;
+
+typedef struct KainMachinePulseFireJob {
+    KainMachinePulseFireFn fire;
+} KainMachinePulseFireJob;
 
 typedef struct KainMachineShatterBuffer {
     uint64_t lane_count;
@@ -51,8 +63,19 @@ typedef struct KainMachineShatterBuffer {
 
 static KainMachinePulseSlot g_machine_pulse_slots[KAIN_MACHINE_PULSE_SLOT_COUNT];
 static atomic_flag g_machine_pulse_lock = ATOMIC_FLAG_INIT;
+static atomic_int g_machine_pulse_scheduler_running;
+static atomic_int g_machine_pulse_stop_requested;
+static atomic_int g_machine_pulse_atexit_registered;
+static atomic_uint_fast64_t g_machine_pulse_total_fire_count;
 static atomic_uint_fast64_t g_machine_teleport_count;
 static atomic_uint_fast64_t g_machine_teleport_last_token;
+
+#ifdef _WIN32
+static HANDLE g_machine_pulse_thread;
+#else
+static pthread_t g_machine_pulse_thread;
+static atomic_int g_machine_pulse_thread_joinable;
+#endif
 
 static void kain_machine_lock(atomic_flag* lock) {
     while (atomic_flag_test_and_set_explicit(lock, memory_order_acquire)) {
@@ -82,6 +105,26 @@ static uint64_t kain_machine_hash_text(uint64_t seed, const char* text) {
         hash *= UINT64_C(0x100000001b3);
     }
     return kain_machine_mix64(hash);
+}
+
+static uint64_t kain_machine_add_saturating_u64(uint64_t a, uint64_t b) {
+    return b > UINT64_MAX - a ? UINT64_MAX : a + b;
+}
+
+static void kain_machine_sleep_ns(uint64_t ns) {
+    uint64_t ms = (ns + UINT64_C(999999)) / UINT64_C(1000000);
+    if (ms == 0u) {
+        ms = 1u;
+    }
+#ifdef _WIN32
+    Sleep((DWORD)(ms > UINT32_MAX ? UINT32_MAX : ms));
+#else
+    struct timespec delay;
+    delay.tv_sec = (time_t)(ms / UINT64_C(1000));
+    delay.tv_nsec = (long)((ms % UINT64_C(1000)) * UINT64_C(1000000));
+    while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+    }
+#endif
 }
 
 uint64_t kain_machine_now_ns(void) {
@@ -201,11 +244,108 @@ static KainMachinePulseSlot* kain_machine_pulse_slot(uint64_t token) {
                 slot->token = token;
                 slot->last_ns = 0u;
                 slot->tick = 0u;
+                slot->interval_ns = 0u;
+                slot->jitter_ns = 0u;
+                slot->next_due_ns = 0u;
+                slot->fire_count = 0u;
+                slot->fire = NULL;
+                slot->scheduled = 0u;
             }
             return slot;
         }
     }
     return &g_machine_pulse_slots[start];
+}
+
+static void kain_machine_pulse_record_fire(void) {
+    atomic_fetch_add_explicit(&g_machine_pulse_total_fire_count, 1u, memory_order_relaxed);
+}
+
+static void kain_machine_pulse_register_atexit_once(void) {
+    if (atomic_exchange_explicit(&g_machine_pulse_atexit_registered, 1, memory_order_acq_rel) == 0) {
+        atexit(kain_machine_pulse_stop_all);
+    }
+}
+
+#ifdef _WIN32
+static DWORD WINAPI kain_machine_pulse_scheduler_proc(LPVOID ignored)
+#else
+static void* kain_machine_pulse_scheduler_proc(void* ignored)
+#endif
+{
+    (void)ignored;
+    while (atomic_load_explicit(&g_machine_pulse_stop_requested, memory_order_acquire) == 0) {
+        KainMachinePulseFireJob jobs[KAIN_MACHINE_PULSE_SLOT_COUNT];
+        uint32_t job_count = 0u;
+        uint64_t now_ns = kain_machine_now_ns();
+        uint64_t sleep_ns = KAIN_MACHINE_PULSE_SCHEDULER_IDLE_SLEEP_NS;
+        uint32_t i;
+
+        kain_machine_lock(&g_machine_pulse_lock);
+        for (i = 0u; i < KAIN_MACHINE_PULSE_SLOT_COUNT; ++i) {
+            KainMachinePulseSlot* slot = &g_machine_pulse_slots[i];
+            if (!slot->occupied || !slot->scheduled || slot->fire == NULL) {
+                continue;
+            }
+            if (slot->next_due_ns <= now_ns) {
+                if (job_count < KAIN_MACHINE_PULSE_SLOT_COUNT) {
+                    jobs[job_count].fire = slot->fire;
+                    ++job_count;
+                }
+                slot->next_due_ns = kain_machine_add_saturating_u64(now_ns, slot->interval_ns);
+                ++slot->fire_count;
+            } else {
+                uint64_t until_due = slot->next_due_ns - now_ns;
+                if (until_due < sleep_ns) {
+                    sleep_ns = until_due;
+                }
+            }
+        }
+        kain_machine_unlock(&g_machine_pulse_lock);
+
+        for (i = 0u; i < job_count; ++i) {
+            kain_machine_pulse_record_fire();
+            jobs[i].fire();
+        }
+        if (job_count == 0u) {
+            kain_machine_sleep_ns(sleep_ns);
+        }
+    }
+    atomic_store_explicit(&g_machine_pulse_scheduler_running, 0, memory_order_release);
+#ifdef _WIN32
+    return 0;
+#else
+    return NULL;
+#endif
+}
+
+static int kain_machine_pulse_ensure_scheduler_started(void) {
+    int expected = 0;
+    if (!atomic_compare_exchange_strong_explicit(
+            &g_machine_pulse_scheduler_running,
+            &expected,
+            1,
+            memory_order_acq_rel,
+            memory_order_acquire
+        )) {
+        return 1;
+    }
+    atomic_store_explicit(&g_machine_pulse_stop_requested, 0, memory_order_release);
+#ifdef _WIN32
+    g_machine_pulse_thread =
+        CreateThread(NULL, 0, kain_machine_pulse_scheduler_proc, NULL, 0, NULL);
+    if (g_machine_pulse_thread == NULL) {
+        atomic_store_explicit(&g_machine_pulse_scheduler_running, 0, memory_order_release);
+        return 0;
+    }
+#else
+    if (pthread_create(&g_machine_pulse_thread, NULL, kain_machine_pulse_scheduler_proc, NULL) != 0) {
+        atomic_store_explicit(&g_machine_pulse_scheduler_running, 0, memory_order_release);
+        return 0;
+    }
+    atomic_store_explicit(&g_machine_pulse_thread_joinable, 1, memory_order_release);
+#endif
+    return 1;
 }
 
 void kain_machine_pulse_snapshot(
@@ -252,6 +392,75 @@ void kain_machine_pulse_snapshot(
         *out_missed = (advanced > 1u && elapsed_ns > tolerated) ? advanced - 1u : 0u;
     }
     kain_machine_unlock(&g_machine_pulse_lock);
+}
+
+int64_t kain_machine_pulse_start(
+    uint64_t pulse_token,
+    uint64_t interval_ns,
+    uint64_t jitter_ns,
+    KainMachinePulseFireFn fire
+) {
+    uint64_t now_ns;
+    KainMachinePulseSlot* slot;
+    if (fire == NULL) {
+        errno = EINVAL;
+        return 0;
+    }
+    if (interval_ns == 0u) {
+        interval_ns = 1u;
+    }
+
+    kain_machine_pulse_register_atexit_once();
+    now_ns = kain_machine_now_ns();
+    kain_machine_lock(&g_machine_pulse_lock);
+    slot = kain_machine_pulse_slot(pulse_token);
+    slot->interval_ns = interval_ns;
+    slot->jitter_ns = jitter_ns;
+    slot->next_due_ns = kain_machine_add_saturating_u64(now_ns, interval_ns);
+    slot->fire = fire;
+    slot->scheduled = 1u;
+    ++slot->fire_count;
+    kain_machine_unlock(&g_machine_pulse_lock);
+
+    if (!kain_machine_pulse_ensure_scheduler_started()) {
+        kain_machine_lock(&g_machine_pulse_lock);
+        slot = kain_machine_pulse_slot(pulse_token);
+        slot->scheduled = 0u;
+        slot->fire = NULL;
+        kain_machine_unlock(&g_machine_pulse_lock);
+        return 0;
+    }
+
+    kain_machine_pulse_record_fire();
+    fire();
+    return 1;
+}
+
+void kain_machine_pulse_stop_all(void) {
+    uint32_t i;
+    atomic_store_explicit(&g_machine_pulse_stop_requested, 1, memory_order_release);
+#ifdef _WIN32
+    if (g_machine_pulse_thread != NULL) {
+        WaitForSingleObject(g_machine_pulse_thread, INFINITE);
+        CloseHandle(g_machine_pulse_thread);
+        g_machine_pulse_thread = NULL;
+    }
+#else
+    if (atomic_exchange_explicit(&g_machine_pulse_thread_joinable, 0, memory_order_acq_rel) != 0) {
+        pthread_join(g_machine_pulse_thread, NULL);
+    }
+#endif
+    atomic_store_explicit(&g_machine_pulse_scheduler_running, 0, memory_order_release);
+    kain_machine_lock(&g_machine_pulse_lock);
+    for (i = 0u; i < KAIN_MACHINE_PULSE_SLOT_COUNT; ++i) {
+        g_machine_pulse_slots[i].scheduled = 0u;
+        g_machine_pulse_slots[i].fire = NULL;
+    }
+    kain_machine_unlock(&g_machine_pulse_lock);
+}
+
+uint64_t kain_machine_pulse_total_fire_count(void) {
+    return atomic_load_explicit(&g_machine_pulse_total_fire_count, memory_order_acquire);
 }
 
 void* kain_machine_teleport_ptr(
@@ -342,6 +551,23 @@ void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t 
     if (kain_machine_mul_overflow_u64(lane_index, buffer->element_count, &linear_index) ||
         kain_machine_add_overflow_u64(linear_index, element_index, &linear_index) ||
         kain_machine_mul_overflow_u64(linear_index, KAIN_MACHINE_SHATTER_SLOT_BYTES, &byte_offset) ||
+        byte_offset >= buffer->payload_bytes) {
+        errno = ERANGE;
+        return NULL;
+    }
+    return (void*)(buffer->data + byte_offset);
+}
+
+void* kain_machine_shatter_lane_base(void* handle, uint64_t lane_index) {
+    KainMachineShatterBuffer* buffer = (KainMachineShatterBuffer*)handle;
+    uint64_t lane_slots;
+    uint64_t byte_offset;
+    if (buffer == NULL || lane_index >= buffer->lane_count) {
+        errno = ERANGE;
+        return NULL;
+    }
+    if (kain_machine_mul_overflow_u64(lane_index, buffer->element_count, &lane_slots) ||
+        kain_machine_mul_overflow_u64(lane_slots, KAIN_MACHINE_SHATTER_SLOT_BYTES, &byte_offset) ||
         byte_offset >= buffer->payload_bytes) {
         errno = ERANGE;
         return NULL;

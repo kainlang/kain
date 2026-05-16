@@ -753,7 +753,7 @@ fn main() -> Int with Unsafe:
     let presenter_ok = presenter_runtime_ok != 0 and presenter_report_ok and pong_window_frames_presented() >= frame.frame_clock
     let ui_ok = generation == committed and frame_hash != 0 and native_ui_state_count(session) >= 12 and auto_interactions >= 3
     let entangle_ok = final_entangle_registered >= PONG_ENTANGLE_FIELD_COUNT and final_entangle_propagations >= frame.frame_clock
-    let actor_ok = native_actor_abi_version() == 1 and native_actor_scheduler_total_enqueued() > 0 and native_actor_scheduler_total_dequeued() > 0
+    let actor_ok = native_actor_abi_version() == 3 and native_actor_scheduler_total_enqueued() > 0 and native_actor_scheduler_total_dequeued() > 0
     let proof_ok = native_status_ok(left_score_status) and native_status_ok(right_score_status) and native_status_ok(sample_status) and pipeline_budget >= frame.render_swarm_sample_count and native_patch_journal_count() >= 1 and native_converge_mismatch_count() == 0 and native_orchestrate_stage_count() >= 1
     let report = write_pong_report(frame, config, pipeline_budget, presenter_ok, ui_ok, entangle_ok, actor_ok, proof_ok)
 

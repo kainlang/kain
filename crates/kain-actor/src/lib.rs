@@ -39,17 +39,19 @@ pub use message::{
     MessageReplyContract, MessageSignature,
 };
 pub use native::{
-    NativeActorAbi, NativeActorAbiLayout, NativeActorExecutionClassDiscriminant,
-    NativeActorExitReasonDiscriminant, NativeActorLocalityClassDiscriminant,
-    NativeActorLoweringContract, NativeActorStateDiscriminant, NativeRestartPolicyDiscriminant,
-    NativeSupervisionStrategyDiscriminant, NATIVE_ACTOR_ABI_VERSION,
-    NATIVE_ACTOR_DEFAULT_EXECUTION_CLASS, NATIVE_ACTOR_DEFAULT_LOCALITY_CLASS,
+    NativeActorAbi, NativeActorAbiLayout, NativeActorEntryKindDiscriminant,
+    NativeActorExecutionClassDiscriminant, NativeActorExitReasonDiscriminant,
+    NativeActorLocalityClassDiscriminant, NativeActorLoweringContract,
+    NativeActorStateDiscriminant, NativeActorTurnStatusDiscriminant,
+    NativeRestartPolicyDiscriminant, NativeSupervisionStrategyDiscriminant,
+    NATIVE_ACTOR_ABI_VERSION, NATIVE_ACTOR_DEFAULT_EXECUTION_CLASS,
+    NATIVE_ACTOR_DEFAULT_LOCALITY_CLASS, NATIVE_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET,
     NATIVE_ACTOR_ID_BITS, NATIVE_ACTOR_MONITOR_EXIT_TAG_BASE, NATIVE_ACTOR_NAME_MAX_BYTES,
     NATIVE_ACTOR_REF_GENERATION_BITS, NATIVE_ACTOR_REGISTRY_CAPACITY,
     NATIVE_ACTOR_SCHEDULER_WORKER_COUNT, NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_EXECUTION_CLASS,
     NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_LOCALITY_CLASS, NATIVE_ACTOR_TABLE_CAPACITY,
-    NATIVE_ACTOR_UNBOUNDED_MAILBOX_CAPACITY,
-    REQUIRED_NATIVE_ACTOR_SYMBOLS, REQUIRED_NATIVE_STDLIB_ACTOR_SYMBOLS,
+    NATIVE_ACTOR_UNBOUNDED_MAILBOX_CAPACITY, REQUIRED_NATIVE_ACTOR_SYMBOLS,
+    REQUIRED_NATIVE_STDLIB_ACTOR_SYMBOLS,
 };
 pub use registry::{ActorNameBinding, ActorRegistryModel};
 pub use runtime::{

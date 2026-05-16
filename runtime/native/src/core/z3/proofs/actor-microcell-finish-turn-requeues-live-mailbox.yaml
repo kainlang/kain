@@ -1,0 +1,97 @@
+version: 1
+id: kain.native.core.proofs.actor_microcell_finish_turn_requeues_live_mailbox
+kind: find_counterexample
+description: When a microcell turn finishes while its mailbox still contains
+  messages, the finish path clears worker ownership and requeues the actor under
+  the same mailbox->scheduler lock order, so a send racing with the running turn
+  cannot strand live mailbox work.
+tags:
+- actor
+- scheduler
+- microcell
+- race-invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_scheduler_finish_turn
+  start_line: 2871
+  reason: finish path reads mailbox count before clearing in_scheduler_turn and
+    requeues if live work remains
+case:
+  declarations:
+  - name: mailbox_count
+    sort:
+      kind: int
+  - name: queue_depth
+    sort:
+      kind: int
+  - name: queue_capacity
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - mailbox_count
+    - 0
+  - op: ge
+    args:
+    - queue_depth
+    - 0
+  - op: gt
+    args:
+    - queue_capacity
+    - queue_depth
+  claim:
+    op: and
+    args:
+    - op: implies
+      args:
+      - op: gt
+        args:
+        - mailbox_count
+        - 0
+      - op: eq
+        args:
+        - op: ite
+          args:
+          - op: and
+            args:
+            - op: gt
+              args:
+              - mailbox_count
+              - 0
+            - op: gt
+              args:
+              - queue_capacity
+              - queue_depth
+          - 1
+          - 0
+        - 1
+    - op: not
+      args:
+      - op: and
+        args:
+        - op: gt
+          args:
+          - mailbox_count
+          - 0
+        - op: eq
+          args:
+          - op: ite
+            args:
+            - op: and
+              args:
+              - op: gt
+                args:
+                - mailbox_count
+                - 0
+              - op: gt
+                args:
+                - queue_capacity
+                - queue_depth
+            - 1
+            - 0
+          - 0
+        - op: eq
+          args:
+          - 0
+          - 0

@@ -239,7 +239,9 @@ fn main() -> Int:
         .expect("llvm should be utf8");
 
     assert!(llvm.contains("declare i64 @abi_input_session_create(i8* %arg0)"));
-    assert!(llvm.contains("declare i64 @abi_input_bind_action(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, i8* %arg4)"));
+    assert!(llvm.contains(
+        "declare i64 @abi_input_bind_action(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, i8* %arg4)"
+    ));
     assert!(llvm.contains("declare i64 @abi_input_push_agent_intent(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, double %arg4)"));
     assert!(llvm.contains("call i64 @abi_input_action_pressed"));
     assert!(llvm.contains("agent-input"));
@@ -303,8 +305,7 @@ fn main() -> Int:
     assert!(llvm.contains("declare i64 @abi_process_spec_create(i8* %arg0)"));
     assert!(llvm.contains("declare i64 @abi_process_spec_add_arg(i64 %arg0, i8* %arg1)"));
     assert!(llvm.contains("declare i64 @abi_process_spawn(i64 %arg0)"));
-    assert!(llvm
-        .contains("declare i64 @abi_process_spawn_pty(i64 %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i64 @abi_process_spawn_pty(i64 %arg0, i64 %arg1, i64 %arg2)"));
     assert!(llvm.contains("declare i8* @abi_process_stdout_capture_text(i64 %arg0)"));
     assert!(llvm.contains("call i64 @abi_process_pty_write_text"));
     assert!(llvm.contains("echo process-proof"));
@@ -384,9 +385,7 @@ fn main() -> Int:
     assert!(llvm.contains("declare i64 @abi_net_capability_state(i8* %arg0)"));
     assert!(llvm.contains("declare i64 @abi_tcp_connect(i8* %arg0, i64 %arg1, i64 %arg2)"));
     assert!(llvm.contains("declare i64 @abi_http_request_create(i8* %arg0, i8* %arg1)"));
-    assert!(
-        llvm.contains("declare i64 @abi_http_request_set_protocol(i64 %arg0, i8* %arg1)")
-    );
+    assert!(llvm.contains("declare i64 @abi_http_request_set_protocol(i64 %arg0, i8* %arg1)"));
     assert!(llvm.contains("declare i64 @abi_http_client_send(i64 %arg0)"));
     assert!(llvm.contains("declare i8* @abi_http_response_protocol(i64 %arg0)"));
     assert!(llvm.contains("declare i64 @abi_http_server_route_actor(i64 %arg0, i8* %arg1, i8* %arg2, i64 %arg3, i8* %arg4)"));
@@ -443,8 +442,7 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm
-        .contains("declare i64 @abi_ui_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i64 @abi_ui_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"));
     assert!(llvm.contains("declare i64 @abi_ui_node_create(i64 %arg0, i8* %arg1)"));
     assert!(llvm.contains("declare i64 @abi_ui_node_set_rect(i64 %arg0, i64 %arg1, double %arg2, double %arg3, double %arg4, double %arg5)"));
     assert!(llvm.contains("call i64 @abi_ui_draw_rect"));
@@ -672,9 +670,9 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm.contains(
-        "declare i64 @abi_graphics_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"
-    ));
+    assert!(
+        llvm.contains("declare i64 @abi_graphics_session_create(i8* %arg0, i64 %arg1, i64 %arg2)")
+    );
     assert!(llvm.contains("declare i64 @abi_graphics_shader_spirv_from_hex"));
     assert!(llvm.contains("declare i64 @abi_graphics_buffer_create_from_hex"));
     assert!(llvm.contains("call i64 @abi_graphics_draw_mesh"));
@@ -748,9 +746,9 @@ fn main() -> Int:
     assert!(llvm.contains("define i1 @revision_is_valid(i64 %arg0)"));
     assert!(llvm.contains("define i64 @choose_value(i64 %arg0)"));
     assert!(llvm.contains("define i64 @pipeline(i64 %arg0)"));
-    assert!(llvm.contains("declare i32 @entangle_register(i8*, i8*, i8*, i8*)"));
+    assert!(llvm.contains("declare i64 @abi_entangle_register(i8*, i8*, i8*, i8*)"));
     assert!(llvm.contains("define void @__kain_register_entanglements()"));
-    assert!(llvm.contains("call i32 @entangle_register"));
+    assert!(llvm.contains("call i64 @abi_entangle_register"));
     assert!(llvm.contains("call void @__kain_register_entanglements()"));
     assert!(llvm.contains("call void @__kain_init_world_Studio()"));
     assert!(llvm.contains("call i1 @revision_is_valid(i64"));
@@ -1333,8 +1331,14 @@ fn main() -> Int:
         AgentParticle { x: 3.0, y: 5.0, alive: false }
     ]
     let hot_x = particles[1].x
+    var live_count = 0
+    for i in range(0, 2):
+        if particles[i].alive:
+            live_count = live_count + 1
     if hot_x != 3.0:
         return 1
+    if live_count != 1:
+        return 2
     return portable_mask_update(1, 2) - 3
 "#,
     );
@@ -1344,14 +1348,20 @@ fn main() -> Int:
 
     assert!(llvm.contains("declare i64 @kain_machine_axiom_accept(i8*, i8*, i64)"));
     assert!(llvm.contains("declare void @kain_machine_pulse_snapshot"));
+    assert!(llvm.contains("declare i64 @kain_machine_pulse_start"));
+    assert!(llvm.contains("declare i64 @kain_machine_pulse_total_fire_count"));
     assert!(llvm.contains("declare i8* @kain_machine_teleport_ptr"));
     assert!(llvm.contains("declare i8* @kain_machine_shatter_alloc"));
+    assert!(llvm.contains("declare i8* @kain_machine_shatter_lane_base"));
     assert!(llvm.contains("define i64 @__kain_axiom_accept_native_atomic_mask_truth()"));
     assert!(llvm.contains("define void @__kain_pulse_body_agent_sinus"));
     assert!(llvm.contains("define void @__kain_pulse_fire_agent_sinus()"));
-    assert!(llvm.contains("call void @__kain_pulse_fire_agent_sinus()"));
+    assert!(llvm.contains("call i64 @kain_machine_pulse_start(i64"));
+    assert!(llvm.contains("void ()* @__kain_pulse_fire_agent_sinus"));
     assert!(llvm.contains("call i8* @kain_machine_shatter_alloc(i64 3, i64 2)"));
-    assert!(llvm.contains("call i8* @kain_machine_shatter_lane_ptr"));
+    assert!(llvm.contains("call i8* @kain_machine_shatter_lane_base"));
+    assert!(llvm.contains("shl i64"));
+    assert!(!llvm.contains("call i8* @kain_machine_shatter_lane_ptr"));
     assert!(llvm.contains("call i8* @kain_machine_teleport_ptr"));
     assert!(!llvm.contains("call i8* @array_new(i64 4)"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "machine-stones-native-runtime");
@@ -1459,13 +1469,17 @@ fn drive() -> Int:
 
     assert!(llvm.contains("%KainActorMessage = type { i64, i8*, i64, i64 }"));
     assert!(llvm.contains(
-        "%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [128 x i8] }"
+        "%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [128 x i8], i32, i32 (i64, i8*, i8*, i32)*, i32, i32, i32 }"
     ));
-    assert!(llvm.contains("define i32 @Printer_run(i64 %actor_id, i8* %mailbox, i8* %user_data)"));
+    assert!(llvm.contains(
+        "define i32 @Printer_turn(i64 %actor_id, i8* %mailbox, i8* %user_data, i32 %budget)"
+    ));
     assert!(llvm.contains("call void @kain_actor_spawn_config_init(%KainActorSpawnConfig*"));
     assert!(llvm.contains("store i32 1, i32*"));
+    assert!(llvm.contains("store i32 2, i32*"));
+    assert!(llvm.contains("store i32 (i64, i8*, i8*, i32)* @Printer_turn"));
     assert!(llvm.contains("call i64 @kain_actor_spawn(%KainActorSpawnConfig*"));
-    assert!(llvm.contains("call i32 @kain_actor_receive(i8* %mailbox, %KainActorMessage*"));
+    assert!(llvm.contains("call i32 @kain_actor_try_receive(i8* %mailbox, %KainActorMessage*"));
     assert!(llvm.contains("call i32 @kain_actor_send(i64 "));
     assert!(llvm.contains("call void @free(i8* "));
     assert!(llvm.contains("%Printer_Print = type { i64 }"));

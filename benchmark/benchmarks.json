@@ -152,6 +152,31 @@
       "python": "cases/array_scan/main.py"
     },
     {
+      "id": "machine_stones_shatter_loop",
+      "title": "Machine Stones Shatter Loop",
+      "description": "Hot field iteration over a fixed particle set. Kain authors a clean array of `shatter struct` particles and LLVM lowers proven loop indexes to cached SoA lane bases; Rust and C++ hand-author the equivalent SoA arrays.",
+      "maturity": "implemented",
+      "fairness_note": "This isolates shatter memory-layout lowering rather than pulse or teleport. Kain's row uses compiler-owned shatter SoA lane bases; Rust/C++ use explicit structure-of-arrays source, while JavaScript/Python mirror the same field arrays without native layout control.",
+      "kain": "cases/machine_stones_shatter_loop/main.kn",
+      "rust": "cases/machine_stones_shatter_loop/main.rs",
+      "cpp": "cases/machine_stones_shatter_loop/main.cpp",
+      "javascript": "cases/machine_stones_shatter_loop/main.js",
+      "python": "cases/machine_stones_shatter_loop/main.py"
+    },
+    {
+      "id": "semantic_singularity",
+      "title": "Semantic Singularity",
+      "description": "Kain-only fused semantics pressure case: axiom/pulse/shatter/teleport feed world/entangle/patch/law state, converge/orchestrate transform it, modern microcell actors answer requests, and collapse/observe/decay guards the shared memory cell ring.",
+      "maturity": "kain-core-pressure",
+      "fairness_note": "This is intentionally Kain-only. It is not a cross-language fairness row; it is the integrated semantic pressure vessel for checking that Kain's weird memory, world, actor, and intent systems compose inside one native LLVM benchmark.",
+      "language_notes": {
+        "kain": "Uses ABI v3 actor ask/reply, native machine-stone runtime hooks, two entangled world fields, repeated patch/law/converge/orchestrate work, teleport handoffs, and raw shared-memory collapse/observe/decay in one checksum-guarded loop."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity/main.kn"
+      }
+    },
+    {
       "id": "struct_method",
       "title": "Struct Method Dispatch",
       "description": "Construct small records and call an instance method in a hot loop. This catches aggregate layout and method-call lowering.",
@@ -300,11 +325,11 @@
     {
       "id": "actor_mailbox_erlang",
       "title": "Actor Ask/Reply Fanout",
-      "description": "Synchronous mailbox roundtrips fanned across four long-lived workers. Kain uses native LLVM actor ask/reply lowering with reply-port reuse; Erlang uses direct process mailbox request/reply.",
+      "description": "Synchronous mailbox roundtrips fanned across four long-lived workers. Kain uses native LLVM actor ask/reply lowering over scheduler-owned microcell turns with synthetic reply-port refs; Erlang uses direct process mailbox request/reply.",
       "maturity": "implemented",
-      "fairness_note": "Both rows measure real request/reply mailbox roundtrips over four long-lived workers with the same deterministic checksum schedule. Kain currently targets the native `reply_to: P` plus `Int` reply shape for this steady-state ask path.",
+      "fairness_note": "Both rows measure real request/reply mailbox roundtrips over four long-lived workers with the same deterministic checksum schedule. Kain now runs actor handlers as bounded nonblocking microcell turns, so blocked compatibility actors no longer consume the pooled scheduler lane used by the benchmarked ask/reply path.",
       "language_notes": {
-        "kain": "The Kain row performs one unmeasured warmup ask per worker before timing. Without that, the current native ask/reply path can show a one-off cold-start checksum wobble even though the steady-state path is correct.",
+        "kain": "The Kain row performs one unmeasured warmup ask per worker before timing. Native LLVM actors compile to KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN and poll mailboxes with kain_actor_try_receive under a default 64-message turn budget.",
         "erlang": "The Erlang row mirrors the same one-shot per-worker warmup so both rows measure steady-state mailbox traffic instead of startup effects."
       },
       "languages": {

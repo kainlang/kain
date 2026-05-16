@@ -882,7 +882,7 @@ fn main() -> Int:
 
     let committed = native_ui_hot_reload_commit(session)
     let frame_hash = native_ui_host_frame_hash(session)
-    let actor_ok = native_actor_abi_version() == 1 and native_actor_default_mailbox_capacity() == 1024 and pulse_total_expected >= 10
+    let actor_ok = native_actor_abi_version() == 3 and native_actor_default_mailbox_capacity() == 1024 and pulse_total_expected >= 10
     let graphics_ok = mesh_id > 0 and pipeline_id > 0 and last_present_status >= 0 and orbit_instances >= 1
     let network_available = ui_state_string(session, surface, "network.available", "no")
     let network_ok = network_available == "no" or ui_state_i64(session, surface, "network.ok", 0) == 1

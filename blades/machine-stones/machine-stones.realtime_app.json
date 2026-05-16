@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "render": {
+    "scenes": [],
+    "materials": []
+  },
+  "worlds": [
+    {
+      "name": "GpuWorld",
+      "state_slots": [
+        {
+          "name": "beat",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "viewport3d",
+          "authored_expr": "\"gpu-machine-world\"",
+          "surface_key": "world.GpuWorld.viewport3d"
+        }
+      ]
+    },
+    {
+      "name": "NativeWorld",
+      "state_slots": [
+        {
+          "name": "beat",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "MachineStonePanel",
+          "surface_key": "world.NativeWorld.native_ui"
+        },
+        {
+          "kind": "viewport3d",
+          "authored_expr": "\"native-machine-world\"",
+          "surface_key": "world.NativeWorld.viewport3d"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "NativeWorld",
+    "state_slots": [
+      {
+        "name": "beat",
+        "type_name": "Int",
+        "initial_expr": "0"
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "MachineStonePanel",
+        "surface_key": "world.NativeWorld.native_ui"
+      },
+      {
+        "kind": "viewport3d",
+        "authored_expr": "\"native-machine-world\"",
+        "surface_key": "world.NativeWorld.viewport3d"
+      }
+    ]
+  },
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "viewport.3d",
+    "world.native-ui",
+    "world.viewport3d"
+  ],
+  "requirements": [
+    "host.raw-native",
+    "runtime.contract.bundle",
+    "shader.bundle.metadata",
+    "viewport.presented-or-fallback",
+    "world.native-ui",
+    "world.viewport3d"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 2,
+        "identity_key": "2",
+        "kind": "component:MachineStonePanel",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}

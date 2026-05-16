@@ -18,7 +18,7 @@ int main(void) {
         return status;
     }
 
-    status = expect_int(abi_actor_abi_version() == 1, 41);
+    status = expect_int(abi_actor_abi_version() == 3, 41);
     if (status != 0) {
         return status;
     }

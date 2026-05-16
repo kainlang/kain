@@ -1,0 +1,73 @@
+version: 1
+id: kain.native.core.proofs.actor_microcell_ready_state_is_exclusive
+kind: find_counterexample
+description: A microcell actor can be in the scheduler queue or owned by a worker
+  turn, but never both. The ready path may enqueue only when both ownership bits
+  are clear, preserving exclusive scheduler ownership.
+tags:
+- actor
+- scheduler
+- microcell
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_scheduler_ready_actor
+  start_line: 2823
+  reason: ready path rejects actors already queued or owned by a worker turn
+case:
+  declarations:
+  - name: in_queue
+    sort:
+      kind: int
+  - name: in_turn
+    sort:
+      kind: int
+  constraints:
+  - op: or
+    args:
+    - op: eq
+      args:
+      - in_queue
+      - 0
+    - op: eq
+      args:
+      - in_queue
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - in_turn
+      - 0
+    - op: eq
+      args:
+      - in_turn
+      - 1
+  - op: le
+    args:
+    - op: add
+      args:
+      - in_queue
+      - in_turn
+    - 1
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - op: ite
+        args:
+        - op: and
+          args:
+          - op: eq
+            args:
+            - in_queue
+            - 0
+          - op: eq
+            args:
+            - in_turn
+            - 0
+        - 1
+        - in_queue
+      - in_turn
+    - 1

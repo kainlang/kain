@@ -48,14 +48,22 @@ fn machine_stone_score() -> Int:
     ]
     let hot_x = particles[1].x
     let hot_alive = particles[0].alive
+    var live_count = 0
+    for lane in range(0, 2):
+        if particles[lane].alive:
+            live_count = live_count + 1
     if hot_x != 3.0:
         return 2
     if hot_alive == false:
         return 3
-    if runtime_machine_teleport_count() < 1:
+    if live_count != 1:
         return 4
-    if runtime_machine_teleport_last_token() == 0:
+    if runtime_machine_teleport_count() < 1:
         return 5
+    if runtime_machine_teleport_last_token() == 0:
+        return 6
+    if runtime_machine_pulse_total_fire_count() < 1:
+        return 7
     return 0
 
 fn main() -> Int:

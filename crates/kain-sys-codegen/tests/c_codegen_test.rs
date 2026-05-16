@@ -134,12 +134,10 @@ fn main() -> Int:
     let c = generate_c(&program).expect("C generation should succeed");
 
     assert!(c.contains("int64_t abi_input_session_create(const char * name);"));
+    assert!(c.contains("int64_t abi_input_begin_frame(int64_t session_id, double delta_ms);"));
     assert!(
-        c.contains("int64_t abi_input_begin_frame(int64_t session_id, double delta_ms);")
+        c.contains("int64_t abi_input_action_pressed(int64_t session_id, const char * action);")
     );
-    assert!(c.contains(
-        "int64_t abi_input_action_pressed(int64_t session_id, const char * action);"
-    ));
     assert!(!c.contains("int64_t abi_input_session_create(const char * name) {"));
     assert!(c.contains("return abi_input_action_pressed(session, \"confirm\");"));
 }
@@ -175,9 +173,9 @@ fn main() -> Int:
     let c = generate_c(&program).expect("C generation should succeed");
 
     assert!(c.contains("int64_t abi_process_spec_create(const char * executable);"));
-    assert!(c.contains(
-        "int64_t abi_process_spec_set_stdout_mode(int64_t spec_id, const char * mode);"
-    ));
+    assert!(
+        c.contains("int64_t abi_process_spec_set_stdout_mode(int64_t spec_id, const char * mode);")
+    );
     assert!(c.contains("int64_t abi_process_spawn(int64_t spec_id);"));
     assert!(c.contains("int64_t abi_process_wait(int64_t process_id, int64_t timeout_ms);"));
     assert!(c.contains("const char * abi_process_stdout_capture_text(int64_t process_id);"));
@@ -230,9 +228,7 @@ fn main() -> Int:
     assert!(c.contains("int64_t abi_net_capability_state(const char * capability_key);"));
     assert!(c.contains("int64_t abi_http_server_create(const char * host, int64_t port);"));
     assert!(c.contains("int64_t abi_http_server_route_actor(int64_t server_id, const char * method, const char * path, int64_t actor_id, const char * message_kind);"));
-    assert!(c.contains(
-        "int64_t abi_http_request_create(const char * method, const char * url);"
-    ));
+    assert!(c.contains("int64_t abi_http_request_create(const char * method, const char * url);"));
     assert!(c.contains(
         "int64_t abi_http_request_set_protocol(int64_t request_id, const char * protocol_name);"
     ));
@@ -287,9 +283,9 @@ fn main() -> Int:
     let program = typed_program_from_source(source);
     let c = generate_c(&program).expect("C generation should succeed");
 
-    assert!(c.contains(
-        "int64_t abi_actor_spawn(const char * actor_name, const char * init_payload);"
-    ));
+    assert!(
+        c.contains("int64_t abi_actor_spawn(const char * actor_name, const char * init_payload);")
+    );
     assert!(c.contains("int main(void);"));
     assert!(c.contains("int64_t probe = abi_actor_spawn(\"Probe\", \"total=0\");"));
     assert!(c.contains("abi_actor_send(probe, \"Add\", \"value=3\");"));

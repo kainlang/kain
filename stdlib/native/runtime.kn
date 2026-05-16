@@ -43,6 +43,9 @@ fn kain_machine_teleport_count() -> Int
 @extern
 fn kain_machine_teleport_last_token() -> Int
 
+@extern
+fn kain_machine_pulse_total_fire_count() -> Int
+
 pub fn native_runtime_init() -> Int:
     return abi_runtime_init()
 
@@ -87,6 +90,9 @@ pub fn native_machine_teleport_count() -> Int:
 
 pub fn native_machine_teleport_last_token() -> Int:
     return kain_machine_teleport_last_token()
+
+pub fn native_machine_pulse_total_fire_count() -> Int:
+    return kain_machine_pulse_total_fire_count()
 
 pub fn native_runtime_with_status(status: Int) -> Int:
     if status == 0:
@@ -144,6 +150,9 @@ pub fn runtime_machine_teleport_count() -> Int:
 
 pub fn runtime_machine_teleport_last_token() -> Int:
     return native_machine_teleport_last_token()
+
+pub fn runtime_machine_pulse_total_fire_count() -> Int:
+    return native_machine_pulse_total_fire_count()
 
 pub fn runtime_with_status(status: Int) -> Int:
     return native_runtime_with_status(status)

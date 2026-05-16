@@ -67,6 +67,13 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - Accelerated Rust lanes may optimize execution, but they must consume the same compiler-owned bundles rather than inventing a second semantic model.
 - Web, UE5, selfhost, and future lanes are adapters, not alternate definitions of what Kain source means.
 
+## Actor Runtime Shape
+
+- The native actor ABI lives at `runtime/native/include/actor.h` with implementation in `runtime/native/src/core/actor.c`. ABI v3 separates compatibility blocking actors from LLVM-native microcell actors: generated actors use `KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN`, `KainActorTurnFn(actor_id, mailbox, user_data, budget)`, and a default 64-message turn budget.
+- LLVM actor lowering must emit nonblocking turn handlers that poll `kain_actor_try_receive` and return `KAIN_ACTOR_TURN_IDLE` or `KAIN_ACTOR_TURN_YIELDED`; it must not put generated actors back on blocking `kain_actor_receive` loops inside pooled scheduler workers.
+- `kain_actor_send` appends to the mailbox under the mailbox lock and calls `kain_scheduler_ready_actor`; workers own `in_scheduler_turn` while executing a turn and `kain_scheduler_finish_turn` clears that bit plus requeues if mailbox work remains. Keep this mailbox->scheduler lock order intact so sends racing with a running turn cannot strand live mailbox messages.
+- Legacy bootstrap actors intentionally run on direct compatibility threads now. The pooled scheduler is for bounded microcell turns, and blocking legacy code must not be allowed to consume the worker pool used by native ask/reply traffic.
+
 ## Main Folders
 
 - [README.md](/M:/Code/Kain/README.md): repo-level operating brief

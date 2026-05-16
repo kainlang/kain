@@ -120,7 +120,10 @@ fn native_actor_abi_defaults_match_runtime_contract() {
 
     assert_eq!(abi.abi_version, NATIVE_ACTOR_ABI_VERSION);
     assert_eq!(abi.actor_id_bits, NATIVE_ACTOR_ID_BITS);
-    assert_eq!(abi.actor_ref_generation_bits, NATIVE_ACTOR_REF_GENERATION_BITS);
+    assert_eq!(
+        abi.actor_ref_generation_bits,
+        NATIVE_ACTOR_REF_GENERATION_BITS
+    );
     assert_eq!(abi.invalid_actor_id, ActorId::INVALID_RAW);
     assert_eq!(
         abi.default_execution_class,
@@ -165,6 +168,10 @@ fn native_actor_abi_defaults_match_runtime_contract() {
         NATIVE_ACTOR_MONITOR_EXIT_TAG_BASE
     );
     assert_eq!(
+        abi.default_microcell_turn_budget,
+        NATIVE_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET
+    );
+    assert_eq!(
         layout.actor_ref_fields,
         vec![
             "KainActorId actor_id".to_string(),
@@ -185,6 +192,12 @@ fn native_actor_abi_defaults_match_runtime_contract() {
     assert!(layout
         .spawn_config_fields
         .contains(&"int retain_user_data".to_string()));
+    assert!(layout
+        .spawn_config_fields
+        .contains(&"KainActorTurnFn turn_fn".to_string()));
+    assert!(layout
+        .spawn_config_fields
+        .contains(&"unsigned int microcell_turn_budget".to_string()));
     assert!(contract.supports_spawn);
     assert!(contract.supports_send);
     assert!(contract.supports_monitoring);
@@ -211,18 +224,18 @@ fn native_actor_abi_defaults_match_runtime_contract() {
         .contains(&"kain_actor_reply_port_wait_i64"));
     assert!(contract
         .required_stdlib_symbols()
-        .contains(&"kain_native_actor_default_ask_timeout_ms"));
+        .contains(&"abi_actor_default_ask_timeout_ms"));
 }
 
 #[test]
 fn native_actor_header_stays_in_sync_with_rust_contract() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let header_path = manifest_dir.join("../../runtime/native/include/kain_runtime_actor.h");
+    let header_path = manifest_dir.join("../../runtime/native/include/actor.h");
     let header = std::fs::read_to_string(&header_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", header_path.display()));
 
     let expected_macros = [
-        "#define KAIN_ACTOR_ABI_VERSION 2U",
+        "#define KAIN_ACTOR_ABI_VERSION 3U",
         "#define KAIN_ACTOR_ID_BITS 64U",
         "#define KAIN_ACTOR_ID_INVALID 0ULL",
         "#define KAIN_ACTOR_REF_GENERATION_BITS 32U",
@@ -232,6 +245,7 @@ fn native_actor_header_stays_in_sync_with_rust_contract() {
         "#define KAIN_MAILBOX_UNBOUNDED_CAPACITY 0",
         "#define KAIN_ACTOR_DEFAULT_ASK_TIMEOUT_MS 30000ULL",
         "#define KAIN_ACTOR_DEFAULT_SHUTDOWN_GRACE_MS 5000ULL",
+        "#define KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET 64U",
         "#define KAIN_ACTOR_NAME_MAX 128",
         "#define KAIN_ACTOR_TABLE_CAPACITY 1024",
         "#define KAIN_ACTOR_REGISTRY_CAPACITY 256",
@@ -261,6 +275,10 @@ fn native_actor_header_stays_in_sync_with_rust_contract() {
     assert!(header.contains("size_t default_mailbox_capacity;"));
     assert!(header.contains("int retain_user_data;"));
     assert!(header.contains("unsigned long long monitor_exit_tag_base;"));
+    assert!(header.contains("unsigned int default_microcell_turn_budget;"));
+    assert!(header.contains("KainActorEntryKind entry_kind;"));
+    assert!(header.contains("KainActorTurnFn turn_fn;"));
+    assert!(header.contains("unsigned int microcell_turn_budget;"));
     assert!(header.contains("typedef struct {"));
     assert!(header.contains("KainActorId actor_id;"));
     assert!(header.contains("unsigned int generation;"));
@@ -271,8 +289,7 @@ fn native_actor_header_stays_in_sync_with_rust_contract() {
 #[test]
 fn native_actor_stdlib_header_exports_runtime_contract_symbols() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let header_path =
-        manifest_dir.join("../../runtime/native/include/kain_runtime_native_stdlib.h");
+    let header_path = manifest_dir.join("../../runtime/native/include/stdlib_abi.h");
     let header = std::fs::read_to_string(&header_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", header_path.display()));
 

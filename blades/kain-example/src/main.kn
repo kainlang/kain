@@ -321,7 +321,7 @@ fn ownership_memory_lane() -> Int:
 fn intent_actor_lane(init_status: Int) -> Int:
     let registered_entanglements = native_entangle_registered_count()
     let initial_queue_depth = native_actor_scheduler_queue_depth()
-    let actor_abi_ok = native_actor_abi_version() == 1 and native_actor_default_mailbox_capacity() == 1024
+    let actor_abi_ok = native_actor_abi_version() == 3 and native_actor_default_mailbox_capacity() == 1024
     let actor_timeout_ok = native_actor_default_ask_timeout_ms() == 30000 and native_actor_default_shutdown_grace_ms() == 5000
     let actor_supervision_ok = native_actor_supervision_max_restarts() == 5 and native_actor_supervision_restart_window_millis() == 60000
 

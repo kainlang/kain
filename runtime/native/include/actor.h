@@ -33,7 +33,7 @@ typedef struct MessageNode MessageNode;
 /* Actor ID Type */
 typedef unsigned long long KainActorId;
 
-#define KAIN_ACTOR_ABI_VERSION 2U
+#define KAIN_ACTOR_ABI_VERSION 3U
 #define KAIN_ACTOR_ID_BITS 64U
 #define KAIN_ACTOR_ID_INVALID 0ULL
 #define KAIN_ACTOR_REF_GENERATION_BITS 32U
@@ -116,6 +116,7 @@ typedef struct {
 #define KAIN_MAILBOX_UNBOUNDED_CAPACITY 0
 #define KAIN_ACTOR_DEFAULT_ASK_TIMEOUT_MS 30000ULL
 #define KAIN_ACTOR_DEFAULT_SHUTDOWN_GRACE_MS 5000ULL
+#define KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET 64U
 
 /* String Buffer Sizes */
 #define KAIN_ACTOR_NAME_MAX 128
@@ -155,6 +156,7 @@ typedef struct {
     size_t actor_table_capacity;
     size_t registry_capacity;
     unsigned long long monitor_exit_tag_base;
+    unsigned int default_microcell_turn_budget;
 } KainActorAbiDescriptor;
 
 /*
@@ -297,6 +299,26 @@ typedef KainActorExitReason (*KainActorBootstrapFn)(
     void* user_data
 );
 
+typedef enum {
+    KAIN_ACTOR_ENTRY_KIND_INVALID = 0,
+    KAIN_ACTOR_ENTRY_KIND_LEGACY_BOOTSTRAP = 1,
+    KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN = 2,
+} KainActorEntryKind;
+
+typedef enum {
+    KAIN_ACTOR_TURN_IDLE = 0,
+    KAIN_ACTOR_TURN_YIELDED = 1,
+    KAIN_ACTOR_TURN_STOPPED = 2,
+    KAIN_ACTOR_TURN_CRASHED = 3,
+} KainActorTurnStatus;
+
+typedef KainActorTurnStatus (*KainActorTurnFn)(
+    KainActorId actor_id,
+    KainActorMailbox* mailbox,
+    void* user_data,
+    unsigned int budget
+);
+
 /*
  * Actor Spawn Configuration (stored for restart)
  *
@@ -315,6 +337,11 @@ typedef struct {
     /* 1 when user_data is a Kain RC allocation the runtime must retain/release. */
     int retain_user_data;
     char name[KAIN_ACTOR_NAME_MAX];
+    KainActorEntryKind entry_kind;
+    KainActorTurnFn turn_fn;
+    unsigned int microcell_turn_budget;
+    unsigned int execution_class;
+    unsigned int locality_class;
 } KainActorSpawnConfigStored;
 
 /*
@@ -370,7 +397,10 @@ typedef struct {
     KainActorExitReason exit_reason;
 
     /* Execution context */
+    KainActorEntryKind entry_kind;
     KainActorBootstrapFn bootstrap_fn;
+    KainActorTurnFn turn_fn;
+    unsigned int microcell_turn_budget;
     void* user_data;
 
 #ifdef _WIN32
@@ -402,6 +432,7 @@ typedef struct {
 
     /* Scheduler integration */
     int in_scheduler_queue;         /* 1 if currently in ready queue */
+    int in_scheduler_turn;          /* 1 if a pooled worker owns the current turn */
 
     /* Diagnostics */
     KainDiagnostic last_error;
@@ -469,6 +500,11 @@ typedef struct {
     /* 1 when user_data is a Kain RC allocation the runtime must retain/release. */
     int retain_user_data;
     char name[KAIN_ACTOR_NAME_MAX];
+    KainActorEntryKind entry_kind;
+    KainActorTurnFn turn_fn;
+    unsigned int microcell_turn_budget;
+    unsigned int execution_class;
+    unsigned int locality_class;
 } KainActorSpawnConfig;
 
 /*

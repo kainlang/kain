@@ -1,0 +1,43 @@
+version: 1
+id: kain.native.core.proofs.native_machine_shatter_lane_base_shift_offset_stays_in_payload
+kind: check_smt2
+description: >
+  The optimized LLVM shatter fast path asks the C runtime once for a lane base
+  and then computes field pointers as lane_base + (element_index << 3). For a
+  compiler-proved loop/literal index inside the direct array literal's element
+  domain, that shifted slot offset stays inside the same contiguous SoA payload
+  as the checked runtime lane pointer.
+tags:
+- native-runtime
+- machine
+- shatter
+- memory
+- optimizer
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\machine_stones.c
+  symbol: kain_machine_shatter_lane_base
+  reason: lane-base arithmetic is the native contract used by LLVM shatter loop fast paths
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const lane Int)
+    (declare-const index Int)
+    (declare-const lane_count Int)
+    (declare-const element_count Int)
+    (define-fun u64_max () Int 18446744073709551615)
+    (assert (> lane_count 0))
+    (assert (> element_count 0))
+    (assert (>= lane 0))
+    (assert (>= index 0))
+    (assert (< lane lane_count))
+    (assert (< index element_count))
+    (define-fun slots () Int (* lane_count element_count))
+    (define-fun payload_bytes () Int (* slots 8))
+    (assert (<= payload_bytes u64_max))
+    (define-fun lane_base_offset () Int (* (* lane element_count) 8))
+    (define-fun shifted_index_offset () Int (* index 8))
+    (define-fun direct_offset () Int (+ lane_base_offset shifted_index_offset))
+    (assert (not (and (>= direct_offset 0) (< direct_offset payload_bytes))))
+    (check-sat)
+  include_model: false
+  include_stats: false

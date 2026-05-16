@@ -212,11 +212,17 @@ int main(void) {
             "supervision restart limit"
         );
         if (status != 0) return status;
-        status = expect_true(kain_actor_abi_descriptor_is_compatible(&descriptor), 17, "ABI compatible");
+        status = expect_true(
+            descriptor.default_microcell_turn_budget == KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET,
+            17,
+            "microcell turn budget"
+        );
+        if (status != 0) return status;
+        status = expect_true(kain_actor_abi_descriptor_is_compatible(&descriptor), 18, "ABI compatible");
         if (status != 0) return status;
 
         mutated.abi_version = 999U;
-        status = expect_true(!kain_actor_abi_descriptor_is_compatible(&mutated), 18, "ABI mismatch");
+        status = expect_true(!kain_actor_abi_descriptor_is_compatible(&mutated), 19, "ABI mismatch");
         if (status != 0) return status;
     }
 
@@ -237,7 +243,11 @@ int main(void) {
         if (status != 0) return status;
         status = expect_true(config.retain_user_data == 0, 24, "spawn user_data ownership default");
         if (status != 0) return status;
-        status = expect_true(kain_actor_spawn(&config, &diag) == KAIN_ACTOR_ID_INVALID, 25, "invalid spawn fails");
+        status = expect_true(config.entry_kind == KAIN_ACTOR_ENTRY_KIND_LEGACY_BOOTSTRAP, 25, "spawn entry kind default");
+        if (status != 0) return status;
+        status = expect_true(config.microcell_turn_budget == KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET, 26, "spawn turn budget default");
+        if (status != 0) return status;
+        status = expect_true(kain_actor_spawn(&config, &diag) == KAIN_ACTOR_ID_INVALID, 27, "invalid spawn fails");
         if (status != 0) return status;
     }
 

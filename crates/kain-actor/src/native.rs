@@ -6,10 +6,11 @@ use crate::supervision::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const NATIVE_ACTOR_ABI_VERSION: u32 = 2;
+pub const NATIVE_ACTOR_ABI_VERSION: u32 = 3;
 pub const NATIVE_ACTOR_ID_BITS: u16 = 64;
 pub const NATIVE_ACTOR_REF_GENERATION_BITS: u16 = 32;
 pub const NATIVE_ACTOR_UNBOUNDED_MAILBOX_CAPACITY: usize = 0;
+pub const NATIVE_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET: u32 = 64;
 pub const NATIVE_ACTOR_NAME_MAX_BYTES: usize = 128;
 pub const NATIVE_ACTOR_TABLE_CAPACITY: usize = 1024;
 pub const NATIVE_ACTOR_REGISTRY_CAPACITY: usize = 256;
@@ -58,39 +59,39 @@ pub const REQUIRED_NATIVE_ACTOR_SYMBOLS: &[&str] = &[
 ];
 
 pub const REQUIRED_NATIVE_STDLIB_ACTOR_SYMBOLS: &[&str] = &[
-    "kain_native_actor_abi_version",
-    "kain_native_actor_invalid_id",
-    "kain_native_actor_default_mailbox_capacity",
-    "kain_native_actor_unbounded_mailbox_capacity",
-    "kain_native_actor_default_ask_timeout_ms",
-    "kain_native_actor_default_shutdown_grace_ms",
-    "kain_native_actor_supervision_max_restarts",
-    "kain_native_actor_supervision_restart_window_millis",
-    "kain_native_actor_spawn",
-    "kain_native_actor_send",
-    "kain_native_actor_state_invalid",
-    "kain_native_actor_get_state",
-    "kain_native_actor_shutdown",
-    "kain_native_actor_kill",
-    "kain_native_actor_registry_lookup",
-    "kain_native_actor_registry_register",
-    "kain_native_actor_registry_unregister",
-    "kain_native_actor_monitor",
-    "kain_native_actor_demonitor",
-    "kain_native_actor_link",
-    "kain_native_actor_unlink",
-    "kain_native_actor_supervision_observed_child_exit_count",
-    "kain_native_actor_supervision_restart_attempt_count",
-    "kain_native_actor_supervision_escalation_count",
-    "kain_native_actor_supervision_limit_hit",
-    "kain_native_actor_scheduler_queue_depth",
-    "kain_native_actor_scheduler_max_queue_depth",
-    "kain_native_actor_scheduler_total_enqueued",
-    "kain_native_actor_scheduler_total_dequeued",
-    "kain_native_actor_scheduler_worker_count",
-    "kain_native_actor_scheduler_active_workers",
-    "kain_native_actor_scheduler_busy_workers",
-    "kain_native_actor_scheduler_overflow_thread_spawns",
+    "abi_actor_abi_version",
+    "abi_actor_invalid_id",
+    "abi_actor_default_mailbox_capacity",
+    "abi_actor_unbounded_mailbox_capacity",
+    "abi_actor_default_ask_timeout_ms",
+    "abi_actor_default_shutdown_grace_ms",
+    "abi_actor_supervision_max_restarts",
+    "abi_actor_supervision_restart_window_millis",
+    "abi_actor_spawn",
+    "abi_actor_send",
+    "abi_actor_state_invalid",
+    "abi_actor_get_state",
+    "abi_actor_shutdown",
+    "abi_actor_kill",
+    "abi_actor_registry_lookup",
+    "abi_actor_registry_register",
+    "abi_actor_registry_unregister",
+    "abi_actor_monitor",
+    "abi_actor_demonitor",
+    "abi_actor_link",
+    "abi_actor_unlink",
+    "abi_actor_supervision_observed_child_exit_count",
+    "abi_actor_supervision_restart_attempt_count",
+    "abi_actor_supervision_escalation_count",
+    "abi_actor_supervision_limit_hit",
+    "abi_actor_scheduler_queue_depth",
+    "abi_actor_scheduler_max_queue_depth",
+    "abi_actor_scheduler_total_enqueued",
+    "abi_actor_scheduler_total_dequeued",
+    "abi_actor_scheduler_worker_count",
+    "abi_actor_scheduler_active_workers",
+    "abi_actor_scheduler_busy_workers",
+    "abi_actor_scheduler_overflow_thread_spawns",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +115,7 @@ pub struct NativeActorAbi {
     pub actor_table_capacity: usize,
     pub registry_capacity: usize,
     pub monitor_exit_tag_base: u64,
+    pub default_microcell_turn_budget: u32,
     pub symbol_prefix: String,
 }
 
@@ -126,10 +128,8 @@ impl Default for NativeActorAbi {
             invalid_actor_id: ActorId::INVALID_RAW,
             default_execution_class: NATIVE_ACTOR_DEFAULT_EXECUTION_CLASS,
             default_locality_class: NATIVE_ACTOR_DEFAULT_LOCALITY_CLASS,
-            synthetic_reply_port_execution_class:
-                NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_EXECUTION_CLASS,
-            synthetic_reply_port_locality_class:
-                NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_LOCALITY_CLASS,
+            synthetic_reply_port_execution_class: NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_EXECUTION_CLASS,
+            synthetic_reply_port_locality_class: NATIVE_ACTOR_SYNTHETIC_REPLY_PORT_LOCALITY_CLASS,
             default_mailbox_capacity: DEFAULT_MAILBOX_CAPACITY,
             unbounded_mailbox_capacity: NATIVE_ACTOR_UNBOUNDED_MAILBOX_CAPACITY,
             default_ask_timeout_ms: DEFAULT_ASK_TIMEOUT_MS,
@@ -141,9 +141,25 @@ impl Default for NativeActorAbi {
             actor_table_capacity: NATIVE_ACTOR_TABLE_CAPACITY,
             registry_capacity: NATIVE_ACTOR_REGISTRY_CAPACITY,
             monitor_exit_tag_base: NATIVE_ACTOR_MONITOR_EXIT_TAG_BASE,
+            default_microcell_turn_budget: NATIVE_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET,
             symbol_prefix: "kain_actor_".to_string(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NativeActorEntryKindDiscriminant {
+    Invalid = 0,
+    LegacyBootstrap = 1,
+    MicrocellTurn = 2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NativeActorTurnStatusDiscriminant {
+    Idle = 0,
+    Yielded = 1,
+    Stopped = 2,
+    Crashed = 3,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -237,6 +253,11 @@ impl Default for NativeActorAbiLayout {
                 "KainActorId supervisor_id".to_string(),
                 "int retain_user_data".to_string(),
                 "char name[KAIN_ACTOR_NAME_MAX]".to_string(),
+                "KainActorEntryKind entry_kind".to_string(),
+                "KainActorTurnFn turn_fn".to_string(),
+                "unsigned int microcell_turn_budget".to_string(),
+                "unsigned int execution_class".to_string(),
+                "unsigned int locality_class".to_string(),
             ],
         }
     }
