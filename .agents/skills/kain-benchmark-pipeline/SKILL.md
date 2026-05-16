@@ -31,6 +31,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Run a Kain/Rust-only dependency case: `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 5 --warmups 2`
 - Run the Kain/Erlang mailbox case: `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 5 --warmups 2`
 - Run the shared-library FFI stress row: `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 5 --warmups 2`
+- Run several cases in one comparable report with comma-separated ids: `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
 - Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe`
 - Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx D:\Kain-Lang\toolchain\llvm\bin\clang++.exe`
 - Pin Erlang tools: `python benchmark/run.py --case actor_mailbox_erlang --languages erlang --erl "C:\Program Files\Erlang OTP\bin\erl.exe" --erlc "C:\Program Files\Erlang OTP\bin\erlc.exe"`
@@ -82,6 +83,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `ghost_mirror`: Rust/C++/JavaScript/Python use TCP loopback for a 1 MiB payload; Kain uses entangle-backed in-process world mirroring plus helper-owned payload mutation.
 - `evolutionary_loop`: Rust/C++/JavaScript/Python use runtime feature detection or equivalent branch dispatch; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
 - `semantic_singularity`: Kain-only fused semantics pressure vessel. It intentionally declares only Kain in `benchmarks.json` and combines `axiom`/`pulse`/`shatter`/`teleport`, `world`/`entangle`/`patch`/`law`, `converge`/`orchestrate`, `collapse`/`observe`/`decay`, and modern ABI v3 actor ask/reply in one checksum-guarded loop. Keep dynamic shatter access field-based (`shards[lane].field`) until whole-shatter-element value propagation is implemented.
+- `semantic_singularity_*`: Kain-only ablation/isolate matrix around the fused boss fight. The sibling rows are `semantic_singularity_no_actor`, `semantic_singularity_no_entangle`, `semantic_singularity_no_patch`, `semantic_singularity_shatter_only`, `semantic_singularity_actor_only`, and `semantic_singularity_converge_only`. Keep them checksum-guarded and run them together when comparing subsystem costs so single-run noise is at least captured in one report.
 - `ownership_memory`: direct `collapse`/`observe`/`decay` smoke against ordinary boxed/object ownership lanes.
 - `tcp_loopback_tokio`: Kain native TCP loopback versus Rust Tokio TCP. This is an implemented networking comparison, but the fairness note must keep saying Kain's current native TCP facade is synchronous around readiness helpers while Rust uses Tokio async IO.
 - `http_server_concurrency`: Kain native local HTTP route handling versus Tokio request batches. The request-slot exhaustion bug is fixed, so this row should stay green while still carrying the fairness note that Kain is measuring the synchronous semantic surface against Tokio async request batching.
@@ -129,6 +131,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 1 --warmups 0 --timeout 900`
   If this row fails with a Kain build error mentioning `generated/native_runtime/cache/.../*.obj.tmp` and `Access is denied`, rerun once after the cache quiesces before treating it as a semantic actor regression.
 - `python benchmark/run.py --case semantic_singularity --languages kain --runs 1 --warmups 0 --timeout 900`
+- `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case http_server_concurrency --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`

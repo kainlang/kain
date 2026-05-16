@@ -1,5 +1,26 @@
 # Kain Memory
 
+# 2026-05-16 - Semantic Singularity gained its ablation/isolate benchmark matrix
+
+The fused `semantic_singularity` benchmark is now the all-in-one Kain weird-semantics boss fight, and six sibling Kain-only rows let the harness attribute its cost instead of treating the fused number as a black box.
+
+What changed:
+
+- Added `semantic_singularity_no_actor`, `semantic_singularity_no_entangle`, `semantic_singularity_no_patch`, `semantic_singularity_shatter_only`, `semantic_singularity_actor_only`, and `semantic_singularity_converge_only`.
+- `benchmark/run.py --case` now accepts comma-separated case ids so the full matrix can land in one report.
+- The matrix uses deterministic checksums and keeps field-based shatter reads, bounded patch-journal assumptions, and modern ABI v3 actor checks explicit.
+- New Z3 proof `benchmark/cases/semantic_singularity/z3/semantic_singularity_matrix_bounds.smt2` proves matrix index bounds, actor-inline equivalence, arithmetic headroom, and saturated patch-journal bounds; report `D:\Kain-Lang\z3\reports\20260516T131326Z-semantic-singularity-matrix-bounds.json` returned `unsat`.
+
+Latest matrix smoke:
+
+- `py -3 benchmark\run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900 --kain-exe target\debug\kain.exe --no-build`
+- Report: `benchmark/out/reports/latest.llm.md`
+- Timings: full `366.719 ms`, no_actor `47.063 ms`, no_entangle `361.767 ms`, no_patch `377.339 ms`, shatter_only `34.115 ms`, actor_only `315.016 ms`, converge_only `37.716 ms`.
+
+Durable lesson:
+
+- In the current fused shape, actor ask/reply dominates the boss-fight delta. Entangle and patch deltas are buried by single-run noise while the actor path is active, so use more runs/warmups before making fine-grained claims about those subsystems.
+
 # 2026-05-16 - Native actor ask/reply latency pass proved hot reply ports and mailbox node recycling
 
 This pass optimized the already-correct native LLVM actor ask/reply path without changing the actor language surface. The key runtime move is that TLS reply ports now keep their synthetic actor-table slot hot and rearm by bumping generation, rather than unbinding/freeing/rebinding a synthetic actor for every ask. Stale replies still die because `kain_actor_reply_port_state_complete_copied(...)` verifies the exact generation-tagged `KainActorRef` under the reply-port lock.

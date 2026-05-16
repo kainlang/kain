@@ -348,10 +348,12 @@ def selected_cases(manifest: dict[str, Any], only_case: str | None) -> list[dict
     cases = manifest["cases"]
     if only_case is None:
         return cases
-    selected = [case for case in cases if case["id"] == only_case]
-    if not selected:
-        raise ValueError(f"unknown case: {only_case}")
-    return selected
+    requested = [case_id.strip() for case_id in only_case.split(",") if case_id.strip()]
+    by_id = {case["id"]: case for case in cases}
+    missing = [case_id for case_id in requested if case_id not in by_id]
+    if missing:
+        raise ValueError(f"unknown case: {', '.join(missing)}")
+    return [by_id[case_id] for case_id in requested]
 
 
 def parse_languages(raw_languages: str | None) -> list[str]:
@@ -1236,7 +1238,7 @@ def write_reports(report: dict[str, Any]) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=str(BENCHMARK_ROOT / "benchmarks.json"))
-    parser.add_argument("--case", dest="only_case")
+    parser.add_argument("--case", dest="only_case", help="Single case id or comma-separated case ids")
     parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,javascript,python")
     parser.add_argument("--runs", type=int)
     parser.add_argument("--warmups", type=int)

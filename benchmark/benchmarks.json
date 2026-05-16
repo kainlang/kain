@@ -177,6 +177,84 @@
       }
     },
     {
+      "id": "semantic_singularity_no_actor",
+      "title": "Semantic Singularity No Actor",
+      "description": "Ablation of the fused Kain semantic pressure case that replaces actor ask/reply with an equivalent inline fold while keeping machine-stones, world/entangle, patch/law, converge/orchestrate, and collapse/observe/decay live.",
+      "maturity": "kain-core-pressure-ablation",
+      "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate modern actor ask/reply cost inside the full semantic pressure path; the checksum math is intentionally equivalent.",
+      "language_notes": {
+        "kain": "No actor declaration, spawn, or ask. The reply calculation is the same arithmetic as SemanticRelay.Fold, so the delta isolates actor runtime and lowering overhead."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_no_actor/main.kn"
+      }
+    },
+    {
+      "id": "semantic_singularity_no_entangle",
+      "title": "Semantic Singularity No Entangle",
+      "description": "Ablation of the fused Kain semantic pressure case that keeps worlds and patch/law writes but removes entangle declarations and propagation telemetry.",
+      "maturity": "kain-core-pressure-ablation",
+      "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate entangle propagation overhead while actor, patch, converge/orchestrate, machine-stones, and collapse/observe/decay remain live.",
+      "language_notes": {
+        "kain": "Worlds still exist, but no entangle links are registered. Runtime validation expects zero entangle propagations."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_no_entangle/main.kn"
+      }
+    },
+    {
+      "id": "semantic_singularity_no_patch",
+      "title": "Semantic Singularity No Patch",
+      "description": "Ablation of the fused Kain semantic pressure case that replaces the patch declaration with direct world-field writes while keeping entangle, law, converge/orchestrate, actors, machine-stones, and collapse/observe/decay live.",
+      "maturity": "kain-core-pressure-ablation",
+      "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate patch journal/begin/commit cost while keeping the rest of the value path equivalent.",
+      "language_notes": {
+        "kain": "Direct world writes still trigger entangle propagation, but the patch journal is expected to stay empty."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_no_patch/main.kn"
+      }
+    },
+    {
+      "id": "semantic_singularity_shatter_only",
+      "title": "Semantic Singularity Shatter Only",
+      "description": "Isolated Kain shatter pressure row: dynamic shattered field reads feed a collapse/observe/decay shared-memory checksum without actors, world/entangle, patch/law, converge/orchestrate, pulse, or teleport.",
+      "maturity": "kain-core-pressure-isolate",
+      "fairness_note": "Kain-only isolate row. Use this to estimate the shatter-field and shared-memory floor before comparing against the fused semantic_singularity boss fight.",
+      "language_notes": {
+        "kain": "Uses field-based `shards[lane].field` access only; whole shattered element passing is intentionally avoided until broader SoA value propagation lands."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_shatter_only/main.kn"
+      }
+    },
+    {
+      "id": "semantic_singularity_actor_only",
+      "title": "Semantic Singularity Actor Only",
+      "description": "Isolated Kain actor pressure row: modern ABI v3 actor ask/reply feeds a collapse/observe/decay shared-memory checksum without machine-stones, world/entangle, patch/law, or converge/orchestrate.",
+      "maturity": "kain-core-pressure-isolate",
+      "fairness_note": "Kain-only isolate row. Use this to estimate actor ask/reply cost outside the full semantic pressure path.",
+      "language_notes": {
+        "kain": "Spawns SemanticRelay, performs one warmup ask, then times 20,000 ask/reply roundtrips inside the checksum loop."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_actor_only/main.kn"
+      }
+    },
+    {
+      "id": "semantic_singularity_converge_only",
+      "title": "Semantic Singularity Converge Only",
+      "description": "Isolated Kain converge/orchestrate pressure row: compiled converge fast-lane dispatch and orchestrate stage lowering feed a collapse/observe/decay shared-memory checksum.",
+      "maturity": "kain-core-pressure-isolate",
+      "fairness_note": "Kain-only isolate row. Use this to estimate converge/orchestrate cost outside actor, world/entangle, patch/law, and machine-stones overhead.",
+      "language_notes": {
+        "kain": "Keeps the same normalize/stage pipeline shape as the fused boss fight and validates that native converge mismatch telemetry stays zero."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_converge_only/main.kn"
+      }
+    },
+    {
       "id": "struct_method",
       "title": "Struct Method Dispatch",
       "description": "Construct small records and call an instance method in a hot loop. This catches aggregate layout and method-call lowering.",
