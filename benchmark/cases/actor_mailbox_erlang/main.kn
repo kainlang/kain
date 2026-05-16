@@ -1,0 +1,48 @@
+actor Echo:
+    state bias: Int = 1
+
+    on Call(reply_to: P, request: Int):
+        send reply_to.Reply(value = request + self.bias)
+
+fn ask_worker(worker_slot: Int, worker0: Echo, worker1: Echo, worker2: Echo, worker3: Echo, request: Int) -> Int:
+    if worker_slot == 0:
+        return ask(worker0, "Call", request)
+    elif worker_slot == 1:
+        return ask(worker1, "Call", request)
+    elif worker_slot == 2:
+        return ask(worker2, "Call", request)
+    return ask(worker3, "Call", request)
+
+fn main() -> Int:
+    let runtime_status = native_runtime_init()
+    if runtime_status != 0:
+        return 100 + runtime_status
+
+    let rounds: Int = 200000
+    let checksum_mod: Int = 1000000007
+    let expected_checksum: Int = 10399419
+
+    let worker0 = spawn Echo(bias = 1)
+    let worker1 = spawn Echo(bias = 2)
+    let worker2 = spawn Echo(bias = 3)
+    let worker3 = spawn Echo(bias = 4)
+    let _warm0 = ask(worker0, "Call", 0)
+    let _warm1 = ask(worker1, "Call", 0)
+    let _warm2 = ask(worker2, "Call", 0)
+    let _warm3 = ask(worker3, "Call", 0)
+
+    var index: Int = 0
+    var checksum: Int = 0
+    while index < rounds:
+        let lane = index % 4
+        let request = index % 97
+        let reply = ask_worker(lane, worker0, worker1, worker2, worker3, request)
+        checksum = (checksum + reply + lane) % checksum_mod
+        index = index + 1
+
+    let shutdown_status = native_runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if checksum != expected_checksum:
+        return 1
+    return 0

@@ -1,0 +1,10 @@
+[package]
+name = "http-server-concurrency"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tokio = { version = "1.48.0", features = ["io-util", "macros", "net", "rt-multi-thread", "sync"] }
+
+[workspace]

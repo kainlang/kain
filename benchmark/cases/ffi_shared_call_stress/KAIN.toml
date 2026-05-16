@@ -1,0 +1,11 @@
+[package]
+name = "ffi_shared_call_stress"
+version = "0.1.0"
+description = "Shared-library FFI call benchmark for the main suite."
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "ffi_boundary_shared"
+header = "../../ffi_boundary/native/ffi_boundary.h"
+shared_lib = "../../out/build/ffi_shared_call_stress/native/ffi_boundary_shared.dll"

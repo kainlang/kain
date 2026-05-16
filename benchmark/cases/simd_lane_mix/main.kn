@@ -1,0 +1,44 @@
+fn main() -> Int:
+    let cells: Int = 32768
+    let passes: Int = 256
+    let modulus: Int = 1000000007
+    let expected: Int = 194810730
+    let mut left: ptr<Int> = alloc_zeroed(cells, "Int")
+    let mut right: ptr<Int> = alloc_zeroed(cells, "Int")
+
+    collapse left:
+        var index: Int = 0
+        while index < cells:
+            mem_store(ptr_offset(left, index, "Int"), ((index * 31) + 7) % 1024, "Int")
+            index = index + 1
+        0
+
+    collapse right:
+        var index: Int = 0
+        while index < cells:
+            mem_store(ptr_offset(right, index, "Int"), ((index * 17) + 3) % 512, "Int")
+            index = index + 1
+        0
+
+    var acc: Int = 0
+    var phase: Int = 0
+    while phase < passes:
+        let lane_bias: Int = phase % 13
+        let inner: Int = observe left:
+            var index: Int = 0
+            var total: Int = 0
+            while index < cells:
+                let left_value: Int = mem_load(ptr_offset(left, index, "Int"), "Int") + lane_bias
+                let right_value: Int = mem_load(ptr_offset(right, index, "Int"), "Int")
+                total = (total + (left_value * right_value)) % modulus
+                index = index + 1
+            total
+        acc = (acc + inner + (phase % 29)) % modulus
+        phase = phase + 1
+
+    decay left
+    decay right
+
+    if acc != expected:
+        return 1
+    return 0

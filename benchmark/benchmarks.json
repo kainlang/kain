@@ -225,6 +225,135 @@
       "rust_manifest": "cases/rayon_parallel_reduce/Cargo.toml",
       "rust_package": "rayon-parallel-reduce",
       "rust_binary": "rayon-parallel-reduce"
+    },
+    {
+      "id": "simd_lane_mix",
+      "title": "SIMD Lane Mix",
+      "description": "Integer dot product over twin buffers. Rust and C++ use explicit AVX2 lanes when available; Kain currently runs the same data shape through scalar LLVM memory helpers.",
+      "maturity": "simd-proxy",
+      "fairness_note": "Kain LLVM does not yet expose first-class SIMD intrinsics in the benchmark lane, so the Kain row is the scalar proxy against explicit AVX2 in Rust/C++.",
+      "kain": "cases/simd_lane_mix/main.kn",
+      "rust": "cases/simd_lane_mix/main.rs",
+      "cpp": "cases/simd_lane_mix/main.cpp"
+    },
+    {
+      "id": "native_map_lookup",
+      "title": "Native Map Lookup",
+      "description": "Repeated fixed-key hash map lookups over a small string-key table. This probes map dispatch, key hashing, and boxed value overhead.",
+      "maturity": "implemented",
+      "fairness_note": "All three rows use small in-process hash maps with identical fixed keys and deterministic lookup schedules.",
+      "kain": "cases/native_map_lookup/main.kn",
+      "rust": "cases/native_map_lookup/main.rs",
+      "cpp": "cases/native_map_lookup/main.cpp"
+    },
+    {
+      "id": "json_manual_roundtrip",
+      "title": "Manual JSON Roundtrip",
+      "description": "Dependency-free manual parse plus serialization over two small JSON payload shapes. This measures parser/string work without hiding behind vendor libraries.",
+      "maturity": "implemented",
+      "fairness_note": "This case intentionally stays manual and dependency-free across languages. In this checkout, Kain LLVM JSON builtins still fail to link, so the benchmark targets parser/serializer work rather than builtin-runtime availability.",
+      "language_notes": {
+        "kain": "The native LLVM lane currently reports unresolved externals for json_parse/json_object_new/json_object_set/json_string/json_get_*; this manual JSON path keeps the category benchmarkable while preserving that linker gap as telemetry."
+      },
+      "kain": "cases/json_manual_roundtrip/main.kn",
+      "rust": "cases/json_manual_roundtrip/main.rs",
+      "cpp": "cases/json_manual_roundtrip/main.cpp"
+    },
+    {
+      "id": "filesystem_stream",
+      "title": "Filesystem Stream",
+      "description": "Repeated temp-file write, streaming copy, and readback over a generated text payload. This catches filesystem syscall overhead and runtime path glue.",
+      "maturity": "implemented",
+      "fairness_note": "All rows generate the same payload, write it to temp storage, stream-copy it, and validate the copied text before cleanup.",
+      "kain": "cases/filesystem_stream/main.kn",
+      "rust": "cases/filesystem_stream/main.rs",
+      "cpp": "cases/filesystem_stream/main.cpp"
+    },
+    {
+      "id": "process_stdio_loop",
+      "title": "Process STDIO Loop",
+      "description": "Repeated child-process spawn plus stdout capture through the host shell. This measures command launch and stdio pipe overhead rather than computation.",
+      "maturity": "implemented",
+      "fairness_note": "This is a Windows-first case over cmd.exe stdout capture. It is intentionally shell/process heavy and should be read as host-substrate overhead, not pure language throughput.",
+      "kain": "cases/process_stdio_loop/main.kn",
+      "rust": "cases/process_stdio_loop/main.rs",
+      "cpp": "cases/process_stdio_loop/main.cpp"
+    },
+    {
+      "id": "http_server_concurrency",
+      "title": "HTTP Server Concurrency",
+      "description": "Local HTTP request handling over many short POST roundtrips. Rust uses Tokio tasks for concurrent client batches; Kain currently drives the same local route surface synchronously.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This keeps the category visible while Kain's current native HTTP surface is still synchronous. Rust measures real local async concurrency; Kain measures the matching request/response semantics without async task fanout yet.",
+      "language_notes": {
+        "kain": "The current Kain row is intentionally kept live even though repeated local POST rounds still fail in this checkout with net_last_error_kind=capacity and net_last_error_message=HTTP incoming request capacity exceeded. Treat that as real runtime telemetry, not a flaky benchmark.",
+        "rust": "Cargo release build with tokio net/io-util/macros/rt/sync; this is intentionally a Kain/Rust-only HTTP runtime comparison."
+      },
+      "languages": {
+        "kain": "cases/http_server_concurrency/main.kn",
+        "rust": "cases/http_server_concurrency/src/main.rs"
+      },
+      "rust_manifest": "cases/http_server_concurrency/Cargo.toml",
+      "rust_package": "http-server-concurrency",
+      "rust_binary": "http-server-concurrency"
+    },
+    {
+      "id": "actor_mailbox_erlang",
+      "title": "Actor Ask/Reply Fanout",
+      "description": "Synchronous mailbox roundtrips fanned across four long-lived workers. Kain uses native LLVM actor ask/reply lowering with reply-port reuse; Erlang uses direct process mailbox request/reply.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows measure real request/reply mailbox roundtrips over four long-lived workers with the same deterministic checksum schedule. Kain currently targets the native `reply_to: P` plus `Int` reply shape for this steady-state ask path.",
+      "language_notes": {
+        "kain": "The Kain row performs one unmeasured warmup ask per worker before timing. Without that, the current native ask/reply path can show a one-off cold-start checksum wobble even though the steady-state path is correct.",
+        "erlang": "The Erlang row mirrors the same one-shot per-worker warmup so both rows measure steady-state mailbox traffic instead of startup effects."
+      },
+      "languages": {
+        "kain": "cases/actor_mailbox_erlang/main.kn",
+        "erlang": "cases/actor_mailbox_erlang/actor_mailbox_erlang.erl"
+      }
+    },
+    {
+      "id": "unicode_string_heavy",
+      "title": "Unicode String Heavy",
+      "description": "Repeated substring search over mixed UTF-8 payloads with multilingual text and emoji. This catches string traversal and byte/character handling under non-ASCII inputs.",
+      "maturity": "implemented",
+      "fairness_note": "All rows stay on UTF-8 strings with the same payloads and manual substring search so the case measures real Unicode-heavy traversal rather than ASCII-only shortcuts.",
+      "kain": "cases/unicode_string_heavy/main.kn",
+      "rust": "cases/unicode_string_heavy/main.rs",
+      "cpp": "cases/unicode_string_heavy/main.cpp"
+    },
+    {
+      "id": "allocator_large_object_churn",
+      "title": "Allocator Large Object Churn",
+      "description": "Variable-size large-buffer allocation, touch, readback, and release in a hot loop. This exposes allocator cost and object-size sensitivity beyond the tiny alloc_churn case.",
+      "maturity": "implemented",
+      "fairness_note": "This case deliberately varies buffer sizes and touches first/middle/last cells so it stresses large-object churn and fragmentation pressure instead of only tiny boxes.",
+      "kain": "cases/allocator_large_object_churn/main.kn",
+      "rust": "cases/allocator_large_object_churn/main.rs",
+      "cpp": "cases/allocator_large_object_churn/main.cpp"
+    },
+    {
+      "id": "gpu_graphics_submit",
+      "title": "GPU Graphics Submit",
+      "description": "Low-level native graphics session, buffer, pipeline, draw-command, and present submission in a hot loop. This is the current Kain-owned GPU/graphics benchmark surface.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally Kain-only for now. The benchmark measures the current raw native graphics submission path; a comparable bare-metal Rust/C++ lane has not been added to this suite yet.",
+      "languages": {
+        "kain": "cases/gpu_graphics_submit/main.kn"
+      }
+    },
+    {
+      "id": "ffi_shared_call_stress",
+      "title": "FFI Shared Call Stress",
+      "description": "Repeated native shared-library calls through one tiny C ABI function. This is the direct FFI-call half of the missing callback/FFI category.",
+      "maturity": "implemented",
+      "fairness_note": "This covers direct shared-library call overhead inside the normal suite. True closure-to-C callback trampolines are still not implemented in Kain LLVM in this checkout, so the callback half remains a known language gap and the dedicated `benchmark/ffi_boundary` lane stays the deeper ABI-tax probe.",
+      "language_notes": {
+        "kain": "This case uses a case-local `KAIN.toml` plus `use c::ffi_boundary_shared` and a runner-built shared library copied beside the executable at benchmark build time."
+      },
+      "kain": "cases/ffi_shared_call_stress/main.kn",
+      "rust": "cases/ffi_shared_call_stress/main.rs",
+      "cpp": "cases/ffi_shared_call_stress/main.cpp"
     }
   ]
 }

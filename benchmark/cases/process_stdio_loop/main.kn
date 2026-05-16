@@ -1,0 +1,32 @@
+fn main() -> Int:
+    let _reset = process_reset()
+    if process_platform_available() != 1:
+        return 0
+
+    let rounds: Int = 300
+    let expected: Int = 5988
+    var acc: Int = 0
+    var index: Int = 0
+    while index < rounds:
+        let spec = process_spec_create_piped("cmd.exe")
+        let _d = process_spec_add_arg(spec, "/d")
+        let _c = process_spec_add_arg(spec, "/c")
+        let _payload = process_spec_add_arg(spec, "echo process-bench")
+        let child = process_spawn(spec)
+        if child <= 0:
+            return 1
+        if process_wait(child, 5000) != 1:
+            return 2
+        if process_exit_code(child) != 0:
+            return 3
+        let stdout_text = process_stdout_capture_text(child)
+        if stdout_text != "process-bench\r\n":
+            return 4
+        acc = acc + len(stdout_text) + (index % 11)
+        let _close = process_close(child)
+        let _destroy = process_spec_destroy(spec)
+        index = index + 1
+
+    if acc != expected:
+        return 5
+    return 0

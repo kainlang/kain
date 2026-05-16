@@ -1,0 +1,33 @@
+fn build_payload(line_count: Int) -> String:
+    let mut text = ""
+    let mut index = 0
+    while index < line_count:
+        text = text + "line-" + str(index % 97) + "-orbital-flux\n"
+        index = index + 1
+    return text
+
+fn main() -> Int:
+    let rounds: Int = 80
+    let expected: Int = 6846690
+    let payload = build_payload(2048)
+    let dir = fs_temp_dir("kain-benchmark-fs")
+    let source_path = fs_path_join(dir, "source.txt")
+    let dest_path = fs_path_join(dir, "copy.txt")
+    var acc: Int = 0
+    var index: Int = 0
+    while index < rounds:
+        fs_write_text(source_path, payload)
+        let copied = fs_copy_file_streaming(source_path, dest_path, 256)
+        let readback = fs_read_text(dest_path)
+        if readback != payload:
+            return 1
+        acc = acc + copied + len(readback) + (index % 17)
+        index = index + 1
+
+    fs_remove_file(source_path)
+    fs_remove_file(dest_path)
+    fs_remove_dir_all(dir)
+
+    if acc != expected:
+        return 2
+    return 0

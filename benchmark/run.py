@@ -30,12 +30,14 @@ BUILD_ROOT = OUT_ROOT / "build"
 REPORT_ROOT = OUT_ROOT / "reports"
 NATIVE_CORE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
 
-LANGUAGE_ORDER = ["kain", "rust", "cpp", "javascript", "python"]
+LANGUAGE_ORDER = ["kain", "rust", "cpp", "erlang", "javascript", "python"]
 LANGUAGE_LABELS = {
     "kain": "Kain LLVM",
     "rust": "Rust LLVM",
     "cpp": "C++ Clang",
+    "erlang": "Erlang OTP",
     "javascript": "JavaScript Node",
     "python": "Python CPython",
 }
@@ -43,6 +45,7 @@ LANGUAGE_SOURCE_KEYS = {
     "kain": "kain",
     "rust": "rust",
     "cpp": "cpp",
+    "erlang": "erlang",
     "javascript": "javascript",
     "python": "python",
 }
@@ -138,6 +141,8 @@ def run_command(
         command,
         cwd=str(cwd),
         text=True,
+        encoding="utf-8",
+        errors="replace",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         timeout=timeout,
@@ -167,6 +172,20 @@ def executable_name(stem: str) -> str:
     if os.name == "nt":
         return f"{stem}.exe"
     return stem
+
+
+def dynamic_library_name(stem: str) -> str:
+    if os.name == "nt":
+        return f"{stem}.dll"
+    if sys.platform == "darwin":
+        return f"lib{stem}.dylib"
+    return f"lib{stem}.so"
+
+
+def shared_link_artifact_name(stem: str) -> str | None:
+    if os.name == "nt":
+        return f"{stem}.lib"
+    return None
 
 
 def resolve_kain_exe(explicit: str | None, timeout: int) -> ResolvedExecutable:
@@ -258,6 +277,39 @@ def resolve_cpp_compiler(explicit: str | None) -> str:
     return "clang++"
 
 
+def resolve_clang(explicit: str | None) -> str:
+    if explicit or os.environ.get("CLANG"):
+        return resolve_tool(explicit, "CLANG", "clang")
+
+    bundled = REPO_ROOT / "toolchain" / "llvm" / "bin" / executable_name("clang")
+    if bundled.exists():
+        return str(bundled.resolve())
+
+    found = shutil.which("clang")
+    if found:
+        return found
+    return "clang"
+
+
+def resolve_erlang_tool(explicit: str | None, env_key: str, default_name: str) -> str:
+    candidates: list[Path] = []
+    if explicit:
+        candidates.append(Path(explicit))
+    env_path = os.environ.get(env_key)
+    if env_path:
+        candidates.append(Path(env_path))
+    if os.name == "nt":
+        candidates.append(Path("C:/Program Files/Erlang OTP/bin") / executable_name(default_name))
+        candidates.append(Path("C:/Program Files/Erlang OTP/erts-17.0/bin") / executable_name(default_name))
+    path_candidate = shutil.which(default_name)
+    if path_candidate:
+        candidates.append(Path(path_candidate))
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate.resolve())
+    return default_name
+
+
 def resolved_kain_native_tuning(args: argparse.Namespace) -> dict[str, str]:
     profile = args.kain_native_profile
     defaults = KAIN_NATIVE_PROFILE_DEFAULTS[profile]
@@ -315,6 +367,9 @@ def parse_languages(raw_languages: str | None) -> list[str]:
         "c++": "cpp",
         "cxx": "cpp",
         "cplusplus": "cpp",
+        "erl": "erlang",
+        "beam": "erlang",
+        "otp": "erlang",
         "kn": "kain",
     }
     normalized: list[str] = []
@@ -368,6 +423,86 @@ def validate_case_files(case: dict[str, Any], languages: list[str]) -> None:
             raise FileNotFoundError(f"missing {language} benchmark: {path}")
 
 
+def ffi_shared_support_paths(case_id: str) -> dict[str, Path]:
+    native_dir = BUILD_ROOT / case_id / "native"
+    shared_path = native_dir / dynamic_library_name("ffi_boundary_shared")
+    link_name = shared_link_artifact_name("ffi_boundary_shared")
+    link_path = native_dir / link_name if link_name else shared_path
+    return {
+        "source": BENCHMARK_ROOT / "ffi_boundary" / "native" / "ffi_boundary.c",
+        "shared": shared_path,
+        "link": link_path,
+        "native_dir": native_dir,
+    }
+
+
+def prepare_case_support(
+    case: dict[str, Any],
+    tools: dict[str, Any],
+    timeout: int,
+    no_build: bool,
+) -> dict[str, Any] | None:
+    if case["id"] != FFI_SHARED_CASE_ID:
+        return None
+
+    paths = ffi_shared_support_paths(case["id"])
+    paths["native_dir"].mkdir(parents=True, exist_ok=True)
+    if no_build:
+        return paths
+
+    shared_exists = paths["shared"].exists()
+    link_exists = paths["link"].exists()
+    if shared_exists and link_exists:
+        return paths
+
+    clang = str(tools["clang"])
+    if not shutil.which(clang) and not Path(clang).exists():
+        raise RuntimeError(f"Clang executable not found for {FFI_SHARED_CASE_ID}: {clang}")
+
+    command = [clang]
+    if os.name == "nt":
+        command.extend(
+            [
+                "-shared",
+                "-O3",
+                str(paths["source"]),
+                "-o",
+                str(paths["shared"]),
+                f"-Wl,/implib:{paths['link']}",
+            ]
+        )
+    else:
+        command.extend(
+            [
+                "-shared",
+                "-fPIC",
+                "-O3",
+                str(paths["source"]),
+                "-o",
+                str(paths["shared"]),
+            ]
+        )
+
+    result = run_command(command, timeout=timeout)
+    if result.returncode != 0 or not paths["shared"].exists() or not paths["link"].exists():
+        raise RuntimeError(
+            "Failed to build ffi shared support.\n"
+            f"command: {display_command(command)}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return paths
+
+
+def copy_runtime_sidecar(sidecar: Path, exe_path: Path) -> None:
+    if not sidecar.exists() or not exe_path.exists():
+        return
+    target = exe_path.parent / sidecar.name
+    if target == sidecar:
+        return
+    shutil.copyfile(sidecar, target)
+
+
 def missing_tool_build(language: str, command: list[str], error: str) -> dict[str, Any]:
     return {
         "ok": False,
@@ -388,8 +523,10 @@ def build_kain_case(
     timeout: int,
     no_build: bool,
     env_overrides: dict[str, str],
+    support_artifacts: dict[str, Any] | None,
 ) -> dict[str, Any]:
     case_id = case["id"]
+    source_path = case_source_path(case, "kain")
     build_dir = BUILD_ROOT / case_id / "kain"
     build_dir.mkdir(parents=True, exist_ok=True)
     ll_path = build_dir / f"{case_id}.ll"
@@ -397,11 +534,11 @@ def build_kain_case(
 
     command = [
         str(kain_exe.path),
-        repo_relative(case_source_path(case, "kain")),
+        str(source_path.resolve()),
         "-t",
         "llvm",
         "-o",
-        repo_relative(ll_path),
+        str(ll_path.resolve()),
     ]
 
     if no_build:
@@ -418,12 +555,14 @@ def build_kain_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
-    result = run_command(command, timeout=timeout, env_overrides=env_overrides)
+    result = run_command(command, timeout=timeout, cwd=source_path.parent, env_overrides=env_overrides)
     produced_exe = ll_path.with_suffix(".exe" if os.name == "nt" else "")
     if produced_exe.exists() and produced_exe != exe_path:
         shutil.copyfile(produced_exe, exe_path)
     elif produced_exe.exists():
         exe_path = produced_exe
+    if support_artifacts:
+        copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
 
     ok = result.returncode == 0 and exe_path.exists()
     return {
@@ -445,6 +584,7 @@ def build_rust_case(
     rustc: str,
     timeout: int,
     no_build: bool,
+    support_artifacts: dict[str, Any] | None,
 ) -> dict[str, Any]:
     case_id = case["id"]
     build_dir = BUILD_ROOT / case_id / "rust"
@@ -496,10 +636,19 @@ def build_rust_case(
         }
 
     exe_path = build_dir / executable_name(case_id)
+    extra_flags: list[str] = []
+    if support_artifacts:
+        extra_flags = [
+            "-L",
+            f"native={repo_relative(Path(support_artifacts['native_dir']))}",
+            "-l",
+            "dylib=ffi_boundary_shared",
+        ]
     command = [
         rustc,
         repo_relative(case_source_path(case, "rust")),
         *RUST_RELEASE_FLAGS,
+        *extra_flags,
         "-o",
         repo_relative(exe_path),
     ]
@@ -519,6 +668,8 @@ def build_rust_case(
         }
 
     result = run_command(command, timeout=timeout)
+    if support_artifacts:
+        copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
     ok = result.returncode == 0 and exe_path.exists()
     return {
         "ok": ok,
@@ -540,22 +691,31 @@ def cpp_link_flags_for_case(case_id: str) -> list[str]:
     return []
 
 
+def cpp_extra_flags_for_case(case_id: str) -> list[str]:
+    return []
+
+
 def build_cpp_case(
     case: dict[str, Any],
     cxx: str,
     timeout: int,
     no_build: bool,
+    support_artifacts: dict[str, Any] | None,
 ) -> dict[str, Any]:
     case_id = case["id"]
     source = case_source_path(case, "cpp")
     build_dir = BUILD_ROOT / case_id / "cpp"
     build_dir.mkdir(parents=True, exist_ok=True)
     exe_path = build_dir / executable_name(case_id)
+    extra_flags = cpp_extra_flags_for_case(case_id)
     link_flags = cpp_link_flags_for_case(case_id)
+    if support_artifacts:
+        link_flags = link_flags + [repo_relative(Path(support_artifacts["link"]))]
     command = [
         cxx,
         repo_relative(source),
         *CPP_RELEASE_FLAGS,
+        *extra_flags,
         "-o",
         repo_relative(exe_path),
         *link_flags,
@@ -571,7 +731,7 @@ def build_cpp_case(
             "exe": str(exe_path),
             "run_command": [str(exe_path)],
             "command": command,
-            "flags": CPP_RELEASE_FLAGS,
+            "flags": CPP_RELEASE_FLAGS + extra_flags,
             "link_flags": link_flags,
             "build_ms": 0.0,
             "stdout": "",
@@ -580,6 +740,8 @@ def build_cpp_case(
         }
 
     result = run_command(command, timeout=timeout)
+    if support_artifacts:
+        copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
     ok = result.returncode == 0 and exe_path.exists()
     return {
         "ok": ok,
@@ -587,7 +749,7 @@ def build_cpp_case(
         "exe": str(exe_path),
         "run_command": [str(exe_path)],
         "command": command,
-        "flags": CPP_RELEASE_FLAGS,
+        "flags": CPP_RELEASE_FLAGS + extra_flags,
         "link_flags": link_flags,
         "build_ms": result.elapsed_ms,
         "stdout": result.stdout[-4000:],
@@ -634,6 +796,68 @@ def build_javascript_case(
         "stdout": result.stdout[-4000:],
         "stderr": result.stderr[-4000:],
         "error": "" if ok else "JavaScript syntax check failed.",
+    }
+
+
+def build_erlang_case(
+    case: dict[str, Any],
+    erl: str,
+    erlc: str,
+    timeout: int,
+    no_build: bool,
+) -> dict[str, Any]:
+    case_id = case["id"]
+    source = case_source_path(case, "erlang")
+    module_name = str(case.get("erlang_module", source.stem))
+    build_dir = BUILD_ROOT / case_id / "erlang"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    beam_path = build_dir / f"{module_name}.beam"
+    command = [
+        erlc,
+        "-o",
+        repo_relative(build_dir),
+        repo_relative(source),
+    ]
+    run_command_text = [
+        erl,
+        "-noshell",
+        "-pa",
+        str(build_dir.resolve()),
+        "-s",
+        module_name,
+        "main",
+    ]
+
+    if not shutil.which(erlc) and not Path(erlc).exists():
+        return missing_tool_build("erlang", command, f"Erlang compiler not found: {erlc}")
+    if not shutil.which(erl) and not Path(erl).exists():
+        return missing_tool_build("erlang", run_command_text, f"Erlang runtime not found: {erl}")
+
+    if no_build:
+        return {
+            "ok": beam_path.exists(),
+            "language": "erlang",
+            "exe": str(beam_path),
+            "run_command": run_command_text,
+            "command": command,
+            "build_ms": 0.0,
+            "stdout": "",
+            "stderr": "",
+            "error": "" if beam_path.exists() else f"missing compiled beam {beam_path}",
+        }
+
+    result = run_command(command, timeout=timeout)
+    ok = result.returncode == 0 and beam_path.exists()
+    return {
+        "ok": ok,
+        "language": "erlang",
+        "exe": str(beam_path),
+        "run_command": run_command_text,
+        "command": command,
+        "build_ms": result.elapsed_ms,
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "error": "" if ok else "Erlang build failed or did not produce beam output.",
     }
 
 
@@ -686,12 +910,15 @@ def build_language_case(
     no_build: bool,
     kain_native_env: dict[str, str],
 ) -> dict[str, Any]:
+    support_artifacts = prepare_case_support(case, tools, timeout, no_build)
     if language == "kain":
-        return build_kain_case(case, tools["kain"], timeout, no_build, kain_native_env)
+        return build_kain_case(case, tools["kain"], timeout, no_build, kain_native_env, support_artifacts)
     if language == "rust":
-        return build_rust_case(case, tools["rustc"], timeout, no_build)
+        return build_rust_case(case, tools["rustc"], timeout, no_build, support_artifacts)
     if language == "cpp":
-        return build_cpp_case(case, tools["cxx"], timeout, no_build)
+        return build_cpp_case(case, tools["cxx"], timeout, no_build, support_artifacts)
+    if language == "erlang":
+        return build_erlang_case(case, tools["erl"], tools["erlc"], timeout, no_build)
     if language == "javascript":
         return build_javascript_case(case, tools["node"], timeout, no_build)
     if language == "python":
@@ -898,7 +1125,10 @@ def render_toolchain(report: dict[str, Any]) -> str:
         f"- rustc: `{toolchain.get('rustc', 'n/a')}`",
         f"- rust_flags: `{display_command(toolchain.get('rust_flags', []))}`",
         f"- cxx: `{toolchain.get('cxx', 'n/a')}`",
+        f"- clang: `{toolchain.get('clang', 'n/a')}`",
         f"- cpp_flags: `{display_command(toolchain.get('cpp_flags', []))}`",
+        f"- erl: `{toolchain.get('erl', 'n/a')}`",
+        f"- erlc: `{toolchain.get('erlc', 'n/a')}`",
         f"- node: `{toolchain.get('node', 'n/a')}`",
         f"- python: `{toolchain.get('python', 'n/a')}`",
     ]
@@ -1014,6 +1244,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kain-exe")
     parser.add_argument("--rustc", default=os.environ.get("RUSTC", "rustc"))
     parser.add_argument("--cxx")
+    parser.add_argument("--clang")
+    parser.add_argument("--erl", default=os.environ.get("ERL"))
+    parser.add_argument("--erlc", default=os.environ.get("ERLC"))
     parser.add_argument("--node", default=os.environ.get("NODE", "node"))
     parser.add_argument("--python", default=os.environ.get("PYTHON", sys.executable))
     parser.add_argument(
@@ -1054,12 +1287,18 @@ def main() -> int:
         kain_exe = resolve_kain_exe(args.kain_exe, args.timeout) if "kain" in languages else None
         rustc_path = resolve_tool(args.rustc, "RUSTC", "rustc")
         cxx_path = resolve_cpp_compiler(args.cxx)
+        clang_path = resolve_clang(args.clang)
+        erl_path = resolve_erlang_tool(args.erl, "ERL", "erl")
+        erlc_path = resolve_erlang_tool(args.erlc, "ERLC", "erlc")
         node_path = resolve_tool(args.node, "NODE", "node")
         python_path = resolve_tool(args.python, "PYTHON", sys.executable)
         tools: dict[str, Any] = {
             "kain": kain_exe,
             "rustc": rustc_path,
             "cxx": cxx_path,
+            "clang": clang_path,
+            "erl": erl_path,
+            "erlc": erlc_path,
             "node": node_path,
             "python": python_path,
         }
@@ -1072,7 +1311,10 @@ def main() -> int:
             "rustc": rustc_path,
             "rust_flags": RUST_RELEASE_FLAGS,
             "cxx": cxx_path,
+            "clang": clang_path,
             "cpp_flags": CPP_RELEASE_FLAGS,
+            "erl": erl_path,
+            "erlc": erlc_path,
             "node": node_path,
             "python": python_path,
         }
