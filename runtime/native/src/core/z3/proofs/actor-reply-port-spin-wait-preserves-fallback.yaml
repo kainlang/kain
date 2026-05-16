@@ -1,0 +1,103 @@
+version: 1
+id: kain.native.core.proofs.actor_reply_port_spin_wait_preserves_fallback
+kind: find_counterexample
+description: >-
+  The bounded reply-port spin is a pure fast path: if no reply is observed
+  before or during the spin window, control must still enter the same blocking
+  OS wait path used before the optimization.
+tags:
+- actor
+- reply-port
+- latency
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_reply_port_state_wait
+  start_line: 549
+  reason: wait first checks completion, spins only for nonzero timeout, and then
+    falls through to the existing event/condition wait when completion is absent
+case:
+  declarations:
+  - name: timeout_nonzero
+    sort:
+      kind: int
+  - name: completed_before_spin
+    sort:
+      kind: int
+  - name: completed_during_spin
+    sort:
+      kind: int
+  - name: os_wait_entered
+    sort:
+      kind: int
+  constraints:
+  - op: or
+    args:
+    - op: eq
+      args:
+      - timeout_nonzero
+      - 0
+    - op: eq
+      args:
+      - timeout_nonzero
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - completed_before_spin
+      - 0
+    - op: eq
+      args:
+      - completed_before_spin
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - completed_during_spin
+      - 0
+    - op: eq
+      args:
+      - completed_during_spin
+      - 1
+  - op: eq
+    args:
+    - os_wait_entered
+    - op: ite
+      args:
+      - op: or
+        args:
+        - op: eq
+          args:
+          - completed_before_spin
+          - 1
+        - op: and
+          args:
+          - op: eq
+            args:
+            - timeout_nonzero
+            - 1
+          - op: eq
+            args:
+            - completed_during_spin
+            - 1
+      - 0
+      - 1
+  claim:
+    op: implies
+    args:
+    - op: and
+      args:
+      - op: eq
+        args:
+        - completed_before_spin
+        - 0
+      - op: eq
+        args:
+        - completed_during_spin
+        - 0
+    - op: eq
+      args:
+      - os_wait_entered
+      - 1

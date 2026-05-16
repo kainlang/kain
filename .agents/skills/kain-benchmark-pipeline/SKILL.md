@@ -106,6 +106,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `unicode_string_heavy`: UTF-8 substring search over multilingual text and emoji.
 - `allocator_large_object_churn`: variable-size large-buffer allocation/touch/readback/release cycles.
 - `gpu_graphics_submit`: Kain-only raw native graphics submission path. Keep it Kain-only until the suite grows a comparable bare-metal Rust/C++ graphics lane instead of a framework benchmark.
+- `actor_mailbox_erlang`: native LLVM actor ask/reply fanout versus Erlang processes. It is the truth row for Kain actor latency; after the 2026-05-16 reply-port/node-cache pass, the current honest checkpoint is Kain `2621.995 ms` vs Erlang `418.862 ms` (`6.26x slower`) over 3 timed runs with 1 warmup.
 - `ffi_shared_call_stress`: repeated tiny shared-library calls inside the main suite. Keep the dedicated `benchmark/ffi_boundary` lane for deeper ABI-tax and Zig-neighborhood questions.
 - `scalar_mix`: top-level const lowering and a checksum guard.
 - `recursive_sum`: recursion and call-stack lowering in a tight loop.
@@ -113,6 +114,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - As of `2026-05-15`, the case intentionally removes dead `% MODULUS` math and uses a boolean branch toggle instead of `% 2` parity math, but keeps substring search on the general path. The specialized win we kept is in the LLVM lowering, not in benchmark-only hand-tuned substring kernels.
   - The LLVM fast path still depends on string-aware const metadata, entry-cached string lengths, direct bytewise `char_at(...) == char_at(...)` lowering, and borrowed internal string params that skip caller retain/callee release churn. If `string_ops` regresses, inspect `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` before blaming the C runtime.
 - `array_scan`: fixed-array indexing and weighted accumulation.
+- `machine_stones_shatter_loop`: Kain `shatter struct` hot field iteration versus hand-authored Rust/C++ SoA arrays. This case is only honest after LLVM emits cached `kain_machine_shatter_lane_base(...)` plus proven `(index << 3)` GEPs for loop-bounded shattered array reads; if it regresses to per-access `kain_machine_shatter_lane_ptr(...)`, treat the Kain row as a backend regression before interpreting benchmark numbers.
 - `ffi_boundary` is the dedicated ABI-tax probe, not a fairness-suite case. It is intentionally target-focused so we can answer questions like "how expensive is direct LLVM object linking vs the interpreter bridge?" or "is Kain LLVM in Zig/C territory?" without polluting the multi-language pressure suite.
 
 ## Validation

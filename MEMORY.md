@@ -1,5 +1,32 @@
 # Kain Memory
 
+# 2026-05-16 - Native actor ask/reply latency pass proved hot reply ports and mailbox node recycling
+
+This pass optimized the already-correct native LLVM actor ask/reply path without changing the actor language surface. The key runtime move is that TLS reply ports now keep their synthetic actor-table slot hot and rearm by bumping generation, rather than unbinding/freeing/rebinding a synthetic actor for every ask. Stale replies still die because `kain_actor_reply_port_state_complete_copied(...)` verifies the exact generation-tagged `KainActorRef` under the reply-port lock.
+
+What changed:
+
+- `runtime/native/src/core/actor.c` adds bounded reply wait spinning before OS wait fallback, capped per-mailbox message-node recycling, and direct-thread joins before actor-table cleanup during runtime shutdown.
+- `runtime/native/include/actor.h` documents the hot TLS reply-port behavior and extends mailbox/direct-thread state for the node cache and shutdown ordering.
+- `runtime/conformance/actor_runtime/test_actor_abi_contract.c` now asserts reply-port slot reuse, stale generation invalidation, direct stale-send rejection, and ref death after destroy.
+- New durable actor Z3 proofs cover reply-port generation rearm, spin-wait fallback preservation, bounded node-cache growth, and direct-thread join-before-cleanup.
+
+Proof, validation, and benchmark:
+
+- Z3 actor lane `runtime/native/src/core/z3` proved `14/14` with `unsat` in report `runtime/native/src/core/z3/reports/20260516T113254Z-actor-final-runtime-pass.json`.
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/actor.c`
+- `cargo test -p kain-actor`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test actor -- --nocapture`
+- `cargo build -p cli`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\compile_native_runtime.ps1`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bash runtime/conformance/actor_runtime/run_tests.sh --test-timeout 45 --verbose`
+- `py -3 benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 3 --warmups 1 --timeout 240 --kain-exe target\debug\kain.exe` passed with Kain median `2621.995 ms` and Erlang median `418.862 ms`, so Kain is currently `6.26x slower`. This is materially better than the earlier ~`18.44x` gap, but not yet an Erlang kill shot.
+
+Durable lesson:
+
+- The reverted payload-cache experiment was slower than node-cache-only. The next real win should come from a specialized local ask/direct handoff path or typed inline actor request lowering that avoids generic mailbox payload allocation/copy/wakeup churn for local microcell refs.
+
 # 2026-05-16 - Semantic Singularity benchmark became the Kain-only fused weird-semantics pressure vessel
 
 This pass added `benchmark/cases/semantic_singularity/main.kn` plus a `semantic_singularity` row in `benchmark/benchmarks.json`. It is intentionally Kain-only rather than a cross-language fairness row: the goal is to keep one native LLVM benchmark that composes the full unusual Kain surface in one checksum-guarded executable.
@@ -22,6 +49,26 @@ Proof and validation:
 Durable lesson:
 
 - Until broader SoA value propagation lands, do not pass `shards[lane]` as a whole value through helpers or teleport in native LLVM. Dynamic shatter array access is currently proven through field reads; whole-element value passing can fall into generic array access and produce invalid native behavior.
+
+# 2026-05-16 - Machine stones gained real pulse scheduling and loop-persistent shatter lowering
+
+The second native backend exploitation pass turned the previous honest boundary into a real runtime/compiler slice. `pulse` is no longer only a generated-main fire/snapshot hook: native LLVM now registers each pulse through `kain_machine_pulse_start(...)`, the C runtime fires once immediately for deterministic startup, and a tiny timer thread keeps invoking the generated fire thunk until runtime exit or explicit `kain_machine_pulse_stop_all()`. `std.runtime` exposes `runtime_machine_pulse_total_fire_count()` so dogfood blades can prove scheduler telemetry without reaching into C directly.
+
+`shatter struct` lowering now keeps local direct array literals alive across loops as compiler-known SoA handles. LLVM asks the runtime for each field lane base once with `kain_machine_shatter_lane_base(...)`; field reads with literal indexes or `for range(...)` indexes whose bounds fit the direct array lower to `getelementptr lane_base, (index << 3)` instead of calling the checked `kain_machine_shatter_lane_ptr(...)` in the hot path. The checked runtime helper remains the fallback for unproved dynamic indexes.
+
+Proof and validation:
+
+- Z3 raw SMT `runtime/native/src/core/z3/proofs-experimental/machine-shatter-shift-offset-equivalence.smt2` returned `unsat` for the shift-vs-multiply slot offset trick.
+- Native machine Z3 lane proved `5/5` with `unsat`, including `native-machine-shatter-lane-base-shift-offset-stays-in-payload.yaml`.
+- `cargo check -p kain-sys-codegen`, targeted LLVM machine-stones test, C syntax check, direct C runtime test, `cargo build -p cli`, and Bazel native-runtime manifest sync all passed.
+- `blades/machine-stones` checks, compiles, and runs under native LLVM; the blade now exercises a loop-persistent shattered array and pulse fire telemetry.
+- New benchmark case `machine_stones_shatter_loop` landed. Focused run `benchmark/out/reports/20260516T110000Z.llm.md` measured Kain `19.357 ms`, Rust `13.896 ms`, and C++ `12.238 ms` over the shatter hot loop. This is not a victory claim yet; it proves the benchmark is now real and Kain is within about `1.58x` of hand-authored C++ SoA on this shape.
+
+Current risks:
+
+- Shatter still targets local direct array literals. Parameters, returns, iterators, mutation, and broader escape-aware SoA propagation are not done.
+- The pulse scheduler is runtime-owned and process-local; it is not yet integrated with actor/world scheduling policy.
+- Benchmark `latest.*` reports may be overwritten by concurrent actor benchmark work. Use the timestamped report above for this pass.
 
 # 2026-05-16 - Native runtime prefix churn was cut over to clean ABI/domain names
 

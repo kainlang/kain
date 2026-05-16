@@ -1,0 +1,87 @@
+version: 1
+id: kain.native.core.proofs.actor_shutdown_joins_direct_thread_before_cleanup
+kind: find_counterexample
+description: Runtime shutdown may clean an actor record only after any direct
+  bootstrap thread owned by that actor has been joined, preventing the table
+  cleanup path from freeing actor state while the thread still returns through
+  exit side effects.
+tags:
+- actor
+- shutdown
+- lifetime
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_runtime_shutdown
+  start_line: 888
+  reason: shutdown closes mailboxes, stops scheduler work, joins direct actor
+    threads, then performs final actor-table cleanup
+case:
+  declarations:
+  - name: direct_thread_started
+    sort:
+      kind: int
+  - name: join_completed
+    sort:
+      kind: int
+  - name: cleanup_enters
+    sort:
+      kind: int
+  constraints:
+  - op: or
+    args:
+    - op: eq
+      args:
+      - direct_thread_started
+      - 0
+    - op: eq
+      args:
+      - direct_thread_started
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - join_completed
+      - 0
+    - op: eq
+      args:
+      - join_completed
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - cleanup_enters
+      - 0
+    - op: eq
+      args:
+      - cleanup_enters
+      - 1
+  - op: implies
+    args:
+    - op: eq
+      args:
+      - direct_thread_started
+      - 1
+    - op: eq
+      args:
+      - join_completed
+      - 1
+  claim:
+    op: not
+    args:
+    - op: and
+      args:
+      - op: eq
+        args:
+        - cleanup_enters
+        - 1
+      - op: eq
+        args:
+        - direct_thread_started
+        - 1
+      - op: eq
+        args:
+        - join_completed
+        - 0

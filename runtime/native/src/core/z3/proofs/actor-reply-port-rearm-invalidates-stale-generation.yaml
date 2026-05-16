@@ -1,0 +1,48 @@
+version: 1
+id: kain.native.core.proofs.actor_reply_port_rearm_invalidates_stale_generation
+kind: find_counterexample
+description: A TLS reply port rearm keeps the synthetic actor slot hot but bumps
+  its generation before resetting payload state, so any actor ref captured by a
+  previous ask cannot match the active reply-port generation.
+tags:
+- actor
+- reply-port
+- generation
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_reply_port_state_rearm_synthetic_actor
+  start_line: 680
+  reason: rearm increments the table generation and stores that generation into
+    the reply-port state before the next ask publishes the ref
+case:
+  declarations:
+  - name: old_generation
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - old_generation
+    - 1
+  - op: le
+    args:
+    - old_generation
+    - 4294967295
+  claim:
+    op: not
+    args:
+    - op: eq
+      args:
+      - old_generation
+      - op: ite
+        args:
+        - op: eq
+          args:
+          - old_generation
+          - 4294967295
+        - 1
+        - op: add
+          args:
+          - old_generation
+          - 1

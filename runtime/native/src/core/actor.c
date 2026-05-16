@@ -14,6 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifndef _WIN32
+#include <sched.h>
+#endif
 
 #if defined(_MSC_VER)
 #define KAIN_THREAD_LOCAL __declspec(thread)
@@ -25,6 +28,8 @@
 #define KAIN_ACTOR_TABLE_SIZE KAIN_ACTOR_TABLE_CAPACITY
 #define KAIN_ACTOR_TABLE_WORD_BITS 64u
 #define KAIN_ACTOR_TABLE_WORD_COUNT (KAIN_ACTOR_TABLE_SIZE / KAIN_ACTOR_TABLE_WORD_BITS)
+#define KAIN_ACTOR_REPLY_PORT_WAIT_SPINS 256u
+#define KAIN_ACTOR_MAILBOX_NODE_CACHE_LIMIT 1024u
 #if (KAIN_ACTOR_TABLE_SIZE % KAIN_ACTOR_TABLE_WORD_BITS) != 0
 #error "KAIN_ACTOR_TABLE_SIZE must be a multiple of 64 for occupancy-word indexing."
 #endif
@@ -132,6 +137,7 @@ static void kain_scheduler_ready_actor(KainActorState_Internal* actor);
 static KainActorId kain_scheduler_dequeue(void);
 static void kain_scheduler_finish_turn(KainActorState_Internal* actor);
 static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDiagnostic* diag);
+static void kain_actor_join_direct_thread(KainActorState_Internal* actor);
 static KainActorId kain_actor_spawn_internal(
     const KainActorSpawnConfig* config,
     int force_direct_thread,
@@ -152,17 +158,31 @@ static void kain_actor_complete_exit_side_effects(KainActorState_Internal* actor
 static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src);
 static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity);
 static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox);
+static MessageNode* kain_actor_mailbox_take_cached_node(KainActorMailbox* mailbox);
+static void kain_actor_mailbox_cache_or_free_node(KainActorMailbox* mailbox, MessageNode* node);
 static int kain_actor_is_microcell_turn_actor(const KainActorState_Internal* actor);
 static void kain_actor_ref_zero(KainActorRef* actor_ref);
 static void kain_actor_ref_write_live(
     KainActorRef* actor_ref,
     const KainActorState_Internal* actor
 );
+static int kain_actor_ref_same_identity(const KainActorRef* left, const KainActorRef* right);
 static void kain_actor_reply_port_state_acquire(KainActorReplyPortState* state);
 static void kain_actor_reply_port_state_release(KainActorReplyPortState* state);
 static void kain_actor_reply_port_state_reset(KainActorReplyPortState* state);
+static void kain_actor_reply_port_state_reset_with_actor_ref(
+    KainActorReplyPortState* state,
+    const KainActorRef* actor_ref
+);
+static int kain_actor_reply_port_state_try_copy_completed(
+    KainActorReplyPortState* state,
+    void* out_reply_data,
+    size_t out_reply_capacity,
+    size_t* out_reply_size
+);
 static int kain_actor_reply_port_state_complete_copied(
     KainActorReplyPortState* state,
+    const KainActorRef* expected_actor_ref,
     const void* reply_data,
     size_t reply_size
 );
@@ -179,6 +199,7 @@ static void kain_actor_reply_port_state_take_actor_ref(
     KainActorRef* out_actor_ref
 );
 static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortState* state);
+static int kain_actor_reply_port_state_rearm_synthetic_actor(KainActorReplyPortState* state);
 static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPortState* state);
 static KainActorState_Internal* kain_actor_table_get(KainActorId actor_id);
 static KainActorId kain_actor_table_insert(KainActorState_Internal* actor);
@@ -209,6 +230,24 @@ static unsigned int kain_actor_low_bit_index_u64(uint64_t one_hot) {
     return debruijn_index[(one_hot * 0x03f79d71b4cb0a89ULL) >> 58u];
 }
 
+static void kain_actor_reply_port_spin_pause(unsigned int spin_index) {
+#ifdef _WIN32
+    if ((spin_index & 63u) == 63u) {
+        SwitchToThread();
+    } else {
+        YieldProcessor();
+    }
+#else
+    if ((spin_index & 63u) == 63u) {
+        sched_yield();
+    } else {
+#if defined(__i386__) || defined(__x86_64__)
+        __asm__ __volatile__("pause" ::: "memory");
+#endif
+    }
+#endif
+}
+
 static void kain_actor_ref_zero(KainActorRef* actor_ref) {
     if (actor_ref == NULL) {
         return;
@@ -234,6 +273,15 @@ static void kain_actor_ref_write_live(
     actor_ref->generation = actor->ref_generation;
     actor_ref->execution_class = actor->execution_class;
     actor_ref->locality_class = actor->locality_class;
+}
+
+static int kain_actor_ref_same_identity(const KainActorRef* left, const KainActorRef* right) {
+    return left != NULL
+        && right != NULL
+        && left->actor_id == right->actor_id
+        && left->generation == right->generation
+        && left->execution_class == right->execution_class
+        && left->locality_class == right->locality_class;
 }
 
 static void kain_actor_reply_port_state_acquire(KainActorReplyPortState* state) {
@@ -334,10 +382,12 @@ static int kain_actor_reply_port_state_uses_inline_payload(
 
 static int kain_actor_reply_port_state_complete_copied(
     KainActorReplyPortState* state,
+    const KainActorRef* expected_actor_ref,
     const void* reply_data,
     size_t reply_size
 ) {
     void* heap_copy = NULL;
+    int result = -1;
 
     if (state == NULL) {
         return -1;
@@ -354,7 +404,10 @@ static int kain_actor_reply_port_state_complete_copied(
     }
 #ifdef _WIN32
     EnterCriticalSection(&state->lock);
-    if (!state->completed) {
+    if (expected_actor_ref == NULL || kain_actor_ref_same_identity(&state->actor_ref, expected_actor_ref)) {
+        result = 0;
+    }
+    if (result == 0 && !state->completed) {
         state->completed = 1;
         if (reply_size == 0u) {
             state->reply_data = NULL;
@@ -373,7 +426,10 @@ static int kain_actor_reply_port_state_complete_copied(
     LeaveCriticalSection(&state->lock);
 #else
     pthread_mutex_lock(&state->lock);
-    if (!state->completed) {
+    if (expected_actor_ref == NULL || kain_actor_ref_same_identity(&state->actor_ref, expected_actor_ref)) {
+        result = 0;
+    }
+    if (result == 0 && !state->completed) {
         state->completed = 1;
         if (reply_size == 0u) {
             state->reply_data = NULL;
@@ -394,10 +450,13 @@ static int kain_actor_reply_port_state_complete_copied(
     if (heap_copy != NULL) {
         free(heap_copy);
     }
-    return 0;
+    return result;
 }
 
-static void kain_actor_reply_port_state_reset(KainActorReplyPortState* state) {
+static void kain_actor_reply_port_state_reset_with_actor_ref(
+    KainActorReplyPortState* state,
+    const KainActorRef* actor_ref
+) {
     void* reply_data_to_free = NULL;
 
     if (state == NULL) {
@@ -410,6 +469,9 @@ static void kain_actor_reply_port_state_reset(KainActorReplyPortState* state) {
     state->reply_data = NULL;
     state->reply_size = 0u;
     memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
+    if (actor_ref != NULL) {
+        state->actor_ref = *actor_ref;
+    }
     ResetEvent(state->completed_event);
     LeaveCriticalSection(&state->lock);
 #else
@@ -419,6 +481,9 @@ static void kain_actor_reply_port_state_reset(KainActorReplyPortState* state) {
     state->reply_data = NULL;
     state->reply_size = 0u;
     memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
+    if (actor_ref != NULL) {
+        state->actor_ref = *actor_ref;
+    }
     pthread_mutex_unlock(&state->lock);
 #endif
     if (
@@ -429,9 +494,12 @@ static void kain_actor_reply_port_state_reset(KainActorReplyPortState* state) {
     }
 }
 
-static int kain_actor_reply_port_state_wait(
+static void kain_actor_reply_port_state_reset(KainActorReplyPortState* state) {
+    kain_actor_reply_port_state_reset_with_actor_ref(state, NULL);
+}
+
+static int kain_actor_reply_port_state_try_copy_completed(
     KainActorReplyPortState* state,
-    long long timeout_ms,
     void* out_reply_data,
     size_t out_reply_capacity,
     size_t* out_reply_size
@@ -440,9 +508,6 @@ static int kain_actor_reply_port_state_wait(
 
     if (state == NULL) {
         return 0;
-    }
-    if (out_reply_size != NULL) {
-        *out_reply_size = 0u;
     }
 
 #ifdef _WIN32
@@ -460,33 +525,83 @@ static int kain_actor_reply_port_state_wait(
                 memcpy(out_reply_data, state->reply_data, bytes_to_copy);
             }
         }
-        LeaveCriticalSection(&state->lock);
-        return completed;
     }
     LeaveCriticalSection(&state->lock);
+#else
+    pthread_mutex_lock(&state->lock);
+    if (state->completed) {
+        completed = 1;
+        if (out_reply_size != NULL) {
+            *out_reply_size = state->reply_size;
+        }
+        if (out_reply_data != NULL && out_reply_capacity > 0u && state->reply_data != NULL) {
+            size_t bytes_to_copy = state->reply_size < out_reply_capacity
+                ? state->reply_size
+                : out_reply_capacity;
+            if (bytes_to_copy > 0u) {
+                memcpy(out_reply_data, state->reply_data, bytes_to_copy);
+            }
+        }
+    }
+    pthread_mutex_unlock(&state->lock);
+#endif
 
+    return completed;
+}
+
+static int kain_actor_reply_port_state_wait(
+    KainActorReplyPortState* state,
+    long long timeout_ms,
+    void* out_reply_data,
+    size_t out_reply_capacity,
+    size_t* out_reply_size
+) {
+    unsigned int spin_index;
+    int completed = 0;
+
+    if (state == NULL) {
+        return 0;
+    }
+    if (out_reply_size != NULL) {
+        *out_reply_size = 0u;
+    }
+
+    if (kain_actor_reply_port_state_try_copy_completed(
+            state,
+            out_reply_data,
+            out_reply_capacity,
+            out_reply_size
+        )) {
+        return 1;
+    }
+
+    if (timeout_ms != 0) {
+        for (spin_index = 0u; spin_index < KAIN_ACTOR_REPLY_PORT_WAIT_SPINS; ++spin_index) {
+            kain_actor_reply_port_spin_pause(spin_index);
+            if (kain_actor_reply_port_state_try_copy_completed(
+                    state,
+                    out_reply_data,
+                    out_reply_capacity,
+                    out_reply_size
+                )) {
+                return 1;
+            }
+        }
+    }
+
+#ifdef _WIN32
     {
         DWORD wait_millis = timeout_ms < 0
             ? 0u
             : (timeout_ms > 0xFFFFFFFFLL ? 0xFFFFFFFFu : (DWORD)timeout_ms);
         DWORD wait_result = WaitForSingleObject(state->completed_event, wait_millis);
         if (wait_result == WAIT_OBJECT_0) {
-            EnterCriticalSection(&state->lock);
-            if (state->completed) {
-                completed = 1;
-                if (out_reply_size != NULL) {
-                    *out_reply_size = state->reply_size;
-                }
-                if (out_reply_data != NULL && out_reply_capacity > 0u && state->reply_data != NULL) {
-                    size_t bytes_to_copy = state->reply_size < out_reply_capacity
-                        ? state->reply_size
-                        : out_reply_capacity;
-                    if (bytes_to_copy > 0u) {
-                        memcpy(out_reply_data, state->reply_data, bytes_to_copy);
-                    }
-                }
-            }
-            LeaveCriticalSection(&state->lock);
+            completed = kain_actor_reply_port_state_try_copy_completed(
+                state,
+                out_reply_data,
+                out_reply_capacity,
+                out_reply_size
+            );
         }
     }
 #else
@@ -638,6 +753,60 @@ static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortSt
     kain_actor_ref_write_live(&actor_ref, actor);
     kain_actor_reply_port_state_set_actor_ref(state, &actor_ref);
     return 0;
+}
+
+static int kain_actor_reply_port_state_rearm_synthetic_actor(KainActorReplyPortState* state) {
+    KainActorRef actor_ref;
+    KainActorRef next_ref;
+    KainActorState_Internal* actor = NULL;
+    unsigned int next_generation;
+    int rebound_existing_actor = 0;
+
+    if (state == NULL) {
+        return -1;
+    }
+
+    kain_actor_reply_port_state_copy_actor_ref(state, &actor_ref);
+    if (actor_ref.actor_id == KAIN_ACTOR_ID_INVALID) {
+        kain_actor_reply_port_state_reset(state);
+        return kain_actor_reply_port_state_bind_synthetic_actor(state);
+    }
+
+    kain_actor_ref_zero(&next_ref);
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+    if (kain_actor_table_ref_matches_locked(&actor_ref, &actor) &&
+        actor != NULL &&
+        actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT &&
+        actor->user_data == state) {
+        next_generation = g_actor_table.generations[actor_ref.actor_id] + 1u;
+        if (next_generation == 0u) {
+            next_generation = 1u;
+        }
+        g_actor_table.generations[actor_ref.actor_id] = next_generation;
+        actor->ref_generation = next_generation;
+        actor->state = KAIN_ACTOR_STATE_RUNNING;
+        actor->exit_reason = KAIN_ACTOR_EXIT_NORMAL;
+        kain_actor_ref_write_live(&next_ref, actor);
+        rebound_existing_actor = 1;
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+
+    if (rebound_existing_actor) {
+        kain_actor_reply_port_state_reset_with_actor_ref(state, &next_ref);
+        return 0;
+    }
+
+    kain_actor_reply_port_state_take_actor_ref(state, &actor_ref);
+    kain_actor_reply_port_state_reset(state);
+    return kain_actor_reply_port_state_bind_synthetic_actor(state);
 }
 
 static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPortState* state) {
@@ -836,6 +1005,22 @@ void kain_actor_runtime_shutdown(void) {
         kain_scheduler_shutdown();
     }
 
+    for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {
+        KainActorState_Internal* actor;
+#ifdef _WIN32
+        EnterCriticalSection(&g_actor_table.lock);
+#else
+        pthread_mutex_lock(&g_actor_table.lock);
+#endif
+        actor = g_actor_table.actors[i];
+#ifdef _WIN32
+        LeaveCriticalSection(&g_actor_table.lock);
+#else
+        pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+        kain_actor_join_direct_thread(actor);
+    }
+
     kain_actor_registry_clear();
 
 #ifdef _WIN32
@@ -873,8 +1058,10 @@ void kain_actor_runtime_shutdown(void) {
 static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity) {
     mailbox->head = NULL;
     mailbox->tail = NULL;
+    mailbox->free_nodes = NULL;
     mailbox->capacity = capacity;
     mailbox->count = 0;
+    mailbox->free_node_count = 0;
     mailbox->closed = 0;
 
 #ifdef _WIN32
@@ -904,6 +1091,17 @@ static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox) {
         free(node);
         node = next;
     }
+    node = mailbox->free_nodes;
+    while (node != NULL) {
+        MessageNode* next = node->next;
+        free(node);
+        node = next;
+    }
+    mailbox->head = NULL;
+    mailbox->tail = NULL;
+    mailbox->free_nodes = NULL;
+    mailbox->count = 0u;
+    mailbox->free_node_count = 0u;
 
 #ifdef _WIN32
     DeleteCriticalSection(&mailbox->lock);
@@ -914,6 +1112,37 @@ static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox) {
     pthread_cond_destroy(&mailbox->not_empty);
     pthread_cond_destroy(&mailbox->not_full);
 #endif
+}
+
+static MessageNode* kain_actor_mailbox_take_cached_node(KainActorMailbox* mailbox) {
+    MessageNode* node;
+
+    if (mailbox == NULL || mailbox->free_nodes == NULL) {
+        return NULL;
+    }
+    node = mailbox->free_nodes;
+    mailbox->free_nodes = node->next;
+    mailbox->free_node_count--;
+    node->next = NULL;
+    return node;
+}
+
+static void kain_actor_mailbox_cache_or_free_node(KainActorMailbox* mailbox, MessageNode* node) {
+    if (node == NULL) {
+        return;
+    }
+    node->type_tag = 0;
+    node->data = NULL;
+    node->data_size = 0u;
+    node->sender_id = KAIN_ACTOR_ID_INVALID;
+    if (mailbox != NULL && mailbox->free_node_count < KAIN_ACTOR_MAILBOX_NODE_CACHE_LIMIT) {
+        node->next = mailbox->free_nodes;
+        mailbox->free_nodes = node;
+        mailbox->free_node_count++;
+        return;
+    }
+    node->next = NULL;
+    free(node);
 }
 
 static int kain_actor_is_microcell_turn_actor(const KainActorState_Internal* actor) {
@@ -1233,9 +1462,7 @@ void* kain_actor_reply_port_new(void) {
 
     if (g_actor_reply_port_tls != NULL) {
         state = g_actor_reply_port_tls;
-        kain_actor_reply_port_state_unbind_synthetic_actor(state);
-        kain_actor_reply_port_state_reset(state);
-        if (kain_actor_reply_port_state_bind_synthetic_actor(state) != 0) {
+        if (kain_actor_reply_port_state_rearm_synthetic_actor(state) != 0) {
             g_actor_reply_port_tls = NULL;
             kain_actor_reply_port_state_release(state);
             return NULL;
@@ -1304,7 +1531,9 @@ void kain_actor_reply_port_destroy(void* reply_port_handle) {
         return;
     }
     if (g_actor_reply_port_tls == state) {
-        g_actor_reply_port_tls = NULL;
+        kain_actor_reply_port_state_unbind_synthetic_actor(state);
+        kain_actor_reply_port_state_reset(state);
+        return;
     }
     kain_actor_reply_port_state_unbind_synthetic_actor(state);
     kain_actor_reply_port_state_reset(state);
@@ -1370,7 +1599,7 @@ int kain_actor_reply_port_send_ref(
         return -1;
     }
 
-    result = kain_actor_reply_port_state_complete_copied(state, reply_data, reply_size);
+    result = kain_actor_reply_port_state_complete_copied(state, reply_port_ref, reply_data, reply_size);
     kain_actor_reply_port_state_release(state);
     return result;
 }
@@ -1401,7 +1630,12 @@ int kain_actor_reply_port_wait(
     );
     if (!completed) {
         if (g_actor_reply_port_tls == state) {
-            g_actor_reply_port_tls = NULL;
+            kain_actor_reply_port_state_unbind_synthetic_actor(state);
+            kain_actor_reply_port_state_reset(state);
+            if (out_reply_size != NULL) {
+                *out_reply_size = 0u;
+            }
+            return 1;
         }
         kain_actor_reply_port_state_unbind_synthetic_actor(state);
         kain_actor_reply_port_state_release(state);
@@ -1679,8 +1913,11 @@ int kain_actor_send(
         return -1;
     }
 
-    /* Create message node */
-    MessageNode* node = (MessageNode*)malloc(sizeof(MessageNode));
+    /* Create or recycle a message node. */
+    MessageNode* node = kain_actor_mailbox_take_cached_node(mailbox);
+    if (node == NULL) {
+        node = (MessageNode*)malloc(sizeof(MessageNode));
+    }
     if (node == NULL) {
 #ifdef _WIN32
         LeaveCriticalSection(&mailbox->lock);
@@ -1799,7 +2036,7 @@ int kain_actor_receive(
     message->data_size = node->data_size;
     message->sender_id = node->sender_id;
 
-    free(node);
+    kain_actor_mailbox_cache_or_free_node(mailbox, node);
 
     /* Signal not full */
 #ifdef _WIN32
@@ -1858,7 +2095,7 @@ int kain_actor_try_receive(
     message->data_size = node->data_size;
     message->sender_id = node->sender_id;
 
-    free(node);
+    kain_actor_mailbox_cache_or_free_node(mailbox, node);
 
 #ifdef _WIN32
     SetEvent(mailbox->not_full);
@@ -2933,6 +3170,7 @@ static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDi
         }
         return -1;
     }
+    actor->direct_thread_started = 1;
 #else
     {
         int result = pthread_create(&actor->thread, NULL, kain_actor_thread_proc, actor);
@@ -2946,10 +3184,33 @@ static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDi
             }
             return -1;
         }
+        actor->direct_thread_started = 1;
     }
 #endif
 
     return 0;
+}
+
+static void kain_actor_join_direct_thread(KainActorState_Internal* actor) {
+    if (actor == NULL || !actor->direct_thread_started) {
+        return;
+    }
+
+#ifdef _WIN32
+    if (actor->thread_handle != NULL) {
+        if (GetCurrentThreadId() != actor->thread_id) {
+            WaitForSingleObject(actor->thread_handle, INFINITE);
+        }
+        CloseHandle(actor->thread_handle);
+        actor->thread_handle = NULL;
+    }
+    actor->thread_id = 0;
+#else
+    if (!pthread_equal(pthread_self(), actor->thread)) {
+        pthread_join(actor->thread, NULL);
+    }
+#endif
+    actor->direct_thread_started = 0;
 }
 
 static KainActorId kain_scheduler_dequeue(void) {

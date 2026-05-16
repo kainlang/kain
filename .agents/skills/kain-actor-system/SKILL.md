@@ -27,7 +27,10 @@ Use this when the task touches actor semantics or the native actor runtime.
 - Native LLVM actors should lower to `Actor_turn(actor_id, mailbox, user_data, budget)` and poll with `kain_actor_try_receive`; do not reintroduce scheduler-owned blocking `kain_actor_receive` loops for generated actors.
 - Microcell turn actors are idle until a message arrives. `kain_actor_send` appends under the mailbox lock and calls `kain_scheduler_ready_actor`; the worker then owns `in_scheduler_turn` until `kain_scheduler_finish_turn` clears it and requeues iff mailbox work remains.
 - Legacy bootstrap actors spawn on direct compatibility threads by default. This is intentional: one blocking legacy actor must not monopolize a pooled microcell scheduler worker.
-- TLS reply ports are synthetic actor-table entries with execution class `SYNTHETIC_REPLY_PORT`; on the next `kain_actor_reply_port_new()` after a successful wait, the runtime unbinds the old synthetic actor and rebinds a fresh generation before reuse. If a stale late reply bug shows up, inspect this rebind seam first.
+- TLS reply ports are synthetic actor-table entries with execution class `SYNTHETIC_REPLY_PORT`; on the next `kain_actor_reply_port_new()` after a successful wait, the runtime reuses the same synthetic actor slot and bumps generation before resetting payload state. If a stale late reply bug shows up, inspect `kain_actor_reply_port_state_rearm_synthetic_actor(...)` and the exact-ref check inside `kain_actor_reply_port_state_complete_copied(...)` first.
+- `kain_actor_reply_port_wait(...)` deliberately does one completion check, a bounded 256-spin fast path for nonzero timeouts, then the normal OS wait. Do not remove the fallback or make timeout-zero waits spin.
+- Each mailbox has a capped message-node freelist. This recycles queue nodes only; payload ownership still transfers to the receiver and must be freed by the generated/runtime caller. The last payload-cache experiment regressed `actor_mailbox_erlang`, so re-benchmark before reintroducing one.
+- Runtime shutdown closes mailboxes, stops the microcell scheduler, joins direct legacy actor threads, and only then cleans the actor table. This order prevents freeing direct-thread actor state while the bootstrap thread still returns through exit side effects.
 - Free-slot discovery is an occupancy-word scan, then low-bit isolation plus a
   de Bruijn decode. Do not reintroduce a linear scan unless profiles prove the
   bitset path is wrong for a new table shape.
@@ -63,6 +66,7 @@ Use this when the task touches actor semantics or the native actor runtime.
   `target/` to compare old and new paths directly before claiming a win.
 - The current cross-language reference benchmark is
   `py -3 benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 3 --warmups 1 --timeout 240`.
+- As of `2026-05-16`, the hot reply-port/node-cache pass measured Kain `2621.995 ms` vs Erlang `418.862 ms` (`6.26x slower`) on that row. Treat future wins as real only if they improve this row, not just synthetic allocation microbenchmarks.
 
 ## Notes for future agents
 

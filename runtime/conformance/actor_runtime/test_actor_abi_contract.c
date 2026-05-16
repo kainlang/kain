@@ -335,25 +335,31 @@ int main(void) {
         status = expect_true(reply_port != NULL, 40, "reply port rebind allocates");
         if (status != 0) return status;
         kain_actor_reply_port_actor_ref(reply_port, &rebound_reply_ref);
-        status = expect_true(!kain_actor_ref_is_live(&stale_reply_ref), 41, "stale reply ref is dead after rebind");
+        status = expect_true(
+            rebound_reply_ref.actor_id == first_reply_ref.actor_id,
+            41,
+            "reply port reuses synthetic actor slot"
+        );
+        if (status != 0) return status;
+        status = expect_true(!kain_actor_ref_is_live(&stale_reply_ref), 42, "stale reply ref is dead after rebind");
         if (status != 0) return status;
         status = expect_true(
             kain_actor_reply_port_send_ref(&stale_reply_ref, &second_value, sizeof(second_value)) != 0,
-            42,
+            43,
             "stale reply ref send rejected"
         );
         if (status != 0) return status;
         status = expect_true(
             kain_actor_reply_port_send_ref(&rebound_reply_ref, &second_value, sizeof(second_value)) == 0,
-            43,
+            44,
             "rebound reply ref accepts direct send"
         );
         if (status != 0) return status;
         received_value = kain_actor_reply_port_wait_i64(reply_port, 1000);
-        status = expect_true(received_value == second_value, 44, "reply wait returns rebound payload");
+        status = expect_true(received_value == second_value, 45, "reply wait returns rebound payload");
         if (status != 0) return status;
         kain_actor_reply_port_destroy(reply_port);
-        status = expect_true(!kain_actor_ref_is_live(&rebound_reply_ref), 45, "reply ref dies after destroy");
+        status = expect_true(!kain_actor_ref_is_live(&rebound_reply_ref), 46, "reply ref dies after destroy");
         if (status != 0) return status;
     }
 

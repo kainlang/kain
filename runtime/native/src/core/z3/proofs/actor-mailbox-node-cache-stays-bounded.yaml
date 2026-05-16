@@ -1,0 +1,53 @@
+version: 1
+id: kain.native.core.proofs.actor_mailbox_node_cache_stays_bounded
+kind: find_counterexample
+description: A mailbox receive may recycle a queue node only while the mailbox
+  node cache is below its fixed cap, so the optimization cannot grow an
+  unbounded freelist under bursty actor traffic.
+tags:
+- actor
+- mailbox
+- cache
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_mailbox_cache_or_free_node
+  start_line: 1125
+  reason: cache_or_free increments free_node_count only when it is strictly
+    below KAIN_ACTOR_MAILBOX_NODE_CACHE_LIMIT
+case:
+  declarations:
+  - name: free_node_count
+    sort:
+      kind: int
+  - name: cache_limit
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - free_node_count
+    - 0
+  - op: gt
+    args:
+    - cache_limit
+    - 0
+  - op: le
+    args:
+    - free_node_count
+    - cache_limit
+  claim:
+    op: le
+    args:
+    - op: ite
+      args:
+      - op: lt
+        args:
+        - free_node_count
+        - cache_limit
+      - op: add
+        args:
+        - free_node_count
+        - 1
+      - free_node_count
+    - cache_limit

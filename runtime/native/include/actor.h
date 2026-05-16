@@ -195,10 +195,12 @@ typedef struct KainActorMailbox {
     /* Message queue storage */
     MessageNode* head;
     MessageNode* tail;
+    MessageNode* free_nodes;
 
     /* Capacity and backpressure */
     size_t capacity;        /* 0 = unbounded, >0 = bounded */
     size_t count;           /* Current message count */
+    size_t free_node_count;
 
     /* Synchronization */
 #ifdef _WIN32
@@ -409,6 +411,7 @@ typedef struct {
 #else
     pthread_t thread;
 #endif
+    int direct_thread_started;
 
     /* Mailbox */
     KainActorMailbox mailbox;
@@ -605,7 +608,10 @@ int kain_actor_try_receive(
  * These helpers back compiler-lowered `ask` / `ask_timeout` roundtrips. A reply
  * port is a synthetic generation-tagged actor ref that accepts the first reply
  * payload and lets the compiler wait or cancel without inventing a second
- * mailbox ABI or a useless waiting OS thread.
+ * mailbox ABI or a useless waiting OS thread. The native runtime keeps a
+ * per-thread reply port hot: successful roundtrips rearm the same synthetic
+ * actor by bumping its generation, while destroy/timeout invalidates the live
+ * ref and returns the state to the TLS cache for the next ask.
  */
 void* kain_actor_reply_port_new(void);
 KainActorId kain_actor_reply_port_actor_id(void* reply_port_handle);
