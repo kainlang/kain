@@ -1,0 +1,295 @@
+@extern
+fn kain_native_process_reset() -> Int
+
+@extern
+fn kain_native_process_platform_available() -> Int
+
+@extern
+fn kain_native_process_spec_create(executable: String) -> Int
+
+@extern
+fn kain_native_process_spec_destroy(spec_id: Int) -> Int
+
+@extern
+fn kain_native_process_spec_count() -> Int
+
+@extern
+fn kain_native_process_spec_add_arg(spec_id: Int, argument: String) -> Int
+
+@extern
+fn kain_native_process_spec_set_cwd(spec_id: Int, cwd_path: String) -> Int
+
+@extern
+fn kain_native_process_spec_set_env(spec_id: Int, key: String, value: String) -> Int
+
+@extern
+fn kain_native_process_spec_set_inherit_environment(spec_id: Int, enabled: Int) -> Int
+
+@extern
+fn kain_native_process_spec_set_stdin_mode(spec_id: Int, mode: String) -> Int
+
+@extern
+fn kain_native_process_spec_set_stdout_mode(spec_id: Int, mode: String) -> Int
+
+@extern
+fn kain_native_process_spec_set_stderr_mode(spec_id: Int, mode: String) -> Int
+
+@extern
+fn kain_native_process_spawn(spec_id: Int) -> Int
+
+@extern
+fn kain_native_process_spawn_pty(spec_id: Int, columns: Int, rows: Int) -> Int
+
+@extern
+fn kain_native_process_count() -> Int
+
+@extern
+fn kain_native_process_close(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_poll(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_wait(process_id: Int, timeout_ms: Int) -> Int
+
+@extern
+fn kain_native_process_is_running(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_exit_code(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_os_pid(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_terminate(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_kill(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_stdin_write_text(process_id: Int, text: String) -> Int
+
+@extern
+fn kain_native_process_stdin_write_hex(process_id: Int, bytes_hex: String) -> Int
+
+@extern
+fn kain_native_process_stdin_close(process_id: Int) -> Int
+
+@extern
+fn kain_native_process_stdout_read_text(process_id: Int) -> String
+
+@extern
+fn kain_native_process_stdout_read_hex(process_id: Int) -> String
+
+@extern
+fn kain_native_process_stderr_read_text(process_id: Int) -> String
+
+@extern
+fn kain_native_process_stderr_read_hex(process_id: Int) -> String
+
+@extern
+fn kain_native_process_stdout_capture_text(process_id: Int) -> String
+
+@extern
+fn kain_native_process_stdout_capture_hex(process_id: Int) -> String
+
+@extern
+fn kain_native_process_stderr_capture_text(process_id: Int) -> String
+
+@extern
+fn kain_native_process_stderr_capture_hex(process_id: Int) -> String
+
+@extern
+fn kain_native_process_pty_write_text(process_id: Int, text: String) -> Int
+
+@extern
+fn kain_native_process_pty_write_hex(process_id: Int, bytes_hex: String) -> Int
+
+@extern
+fn kain_native_process_pty_resize(process_id: Int, columns: Int, rows: Int) -> Int
+
+@extern
+fn kain_native_process_pty_read_text(process_id: Int) -> String
+
+@extern
+fn kain_native_process_pty_read_hex(process_id: Int) -> String
+
+@extern
+fn kain_native_process_pty_capture_text(process_id: Int) -> String
+
+@extern
+fn kain_native_process_pty_capture_hex(process_id: Int) -> String
+
+@extern
+fn kain_native_process_last_status() -> Int
+
+@extern
+fn kain_native_process_last_error_kind() -> String
+
+@extern
+fn kain_native_process_last_error_message() -> String
+
+pub fn process_stdio_inherit() -> String:
+    return "inherit"
+
+pub fn process_stdio_pipe() -> String:
+    return "pipe"
+
+pub fn process_stdio_null() -> String:
+    return "null"
+
+pub fn process_reset() -> Int:
+    return kain_native_process_reset()
+
+pub fn process_platform_available() -> Int:
+    return kain_native_process_platform_available()
+
+pub fn process_spec_create(executable: String) -> Int:
+    return kain_native_process_spec_create(executable)
+
+pub fn process_spec_destroy(spec_id: Int) -> Int:
+    return kain_native_process_spec_destroy(spec_id)
+
+pub fn process_spec_count() -> Int:
+    return kain_native_process_spec_count()
+
+pub fn process_spec_add_arg(spec_id: Int, argument: String) -> Int:
+    return kain_native_process_spec_add_arg(spec_id, argument)
+
+pub fn process_spec_set_cwd(spec_id: Int, cwd_path: String) -> Int:
+    return kain_native_process_spec_set_cwd(spec_id, cwd_path)
+
+pub fn process_spec_set_env(spec_id: Int, key: String, value: String) -> Int:
+    return kain_native_process_spec_set_env(spec_id, key, value)
+
+pub fn process_spec_set_inherit_environment(spec_id: Int, enabled: Int) -> Int:
+    return kain_native_process_spec_set_inherit_environment(spec_id, enabled)
+
+pub fn process_spec_set_stdio_modes(spec_id: Int, stdin_mode: String, stdout_mode: String, stderr_mode: String) -> Int:
+    let stdin_status = kain_native_process_spec_set_stdin_mode(spec_id, stdin_mode)
+    if stdin_status != 0:
+        return stdin_status
+    let stdout_status = kain_native_process_spec_set_stdout_mode(spec_id, stdout_mode)
+    if stdout_status != 0:
+        return stdout_status
+    return kain_native_process_spec_set_stderr_mode(spec_id, stderr_mode)
+
+pub fn process_spec_set_pipe_stdio(spec_id: Int) -> Int:
+    return process_spec_set_stdio_modes(spec_id, "pipe", "pipe", "pipe")
+
+pub fn process_spec_create_piped(executable: String) -> Int:
+    let spec_id = process_spec_create(executable)
+    let _stdio = process_spec_set_pipe_stdio(spec_id)
+    return spec_id
+
+pub fn process_spawn(spec_id: Int) -> Int:
+    return kain_native_process_spawn(spec_id)
+
+pub fn process_spawn_pty(spec_id: Int, columns: Int, rows: Int) -> Int:
+    return kain_native_process_spawn_pty(spec_id, columns, rows)
+
+pub fn process_count() -> Int:
+    return kain_native_process_count()
+
+pub fn process_close(process_id: Int) -> Int:
+    return kain_native_process_close(process_id)
+
+pub fn process_poll(process_id: Int) -> Int:
+    return kain_native_process_poll(process_id)
+
+pub fn process_wait(process_id: Int, timeout_ms: Int) -> Int:
+    return kain_native_process_wait(process_id, timeout_ms)
+
+pub fn process_is_running(process_id: Int) -> Int:
+    return kain_native_process_is_running(process_id)
+
+pub fn process_exit_code(process_id: Int) -> Int:
+    return kain_native_process_exit_code(process_id)
+
+pub fn process_os_pid(process_id: Int) -> Int:
+    return kain_native_process_os_pid(process_id)
+
+pub fn process_terminate(process_id: Int) -> Int:
+    return kain_native_process_terminate(process_id)
+
+pub fn process_kill(process_id: Int) -> Int:
+    return kain_native_process_kill(process_id)
+
+pub fn process_stdin_write_text(process_id: Int, text: String) -> Int:
+    return kain_native_process_stdin_write_text(process_id, text)
+
+pub fn process_stdin_write_hex(process_id: Int, bytes_hex: String) -> Int:
+    return kain_native_process_stdin_write_hex(process_id, bytes_hex)
+
+pub fn process_stdin_close(process_id: Int) -> Int:
+    return kain_native_process_stdin_close(process_id)
+
+pub fn process_stdout_read_text(process_id: Int) -> String:
+    return kain_native_process_stdout_read_text(process_id)
+
+pub fn process_stdout_read_hex(process_id: Int) -> String:
+    return kain_native_process_stdout_read_hex(process_id)
+
+pub fn process_stderr_read_text(process_id: Int) -> String:
+    return kain_native_process_stderr_read_text(process_id)
+
+pub fn process_stderr_read_hex(process_id: Int) -> String:
+    return kain_native_process_stderr_read_hex(process_id)
+
+pub fn process_stdout_capture_text(process_id: Int) -> String:
+    return kain_native_process_stdout_capture_text(process_id)
+
+pub fn process_stdout_capture_hex(process_id: Int) -> String:
+    return kain_native_process_stdout_capture_hex(process_id)
+
+pub fn process_stderr_capture_text(process_id: Int) -> String:
+    return kain_native_process_stderr_capture_text(process_id)
+
+pub fn process_stderr_capture_hex(process_id: Int) -> String:
+    return kain_native_process_stderr_capture_hex(process_id)
+
+pub fn process_pty_write_text(process_id: Int, text: String) -> Int:
+    return kain_native_process_pty_write_text(process_id, text)
+
+pub fn process_pty_write_hex(process_id: Int, bytes_hex: String) -> Int:
+    return kain_native_process_pty_write_hex(process_id, bytes_hex)
+
+pub fn process_pty_resize(process_id: Int, columns: Int, rows: Int) -> Int:
+    return kain_native_process_pty_resize(process_id, columns, rows)
+
+pub fn process_pty_read_text(process_id: Int) -> String:
+    return kain_native_process_pty_read_text(process_id)
+
+pub fn process_pty_read_hex(process_id: Int) -> String:
+    return kain_native_process_pty_read_hex(process_id)
+
+pub fn process_pty_capture_text(process_id: Int) -> String:
+    return kain_native_process_pty_capture_text(process_id)
+
+pub fn process_pty_capture_hex(process_id: Int) -> String:
+    return kain_native_process_pty_capture_hex(process_id)
+
+pub fn process_collect_output_until_exit(process_id: Int, timeout_ms: Int, poll_sleep_ms: Int) -> Int:
+    let waited = 0
+    while timeout_ms < 0 or waited <= timeout_ms:
+        let ready = process_poll(process_id)
+        let _stdout = process_stdout_read_text(process_id)
+        let _stderr = process_stderr_read_text(process_id)
+        let _pty = process_pty_read_text(process_id)
+        if ready == 1:
+            return 1
+        if timeout_ms >= 0 and waited == timeout_ms:
+            return 0
+        let _sleep = native_sleep_millis(poll_sleep_ms)
+        waited = waited + poll_sleep_ms
+    return 0
+
+pub fn process_last_status() -> Int:
+    return kain_native_process_last_status()
+
+pub fn process_last_error_kind() -> String:
+    return kain_native_process_last_error_kind()
+
+pub fn process_last_error_message() -> String:
+    return kain_native_process_last_error_message()

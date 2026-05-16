@@ -1,4 +1,4 @@
-use std::native::net
+use std::net
 
 pub fn http2_client_state() -> Int:
     return net_capability_state("http2.client")

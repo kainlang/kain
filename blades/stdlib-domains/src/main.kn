@@ -1,0 +1,125 @@
+use std::runtime
+use std::actor
+use std::collections
+use std::diagnostics
+use std::result
+use std::time
+use std::intent
+use std::fs
+use std::input
+use std::net
+use std::http
+use std::tls
+use std::http2
+use std::process
+use std::graphics
+use std::ui
+
+actor StdDomainActor:
+    state score: Int = 0
+
+    on Ping(payload: String):
+        self.score = self.score + len(payload)
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot < 0:
+        return 1
+
+    if result_ok() != 0:
+        return 2
+    if result_is_ok(result_ok()) == false:
+        return 3
+    if status_ok(0) == false:
+        return 4
+    if bool_to_status(true) != 0:
+        return 5
+
+    if int_clamp(19, 0, 7) != 7:
+        return 6
+    if bool_to_int(true) != 1:
+        return 7
+
+    let start_ms = now_millis()
+    if deadline_millis(0) < start_ms:
+        return 8
+
+    let actor_id = actor_spawn("StdDomainActor", "score=0")
+    if actor_id_is_valid(actor_id) == false:
+        return 9
+    let _actor_send = actor_send(actor_id, "Ping", "stdlib")
+    let _actor_stop = actor_shutdown(actor_id)
+
+    let _entangle_reset = entangle_reset()
+    if entangle_registered_count() < 0:
+        return 10
+    if law_status(true) != 0:
+        return 11
+
+    let temp_path = fs_temp_file("stdlib-domains")
+    fs_write_text(temp_path, "root-stdlib")
+    if fs_read_text(temp_path) != "root-stdlib":
+        return 12
+    fs_remove_file(temp_path)
+    if fs_exists(temp_path):
+        return 13
+
+    let _input_reset = input_reset()
+    let input_session = input_session_create("stdlib-domains")
+    if input_session <= 0:
+        return 14
+    let _input_push = input_push_key_down(input_session, "keyboard-main", "KeyA")
+    let _input_frame = input_begin_frame(input_session, 16.0)
+    if input_frame_index(input_session) < 0:
+        return 15
+    let _input_destroy = input_session_destroy(input_session)
+
+    if net_platform_available() < 0:
+        return 16
+    if net_capability_state("tcp") <= 0:
+        return 17
+    let request = request_create("GET", "http://127.0.0.1:1/")
+    if request <= 0:
+        return 18
+    if request_protocol(request) != "http/1.1":
+        return 19
+    let h2_request = http2_request_create("GET", "https://example.invalid/")
+    if h2_request <= 0:
+        return 20
+    if http2_request_protocol(h2_request) != "http/2":
+        return 21
+    if tls_client_state() < 0:
+        return 22
+    let _request_destroy = request_destroy(request)
+    let _h2_destroy = request_destroy(h2_request)
+
+    if process_platform_available() < 0:
+        return 23
+
+    let _graphics_reset = graphics_reset()
+    let graphics_session = graphics_session_create("stdlib-domains", 64, 64)
+    if graphics_session <= 0:
+        return 24
+    if graphics_session_count() <= 0:
+        return 25
+    let _graphics_destroy = graphics_session_destroy(graphics_session)
+
+    let _ui_reset = ui_reset()
+    let ui_session = ui_session_create("stdlib-domains", 320, 180)
+    if ui_session <= 0:
+        return 26
+    let node = ui_node_create(ui_session, "panel")
+    if node <= 0:
+        return 27
+    let _node_rect = ui_node_set_rect(ui_session, node, 8.0, 9.0, 120.0, 32.0)
+    let _node_text = ui_node_set_text(ui_session, node, "std.ui")
+    if ui_node_text(ui_session, node) != "std.ui":
+        return 28
+    let _ui_destroy = ui_session_destroy(ui_session)
+
+    if runtime_heap_validate() < 0:
+        return 29
+    let shutdown = runtime_shutdown()
+    if shutdown < 0:
+        return 30
+    return 0

@@ -1,5 +1,25 @@
 # Kain Memory
 
+# 2026-05-16 - Native stdlib domains now have public `std.*` mirrors and clean aliases
+
+This pass normalized the native stdlib authoring surface so Kain code can import the same style everywhere instead of spelling `std::native::*` or `native_*` wrapper names for ordinary app code. The native backend profile still loads `stdlib/native`, but those files now expose clean public aliases beside the legacy ABI-shaped names, and root `stdlib/*.kn` mirrors exist for all current native domains.
+
+What changed:
+
+- Public root-domain imports now exist for `std.actor`, `std.collections`, `std.diagnostics`, `std.fs`, `std.graphics`, `std.input`, `std.intent`, `std.net`, `std.http`, `std.http2`, `std.process`, `std.result`, `std.runtime`, `std.time`, `std.tls`, and `std.ui`.
+- Native modules that still had `native_*` author-facing wrappers now include generated clean aliases such as `actor_spawn`, `runtime_init`, `status_ok`, `result_ok`, `now_millis`, `fs_temp_file`, `graphics_session_create`, and `ui_session_create`.
+- `stdlib/native/http.kn`, `http2.kn`, and `tls.kn` now import `std::net` instead of `std::native::net`, so native profile code dogfoods the same public naming shape.
+- Added `blades/stdlib-domains` as the import-shape proof blade. It compiles under native LLVM, imports every normalized stdlib domain, and calls representative clean names across runtime, actor, filesystem, input, networking, HTTP/2, TLS, process, graphics, and UI.
+
+Validation:
+
+- Direct native LLVM compile and run of `blades/stdlib-domains/src/main.kn`; the resulting executable returned exit code `0`.
+- Direct native LLVM compile and run of `blades/network-domains/src/main.kn`; the resulting executable returned exit code `0` after the stdlib import rewrite.
+
+Durable lesson:
+
+- For new Kain-authored code, prefer `use std::<domain>` and clean domain names (`runtime_init`, `actor_spawn`, `ui_session_create`) unless a test is intentionally proving the raw ABI-shaped `native_*` compatibility layer.
+
 # 2026-05-16 - First-class networking domains now land as public `std.net`, `std.http`, `std.tls`, and `std.http2`, and the old HTTP request-capacity failure is fixed at the runtime seam
 
 This pass finished the built-in networking-domain plan without adding new syntax. The runtime and portable contract work still lives in `crates/kain-net`, `stdlib/native/*.kn`, and `runtime/native/src/core/kain_native_net_system.c`, but authored Kain source can now import the public root modules `std.net`, `std.http`, `std.tls`, and `std.http2` directly.

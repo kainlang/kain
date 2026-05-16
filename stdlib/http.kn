@@ -1,4 +1,4 @@
-use std::native::net
+use std::net
 
 pub fn request_create(method: String, url: String) -> Int:
     return http_request_create(method, url)
