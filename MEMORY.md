@@ -1,5 +1,47 @@
 # Kain Memory
 
+# 2026-05-16 - Machine stones now have native LLVM/C backend exploitation instead of metadata-only lowering
+
+This pass took the `axiom`, `pulse`, `shatter struct`, and `teleport` quartet from frontend/runtime-contract truth into the native execution substrate. The surface syntax stayed stable; the change is that native LLVM now emits explicit runtime ABI calls and the C runtime owns the hardware-facing parts.
+
+What changed:
+
+- Added `runtime/native/include/kain_runtime_machine_stones.h` and `runtime/native/src/core/kain_runtime_machine_stones.c`.
+- `kain_machine_axiom_accept(...)` checks target/arch/capability predicates against native runtime and CPU feature bits. Capability token dispatch uses a compact signature classifier with exact string guards.
+- `kain_machine_pulse_snapshot(...)` reads a monotonic high-resolution host timer, keeps per-pulse tick state in a small atomic-locked table, and reports tick, dt, and missed-beat counts.
+- `kain_machine_shatter_alloc(...)` creates one contiguous SoA buffer where each field lane is 8-byte-slotted; `kain_machine_shatter_lane_ptr(...)` provides checked lane/element pointers and `kain_machine_shatter_free(...)` releases the handle.
+- `kain_machine_teleport_ptr(...)` returns the same pointer it receives, increments telemetry, and records a destination-token hash. This is the current native zero-copy handoff seam; scalar teleports call a note hook because there is no pointer to transfer.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now emits axiom accept functions, pulse body/fire wrappers, runtime calls at generated `main` entry, pointer teleport calls, and SoA lowering for local array literals made of direct shattered struct literals.
+- `stdlib/native/runtime.kn` and `stdlib/runtime.kn` now expose `runtime_machine_teleport_count()` and `runtime_machine_teleport_last_token()` so Kain dogfood code can inspect the native teleport seam.
+- Runtime manifests, Bazel runtime manifest data, and `runtime/BUILD.bazel` include the machine-stones C runtime source and native test.
+- `blades/machine-stones/src/main.kn` now checks shatter lane field reads and native teleport telemetry, and the generated `machine-stones.exe` runs from the blade root with sidecars under `.kain/out`.
+
+Proof and validation:
+
+- Z3 MCP native machine lane proved `4/4` with `unsat`: capability token signature collision freedom, pulse missed-beat bounds, shatter lane offset bounds, and teleport exclusive handoff state.
+- Z3 MCP sys-codegen memory proof proved pointer teleport bitcast roundtrip identity with `unsat`.
+- `cargo check -p kain-core`
+- `cargo check -p kain-sys-codegen`
+- `cargo check -p cli`
+- `cargo build -p cli`
+- `cargo test -p kain-core --test ownership_keywords_test -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_machine_stones_to_native_runtime_abi -- --nocapture`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_machine_stones.c`
+- Direct C ABI test compile/run for `runtime/native/tests/test_machine_stones.c`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- Direct native LLVM check, compile, and run of `blades/machine-stones/src/main.kn`; executable returned exit code `0`.
+
+Current boundaries:
+
+- Pulse is a native high-resolution snapshot/fire at generated `main` entry today, not a perpetual scheduler thread or event-loop heartbeat yet.
+- Shatter lowering currently targets local array literals of direct shattered struct literals and field/index access through those local handles. Broader struct-return, parameter, and iterator-aware SoA propagation is still future work.
+- Teleport is true zero-copy for pointer-shaped values, including heap-backed struct literals in the current LLVM lane. Non-pointer scalars preserve value semantics and only record telemetry.
+- Axiom acceptance is target/arch/capability gated, but it does not yet delete arbitrary safety shims through a whole-program optimization pass.
+
+Next recommended step:
+
+- Build the next pass around full pulse scheduling and wider shatter propagation before chasing benchmark claims. A useful benchmark should compare a real hot iteration over shattered fields against an AoS baseline once LLVM can keep the SoA handle live across a loop, not just allocate a tiny literal.
+
 # 2026-05-16 - Converge now has a native CPU capability/autotune substrate and LLVM carries multiple fast lanes
 
 This pass turned the stale benchmark note into a real phase-1 backend foundation. Kain still does not ship authored SIMD IR or real AVX-512 kernels yet, but compiled native LLVM converge declarations can now keep multiple fast lanes alive, query runtime CPU capabilities, and route dynamic CPU-gated lanes through a selector/cache instead of discarding every lane after the first.
