@@ -128,7 +128,7 @@ name = "Machine Stones Runtime"
 provider = "native-core"
 requirement = "optional"
 status = "available"
-description = "Native axiom predicates, pulse timing snapshots, shatter SoA buffers, and teleport zero-copy handoff telemetry"
+description = "Native axiom predicates, pulse scheduler/snapshots, shatter SoA lane buffers, and teleport zero-copy handoff telemetry"
 
 [[services]]
 key = "contract"

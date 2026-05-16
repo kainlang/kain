@@ -30,8 +30,8 @@ Use this skill for the post-intent keyword quartet:
    ```
 4. `teleport` must validate both worlds, reject same-world handoffs, return the payload type, and reject later reads of a simple origin identifier with `was moved by teleport`.
 5. Runtime contracts should continue emitting `axioms`, `pulses`, `shatters`, and capabilities `machine.axiom`, `time.pulse`, `time.hardware-timer`, `memory.shatter`, `world.teleport`, and `interop.zero-copy-handoff`.
-6. Keep the native runtime ABI in sync when backend behavior changes: `runtime/native/include/kain_runtime_machine_stones.h`, `runtime/native/src/core/kain_runtime_machine_stones.c`, `runtime/native/include/kain_runtime_native_stdlib.h`, `stdlib/native/runtime.kn`, `stdlib/runtime.kn`, `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, `runtime/runtime_manifest_data.bzl`, and `runtime/BUILD.bazel`.
-7. Native LLVM lowering lives in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`. It should emit axiom accept calls, pulse snapshot/fire wrappers, `kain_machine_teleport_ptr` for pointer-shaped teleport values, and `kain_machine_shatter_*` SoA buffers for local direct shattered-struct array literals.
+6. Keep the native runtime ABI in sync when backend behavior changes: `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c`, `runtime/native/include/stdlib_abi.h`, `stdlib/native/runtime.kn`, `stdlib/runtime.kn`, `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, `runtime/runtime_manifest_data.bzl`, and `runtime/BUILD.bazel`.
+7. Native LLVM lowering lives in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`. It should emit axiom accept calls, pulse snapshot/fire wrappers registered through `kain_machine_pulse_start(...)`, `kain_machine_teleport_ptr` for pointer-shaped teleport values, and `kain_machine_shatter_*` SoA buffers for local direct shattered-struct array literals. For hot loop field reads, prefer compiler-proved `kain_machine_shatter_lane_base(...)` plus `(index << 3)` GEP lowering over per-access checked `kain_machine_shatter_lane_ptr(...)`.
 8. Add or update durable proofs under `crates/kain-core/z3/proofs/keywords-*.yaml` for frontend semantic invariants, `runtime/native/src/core/z3/proofs/native-machine-*.yaml` for native C arithmetic, and `crates/kain-sys-codegen/z3/proofs/memory-teleport-*.yaml` for LLVM pointer-handoff invariants.
 9. Dogfood through `blades/machine-stones`: run `kain check ... --target llvm`, compile to `blades/machine-stones/machine-stones.exe`, run it from the blade root, and keep `.ll`, `.pdb`, `.ilk`, runtime-contract JSON, and realtime bundle sidecars under `blades/machine-stones/.kain/out/`.
 
@@ -47,12 +47,13 @@ cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_machine_ston
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane keywords
 mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="machine")
 mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-sys-codegen\\z3", lane="memory", pattern="proofs/memory-teleport-*.yaml")
-clang -I runtime/native/include runtime/native/tests/test_machine_stones.c runtime/native/src/core/kain_runtime_machine_stones.c runtime/native/src/core/kain_runtime_cpu.c -o target/codex-machine-stones/native_test_machine_stones.exe
+clang -I runtime/native/include runtime/native/tests/test_machine_stones.c runtime/native/src/core/machine_stones.c runtime/native/src/core/cpu.c -o target/codex-machine-stones/native_test_machine_stones.exe
 target\codex-machine-stones\native_test_machine_stones.exe
 py -3 tools/bazel/sync_native_runtime_builds.py --check
 .\target\debug\kain.exe check blades/machine-stones/src/main.kn --target llvm
 .\target\debug\kain.exe blades/machine-stones/src/main.kn -t llvm -o blades/machine-stones/machine-stones.exe
 .\blades\machine-stones\machine-stones.exe
+py -3 benchmark/run.py --case machine_stones_shatter_loop --languages kain,rust,cpp --runs 3 --warmups 1 --timeout 900 --kain-exe target\debug\kain.exe
 ```
 
 ## Native Backend Boundary
@@ -60,8 +61,8 @@ py -3 tools/bazel/sync_native_runtime_builds.py --check
 The quartet is now beyond metadata in the native LLVM/C lane, but it is intentionally bounded:
 
 - `axiom` lowers to generated accept thunks that call `kain_machine_axiom_accept(...)` and gate target/arch/capability predicates against native runtime feature bits.
-- `pulse` lowers to generated body/fire wrappers and calls `kain_machine_pulse_snapshot(...)`; today the backend fires pulses at generated `main` entry, not as a perpetual scheduler thread.
-- `shatter struct` lowers local direct array literals of shattered struct literals into `kain_machine_shatter_alloc(...)` SoA buffers, with field/index access routed through `kain_machine_shatter_lane_ptr(...)`. Wider propagation through parameters, returns, iterators, and arbitrary arrays is future work.
+- `pulse` lowers to generated body/fire wrappers and registers generated fire thunks through `kain_machine_pulse_start(...)`; the runtime fires once immediately, then uses a process-local timer thread to keep the pulse alive while `kain_machine_pulse_snapshot(...)` supplies tick/dt/missed locals.
+- `shatter struct` lowers local direct array literals of shattered struct literals into `kain_machine_shatter_alloc(...)` SoA buffers. The hot path caches `kain_machine_shatter_lane_base(...)` values and uses `(index << 3)` byte GEPs when literal or `for range(...)` indexes are compiler-proven in bounds; `kain_machine_shatter_lane_ptr(...)` remains the checked fallback for unproved indexes. Wider propagation through parameters, returns, iterators, mutation, and arbitrary arrays is future work.
 - `teleport` lowers pointer-shaped values through `kain_machine_teleport_ptr(...)`, preserving the exact address as a zero-copy handoff. Scalar teleports still preserve value semantics and call the note hook because there is no pointer identity to transfer.
 
 When extending this surface, prefer widening these native ABI-backed lowerings over changing syntax. If a future pass adds full pulse scheduling or cross-GPU/world zero-copy ABI, prove ownership/address/liveness invariants with Z3 before landing it.

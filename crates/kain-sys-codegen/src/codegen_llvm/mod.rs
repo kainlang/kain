@@ -148,6 +148,7 @@ fn llvm_runtime_declaration_is_preemitted(name: &str) -> bool {
         name,
         "abi_cpu_feature_mask"
             | "abi_cpu_capability_mask_for_key"
+            | "abi_entangle_register"
             | "abi_converge_select_lane_for_key"
             | "abi_converge_record_telemetry"
             | "kain_machine_pulse_total_fire_count"
@@ -5809,11 +5810,9 @@ impl LlvmGenerator {
         self.emit("declare void @abort()");
         self.emit("declare i1 @deep_eq(i8*, i8*)");
 
-        if !self.native_entanglements.is_empty() {
-            self.emit("");
-            self.emit("; Compiler-owned entangle runtime registration");
-            self.emit("declare i64 @abi_entangle_register(i8*, i8*, i8*, i8*)");
-        }
+        self.emit("");
+        self.emit("; Compiler-owned entangle runtime registration");
+        self.emit("declare i64 @abi_entangle_register(i8*, i8*, i8*, i8*)");
 
         // Low-Level Memory Helpers (Canonical ABI)
         // Source: runtime/native/include/memory.h
