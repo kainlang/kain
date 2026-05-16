@@ -70,10 +70,10 @@ pulse singularity_clock every 8ms jitter 1ms:
     let _pulse_mix = pulse_tick + pulse_dt_ms + pulse_missed
     let _moved_alive = moved.alive
 
-fn shard_score(shard: SemanticShard, lane: Int) -> Int:
-    if shard.alive:
-        return shard.x + shard.y + shard.drift + lane
-    return shard.y + shard.drift - shard.x + lane
+fn shard_score_parts(x: Int, y: Int, drift: Int, alive: Bool, lane: Int) -> Int:
+    if alive:
+        return x + y + drift + lane
+    return y + drift - x + lane
 
 fn fold_shared_cells(cells: ptr<Int>) -> Int:
     let cell_count: Int = 32
@@ -111,8 +111,13 @@ fn main() -> Int:
         while i < iterations:
             let lane: Int = i % 4
             let slot: Int = i % cell_count
-            let moved = teleport shards[lane] from SemanticAuthority to SemanticMirror via hot_bus
-            let local_score: Int = shard_score(moved, lane)
+            let shard_x: Int = shards[lane].x
+            let shard_y: Int = shards[lane].y
+            let shard_drift: Int = shards[lane].drift
+            let shard_alive: Bool = shards[lane].alive
+            let hot_shard = SemanticShard { x: shard_x, y: shard_y, drift: shard_drift, alive: shard_alive }
+            let moved = teleport hot_shard from SemanticAuthority to SemanticMirror via hot_bus
+            let local_score: Int = shard_score_parts(moved.x, moved.y, moved.drift, moved.alive, lane)
             let patched: Int = commit_signal(authority, (checksum + local_score + i) % modulus)
             let law_status: Int = native_law_status(signal_in_bounds(patched))
             let staged: Int = semantic_pipeline(patched + local_score)
@@ -131,7 +136,11 @@ fn main() -> Int:
     decay cells
 
     let final_score: Int = (checksum + observed) % modulus
-    let runtime_shape_ok = native_patch_journal_count() >= iterations and native_entangle_propagation_count() >= iterations and native_converge_mismatch_count() == 0 and runtime_machine_teleport_count() >= iterations and runtime_machine_pulse_total_fire_count() >= 1
+    let patch_count: Int = native_patch_journal_count()
+    let entangle_count: Int = native_entangle_propagation_count()
+    let teleport_count: Int = runtime_machine_teleport_count()
+    let pulse_count: Int = runtime_machine_pulse_total_fire_count()
+    let runtime_shape_ok = patch_count >= 1 and patch_count <= iterations and entangle_count >= iterations and native_converge_mismatch_count() == 0 and teleport_count >= iterations and pulse_count >= 1
     let shutdown_status = native_runtime_shutdown()
     if shutdown_status != 0:
         return 200 + shutdown_status

@@ -9,11 +9,13 @@
 (declare-const old_cell Int)
 (declare-const staged Int)
 (declare-const local_score Int)
+(declare-const patch_attempts Int)
 
 (define-fun iterations () Int 20000)
 (define-fun cell_count () Int 32)
 (define-fun shard_count () Int 4)
 (define-fun modulus () Int 1000000007)
+(define-fun patch_journal_capacity () Int 256)
 (define-fun int64_max () Int 9223372036854775807)
 (define-fun slot () Int (mod i cell_count))
 (define-fun lane () Int (mod i shard_count))
@@ -27,12 +29,15 @@
 (define-fun reply_sum () Int (+ (* (mod request_sum modulus) 17) 34))
 (define-fun next_cell_sum () Int (+ (mod reply_sum modulus) local_score))
 (define-fun final_sum () Int (+ (- modulus 1) (- modulus 1)))
+(define-fun saturated_patch_count () Int
+  (ite (> patch_attempts patch_journal_capacity) patch_journal_capacity patch_attempts))
 
 (assert (and (<= 0 i) (< i iterations)))
 (assert (and (<= 0 checksum) (< checksum modulus)))
 (assert (and (<= 0 old_cell) (< old_cell modulus)))
 (assert (and (<= 0 staged) (< staged modulus)))
 (assert (and (<= 0 local_score) (<= local_score 80)))
+(assert (and (<= 0 patch_attempts) (<= patch_attempts iterations)))
 
 (push)
 (assert
@@ -59,5 +64,15 @@
       (< reply_sum int64_max)
       (< next_cell_sum int64_max)
       (< final_sum int64_max))))
+(check-sat)
+(pop)
+
+(push)
+(assert
+  (not
+    (and
+      (<= 0 saturated_patch_count)
+      (<= saturated_patch_count patch_journal_capacity)
+      (<= saturated_patch_count iterations))))
 (check-sat)
 (pop)

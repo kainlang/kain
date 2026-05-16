@@ -81,6 +81,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `contention_wall`: Rust and C++ use 100 OS threads and an atomic counter; Kain currently uses a zero-lock `collapse` proxy; JavaScript/Python use scalar proxies to avoid worker/GIL overhead dominating the comparison.
 - `ghost_mirror`: Rust/C++/JavaScript/Python use TCP loopback for a 1 MiB payload; Kain uses entangle-backed in-process world mirroring plus helper-owned payload mutation.
 - `evolutionary_loop`: Rust/C++/JavaScript/Python use runtime feature detection or equivalent branch dispatch; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
+- `semantic_singularity`: Kain-only fused semantics pressure vessel. It intentionally declares only Kain in `benchmarks.json` and combines `axiom`/`pulse`/`shatter`/`teleport`, `world`/`entangle`/`patch`/`law`, `converge`/`orchestrate`, `collapse`/`observe`/`decay`, and modern ABI v3 actor ask/reply in one checksum-guarded loop. Keep dynamic shatter access field-based (`shards[lane].field`) until whole-shatter-element value propagation is implemented.
 - `ownership_memory`: direct `collapse`/`observe`/`decay` smoke against ordinary boxed/object ownership lanes.
 - `tcp_loopback_tokio`: Kain native TCP loopback versus Rust Tokio TCP. This is an implemented networking comparison, but the fairness note must keep saying Kain's current native TCP facade is synchronous around readiness helpers while Rust uses Tokio async IO.
 - `http_server_concurrency`: Kain native local HTTP route handling versus Tokio request batches. The request-slot exhaustion bug is fixed, so this row should stay green while still carrying the fairness note that Kain is measuring the synchronous semantic surface against Tokio async request batching.
@@ -125,6 +126,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `python benchmark/run.py --case rayon_parallel_reduce --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 1 --warmups 0 --timeout 900`
   If this row fails with a Kain build error mentioning `generated/native_runtime/cache/.../*.obj.tmp` and `Access is denied`, rerun once after the cache quiesces before treating it as a semantic actor regression.
+- `python benchmark/run.py --case semantic_singularity --languages kain --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case http_server_concurrency --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`

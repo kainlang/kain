@@ -1,5 +1,28 @@
 # Kain Memory
 
+# 2026-05-16 - Semantic Singularity benchmark became the Kain-only fused weird-semantics pressure vessel
+
+This pass added `benchmark/cases/semantic_singularity/main.kn` plus a `semantic_singularity` row in `benchmark/benchmarks.json`. It is intentionally Kain-only rather than a cross-language fairness row: the goal is to keep one native LLVM benchmark that composes the full unusual Kain surface in one checksum-guarded executable.
+
+What changed:
+
+- The benchmark combines `axiom`, `pulse`, `shatter`, `teleport`, `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `collapse`, `observe`, `decay`, and the modern ABI v3 actor ask/reply path.
+- The hot loop uses field-based dynamic shatter reads (`shards[lane].field`), teleports a local shard copy, patches entangled world state, validates laws, dispatches converge/orchestrate work, asks a spawned actor, mutates shared memory inside `collapse`, folds through `observe`, and releases with `decay`.
+- The first compile exposed a real LLVM/native seam bug after the native ABI prefix cleanup: compiler-owned entangle registration must call `abi_entangle_register(...)`, not the public Kain wrapper name `entangle_register(...)`. `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` and `llvm_codegen_test.rs` now assert the `abi_` registration path.
+- The runtime telemetry guard now treats the patch journal as a bounded live ring instead of expecting one retained record per iteration. The hot loop still attempts 20,000 patches, but `abi_patch_journal_count()` is intentionally bounded by the native runtime.
+
+Proof and validation:
+
+- Z3 MCP report `D:\Kain-Lang\z3\reports\20260516T105941Z-semantic-singularity-benchmark-bounds.json` returned `unsat` for cell/shatter index bounds, 64-bit arithmetic headroom, and saturated patch-journal count bounds.
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_generates_world_patch_converge_and_orchestrate_paths -- --nocapture`
+- `cargo build -p cli`
+- Direct native LLVM compile and run of `benchmark/cases/semantic_singularity/main.kn` returned exit code `0`.
+- `py -3 benchmark\run.py --case semantic_singularity --languages kain --runs 1 --warmups 0 --timeout 900 --kain-exe target\debug\kain.exe` passed and wrote `benchmark/out/reports/latest.llm.md` with Kain median `723.298 ms`.
+
+Durable lesson:
+
+- Until broader SoA value propagation lands, do not pass `shards[lane]` as a whole value through helpers or teleport in native LLVM. Dynamic shatter array access is currently proven through field reads; whole-element value passing can fall into generic array access and produce invalid native behavior.
+
 # 2026-05-16 - Native runtime prefix churn was cut over to clean ABI/domain names
 
 The native C runtime no longer uses `kain_native_*`, `kain_runtime_*`, `KAIN_NATIVE_*`, or `KAIN_RUNTIME_*` as the live C ABI/file naming scheme. The old names were making runtime maintenance and `rg` workflows painfully noisy, so this pass generated a manifest-driven rename and applied it across the live runtime, native stdlib wrappers, native manifests, conformance references, and LLVM/direct-C codegen references.
