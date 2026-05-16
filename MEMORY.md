@@ -1,5 +1,60 @@
 # Kain Memory
 
+# 2026-05-16 - Core machine-stones keywords landed: axiom, pulse, shatter, and teleport
+
+This pass added the final pre-`seal` keyword quartet as first-class Kain syntax and typed compiler metadata:
+
+- `axiom` declares compiler-accepted machine/environment truths with `when target(...)`, `when arch(...)`, `when capability(...)`, one or more `guarantee` lines, and a required `fallback`.
+- `pulse` declares a first-class temporal beat with `every <duration>` and optional `jitter <duration>`; pulse bodies get typed `pulse_tick`, `pulse_dt_ms`, and `pulse_missed` bindings.
+- `shatter struct` marks a struct with compiler-owned SoA/layout intent while preserving ordinary authored struct syntax.
+- `teleport value from SourceWorld to TargetWorld via channel` is a destructive cross-world handoff expression. The typechecker validates both worlds, rejects same-world handoffs, returns the value type, and poisons a simple origin identifier so later reads fail with `was moved by teleport`.
+
+Important implementation seams:
+
+- `crates/kain-core/src/ast.rs`, `parser.rs`, `types.rs`, `formatter.rs`, `runtime.rs`, `runtime_contract.rs`, `low_level_memory.rs`, `comptime.rs`, and `ui.rs` now understand the quartet.
+- Native/C/Rust/C++/LLVM codegen currently lowers `teleport` as value pass-through after the typechecker has enforced the destructive ownership rule. The runtime-contract bundle carries the higher-level `world.teleport` / `interop.zero-copy-handoff` capability so future ABI/GPU/native handoff lowering has a stable contract to consume.
+- Runtime contracts now emit `axioms`, `pulses`, and `shatters`, plus item-summary/capability counts for machine axioms, hardware-timer pulse intent, SoA shatter layout, and cross-world teleport handoffs.
+- CLI/import/LSP/selfhost/UE5/GPU exhaustive clients were updated so the new AST variants do not strand downstream tools.
+
+Dogfood and proof:
+
+- Added `blades/machine-stones`, a compact native LLVM blade proving all four forms together with a native UI surface and viewport worlds. `machine-stones.exe` is left in the blade root; generated `.ll`, `.pdb`, `.ilk`, runtime-contract JSON, and realtime bundle sidecars live under `blades/machine-stones/.kain/out/`.
+- Added durable core Z3 proofs under `crates/kain-core/z3/proofs/keywords-*` for axiom fallback exclusivity, pulse monotonic next-tick scheduling, shatter field-lane bounds, and teleport origin liveness.
+- Validation passed: `cargo check -p kain-core`, `cargo check -p kain-sys-codegen`, `cargo check -p gpu`, `cargo check -p cli`, `cargo test -p kain-core --test ownership_keywords_test`, core Z3 `keywords` lane `8/8`, `kain check blades/machine-stones/src/main.kn --target llvm`, native compile to `blades/machine-stones/machine-stones.exe`, and running the exe from the blade root returned exit code `0`.
+
+Next recommended step:
+
+- If the next pass wants real backend violence rather than metadata, the natural order is: pulse native scheduler/timer lowering, shatter layout-aware allocation/iteration lowering, then teleport ABI/GPU/native transfer lowering. `seal` should still wait until these semantics have settled.
+
+# 2026-05-16 - Native actor latency assessment: the obvious heap-allocation collapse is solver-safe but did not earn a stable benchmark win, so the real gap is still the blocking OS-thread mailbox architecture
+
+I assessed the native LLVM actor runtime again specifically for the `actor_mailbox_erlang` latency gap on `2026-05-16`.
+
+What I tested:
+
+- I focused on `runtime/native/src/core/kain_runtime_actor.c`, because the hot steady-state path in this benchmark is not the scheduler bootstrap anymore; it is `ask` request send -> worker mailbox receive -> direct reply-port completion.
+- The first candidate rewrite collapsed the mailbox request path from two allocations (`MessageNode` + payload buffer) under the mailbox lock into a single allocation with the message node stored at the tail of the payload block.
+- I proved the candidate tail-layout arithmetic in `runtime/native/src/core/z3/proofs-experimental/actor-mailbox-tail-node-single-allocation-bounds.smt2`; direct Z3 returned `unsat`.
+- I also reran the durable native actor proof lane:
+  - `uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane actor`
+  - result: `7/7` proved, `0` counterexamples.
+
+What I learned:
+
+- The single-allocation mailbox candidate is mathematically safe, but on this host it did not earn a durable performance win once measured repeatedly in the live benchmark slice.
+- A second experiment that swapped the Windows mailbox/reply-port event waits to condition variables performed even worse and was also discarded.
+- I left the runtime code on the known-good pre-experiment actor path; the solver artifact remains as a reusable example, but the code change was not kept because the benchmark evidence was not strong enough.
+
+Durable assessment:
+
+- The biggest remaining actor latency wall is not likely to be "one more malloc" or a tiny bit trick. The current native actor model still runs long-lived actors as blocking OS-thread loops around `kain_actor_receive(...)`.
+- That means the benchmark is still paying real kernel wake/sleep and thread scheduling costs on every request/reply roundtrip, which is fundamentally different from Erlang's lightweight process scheduler model.
+- If a future pass wants a real shot at the gap, the next serious direction is architectural:
+  - move away from blocking thread-owned actor loops,
+  - make mailbox readiness scheduler-owned,
+  - and process actor work in short scheduled quanta instead of pinning a waiting OS thread per running actor.
+- Small mailbox micro-optimizations are still worth testing, but they should be treated as sidecar work unless the actor execution model itself changes.
+
 # 2026-05-16 - Native LLVM actor ask/reply now uses a dedicated reply-port fast path, typed non-Int replies are proven live, and the Erlang benchmark moved from broken roundtrip to measured steady-state
 
 The native LLVM actor lane could already `spawn` actors and `send` messages, but the real `ask` / `ask_timeout` roundtrip was still wrong in the codegen/runtime seam: reply ports were effectively `i64`-shaped, typed replies such as `Bool` were not a first-class path, and the return leg still paid the generic mailbox enqueue/dequeue tax even when the target was the synthetic reply port. This pass fixed correctness first, then cut a real chunk out of the hot return path.

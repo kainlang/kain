@@ -1553,6 +1553,7 @@ fn collect_macro_calls_from_expr(
             collect_macro_calls_from_expr(body, required, counts);
         }
         Expr::Decay { target, .. } => collect_macro_calls_from_expr(target, required, counts),
+        Expr::Teleport { value, .. } => collect_macro_calls_from_expr(value, required, counts),
         Expr::Cast { value, target, .. } => {
             collect_macro_calls_from_expr(value, required, counts);
             collect_macro_calls_from_type(target, required, counts);

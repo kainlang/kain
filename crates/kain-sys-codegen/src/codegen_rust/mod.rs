@@ -2487,6 +2487,7 @@ impl RustGen {
             Expr::Decay { target, .. } => {
                 format!("{{ let _kain_ownership_target = {}; () }}", self.gen_expr(target))
             }
+            Expr::Teleport { value, .. } => self.gen_expr(value),
             Expr::Cast { value, target, .. } => format!("(({}) as {})", self.gen_expr(value), self.map_type(target)),
             Expr::Try(value, _) => format!("({}?)", self.gen_expr(value)),
             Expr::Await(value, _) => format!("({}.await)", self.gen_expr(value)),
@@ -3019,6 +3020,7 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(body, names);
             }
             Expr::Decay { target, .. } => self.collect_mutated_bindings_in_expr(target, names),
+            Expr::Teleport { value, .. } => self.collect_mutated_bindings_in_expr(value, names),
             Expr::Cast { value, .. } => self.collect_mutated_bindings_in_expr(value, names),
             Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
                 for (_, value) in init {

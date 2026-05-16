@@ -42,10 +42,12 @@ pub fn config_parse_csv(csv_text: String) -> Array<String>:
     return items
 
 pub fn config_env_string(keys: Array<String>, default_value: String) -> String:
-    for key in keys:
-        let value = env(key).trim()
+    let index = 0
+    while index < len(keys):
+        let value = env(keys[index]).trim()
         if len(value) > 0:
             return value
+        index = index + 1
     return default_value
 
 pub fn config_env_bool(key: String, default_value: Bool) -> Bool:

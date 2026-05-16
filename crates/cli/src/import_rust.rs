@@ -1787,6 +1787,24 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
             ),
         },
         Expr::Decay { target, .. } => format!("decay {}", expr_to_string_prec(target, 13)),
+        Expr::Teleport {
+            value,
+            source_world,
+            target_world,
+            channel,
+            ..
+        } => {
+            let mut rendered = format!(
+                "teleport {} from {} to {}",
+                expr_to_string_prec(value, 13),
+                source_world,
+                target_world
+            );
+            if let Some(channel) = channel {
+                rendered.push_str(&format!(" via {channel}"));
+            }
+            rendered
+        }
         Expr::Cast { value, target, .. } => {
             format!(
                 "{} as {}",
@@ -2087,7 +2105,8 @@ fn expr_precedence(expr: &kain_core::ast::Expr) -> u8 {
         | kain_core::ast::Expr::Ref { .. }
         | kain_core::ast::Expr::Deref(..)
         | kain_core::ast::Expr::Await(..)
-        | kain_core::ast::Expr::Try(..) => 13,
+        | kain_core::ast::Expr::Try(..)
+        | kain_core::ast::Expr::Teleport { .. } => 13,
         kain_core::ast::Expr::Call { .. }
         | kain_core::ast::Expr::StageCall { .. }
         | kain_core::ast::Expr::MethodCall { .. }

@@ -21,11 +21,11 @@ use cli::runtime_tools;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
-    BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER,
-    BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_TRACKING_MODE, BUILD_UNIX_TIME, CompileTarget,
-    LANGUAGE_NAME, LauncherKind, VERSION, compile, detect_launcher_from_path, format_source,
-    parse_compile_target, render_launcher_menu, resolve_legacy_target_alias,
-    should_show_launcher_menu, supported_targets_csv, target_extension,
+    compile, detect_launcher_from_path, format_source, parse_compile_target, render_launcher_menu,
+    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
+    target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
+    BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
+    BUILD_TRACKING_MODE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
 use kain_c_ffi::{
     ArtifactMode as CArtifactMode, ImportCOptions as CImportCOptions,
@@ -37,7 +37,7 @@ use kain_commands::kain::{
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use kain_repl::{
-    ReplBuildMetadata, ReplTerminalConfig, normalize_script_source, run_terminal_repl,
+    normalize_script_source, run_terminal_repl, ReplBuildMetadata, ReplTerminalConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,8 +45,8 @@ use std::fs;
 use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Debug, Default, Deserialize)]
@@ -481,7 +481,8 @@ fn run_source(
             mode: CArtifactMode::Generate,
             ..CImportCOptions::default()
         };
-        if let Err(err) = kain_c_ffi::import_libraries_for_source(&source, &import_options, &prepare)
+        if let Err(err) =
+            kain_c_ffi::import_libraries_for_source(&source, &import_options, &prepare)
         {
             eprintln!(" Failed to prepare C FFI source: {}", err);
             return false;
@@ -4323,14 +4324,15 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeRuntimeArchiveManifest, NativeRuntimeArchiver, NativeRuntimeArchiverFlavor,
-        NativeRuntimeLinkManifest, NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup,
-        ResolvedNativeRuntimeBundle, build_native_runtime_archive_fingerprint,
-        build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
-        default_native_runtime_link_libs, default_runtime_cache_root, load_native_runtime_manifest,
+        build_native_runtime_archive_fingerprint, build_native_runtime_compile_fingerprint,
+        build_native_runtime_object_cache_paths, default_native_runtime_link_libs,
+        default_runtime_cache_root, load_native_runtime_manifest,
         native_runtime_object_cache_is_fresh, parse_native_runtime_depfile,
         parse_native_toolchain_tuning, platform_link_libs, resolve_native_runtime_archive_groups,
         runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
+        NativeRuntimeArchiveManifest, NativeRuntimeArchiver, NativeRuntimeArchiverFlavor,
+        NativeRuntimeLinkManifest, NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup,
+        ResolvedNativeRuntimeBundle,
     };
     use std::{fs, path::Path, path::PathBuf, thread::sleep, time::Duration};
 
@@ -4355,11 +4357,9 @@ mod tests {
     #[test]
     fn windows_default_native_runtime_link_libs_do_not_force_opengl() {
         if cfg!(windows) {
-            assert!(
-                !default_native_runtime_link_libs()
-                    .iter()
-                    .any(|value| value == "opengl32")
-            );
+            assert!(!default_native_runtime_link_libs()
+                .iter()
+                .any(|value| value == "opengl32"));
         }
     }
 

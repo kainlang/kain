@@ -3,6 +3,69 @@
     {
       "active": true,
       "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "ptr",
+          "NULL"
+        ],
+        "op": "eq"
+      },
+      "expression": "ptr == NULL",
+      "id": "kain-ownership-ensure-imported.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 331,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 331,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 331
+      },
+      "symbol": "__kain_ownership_ensure_imported",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (ptr == NULL) {",
+      "variables": [
+        "NULL",
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "slot_token",
+        "role": "unsigned-int",
+        "type": "uint16_t"
+      },
+      "id": "kain-ownership-helper-allocation-state.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 351,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 85,
+        "end_line": 351,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 351
+      },
+      "symbol": "__kain_ownership_helper_allocation_state",
+      "text": "int __kain_ownership_helper_allocation_state(const void* ptr, uint16_t slot_token) {",
+      "variables": [
+        "slot_token"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "fact": {
         "parameter": "region_kind",
         "role": "signed-int",
@@ -11,15 +74,15 @@
       "id": "kain-ownership-register.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 228,
+      "line": 284,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 77,
-        "end_line": 228,
+        "end_line": 284,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 228
+        "start_line": 284
       },
       "symbol": "__kain_ownership_register",
       "text": "int __kain_ownership_register(void* ptr, int64_t region_kind, size_t size) {",
@@ -38,15 +101,15 @@
       "id": "kain-ownership-register.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 228,
+      "line": 284,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 77,
-        "end_line": 228,
+        "end_line": 284,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 228
+        "start_line": 284
       },
       "symbol": "__kain_ownership_register",
       "text": "int __kain_ownership_register(void* ptr, int64_t region_kind, size_t size) {",
@@ -65,15 +128,15 @@
       "id": "kain-ownership-register.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 228,
+      "line": 284,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 77,
-        "end_line": 228,
+        "end_line": 284,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 228
+        "start_line": 284
       },
       "symbol": "__kain_ownership_register",
       "text": "int __kain_ownership_register(void* ptr, int64_t region_kind, size_t size) {",
@@ -89,18 +152,150 @@
         "role": "size-like",
         "type": "size_t"
       },
+      "id": "kain-ownership-register-helper-allocation.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 312,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 100,
+        "end_line": 312,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 312
+      },
+      "symbol": "__kain_ownership_register_helper_allocation",
+      "text": "int __kain_ownership_register_helper_allocation(void* ptr, size_t size, uint16_t* out_slot_token) {",
+      "variables": [
+        "size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "size",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-ownership-register-helper-allocation.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 312,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 100,
+        "end_line": 312,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 312
+      },
+      "symbol": "__kain_ownership_register_helper_allocation",
+      "text": "int __kain_ownership_register_helper_allocation(void* ptr, size_t size, uint16_t* out_slot_token) {",
+      "variables": [
+        "size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "out_slot_token",
+        "role": "unsigned-int",
+        "type": "uint16_t*"
+      },
+      "id": "kain-ownership-register-helper-allocation.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 312,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 100,
+        "end_line": 312,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 312
+      },
+      "symbol": "__kain_ownership_register_helper_allocation",
+      "text": "int __kain_ownership_register_helper_allocation(void* ptr, size_t size, uint16_t* out_slot_token) {",
+      "variables": [
+        "out_slot_token"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "status",
+              "KAIN_OWNERSHIP_OK"
+            ],
+            "op": "eq"
+          },
+          {
+            "args": [
+              "out_slot_token",
+              "NULL"
+            ],
+            "op": "neq"
+          }
+        ],
+        "op": "and"
+      },
+      "expression": "status == KAIN_OWNERSHIP_OK && out_slot_token != NULL",
+      "id": "kain-ownership-register-helper-allocation.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 324,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 61,
+        "end_line": 324,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 324
+      },
+      "symbol": "__kain_ownership_register_helper_allocation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (status == KAIN_OWNERSHIP_OK && out_slot_token != NULL) {",
+      "variables": [
+        "KAIN_OWNERSHIP_OK",
+        "NULL",
+        "out_slot_token",
+        "status"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "size",
+        "role": "size-like",
+        "type": "size_t"
+      },
       "id": "kain-ownership-register-imported.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 235,
+      "line": 298,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 65,
-        "end_line": 235,
+        "end_line": 298,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 235
+        "start_line": 298
       },
       "symbol": "__kain_ownership_register_imported",
       "text": "int __kain_ownership_register_imported(void* ptr, size_t size) {",
@@ -119,15 +314,15 @@
       "id": "kain-ownership-register-imported.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 235,
+      "line": 298,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 65,
-        "end_line": 235,
+        "end_line": 298,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 235
+        "start_line": 298
       },
       "symbol": "__kain_ownership_register_imported",
       "text": "int __kain_ownership_register_imported(void* ptr, size_t size) {",
@@ -146,15 +341,15 @@
       "id": "kain-ownership-update.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 281,
+      "line": 432,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 73,
-        "end_line": 281,
+        "end_line": 432,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 281
+        "start_line": 432
       },
       "symbol": "__kain_ownership_update",
       "text": "int __kain_ownership_update(void* old_ptr, void* new_ptr, size_t size) {",
@@ -173,15 +368,15 @@
       "id": "kain-ownership-update.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 281,
+      "line": 432,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 73,
-        "end_line": 281,
+        "end_line": 432,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 281
+        "start_line": 432
       },
       "symbol": "__kain_ownership_update",
       "text": "int __kain_ownership_update(void* old_ptr, void* new_ptr, size_t size) {",
@@ -203,15 +398,15 @@
       "id": "if.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 179,
+      "line": 182,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 41,
-        "end_line": 179,
+        "end_line": 182,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 179
+        "start_line": 182
       },
       "symbol": "if",
       "tags": [
@@ -237,15 +432,15 @@
       "id": "if.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 200,
+      "line": 253,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 200,
+        "end_line": 253,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 200
+        "start_line": 253
       },
       "symbol": "if",
       "tags": [
@@ -270,15 +465,15 @@
       "id": "if.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 219,
+      "line": 272,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 41,
-        "end_line": 219,
+        "end_line": 272,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 219
+        "start_line": 272
       },
       "symbol": "if",
       "tags": [
@@ -301,49 +496,20 @@
       "id": "if.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 219,
+      "line": 272,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 41,
-        "end_line": 219,
+        "end_line": 272,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 219
+        "start_line": 272
       },
       "symbol": "if",
       "text": "if (index_status != KAIN_OWNERSHIP_OK) {",
       "variables": [
         "index_status"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "medium",
-      "expression": "kain_ownership_fail(region->state == KAIN_OWNERSHIP_STATE_DECAYED",
-      "id": "if.return-condition.5",
-      "kind": "return-condition",
-      "language": "c",
-      "line": 269,
-      "origin_class": "return-contract",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 73,
-        "end_line": 269,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 269
-      },
-      "symbol": "if",
-      "tags": [
-        "bounds"
-      ],
-      "text": "return kain_ownership_fail(region->state == KAIN_OWNERSHIP_STATE_DECAYED",
-      "variables": [
-        "KAIN_OWNERSHIP_STATE_DECAYED",
-        "kain_ownership_fail",
-        "region",
-        "state"
       ]
     },
     {
@@ -357,18 +523,18 @@
         "op": "neq"
       },
       "expression": "free_status != 0",
-      "id": "if.guard-condition.6",
+      "id": "if.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 411,
+      "line": 633,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 24,
-        "end_line": 411,
+        "end_line": 633,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 411
+        "start_line": 633
       },
       "symbol": "if",
       "tags": [
@@ -390,20 +556,54 @@
         "op": "lt"
       },
       "expression": "slot < 0",
-      "id": "kain-ownership-begin-collapse-unlocked.guard-condition.1",
+      "id": "kain-ownership-begin-collapse-registered-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 344,
+      "line": 551,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 344,
+        "end_line": 551,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 344
+        "start_line": 551
       },
-      "symbol": "kain_ownership_begin_collapse_unlocked",
+      "symbol": "kain_ownership_begin_collapse_registered_unlocked",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if (slot < 0) {",
+      "variables": [
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "slot",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "slot < 0",
+      "id": "kain-ownership-begin-collapse-slot-unlocked.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 530,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 530,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 530
+      },
+      "symbol": "kain_ownership_begin_collapse_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -419,20 +619,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_DECAYED",
-      "id": "kain-ownership-begin-collapse-unlocked.guard-condition.2",
+      "id": "kain-ownership-begin-collapse-slot-unlocked.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 349,
+      "line": 535,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 53,
-        "end_line": 349,
+        "end_line": 535,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 349
+        "start_line": 535
       },
-      "symbol": "kain_ownership_begin_collapse_unlocked",
+      "symbol": "kain_ownership_begin_collapse_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -450,20 +650,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_COLLAPSED",
-      "id": "kain-ownership-begin-collapse-unlocked.guard-condition.3",
+      "id": "kain-ownership-begin-collapse-slot-unlocked.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 352,
+      "line": 538,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 55,
-        "end_line": 352,
+        "end_line": 538,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 352
+        "start_line": 538
       },
-      "symbol": "kain_ownership_begin_collapse_unlocked",
+      "symbol": "kain_ownership_begin_collapse_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -481,20 +681,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0",
-      "id": "kain-ownership-begin-collapse-unlocked.guard-condition.4",
+      "id": "kain-ownership-begin-collapse-slot-unlocked.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 355,
+      "line": 541,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 80,
-        "end_line": 355,
+        "end_line": 541,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 355
+        "start_line": 541
       },
-      "symbol": "kain_ownership_begin_collapse_unlocked",
+      "symbol": "kain_ownership_begin_collapse_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -520,20 +720,54 @@
         "op": "lt"
       },
       "expression": "slot < 0",
-      "id": "kain-ownership-begin-observe-unlocked.guard-condition.1",
+      "id": "kain-ownership-begin-observe-registered-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 290,
+      "line": 462,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 290,
+        "end_line": 462,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 290
+        "start_line": 462
       },
-      "symbol": "kain_ownership_begin_observe_unlocked",
+      "symbol": "kain_ownership_begin_observe_registered_unlocked",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if (slot < 0) {",
+      "variables": [
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "slot",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "slot < 0",
+      "id": "kain-ownership-begin-observe-slot-unlocked.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 440,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 440,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 440
+      },
+      "symbol": "kain_ownership_begin_observe_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -549,20 +783,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_DECAYED",
-      "id": "kain-ownership-begin-observe-unlocked.guard-condition.2",
+      "id": "kain-ownership-begin-observe-slot-unlocked.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 295,
+      "line": 445,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 53,
-        "end_line": 295,
+        "end_line": 445,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 295
+        "start_line": 445
       },
-      "symbol": "kain_ownership_begin_observe_unlocked",
+      "symbol": "kain_ownership_begin_observe_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -580,20 +814,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_COLLAPSED",
-      "id": "kain-ownership-begin-observe-unlocked.guard-condition.3",
+      "id": "kain-ownership-begin-observe-slot-unlocked.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 298,
+      "line": 448,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 55,
-        "end_line": 298,
+        "end_line": 448,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 298
+        "start_line": 448
       },
-      "symbol": "kain_ownership_begin_observe_unlocked",
+      "symbol": "kain_ownership_begin_observe_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -611,20 +845,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->observers == UINT32_MAX",
-      "id": "kain-ownership-begin-observe-unlocked.guard-condition.4",
+      "id": "kain-ownership-begin-observe-slot-unlocked.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 301,
+      "line": 451,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 39,
-        "end_line": 301,
+        "end_line": 451,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 301
+        "start_line": 451
       },
-      "symbol": "kain_ownership_begin_observe_unlocked",
+      "symbol": "kain_ownership_begin_observe_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -649,20 +883,54 @@
         "op": "lt"
       },
       "expression": "slot < 0",
-      "id": "kain-ownership-decay-unlocked.guard-condition.1",
+      "id": "kain-ownership-decay-registered-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 394,
+      "line": 645,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 394,
+        "end_line": 645,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 394
+        "start_line": 645
       },
-      "symbol": "kain_ownership_decay_unlocked",
+      "symbol": "kain_ownership_decay_registered_unlocked",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if (slot < 0) {",
+      "variables": [
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "slot",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "slot < 0",
+      "id": "kain-ownership-decay-slot-unlocked.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 616,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 616,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 616
+      },
+      "symbol": "kain_ownership_decay_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -678,20 +946,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_DECAYED",
-      "id": "kain-ownership-decay-unlocked.guard-condition.2",
+      "id": "kain-ownership-decay-slot-unlocked.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 399,
+      "line": 621,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 53,
-        "end_line": 399,
+        "end_line": 621,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 399
+        "start_line": 621
       },
-      "symbol": "kain_ownership_decay_unlocked",
+      "symbol": "kain_ownership_decay_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -709,20 +977,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_COLLAPSED",
-      "id": "kain-ownership-decay-unlocked.guard-condition.3",
+      "id": "kain-ownership-decay-slot-unlocked.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 402,
+      "line": 624,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 55,
-        "end_line": 402,
+        "end_line": 624,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 402
+        "start_line": 624
       },
-      "symbol": "kain_ownership_decay_unlocked",
+      "symbol": "kain_ownership_decay_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -740,20 +1008,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0",
-      "id": "kain-ownership-decay-unlocked.guard-condition.4",
+      "id": "kain-ownership-decay-slot-unlocked.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 405,
+      "line": 627,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 80,
-        "end_line": 405,
+        "end_line": 627,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 405
+        "start_line": 627
       },
-      "symbol": "kain_ownership_decay_unlocked",
+      "symbol": "kain_ownership_decay_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -772,20 +1040,20 @@
       "active": true,
       "confidence": "high",
       "expression": "kain_ownership_region_is_heap(region)",
-      "id": "kain-ownership-decay-unlocked.guard-condition.5",
+      "id": "kain-ownership-decay-slot-unlocked.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 409,
+      "line": 631,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 45,
-        "end_line": 409,
+        "end_line": 631,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 409
+        "start_line": 631
       },
-      "symbol": "kain_ownership_decay_unlocked",
+      "symbol": "kain_ownership_decay_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -809,20 +1077,20 @@
         "op": "neq"
       },
       "expression": "free_status != 0",
-      "id": "kain-ownership-decay-unlocked.guard-condition.6",
+      "id": "kain-ownership-decay-slot-unlocked.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 411,
+      "line": 633,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 24,
-        "end_line": 411,
+        "end_line": 633,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 411
+        "start_line": 633
       },
-      "symbol": "kain_ownership_decay_unlocked",
+      "symbol": "kain_ownership_decay_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -845,20 +1113,54 @@
         "op": "lt"
       },
       "expression": "slot < 0",
-      "id": "kain-ownership-end-collapse-unlocked.guard-condition.1",
+      "id": "kain-ownership-end-collapse-registered-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 372,
+      "line": 591,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 372,
+        "end_line": 591,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 372
+        "start_line": 591
       },
-      "symbol": "kain_ownership_end_collapse_unlocked",
+      "symbol": "kain_ownership_end_collapse_registered_unlocked",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if (slot < 0) {",
+      "variables": [
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "slot",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "slot < 0",
+      "id": "kain-ownership-end-collapse-slot-unlocked.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 576,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 576,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 576
+      },
+      "symbol": "kain_ownership_end_collapse_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -874,20 +1176,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state != KAIN_OWNERSHIP_STATE_COLLAPSED",
-      "id": "kain-ownership-end-collapse-unlocked.guard-condition.2",
+      "id": "kain-ownership-end-collapse-slot-unlocked.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 377,
+      "line": 581,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 55,
-        "end_line": 377,
+        "end_line": 581,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 377
+        "start_line": 581
       },
-      "symbol": "kain_ownership_end_collapse_unlocked",
+      "symbol": "kain_ownership_end_collapse_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -912,20 +1214,54 @@
         "op": "lt"
       },
       "expression": "slot < 0",
-      "id": "kain-ownership-end-observe-unlocked.guard-condition.1",
+      "id": "kain-ownership-end-observe-registered-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 319,
+      "line": 505,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 319,
+        "end_line": 505,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 319
+        "start_line": 505
       },
-      "symbol": "kain_ownership_end_observe_unlocked",
+      "symbol": "kain_ownership_end_observe_registered_unlocked",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if (slot < 0) {",
+      "variables": [
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "slot",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "slot < 0",
+      "id": "kain-ownership-end-observe-slot-unlocked.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 487,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 487,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 487
+      },
+      "symbol": "kain_ownership_end_observe_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -941,20 +1277,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->state != KAIN_OWNERSHIP_STATE_OBSERVED || region->observers == 0",
-      "id": "kain-ownership-end-observe-unlocked.guard-condition.2",
+      "id": "kain-ownership-end-observe-slot-unlocked.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 324,
+      "line": 492,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 80,
-        "end_line": 324,
+        "end_line": 492,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 324
+        "start_line": 492
       },
-      "symbol": "kain_ownership_end_observe_unlocked",
+      "symbol": "kain_ownership_end_observe_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -973,20 +1309,20 @@
       "active": true,
       "confidence": "high",
       "expression": "region->observers == 0",
-      "id": "kain-ownership-end-observe-unlocked.guard-condition.3",
+      "id": "kain-ownership-end-observe-slot-unlocked.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 329,
+      "line": 497,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 30,
-        "end_line": 329,
+        "end_line": 497,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 329
+        "start_line": 497
       },
-      "symbol": "kain_ownership_end_observe_unlocked",
+      "symbol": "kain_ownership_end_observe_slot_unlocked",
       "tags": [
         "bitwise",
         "bounds",
@@ -1013,15 +1349,15 @@
       "id": "kain-ownership-find-free-slot.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 175,
+      "line": 178,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 23,
-        "end_line": 175,
+        "end_line": 178,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 175
+        "start_line": 178
       },
       "symbol": "kain_ownership_find_free_slot",
       "tags": [
@@ -1049,15 +1385,15 @@
       "id": "kain-ownership-find-free-slot.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 179,
+      "line": 182,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 41,
-        "end_line": 179,
+        "end_line": 182,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 179
+        "start_line": 182
       },
       "symbol": "kain_ownership_find_free_slot",
       "tags": [
@@ -1082,18 +1418,54 @@
         "op": "eq"
       },
       "expression": "ptr == NULL",
-      "id": "kain-ownership-find-slot.guard-condition.1",
+      "id": "kain-ownership-find-helper-slot-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 149,
+      "line": 226,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 19,
-        "end_line": 149,
+        "end_line": 226,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 149
+        "start_line": 226
+      },
+      "symbol": "kain_ownership_find_helper_slot_unlocked",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (ptr == NULL) {",
+      "variables": [
+        "NULL",
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "ptr",
+          "NULL"
+        ],
+        "op": "eq"
+      },
+      "expression": "ptr == NULL",
+      "id": "kain-ownership-find-slot.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 152,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 152,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 152
       },
       "symbol": "kain_ownership_find_slot",
       "tags": [
@@ -1122,15 +1494,15 @@
       "id": "kain-ownership-find-slot.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 158,
+      "line": 161,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 26,
-        "end_line": 158,
+        "end_line": 161,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 158
+        "start_line": 161
       },
       "symbol": "kain_ownership_find_slot",
       "tags": [
@@ -1152,15 +1524,15 @@
       "id": "kain-ownership-find-slot.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 162,
+      "line": 165,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 41,
-        "end_line": 162,
+        "end_line": 165,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 162
+        "start_line": 165
       },
       "symbol": "kain_ownership_find_slot",
       "tags": [
@@ -1178,19 +1550,166 @@
     {
       "active": true,
       "confidence": "high",
+      "fact": {
+        "parameter": "slot_token",
+        "role": "unsigned-int",
+        "type": "uint16_t"
+      },
+      "id": "kain-ownership-helper-slot-from-token-unlocked.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 207,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 98,
+        "end_line": 207,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 207
+      },
+      "symbol": "kain_ownership_helper_slot_from_token_unlocked",
+      "text": "static int kain_ownership_helper_slot_from_token_unlocked(const void* ptr, uint16_t slot_token) {",
+      "variables": [
+        "slot_token"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "ptr",
+              "NULL"
+            ],
+            "op": "eq"
+          },
+          {
+            "args": [
+              "slot_token",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "ptr == NULL || slot_token == 0u",
+      "id": "kain-ownership-helper-slot-from-token-unlocked.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 208,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 39,
+        "end_line": 208,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 208
+      },
+      "symbol": "kain_ownership_helper_slot_from_token_unlocked",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (ptr == NULL || slot_token == 0u) {",
+      "variables": [
+        "NULL",
+        "ptr",
+        "slot_token",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "slot",
+          "KAIN_OWNERSHIP_MAX_REGIONS"
+        ],
+        "op": "ge"
+      },
+      "expression": "slot >= KAIN_OWNERSHIP_MAX_REGIONS",
+      "id": "kain-ownership-helper-slot-from-token-unlocked.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 213,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 213,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 213
+      },
+      "symbol": "kain_ownership_helper_slot_from_token_unlocked",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (slot >= KAIN_OWNERSHIP_MAX_REGIONS) {",
+      "variables": [
+        "KAIN_OWNERSHIP_MAX_REGIONS",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!region->occupied || region->ptr != ptr || !kain_ownership_region_is_heap(region)",
+      "id": "kain-ownership-helper-slot-from-token-unlocked.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 218,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 89,
+        "end_line": 218,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 218
+      },
+      "symbol": "kain_ownership_helper_slot_from_token_unlocked",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!region->occupied || region->ptr != ptr || !kain_ownership_region_is_heap(region)) {",
+      "variables": [
+        "kain_ownership_region_is_heap",
+        "occupied",
+        "ptr",
+        "region"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "expression": "ptr == NULL || slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS",
       "id": "kain-ownership-index-insert-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 116,
+      "line": 119,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 79,
-        "end_line": 116,
+        "end_line": 119,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 116
+        "start_line": 119
       },
       "symbol": "kain_ownership_index_insert_unlocked",
       "tags": [
@@ -1234,15 +1753,15 @@
       "id": "kain-ownership-index-insert-unlocked.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 125,
+      "line": 128,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 52,
-        "end_line": 125,
+        "end_line": 128,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 125
+        "start_line": 128
       },
       "symbol": "kain_ownership_index_insert_unlocked",
       "tags": [
@@ -1269,15 +1788,15 @@
       "id": "kain-ownership-isolate-low-bit-u64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 94,
+      "line": 97,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 69,
-        "end_line": 94,
+        "end_line": 97,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 94
+        "start_line": 97
       },
       "symbol": "kain_ownership_isolate_low_bit_u64",
       "text": "static uint64_t kain_ownership_isolate_low_bit_u64(uint64_t value) {",
@@ -1292,15 +1811,15 @@
       "id": "kain-ownership-lock.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 44,
+      "line": 47,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 42,
-        "end_line": 44,
+        "end_line": 47,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 44
+        "start_line": 47
       },
       "symbol": "kain_ownership_lock",
       "tags": [
@@ -1323,15 +1842,15 @@
       "id": "kain-ownership-low-bit-index-u64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 98,
+      "line": 101,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 73,
-        "end_line": 98,
+        "end_line": 101,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 98
+        "start_line": 101
       },
       "symbol": "kain_ownership_low_bit_index_u64",
       "text": "static unsigned int kain_ownership_low_bit_index_u64(uint64_t one_hot) {",
@@ -1346,15 +1865,15 @@
       "id": "kain-ownership-low-bit-index-u64.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 109,
+      "line": 112,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 72,
-        "end_line": 109,
+        "end_line": 112,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 109
+        "start_line": 112
       },
       "symbol": "kain_ownership_low_bit_index_u64",
       "tags": [
@@ -1378,15 +1897,15 @@
       "id": "kain-ownership-rebuild-pointer-index-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 137,
+      "line": 140,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 45,
-        "end_line": 137,
+        "end_line": 140,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 137
+        "start_line": 140
       },
       "symbol": "kain_ownership_rebuild_pointer_index_unlocked",
       "tags": [
@@ -1408,15 +1927,15 @@
       "id": "kain-ownership-region-is-heap.return-condition.1",
       "kind": "return-condition",
       "language": "c",
-      "line": 188,
+      "line": 191,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 62,
-        "end_line": 188,
+        "end_line": 191,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 188
+        "start_line": 191
       },
       "symbol": "kain_ownership_region_is_heap",
       "tags": [
@@ -1434,263 +1953,6 @@
     {
       "active": true,
       "confidence": "high",
-      "fact": {
-        "parameter": "region_kind",
-        "role": "signed-int",
-        "type": "int64_t"
-      },
-      "id": "kain-ownership-register-unlocked.parameter-role.1",
-      "kind": "parameter-role",
-      "language": "c",
-      "line": 191,
-      "origin_class": "type-role-hint",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 91,
-        "end_line": 191,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 191
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "text": "static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size_t size) {",
-      "variables": [
-        "region_kind"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "low",
-      "fact": {
-        "parameter": "size",
-        "role": "size-like",
-        "type": "size_t"
-      },
-      "id": "kain-ownership-register-unlocked.parameter-role.2",
-      "kind": "parameter-role",
-      "language": "c",
-      "line": 191,
-      "origin_class": "naming-role-hint",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 91,
-        "end_line": 191,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 191
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "text": "static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size_t size) {",
-      "variables": [
-        "size"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "fact": {
-        "parameter": "size",
-        "role": "unsigned-size",
-        "type": "size_t"
-      },
-      "id": "kain-ownership-register-unlocked.parameter-role.3",
-      "kind": "parameter-role",
-      "language": "c",
-      "line": 191,
-      "origin_class": "type-role-hint",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 91,
-        "end_line": 191,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 191
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "text": "static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size_t size) {",
-      "variables": [
-        "size"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "ptr",
-          "NULL"
-        ],
-        "op": "eq"
-      },
-      "expression": "ptr == NULL",
-      "id": "kain-ownership-register-unlocked.guard-condition.4",
-      "kind": "guard-condition",
-      "language": "c",
-      "line": 193,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 19,
-        "end_line": 193,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 193
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if (ptr == NULL) {",
-      "variables": [
-        "NULL",
-        "ptr"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "slot",
-          0
-        ],
-        "op": "lt"
-      },
-      "expression": "slot < 0",
-      "id": "kain-ownership-register-unlocked.guard-condition.5",
-      "kind": "guard-condition",
-      "language": "c",
-      "line": 198,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 16,
-        "end_line": 198,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 198
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if (slot < 0) {",
-      "variables": [
-        "slot"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "slot",
-          0
-        ],
-        "op": "lt"
-      },
-      "expression": "slot < 0",
-      "id": "kain-ownership-register-unlocked.guard-condition.6",
-      "kind": "guard-condition",
-      "language": "c",
-      "line": 200,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 16,
-        "end_line": 200,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 200
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if (slot < 0) {",
-      "variables": [
-        "slot"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": "is_new_slot",
-      "expression": "is_new_slot",
-      "id": "kain-ownership-register-unlocked.guard-condition.7",
-      "kind": "guard-condition",
-      "language": "c",
-      "line": 213,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 19,
-        "end_line": 213,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 213
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if (is_new_slot) {",
-      "variables": [
-        "is_new_slot"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "index_status",
-          "KAIN_OWNERSHIP_OK"
-        ],
-        "op": "neq"
-      },
-      "expression": "index_status != KAIN_OWNERSHIP_OK",
-      "id": "kain-ownership-register-unlocked.guard-condition.8",
-      "kind": "guard-condition",
-      "language": "c",
-      "line": 219,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 41,
-        "end_line": 219,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 219
-      },
-      "symbol": "kain_ownership_register_unlocked",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if (index_status != KAIN_OWNERSHIP_OK) {",
-      "variables": [
-        "KAIN_OWNERSHIP_OK",
-        "index_status"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
       "dsl_expression": {
         "args": [
           "slot",
@@ -1702,15 +1964,15 @@
       "id": "kain-ownership-state-unlocked.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 430,
+      "line": 671,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 430,
+        "end_line": 671,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 430
+        "start_line": 671
       },
       "symbol": "kain_ownership_state_unlocked",
       "tags": [
@@ -1724,6 +1986,100 @@
     },
     {
       "active": true,
+      "confidence": "high",
+      "expression": "region->state == KAIN_OWNERSHIP_STATE_DECAYED",
+      "id": "kain-ownership-status-for-busy-region.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 195,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 195,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 195
+      },
+      "symbol": "kain_ownership_status_for_busy_region",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {",
+      "variables": [
+        "KAIN_OWNERSHIP_STATE_DECAYED",
+        "region",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "region->state == KAIN_OWNERSHIP_STATE_COLLAPSED",
+      "id": "kain-ownership-status-for-busy-region.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 198,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 198,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 198
+      },
+      "symbol": "kain_ownership_status_for_busy_region",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {",
+      "variables": [
+        "KAIN_OWNERSHIP_STATE_COLLAPSED",
+        "region",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0",
+      "id": "kain-ownership-status-for-busy-region.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 201,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+      "span": {
+        "end_col": 80,
+        "end_line": 201,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
+        "start_col": 1,
+        "start_line": 201
+      },
+      "symbol": "kain_ownership_status_for_busy_region",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0) {",
+      "variables": [
+        "KAIN_OWNERSHIP_STATE_OBSERVED",
+        "observers",
+        "region",
+        "state"
+      ]
+    },
+    {
+      "active": true,
       "confidence": "low",
       "fact": {
         "parameter": "size",
@@ -1733,15 +2089,15 @@
       "id": "kain-ownership-update-unlocked.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 246,
+      "line": 393,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 87,
-        "end_line": 246,
+        "end_line": 393,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 246
+        "start_line": 393
       },
       "symbol": "kain_ownership_update_unlocked",
       "text": "static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t size) {",
@@ -1760,15 +2116,15 @@
       "id": "kain-ownership-update-unlocked.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 246,
+      "line": 393,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 87,
-        "end_line": 246,
+        "end_line": 393,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 246
+        "start_line": 393
       },
       "symbol": "kain_ownership_update_unlocked",
       "text": "static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t size) {",
@@ -1790,15 +2146,15 @@
       "id": "kain-ownership-update-unlocked.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 247,
+      "line": 394,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 23,
-        "end_line": 247,
+        "end_line": 394,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 247
+        "start_line": 394
       },
       "symbol": "kain_ownership_update_unlocked",
       "tags": [
@@ -1827,15 +2183,15 @@
       "id": "kain-ownership-update-unlocked.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 250,
+      "line": 397,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 23,
-        "end_line": 250,
+        "end_line": 397,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 250
+        "start_line": 397
       },
       "symbol": "kain_ownership_update_unlocked",
       "tags": [
@@ -1864,15 +2220,15 @@
       "id": "kain-ownership-update-unlocked.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 259,
+      "line": 409,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 16,
-        "end_line": 259,
+        "end_line": 409,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 259
+        "start_line": 409
       },
       "symbol": "kain_ownership_update_unlocked",
       "tags": [
@@ -1893,15 +2249,15 @@
       "id": "kain-ownership-update-unlocked.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 268,
+      "line": 421,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
       "span": {
         "end_col": 76,
-        "end_line": 268,
+        "end_line": 421,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
         "start_col": 1,
-        "start_line": 268
+        "start_line": 421
       },
       "symbol": "kain_ownership_update_unlocked",
       "tags": [
@@ -1917,42 +2273,10 @@
         "region",
         "state"
       ]
-    },
-    {
-      "active": true,
-      "confidence": "medium",
-      "expression": "kain_ownership_fail(region->state == KAIN_OWNERSHIP_STATE_DECAYED",
-      "id": "kain-ownership-update-unlocked.return-condition.7",
-      "kind": "return-condition",
-      "language": "c",
-      "line": 269,
-      "origin_class": "return-contract",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-      "span": {
-        "end_col": 73,
-        "end_line": 269,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
-        "start_col": 1,
-        "start_line": 269
-      },
-      "symbol": "kain_ownership_update_unlocked",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "return kain_ownership_fail(region->state == KAIN_OWNERSHIP_STATE_DECAYED",
-      "variables": [
-        "KAIN_OWNERSHIP_STATE_DECAYED",
-        "kain_ownership_fail",
-        "region",
-        "state"
-      ]
     }
   ],
   "language": "c",
-  "source_hash": "2c1a025c5d0bc274e91a615d532e8e878acfbfe99aa22018383568ad13de46d2",
+  "source_hash": "29b412f02a1293e689ad8a68dcef2ecc318854f4e45d70bbd359aecdb45fd285",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c",
   "version": 1
 }

@@ -829,6 +829,8 @@ impl CppGen {
                 )
             }
 
+            Expr::Teleport { value, .. } => self.gen_expr(value),
+
             Expr::Range {
                 start,
                 end,

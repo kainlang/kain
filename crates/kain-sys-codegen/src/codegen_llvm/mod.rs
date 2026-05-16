@@ -1165,6 +1165,7 @@ impl LlvmGenerator {
                 !Self::expr_is_exact_target_pointer(decay_target, target)
                     && Self::expr_is_safe_for_ephemeral_local(decay_target, target)
             }
+            Expr::Teleport { value, .. } => Self::expr_is_safe_for_ephemeral_local(value, target),
             Expr::Spawn { init, .. } => init
                 .iter()
                 .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target)),
@@ -4094,13 +4095,15 @@ impl LlvmGenerator {
 
         let message_name = match &args[1].value {
             Expr::String(value, _) => value.clone(),
-            _ => return Err(KainError::codegen(
-                format!(
+            _ => {
+                return Err(KainError::codegen(
+                    format!(
                     "{} currently requires a literal actor message name under the native LLVM lane",
                     builtin_name
                 ),
-                span,
-            )),
+                    span,
+                ))
+            }
         };
 
         let request_payload_name = format!("{}_{}", actor_name, message_name);
@@ -7120,6 +7123,7 @@ impl LlvmGenerator {
                 "__kain_ownership_end_collapse_helper",
             ),
             Expr::Decay { target, .. } => self.compile_decay_expr(target),
+            Expr::Teleport { value, .. } => self.compile_expr(value),
             Expr::Unary { op, operand, span } => {
                 let (val, ty) = self.compile_expr(operand)?;
                 match op {

@@ -857,6 +857,7 @@ impl CGen {
                 self.map_type(target)?,
                 self.gen_expr(value)?
             )),
+            Expr::Teleport { value, .. } => self.gen_expr(value),
             Expr::Paren(inner, _) => Ok(format!("({})", self.gen_expr(inner)?)),
             Expr::Return(expr, _) => {
                 if let Some(expr) = expr {
@@ -980,6 +981,7 @@ impl CGen {
             Expr::Bool(_, _) => Ok("bool".to_string()),
             Expr::Ident(name, _) if self.world_names.contains(name) => Ok(format!("{name}*")),
             Expr::Struct { name, .. } => Ok(name.clone()),
+            Expr::Teleport { value, .. } => self.infer_expr_type(value),
             Expr::Spawn { .. } | Expr::SendMsg { .. } => Ok("int64_t".to_string()),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {

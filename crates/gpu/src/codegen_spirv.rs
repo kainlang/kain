@@ -2598,6 +2598,7 @@ fn expr_kind_name(expr: &Expr) -> &'static str {
         Expr::Observe { .. } => "Observe",
         Expr::Collapse { .. } => "Collapse",
         Expr::Decay { .. } => "Decay",
+        Expr::Teleport { .. } => "Teleport",
         Expr::Cast { .. } => "Cast",
         Expr::Try(..) => "Try",
         Expr::Await(..) => "Await",

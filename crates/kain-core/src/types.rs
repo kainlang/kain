@@ -2,7 +2,7 @@
 
 use crate::ast::*;
 use crate::diagnostics::SpanMapper;
-use crate::effects::{check_effect_call, EffectSet};
+use crate::effects::{check_effect_call, Effect, EffectSet};
 use crate::error::{KainError, KainResult};
 use crate::lexer::Lexer;
 use crate::module_resolution::{resolve_filesystem_module_file, resolve_stdlib_module_file};
@@ -59,10 +59,12 @@ pub enum TypedItem {
     Function(TypedFunction),
     Patch(TypedPatch),
     Law(TypedLaw),
+    Axiom(TypedAxiom),
     Converge(TypedConverge),
     World(TypedWorld),
     Entangle(TypedEntangle),
     Orchestrate(TypedOrchestrate),
+    Pulse(TypedPulse),
     Component(TypedComponent),
     Shader(TypedShader),
     Actor(TypedActor),
@@ -144,6 +146,16 @@ pub struct TypedLaw {
     pub ast: LawDef,
     pub resolved_type: ResolvedType,
     pub effects: EffectSet,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedAxiom {
+    pub ast: AxiomDef,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedPulse {
+    pub ast: PulseDef,
 }
 
 #[derive(Debug, Clone)]
@@ -322,8 +334,10 @@ struct SemanticContext {
 /// Type environment for checking
 pub struct TypeEnv<'a> {
     scopes: Vec<HashMap<String, ResolvedType>>,
+    moved_scopes: Vec<HashSet<String>>,
     types: HashMap<String, ResolvedType>,
     globals: HashMap<String, ResolvedType>,
+    moved_globals: HashSet<String>,
     methods: HashMap<String, HashMap<String, ResolvedType>>,
     enum_variants: HashMap<String, HashMap<String, EnumVariantTypeInfo>>,
     entangle_endpoints: HashSet<String>,
@@ -335,8 +349,10 @@ impl<'a> TypeEnv<'a> {
     pub fn new(span_mapper: &'a SpanMapper, filename: &'a str) -> Self {
         let mut env = Self {
             scopes: vec![HashMap::new()],
+            moved_scopes: vec![HashSet::new()],
             types: HashMap::new(),
             globals: HashMap::new(),
+            moved_globals: HashSet::new(),
             methods: HashMap::new(),
             enum_variants: HashMap::new(),
             entangle_endpoints: HashSet::new(),
@@ -475,19 +491,25 @@ impl<'a> TypeEnv<'a> {
 
     pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
+        self.moved_scopes.push(HashSet::new());
     }
 
     pub fn pop_scope(&mut self) {
         self.scopes.pop();
+        self.moved_scopes.pop();
     }
 
     pub fn define(&mut self, name: String, ty: ResolvedType) {
+        if let Some(moved) = self.moved_scopes.last_mut() {
+            moved.remove(&name);
+        }
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(name, ty);
         }
     }
 
     pub fn define_global(&mut self, name: String, ty: ResolvedType) {
+        self.moved_globals.remove(&name);
         self.globals.insert(name, ty);
     }
 
@@ -505,6 +527,28 @@ impl<'a> TypeEnv<'a> {
             }
         }
         self.globals.get(name).or_else(|| self.types.get(name))
+    }
+
+    pub fn is_moved(&self, name: &str) -> bool {
+        self.moved_scopes
+            .iter()
+            .rev()
+            .any(|moved_scope| moved_scope.contains(name))
+            || self.moved_globals.contains(name)
+    }
+
+    pub fn mark_moved(&mut self, name: &str) {
+        for index in (0..self.scopes.len()).rev() {
+            if self.scopes[index].contains_key(name) {
+                if let Some(moved_scope) = self.moved_scopes.get_mut(index) {
+                    moved_scope.insert(name.to_string());
+                }
+                return;
+            }
+        }
+        if self.globals.contains_key(name) {
+            self.moved_globals.insert(name.to_string());
+        }
     }
 
     pub fn lookup_type(&self, name: &str) -> Option<&ResolvedType> {
@@ -2448,6 +2492,9 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 function_signature(env, &law_function_view(law), None)?,
             );
         }
+        Item::Axiom(axiom) => {
+            env.define_global(axiom.name.clone(), ResolvedType::Unit);
+        }
         Item::Converge(converge) => {
             env.define_global(
                 converge.name.clone(),
@@ -2468,6 +2515,9 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 orchestrate.name.clone(),
                 function_signature(env, &orchestrate_function_view(orchestrate), None)?,
             );
+        }
+        Item::Pulse(pulse) => {
+            env.define_global(pulse.name.clone(), ResolvedType::Unit);
         }
         Item::Const(c) => {
             env.define_global(c.name.clone(), resolve_type_in_env(env, &c.ty)?);
@@ -2651,6 +2701,8 @@ fn select_filesystem_import_type_items(
 fn importable_item_name(item: &Item) -> Option<&str> {
     match item {
         Item::Function(f) => Some(&f.name),
+        Item::Axiom(axiom) => Some(&axiom.name),
+        Item::Pulse(pulse) => Some(&pulse.name),
         Item::Component(c) => Some(&c.name),
         Item::Struct(s) => Some(&s.name),
         Item::Enum(e) => Some(&e.name),
@@ -2673,6 +2725,8 @@ fn apply_import_alias_for_type_registration(
 
     match &mut item {
         Item::Function(f) => f.name = alias.to_string(),
+        Item::Axiom(axiom) => axiom.name = alias.to_string(),
+        Item::Pulse(pulse) => pulse.name = alias.to_string(),
         Item::Component(c) => c.name = alias.to_string(),
         Item::Struct(s) => s.name = alias.to_string(),
         Item::Enum(e) => e.name = alias.to_string(),
@@ -2892,12 +2946,14 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Function(f) => Ok(TypedItem::Function(check_function(env, f)?)),
         Item::Patch(patch) => Ok(TypedItem::Patch(check_patch(env, patch)?)),
         Item::Law(law) => Ok(TypedItem::Law(check_law(env, law)?)),
+        Item::Axiom(axiom) => Ok(TypedItem::Axiom(check_axiom(env, axiom)?)),
         Item::Converge(converge) => Ok(TypedItem::Converge(check_converge(env, converge)?)),
         Item::World(world) => Ok(TypedItem::World(check_world(env, world)?)),
         Item::Entangle(entangle) => Ok(TypedItem::Entangle(check_entangle(env, entangle)?)),
         Item::Orchestrate(orchestrate) => {
             Ok(TypedItem::Orchestrate(check_orchestrate(env, orchestrate)?))
         }
+        Item::Pulse(pulse) => Ok(TypedItem::Pulse(check_pulse(env, pulse)?)),
         Item::Struct(s) => Ok(TypedItem::Struct(check_struct(env, s)?)),
         Item::Enum(e) => Ok(TypedItem::Enum(check_enum(env, e)?)),
         Item::Trait(t) => Ok(TypedItem::Trait(TypedTrait { ast: t.clone() })),
@@ -3322,6 +3378,102 @@ fn check_law(env: &mut TypeEnv, law: &LawDef) -> KainResult<TypedLaw> {
     })
 }
 
+fn check_axiom(env: &mut TypeEnv, axiom: &AxiomDef) -> KainResult<TypedAxiom> {
+    if axiom.predicates.is_empty() {
+        return Err(env.type_error(
+            format!(
+                "axiom '{}' must declare at least one machine predicate",
+                axiom.name
+            ),
+            axiom.span,
+        ));
+    }
+    if axiom.guarantees.is_empty() {
+        return Err(env.type_error(
+            format!("axiom '{}' must declare at least one guarantee", axiom.name),
+            axiom.span,
+        ));
+    }
+    if axiom.fallback.as_deref().map(str::is_empty).unwrap_or(true) {
+        return Err(env.type_error(
+            format!(
+                "axiom '{}' must declare a portable fallback so unsupported machines stay sound",
+                axiom.name
+            ),
+            axiom.span,
+        ));
+    }
+
+    let mut seen_predicates = HashSet::new();
+    for predicate in &axiom.predicates {
+        let key = (predicate.kind(), predicate.value().to_string());
+        if !seen_predicates.insert(key) {
+            return Err(env.type_error(
+                format!(
+                    "axiom '{}' repeats predicate {}",
+                    axiom.name,
+                    predicate.authored()
+                ),
+                axiom.span,
+            ));
+        }
+    }
+
+    Ok(TypedAxiom { ast: axiom.clone() })
+}
+
+fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
+    validate_pulse_duration(env, &pulse.interval, "pulse interval")?;
+    if let Some(jitter) = &pulse.jitter {
+        validate_pulse_duration(env, jitter, "pulse jitter")?;
+    }
+
+    env.push_scope();
+    env.define("pulse_tick".to_string(), ResolvedType::Int(IntSize::I64));
+    env.define("pulse_dt_ms".to_string(), ResolvedType::Int(IntSize::I64));
+    env.define("pulse_missed".to_string(), ResolvedType::Int(IntSize::I64));
+    let ctx = SemanticContext {
+        function_name: pulse.name.clone(),
+        return_type: ResolvedType::Unit,
+        effects: EffectSet::new()
+            .with(Effect::IO)
+            .with(Effect::Async)
+            .with(Effect::GPU)
+            .with(Effect::Reactive)
+            .with(Effect::Unsafe)
+            .with(Effect::Alloc)
+            .with(Effect::Panic),
+    };
+    check_block_semantics(env, &pulse.body, &ctx)?;
+    env.pop_scope();
+
+    Ok(TypedPulse { ast: pulse.clone() })
+}
+
+fn validate_pulse_duration(
+    env: &TypeEnv<'_>,
+    duration: &PulseDuration,
+    label: &str,
+) -> KainResult<()> {
+    if duration.value <= 0 {
+        return Err(env.type_error(format!("{label} must be greater than zero"), duration.span));
+    }
+    if !pulse_duration_unit_is_valid(&duration.unit) {
+        return Err(env.type_error(
+            format!(
+                "{label} uses unsupported unit '{}'; expected ns, us, ms, s, tick, or ticks",
+                duration.unit
+            ),
+            duration.span,
+        ));
+    }
+    Ok(())
+}
+
+fn pulse_duration_unit_is_valid(unit: &str) -> bool {
+    matches!(unit, "ns" | "us" | "ms" | "s" | "tick" | "ticks")
+}
+
 fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
     let resolved_type = function_signature(env, &converge_dispatcher_view(converge), None)?;
     let expected_signature = resolved_type.clone();
@@ -3686,6 +3838,7 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
         | Expr::Decay {
             target: pointer, ..
         }
+        | Expr::Teleport { value: pointer, .. }
         | Expr::Cast { value: pointer, .. }
         | Expr::Comptime(pointer, _) => collect_patch_mutation_paths_from_expr(pointer, output),
         Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
@@ -3903,6 +4056,7 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
         | Expr::Decay {
             target: pointer, ..
         } => expr_requires_best_effort_patch_mode(pointer),
+        Expr::Teleport { .. } => true,
         Expr::MemStore { pointer, value, .. } => {
             expr_requires_best_effort_patch_mode(pointer)
                 || expr_requires_best_effort_patch_mode(value)
@@ -4132,7 +4286,8 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         Expr::MemLoad { pointer, .. }
         | Expr::Decay {
             target: pointer, ..
-        } => first_stage_call_in_expr(pointer),
+        }
+        | Expr::Teleport { value: pointer, .. } => first_stage_call_in_expr(pointer),
         Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
             first_stage_call_in_expr(target).or_else(|| first_stage_call_in_expr(body))
         }
@@ -4480,10 +4635,12 @@ fn item_span(item: &Item) -> Span {
         Item::Function(f) => f.span,
         Item::Patch(patch) => patch.span,
         Item::Law(law) => law.span,
+        Item::Axiom(axiom) => axiom.span,
         Item::Converge(converge) => converge.span,
         Item::World(world) => world.span,
         Item::Entangle(entangle) => entangle.span,
         Item::Orchestrate(orchestrate) => orchestrate.span,
+        Item::Pulse(pulse) => pulse.span,
         Item::Struct(s) => s.span,
         Item::Enum(e) => e.span,
         Item::Trait(t) => t.span,
@@ -4806,10 +4963,20 @@ fn infer_expr_type(
         Expr::String(_, _) | Expr::FString(_, _) => Ok(ResolvedType::String),
         Expr::Bool(_, _) => Ok(ResolvedType::Bool),
         Expr::None(_) => Ok(ResolvedType::Option(Box::new(ResolvedType::Unknown))),
-        Expr::Ident(name, span) => env
-            .lookup(name)
-            .cloned()
-            .ok_or_else(|| env.type_error(format!("Unknown identifier '{}'", name), *span)),
+        Expr::Ident(name, span) => {
+            if env.is_moved(name) {
+                return Err(env.type_error(
+                    format!(
+                        "Identifier '{}' was moved by teleport and cannot be used again",
+                        name
+                    ),
+                    *span,
+                ));
+            }
+            env.lookup(name)
+                .cloned()
+                .ok_or_else(|| env.type_error(format!("Unknown identifier '{}'", name), *span))
+        }
         Expr::Paren(inner, _) => infer_expr_type(env, inner, ctx),
         Expr::Block(block, _) => {
             let block_ctx = ctx.cloned().unwrap_or(SemanticContext {
@@ -5522,6 +5689,29 @@ fn infer_expr_type(
             validate_ownership_target(env, target, DECAY_KEYWORD, *span)?;
             Ok(ResolvedType::Unit)
         }
+        Expr::Teleport {
+            value,
+            source_world,
+            target_world,
+            channel,
+            span,
+        } => {
+            let value_ty = infer_expr_type(env, value, ctx)?;
+            ensure_teleport_world_reference(env, source_world, "source", *span)?;
+            ensure_teleport_world_reference(env, target_world, "target", *span)?;
+            if source_world == target_world {
+                return Err(
+                    env.type_error("teleport requires distinct source and target worlds", *span)
+                );
+            }
+            if channel.as_ref().is_some_and(|name| name.trim().is_empty()) {
+                return Err(env.type_error("teleport channel cannot be empty", *span));
+            }
+            if let Expr::Ident(name, _) = value.as_ref() {
+                env.mark_moved(name);
+            }
+            Ok(value_ty)
+        }
         Expr::Cast { target, .. } => resolve_type_in_env(env, target),
         Expr::Try(value, span) => {
             let value_ty = infer_expr_type(env, value, ctx)?;
@@ -5617,6 +5807,25 @@ fn infer_expr_type(
         }
         Expr::Break(_, _) | Expr::Continue(_) => Ok(ResolvedType::Never),
     }
+}
+
+fn ensure_teleport_world_reference(
+    env: &TypeEnv<'_>,
+    world_name: &str,
+    label: &str,
+    span: Span,
+) -> KainResult<()> {
+    if matches!(
+        env.lookup_type(world_name),
+        Some(ResolvedType::Struct(_, _))
+    ) || matches!(env.lookup(world_name), Some(ResolvedType::Struct(_, _)))
+    {
+        return Ok(());
+    }
+    Err(env.type_error(
+        format!("teleport {label} world '{}' is not declared", world_name),
+        span,
+    ))
 }
 
 fn validate_ownership_target(
@@ -5796,7 +6005,8 @@ fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
         Expr::MemLoad { pointer, .. }
         | Expr::Decay {
             target: pointer, ..
-        } => ownership_expr_contains_early_exit(pointer),
+        }
+        | Expr::Teleport { value: pointer, .. } => ownership_expr_contains_early_exit(pointer),
         Expr::MemStore { pointer, value, .. } => {
             ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(value)
         }

@@ -35,7 +35,7 @@ description: Use when adding, changing, debugging, validating, or reviewing Kain
 - `crates/kain-core/src/types.rs`: validates pointer-like targets and rejects unbalanced scoped exits.
 - `crates/kain-core/src/runtime.rs`: implements interpreter-visible ownership guards.
 - `crates/kain-core/src/runtime_contract.rs`: emits the `memory.ownership` capability when functions use ownership expressions.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: lowers ownership expressions to checked native runtime calls. The current hot path is split by provenance: imported or unknown pointers go through `__kain_ownership_ensure_imported(...)`, helper-owned allocations use `__kain_ownership_*_helper(...)`, and fresh non-escaping single-cell helper locals may take an `EphemeralLocal` lane that erases heap/runtime ownership protocol into stack-backed byte storage plus direct load/store lowering.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: lowers ownership expressions to checked native runtime calls. The current hot path is split by provenance: imported or unknown pointers go through `__kain_ownership_ensure_imported(...)`, helper-owned allocations use `__kain_ownership_*_helper(...)`, and fresh non-escaping single-cell helper locals may take an `EphemeralLocal` lane that erases heap/runtime ownership protocol into stack-backed byte storage plus direct load/store lowering. If the first ownership touch is a full-width dominating store before any read, that lane may also elide the fresh `zeroinitializer` store entirely.
 - `runtime/native/include/kain_runtime_ownership.h` and `runtime/native/src/core/kain_runtime_ownership.c`: native ownership ABI and guarded registry.
 - `runtime/native/include/kain_runtime_memory.h` and `runtime/native/src/core/kain_runtime_memory.c`: helper allocation header shape, heap allocation/realloc/free bridge, and the packed helper slot-token fast path.
 
@@ -45,6 +45,7 @@ description: Use when adding, changing, debugging, validating, or reviewing Kain
 - Helper-owned heap allocations now cache `slot + 1` in the low 16 bits of the allocation header's `magic_and_slot` word. That keeps the header at 16 bytes and lets helper-only `observe`/`collapse`/`decay` resolve helper-owned regions directly instead of re-hashing the pointer on every runtime call.
 - Imported or stack/FFI pointers must stay on the registry-only path. Do not reintroduce helper-header probing on generic ownership calls: the solver already found a witness where a fake helper-looking prefix can make a generic prepare step succeed without making the later ownership operation safe.
 - Ephemeral-local erasure is only legal when the compiler can prove a fresh single-cell helper alloc never escapes and is only touched through a balanced `collapse -> observe -> decay` ownership trace. If the trace shape drifts, fall back to helper-owned or imported runtime paths instead of widening the erasure contract by guesswork.
+- Zero-init elision inside the ephemeral-local lane is stricter still. Only skip the initial zero-fill when the first ownership touch is a `collapse` whose first operation is a full-width store to the exact cell and no earlier statement can observe the fresh zeroed state. Read-before-write shapes must keep the zero-init.
 - Free region discovery uses 64-bit occupancy words plus a de Bruijn low-bit decoder. If `KAIN_OWNERSHIP_MAX_REGIONS` changes, revisit the occupancy word count, pointer-index capacity, and experimental SMT proofs together.
 - Realloc/update rebuilds the pointer index after changing a region pointer. Keep that rebuild unless a deletion/tombstone scheme is added and proved.
 - The current experimental arithmetic proofs live in `runtime/native/src/core/z3/proofs-experimental/ownership-*.smt2`.
@@ -60,16 +61,18 @@ description: Use when adding, changing, debugging, validating, or reviewing Kain
 ## Validation
 
 - `cargo fmt -p kain-core -p kain-sys-codegen -p kain-ownership`
-- `cargo check -p kain-core -p kain-sys-codegen --target-dir target\codex-ownership-check`
-- `cargo test -p kain-ownership --target-dir target\codex-ownership-check -- --nocapture`
-- `cargo test -p kain-core --test ownership_keywords_test --target-dir target\codex-ownership-check -- --nocapture`
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards --target-dir target\codex-ownership-check -- --nocapture`
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_consumes_lowered_alloc_and_realloc_helpers --target-dir target\codex-ownership-check -- --nocapture`
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_ephemeral_single_cell_ownership_to_local_storage --target-dir target\\codex-ownership-check -- --nocapture`
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage --target-dir target\\codex-ownership-check -- --nocapture`
+- `cargo check -p kain-core -p kain-sys-codegen --target-dir target\\codex-ownership-check`
+- `cargo test -p kain-ownership --target-dir target\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-core --test ownership_keywords_test --target-dir target\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards --target-dir target\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_consumes_lowered_alloc_and_realloc_helpers --target-dir target\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_ephemeral_single_cell_ownership_to_local_storage --target-dir target\\\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage --target-dir target\\\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_keeps_ephemeral_zero_init_when_first_use_is_read --target-dir target\\\\codex-ownership-check -- --nocapture`
 - `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c`
-- `clang -I runtime/native/include runtime/native/tests/test_ownership_memory.c runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c -o target/codex-ownership-check/native_test_ownership_memory.exe; target\codex-ownership-check\native_test_ownership_memory.exe`
+- `clang -I runtime/native/include runtime/native/tests/test_ownership_memory.c runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c -o target/codex-ownership-check/native_test_ownership_memory.exe; target\\codex-ownership-check\\native_test_ownership_memory.exe`
 - `py -3 tools/bazel/sync_native_runtime_builds.py --check`
 - `bazel test //runtime:native_test_ownership_memory`
-- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-ownership", lane="full")`
-- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="ownership")`
+- `mcp__z3_local__.run_proof_pack(path=\"D:\\Kain-Lang\\crates\\kain-ownership\", lane=\"full\")`
+- `mcp__z3_local__.run_proof_pack(path=\"D:\\Kain-Lang\\runtime\\native\\src\\core\", lane=\"ownership\")`
+- `mcp__z3_local__.run_proof_pack(path=\"D:\\Kain-Lang\\crates\\kain-sys-codegen\\z3\", lane=\"llvm\")`

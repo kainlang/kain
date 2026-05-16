@@ -3812,6 +3812,7 @@ impl Env {
             Item::Law(law) => {
                 self.register_law_value(law);
             }
+            Item::Axiom(_) => {}
             Item::Converge(converge) => {
                 self.register_converge_value(converge);
             }
@@ -3824,6 +3825,7 @@ impl Env {
             Item::Orchestrate(orchestrate) => {
                 self.register_orchestrate_value(orchestrate);
             }
+            Item::Pulse(_) => {}
             Item::Component(c) => self.register_component(c.clone()),
             Item::Struct(s) => {
                 let field_names = s.fields.iter().map(|field| field.name.clone()).collect();
@@ -3928,6 +3930,7 @@ impl Env {
             TypedItem::Law(law) => {
                 self.register_law_value(&law.ast);
             }
+            TypedItem::Axiom(_) => {}
             TypedItem::Converge(converge) => {
                 self.register_converge_value(&converge.ast);
             }
@@ -3940,6 +3943,7 @@ impl Env {
             TypedItem::Orchestrate(orchestrate) => {
                 self.register_orchestrate_value(&orchestrate.ast);
             }
+            TypedItem::Pulse(_) => {}
             TypedItem::Component(c) => self.register_component(c.ast.clone()),
             TypedItem::Struct(s) => {
                 let field_names = s
@@ -4332,6 +4336,8 @@ fn load_inline_module(env: &mut Env, u: &Use) -> KainResult<Option<Vec<Item>>> {
 fn inline_item_name(item: &Item) -> Option<&str> {
     match item {
         Item::Function(f) => Some(&f.name),
+        Item::Axiom(axiom) => Some(&axiom.name),
+        Item::Pulse(pulse) => Some(&pulse.name),
         Item::Component(c) => Some(&c.name),
         Item::Struct(s) => Some(&s.name),
         Item::Enum(e) => Some(&e.name),
@@ -4351,6 +4357,8 @@ fn apply_use_alias(mut item: Item, alias: Option<&str>) -> KainResult<Item> {
 
     match &mut item {
         Item::Function(f) => f.name = alias.to_string(),
+        Item::Axiom(axiom) => axiom.name = alias.to_string(),
+        Item::Pulse(pulse) => pulse.name = alias.to_string(),
         Item::Component(c) => c.name = alias.to_string(),
         Item::Struct(s) => s.name = alias.to_string(),
         Item::Enum(e) => e.name = alias.to_string(),
@@ -5965,6 +5973,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             )?;
             Ok(Value::Unit)
         }
+        Expr::Teleport { value, .. } => eval_expr(env, value),
 
         Expr::Paren(inner, _) => eval_expr(env, inner),
 
@@ -7017,6 +7026,7 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
         | Expr::Decay {
             target: pointer, ..
         } => expr_contains_runtime_best_effort_effects(pointer),
+        Expr::Teleport { .. } => true,
         Expr::MemStore { pointer, value, .. } => {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(value)

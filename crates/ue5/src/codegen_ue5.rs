@@ -7134,6 +7134,8 @@ fn item_uses_kain_runtime(item: &TypedItem) -> bool {
         TypedItem::Function(f) => block_uses_kain_runtime(&f.ast.body),
         TypedItem::Patch(patch) => block_uses_kain_runtime(&patch.ast.body),
         TypedItem::Law(law) => block_uses_kain_runtime(&law.ast.body),
+        TypedItem::Axiom(_) => false,
+        TypedItem::Pulse(_) => true,
         TypedItem::Converge(converge) => {
             block_uses_kain_runtime(&converge.ast.spec_lane.body)
                 || converge
@@ -7254,7 +7256,10 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
         Expr::PtrOffset { .. } | Expr::MemLoad { .. } | Expr::MemStore { .. } => true,
         Expr::Alloca { .. } | Expr::Uninit { .. } => true,
         Expr::Alloc { .. } | Expr::Realloc { .. } => true,
-        Expr::Observe { .. } | Expr::Collapse { .. } | Expr::Decay { .. } => true,
+        Expr::Observe { .. }
+        | Expr::Collapse { .. }
+        | Expr::Decay { .. }
+        | Expr::Teleport { .. } => true,
         Expr::Int(_, _)
         | Expr::Float(_, _)
         | Expr::String(_, _)

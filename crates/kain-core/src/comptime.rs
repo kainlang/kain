@@ -121,6 +121,7 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
             eval_expr_in_place(env, body)?;
         }
         Expr::Decay { target, .. } => eval_expr_in_place(env, target)?,
+        Expr::Teleport { value, .. } => eval_expr_in_place(env, value)?,
         Expr::Paren(e, _) => eval_expr_in_place(env, e)?,
         Expr::Block(b, _) => eval_block(env, b)?,
         Expr::JSX(node, _) => eval_jsx(env, node)?,

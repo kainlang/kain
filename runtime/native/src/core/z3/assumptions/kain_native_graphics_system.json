@@ -11,15 +11,15 @@
       "id": "if.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 176,
+      "line": 170,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 45,
-        "end_line": 176,
+        "end_line": 170,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 176
+        "start_line": 170
       },
       "symbol": "if",
       "text": "if (!destination || destination_size == 0) {",
@@ -34,15 +34,15 @@
       "id": "if.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 264,
+      "line": 258,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 33,
-        "end_line": 264,
+        "end_line": 258,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 264
+        "start_line": 258
       },
       "symbol": "if",
       "tags": [
@@ -62,15 +62,15 @@
       "id": "if.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 280,
+      "line": 274,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 33,
-        "end_line": 280,
+        "end_line": 274,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 280
+        "start_line": 274
       },
       "symbol": "if",
       "tags": [
@@ -90,15 +90,15 @@
       "id": "if.return-condition.4",
       "kind": "return-condition",
       "language": "c",
-      "line": 296,
+      "line": 290,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 32,
-        "end_line": 296,
+        "end_line": 290,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 296
+        "start_line": 290
       },
       "symbol": "if",
       "tags": [
@@ -118,15 +118,15 @@
       "id": "if.return-condition.5",
       "kind": "return-condition",
       "language": "c",
-      "line": 312,
+      "line": 306,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 35,
-        "end_line": 312,
+        "end_line": 306,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 312
+        "start_line": 306
       },
       "symbol": "if",
       "tags": [
@@ -150,15 +150,15 @@
       "id": "if.parameter-role.6",
       "kind": "parameter-role",
       "language": "c",
-      "line": 350,
+      "line": 344,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 60,
-        "end_line": 350,
+        "end_line": 344,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 350
+        "start_line": 344
       },
       "symbol": "if",
       "text": "if (kain_native_graphics_hex_value(bytes_hex[index]) < 0) {",
@@ -177,15 +177,15 @@
       "id": "if.parameter-role.7",
       "kind": "parameter-role",
       "language": "c",
-      "line": 355,
+      "line": 349,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 24,
-        "end_line": 355,
+        "end_line": 349,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 355
+        "start_line": 349
       },
       "symbol": "if",
       "text": "if (byte_count == 0u) {",
@@ -204,15 +204,15 @@
       "id": "if.parameter-role.8",
       "kind": "parameter-role",
       "language": "c",
-      "line": 358,
+      "line": 352,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 57,
-        "end_line": 358,
+        "end_line": 352,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 358
+        "start_line": 352
       },
       "symbol": "if",
       "text": "if (kain_native_graphics_size_exceeds_i64(byte_count)) {",
@@ -227,15 +227,15 @@
       "id": "if.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 404,
+      "line": 398,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 60,
-        "end_line": 404,
+        "end_line": 398,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 404
+        "start_line": 398
       },
       "symbol": "if",
       "tags": [
@@ -255,15 +255,15 @@
       "id": "if.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 410,
+      "line": 404,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 53,
-        "end_line": 410,
+        "end_line": 404,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 410
+        "start_line": 404
       },
       "symbol": "if",
       "tags": [
@@ -289,15 +289,15 @@
       "id": "if.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 415,
+      "line": 409,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 25,
-        "end_line": 415,
+        "end_line": 409,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 415
+        "start_line": 409
       },
       "symbol": "if",
       "tags": [
@@ -320,15 +320,15 @@
       "id": "if.parameter-role.15",
       "kind": "parameter-role",
       "language": "c",
-      "line": 415,
+      "line": 409,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 25,
-        "end_line": 415,
+        "end_line": 409,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 415
+        "start_line": 409
       },
       "symbol": "if",
       "text": "if (needed > capacity) {",
@@ -350,15 +350,15 @@
       "id": "if.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 418,
+      "line": 412,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 33,
-        "end_line": 418,
+        "end_line": 412,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 418
+        "start_line": 412
       },
       "symbol": "if",
       "tags": [
@@ -384,15 +384,15 @@
       "id": "if.guard-condition.16",
       "kind": "guard-condition",
       "language": "c",
-      "line": 418,
+      "line": 412,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 33,
-        "end_line": 418,
+        "end_line": 412,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 418
+        "start_line": 412
       },
       "symbol": "if",
       "tags": [
@@ -424,15 +424,15 @@
       "id": "if.guard-condition.13",
       "kind": "guard-condition",
       "language": "c",
-      "line": 419,
+      "line": 413,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 39,
-        "end_line": 419,
+        "end_line": 413,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 419
+        "start_line": 413
       },
       "symbol": "if",
       "tags": [
@@ -465,15 +465,15 @@
       "id": "if.guard-condition.17",
       "kind": "guard-condition",
       "language": "c",
-      "line": 419,
+      "line": 413,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 39,
-        "end_line": 419,
+        "end_line": 413,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 419
+        "start_line": 413
       },
       "symbol": "if",
       "tags": [
@@ -499,15 +499,15 @@
       "id": "if.guard-condition.14",
       "kind": "guard-condition",
       "language": "c",
-      "line": 426,
+      "line": 420,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 426,
+        "end_line": 420,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 426
+        "start_line": 420
       },
       "symbol": "if",
       "tags": [
@@ -531,15 +531,15 @@
       "id": "if.guard-condition.18",
       "kind": "guard-condition",
       "language": "c",
-      "line": 426,
+      "line": 420,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 426,
+        "end_line": 420,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 426
+        "start_line": 420
       },
       "symbol": "if",
       "tags": [
@@ -561,15 +561,15 @@
       "id": "if.parameter-role.19",
       "kind": "parameter-role",
       "language": "c",
-      "line": 426,
+      "line": 420,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 426,
+        "end_line": 420,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 426
+        "start_line": 420
       },
       "symbol": "if",
       "text": "if (!resized) {",
@@ -584,15 +584,15 @@
       "id": "if.guard-condition.20",
       "kind": "guard-condition",
       "language": "c",
-      "line": 438,
+      "line": 432,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 20,
-        "end_line": 438,
+        "end_line": 432,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 438
+        "start_line": 432
       },
       "symbol": "if",
       "tags": [
@@ -615,15 +615,15 @@
       "id": "if.parameter-role.21",
       "kind": "parameter-role",
       "language": "c",
-      "line": 684,
+      "line": 678,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 66,
-        "end_line": 684,
+        "end_line": 678,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 684
+        "start_line": 678
       },
       "symbol": "if",
       "text": "if (!kind || !kind[0] || byte_length < 0 || element_stride < 0) {",
@@ -642,15 +642,15 @@
       "id": "if.parameter-role.22",
       "kind": "parameter-role",
       "language": "c",
-      "line": 691,
+      "line": 685,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 65,
-        "end_line": 691,
+        "end_line": 685,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 691
+        "start_line": 685
       },
       "symbol": "if",
       "text": "if (session->buffer_count >= KAIN_NATIVE_GRAPHICS_MAX_BUFFERS) {",
@@ -665,15 +665,15 @@
       "id": "if.return-condition.23",
       "kind": "return-condition",
       "language": "c",
-      "line": 718,
+      "line": 712,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 35,
-        "end_line": 718,
+        "end_line": 712,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 718
+        "start_line": 712
       },
       "symbol": "if",
       "tags": [
@@ -698,15 +698,15 @@
       "id": "if.parameter-role.24",
       "kind": "parameter-role",
       "language": "c",
-      "line": 741,
+      "line": 735,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 23,
-        "end_line": 741,
+        "end_line": 735,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 741
+        "start_line": 735
       },
       "symbol": "if",
       "text": "if (byte_length < 0) {",
@@ -725,15 +725,15 @@
       "id": "if.parameter-role.25",
       "kind": "parameter-role",
       "language": "c",
-      "line": 788,
+      "line": 782,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 90,
-        "end_line": 788,
+        "end_line": 782,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 788
+        "start_line": 782
       },
       "symbol": "if",
       "text": "if (!buffer || !buffer->bytes || byte_offset < 0 || byte_offset >= buffer->byte_length) {",
@@ -752,15 +752,15 @@
       "id": "if.parameter-role.26",
       "kind": "parameter-role",
       "language": "c",
-      "line": 826,
+      "line": 820,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 82,
-        "end_line": 826,
+        "end_line": 820,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 826
+        "start_line": 820
       },
       "symbol": "if",
       "text": "if (!key || !key[0] || !stage || !stage[0] || !owned_bytes || byte_length <= 0) {",
@@ -779,15 +779,15 @@
       "id": "if.parameter-role.27",
       "kind": "parameter-role",
       "language": "c",
-      "line": 834,
+      "line": 828,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 65,
-        "end_line": 834,
+        "end_line": 828,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 834
+        "start_line": 828
       },
       "symbol": "if",
       "text": "if (session->shader_count >= KAIN_NATIVE_GRAPHICS_MAX_SHADERS) {",
@@ -802,15 +802,15 @@
       "id": "if.return-condition.28",
       "kind": "return-condition",
       "language": "c",
-      "line": 872,
+      "line": 866,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 35,
-        "end_line": 872,
+        "end_line": 866,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 872
+        "start_line": 866
       },
       "symbol": "if",
       "tags": [
@@ -835,15 +835,15 @@
       "id": "if.parameter-role.29",
       "kind": "parameter-role",
       "language": "c",
-      "line": 893,
+      "line": 887,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 24,
-        "end_line": 893,
+        "end_line": 887,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 893
+        "start_line": 887
       },
       "symbol": "if",
       "text": "if (byte_length <= 0) {",
@@ -862,15 +862,15 @@
       "id": "if.parameter-role.30",
       "kind": "parameter-role",
       "language": "c",
-      "line": 922,
+      "line": 916,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 24,
-        "end_line": 922,
+        "end_line": 916,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 922
+        "start_line": 916
       },
       "symbol": "if",
       "text": "if (byte_length <= 0) {",
@@ -889,15 +889,15 @@
       "id": "if.parameter-role.31",
       "kind": "parameter-role",
       "language": "c",
-      "line": 955,
+      "line": 949,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 90,
-        "end_line": 955,
+        "end_line": 949,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 955
+        "start_line": 949
       },
       "symbol": "if",
       "text": "if (!shader || !shader->bytes || byte_offset < 0 || byte_offset >= shader->byte_length) {",
@@ -916,15 +916,15 @@
       "id": "if.parameter-role.32",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1001,
+      "line": 995,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 62,
-        "end_line": 1001,
+        "end_line": 995,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1001
+        "start_line": 995
       },
       "symbol": "if",
       "text": "if (session->mesh_count >= KAIN_NATIVE_GRAPHICS_MAX_MESHES) {",
@@ -939,15 +939,15 @@
       "id": "if.return-condition.33",
       "kind": "return-condition",
       "language": "c",
-      "line": 1025,
+      "line": 1019,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 34,
-        "end_line": 1025,
+        "end_line": 1019,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1025
+        "start_line": 1019
       },
       "symbol": "if",
       "tags": [
@@ -972,15 +972,15 @@
       "id": "if.parameter-role.34",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1088,
+      "line": 1082,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 69,
-        "end_line": 1088,
+        "end_line": 1082,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1088
+        "start_line": 1082
       },
       "symbol": "if",
       "text": "if (session->pipeline_count >= KAIN_NATIVE_GRAPHICS_MAX_PIPELINES) {",
@@ -995,15 +995,15 @@
       "id": "if.guard-condition.35",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1114,
+      "line": 1108,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 27,
-        "end_line": 1114,
+        "end_line": 1108,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1114
+        "start_line": 1108
       },
       "symbol": "if",
       "tags": [
@@ -1022,15 +1022,15 @@
       "id": "if.return-condition.36",
       "kind": "return-condition",
       "language": "c",
-      "line": 1123,
+      "line": 1117,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 37,
-        "end_line": 1123,
+        "end_line": 1117,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1123
+        "start_line": 1117
       },
       "symbol": "if",
       "tags": [
@@ -1055,15 +1055,15 @@
       "id": "if.parameter-role.37",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1171,
+      "line": 1165,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 77,
-        "end_line": 1171,
+        "end_line": 1165,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1171
+        "start_line": 1165
       },
       "symbol": "if",
       "text": "if (session->draw_command_count >= KAIN_NATIVE_GRAPHICS_MAX_DRAW_COMMANDS) {",
@@ -1082,15 +1082,15 @@
       "id": "if.parameter-role.38",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1196,
+      "line": 1190,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1196,
+        "end_line": 1190,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1196
+        "start_line": 1190
       },
       "symbol": "if",
       "text": "if (!session || command_index < 0 || command_index >= session->draw_command_count) {",
@@ -1109,15 +1109,15 @@
       "id": "if.parameter-role.39",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1204,
+      "line": 1198,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1204,
+        "end_line": 1198,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1204
+        "start_line": 1198
       },
       "symbol": "if",
       "text": "if (!session || command_index < 0 || command_index >= session->draw_command_count) {",
@@ -1136,15 +1136,15 @@
       "id": "if.parameter-role.40",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1212,
+      "line": 1206,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1212,
+        "end_line": 1206,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1212
+        "start_line": 1206
       },
       "symbol": "if",
       "text": "if (!session || command_index < 0 || command_index >= session->draw_command_count) {",
@@ -1163,15 +1163,15 @@
       "id": "if.parameter-role.41",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1220,
+      "line": 1214,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1220,
+        "end_line": 1214,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1220
+        "start_line": 1214
       },
       "symbol": "if",
       "text": "if (!session || command_index < 0 || command_index >= session->draw_command_count) {",
@@ -1190,15 +1190,15 @@
       "id": "kain-native-graphics-active-backend.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 604,
+      "line": 598,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 70,
-        "end_line": 604,
+        "end_line": 598,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 604
+        "start_line": 598
       },
       "symbol": "kain_native_graphics_active_backend",
       "text": "const char* kain_native_graphics_active_backend(int64_t session_id) {",
@@ -1219,15 +1219,15 @@
       "id": "kain-native-graphics-active-backend.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 606,
+      "line": 600,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 606,
+        "end_line": 600,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 606
+        "start_line": 600
       },
       "symbol": "kain_native_graphics_active_backend",
       "tags": [
@@ -1247,15 +1247,15 @@
       "id": "kain-native-graphics-active-backend.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 614,
+      "line": 608,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 71,
-        "end_line": 614,
+        "end_line": 608,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 614
+        "start_line": 608
       },
       "symbol": "kain_native_graphics_active_backend",
       "tags": [
@@ -1277,15 +1277,15 @@
       "id": "kain-native-graphics-backend-available.return-condition.1",
       "kind": "return-condition",
       "language": "c",
-      "line": 547,
+      "line": 541,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 41,
-        "end_line": 547,
+        "end_line": 541,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 547
+        "start_line": 541
       },
       "symbol": "kain_native_graphics_backend_available",
       "tags": [
@@ -1310,15 +1310,15 @@
       "id": "kain-native-graphics-backend-select.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 559,
+      "line": 553,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 90,
-        "end_line": 559,
+        "end_line": 553,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 559
+        "start_line": 553
       },
       "symbol": "kain_native_graphics_backend_select",
       "text": "int64_t kain_native_graphics_backend_select(int64_t session_id, const char* backend_id) {",
@@ -1339,15 +1339,15 @@
       "id": "kain-native-graphics-backend-select.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 564,
+      "line": 558,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 564,
+        "end_line": 558,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 564
+        "start_line": 558
       },
       "symbol": "kain_native_graphics_backend_select",
       "tags": [
@@ -1373,15 +1373,15 @@
       "id": "kain-native-graphics-backend-select.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 571,
+      "line": 565,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 571,
+        "end_line": 565,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 571
+        "start_line": 565
       },
       "symbol": "kain_native_graphics_backend_select",
       "tags": [
@@ -1401,15 +1401,15 @@
       "id": "kain-native-graphics-backend-select.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 579,
+      "line": 573,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 40,
-        "end_line": 579,
+        "end_line": 573,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 579
+        "start_line": 573
       },
       "symbol": "kain_native_graphics_backend_select",
       "tags": [
@@ -1432,15 +1432,15 @@
       "id": "kain-native-graphics-backend-select.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 593,
+      "line": 587,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 27,
-        "end_line": 593,
+        "end_line": 587,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 593
+        "start_line": 587
       },
       "symbol": "kain_native_graphics_backend_select",
       "tags": [
@@ -1467,15 +1467,15 @@
       "id": "kain-native-graphics-backend-status.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 553,
+      "line": 547,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 553,
+        "end_line": 547,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 553
+        "start_line": 547
       },
       "symbol": "kain_native_graphics_backend_status",
       "tags": [
@@ -1495,15 +1495,15 @@
       "id": "kain-native-graphics-backend-status.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 556,
+      "line": 550,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 60,
-        "end_line": 556,
+        "end_line": 550,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 556
+        "start_line": 550
       },
       "symbol": "kain_native_graphics_backend_status",
       "tags": [
@@ -1529,15 +1529,15 @@
       "id": "kain-native-graphics-begin-frame.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 617,
+      "line": 611,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 80,
-        "end_line": 617,
+        "end_line": 611,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 617
+        "start_line": 611
       },
       "symbol": "kain_native_graphics_begin_frame",
       "text": "int64_t kain_native_graphics_begin_frame(int64_t session_id, double delta_ms) {",
@@ -1558,15 +1558,15 @@
       "id": "kain-native-graphics-begin-frame.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 619,
+      "line": 613,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 619,
+        "end_line": 613,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 619
+        "start_line": 613
       },
       "symbol": "kain_native_graphics_begin_frame",
       "tags": [
@@ -1586,15 +1586,15 @@
       "id": "kain-native-graphics-begin-frame.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 629,
+      "line": 623,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 29,
-        "end_line": 629,
+        "end_line": 623,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 629
+        "start_line": 623
       },
       "symbol": "kain_native_graphics_begin_frame",
       "tags": [
@@ -1619,15 +1619,15 @@
       "id": "kain-native-graphics-buffer-byte-length.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 775,
+      "line": 769,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 89,
-        "end_line": 775,
+        "end_line": 769,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 775
+        "start_line": 769
       },
       "symbol": "kain_native_graphics_buffer_byte_length",
       "text": "int64_t kain_native_graphics_buffer_byte_length(int64_t session_id, int64_t buffer_id) {",
@@ -1646,15 +1646,15 @@
       "id": "kain-native-graphics-buffer-byte-length.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 775,
+      "line": 769,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 89,
-        "end_line": 775,
+        "end_line": 769,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 775
+        "start_line": 769
       },
       "symbol": "kain_native_graphics_buffer_byte_length",
       "text": "int64_t kain_native_graphics_buffer_byte_length(int64_t session_id, int64_t buffer_id) {",
@@ -1669,15 +1669,15 @@
       "id": "kain-native-graphics-buffer-byte-length.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 778,
+      "line": 772,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 77,
-        "end_line": 778,
+        "end_line": 772,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 778
+        "start_line": 772
       },
       "symbol": "kain_native_graphics_buffer_byte_length",
       "tags": [
@@ -1703,15 +1703,15 @@
       "id": "kain-native-graphics-buffer-kind.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 794,
+      "line": 788,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 86,
-        "end_line": 794,
+        "end_line": 788,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 794
+        "start_line": 788
       },
       "symbol": "kain_native_graphics_buffer_kind",
       "text": "const char* kain_native_graphics_buffer_kind(int64_t session_id, int64_t buffer_id) {",
@@ -1730,15 +1730,15 @@
       "id": "kain-native-graphics-buffer-kind.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 794,
+      "line": 788,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 86,
-        "end_line": 794,
+        "end_line": 788,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 794
+        "start_line": 788
       },
       "symbol": "kain_native_graphics_buffer_kind",
       "text": "const char* kain_native_graphics_buffer_kind(int64_t session_id, int64_t buffer_id) {",
@@ -1753,15 +1753,15 @@
       "id": "kain-native-graphics-buffer-kind.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 797,
+      "line": 791,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 71,
-        "end_line": 797,
+        "end_line": 791,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 797
+        "start_line": 791
       },
       "symbol": "kain_native_graphics_buffer_kind",
       "tags": [
@@ -1787,15 +1787,15 @@
       "id": "kain-native-graphics-buffer-label.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 800,
+      "line": 794,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 87,
-        "end_line": 800,
+        "end_line": 794,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 800
+        "start_line": 794
       },
       "symbol": "kain_native_graphics_buffer_label",
       "text": "const char* kain_native_graphics_buffer_label(int64_t session_id, int64_t buffer_id) {",
@@ -1814,15 +1814,15 @@
       "id": "kain-native-graphics-buffer-label.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 800,
+      "line": 794,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 87,
-        "end_line": 800,
+        "end_line": 794,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 800
+        "start_line": 794
       },
       "symbol": "kain_native_graphics_buffer_label",
       "text": "const char* kain_native_graphics_buffer_label(int64_t session_id, int64_t buffer_id) {",
@@ -1837,15 +1837,15 @@
       "id": "kain-native-graphics-buffer-label.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 803,
+      "line": 797,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 72,
-        "end_line": 803,
+        "end_line": 797,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 803
+        "start_line": 797
       },
       "symbol": "kain_native_graphics_buffer_label",
       "tags": [
@@ -1871,15 +1871,15 @@
       "id": "kain-native-graphics-draw-command-count.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1189,
+      "line": 1183,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 70,
-        "end_line": 1189,
+        "end_line": 1183,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1189
+        "start_line": 1183
       },
       "symbol": "kain_native_graphics_draw_command_count",
       "text": "int64_t kain_native_graphics_draw_command_count(int64_t session_id) {",
@@ -1894,15 +1894,15 @@
       "id": "kain-native-graphics-draw-command-count.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1191,
+      "line": 1185,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1191,
+        "end_line": 1185,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1191
+        "start_line": 1185
       },
       "symbol": "kain_native_graphics_draw_command_count",
       "tags": [
@@ -1928,15 +1928,15 @@
       "id": "kain-native-graphics-draw-command-instances.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1218,
+      "line": 1212,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 97,
-        "end_line": 1218,
+        "end_line": 1212,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1218
+        "start_line": 1212
       },
       "symbol": "kain_native_graphics_draw_command_instances",
       "text": "int64_t kain_native_graphics_draw_command_instances(int64_t session_id, int64_t command_index) {",
@@ -1955,15 +1955,15 @@
       "id": "kain-native-graphics-draw-command-instances.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1218,
+      "line": 1212,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 97,
-        "end_line": 1218,
+        "end_line": 1212,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1218
+        "start_line": 1212
       },
       "symbol": "kain_native_graphics_draw_command_instances",
       "text": "int64_t kain_native_graphics_draw_command_instances(int64_t session_id, int64_t command_index) {",
@@ -1982,15 +1982,15 @@
       "id": "kain-native-graphics-draw-command-instances.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1218,
+      "line": 1212,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 97,
-        "end_line": 1218,
+        "end_line": 1212,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1218
+        "start_line": 1212
       },
       "symbol": "kain_native_graphics_draw_command_instances",
       "text": "int64_t kain_native_graphics_draw_command_instances(int64_t session_id, int64_t command_index) {",
@@ -2005,15 +2005,15 @@
       "id": "kain-native-graphics-draw-command-instances.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1220,
+      "line": 1214,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1220,
+        "end_line": 1214,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1220
+        "start_line": 1214
       },
       "symbol": "kain_native_graphics_draw_command_instances",
       "tags": [
@@ -2036,15 +2036,15 @@
       "id": "kain-native-graphics-draw-command-instances.return-condition.5",
       "kind": "return-condition",
       "language": "c",
-      "line": 1223,
+      "line": 1217,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 61,
-        "end_line": 1223,
+        "end_line": 1217,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1223
+        "start_line": 1217
       },
       "symbol": "kain_native_graphics_draw_command_instances",
       "tags": [
@@ -2072,15 +2072,15 @@
       "id": "kain-native-graphics-draw-command-kind.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1194,
+      "line": 1188,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 96,
-        "end_line": 1194,
+        "end_line": 1188,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1194
+        "start_line": 1188
       },
       "symbol": "kain_native_graphics_draw_command_kind",
       "text": "const char* kain_native_graphics_draw_command_kind(int64_t session_id, int64_t command_index) {",
@@ -2099,15 +2099,15 @@
       "id": "kain-native-graphics-draw-command-kind.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1194,
+      "line": 1188,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 96,
-        "end_line": 1194,
+        "end_line": 1188,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1194
+        "start_line": 1188
       },
       "symbol": "kain_native_graphics_draw_command_kind",
       "text": "const char* kain_native_graphics_draw_command_kind(int64_t session_id, int64_t command_index) {",
@@ -2126,15 +2126,15 @@
       "id": "kain-native-graphics-draw-command-kind.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1194,
+      "line": 1188,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 96,
-        "end_line": 1194,
+        "end_line": 1188,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1194
+        "start_line": 1188
       },
       "symbol": "kain_native_graphics_draw_command_kind",
       "text": "const char* kain_native_graphics_draw_command_kind(int64_t session_id, int64_t command_index) {",
@@ -2149,15 +2149,15 @@
       "id": "kain-native-graphics-draw-command-kind.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1196,
+      "line": 1190,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1196,
+        "end_line": 1190,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1196
+        "start_line": 1190
       },
       "symbol": "kain_native_graphics_draw_command_kind",
       "tags": [
@@ -2180,15 +2180,15 @@
       "id": "kain-native-graphics-draw-command-kind.return-condition.5",
       "kind": "return-condition",
       "language": "c",
-      "line": 1199,
+      "line": 1193,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 87,
-        "end_line": 1199,
+        "end_line": 1193,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1199
+        "start_line": 1193
       },
       "symbol": "kain_native_graphics_draw_command_kind",
       "tags": [
@@ -2217,15 +2217,15 @@
       "id": "kain-native-graphics-draw-command-mesh.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1202,
+      "line": 1196,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 92,
-        "end_line": 1202,
+        "end_line": 1196,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1202
+        "start_line": 1196
       },
       "symbol": "kain_native_graphics_draw_command_mesh",
       "text": "int64_t kain_native_graphics_draw_command_mesh(int64_t session_id, int64_t command_index) {",
@@ -2244,15 +2244,15 @@
       "id": "kain-native-graphics-draw-command-mesh.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1202,
+      "line": 1196,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 92,
-        "end_line": 1202,
+        "end_line": 1196,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1202
+        "start_line": 1196
       },
       "symbol": "kain_native_graphics_draw_command_mesh",
       "text": "int64_t kain_native_graphics_draw_command_mesh(int64_t session_id, int64_t command_index) {",
@@ -2271,15 +2271,15 @@
       "id": "kain-native-graphics-draw-command-mesh.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1202,
+      "line": 1196,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 92,
-        "end_line": 1202,
+        "end_line": 1196,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1202
+        "start_line": 1196
       },
       "symbol": "kain_native_graphics_draw_command_mesh",
       "text": "int64_t kain_native_graphics_draw_command_mesh(int64_t session_id, int64_t command_index) {",
@@ -2294,15 +2294,15 @@
       "id": "kain-native-graphics-draw-command-mesh.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1204,
+      "line": 1198,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1204,
+        "end_line": 1198,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1204
+        "start_line": 1198
       },
       "symbol": "kain_native_graphics_draw_command_mesh",
       "tags": [
@@ -2325,15 +2325,15 @@
       "id": "kain-native-graphics-draw-command-mesh.return-condition.5",
       "kind": "return-condition",
       "language": "c",
-      "line": 1207,
+      "line": 1201,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 54,
-        "end_line": 1207,
+        "end_line": 1201,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1207
+        "start_line": 1201
       },
       "symbol": "kain_native_graphics_draw_command_mesh",
       "tags": [
@@ -2361,15 +2361,15 @@
       "id": "kain-native-graphics-draw-command-pipeline.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1210,
+      "line": 1204,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 96,
-        "end_line": 1210,
+        "end_line": 1204,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1210
+        "start_line": 1204
       },
       "symbol": "kain_native_graphics_draw_command_pipeline",
       "text": "int64_t kain_native_graphics_draw_command_pipeline(int64_t session_id, int64_t command_index) {",
@@ -2388,15 +2388,15 @@
       "id": "kain-native-graphics-draw-command-pipeline.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1210,
+      "line": 1204,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 96,
-        "end_line": 1210,
+        "end_line": 1204,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1210
+        "start_line": 1204
       },
       "symbol": "kain_native_graphics_draw_command_pipeline",
       "text": "int64_t kain_native_graphics_draw_command_pipeline(int64_t session_id, int64_t command_index) {",
@@ -2415,15 +2415,15 @@
       "id": "kain-native-graphics-draw-command-pipeline.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1210,
+      "line": 1204,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 96,
-        "end_line": 1210,
+        "end_line": 1204,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1210
+        "start_line": 1204
       },
       "symbol": "kain_native_graphics_draw_command_pipeline",
       "text": "int64_t kain_native_graphics_draw_command_pipeline(int64_t session_id, int64_t command_index) {",
@@ -2438,15 +2438,15 @@
       "id": "kain-native-graphics-draw-command-pipeline.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1212,
+      "line": 1206,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1212,
+        "end_line": 1206,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1212
+        "start_line": 1206
       },
       "symbol": "kain_native_graphics_draw_command_pipeline",
       "tags": [
@@ -2469,15 +2469,15 @@
       "id": "kain-native-graphics-draw-command-pipeline.return-condition.5",
       "kind": "return-condition",
       "language": "c",
-      "line": 1215,
+      "line": 1209,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 58,
-        "end_line": 1215,
+        "end_line": 1209,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1215
+        "start_line": 1209
       },
       "symbol": "kain_native_graphics_draw_command_pipeline",
       "tags": [
@@ -2505,15 +2505,15 @@
       "id": "kain-native-graphics-end-frame.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 632,
+      "line": 626,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 61,
-        "end_line": 632,
+        "end_line": 626,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 632
+        "start_line": 626
       },
       "symbol": "kain_native_graphics_end_frame",
       "text": "int64_t kain_native_graphics_end_frame(int64_t session_id) {",
@@ -2534,15 +2534,15 @@
       "id": "kain-native-graphics-end-frame.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 634,
+      "line": 628,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 634,
+        "end_line": 628,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 634
+        "start_line": 628
       },
       "symbol": "kain_native_graphics_end_frame",
       "tags": [
@@ -2562,15 +2562,15 @@
       "id": "kain-native-graphics-end-frame.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 641,
+      "line": 635,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 36,
-        "end_line": 641,
+        "end_line": 635,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 641
+        "start_line": 635
       },
       "symbol": "kain_native_graphics_end_frame",
       "tags": [
@@ -2595,15 +2595,15 @@
       "id": "kain-native-graphics-find-session.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 241,
+      "line": 235,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 90,
-        "end_line": 241,
+        "end_line": 235,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 241
+        "start_line": 235
       },
       "symbol": "kain_native_graphics_find_session",
       "text": "static KainNativeGraphicsSession* kain_native_graphics_find_session(int64_t session_id) {",
@@ -2625,15 +2625,15 @@
       "id": "kain-native-graphics-find-session.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 243,
+      "line": 237,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 23,
-        "end_line": 243,
+        "end_line": 237,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 243
+        "start_line": 237
       },
       "symbol": "kain_native_graphics_find_session",
       "tags": [
@@ -2653,15 +2653,15 @@
       "id": "kain-native-graphics-find-session.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 247,
+      "line": 241,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 70,
-        "end_line": 247,
+        "end_line": 241,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 247
+        "start_line": 241
       },
       "symbol": "kain_native_graphics_find_session",
       "tags": [
@@ -2689,15 +2689,15 @@
       "id": "kain-native-graphics-frame-index.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 657,
+      "line": 651,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 63,
-        "end_line": 657,
+        "end_line": 651,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 657
+        "start_line": 651
       },
       "symbol": "kain_native_graphics_frame_index",
       "text": "int64_t kain_native_graphics_frame_index(int64_t session_id) {",
@@ -2712,15 +2712,15 @@
       "id": "kain-native-graphics-frame-index.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 659,
+      "line": 653,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 78,
-        "end_line": 659,
+        "end_line": 653,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 659
+        "start_line": 653
       },
       "symbol": "kain_native_graphics_frame_index",
       "tags": [
@@ -2746,15 +2746,15 @@
       "id": "kain-native-graphics-free-bytes.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 140,
+      "line": 134,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 63,
-        "end_line": 140,
+        "end_line": 134,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 140
+        "start_line": 134
       },
       "symbol": "kain_native_graphics_free_bytes",
       "text": "static void kain_native_graphics_free_bytes(uint8_t** bytes) {",
@@ -2769,15 +2769,15 @@
       "id": "kain-native-graphics-free-bytes.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 141,
+      "line": 135,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 25,
-        "end_line": 141,
+        "end_line": 135,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 141
+        "start_line": 135
       },
       "symbol": "kain_native_graphics_free_bytes",
       "tags": [
@@ -2797,15 +2797,15 @@
       "id": "kain-native-graphics-hex-value.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 319,
+      "line": 313,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 30,
-        "end_line": 319,
+        "end_line": 313,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 319
+        "start_line": 313
       },
       "symbol": "kain_native_graphics_hex_value",
       "tags": [
@@ -2825,15 +2825,15 @@
       "id": "kain-native-graphics-hex-value.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 322,
+      "line": 316,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 30,
-        "end_line": 322,
+        "end_line": 316,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 322
+        "start_line": 316
       },
       "symbol": "kain_native_graphics_hex_value",
       "tags": [
@@ -2855,15 +2855,15 @@
       "id": "kain-native-graphics-hex-value.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 325,
+      "line": 319,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 30,
-        "end_line": 325,
+        "end_line": 319,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 325
+        "start_line": 319
       },
       "symbol": "kain_native_graphics_hex_value",
       "tags": [
@@ -2889,15 +2889,15 @@
       "id": "kain-native-graphics-last-presented-frame.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 662,
+      "line": 656,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 72,
-        "end_line": 662,
+        "end_line": 656,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 662
+        "start_line": 656
       },
       "symbol": "kain_native_graphics_last_presented_frame",
       "text": "int64_t kain_native_graphics_last_presented_frame(int64_t session_id) {",
@@ -2912,15 +2912,15 @@
       "id": "kain-native-graphics-last-presented-frame.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 664,
+      "line": 658,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 87,
-        "end_line": 664,
+        "end_line": 658,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 664
+        "start_line": 658
       },
       "symbol": "kain_native_graphics_last_presented_frame",
       "tags": [
@@ -2946,15 +2946,15 @@
       "id": "kain-native-graphics-mesh-index-count.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1042,
+      "line": 1036,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1042,
+        "end_line": 1036,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1042
+        "start_line": 1036
       },
       "symbol": "kain_native_graphics_mesh_index_count",
       "text": "int64_t kain_native_graphics_mesh_index_count(int64_t session_id, int64_t mesh_id) {",
@@ -2973,15 +2973,15 @@
       "id": "kain-native-graphics-mesh-index-count.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1042,
+      "line": 1036,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 1042,
+        "end_line": 1036,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1042
+        "start_line": 1036
       },
       "symbol": "kain_native_graphics_mesh_index_count",
       "text": "int64_t kain_native_graphics_mesh_index_count(int64_t session_id, int64_t mesh_id) {",
@@ -2996,15 +2996,15 @@
       "id": "kain-native-graphics-mesh-index-count.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1045,
+      "line": 1039,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 73,
-        "end_line": 1045,
+        "end_line": 1039,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1045
+        "start_line": 1039
       },
       "symbol": "kain_native_graphics_mesh_index_count",
       "tags": [
@@ -3030,15 +3030,15 @@
       "id": "kain-native-graphics-mesh-label.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1048,
+      "line": 1042,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 83,
-        "end_line": 1048,
+        "end_line": 1042,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1048
+        "start_line": 1042
       },
       "symbol": "kain_native_graphics_mesh_label",
       "text": "const char* kain_native_graphics_mesh_label(int64_t session_id, int64_t mesh_id) {",
@@ -3057,15 +3057,15 @@
       "id": "kain-native-graphics-mesh-label.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1048,
+      "line": 1042,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 83,
-        "end_line": 1048,
+        "end_line": 1042,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1048
+        "start_line": 1042
       },
       "symbol": "kain_native_graphics_mesh_label",
       "text": "const char* kain_native_graphics_mesh_label(int64_t session_id, int64_t mesh_id) {",
@@ -3080,15 +3080,15 @@
       "id": "kain-native-graphics-mesh-label.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1051,
+      "line": 1045,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 68,
-        "end_line": 1051,
+        "end_line": 1045,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1051
+        "start_line": 1045
       },
       "symbol": "kain_native_graphics_mesh_label",
       "tags": [
@@ -3114,15 +3114,15 @@
       "id": "kain-native-graphics-mesh-vertex-count.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1036,
+      "line": 1030,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 86,
-        "end_line": 1036,
+        "end_line": 1030,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1036
+        "start_line": 1030
       },
       "symbol": "kain_native_graphics_mesh_vertex_count",
       "text": "int64_t kain_native_graphics_mesh_vertex_count(int64_t session_id, int64_t mesh_id) {",
@@ -3141,15 +3141,15 @@
       "id": "kain-native-graphics-mesh-vertex-count.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1036,
+      "line": 1030,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 86,
-        "end_line": 1036,
+        "end_line": 1030,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1036
+        "start_line": 1030
       },
       "symbol": "kain_native_graphics_mesh_vertex_count",
       "text": "int64_t kain_native_graphics_mesh_vertex_count(int64_t session_id, int64_t mesh_id) {",
@@ -3164,15 +3164,15 @@
       "id": "kain-native-graphics-mesh-vertex-count.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1039,
+      "line": 1033,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 74,
-        "end_line": 1039,
+        "end_line": 1033,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1039
+        "start_line": 1033
       },
       "symbol": "kain_native_graphics_mesh_vertex_count",
       "tags": [
@@ -3198,15 +3198,15 @@
       "id": "kain-native-graphics-pipeline-backend.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1140,
+      "line": 1134,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 93,
-        "end_line": 1140,
+        "end_line": 1134,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1140
+        "start_line": 1134
       },
       "symbol": "kain_native_graphics_pipeline_backend",
       "text": "const char* kain_native_graphics_pipeline_backend(int64_t session_id, int64_t pipeline_id) {",
@@ -3225,15 +3225,15 @@
       "id": "kain-native-graphics-pipeline-backend.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1140,
+      "line": 1134,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 93,
-        "end_line": 1140,
+        "end_line": 1134,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1140
+        "start_line": 1134
       },
       "symbol": "kain_native_graphics_pipeline_backend",
       "text": "const char* kain_native_graphics_pipeline_backend(int64_t session_id, int64_t pipeline_id) {",
@@ -3248,15 +3248,15 @@
       "id": "kain-native-graphics-pipeline-backend.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1143,
+      "line": 1137,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 81,
-        "end_line": 1143,
+        "end_line": 1137,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1143
+        "start_line": 1137
       },
       "symbol": "kain_native_graphics_pipeline_backend",
       "tags": [
@@ -3282,15 +3282,15 @@
       "id": "kain-native-graphics-pipeline-label.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1134,
+      "line": 1128,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 91,
-        "end_line": 1134,
+        "end_line": 1128,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1134
+        "start_line": 1128
       },
       "symbol": "kain_native_graphics_pipeline_label",
       "text": "const char* kain_native_graphics_pipeline_label(int64_t session_id, int64_t pipeline_id) {",
@@ -3309,15 +3309,15 @@
       "id": "kain-native-graphics-pipeline-label.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1134,
+      "line": 1128,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 91,
-        "end_line": 1134,
+        "end_line": 1128,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1134
+        "start_line": 1128
       },
       "symbol": "kain_native_graphics_pipeline_label",
       "text": "const char* kain_native_graphics_pipeline_label(int64_t session_id, int64_t pipeline_id) {",
@@ -3332,15 +3332,15 @@
       "id": "kain-native-graphics-pipeline-label.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1137,
+      "line": 1131,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 76,
-        "end_line": 1137,
+        "end_line": 1131,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 1137
+        "start_line": 1131
       },
       "symbol": "kain_native_graphics_pipeline_label",
       "tags": [
@@ -3366,15 +3366,15 @@
       "id": "kain-native-graphics-present.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 644,
+      "line": 638,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 59,
-        "end_line": 644,
+        "end_line": 638,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 644
+        "start_line": 638
       },
       "symbol": "kain_native_graphics_present",
       "text": "int64_t kain_native_graphics_present(int64_t session_id) {",
@@ -3395,15 +3395,15 @@
       "id": "kain-native-graphics-present.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 646,
+      "line": 640,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 646,
+        "end_line": 640,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 646
+        "start_line": 640
       },
       "symbol": "kain_native_graphics_present",
       "tags": [
@@ -3423,15 +3423,15 @@
       "id": "kain-native-graphics-present.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 654,
+      "line": 648,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 38,
-        "end_line": 654,
+        "end_line": 648,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 654
+        "start_line": 648
       },
       "symbol": "kain_native_graphics_present",
       "tags": [
@@ -3452,15 +3452,15 @@
       "id": "kain-native-graphics-session-count.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 533,
+      "line": 527,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 32,
-        "end_line": 533,
+        "end_line": 527,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 533
+        "start_line": 527
       },
       "symbol": "kain_native_graphics_session_count",
       "tags": [
@@ -3485,15 +3485,15 @@
       "id": "kain-native-graphics-session-destroy.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 515,
+      "line": 509,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 67,
-        "end_line": 515,
+        "end_line": 509,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 515
+        "start_line": 509
       },
       "symbol": "kain_native_graphics_session_destroy",
       "text": "int64_t kain_native_graphics_session_destroy(int64_t session_id) {",
@@ -3514,15 +3514,15 @@
       "id": "kain-native-graphics-session-destroy.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 517,
+      "line": 511,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 16,
-        "end_line": 517,
+        "end_line": 511,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 517
+        "start_line": 511
       },
       "symbol": "kain_native_graphics_session_destroy",
       "tags": [
@@ -3545,15 +3545,15 @@
       "id": "kain-native-graphics-shader-byte-length.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 942,
+      "line": 936,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 89,
-        "end_line": 942,
+        "end_line": 936,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 942
+        "start_line": 936
       },
       "symbol": "kain_native_graphics_shader_byte_length",
       "text": "int64_t kain_native_graphics_shader_byte_length(int64_t session_id, int64_t shader_id) {",
@@ -3572,15 +3572,15 @@
       "id": "kain-native-graphics-shader-byte-length.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 942,
+      "line": 936,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 89,
-        "end_line": 942,
+        "end_line": 936,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 942
+        "start_line": 936
       },
       "symbol": "kain_native_graphics_shader_byte_length",
       "text": "int64_t kain_native_graphics_shader_byte_length(int64_t session_id, int64_t shader_id) {",
@@ -3595,15 +3595,15 @@
       "id": "kain-native-graphics-shader-byte-length.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 945,
+      "line": 939,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 77,
-        "end_line": 945,
+        "end_line": 939,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 945
+        "start_line": 939
       },
       "symbol": "kain_native_graphics_shader_byte_length",
       "tags": [
@@ -3629,15 +3629,15 @@
       "id": "kain-native-graphics-shader-key.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 961,
+      "line": 955,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 961,
+        "end_line": 955,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 961
+        "start_line": 955
       },
       "symbol": "kain_native_graphics_shader_key",
       "text": "const char* kain_native_graphics_shader_key(int64_t session_id, int64_t shader_id) {",
@@ -3656,15 +3656,15 @@
       "id": "kain-native-graphics-shader-key.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 961,
+      "line": 955,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 85,
-        "end_line": 961,
+        "end_line": 955,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 961
+        "start_line": 955
       },
       "symbol": "kain_native_graphics_shader_key",
       "text": "const char* kain_native_graphics_shader_key(int64_t session_id, int64_t shader_id) {",
@@ -3679,15 +3679,15 @@
       "id": "kain-native-graphics-shader-key.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 964,
+      "line": 958,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 70,
-        "end_line": 964,
+        "end_line": 958,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 964
+        "start_line": 958
       },
       "symbol": "kain_native_graphics_shader_key",
       "tags": [
@@ -3713,15 +3713,15 @@
       "id": "kain-native-graphics-shader-stage.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 967,
+      "line": 961,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 87,
-        "end_line": 967,
+        "end_line": 961,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 967
+        "start_line": 961
       },
       "symbol": "kain_native_graphics_shader_stage",
       "text": "const char* kain_native_graphics_shader_stage(int64_t session_id, int64_t shader_id) {",
@@ -3740,15 +3740,15 @@
       "id": "kain-native-graphics-shader-stage.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 967,
+      "line": 961,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 87,
-        "end_line": 967,
+        "end_line": 961,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 967
+        "start_line": 961
       },
       "symbol": "kain_native_graphics_shader_stage",
       "text": "const char* kain_native_graphics_shader_stage(int64_t session_id, int64_t shader_id) {",
@@ -3763,15 +3763,15 @@
       "id": "kain-native-graphics-shader-stage.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 970,
+      "line": 964,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 72,
-        "end_line": 970,
+        "end_line": 964,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 970
+        "start_line": 964
       },
       "symbol": "kain_native_graphics_shader_stage",
       "tags": [
@@ -3797,15 +3797,15 @@
       "id": "kain-native-graphics-size-add-overflows.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 148,
+      "line": 142,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 80,
-        "end_line": 148,
+        "end_line": 142,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 148
+        "start_line": 142
       },
       "symbol": "kain_native_graphics_size_add_overflows",
       "text": "static int kain_native_graphics_size_add_overflows(size_t left, size_t right) {",
@@ -3824,15 +3824,15 @@
       "id": "kain-native-graphics-size-add-overflows.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 148,
+      "line": 142,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 80,
-        "end_line": 148,
+        "end_line": 142,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 148
+        "start_line": 142
       },
       "symbol": "kain_native_graphics_size_add_overflows",
       "text": "static int kain_native_graphics_size_add_overflows(size_t left, size_t right) {",
@@ -3860,15 +3860,15 @@
       "id": "kain-native-graphics-size-add-overflows.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 149,
+      "line": 143,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 34,
-        "end_line": 149,
+        "end_line": 143,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 149
+        "start_line": 143
       },
       "symbol": "kain_native_graphics_size_add_overflows",
       "tags": [
@@ -3893,15 +3893,15 @@
       "id": "kain-native-graphics-size-exceeds-i64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 152,
+      "line": 146,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 65,
-        "end_line": 152,
+        "end_line": 146,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 152
+        "start_line": 146
       },
       "symbol": "kain_native_graphics_size_exceeds_i64",
       "text": "static int kain_native_graphics_size_exceeds_i64(size_t value) {",
@@ -3916,15 +3916,15 @@
       "id": "kain-native-graphics-size-exceeds-i64.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 153,
+      "line": 147,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 34,
-        "end_line": 153,
+        "end_line": 147,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 153
+        "start_line": 147
       },
       "symbol": "kain_native_graphics_size_exceeds_i64",
       "tags": [
@@ -3957,15 +3957,15 @@
       "id": "while.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 419,
+      "line": 413,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
       "span": {
         "end_col": 39,
-        "end_line": 419,
+        "end_line": 413,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
         "start_col": 1,
-        "start_line": 419
+        "start_line": 413
       },
       "symbol": "while",
       "tags": [
@@ -3981,7 +3981,7 @@
     }
   ],
   "language": "c",
-  "source_hash": "5e86c660667bc70240eebc73e38f0872b933e03e28b7298fdebd702961805f8d",
+  "source_hash": "ed03d1fa20da44bc2e130e7bcc323dd40f67778ef6b261892ba4ca6df5919ac4",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_graphics_system.c",
   "version": 1
 }

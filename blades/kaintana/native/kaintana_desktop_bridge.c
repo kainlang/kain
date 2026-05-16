@@ -69,7 +69,52 @@ static COLORREF kaintana_rgb(int red, int green, int blue) {
     );
 }
 
+static int kaintana_scaled_value(int value, float scale) {
+    const int scaled = (int)((float)value * scale);
+    if (value > 0 && scaled < 1) {
+        return 1;
+    }
+    return scaled;
+}
+
+static int kaintana_text_pixel_height(int encoded_size, float scale_y) {
+    int size = encoded_size;
+    if (size <= 0 || size > 96) {
+        size = 16;
+    }
+    size = kaintana_scaled_value(size, scale_y);
+    if (size < 10) {
+        size = 10;
+    }
+    if (size > 56) {
+        size = 56;
+    }
+    return size;
+}
+
+static HFONT kaintana_create_ui_font(int pixel_height) {
+    const int weight = pixel_height >= 18 ? FW_SEMIBOLD : FW_NORMAL;
+    return CreateFontA(
+        -pixel_height,
+        0,
+        0,
+        0,
+        weight,
+        FALSE,
+        FALSE,
+        FALSE,
+        DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE,
+        "Segoe UI"
+    );
+}
+
 static void kaintana_render_scene(HDC hdc, int width, int height) {
+    const float scale_x = g_width > 0 ? (float)width / (float)g_width : 1.0f;
+    const float scale_y = g_height > 0 ? (float)height / (float)g_height : 1.0f;
     RECT background_rect;
     background_rect.left = 0;
     background_rect.top = 0;
@@ -86,16 +131,32 @@ static void kaintana_render_scene(HDC hdc, int width, int height) {
         const KaintanaDesktopCommand* command = &g_commands[index];
         if (command->kind == KAINTANA_DESKTOP_COMMAND_RECT) {
             RECT rect;
-            rect.left = command->x;
-            rect.top = command->y;
-            rect.right = command->x + command->width;
-            rect.bottom = command->y + command->height;
+            rect.left = kaintana_scaled_value(command->x, scale_x);
+            rect.top = kaintana_scaled_value(command->y, scale_y);
+            rect.right = rect.left + kaintana_scaled_value(command->width, scale_x);
+            rect.bottom = rect.top + kaintana_scaled_value(command->height, scale_y);
             HBRUSH brush = CreateSolidBrush(kaintana_rgb(command->red, command->green, command->blue));
             FillRect(hdc, &rect, brush);
             DeleteObject(brush);
         } else if (command->kind == KAINTANA_DESKTOP_COMMAND_TEXT) {
+            const int pixel_height = kaintana_text_pixel_height(command->alpha, scale_y);
+            HFONT font = kaintana_create_ui_font(pixel_height);
+            HGDIOBJ old_font = NULL;
+            if (font != NULL) {
+                old_font = SelectObject(hdc, font);
+            }
             SetTextColor(hdc, kaintana_rgb(command->red, command->green, command->blue));
-            TextOutA(hdc, command->x, command->y, command->text, (int)strlen(command->text));
+            TextOutA(
+                hdc,
+                kaintana_scaled_value(command->x, scale_x),
+                kaintana_scaled_value(command->y, scale_y),
+                command->text,
+                (int)strlen(command->text)
+            );
+            if (font != NULL) {
+                SelectObject(hdc, old_font);
+                DeleteObject(font);
+            }
         }
     }
 }
@@ -165,13 +226,42 @@ static int kaintana_write_scene_bmp(const char* path) {
 }
 
 static LRESULT CALLBACK kaintana_desktop_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
-    (void)wparam;
     (void)lparam;
+
+    if (message == WM_ERASEBKGND) {
+        return 1;
+    }
+
+    if (message == WM_SIZE) {
+        InvalidateRect(hwnd, NULL, TRUE);
+        return 0;
+    }
 
     if (message == WM_PAINT) {
         PAINTSTRUCT paint;
         HDC hdc = BeginPaint(hwnd, &paint);
-        kaintana_render_scene(hdc, g_width, g_height);
+        RECT client_rect;
+        GetClientRect(hwnd, &client_rect);
+        const int client_width = client_rect.right - client_rect.left;
+        const int client_height = client_rect.bottom - client_rect.top;
+        if (client_width > 0 && client_height > 0) {
+            HDC memory_dc = CreateCompatibleDC(hdc);
+            HBITMAP bitmap = CreateCompatibleBitmap(hdc, client_width, client_height);
+            if (memory_dc != NULL && bitmap != NULL) {
+                HGDIOBJ old_object = SelectObject(memory_dc, bitmap);
+                kaintana_render_scene(memory_dc, client_width, client_height);
+                BitBlt(hdc, 0, 0, client_width, client_height, memory_dc, 0, 0, SRCCOPY);
+                SelectObject(memory_dc, old_object);
+            } else {
+                kaintana_render_scene(hdc, client_width, client_height);
+            }
+            if (bitmap != NULL) {
+                DeleteObject(bitmap);
+            }
+            if (memory_dc != NULL) {
+                DeleteDC(memory_dc);
+            }
+        }
         EndPaint(hwnd, &paint);
         return 0;
     }
@@ -294,6 +384,7 @@ int kaintana_native_desktop_run_window(int frame_budget) {
 
     WNDCLASSA window_class;
     ZeroMemory(&window_class, sizeof(window_class));
+    window_class.style = CS_HREDRAW | CS_VREDRAW;
     window_class.lpfnWndProc = kaintana_desktop_window_proc;
     window_class.hInstance = instance;
     window_class.lpszClassName = class_name;
@@ -327,10 +418,12 @@ int kaintana_native_desktop_run_window(int frame_budget) {
 
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);
+    RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
 
     int target_frames = frame_budget > 0 ? frame_budget : 180;
     int running = 1;
     MSG message;
+    ULONGLONG next_tick = GetTickCount64();
     while (running && g_frames_presented < target_frames) {
         while (PeekMessageA(&message, NULL, 0U, 0U, PM_REMOVE)) {
             if (message.message == WM_QUIT) {
@@ -343,10 +436,15 @@ int kaintana_native_desktop_run_window(int frame_budget) {
         if (!running) {
             break;
         }
-        InvalidateRect(hwnd, NULL, TRUE);
-        UpdateWindow(hwnd);
-        g_frames_presented += 1;
-        Sleep(16U);
+        {
+            const ULONGLONG now = GetTickCount64();
+            if (now >= next_tick) {
+                g_frames_presented += 1;
+                next_tick = now + 16ULL;
+            } else {
+                Sleep(1U);
+            }
+        }
     }
 
     DestroyWindow(hwnd);

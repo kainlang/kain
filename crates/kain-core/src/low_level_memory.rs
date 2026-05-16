@@ -1030,6 +1030,19 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             target: Box::new(lower_expr_memory_with_ctx(target, ctx)),
             span: *span,
         },
+        Expr::Teleport {
+            value,
+            source_world,
+            target_world,
+            channel,
+            span,
+        } => Expr::Teleport {
+            value: Box::new(lower_expr_memory_with_ctx(value, ctx)),
+            source_world: source_world.clone(),
+            target_world: target_world.clone(),
+            channel: channel.clone(),
+            span: *span,
+        },
         Expr::AggregateInit {
             ty,
             fields,
@@ -2759,6 +2772,7 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::Observe { .. } => Some(format!("{base}: ownership observe expression")),
         Expr::Collapse { .. } => Some(format!("{base}: ownership collapse expression")),
         Expr::Decay { .. } => Some(format!("{base}: ownership decay expression")),
+        Expr::Teleport { value, .. } => first_memory_expr_context(value, base),
         Expr::AggregateInit { fields, .. } => first_memory_expr_context_from_pairs(fields, base),
         Expr::Binary { left, right, .. } => {
             if let Some(context) = first_memory_expr_context(left, base.clone()) {

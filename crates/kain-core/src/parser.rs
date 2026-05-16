@@ -64,6 +64,10 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "collapse",
     "observe",
     "decay",
+    "axiom",
+    "pulse",
+    "shatter",
+    "teleport",
     "test",
     "Pure",
     "IO",
@@ -542,7 +546,15 @@ impl<'a> Parser<'a> {
     fn is_contextual_item_start_name(name: &str) -> bool {
         matches!(
             name,
-            "patch" | "law" | "converge" | "world" | "entangle" | "orchestrate"
+            "patch"
+                | "law"
+                | "axiom"
+                | "converge"
+                | "world"
+                | "entangle"
+                | "orchestrate"
+                | "pulse"
+                | "shatter"
         )
     }
 
@@ -765,6 +777,7 @@ impl<'a> Parser<'a> {
             TokenKind::TypeKw => self.parse_type_alias(vis),
             TokenKind::Ident(ref name) if name == "patch" => self.parse_patch(vis, attributes),
             TokenKind::Ident(ref name) if name == "law" => self.parse_law(vis, attributes),
+            TokenKind::Ident(ref name) if name == "axiom" => self.parse_axiom(vis, attributes),
             TokenKind::Ident(ref name) if name == "converge" => {
                 self.parse_converge(vis, attributes)
             }
@@ -775,9 +788,13 @@ impl<'a> Parser<'a> {
             TokenKind::Ident(ref name) if name == "orchestrate" => {
                 self.parse_orchestrate(vis, attributes)
             }
+            TokenKind::Ident(ref name) if name == "pulse" => self.parse_pulse(vis, attributes),
+            TokenKind::Ident(ref name) if name == "shatter" => {
+                self.parse_shatter_struct(vis, attributes)
+            }
             _ => Err(self.parser_error(
                 format!(
-                    "Expected item (fn, patch, law, converge, world, entangle, orchestrate, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
+                    "Expected item (fn, patch, law, axiom, converge, world, entangle, orchestrate, pulse, shatter struct, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
                 self.current_span()
@@ -1351,6 +1368,132 @@ impl<'a> Parser<'a> {
             attributes: attrs,
             span: start.merge(self.current_span()),
         }))
+    }
+
+    fn parse_axiom(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("axiom")?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::Colon)?;
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+
+        let mut predicates = Vec::new();
+        let mut guarantees = Vec::new();
+        let mut fallback = None;
+
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) {
+                break;
+            }
+
+            match self.peek_kind() {
+                TokenKind::Ident(ref keyword) if keyword == "when" => {
+                    self.advance();
+                    predicates.push(self.parse_axiom_predicate()?);
+                }
+                TokenKind::Ident(ref keyword) if keyword == "guarantee" => {
+                    self.advance();
+                    guarantees.push(self.parse_string_like_argument("axiom guarantee")?);
+                }
+                TokenKind::Ident(ref keyword) if keyword == "fallback" => {
+                    self.advance();
+                    if fallback.is_some() {
+                        return Err(self.parser_error(
+                            "axiom blocks may only declare one fallback",
+                            self.current_span(),
+                        ));
+                    }
+                    fallback = Some(self.parse_string_like_argument("axiom fallback")?);
+                }
+                _ => {
+                    return Err(self.parser_error(
+                        "axiom blocks expect 'when', 'guarantee', or 'fallback'",
+                        self.current_span(),
+                    ))
+                }
+            }
+            self.skip_newlines();
+        }
+
+        self.expect(TokenKind::Dedent)?;
+        Ok(Item::Axiom(AxiomDef {
+            name,
+            predicates,
+            guarantees,
+            fallback,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_axiom_predicate(&mut self) -> KainResult<AxiomPredicate> {
+        let predicate_name = self.parse_ident()?;
+        self.expect(TokenKind::LParen)?;
+        let value = self.parse_string_like_argument("axiom predicate")?;
+        self.expect(TokenKind::RParen)?;
+        match predicate_name.as_str() {
+            "target" => Ok(AxiomPredicate::Target(value)),
+            "arch" => Ok(AxiomPredicate::Arch(value)),
+            "capability" => Ok(AxiomPredicate::Capability(value)),
+            _ => Err(self.parser_error(
+                format!(
+                    "Unknown axiom predicate '{}'; expected target(...), arch(...), or capability(...)",
+                    predicate_name
+                ),
+                self.current_span(),
+            )),
+        }
+    }
+
+    fn parse_pulse(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("pulse")?;
+        let name = self.parse_ident()?;
+        self.expect_contextual_ident("every")?;
+        let interval = self.parse_pulse_duration()?;
+        let jitter = if self.peek_contextual_ident("jitter") {
+            self.advance();
+            Some(self.parse_pulse_duration()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        let body_span = body.span;
+        Ok(Item::Pulse(PulseDef {
+            name,
+            interval,
+            jitter,
+            body,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(body_span),
+        }))
+    }
+
+    fn parse_pulse_duration(&mut self) -> KainResult<PulseDuration> {
+        let start = self.current_span();
+        let value = match self.peek_kind() {
+            TokenKind::Int(value) => {
+                self.advance();
+                value
+            }
+            _ => {
+                return Err(self.parser_error(
+                    "pulse duration expects an integer like 16ms, 250us, or 1s",
+                    self.current_span(),
+                ))
+            }
+        };
+        let unit = self.parse_ident()?;
+        Ok(PulseDuration {
+            value,
+            unit,
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_orchestrate(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
@@ -2081,6 +2224,21 @@ impl<'a> Parser<'a> {
         }
 
         Ok(Item::Shader(shader))
+    }
+
+    fn parse_shatter_struct(
+        &mut self,
+        vis: Visibility,
+        mut attrs: Vec<Attribute>,
+    ) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("shatter")?;
+        attrs.push(Attribute {
+            name: SHATTER_ATTRIBUTE_NAME.to_string(),
+            args: Vec::new(),
+            span: start,
+        });
+        self.parse_struct_with_attrs(vis, attrs)
     }
 
     fn parse_struct_with_attrs(
@@ -3716,6 +3874,7 @@ impl<'a> Parser<'a> {
             TokenKind::Observe => self.parse_scoped_ownership_expr(OBSERVE_KEYWORD),
             TokenKind::Collapse => self.parse_scoped_ownership_expr(COLLAPSE_KEYWORD),
             TokenKind::Decay => self.parse_decay_expr(),
+            TokenKind::Ident(ref name) if name == "teleport" => self.parse_teleport_expr(),
             TokenKind::Amp => {
                 let s = self.current_span();
                 self.advance();
@@ -3894,6 +4053,30 @@ impl<'a> Parser<'a> {
         Ok(Expr::Decay {
             span: start.merge(target.span()),
             target: Box::new(target),
+        })
+    }
+
+    fn parse_teleport_expr(&mut self) -> KainResult<Expr> {
+        let start = self.current_span();
+        self.expect_contextual_ident("teleport")?;
+        let value = self.parse_unary()?;
+        self.expect_contextual_ident("from")?;
+        let source_world = self.parse_string_like_argument("teleport source world")?;
+        self.expect_contextual_ident("to")?;
+        let target_world = self.parse_string_like_argument("teleport target world")?;
+        let channel = if self.peek_contextual_ident("via") {
+            self.advance();
+            Some(self.parse_string_like_argument("teleport channel")?)
+        } else {
+            None
+        };
+        let span = start.merge(value.span()).merge(self.current_span());
+        Ok(Expr::Teleport {
+            value: Box::new(value),
+            source_world,
+            target_world,
+            channel,
+            span,
         })
     }
 

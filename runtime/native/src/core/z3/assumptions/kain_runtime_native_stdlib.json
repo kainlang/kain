@@ -445,15 +445,15 @@
       "id": "if.parameter-role.17",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1024,
+      "line": 1038,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 60,
-        "end_line": 1024,
+        "end_line": 1038,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1024
+        "start_line": 1038
       },
       "symbol": "if",
       "text": "if (kain_native_fs_builder_reserve(builder, length) != 0) {",
@@ -472,15 +472,15 @@
       "id": "if.parameter-role.18",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1047,
+      "line": 1061,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 46,
-        "end_line": 1047,
+        "end_line": 1061,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1047
+        "start_line": 1061
       },
       "symbol": "if",
       "text": "if ((size_t)written < sizeof(stack_buffer)) {",
@@ -499,15 +499,15 @@
       "id": "if.parameter-role.19",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1050,
+      "line": 1064,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1050,
+        "end_line": 1064,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1050
+        "start_line": 1064
       },
       "symbol": "if",
       "text": "if (kain_native_fs_builder_reserve(builder, (size_t)written) != 0) {",
@@ -526,15 +526,15 @@
       "id": "if.parameter-role.20",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1103,
+      "line": 1117,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 32,
-        "end_line": 1103,
+        "end_line": 1117,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1103
+        "start_line": 1117
       },
       "symbol": "if",
       "text": "if (length >= sizeof(buffer)) {",
@@ -553,15 +553,15 @@
       "id": "if.parameter-role.21",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1109,
+      "line": 1123,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 53,
-        "end_line": 1109,
+        "end_line": 1123,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1109
+        "start_line": 1123
       },
       "symbol": "if",
       "text": "if (buffer[index] == '/' || buffer[index] == '\\\\') {",
@@ -576,15 +576,15 @@
       "id": "if.guard-condition.22",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1111,
+      "line": 1125,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1111,
+        "end_line": 1125,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1111
+        "start_line": 1125
       },
       "symbol": "if",
       "tags": [
@@ -607,15 +607,15 @@
       "id": "if.parameter-role.24",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1111,
+      "line": 1125,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1111,
+        "end_line": 1125,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1111
+        "start_line": 1125
       },
       "symbol": "if",
       "text": "if (index == 2 && buffer[1] == ':') {",
@@ -630,15 +630,15 @@
       "id": "if.guard-condition.23",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1115,
+      "line": 1129,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 71,
-        "end_line": 1115,
+        "end_line": 1129,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1115
+        "start_line": 1129
       },
       "symbol": "if",
       "tags": [
@@ -661,15 +661,15 @@
       "id": "if.parameter-role.25",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1183,
+      "line": 1197,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 16,
-        "end_line": 1183,
+        "end_line": 1197,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1183
+        "start_line": 1197
       },
       "symbol": "if",
       "text": "if (size < 0) {",
@@ -688,15 +688,15 @@
       "id": "if.parameter-role.26",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1196,
+      "line": 1210,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1196,
+        "end_line": 1210,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1196
+        "start_line": 1210
       },
       "symbol": "if",
       "text": "if (size > 0 && fread(buffer, 1, (size_t)size, file) != (size_t)size) {",
@@ -715,15 +715,15 @@
       "id": "if.parameter-role.27",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1293,
+      "line": 1307,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 23,
-        "end_line": 1293,
+        "end_line": 1307,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1293
+        "start_line": 1307
       },
       "symbol": "if",
       "text": "if (read_count == 0) {",
@@ -742,15 +742,15 @@
       "id": "if.parameter-role.28",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1296,
+      "line": 1310,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1296,
+        "end_line": 1310,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1296
+        "start_line": 1310
       },
       "symbol": "if",
       "text": "if (kain_native_fs_builder_reserve(&builder, read_count * 2) != 0) {",
@@ -769,15 +769,15 @@
       "id": "if.parameter-role.29",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1338,
+      "line": 1352,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 16,
-        "end_line": 1338,
+        "end_line": 1352,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1338
+        "start_line": 1352
       },
       "symbol": "if",
       "text": "if (size < 0) {",
@@ -796,15 +796,15 @@
       "id": "if.parameter-role.30",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1354,
+      "line": 1368,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 73,
-        "end_line": 1354,
+        "end_line": 1368,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1354
+        "start_line": 1368
       },
       "symbol": "if",
       "text": "if ((length % 2) != 0 || kain_native_fs_create_parent_dirs(path) != 0) {",
@@ -823,15 +823,15 @@
       "id": "if.parameter-role.31",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1489,
+      "line": 1524,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 77,
-        "end_line": 1489,
+        "end_line": 1524,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1489
+        "start_line": 1524
       },
       "symbol": "if",
       "text": "if (strcmp(data.cFileName, \".\") == 0 || strcmp(data.cFileName, \"..\") == 0) {",
@@ -850,15 +850,15 @@
       "id": "if.parameter-role.32",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1492,
+      "line": 1527,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 88,
-        "end_line": 1492,
+        "end_line": 1527,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1492
+        "start_line": 1527
       },
       "symbol": "if",
       "text": "if (_snprintf_s(child, sizeof(child), _TRUNCATE, \"%s\\\\%s\", path, data.cFileName) < 0) {",
@@ -877,15 +877,15 @@
       "id": "if.parameter-role.33",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1521,
+      "line": 1556,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 77,
-        "end_line": 1521,
+        "end_line": 1556,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1521
+        "start_line": 1556
       },
       "symbol": "if",
       "text": "if (strcmp(data.cFileName, \".\") == 0 || strcmp(data.cFileName, \"..\") == 0) {",
@@ -904,15 +904,15 @@
       "id": "if.parameter-role.34",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1524,
+      "line": 1559,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 88,
-        "end_line": 1524,
+        "end_line": 1559,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1524
+        "start_line": 1559
       },
       "symbol": "if",
       "text": "if (_snprintf_s(child, sizeof(child), _TRUNCATE, \"%s\\\\%s\", path, data.cFileName) < 0) {",
@@ -927,15 +927,15 @@
       "id": "if.guard-condition.35",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1534,
+      "line": 1569,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1534,
+        "end_line": 1569,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1534
+        "start_line": 1569
       },
       "symbol": "if",
       "tags": [
@@ -955,15 +955,15 @@
       "id": "if.guard-condition.36",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1591,
+      "line": 1626,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1591,
+        "end_line": 1626,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1591
+        "start_line": 1626
       },
       "symbol": "if",
       "tags": [
@@ -987,15 +987,15 @@
       "id": "if.parameter-role.37",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1641,
+      "line": 1676,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 32,
-        "end_line": 1641,
+        "end_line": 1676,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1641
+        "start_line": 1676
       },
       "symbol": "if",
       "text": "if (length >= sizeof(buffer)) {",
@@ -1014,15 +1014,15 @@
       "id": "if.parameter-role.38",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1647,
+      "line": 1682,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 78,
-        "end_line": 1647,
+        "end_line": 1682,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1647
+        "start_line": 1682
       },
       "symbol": "if",
       "text": "if (buffer[index] == '/' || buffer[index] == '\\\\' || buffer[index] == '\\0') {",
@@ -1037,15 +1037,15 @@
       "id": "if.guard-condition.39",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1649,
+      "line": 1684,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1649,
+        "end_line": 1684,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1649
+        "start_line": 1684
       },
       "symbol": "if",
       "tags": [
@@ -1068,15 +1068,15 @@
       "id": "if.parameter-role.43",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1649,
+      "line": 1684,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1649,
+        "end_line": 1684,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1649
+        "start_line": 1684
       },
       "symbol": "if",
       "text": "if (index == 2 && buffer[1] == ':') {",
@@ -1091,15 +1091,15 @@
       "id": "if.guard-condition.40",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1653,
+      "line": 1688,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1653,
+        "end_line": 1688,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1653
+        "start_line": 1688
       },
       "symbol": "if",
       "tags": [
@@ -1118,15 +1118,15 @@
       "id": "if.guard-condition.41",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1654,
+      "line": 1689,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1654,
+        "end_line": 1689,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1654
+        "start_line": 1689
       },
       "symbol": "if",
       "tags": [
@@ -1145,15 +1145,15 @@
       "id": "if.guard-condition.44",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1654,
+      "line": 1689,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1654,
+        "end_line": 1689,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1654
+        "start_line": 1689
       },
       "symbol": "if",
       "tags": [
@@ -1172,15 +1172,15 @@
       "id": "if.guard-condition.42",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1659,
+      "line": 1694,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1659,
+        "end_line": 1694,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1659
+        "start_line": 1694
       },
       "symbol": "if",
       "tags": [
@@ -1199,15 +1199,15 @@
       "id": "if.guard-condition.45",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1659,
+      "line": 1694,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1659,
+        "end_line": 1694,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1659
+        "start_line": 1694
       },
       "symbol": "if",
       "tags": [
@@ -1230,15 +1230,15 @@
       "id": "if.parameter-role.46",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1724,
+      "line": 1759,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 33,
-        "end_line": 1724,
+        "end_line": 1759,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1724
+        "start_line": 1759
       },
       "symbol": "if",
       "text": "if (buffer_size > 1024 * 1024) {",
@@ -1253,15 +1253,15 @@
       "id": "if.guard-condition.47",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1806,
+      "line": 1841,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 77,
-        "end_line": 1806,
+        "end_line": 1841,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1806
+        "start_line": 1841
       },
       "symbol": "if",
       "tags": [
@@ -1285,15 +1285,15 @@
       "id": "if.parameter-role.51",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1806,
+      "line": 1841,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 77,
-        "end_line": 1806,
+        "end_line": 1841,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1806
+        "start_line": 1841
       },
       "symbol": "if",
       "text": "if (strcmp(data.cFileName, \".\") == 0 || strcmp(data.cFileName, \"..\") == 0) {",
@@ -1308,15 +1308,15 @@
       "id": "if.guard-condition.48",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1809,
+      "line": 1844,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 74,
-        "end_line": 1809,
+        "end_line": 1844,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1809
+        "start_line": 1844
       },
       "symbol": "if",
       "tags": [
@@ -1343,15 +1343,15 @@
       "id": "if.parameter-role.52",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1809,
+      "line": 1844,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 74,
-        "end_line": 1809,
+        "end_line": 1844,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1809
+        "start_line": 1844
       },
       "symbol": "if",
       "text": "if (snprintf(child, sizeof(child), \"%s\\\\%s\", path, data.cFileName) < 0) {",
@@ -1366,15 +1366,15 @@
       "id": "if.guard-condition.49",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1814,
+      "line": 1849,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 63,
-        "end_line": 1814,
+        "end_line": 1849,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1814
+        "start_line": 1849
       },
       "symbol": "if",
       "tags": [
@@ -1394,15 +1394,15 @@
       "id": "if.guard-condition.50",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1815,
+      "line": 1850,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1815,
+        "end_line": 1850,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1815
+        "start_line": 1850
       },
       "symbol": "if",
       "tags": [
@@ -1421,15 +1421,15 @@
       "id": "if.guard-condition.53",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1815,
+      "line": 1850,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1815,
+        "end_line": 1850,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1815
+        "start_line": 1850
       },
       "symbol": "if",
       "tags": [
@@ -1448,15 +1448,15 @@
       "id": "if.guard-condition.54",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1856,
+      "line": 1891,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1856,
+        "end_line": 1891,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1856
+        "start_line": 1891
       },
       "symbol": "if",
       "tags": [
@@ -1482,15 +1482,15 @@
       "id": "if.guard-condition.55",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1912,
+      "line": 1947,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1912,
+        "end_line": 1947,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1912
+        "start_line": 1947
       },
       "symbol": "if",
       "tags": [
@@ -1512,15 +1512,15 @@
       "id": "if.parameter-role.56",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2084,
+      "line": 2119,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 27,
-        "end_line": 2084,
+        "end_line": 2119,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2084
+        "start_line": 2119
       },
       "symbol": "if",
       "text": "if (ctx->data_len == 64) {",
@@ -1539,15 +1539,15 @@
       "id": "if.parameter-role.57",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2097,
+      "line": 2132,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 18,
-        "end_line": 2097,
+        "end_line": 2132,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2097
+        "start_line": 2132
       },
       "symbol": "if",
       "text": "if (index > 56) {",
@@ -1569,15 +1569,15 @@
       "id": "if.guard-condition.58",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2098,
+      "line": 2133,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 21,
-        "end_line": 2098,
+        "end_line": 2133,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2098
+        "start_line": 2133
       },
       "symbol": "if",
       "tags": [
@@ -1602,15 +1602,15 @@
       "id": "if.guard-condition.59",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2104,
+      "line": 2139,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 21,
-        "end_line": 2104,
+        "end_line": 2139,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2104
+        "start_line": 2139
       },
       "symbol": "if",
       "tags": [
@@ -1632,15 +1632,15 @@
       "id": "if.parameter-role.60",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2179,
+      "line": 2214,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 81,
-        "end_line": 2179,
+        "end_line": 2214,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2179
+        "start_line": 2214
       },
       "symbol": "if",
       "text": "if (base_len > 0 && (base[base_len - 1] == '/' || base[base_len - 1] == '\\\\')) {",
@@ -3706,15 +3706,15 @@
       "id": "kain-native-fs-atomic-write-text.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1941,
+      "line": 1976,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1941,
+        "end_line": 1976,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1941
+        "start_line": 1976
       },
       "symbol": "kain_native_fs_atomic_write_text",
       "tags": [
@@ -3734,15 +3734,15 @@
       "id": "kain-native-fs-atomic-write-text.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1950,
+      "line": 1985,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 58,
-        "end_line": 1950,
+        "end_line": 1985,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1950
+        "start_line": 1985
       },
       "symbol": "kain_native_fs_atomic_write_text",
       "tags": [
@@ -3764,15 +3764,15 @@
       "id": "kain-native-fs-atomic-write-text.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1956,
+      "line": 1991,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1956,
+        "end_line": 1991,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1956
+        "start_line": 1991
       },
       "symbol": "kain_native_fs_atomic_write_text",
       "tags": [
@@ -3801,15 +3801,15 @@
       "id": "kain-native-fs-builder-append.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1020,
+      "line": 1034,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1020,
+        "end_line": 1034,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1020
+        "start_line": 1034
       },
       "symbol": "kain_native_fs_builder_append",
       "tags": [
@@ -3829,15 +3829,15 @@
       "id": "kain-native-fs-builder-append.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1024,
+      "line": 1038,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 60,
-        "end_line": 1024,
+        "end_line": 1038,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1024
+        "start_line": 1038
       },
       "symbol": "kain_native_fs_builder_append",
       "tags": [
@@ -3866,15 +3866,15 @@
       "id": "kain-native-fs-builder-appendf.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1043,
+      "line": 1057,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 19,
-        "end_line": 1043,
+        "end_line": 1057,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1043
+        "start_line": 1057
       },
       "symbol": "kain_native_fs_builder_appendf",
       "tags": [
@@ -3894,15 +3894,15 @@
       "id": "kain-native-fs-builder-appendf.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1047,
+      "line": 1061,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 46,
-        "end_line": 1047,
+        "end_line": 1061,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1047
+        "start_line": 1061
       },
       "symbol": "kain_native_fs_builder_appendf",
       "tags": [
@@ -3924,15 +3924,15 @@
       "id": "kain-native-fs-builder-appendf.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1050,
+      "line": 1064,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1050,
+        "end_line": 1064,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1050
+        "start_line": 1064
       },
       "symbol": "kain_native_fs_builder_appendf",
       "tags": [
@@ -3955,15 +3955,15 @@
       "id": "kain-native-fs-builder-finish.return-condition.1",
       "kind": "return-condition",
       "language": "c",
-      "line": 1063,
+      "line": 1077,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 46,
-        "end_line": 1063,
+        "end_line": 1077,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1063
+        "start_line": 1077
       },
       "symbol": "kain_native_fs_builder_finish",
       "tags": [
@@ -4046,15 +4046,15 @@
       "id": "kain-native-fs-builder-reserve.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 978,
+      "line": 992,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 97,
-        "end_line": 978,
+        "end_line": 992,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 978
+        "start_line": 992
       },
       "symbol": "kain_native_fs_builder_reserve",
       "text": "static int kain_native_fs_builder_reserve(KainNativeFsTextBuilder* builder, size_t additional) {",
@@ -4076,15 +4076,15 @@
       "id": "kain-native-fs-builder-reserve.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 983,
+      "line": 997,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 20,
-        "end_line": 983,
+        "end_line": 997,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 983
+        "start_line": 997
       },
       "symbol": "kain_native_fs_builder_reserve",
       "tags": [
@@ -4104,15 +4104,15 @@
       "id": "kain-native-fs-builder-reserve.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 987,
+      "line": 1001,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 67,
-        "end_line": 987,
+        "end_line": 1001,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 987
+        "start_line": 1001
       },
       "symbol": "kain_native_fs_builder_reserve",
       "tags": [
@@ -4135,15 +4135,15 @@
       "id": "kain-native-fs-builder-reserve.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 992,
+      "line": 1006,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 59,
-        "end_line": 992,
+        "end_line": 1006,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 992
+        "start_line": 1006
       },
       "symbol": "kain_native_fs_builder_reserve",
       "tags": [
@@ -4165,15 +4165,15 @@
       "id": "kain-native-fs-builder-reserve.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 997,
+      "line": 1011,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 35,
-        "end_line": 997,
+        "end_line": 1011,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 997
+        "start_line": 1011
       },
       "symbol": "kain_native_fs_builder_reserve",
       "tags": [
@@ -4202,15 +4202,15 @@
       "id": "kain-native-fs-builder-reserve.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1001,
+      "line": 1015,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 33,
-        "end_line": 1001,
+        "end_line": 1015,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1001
+        "start_line": 1015
       },
       "symbol": "kain_native_fs_builder_reserve",
       "tags": [
@@ -4244,15 +4244,15 @@
       "id": "kain-native-fs-builder-reserve.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1002,
+      "line": 1016,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 39,
-        "end_line": 1002,
+        "end_line": 1016,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1002
+        "start_line": 1016
       },
       "symbol": "kain_native_fs_builder_reserve",
       "tags": [
@@ -4281,15 +4281,15 @@
       "id": "kain-native-fs-builder-reserve.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1009,
+      "line": 1023,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 18,
-        "end_line": 1009,
+        "end_line": 1023,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1009
+        "start_line": 1023
       },
       "symbol": "kain_native_fs_builder_reserve",
       "tags": [
@@ -4328,15 +4328,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1675,
+      "line": 1710,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 29,
-        "end_line": 1675,
+        "end_line": 1710,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1675
+        "start_line": 1710
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4357,15 +4357,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1680,
+      "line": 1715,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 48,
-        "end_line": 1680,
+        "end_line": 1715,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1680
+        "start_line": 1715
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4395,15 +4395,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1684,
+      "line": 1719,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 18,
-        "end_line": 1684,
+        "end_line": 1719,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1684
+        "start_line": 1719
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4423,15 +4423,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1687,
+      "line": 1722,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 52,
-        "end_line": 1687,
+        "end_line": 1722,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1687
+        "start_line": 1722
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4452,15 +4452,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1692,
+      "line": 1727,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 51,
-        "end_line": 1692,
+        "end_line": 1727,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1692
+        "start_line": 1727
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4490,15 +4490,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1696,
+      "line": 1731,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 19,
-        "end_line": 1696,
+        "end_line": 1731,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1696
+        "start_line": 1731
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4518,15 +4518,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1700,
+      "line": 1735,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1700,
+        "end_line": 1735,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1700
+        "start_line": 1735
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4549,15 +4549,15 @@
       "id": "kain-native-fs-copy-file.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1701,
+      "line": 1736,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 59,
-        "end_line": 1701,
+        "end_line": 1736,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1701
+        "start_line": 1736
       },
       "symbol": "kain_native_fs_copy_file",
       "tags": [
@@ -4584,15 +4584,15 @@
       "id": "kain-native-fs-copy-file-streaming.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1712,
+      "line": 1747,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 100,
-        "end_line": 1712,
+        "end_line": 1747,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1712
+        "start_line": 1747
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "text": "int64_t kain_native_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size) {",
@@ -4611,15 +4611,15 @@
       "id": "kain-native-fs-copy-file-streaming.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1712,
+      "line": 1747,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 100,
-        "end_line": 1712,
+        "end_line": 1747,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1712
+        "start_line": 1747
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "text": "int64_t kain_native_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size) {",
@@ -4665,15 +4665,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1719,
+      "line": 1754,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 47,
-        "end_line": 1719,
+        "end_line": 1754,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1719
+        "start_line": 1754
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4708,15 +4708,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1724,
+      "line": 1759,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 33,
-        "end_line": 1724,
+        "end_line": 1759,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1724
+        "start_line": 1759
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4743,15 +4743,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1728,
+      "line": 1763,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 19,
-        "end_line": 1728,
+        "end_line": 1763,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1728
+        "start_line": 1763
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4771,15 +4771,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1733,
+      "line": 1768,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 48,
-        "end_line": 1733,
+        "end_line": 1768,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1733
+        "start_line": 1768
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4809,15 +4809,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1737,
+      "line": 1772,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 18,
-        "end_line": 1737,
+        "end_line": 1772,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1737
+        "start_line": 1772
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4837,15 +4837,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1741,
+      "line": 1776,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 52,
-        "end_line": 1741,
+        "end_line": 1776,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1741
+        "start_line": 1776
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4866,15 +4866,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1747,
+      "line": 1782,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 51,
-        "end_line": 1747,
+        "end_line": 1782,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1747
+        "start_line": 1782
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4904,15 +4904,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1751,
+      "line": 1786,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 19,
-        "end_line": 1751,
+        "end_line": 1786,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1751
+        "start_line": 1786
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4932,15 +4932,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1756,
+      "line": 1791,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 66,
-        "end_line": 1756,
+        "end_line": 1791,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1756
+        "start_line": 1791
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -4964,15 +4964,15 @@
       "id": "kain-native-fs-copy-file-streaming.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1757,
+      "line": 1792,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 59,
-        "end_line": 1757,
+        "end_line": 1792,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1757
+        "start_line": 1792
       },
       "symbol": "kain_native_fs_copy_file_streaming",
       "tags": [
@@ -5132,15 +5132,15 @@
       "id": "kain-native-fs-create-dir-all.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1636,
+      "line": 1671,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1636,
+        "end_line": 1671,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1636
+        "start_line": 1671
       },
       "symbol": "kain_native_fs_create_dir_all",
       "tags": [
@@ -5160,15 +5160,15 @@
       "id": "kain-native-fs-create-dir-all.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1641,
+      "line": 1676,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 32,
-        "end_line": 1641,
+        "end_line": 1676,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1641
+        "start_line": 1676
       },
       "symbol": "kain_native_fs_create_dir_all",
       "tags": [
@@ -5189,15 +5189,15 @@
       "id": "kain-native-fs-create-dir-all.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1647,
+      "line": 1682,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 78,
-        "end_line": 1647,
+        "end_line": 1682,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1647
+        "start_line": 1682
       },
       "symbol": "kain_native_fs_create_dir_all",
       "tags": [
@@ -5218,15 +5218,15 @@
       "id": "kain-native-fs-create-dir-all.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1649,
+      "line": 1684,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1649,
+        "end_line": 1684,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1649
+        "start_line": 1684
       },
       "symbol": "kain_native_fs_create_dir_all",
       "tags": [
@@ -5247,15 +5247,15 @@
       "id": "kain-native-fs-create-dir-all.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1653,
+      "line": 1688,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1653,
+        "end_line": 1688,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1653
+        "start_line": 1688
       },
       "symbol": "kain_native_fs_create_dir_all",
       "tags": [
@@ -5276,15 +5276,15 @@
       "id": "kain-native-fs-create-dir-all.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1654,
+      "line": 1689,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1654,
+        "end_line": 1689,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1654
+        "start_line": 1689
       },
       "symbol": "kain_native_fs_create_dir_all",
       "tags": [
@@ -5305,15 +5305,15 @@
       "id": "kain-native-fs-create-dir-all.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1659,
+      "line": 1694,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1659,
+        "end_line": 1694,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1659
+        "start_line": 1694
       },
       "symbol": "kain_native_fs_create_dir_all",
       "tags": [
@@ -5334,15 +5334,15 @@
       "id": "kain-native-fs-create-one-dir.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1077,
+      "line": 1091,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1077,
+        "end_line": 1091,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1077
+        "start_line": 1091
       },
       "symbol": "kain_native_fs_create_one_dir",
       "tags": [
@@ -5362,15 +5362,15 @@
       "id": "kain-native-fs-create-one-dir.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1082,
+      "line": 1096,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 83,
-        "end_line": 1082,
+        "end_line": 1096,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1082
+        "start_line": 1096
       },
       "symbol": "kain_native_fs_create_one_dir",
       "tags": [
@@ -5394,15 +5394,15 @@
       "id": "kain-native-fs-create-one-dir.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1088,
+      "line": 1102,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 49,
-        "end_line": 1088,
+        "end_line": 1102,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1088
+        "start_line": 1102
       },
       "symbol": "kain_native_fs_create_one_dir",
       "tags": [
@@ -5425,15 +5425,15 @@
       "id": "kain-native-fs-create-parent-dirs.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1099,
+      "line": 1113,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1099,
+        "end_line": 1113,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1099
+        "start_line": 1113
       },
       "symbol": "kain_native_fs_create_parent_dirs",
       "tags": [
@@ -5453,15 +5453,15 @@
       "id": "kain-native-fs-create-parent-dirs.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1103,
+      "line": 1117,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 32,
-        "end_line": 1103,
+        "end_line": 1117,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1103
+        "start_line": 1117
       },
       "symbol": "kain_native_fs_create_parent_dirs",
       "tags": [
@@ -5482,15 +5482,15 @@
       "id": "kain-native-fs-create-parent-dirs.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1109,
+      "line": 1123,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 53,
-        "end_line": 1109,
+        "end_line": 1123,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1109
+        "start_line": 1123
       },
       "symbol": "kain_native_fs_create_parent_dirs",
       "tags": [
@@ -5511,15 +5511,15 @@
       "id": "kain-native-fs-create-parent-dirs.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1111,
+      "line": 1125,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1111,
+        "end_line": 1125,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1111
+        "start_line": 1125
       },
       "symbol": "kain_native_fs_create_parent_dirs",
       "tags": [
@@ -5540,15 +5540,15 @@
       "id": "kain-native-fs-create-parent-dirs.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1115,
+      "line": 1129,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 71,
-        "end_line": 1115,
+        "end_line": 1129,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1115
+        "start_line": 1129
       },
       "symbol": "kain_native_fs_create_parent_dirs",
       "tags": [
@@ -5569,15 +5569,15 @@
       "id": "kain-native-fs-exists.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1386,
+      "line": 1400,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1386,
+        "end_line": 1400,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1386
+        "start_line": 1400
       },
       "symbol": "kain_native_fs_exists",
       "tags": [
@@ -5596,15 +5596,15 @@
       "id": "kain-native-fs-exists.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1390,
+      "line": 1404,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 60,
-        "end_line": 1390,
+        "end_line": 1404,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1390
+        "start_line": 1404
       },
       "symbol": "kain_native_fs_exists",
       "tags": [
@@ -5625,15 +5625,15 @@
       "id": "kain-native-fs-exists.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1392,
+      "line": 1406,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 32,
-        "end_line": 1392,
+        "end_line": 1406,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1392
+        "start_line": 1406
       },
       "symbol": "kain_native_fs_exists",
       "tags": [
@@ -5722,22 +5722,20 @@
       "id": "kain-native-fs-file-type-text.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1426,
+      "line": 1439,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 83,
-        "end_line": 1426,
+        "end_line": 1439,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1426
+        "start_line": 1439
       },
       "symbol": "kain_native_fs_file_type_text",
       "tags": [
         "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
+        "bounds"
       ],
       "text": "if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {",
       "variables": [
@@ -5753,22 +5751,20 @@
       "id": "kain-native-fs-file-type-text.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1432,
+      "line": 1447,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 48,
-        "end_line": 1432,
+        "end_line": 1447,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1432
+        "start_line": 1447
       },
       "symbol": "kain_native_fs_file_type_text",
       "tags": [
         "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
+        "bounds"
       ],
       "text": "if (S_ISDIR(info->st_mode)) return \"directory\";",
       "variables": [
@@ -5785,22 +5781,20 @@
       "id": "kain-native-fs-file-type-text.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1433,
+      "line": 1448,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 43,
-        "end_line": 1433,
+        "end_line": 1448,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1433
+        "start_line": 1448
       },
       "symbol": "kain_native_fs_file_type_text",
       "tags": [
         "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
+        "bounds"
       ],
       "text": "if (S_ISREG(info->st_mode)) return \"file\";",
       "variables": [
@@ -5817,22 +5811,20 @@
       "id": "kain-native-fs-file-type-text.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1435,
+      "line": 1450,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 46,
-        "end_line": 1435,
+        "end_line": 1450,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1435
+        "start_line": 1450
       },
       "symbol": "kain_native_fs_file_type_text",
       "tags": [
         "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
+        "bounds"
       ],
       "text": "if (S_ISLNK(info->st_mode)) return \"symlink\";",
       "variables": [
@@ -5845,19 +5837,48 @@
     {
       "active": true,
       "confidence": "high",
+      "expression": "ticks.QuadPart == 0ULL",
+      "id": "kain-native-fs-filetime-to-unix-seconds.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 985,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 985,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
+        "start_col": 1,
+        "start_line": 985
+      },
+      "symbol": "kain_native_fs_filetime_to_unix_seconds",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (ticks.QuadPart == 0ULL) {",
+      "variables": [
+        "QuadPart",
+        "ULL",
+        "ticks"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "expression": "path == 0 || path[0] == '\\0'",
       "id": "kain-native-fs-hash-file.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2137,
+      "line": 2172,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 2137,
+        "end_line": 2172,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2137
+        "start_line": 2172
       },
       "symbol": "kain_native_fs_hash_file",
       "tags": [
@@ -5877,15 +5898,15 @@
       "id": "kain-native-fs-hash-file.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2143,
+      "line": 2178,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 47,
-        "end_line": 2143,
+        "end_line": 2178,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2143
+        "start_line": 2178
       },
       "symbol": "kain_native_fs_hash_file",
       "tags": [
@@ -5915,15 +5936,15 @@
       "id": "kain-native-fs-hash-file.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2147,
+      "line": 2182,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 2147,
+        "end_line": 2182,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2147
+        "start_line": 2182
       },
       "symbol": "kain_native_fs_hash_file",
       "tags": [
@@ -5943,15 +5964,15 @@
       "id": "kain-native-fs-hash-file.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2152,
+      "line": 2187,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 68,
-        "end_line": 2152,
+        "end_line": 2187,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2152
+        "start_line": 2187
       },
       "symbol": "kain_native_fs_hash_file",
       "tags": [
@@ -5974,15 +5995,15 @@
       "id": "kain-native-fs-hash-file.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2155,
+      "line": 2190,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 25,
-        "end_line": 2155,
+        "end_line": 2190,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2155
+        "start_line": 2190
       },
       "symbol": "kain_native_fs_hash_file",
       "tags": [
@@ -6003,15 +6024,15 @@
       "id": "kain-native-fs-hex-value.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1252,
+      "line": 1266,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 45,
-        "end_line": 1252,
+        "end_line": 1266,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1252
+        "start_line": 1266
       },
       "symbol": "kain_native_fs_hex_value",
       "tags": [
@@ -6031,15 +6052,15 @@
       "id": "kain-native-fs-hex-value.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1253,
+      "line": 1267,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1253,
+        "end_line": 1267,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1253
+        "start_line": 1267
       },
       "symbol": "kain_native_fs_hex_value",
       "tags": [
@@ -6061,15 +6082,15 @@
       "id": "kain-native-fs-hex-value.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1254,
+      "line": 1268,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1254,
+        "end_line": 1268,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1254
+        "start_line": 1268
       },
       "symbol": "kain_native_fs_hex_value",
       "tags": [
@@ -6091,15 +6112,15 @@
       "id": "kain-native-fs-is-dir.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1412,
+      "line": 1426,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 44,
-        "end_line": 1412,
+        "end_line": 1426,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1412
+        "start_line": 1426
       },
       "symbol": "kain_native_fs_is_dir",
       "tags": [
@@ -6118,15 +6139,15 @@
       "id": "kain-native-fs-is-dir.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1414,
+      "line": 1428,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 84,
-        "end_line": 1414,
+        "end_line": 1428,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1414
+        "start_line": 1428
       },
       "symbol": "kain_native_fs_is_dir",
       "tags": [
@@ -6147,15 +6168,15 @@
       "id": "kain-native-fs-is-dir.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1417,
+      "line": 1431,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 51,
-        "end_line": 1417,
+        "end_line": 1431,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1417
+        "start_line": 1431
       },
       "symbol": "kain_native_fs_is_dir",
       "tags": [
@@ -6176,15 +6197,15 @@
       "id": "kain-native-fs-is-file.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1399,
+      "line": 1413,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 44,
-        "end_line": 1399,
+        "end_line": 1413,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1399
+        "start_line": 1413
       },
       "symbol": "kain_native_fs_is_file",
       "tags": [
@@ -6203,15 +6224,15 @@
       "id": "kain-native-fs-is-file.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1401,
+      "line": 1415,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 84,
-        "end_line": 1401,
+        "end_line": 1415,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1401
+        "start_line": 1415
       },
       "symbol": "kain_native_fs_is_file",
       "tags": [
@@ -6232,15 +6253,15 @@
       "id": "kain-native-fs-is-file.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1404,
+      "line": 1418,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 51,
-        "end_line": 1404,
+        "end_line": 1418,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1404
+        "start_line": 1418
       },
       "symbol": "kain_native_fs_is_file",
       "tags": [
@@ -6261,21 +6282,20 @@
       "id": "kain-native-fs-metadata-text.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1444,
+      "line": 1465,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1444,
+        "end_line": 1465,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1444
+        "start_line": 1465
       },
       "symbol": "kain_native_fs_metadata_text",
       "tags": [
         "bitwise",
-        "bounds",
-        "overflow"
+        "bounds"
       ],
       "text": "if (path == 0 || path[0] == '\\0') {",
       "variables": [
@@ -6285,95 +6305,60 @@
     {
       "active": true,
       "confidence": "high",
-      "expression": "stat(path, &info) != 0",
+      "expression": "GetFileAttributesExA(path, GetFileExInfoStandard, &file_info) == 0",
       "id": "kain-native-fs-metadata-text.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1449,
+      "line": 1471,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
-        "end_col": 30,
-        "end_line": 1449,
+        "end_col": 74,
+        "end_line": 1471,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1449
+        "start_line": 1471
       },
       "symbol": "kain_native_fs_metadata_text",
       "tags": [
         "bitwise",
-        "bounds",
-        "overflow"
+        "bounds"
+      ],
+      "text": "if (GetFileAttributesExA(path, GetFileExInfoStandard, &file_info) == 0) {",
+      "variables": [
+        "GetFileAttributesExA",
+        "GetFileExInfoStandard",
+        "file_info",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stat(path, &info) != 0",
+      "id": "kain-native-fs-metadata-text.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1480,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 1480,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
+        "start_col": 1,
+        "start_line": 1480
+      },
+      "symbol": "kain_native_fs_metadata_text",
+      "tags": [
+        "bitwise",
+        "bounds"
       ],
       "text": "if (stat(path, &info) != 0) {",
       "variables": [
         "info",
         "path",
         "stat"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "kain_native_fs_builder_init(&builder) != 0",
-      "id": "kain-native-fs-metadata-text.guard-condition.3",
-      "kind": "guard-condition",
-      "language": "c",
-      "line": 1453,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
-      "span": {
-        "end_col": 50,
-        "end_line": 1453,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
-        "start_col": 1,
-        "start_line": 1453
-      },
-      "symbol": "kain_native_fs_metadata_text",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if (kain_native_fs_builder_init(&builder) != 0) {",
-      "variables": [
-        "builder",
-        "kain_native_fs_builder_init"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "(kain_native_fs_builder_appendf(&builder, \"file_type=%s\\n\", kain_native_fs_file_type_text(path, &info)) != 0",
-      "id": "kain-native-fs-metadata-text.guard-condition.4",
-      "kind": "guard-condition",
-      "language": "c",
-      "line": 1457,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
-      "span": {
-        "end_col": 112,
-        "end_line": 1457,
-        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
-        "start_col": 1,
-        "start_line": 1457
-      },
-      "symbol": "kain_native_fs_metadata_text",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if (kain_native_fs_builder_appendf(&builder, \"file_type=%s\\n\", kain_native_fs_file_type_text(path, &info)) != 0",
-      "variables": [
-        "builder",
-        "file_type",
-        "info",
-        "kain_native_fs_builder_appendf",
-        "kain_native_fs_file_type_text",
-        "n",
-        "path",
-        "s"
       ]
     },
     {
@@ -6402,15 +6387,15 @@
       "id": "kain-native-fs-move-path.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1773,
+      "line": 1808,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 29,
-        "end_line": 1773,
+        "end_line": 1808,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1773
+        "start_line": 1808
       },
       "symbol": "kain_native_fs_move_path",
       "tags": [
@@ -6430,15 +6415,15 @@
       "id": "kain-native-fs-move-path.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1777,
+      "line": 1812,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 52,
-        "end_line": 1777,
+        "end_line": 1812,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1777
+        "start_line": 1812
       },
       "symbol": "kain_native_fs_move_path",
       "tags": [
@@ -6458,15 +6443,15 @@
       "id": "kain-native-fs-move-path.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1780,
+      "line": 1815,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 30,
-        "end_line": 1780,
+        "end_line": 1815,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1780
+        "start_line": 1815
       },
       "symbol": "kain_native_fs_move_path",
       "tags": [
@@ -6487,15 +6472,15 @@
       "id": "kain-native-fs-path-is-absolute.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1067,
+      "line": 1081,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1067,
+        "end_line": 1081,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1067
+        "start_line": 1081
       },
       "symbol": "kain_native_fs_path_is_absolute",
       "tags": [
@@ -6515,15 +6500,15 @@
       "id": "kain-native-fs-path-is-absolute.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1070,
+      "line": 1084,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 41,
-        "end_line": 1070,
+        "end_line": 1084,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1070
+        "start_line": 1084
       },
       "symbol": "kain_native_fs_path_is_absolute",
       "tags": [
@@ -6543,15 +6528,15 @@
       "id": "kain-native-fs-path-is-absolute.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1073,
+      "line": 1087,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 43,
-        "end_line": 1073,
+        "end_line": 1087,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1073
+        "start_line": 1087
       },
       "symbol": "kain_native_fs_path_is_absolute",
       "tags": [
@@ -6572,15 +6557,15 @@
       "id": "kain-native-fs-path-join.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2174,
+      "line": 2209,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 28,
-        "end_line": 2174,
+        "end_line": 2209,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2174
+        "start_line": 2209
       },
       "symbol": "kain_native_fs_path_join",
       "tags": [
@@ -6600,15 +6585,15 @@
       "id": "kain-native-fs-path-join.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2175,
+      "line": 2210,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 78,
-        "end_line": 2175,
+        "end_line": 2210,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2175
+        "start_line": 2210
       },
       "symbol": "kain_native_fs_path_join",
       "tags": [
@@ -6630,15 +6615,15 @@
       "id": "kain-native-fs-path-join.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2179,
+      "line": 2214,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 81,
-        "end_line": 2179,
+        "end_line": 2214,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2179
+        "start_line": 2214
       },
       "symbol": "kain_native_fs_path_join",
       "tags": [
@@ -6663,15 +6648,15 @@
       "id": "kain-native-fs-read-byte-range-hex.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1258,
+      "line": 1272,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 99,
-        "end_line": 1258,
+        "end_line": 1272,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1258
+        "start_line": 1272
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "text": "const char* kain_native_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length) {",
@@ -6690,15 +6675,15 @@
       "id": "kain-native-fs-read-byte-range-hex.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1258,
+      "line": 1272,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 99,
-        "end_line": 1258,
+        "end_line": 1272,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1258
+        "start_line": 1272
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "text": "const char* kain_native_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length) {",
@@ -6717,15 +6702,15 @@
       "id": "kain-native-fs-read-byte-range-hex.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1258,
+      "line": 1272,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 99,
-        "end_line": 1258,
+        "end_line": 1272,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1258
+        "start_line": 1272
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "text": "const char* kain_native_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length) {",
@@ -6744,15 +6729,15 @@
       "id": "kain-native-fs-read-byte-range-hex.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1258,
+      "line": 1272,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 99,
-        "end_line": 1258,
+        "end_line": 1272,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1258
+        "start_line": 1272
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "text": "const char* kain_native_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length) {",
@@ -6767,15 +6752,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1264,
+      "line": 1278,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 64,
-        "end_line": 1264,
+        "end_line": 1278,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1264
+        "start_line": 1278
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -6798,15 +6783,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1269,
+      "line": 1283,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1269,
+        "end_line": 1283,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1269
+        "start_line": 1283
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -6828,15 +6813,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1274,
+      "line": 1288,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 47,
-        "end_line": 1274,
+        "end_line": 1288,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1274
+        "start_line": 1288
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -6867,15 +6852,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1278,
+      "line": 1292,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1278,
+        "end_line": 1292,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1278
+        "start_line": 1292
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -6896,15 +6881,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1283,
+      "line": 1297,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 48,
-        "end_line": 1283,
+        "end_line": 1297,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1283
+        "start_line": 1297
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -6936,15 +6921,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1289,
+      "line": 1303,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 24,
-        "end_line": 1289,
+        "end_line": 1303,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1289
+        "start_line": 1303
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -6972,15 +6957,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1293,
+      "line": 1307,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 23,
-        "end_line": 1293,
+        "end_line": 1307,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1293
+        "start_line": 1307
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -7001,15 +6986,15 @@
       "id": "kain-native-fs-read-byte-range-hex.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1296,
+      "line": 1310,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1296,
+        "end_line": 1310,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1296
+        "start_line": 1310
       },
       "symbol": "kain_native_fs_read_byte_range_hex",
       "tags": [
@@ -7032,15 +7017,15 @@
       "id": "kain-native-fs-read-bytes-hex.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1317,
+      "line": 1331,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1317,
+        "end_line": 1331,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1317
+        "start_line": 1331
       },
       "symbol": "kain_native_fs_read_bytes_hex",
       "tags": [
@@ -7060,15 +7045,15 @@
       "id": "kain-native-fs-read-bytes-hex.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1323,
+      "line": 1337,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 47,
-        "end_line": 1323,
+        "end_line": 1337,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1323
+        "start_line": 1337
       },
       "symbol": "kain_native_fs_read_bytes_hex",
       "tags": [
@@ -7098,15 +7083,15 @@
       "id": "kain-native-fs-read-bytes-hex.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1327,
+      "line": 1341,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1327,
+        "end_line": 1341,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1327
+        "start_line": 1341
       },
       "symbol": "kain_native_fs_read_bytes_hex",
       "tags": [
@@ -7126,15 +7111,15 @@
       "id": "kain-native-fs-read-bytes-hex.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1331,
+      "line": 1345,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 37,
-        "end_line": 1331,
+        "end_line": 1345,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1331
+        "start_line": 1345
       },
       "symbol": "kain_native_fs_read_bytes_hex",
       "tags": [
@@ -7163,15 +7148,15 @@
       "id": "kain-native-fs-read-bytes-hex.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1338,
+      "line": 1352,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 16,
-        "end_line": 1338,
+        "end_line": 1352,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1338
+        "start_line": 1352
       },
       "symbol": "kain_native_fs_read_bytes_hex",
       "tags": [
@@ -7191,15 +7176,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1478,
+      "line": 1513,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1478,
+        "end_line": 1513,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1478
+        "start_line": 1513
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7230,15 +7215,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1483,
+      "line": 1518,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1483,
+        "end_line": 1518,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1483
+        "start_line": 1518
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7259,15 +7244,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1489,
+      "line": 1524,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 77,
-        "end_line": 1489,
+        "end_line": 1524,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1489
+        "start_line": 1524
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7289,15 +7274,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1492,
+      "line": 1527,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 88,
-        "end_line": 1492,
+        "end_line": 1527,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1492
+        "start_line": 1527
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7323,15 +7308,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1497,
+      "line": 1532,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 111,
-        "end_line": 1497,
+        "end_line": 1532,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1497
+        "start_line": 1532
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7361,15 +7346,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1547,
+      "line": 1582,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 16,
-        "end_line": 1547,
+        "end_line": 1582,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1547
+        "start_line": 1582
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7389,15 +7374,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1550,
+      "line": 1585,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1550,
+        "end_line": 1585,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1550
+        "start_line": 1585
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7419,15 +7404,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1552,
+      "line": 1587,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1552,
+        "end_line": 1587,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1552
+        "start_line": 1587
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7449,15 +7434,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1555,
+      "line": 1590,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1555,
+        "end_line": 1590,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1555
+        "start_line": 1590
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7482,15 +7467,15 @@
       "id": "kain-native-fs-read-dir-append.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1560,
+      "line": 1595,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 111,
-        "end_line": 1560,
+        "end_line": 1595,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1560
+        "start_line": 1595
       },
       "symbol": "kain_native_fs_read_dir_append",
       "tags": [
@@ -7513,15 +7498,15 @@
       "id": "kain-native-fs-read-dir-paths-text.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1604,
+      "line": 1639,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1604,
+        "end_line": 1639,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1604
+        "start_line": 1639
       },
       "symbol": "kain_native_fs_read_dir_paths_text",
       "tags": [
@@ -7541,15 +7526,15 @@
       "id": "kain-native-fs-read-dir-paths-text.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1608,
+      "line": 1643,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 91,
-        "end_line": 1608,
+        "end_line": 1643,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1608
+        "start_line": 1643
       },
       "symbol": "kain_native_fs_read_dir_paths_text",
       "tags": [
@@ -7570,15 +7555,15 @@
       "id": "kain-native-fs-read-text.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1161,
+      "line": 1175,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1161,
+        "end_line": 1175,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1161
+        "start_line": 1175
       },
       "symbol": "kain_native_fs_read_text",
       "tags": [
@@ -7598,15 +7583,15 @@
       "id": "kain-native-fs-read-text.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1167,
+      "line": 1181,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 39,
-        "end_line": 1167,
+        "end_line": 1181,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1167
+        "start_line": 1181
       },
       "symbol": "kain_native_fs_read_text",
       "tags": [
@@ -7636,15 +7621,15 @@
       "id": "kain-native-fs-read-text.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1173,
+      "line": 1187,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1173,
+        "end_line": 1187,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1173
+        "start_line": 1187
       },
       "symbol": "kain_native_fs_read_text",
       "tags": [
@@ -7664,15 +7649,15 @@
       "id": "kain-native-fs-read-text.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1177,
+      "line": 1191,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 37,
-        "end_line": 1177,
+        "end_line": 1191,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1177
+        "start_line": 1191
       },
       "symbol": "kain_native_fs_read_text",
       "tags": [
@@ -7701,15 +7686,15 @@
       "id": "kain-native-fs-read-text.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1183,
+      "line": 1197,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 16,
-        "end_line": 1183,
+        "end_line": 1197,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1183
+        "start_line": 1197
       },
       "symbol": "kain_native_fs_read_text",
       "tags": [
@@ -7736,15 +7721,15 @@
       "id": "kain-native-fs-read-text.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1190,
+      "line": 1204,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 19,
-        "end_line": 1190,
+        "end_line": 1204,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1190
+        "start_line": 1204
       },
       "symbol": "kain_native_fs_read_text",
       "tags": [
@@ -7764,15 +7749,15 @@
       "id": "kain-native-fs-read-text.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1196,
+      "line": 1210,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1196,
+        "end_line": 1210,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1196
+        "start_line": 1210
       },
       "symbol": "kain_native_fs_read_text",
       "tags": [
@@ -7800,15 +7785,15 @@
       "id": "kain-native-fs-read-text-range.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1206,
+      "line": 1220,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 95,
-        "end_line": 1206,
+        "end_line": 1220,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1206
+        "start_line": 1220
       },
       "symbol": "kain_native_fs_read_text_range",
       "text": "const char* kain_native_fs_read_text_range(const char* path, int64_t offset, int64_t length) {",
@@ -7827,15 +7812,15 @@
       "id": "kain-native-fs-read-text-range.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1206,
+      "line": 1220,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 95,
-        "end_line": 1206,
+        "end_line": 1220,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1206
+        "start_line": 1220
       },
       "symbol": "kain_native_fs_read_text_range",
       "text": "const char* kain_native_fs_read_text_range(const char* path, int64_t offset, int64_t length) {",
@@ -7854,15 +7839,15 @@
       "id": "kain-native-fs-read-text-range.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1206,
+      "line": 1220,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 95,
-        "end_line": 1206,
+        "end_line": 1220,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1206
+        "start_line": 1220
       },
       "symbol": "kain_native_fs_read_text_range",
       "text": "const char* kain_native_fs_read_text_range(const char* path, int64_t offset, int64_t length) {",
@@ -7881,15 +7866,15 @@
       "id": "kain-native-fs-read-text-range.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1206,
+      "line": 1220,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 95,
-        "end_line": 1206,
+        "end_line": 1220,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1206
+        "start_line": 1220
       },
       "symbol": "kain_native_fs_read_text_range",
       "text": "const char* kain_native_fs_read_text_range(const char* path, int64_t offset, int64_t length) {",
@@ -7904,15 +7889,15 @@
       "id": "kain-native-fs-read-text-range.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1210,
+      "line": 1224,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 64,
-        "end_line": 1210,
+        "end_line": 1224,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1210
+        "start_line": 1224
       },
       "symbol": "kain_native_fs_read_text_range",
       "tags": [
@@ -7935,15 +7920,15 @@
       "id": "kain-native-fs-read-text-range.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1216,
+      "line": 1230,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 47,
-        "end_line": 1216,
+        "end_line": 1230,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1216
+        "start_line": 1230
       },
       "symbol": "kain_native_fs_read_text_range",
       "tags": [
@@ -7974,15 +7959,15 @@
       "id": "kain-native-fs-read-text-range.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1220,
+      "line": 1234,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1220,
+        "end_line": 1234,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1220
+        "start_line": 1234
       },
       "symbol": "kain_native_fs_read_text_range",
       "tags": [
@@ -8003,15 +7988,15 @@
       "id": "kain-native-fs-read-text-range.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1224,
+      "line": 1238,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 48,
-        "end_line": 1224,
+        "end_line": 1238,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1224
+        "start_line": 1238
       },
       "symbol": "kain_native_fs_read_text_range",
       "tags": [
@@ -8043,15 +8028,15 @@
       "id": "kain-native-fs-read-text-range.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1230,
+      "line": 1244,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 19,
-        "end_line": 1230,
+        "end_line": 1244,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1230
+        "start_line": 1244
       },
       "symbol": "kain_native_fs_read_text_range",
       "tags": [
@@ -8072,15 +8057,15 @@
       "id": "kain-native-fs-remove-dir-all.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1871,
+      "line": 1906,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1871,
+        "end_line": 1906,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1871
+        "start_line": 1906
       },
       "symbol": "kain_native_fs_remove_dir_all",
       "tags": [
@@ -8099,15 +8084,15 @@
       "id": "kain-native-fs-remove-dir-all.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1875,
+      "line": 1910,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 54,
-        "end_line": 1875,
+        "end_line": 1910,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1875
+        "start_line": 1910
       },
       "symbol": "kain_native_fs_remove_dir_all",
       "tags": [
@@ -8127,15 +8112,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1798,
+      "line": 1833,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 61,
-        "end_line": 1798,
+        "end_line": 1833,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1798
+        "start_line": 1833
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8165,15 +8150,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1803,
+      "line": 1838,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1803,
+        "end_line": 1838,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1803
+        "start_line": 1838
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8194,15 +8179,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1806,
+      "line": 1841,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 77,
-        "end_line": 1806,
+        "end_line": 1841,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1806
+        "start_line": 1841
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8224,15 +8209,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1809,
+      "line": 1844,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 74,
-        "end_line": 1809,
+        "end_line": 1844,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1809
+        "start_line": 1844
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8257,15 +8242,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1814,
+      "line": 1849,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 63,
-        "end_line": 1814,
+        "end_line": 1849,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1814
+        "start_line": 1849
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8287,15 +8272,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1815,
+      "line": 1850,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1815,
+        "end_line": 1850,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1815
+        "start_line": 1850
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8316,15 +8301,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1827,
+      "line": 1862,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 35,
-        "end_line": 1827,
+        "end_line": 1862,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1827
+        "start_line": 1862
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8352,15 +8337,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1837,
+      "line": 1872,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 16,
-        "end_line": 1837,
+        "end_line": 1872,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1837
+        "start_line": 1872
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8380,15 +8365,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1840,
+      "line": 1875,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1840,
+        "end_line": 1875,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1840
+        "start_line": 1875
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8410,15 +8395,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1843,
+      "line": 1878,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1843,
+        "end_line": 1878,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1843
+        "start_line": 1878
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8440,15 +8425,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1846,
+      "line": 1881,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1846,
+        "end_line": 1881,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1846
+        "start_line": 1881
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8473,15 +8458,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1851,
+      "line": 1886,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 31,
-        "end_line": 1851,
+        "end_line": 1886,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1851
+        "start_line": 1886
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8503,15 +8488,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.13",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1855,
+      "line": 1890,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 29,
-        "end_line": 1855,
+        "end_line": 1890,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1855
+        "start_line": 1890
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8533,15 +8518,15 @@
       "id": "kain-native-fs-remove-dir-all-inner.guard-condition.14",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1856,
+      "line": 1891,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1856,
+        "end_line": 1891,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1856
+        "start_line": 1891
       },
       "symbol": "kain_native_fs_remove_dir_all_inner",
       "tags": [
@@ -8562,15 +8547,15 @@
       "id": "kain-native-fs-remove-file.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1787,
+      "line": 1822,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1787,
+        "end_line": 1822,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1787
+        "start_line": 1822
       },
       "symbol": "kain_native_fs_remove_file",
       "tags": [
@@ -8731,15 +8716,15 @@
       "id": "kain-native-fs-temp-base.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1881,
+      "line": 1916,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 73,
-        "end_line": 1881,
+        "end_line": 1916,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1881
+        "start_line": 1916
       },
       "symbol": "kain_native_fs_temp_base",
       "text": "static void kain_native_fs_temp_base(char* buffer, size_t buffer_size) {",
@@ -8758,15 +8743,15 @@
       "id": "kain-native-fs-temp-base.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1881,
+      "line": 1916,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 73,
-        "end_line": 1881,
+        "end_line": 1916,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1881
+        "start_line": 1916
       },
       "symbol": "kain_native_fs_temp_base",
       "text": "static void kain_native_fs_temp_base(char* buffer, size_t buffer_size) {",
@@ -8781,15 +8766,15 @@
       "id": "kain-native-fs-temp-base.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1883,
+      "line": 1918,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 57,
-        "end_line": 1883,
+        "end_line": 1918,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1883
+        "start_line": 1918
       },
       "symbol": "kain_native_fs_temp_base",
       "tags": [
@@ -8811,15 +8796,15 @@
       "id": "kain-native-fs-temp-base.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1884,
+      "line": 1919,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 56,
-        "end_line": 1884,
+        "end_line": 1919,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1884
+        "start_line": 1919
       },
       "symbol": "kain_native_fs_temp_base",
       "tags": [
@@ -8841,15 +8826,15 @@
       "id": "kain-native-fs-temp-base.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1885,
+      "line": 1920,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 46,
-        "end_line": 1885,
+        "end_line": 1920,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1885
+        "start_line": 1920
       },
       "symbol": "kain_native_fs_temp_base",
       "tags": [
@@ -8869,15 +8854,15 @@
       "id": "kain-native-fs-temp-dir.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1929,
+      "line": 1964,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 79,
-        "end_line": 1929,
+        "end_line": 1964,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1929
+        "start_line": 1964
       },
       "symbol": "kain_native_fs_temp_dir",
       "tags": [
@@ -8899,15 +8884,15 @@
       "id": "kain-native-fs-temp-file.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1909,
+      "line": 1944,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 52,
-        "end_line": 1909,
+        "end_line": 1944,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1909
+        "start_line": 1944
       },
       "symbol": "kain_native_fs_temp_file",
       "tags": [
@@ -8937,15 +8922,15 @@
       "id": "kain-native-fs-temp-file.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1912,
+      "line": 1947,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1912,
+        "end_line": 1947,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1912
+        "start_line": 1947
       },
       "symbol": "kain_native_fs_temp_file",
       "tags": [
@@ -8969,15 +8954,15 @@
       "id": "kain-native-fs-temp-path.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1889,
+      "line": 1924,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 106,
-        "end_line": 1889,
+        "end_line": 1924,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1889
+        "start_line": 1924
       },
       "symbol": "kain_native_fs_temp_path",
       "text": "static void kain_native_fs_temp_path(char* buffer, size_t buffer_size, const char* prefix, int attempt) {",
@@ -8996,15 +8981,15 @@
       "id": "kain-native-fs-temp-path.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1889,
+      "line": 1924,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 106,
-        "end_line": 1889,
+        "end_line": 1924,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1889
+        "start_line": 1924
       },
       "symbol": "kain_native_fs_temp_path",
       "text": "static void kain_native_fs_temp_path(char* buffer, size_t buffer_size, const char* prefix, int attempt) {",
@@ -9019,15 +9004,15 @@
       "id": "kain-native-fs-temp-path.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1891,
+      "line": 1926,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 40,
-        "end_line": 1891,
+        "end_line": 1926,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1891
+        "start_line": 1926
       },
       "symbol": "kain_native_fs_temp_path",
       "tags": [
@@ -9047,15 +9032,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1510,
+      "line": 1545,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1510,
+        "end_line": 1545,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1510
+        "start_line": 1545
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9086,15 +9071,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1515,
+      "line": 1550,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1515,
+        "end_line": 1550,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1515
+        "start_line": 1550
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9115,15 +9100,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1521,
+      "line": 1556,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 77,
-        "end_line": 1521,
+        "end_line": 1556,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1521
+        "start_line": 1556
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9145,15 +9130,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1524,
+      "line": 1559,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 88,
-        "end_line": 1524,
+        "end_line": 1559,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1524
+        "start_line": 1559
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9179,15 +9164,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1529,
+      "line": 1564,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 111,
-        "end_line": 1529,
+        "end_line": 1564,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1529
+        "start_line": 1564
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9210,15 +9195,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1533,
+      "line": 1568,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 63,
-        "end_line": 1533,
+        "end_line": 1568,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1533
+        "start_line": 1568
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9240,15 +9225,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1534,
+      "line": 1569,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1534,
+        "end_line": 1569,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1534
+        "start_line": 1569
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9277,15 +9262,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1572,
+      "line": 1607,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 16,
-        "end_line": 1572,
+        "end_line": 1607,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1572
+        "start_line": 1607
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9305,15 +9290,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1575,
+      "line": 1610,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1575,
+        "end_line": 1610,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1575
+        "start_line": 1610
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9335,15 +9320,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1578,
+      "line": 1613,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1578,
+        "end_line": 1613,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1578
+        "start_line": 1613
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9365,15 +9350,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1581,
+      "line": 1616,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1581,
+        "end_line": 1616,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1581
+        "start_line": 1616
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9398,15 +9383,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1586,
+      "line": 1621,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 111,
-        "end_line": 1586,
+        "end_line": 1621,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1586
+        "start_line": 1621
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9429,15 +9414,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.13",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1590,
+      "line": 1625,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 68,
-        "end_line": 1590,
+        "end_line": 1625,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1590
+        "start_line": 1625
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9461,15 +9446,15 @@
       "id": "kain-native-fs-walk-append.guard-condition.14",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1591,
+      "line": 1626,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1591,
+        "end_line": 1626,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1591
+        "start_line": 1626
       },
       "symbol": "kain_native_fs_walk_append",
       "tags": [
@@ -9491,15 +9476,15 @@
       "id": "kain-native-fs-walk-paths-text.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1619,
+      "line": 1654,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 50,
-        "end_line": 1619,
+        "end_line": 1654,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1619
+        "start_line": 1654
       },
       "symbol": "kain_native_fs_walk_paths_text",
       "tags": [
@@ -9519,15 +9504,15 @@
       "id": "kain-native-fs-walk-paths-text.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1623,
+      "line": 1658,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 87,
-        "end_line": 1623,
+        "end_line": 1658,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1623
+        "start_line": 1658
       },
       "symbol": "kain_native_fs_walk_paths_text",
       "tags": [
@@ -9548,15 +9533,15 @@
       "id": "kain-native-fs-write-bytes-hex.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1349,
+      "line": 1363,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 48,
-        "end_line": 1349,
+        "end_line": 1363,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1349
+        "start_line": 1363
       },
       "symbol": "kain_native_fs_write_bytes_hex",
       "tags": [
@@ -9577,15 +9562,15 @@
       "id": "kain-native-fs-write-bytes-hex.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1354,
+      "line": 1368,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 73,
-        "end_line": 1354,
+        "end_line": 1368,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1354
+        "start_line": 1368
       },
       "symbol": "kain_native_fs_write_bytes_hex",
       "tags": [
@@ -9607,15 +9592,15 @@
       "id": "kain-native-fs-write-bytes-hex.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1359,
+      "line": 1373,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 47,
-        "end_line": 1359,
+        "end_line": 1373,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1359
+        "start_line": 1373
       },
       "symbol": "kain_native_fs_write_bytes_hex",
       "tags": [
@@ -9645,15 +9630,15 @@
       "id": "kain-native-fs-write-bytes-hex.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1363,
+      "line": 1377,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1363,
+        "end_line": 1377,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1363
+        "start_line": 1377
       },
       "symbol": "kain_native_fs_write_bytes_hex",
       "tags": [
@@ -9692,15 +9677,15 @@
       "id": "kain-native-fs-write-bytes-hex.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1370,
+      "line": 1384,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 24,
-        "end_line": 1370,
+        "end_line": 1384,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1370
+        "start_line": 1384
       },
       "symbol": "kain_native_fs_write_bytes_hex",
       "tags": [
@@ -9721,15 +9706,15 @@
       "id": "kain-native-fs-write-bytes-hex.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1376,
+      "line": 1390,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 38,
-        "end_line": 1376,
+        "end_line": 1390,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1376
+        "start_line": 1390
       },
       "symbol": "kain_native_fs_write_bytes_hex",
       "tags": [
@@ -9751,15 +9736,15 @@
       "id": "kain-native-fs-write-mode.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1128,
+      "line": 1142,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 36,
-        "end_line": 1128,
+        "end_line": 1142,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1128
+        "start_line": 1142
       },
       "symbol": "kain_native_fs_write_mode",
       "tags": [
@@ -9779,15 +9764,15 @@
       "id": "kain-native-fs-write-mode.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1132,
+      "line": 1146,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 52,
-        "end_line": 1132,
+        "end_line": 1146,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1132
+        "start_line": 1146
       },
       "symbol": "kain_native_fs_write_mode",
       "tags": [
@@ -9808,15 +9793,15 @@
       "id": "kain-native-fs-write-mode.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1136,
+      "line": 1150,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 39,
-        "end_line": 1136,
+        "end_line": 1150,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1136
+        "start_line": 1150
       },
       "symbol": "kain_native_fs_write_mode",
       "tags": [
@@ -9846,15 +9831,15 @@
       "id": "kain-native-fs-write-mode.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1142,
+      "line": 1156,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 17,
-        "end_line": 1142,
+        "end_line": 1156,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1142
+        "start_line": 1156
       },
       "symbol": "kain_native_fs_write_mode",
       "tags": [
@@ -9881,15 +9866,15 @@
       "id": "kain-native-fs-write-mode.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1145,
+      "line": 1159,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 20,
-        "end_line": 1145,
+        "end_line": 1159,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1145
+        "start_line": 1159
       },
       "symbol": "kain_native_fs_write_mode",
       "tags": [
@@ -9909,15 +9894,15 @@
       "id": "kain-native-fs-write-mode.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1149,
+      "line": 1163,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 64,
-        "end_line": 1149,
+        "end_line": 1163,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1149
+        "start_line": 1163
       },
       "symbol": "kain_native_fs_write_mode",
       "tags": [
@@ -11324,15 +11309,15 @@
       "id": "kain-native-sha256-final.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2097,
+      "line": 2132,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 18,
-        "end_line": 2097,
+        "end_line": 2132,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2097
+        "start_line": 2132
       },
       "symbol": "kain_native_sha256_final",
       "tags": [
@@ -11360,15 +11345,15 @@
       "id": "kain-native-sha256-final.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2098,
+      "line": 2133,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 21,
-        "end_line": 2098,
+        "end_line": 2133,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2098
+        "start_line": 2133
       },
       "symbol": "kain_native_sha256_final",
       "tags": [
@@ -11396,15 +11381,15 @@
       "id": "kain-native-sha256-final.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2104,
+      "line": 2139,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 21,
-        "end_line": 2104,
+        "end_line": 2139,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2104
+        "start_line": 2139
       },
       "symbol": "kain_native_sha256_final",
       "tags": [
@@ -11429,15 +11414,15 @@
       "id": "kain-native-sha256-rotr.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1989,
+      "line": 2024,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 74,
-        "end_line": 1989,
+        "end_line": 2024,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1989
+        "start_line": 2024
       },
       "symbol": "kain_native_sha256_rotr",
       "text": "static uint32_t kain_native_sha256_rotr(uint32_t value, uint32_t shift) {",
@@ -11456,15 +11441,15 @@
       "id": "kain-native-sha256-rotr.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1989,
+      "line": 2024,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 74,
-        "end_line": 1989,
+        "end_line": 2024,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1989
+        "start_line": 2024
       },
       "symbol": "kain_native_sha256_rotr",
       "text": "static uint32_t kain_native_sha256_rotr(uint32_t value, uint32_t shift) {",
@@ -11479,15 +11464,15 @@
       "id": "kain-native-sha256-rotr.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1990,
+      "line": 2025,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 52,
-        "end_line": 1990,
+        "end_line": 2025,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1990
+        "start_line": 2025
       },
       "symbol": "kain_native_sha256_rotr",
       "tags": [
@@ -11513,15 +11498,15 @@
       "id": "kain-native-sha256-update.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2079,
+      "line": 2114,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 105,
-        "end_line": 2079,
+        "end_line": 2114,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2079
+        "start_line": 2114
       },
       "symbol": "kain_native_sha256_update",
       "text": "static void kain_native_sha256_update(KainNativeSha256* ctx, const unsigned char* data, size_t length) {",
@@ -11540,15 +11525,15 @@
       "id": "kain-native-sha256-update.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2079,
+      "line": 2114,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 105,
-        "end_line": 2079,
+        "end_line": 2114,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2079
+        "start_line": 2114
       },
       "symbol": "kain_native_sha256_update",
       "text": "static void kain_native_sha256_update(KainNativeSha256* ctx, const unsigned char* data, size_t length) {",
@@ -11563,15 +11548,15 @@
       "id": "kain-native-sha256-update.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2084,
+      "line": 2119,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 27,
-        "end_line": 2084,
+        "end_line": 2119,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2084
+        "start_line": 2119
       },
       "symbol": "kain_native_sha256_update",
       "tags": [
@@ -12256,15 +12241,15 @@
       "id": "while.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1002,
+      "line": 1016,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 39,
-        "end_line": 1002,
+        "end_line": 1016,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1002
+        "start_line": 1016
       },
       "symbol": "while",
       "tags": [
@@ -12291,15 +12276,15 @@
       "id": "while.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1293,
+      "line": 1307,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 23,
-        "end_line": 1293,
+        "end_line": 1307,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1293
+        "start_line": 1307
       },
       "symbol": "while",
       "tags": [
@@ -12317,15 +12302,15 @@
       "id": "while.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1296,
+      "line": 1310,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1296,
+        "end_line": 1310,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1296
+        "start_line": 1310
       },
       "symbol": "while",
       "tags": [
@@ -12345,15 +12330,15 @@
       "id": "while.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1552,
+      "line": 1587,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1552,
+        "end_line": 1587,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1552
+        "start_line": 1587
       },
       "symbol": "while",
       "tags": [
@@ -12373,15 +12358,15 @@
       "id": "while.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1555,
+      "line": 1590,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1555,
+        "end_line": 1590,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1555
+        "start_line": 1590
       },
       "symbol": "while",
       "tags": [
@@ -12404,15 +12389,15 @@
       "id": "while.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1560,
+      "line": 1595,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 111,
-        "end_line": 1560,
+        "end_line": 1595,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1560
+        "start_line": 1595
       },
       "symbol": "while",
       "tags": [
@@ -12433,15 +12418,15 @@
       "id": "while.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1578,
+      "line": 1613,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1578,
+        "end_line": 1613,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1578
+        "start_line": 1613
       },
       "symbol": "while",
       "tags": [
@@ -12461,15 +12446,15 @@
       "id": "while.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1581,
+      "line": 1616,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1581,
+        "end_line": 1616,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1581
+        "start_line": 1616
       },
       "symbol": "while",
       "tags": [
@@ -12492,15 +12477,15 @@
       "id": "while.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1586,
+      "line": 1621,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 111,
-        "end_line": 1586,
+        "end_line": 1621,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1586
+        "start_line": 1621
       },
       "symbol": "while",
       "tags": [
@@ -12521,15 +12506,15 @@
       "id": "while.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1590,
+      "line": 1625,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 68,
-        "end_line": 1590,
+        "end_line": 1625,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1590
+        "start_line": 1625
       },
       "symbol": "while",
       "tags": [
@@ -12551,15 +12536,15 @@
       "id": "while.guard-condition.13",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1591,
+      "line": 1626,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1591,
+        "end_line": 1626,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1591
+        "start_line": 1626
       },
       "symbol": "while",
       "tags": [
@@ -12583,15 +12568,15 @@
       "id": "while.parameter-role.14",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1700,
+      "line": 1735,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 69,
-        "end_line": 1700,
+        "end_line": 1735,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1700
+        "start_line": 1735
       },
       "symbol": "while",
       "text": "while ((read_count = fread(buffer, 1, sizeof(buffer), input)) > 0) {",
@@ -12606,15 +12591,15 @@
       "id": "while.guard-condition.15",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1701,
+      "line": 1736,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 59,
-        "end_line": 1701,
+        "end_line": 1736,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1701
+        "start_line": 1736
       },
       "symbol": "while",
       "tags": [
@@ -12639,15 +12624,15 @@
       "id": "while.parameter-role.16",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1756,
+      "line": 1791,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 66,
-        "end_line": 1756,
+        "end_line": 1791,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1756
+        "start_line": 1791
       },
       "symbol": "while",
       "text": "while ((read_count = fread(buffer, 1, buffer_size, input)) > 0) {",
@@ -12662,15 +12647,15 @@
       "id": "while.guard-condition.17",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1757,
+      "line": 1792,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 59,
-        "end_line": 1757,
+        "end_line": 1792,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1757
+        "start_line": 1792
       },
       "symbol": "while",
       "tags": [
@@ -12691,15 +12676,15 @@
       "id": "while.guard-condition.18",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1843,
+      "line": 1878,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 75,
-        "end_line": 1843,
+        "end_line": 1878,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1843
+        "start_line": 1878
       },
       "symbol": "while",
       "tags": [
@@ -12719,15 +12704,15 @@
       "id": "while.guard-condition.19",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1846,
+      "line": 1881,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 72,
-        "end_line": 1846,
+        "end_line": 1881,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1846
+        "start_line": 1881
       },
       "symbol": "while",
       "tags": [
@@ -12750,15 +12735,15 @@
       "id": "while.guard-condition.20",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1851,
+      "line": 1886,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 31,
-        "end_line": 1851,
+        "end_line": 1886,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1851
+        "start_line": 1886
       },
       "symbol": "while",
       "tags": [
@@ -12778,15 +12763,15 @@
       "id": "while.guard-condition.21",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1855,
+      "line": 1890,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 29,
-        "end_line": 1855,
+        "end_line": 1890,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1855
+        "start_line": 1890
       },
       "symbol": "while",
       "tags": [
@@ -12806,15 +12791,15 @@
       "id": "while.guard-condition.22",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1856,
+      "line": 1891,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 55,
-        "end_line": 1856,
+        "end_line": 1891,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 1856
+        "start_line": 1891
       },
       "symbol": "while",
       "tags": [
@@ -12837,15 +12822,15 @@
       "id": "while.parameter-role.23",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2098,
+      "line": 2133,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 21,
-        "end_line": 2098,
+        "end_line": 2133,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2098
+        "start_line": 2133
       },
       "symbol": "while",
       "text": "while (index < 64) {",
@@ -12864,15 +12849,15 @@
       "id": "while.parameter-role.24",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2104,
+      "line": 2139,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 21,
-        "end_line": 2104,
+        "end_line": 2139,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2104
+        "start_line": 2139
       },
       "symbol": "while",
       "text": "while (index < 56) {",
@@ -12891,15 +12876,15 @@
       "id": "while.parameter-role.25",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2152,
+      "line": 2187,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
       "span": {
         "end_col": 68,
-        "end_line": 2152,
+        "end_line": 2187,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
         "start_col": 1,
-        "start_line": 2152
+        "start_line": 2187
       },
       "symbol": "while",
       "text": "while ((read_count = fread(buffer, 1, sizeof(buffer), file)) > 0) {",
@@ -12909,7 +12894,7 @@
     }
   ],
   "language": "c",
-  "source_hash": "3c7b0e03bb6e5368c6eabaf668b8eceb2f0bef80496ed3566f18862dcf15281e",
+  "source_hash": "c5209b3812460b137b1d0e09db1eff70dadf107d02cd04e189de9b53d994ebc8",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_native_stdlib.c",
   "version": 1
 }

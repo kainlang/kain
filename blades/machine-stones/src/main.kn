@@ -1,0 +1,48 @@
+// style: biomechanical chronograph console
+// Kain machine stones dogfood blade: axiom + pulse + shatter + teleport.
+
+axiom native_atomic_mask_truth:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("atomic.bitmask")
+    guarantee "single-copy atomic bit-mask lane is supplied by this exact machine profile"
+    fallback portable_mask_update
+
+component MachineStonePanel():
+    render <panel title="Machine Stones" />
+
+world NativeWorld:
+    state beat: Int = 0
+    surface native_ui => MachineStonePanel
+    surface viewport3d => "native-machine-world"
+
+world GpuWorld:
+    state beat: Int = 0
+    surface viewport3d => "gpu-machine-world"
+
+shatter struct AgentParticle:
+    x: Float
+    y: Float
+    vx: Float
+    vy: Float
+    alive: Bool
+
+fn portable_mask_update(value: Int, mask: Int) -> Int:
+    return value | mask
+
+pulse agent_sinus every 16ms jitter 1ms:
+    let particle = AgentParticle { x: 1.0, y: 2.0, vx: 0.5, vy: 0.25, alive: true }
+    let gpu_particle = teleport particle from NativeWorld to GpuWorld via gpu_upload
+    let pulse_budget = pulse_tick + pulse_dt_ms
+    let _alive_after_handoff = gpu_particle.alive
+    let _missed_beats = pulse_missed
+    let _stable_tick = pulse_budget
+
+fn machine_stone_score() -> Int:
+    let mask_score = portable_mask_update(1, 2)
+    if mask_score != 3:
+        return 1
+    return 0
+
+fn main() -> Int:
+    return machine_stone_score()

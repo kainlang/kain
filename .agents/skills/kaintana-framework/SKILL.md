@@ -1,6 +1,6 @@
 ---
 name: kaintana-framework
-description: Use when creating, extending, debugging, validating, or reviewing the Kaintana UI framework under blades/kaintana, its optional Vulkan adapter under blades/kaintana-vulkan, or the acceptance blades under blades/kaintana-test and blades/kaintana-vulkan-test, especially dual-register Kain UI helpers, blade-owned desktop/Vulkan host routing, passive native UI session usage, and Kaintana proof artifacts.
+description: Use when creating, extending, debugging, validating, or reviewing the Kaintana UI framework under blades/kaintana, its optional Vulkan adapter under blades/kaintana-vulkan, or the acceptance blades under blades/kaintana-test and blades/kaintana-vulkan-test, especially authored layout/widget helpers, action/keybinding and host-service wrappers, blade-owned desktop/Vulkan host routing, passive native UI session usage, and Kaintana proof artifacts.
 ---
 
 # Kaintana Framework
@@ -29,18 +29,24 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
 
 - `blades/kaintana/src/kaintana.kn`
   - public framework API
-  - `KaintanaWindowSpec`, `KaintanaTheme`, rect/split/row/column helpers
+  - `KaintanaWindowSpec`, `KaintanaTheme`, rect/split/row/column helpers plus `kaintana_split_top`, `kaintana_split_bottom`, and `kaintana_grid_cell`
   - retained helpers: `kaintana_retained_region`, `kaintana_retained_surface`, `kaintana_retained_label`
-  - immediate helpers: `kaintana_immediate_panel`, `kaintana_immediate_badge`, `kaintana_immediate_button`, `kaintana_immediate_metric`
+  - immediate helpers: `kaintana_immediate_panel`, `kaintana_immediate_badge`, `kaintana_immediate_toolbar_button`, `kaintana_immediate_button`, `kaintana_immediate_metric`, `kaintana_immediate_slider`, `kaintana_immediate_chart_bar`
+  - raw primitive helpers: `kaintana_primitive_fill`, `kaintana_primitive_text`
+  - action/input wrappers over `stdlib/native/input.kn`
+  - focus/clipboard/IME/menu/dialog/popover wrappers over `stdlib/native/ui.kn`
+  - snapshot/input-trace harness helpers
   - desktop-default host wrappers: `kaintana_session_create`, `kaintana_begin_frame`, `kaintana_commit_frame`, `kaintana_host_run_window`, `kaintana_host_write_report`
 - `blades/kaintana/native/kaintana_desktop_bridge.c`
   - Win32/GDI compatibility host
-  - fixed rect/text command buffer
+  - fixed rect/text command buffer with client-size scaling and sized text fallback
+  - double-buffered paint path and non-spammy frame loop to avoid flicker/jitter during long live runs
   - screenshot/report support
 - `blades/kaintana-vulkan/src/kaintana_vulkan.kn`
   - optional Vulkan adapter helpers: `kaintana_vulkan_embed_available`, `kaintana_vulkan_host_run_window`, `kaintana_vulkan_host_write_report`
 - `blades/kaintana-test/src/main.kn`
-  - full desktop showcase entrypoint
+  - oxide DCC-style desktop showcase entrypoint
+  - proves top bar, viewport, charts, sliders, keypad, action maps, host services, snapshot text, and input trace in one shell
 - `blades/kaintana-vulkan-test/src/main.kn`
   - Vulkan foreign-presenter showcase entrypoint
 - `blades/kaintana-test/run.ps1`
@@ -98,7 +104,7 @@ powershell -ExecutionPolicy Bypass -File .\blades\kaintana-test\run.ps1
 Long-run desktop pressure test:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\blades\kaintana-test\run.ps1 -FrameBudget 2400
+powershell -ExecutionPolicy Bypass -File .\blades\kaintana-test\run.ps1 -FrameBudget 1000
 ```
 
 Vulkan acceptance proof:
@@ -112,6 +118,8 @@ Proof artifacts:
 - desktop frame report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_frame.txt`
 - desktop host report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_host.txt`
 - desktop screenshot: `blades/kaintana-test/.kain/run/kaintana_test_desktop.bmp`
+- desktop snapshot text: `blades/kaintana-test/.kain/run/kaintana_test_desktop_snapshot.txt`
+- desktop input trace: `blades/kaintana-test/.kain/run/kaintana_test_desktop_input_trace.txt`
 - Vulkan frame report: `blades/kaintana-vulkan-test/.kain/run/kaintana_vulkan_test_frame.txt`
 - Vulkan host report: `blades/kaintana-vulkan-test/.kain/run/kaintana_vulkan_test_host.txt`
 
@@ -125,7 +133,9 @@ Current Z3 checks:
 - Imported local Kain modules that contain `world` / `entangle` are supported again after the `crates/kain-driver` staging fix. If `entangle endpoint '...' participates in more than one binding` ever returns, re-check realtime/native UI staging before assuming the app structure is wrong.
 - `[c_ffi]` bindings are not transitive through a library blade yet. If `blades/kaintana` or `blades/kaintana-vulkan` wraps a native bridge, consumer blades such as `blades/kaintana-test` or `blades/kaintana-vulkan-test` still need their own matching `[[c_ffi.libraries]]` entries for `use c::...`.
 - Do not put desktop and Vulkan acceptance entrypoints back into one consuming blade unless per-entry manifests become real. A shared manifest/output path can silently reintroduce `vulkain_bridge.dll` into the desktop executable or overwrite the user-facing root exe with the Vulkan proof build.
+- `kaintana_split_right(rect, fraction, gap)` uses `fraction` as the left-hand share. If you want a 25% right inspector rail, pass about `0.75`, not `0.25`, or the right panel will silently eat most of the shell.
 - `ui_host_session_create(..., "software")` is still passive. It records authored session/draw state; it does not open a live OS window by itself.
 - The current Vulkan proof proves host routing into a foreign presenter lane. It does not yet rasterize the full Kaintana scene graph through Vulkan.
 - The current Kaintana helpers still emit desktop fill/text bridge calls during composition, so non-desktop consumers must keep `kaintana_desktop_bridge` in scope until those side effects are pushed behind a more renderer-neutral seam.
+- Visual popover composition is optional. The host-service proof lives in native UI state plus snapshot/input-trace artifacts; the acceptance shell can keep the popover state open for validation without drawing the overlay into the visible BMP if that overlay hurts readability.
 - If the desktop acceptance app appears to crash after many frames, do not guess from the host code first. Re-run with a high `-FrameBudget`, collect `%LOCALAPPDATA%\CrashDumps\kaintana-test.exe.*.dmp` if Windows emits one, and then feed the dump plus `.kain/out/kaintana-test/kaintana-test.ll`, `.kain/run/kaintana_test_*_frame.txt`, and `.kain/run/kaintana_test_*_host.txt` into `tools/crash-forensics/analyze_native_crash.ps1`.

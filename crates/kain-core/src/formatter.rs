@@ -178,6 +178,10 @@ impl SourceFormatter {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_law(value)?);
             }
+            Item::Axiom(value) => {
+                self.push_attributes(&mut output, &value.attributes)?;
+                self.push_text(&mut output, &self.format_axiom(value)?);
+            }
             Item::Converge(value) => {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_converge(value)?);
@@ -194,6 +198,10 @@ impl SourceFormatter {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_orchestrate(value)?);
             }
+            Item::Pulse(value) => {
+                self.push_attributes(&mut output, &value.attributes)?;
+                self.push_text(&mut output, &self.format_pulse(value)?);
+            }
             Item::Component(value) => {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_component(value)?);
@@ -206,7 +214,17 @@ impl SourceFormatter {
                 self.push_text(&mut output, &self.format_actor(value)?);
             }
             Item::Struct(value) => {
-                self.push_attributes(&mut output, &value.attributes)?;
+                if value.is_shattered() {
+                    let attrs = value
+                        .attributes
+                        .iter()
+                        .filter(|attribute| attribute.name != SHATTER_ATTRIBUTE_NAME)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    self.push_attributes(&mut output, &attrs)?;
+                } else {
+                    self.push_attributes(&mut output, &value.attributes)?;
+                }
                 self.push_text(&mut output, &self.format_struct(value)?);
             }
             Item::Enum(value) => {
@@ -356,6 +374,45 @@ impl SourceFormatter {
         self.format_header_with_block(&signature, &value.body)
     }
 
+    fn format_axiom(&self, value: &AxiomDef) -> KainResult<String> {
+        let header = format!(
+            "{}axiom {}",
+            self.visibility_prefix(value.visibility),
+            value.name
+        );
+        let mut entries = Vec::new();
+        for predicate in &value.predicates {
+            entries.push(format!(
+                "when {}({})",
+                predicate.kind(),
+                self.format_string_like_selector(predicate.value())
+            ));
+        }
+        for guarantee in &value.guarantees {
+            entries.push(format!("guarantee {}", self.quote_string(guarantee)));
+        }
+        if let Some(fallback) = &value.fallback {
+            entries.push(format!(
+                "fallback {}",
+                self.format_identifier_or_string(fallback)
+            ));
+        }
+        self.format_header_with_body(&header, &entries.join("\n"))
+    }
+
+    fn format_pulse(&self, value: &PulseDef) -> KainResult<String> {
+        let mut header = format!(
+            "{}pulse {} every {}",
+            self.visibility_prefix(value.visibility),
+            value.name,
+            value.interval.as_authored()
+        );
+        if let Some(jitter) = &value.jitter {
+            header.push_str(&format!(" jitter {}", jitter.as_authored()));
+        }
+        self.format_header_with_block(&header, &value.body)
+    }
+
     fn format_orchestrate(&self, value: &OrchestrateDef) -> KainResult<String> {
         let signature = self.callable_signature(
             "orchestrate",
@@ -417,6 +474,21 @@ impl SourceFormatter {
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == ':' || ch == '.')
         {
             self.quote_string(value)
+        } else {
+            self.quote_string(value)
+        }
+    }
+
+    fn format_identifier_or_string(&self, value: &str) -> String {
+        if value
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_')
+            && value
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        {
+            value.to_string()
         } else {
             self.quote_string(value)
         }
@@ -535,9 +607,15 @@ impl SourceFormatter {
     }
 
     fn format_struct(&self, value: &Struct) -> KainResult<String> {
+        let keyword = if value.is_shattered() {
+            "shatter struct"
+        } else {
+            "struct"
+        };
         let header = format!(
-            "{}struct {}{}",
+            "{}{} {}{}",
             self.visibility_prefix(value.visibility),
+            keyword,
             value.name,
             self.format_generics(&value.generics)
         );
@@ -1907,6 +1985,27 @@ impl SourceFormatter {
             Expr::Decay { target, .. } => {
                 format!("decay {}", self.format_expr_with_prec(target, 13)?)
             }
+            Expr::Teleport {
+                value,
+                source_world,
+                target_world,
+                channel,
+                ..
+            } => {
+                let mut rendered = format!(
+                    "teleport {} from {} to {}",
+                    self.format_expr_with_prec(value, 13)?,
+                    self.format_identifier_or_string(source_world),
+                    self.format_identifier_or_string(target_world)
+                );
+                if let Some(channel) = channel {
+                    rendered.push_str(&format!(
+                        " via {}",
+                        self.format_identifier_or_string(channel)
+                    ));
+                }
+                rendered
+            }
             Expr::Cast { value, target, .. } => {
                 format!(
                     "{} as {}",
@@ -2000,7 +2099,8 @@ impl SourceFormatter {
             | Expr::Ref { .. }
             | Expr::Deref(..)
             | Expr::Await(..)
-            | Expr::Try(..) => 13,
+            | Expr::Try(..)
+            | Expr::Teleport { .. } => 13,
             Expr::Call { .. }
             | Expr::StageCall { .. }
             | Expr::MethodCall { .. }

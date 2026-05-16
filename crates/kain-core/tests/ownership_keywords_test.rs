@@ -118,3 +118,65 @@ fn non_native_backends_reject_ownership_expressions_before_codegen() {
         "unexpected diagnostic: {rendered}"
     );
 }
+
+#[test]
+fn machine_stones_typecheck_and_teleport_poison_origin() {
+    let valid = r#"axiom native_atomic_mask_truth:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("atomic.bitmask")
+    guarantee "single-copy atomic mask writes are available"
+    fallback portable_mask_update
+
+component MachineStonePanel():
+    render <panel title="Machine Stones" />
+
+world NativeWorld:
+    state beat: Int = 0
+    surface native_ui => MachineStonePanel
+    surface viewport3d => "native-machine-world"
+
+world GpuWorld:
+    state beat: Int = 0
+    surface viewport3d => "gpu-machine-world"
+
+shatter struct AgentParticle:
+    x: Float
+    alive: Bool
+
+fn portable_mask_update(value: Int, mask: Int) -> Int:
+    return value | mask
+
+pulse agent_sinus every 16ms jitter 1ms:
+    let particle = AgentParticle { x: 1.0, alive: true }
+    let gpu_particle = teleport particle from NativeWorld to GpuWorld via gpu_upload
+    let _alive_after_handoff = gpu_particle.alive
+    let _stable_tick = pulse_tick + pulse_dt_ms
+
+fn main() -> Int:
+    return portable_mask_update(1, 2)
+"#;
+
+    parse_and_typecheck(valid).expect("machine stones source should typecheck");
+
+    let invalid = r#"world NativeWorld:
+    state beat: Int = 0
+    surface viewport3d => "native-machine-world"
+
+world GpuWorld:
+    state beat: Int = 0
+    surface viewport3d => "gpu-machine-world"
+
+struct AgentParticle:
+    alive: Bool
+
+fn bad() -> Bool:
+    let particle = AgentParticle { alive: true }
+    let gpu_particle = teleport particle from NativeWorld to GpuWorld via gpu_upload
+    let _alive_after_handoff = gpu_particle.alive
+    return particle.alive
+"#;
+
+    let err = parse_and_typecheck(invalid).expect_err("teleport should poison origin binding");
+    assert!(err.to_string().contains("was moved by teleport"));
+}

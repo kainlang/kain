@@ -1151,6 +1151,24 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
         kain_core::ast::Expr::Decay { target, .. } => {
             format!("decay {}", expr_to_string(target))
         }
+        kain_core::ast::Expr::Teleport {
+            value,
+            source_world,
+            target_world,
+            channel,
+            ..
+        } => {
+            let mut rendered = format!(
+                "teleport {} from {} to {}",
+                expr_to_string(value),
+                source_world,
+                target_world
+            );
+            if let Some(channel) = channel {
+                rendered.push_str(&format!(" via {channel}"));
+            }
+            rendered
+        }
         kain_core::ast::Expr::Deref(value, _) => format!("(*{})", expr_to_string(value)),
         kain_core::ast::Expr::Cast { value, target, .. } => {
             format!("({} as {})", expr_to_string(value), type_to_string(target))

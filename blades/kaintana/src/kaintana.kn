@@ -87,11 +87,17 @@ fn kaintana_apply_fill_color(session_id: Int, node_id: Int, red: Int, green: Int
 fn kaintana_apply_ink_color(session_id: Int, node_id: Int, red: Int, green: Int, blue: Int) -> Int:
     return ui_style_color_rgba(session_id, node_id, "ink", kaintana_channel_float(red), kaintana_channel_float(green), kaintana_channel_float(blue), 1.0)
 
+fn kaintana_text_size_from_baseline(baseline_y: Float) -> Int:
+    return Int(ui_float_clamp(baseline_y - 4.0, 10.0, 42.0))
+
 fn kaintana_desktop_fill(rect: KaintanaRect, red: Int, green: Int, blue: Int, alpha: Int) -> Int:
     return kaintana_native_desktop_push_rect(Int(rect.x), Int(rect.y), Int(rect.width), Int(rect.height), red, green, blue, alpha)
 
 fn kaintana_desktop_text(text: String, x: Float, y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int:
-    return kaintana_native_desktop_push_text(text, Int(x), Int(y), red, green, blue, alpha)
+    let font_size = 16
+    if alpha > 0 and alpha <= 96:
+        font_size = alpha
+    return kaintana_native_desktop_push_text(text, Int(x), Int(y), red, green, blue, font_size)
 
 fn kaintana_panel_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, label: String, rect: KaintanaRect) -> Int:
     return ui_reconcile_labeled_node(session_id, parent_id, kind, stable_key, "", "region", label, rect.x, rect.y, rect.width, rect.height)
@@ -149,6 +155,38 @@ pub fn kaintana_row_slot(rect: KaintanaRect, index_offset: Float, item_width: Fl
         y: rect.y,
         width: item_width,
         height: rect.height,
+    }
+
+pub fn kaintana_split_top(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let top_height = ui_float_max(0.0, (rect.height - gap) * ui_float_clamp(fraction, 0.0, 1.0))
+    return KaintanaRect {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: top_height,
+    }
+
+pub fn kaintana_split_bottom(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let top_height = ui_float_max(0.0, (rect.height - gap) * ui_float_clamp(fraction, 0.0, 1.0))
+    return KaintanaRect {
+        x: rect.x,
+        y: rect.y + top_height + gap,
+        width: rect.width,
+        height: ui_float_max(0.0, rect.height - top_height - gap),
+    }
+
+pub fn kaintana_grid_cell(rect: KaintanaRect, columns: Float, rows: Float, column_index: Float, row_index: Float, gap_x: Float, gap_y: Float) -> KaintanaRect:
+    let safe_columns = ui_float_max(columns, 1.0)
+    let safe_rows = ui_float_max(rows, 1.0)
+    let total_gap_x = ui_float_max(0.0, safe_columns - 1.0) * gap_x
+    let total_gap_y = ui_float_max(0.0, safe_rows - 1.0) * gap_y
+    let cell_width = ui_float_max(0.0, (rect.width - total_gap_x) / safe_columns)
+    let cell_height = ui_float_max(0.0, (rect.height - total_gap_y) / safe_rows)
+    return KaintanaRect {
+        x: rect.x + ((cell_width + gap_x) * column_index),
+        y: rect.y + ((cell_height + gap_y) * row_index),
+        width: cell_width,
+        height: cell_height,
     }
 
 pub fn kaintana_window_rect(spec: KaintanaWindowSpec) -> KaintanaRect:
@@ -310,11 +348,36 @@ pub fn kaintana_theme_kawaii_voltage() -> KaintanaTheme:
         signal_blue: 196,
     }
 
+pub fn kaintana_theme_oxide_dcc() -> KaintanaTheme:
+    return KaintanaTheme {
+        name: "oxide-dcc",
+        shell_red: 24,
+        shell_green: 26,
+        shell_blue: 30,
+        panel_red: 42,
+        panel_green: 45,
+        panel_blue: 52,
+        accent_red: 255,
+        accent_green: 156,
+        accent_blue: 74,
+        ink_red: 232,
+        ink_green: 236,
+        ink_blue: 239,
+        muted_red: 142,
+        muted_green: 149,
+        muted_blue: 160,
+        signal_red: 92,
+        signal_green: 208,
+        signal_blue: 255,
+    }
+
 pub fn kaintana_theme_named(theme_name: String) -> KaintanaTheme:
     if theme_name == "marine-terminal":
         return kaintana_theme_marine_terminal()
     if theme_name == "kawaii-voltage":
         return kaintana_theme_kawaii_voltage()
+    if theme_name == "oxide-dcc":
+        return kaintana_theme_oxide_dcc()
     return kaintana_theme_solar_broadcast()
 
 pub fn kaintana_session_create(app_name: String, spec: KaintanaWindowSpec) -> Int:
@@ -449,21 +512,21 @@ pub fn kaintana_retained_surface(session_id: Int, parent_id: Int, stable_key: St
     let _box = ui_render_box(session_id, node, "fill")
     let _text = ui_render_text_value(session_id, node, font_resource_id, caption, rect.x + 16.0, rect.y + baseline_y, "ink")
     let _desktop_fill = kaintana_desktop_fill(rect, theme.panel_red, theme.panel_green, theme.panel_blue, 255)
-    let _desktop_text = kaintana_desktop_text(caption, rect.x + 16.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    let _desktop_text = kaintana_desktop_text(caption, rect.x + 16.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_retained_label(session_id: Int, parent_id: Int, stable_key: String, text: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
     let node = kaintana_text_node(session_id, parent_id, "kaintana.retained.label", stable_key, text, text, rect)
     let _theme = kaintana_apply_text_theme(session_id, node, theme)
     let _text = ui_render_text_value(session_id, node, font_resource_id, text, rect.x, rect.y + baseline_y, "ink")
-    let _desktop = kaintana_desktop_text(text, rect.x, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    let _desktop = kaintana_desktop_text(text, rect.x, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_retained_muted_label(session_id: Int, parent_id: Int, stable_key: String, text: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
     let node = kaintana_text_node(session_id, parent_id, "kaintana.retained.muted", stable_key, text, text, rect)
     let _theme = kaintana_apply_muted_text_theme(session_id, node, theme)
     let _text = ui_render_text_value(session_id, node, font_resource_id, text, rect.x, rect.y + baseline_y, "ink")
-    let _desktop = kaintana_desktop_text(text, rect.x, rect.y + baseline_y, theme.muted_red, theme.muted_green, theme.muted_blue, 255)
+    let _desktop = kaintana_desktop_text(text, rect.x, rect.y + baseline_y, theme.muted_red, theme.muted_green, theme.muted_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_retained_action(session_id: Int, parent_id: Int, stable_key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
@@ -472,7 +535,7 @@ pub fn kaintana_retained_action(session_id: Int, parent_id: Int, stable_key: Str
     let _box = ui_render_box(session_id, node, "fill")
     let _text = ui_render_text_value(session_id, node, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink")
     let _desktop_fill = kaintana_desktop_fill(rect, theme.accent_red, theme.accent_green, theme.accent_blue, 255)
-    let _desktop_text = kaintana_desktop_text(label, rect.x + 16.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    let _desktop_text = kaintana_desktop_text(label, rect.x + 16.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_immediate_panel(session_id: Int, parent_id: Int, stable_key: String, caption: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
@@ -481,7 +544,7 @@ pub fn kaintana_immediate_panel(session_id: Int, parent_id: Int, stable_key: Str
     let _box = ui_render_box(session_id, node, "fill")
     let _text = ui_render_text_value(session_id, node, font_resource_id, caption, rect.x + 16.0, rect.y + baseline_y, "ink")
     let _desktop_fill = kaintana_desktop_fill(rect, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
-    let _desktop_text = kaintana_desktop_text(caption, rect.x + 16.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    let _desktop_text = kaintana_desktop_text(caption, rect.x + 16.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_immediate_badge(session_id: Int, parent_id: Int, stable_key: String, caption: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
@@ -490,7 +553,19 @@ pub fn kaintana_immediate_badge(session_id: Int, parent_id: Int, stable_key: Str
     let _box = ui_render_box(session_id, node, "fill")
     let _text = ui_render_text_value(session_id, node, font_resource_id, caption, rect.x + 12.0, rect.y + baseline_y, "ink")
     let _desktop_fill = kaintana_desktop_fill(rect, theme.signal_red, theme.signal_green, theme.signal_blue, 255)
-    let _desktop_text = kaintana_desktop_text(caption, rect.x + 12.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    let _desktop_text = kaintana_desktop_text(caption, rect.x + 12.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, kaintana_text_size_from_baseline(baseline_y))
+    return node
+
+pub fn kaintana_immediate_toolbar_button(session_id: Int, parent_id: Int, stable_key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_focusable_node(session_id, parent_id, "kaintana.immediate.toolbar.button", stable_key, label, label, rect)
+    let _theme = kaintana_apply_panel_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _signal = ui_style_color_rgba(session_id, node, "kaintana.toolbar.signal", kaintana_channel_float(theme.signal_red), kaintana_channel_float(theme.signal_green), kaintana_channel_float(theme.signal_blue), 1.0)
+    let _signal_rule = ui_render_box_at(session_id, node, rect.x, rect.y, rect.width, 3.0, "kaintana.toolbar.signal")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, label, rect.x + 12.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.panel_red, theme.panel_green, theme.panel_blue, 255)
+    let _desktop_rule = kaintana_desktop_fill(kaintana_rect(rect.x, rect.y, rect.width, 3.0), theme.signal_red, theme.signal_green, theme.signal_blue, 255)
+    let _desktop_text = kaintana_desktop_text(label, rect.x + 12.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_immediate_button(session_id: Int, parent_id: Int, stable_key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
@@ -499,7 +574,7 @@ pub fn kaintana_immediate_button(session_id: Int, parent_id: Int, stable_key: St
     let _box = ui_render_box(session_id, node, "fill")
     let _text = ui_render_text_value(session_id, node, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink")
     let _desktop_fill = kaintana_desktop_fill(rect, theme.accent_red, theme.accent_green, theme.accent_blue, 255)
-    let _desktop_text = kaintana_desktop_text(label, rect.x + 16.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    let _desktop_text = kaintana_desktop_text(label, rect.x + 16.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_immediate_metric(session_id: Int, parent_id: Int, stable_key: String, label: String, value: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
@@ -507,7 +582,61 @@ pub fn kaintana_immediate_metric(session_id: Int, parent_id: Int, stable_key: St
     let node = kaintana_text_node(session_id, parent_id, "kaintana.immediate.metric", stable_key, metric_text, metric_text, rect)
     let _theme = kaintana_apply_text_theme(session_id, node, theme)
     let _text = ui_render_text_value(session_id, node, font_resource_id, metric_text, rect.x, rect.y + baseline_y, "ink")
-    let _desktop = kaintana_desktop_text(metric_text, rect.x, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    let _desktop = kaintana_desktop_text(metric_text, rect.x, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, kaintana_text_size_from_baseline(baseline_y))
+    return node
+
+pub fn kaintana_primitive_fill(session_id: Int, parent_id: Int, stable_key: String, rect: KaintanaRect, red: Int, green: Int, blue: Int) -> Int:
+    let node = kaintana_panel_node(session_id, parent_id, "kaintana.primitive.fill", stable_key, stable_key, rect)
+    let _fill = kaintana_apply_fill_color(session_id, node, red, green, blue)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _desktop = kaintana_desktop_fill(rect, red, green, blue, 255)
+    return node
+
+pub fn kaintana_primitive_text(session_id: Int, parent_id: Int, stable_key: String, text: String, rect: KaintanaRect, red: Int, green: Int, blue: Int, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_text_node(session_id, parent_id, "kaintana.primitive.text", stable_key, text, text, rect)
+    let _ink = kaintana_apply_ink_color(session_id, node, red, green, blue)
+    let _text = ui_render_text_value(session_id, node, font_resource_id, text, rect.x, rect.y + baseline_y, "ink")
+    let _desktop = kaintana_desktop_text(text, rect.x, rect.y + baseline_y, red, green, blue, kaintana_text_size_from_baseline(baseline_y))
+    return node
+
+pub fn kaintana_immediate_slider(session_id: Int, parent_id: Int, stable_key: String, label: String, value: Float, min_value: Float, max_value: Float, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_focusable_node(session_id, parent_id, "kaintana.immediate.slider", stable_key, label, label, rect)
+    let _theme = kaintana_apply_panel_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let track_rect = kaintana_rect(rect.x + 16.0, rect.y + rect.height - 20.0, rect.width - 32.0, 6.0)
+    let ratio = ui_float_clamp((value - min_value) / ui_float_max(0.001, max_value - min_value), 0.0, 1.0)
+    let fill_rect = kaintana_rect(track_rect.x, track_rect.y, ui_float_max(8.0, track_rect.width * ratio), track_rect.height)
+    let knob_center_x = track_rect.x + (track_rect.width * ratio)
+    let knob_rect = kaintana_rect(knob_center_x - 8.0, track_rect.y - 8.0, 16.0, 22.0)
+    let label_text = label + " // " + str(Int(value))
+    let _track_style = ui_style_color_rgba(session_id, node, "kaintana.slider.track", kaintana_channel_float(theme.shell_red), kaintana_channel_float(theme.shell_green), kaintana_channel_float(theme.shell_blue), 1.0)
+    let _fill_style = ui_style_color_rgba(session_id, node, "kaintana.slider.fill", kaintana_channel_float(theme.accent_red), kaintana_channel_float(theme.accent_green), kaintana_channel_float(theme.accent_blue), 1.0)
+    let _knob_style = ui_style_color_rgba(session_id, node, "kaintana.slider.knob", kaintana_channel_float(theme.signal_red), kaintana_channel_float(theme.signal_green), kaintana_channel_float(theme.signal_blue), 1.0)
+    let _track = ui_render_box_at(session_id, node, track_rect.x, track_rect.y, track_rect.width, track_rect.height, "kaintana.slider.track")
+    let _fill = ui_render_box_at(session_id, node, fill_rect.x, fill_rect.y, fill_rect.width, fill_rect.height, "kaintana.slider.fill")
+    let _knob = ui_render_box_at(session_id, node, knob_rect.x, knob_rect.y, knob_rect.width, knob_rect.height, "kaintana.slider.knob")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, label_text, rect.x + 16.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.panel_red, theme.panel_green, theme.panel_blue, 255)
+    let _desktop_track = kaintana_desktop_fill(track_rect, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    let _desktop_value = kaintana_desktop_fill(fill_rect, theme.accent_red, theme.accent_green, theme.accent_blue, 255)
+    let _desktop_knob = kaintana_desktop_fill(knob_rect, theme.signal_red, theme.signal_green, theme.signal_blue, 255)
+    let _desktop_text = kaintana_desktop_text(label_text, rect.x + 16.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, kaintana_text_size_from_baseline(baseline_y))
+    return node
+
+pub fn kaintana_immediate_chart_bar(session_id: Int, parent_id: Int, stable_key: String, label: String, value: Float, max_value: Float, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float, bar_red: Int, bar_green: Int, bar_blue: Int) -> Int:
+    let node = kaintana_panel_node(session_id, parent_id, "kaintana.immediate.chart.bar", stable_key, label, rect)
+    let _theme = kaintana_apply_panel_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let bar_bounds = kaintana_rect(rect.x + 14.0, rect.y + 30.0, rect.width - 28.0, rect.height - 44.0)
+    let ratio = ui_float_clamp(value / ui_float_max(0.001, max_value), 0.0, 1.0)
+    let bar_fill = kaintana_rect(bar_bounds.x, bar_bounds.y, ui_float_max(10.0, bar_bounds.width * ratio), bar_bounds.height)
+    let chart_text = label + " // " + str(Int(value))
+    let _bar_style = ui_style_color_rgba(session_id, node, "kaintana.chart.bar", kaintana_channel_float(bar_red), kaintana_channel_float(bar_green), kaintana_channel_float(bar_blue), 1.0)
+    let _bar = ui_render_box_at(session_id, node, bar_fill.x, bar_fill.y, bar_fill.width, bar_fill.height, "kaintana.chart.bar")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, chart_text, rect.x + 14.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.panel_red, theme.panel_green, theme.panel_blue, 255)
+    let _desktop_bar = kaintana_desktop_fill(bar_fill, bar_red, bar_green, bar_blue, 255)
+    let _desktop_text = kaintana_desktop_text(chart_text, rect.x + 14.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, kaintana_text_size_from_baseline(baseline_y))
     return node
 
 pub fn kaintana_poll_event(session_id: Int) -> Int:
@@ -574,8 +703,14 @@ pub fn kaintana_render_focus_ring(session_id: Int, node_id: Int, theme: Kaintana
     let width = native_ui_node_width(session_id, node_id) + (spread * 2.0)
     let height = native_ui_node_height(session_id, node_id) + (spread * 2.0)
     let _ring = ui_style_color_rgba(session_id, node_id, "kaintana.focus.ring", kaintana_channel_float(theme.signal_red), kaintana_channel_float(theme.signal_green), kaintana_channel_float(theme.signal_blue), 0.86)
-    let _draw = ui_render_box_at(session_id, node_id, x, y, width, height, "kaintana.focus.ring")
-    let _desktop = kaintana_desktop_fill(kaintana_rect(x, y, width, height), theme.signal_red, theme.signal_green, theme.signal_blue, 132)
+    let _top = ui_render_box_at(session_id, node_id, x, y, width, spread, "kaintana.focus.ring")
+    let _bottom = ui_render_box_at(session_id, node_id, x, y + height - spread, width, spread, "kaintana.focus.ring")
+    let _left = ui_render_box_at(session_id, node_id, x, y, spread, height, "kaintana.focus.ring")
+    let _right = ui_render_box_at(session_id, node_id, x + width - spread, y, spread, height, "kaintana.focus.ring")
+    let _desktop_top = kaintana_desktop_fill(kaintana_rect(x, y, width, spread), theme.signal_red, theme.signal_green, theme.signal_blue, 132)
+    let _desktop_bottom = kaintana_desktop_fill(kaintana_rect(x, y + height - spread, width, spread), theme.signal_red, theme.signal_green, theme.signal_blue, 132)
+    let _desktop_left = kaintana_desktop_fill(kaintana_rect(x, y, spread, height), theme.signal_red, theme.signal_green, theme.signal_blue, 132)
+    let _desktop_right = kaintana_desktop_fill(kaintana_rect(x + width - spread, y, spread, height), theme.signal_red, theme.signal_green, theme.signal_blue, 132)
     return 1
 
 pub fn kaintana_clipboard_copy_text(session_id: Int, text: String) -> Int:

@@ -3,12 +3,13 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{
-    Block, ConvergeSelector, Expr, ShaderStage, Stmt, Type, WorldSurfaceKind,
-    COMPUTE_PLAN_CAPABILITY_KEY,
+    AxiomPredicate, Block, ConvergeSelector, Expr, PulseDuration, ShaderStage, Stmt, Type,
+    WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::types::{
-    PatchUndoMode, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
+    PatchUndoMode, TypedAxiom, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate,
+    TypedPatch, TypedPulse, TypedWorld,
 };
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram};
@@ -27,6 +28,12 @@ pub struct RuntimeContractBundle {
     pub patches: Vec<RuntimePatchContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub laws: Vec<RuntimeLawContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub axioms: Vec<RuntimeAxiomContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pulses: Vec<RuntimePulseContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shatters: Vec<RuntimeShatterContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub converges: Vec<RuntimeConvergeContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -132,6 +139,38 @@ pub struct RuntimeLawContract {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub param_types: Vec<String>,
     pub return_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeAxiomPredicateContract {
+    pub kind: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeAxiomContract {
+    pub name: String,
+    pub predicates: Vec<RuntimeAxiomPredicateContract>,
+    pub guarantees: Vec<String>,
+    pub fallback: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimePulseContract {
+    pub name: String,
+    pub interval: String,
+    pub interval_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jitter: Option<String>,
+    pub body_ownership_ops: bool,
+    pub body_teleports: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeShatterContract {
+    pub name: String,
+    pub layout: String,
+    pub field_lanes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -276,6 +315,9 @@ pub fn emit_runtime_contract_bundle(
     items.sort_by(|left, right| left.id.cmp(&right.id));
     let patches = collect_patch_contracts(&program.items);
     let laws = collect_law_contracts(&program.items);
+    let axioms = collect_axiom_contracts(&program.items);
+    let pulses = collect_pulse_contracts(&program.items);
+    let shatters = collect_shatter_contracts(&program.items);
     let converges = collect_converge_contracts(&program.items);
     let worlds = collect_world_contracts(&program.items);
     let active_world = if worlds.len() == 1 {
@@ -318,6 +360,9 @@ pub fn emit_runtime_contract_bundle(
         items,
         patches,
         laws,
+        axioms,
+        pulses,
+        shatters,
         converges,
         worlds,
         active_world,
@@ -492,6 +537,44 @@ fn collect_runtime_capabilities(
             "law.invariants",
             "kain-core.runtime",
             Some("Program declares compiler-owned invariant laws."),
+        ));
+    }
+    if summary.axioms > 0 {
+        capabilities.push(runtime_capability(
+            "machine.axiom",
+            "kain-core.runtime",
+            Some("Program declares compiler-accepted machine/environment truths with fallbacks."),
+        ));
+    }
+    if summary.pulses > 0 {
+        capabilities.push(runtime_capability(
+            "time.pulse",
+            "kain-core.runtime",
+            Some("Program declares first-class temporal pulse execution beats."),
+        ));
+        capabilities.push(runtime_capability(
+            "time.hardware-timer",
+            "runtime/native",
+            Some("Pulse contracts can lower to native timer-backed scheduling lanes."),
+        ));
+    }
+    if summary.shatters > 0 {
+        capabilities.push(runtime_capability(
+            "memory.shatter",
+            "kain-core.runtime",
+            Some("Program declares silicon-oriented structure-of-arrays layout intent."),
+        ));
+    }
+    if summary.teleports > 0 {
+        capabilities.push(runtime_capability(
+            "world.teleport",
+            "kain-core.runtime",
+            Some("Program uses destructive zero-copy ownership handoff across worlds."),
+        ));
+        capabilities.push(runtime_capability(
+            "interop.zero-copy-handoff",
+            "kain-core.runtime",
+            Some("Teleport expressions require no-copy destination ownership materialization."),
         ));
     }
     if summary.converges > 0 {
@@ -830,6 +913,9 @@ fn collect_runtime_items(
             TypedItem::Law(law) => {
                 output.push(runtime_contract_item("law", &law.ast.name));
             }
+            TypedItem::Axiom(axiom) => {
+                output.push(runtime_contract_item("axiom", &axiom.ast.name));
+            }
             TypedItem::Converge(converge) => {
                 output.push(runtime_contract_item("converge", &converge.ast.name));
             }
@@ -850,6 +936,9 @@ fn collect_runtime_items(
             TypedItem::Orchestrate(orchestrate) => {
                 output.push(runtime_contract_item("orchestrate", &orchestrate.ast.name));
             }
+            TypedItem::Pulse(pulse) => {
+                output.push(runtime_contract_item("pulse", &pulse.ast.name));
+            }
             TypedItem::Component(component) => {
                 output.push(runtime_contract_item("component", &component.ast.name));
                 reflection_names.insert(component.ast.name.clone());
@@ -862,7 +951,12 @@ fn collect_runtime_items(
                 reflection_names.insert(actor.ast.name.clone());
             }
             TypedItem::Struct(struct_def) => {
-                output.push(runtime_contract_item("struct", &struct_def.ast.name));
+                let kind = if struct_def.ast.is_shattered() {
+                    "shatter"
+                } else {
+                    "struct"
+                };
+                output.push(runtime_contract_item(kind, &struct_def.ast.name));
                 reflection_names.insert(struct_def.ast.name.clone());
             }
             TypedItem::Enum(enum_def) => {
@@ -1009,6 +1103,112 @@ fn runtime_law_contract(law: &TypedLaw) -> RuntimeLawContract {
             .map(|param| type_to_string(&param.ty))
             .collect(),
         return_type: type_to_string(&law.ast.return_type),
+    }
+}
+
+fn collect_axiom_contracts(items: &[TypedItem]) -> Vec<RuntimeAxiomContract> {
+    let mut contracts = Vec::new();
+    collect_axiom_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_axiom_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimeAxiomContract>) {
+    for item in items {
+        match item {
+            TypedItem::Axiom(axiom) => output.push(runtime_axiom_contract(axiom)),
+            TypedItem::Mod(module) => collect_axiom_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_axiom_contract(axiom: &TypedAxiom) -> RuntimeAxiomContract {
+    RuntimeAxiomContract {
+        name: axiom.ast.name.clone(),
+        predicates: axiom
+            .ast
+            .predicates
+            .iter()
+            .map(runtime_axiom_predicate_contract)
+            .collect(),
+        guarantees: axiom.ast.guarantees.clone(),
+        fallback: axiom.ast.fallback.clone().unwrap_or_default(),
+    }
+}
+
+fn runtime_axiom_predicate_contract(predicate: &AxiomPredicate) -> RuntimeAxiomPredicateContract {
+    RuntimeAxiomPredicateContract {
+        kind: predicate.kind().to_string(),
+        value: predicate.value().to_string(),
+    }
+}
+
+fn collect_pulse_contracts(items: &[TypedItem]) -> Vec<RuntimePulseContract> {
+    let mut contracts = Vec::new();
+    collect_pulse_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_pulse_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimePulseContract>) {
+    for item in items {
+        match item {
+            TypedItem::Pulse(pulse) => output.push(runtime_pulse_contract(pulse)),
+            TypedItem::Mod(module) => collect_pulse_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_pulse_contract(pulse: &TypedPulse) -> RuntimePulseContract {
+    RuntimePulseContract {
+        name: pulse.ast.name.clone(),
+        interval: pulse.ast.interval.as_authored(),
+        interval_ms: pulse_duration_to_millis(&pulse.ast.interval),
+        jitter: pulse.ast.jitter.as_ref().map(PulseDuration::as_authored),
+        body_ownership_ops: block_contains_ownership_expr(&pulse.ast.body),
+        body_teleports: block_contains_teleport_expr(&pulse.ast.body),
+    }
+}
+
+fn collect_shatter_contracts(items: &[TypedItem]) -> Vec<RuntimeShatterContract> {
+    let mut contracts = Vec::new();
+    collect_shatter_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| left.name.cmp(&right.name));
+    contracts
+}
+
+fn collect_shatter_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimeShatterContract>) {
+    for item in items {
+        match item {
+            TypedItem::Struct(struct_def) if struct_def.ast.is_shattered() => {
+                output.push(RuntimeShatterContract {
+                    name: struct_def.ast.name.clone(),
+                    layout: "structure-of-arrays".to_string(),
+                    field_lanes: struct_def
+                        .ast
+                        .fields
+                        .iter()
+                        .map(|field| field.name.clone())
+                        .collect(),
+                });
+            }
+            TypedItem::Mod(module) => collect_shatter_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn pulse_duration_to_millis(duration: &PulseDuration) -> u64 {
+    let value = duration.value.max(0) as u64;
+    match duration.unit.as_str() {
+        "ns" => (value / 1_000_000).max(1),
+        "us" => (value / 1_000).max(1),
+        "ms" => value,
+        "s" => value.saturating_mul(1_000),
+        "tick" | "ticks" => value,
+        _ => value,
     }
 }
 
@@ -1343,6 +1543,10 @@ struct ItemSummary {
     async_tasks: usize,
     patches: usize,
     laws: usize,
+    axioms: usize,
+    pulses: usize,
+    shatters: usize,
+    teleports: usize,
     converges: usize,
     worlds: usize,
     entanglements: usize,
@@ -1393,7 +1597,10 @@ fn stmt_contains_ownership_expr(stmt: &Stmt) -> bool {
 
 fn expr_contains_ownership_expr(expr: &Expr) -> bool {
     match expr {
-        Expr::Observe { .. } | Expr::Collapse { .. } | Expr::Decay { .. } => true,
+        Expr::Observe { .. }
+        | Expr::Collapse { .. }
+        | Expr::Decay { .. }
+        | Expr::Teleport { .. } => true,
         Expr::Binary { left, right, .. } => {
             expr_contains_ownership_expr(left) || expr_contains_ownership_expr(right)
         }
@@ -1521,6 +1728,162 @@ fn else_branch_contains_ownership_expr(branch: &crate::ast::ElseBranch) -> bool 
     }
 }
 
+fn block_contains_teleport_expr(block: &Block) -> bool {
+    block.stmts.iter().any(stmt_contains_teleport_expr)
+}
+
+fn stmt_contains_teleport_expr(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_teleport_expr),
+        Stmt::Expr(expr) => expr_contains_teleport_expr(expr),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => {
+            value.as_ref().is_some_and(expr_contains_teleport_expr)
+        }
+        Stmt::For { iter, body, .. } => {
+            expr_contains_teleport_expr(iter) || block_contains_teleport_expr(body)
+        }
+        Stmt::While {
+            condition, body, ..
+        } => expr_contains_teleport_expr(condition) || block_contains_teleport_expr(body),
+        Stmt::Loop { body, .. } => block_contains_teleport_expr(body),
+        Stmt::Item(_) | Stmt::Continue(_) => false,
+    }
+}
+
+fn expr_contains_teleport_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Teleport { .. } => true,
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            expr_contains_teleport_expr(target) || expr_contains_teleport_expr(body)
+        }
+        Expr::Decay { target, .. } => expr_contains_teleport_expr(target),
+        Expr::Binary { left, right, .. } => {
+            expr_contains_teleport_expr(left) || expr_contains_teleport_expr(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Cast { value: operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Comptime(operand, _)
+        | Expr::Paren(operand, _) => expr_contains_teleport_expr(operand),
+        Expr::Call { callee, args, .. } => {
+            expr_contains_teleport_expr(callee)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_teleport_expr(&arg.value))
+        }
+        Expr::StageCall { args, .. } => args
+            .iter()
+            .any(|arg| expr_contains_teleport_expr(&arg.value)),
+        Expr::MacroCall { args, .. } => args.iter().any(expr_contains_teleport_expr),
+        Expr::MethodCall { receiver, args, .. } => {
+            expr_contains_teleport_expr(receiver)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_teleport_expr(&arg.value))
+        }
+        Expr::Field { object, .. } => expr_contains_teleport_expr(object),
+        Expr::Index { object, index, .. } => {
+            expr_contains_teleport_expr(object) || expr_contains_teleport_expr(index)
+        }
+        Expr::Assign { target, value, .. } => {
+            expr_contains_teleport_expr(target) || expr_contains_teleport_expr(value)
+        }
+        Expr::Struct { fields, rest, .. } => {
+            fields
+                .iter()
+                .any(|(_, value)| expr_contains_teleport_expr(value))
+                || rest
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_teleport_expr(value))
+        }
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| expr_contains_teleport_expr(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            crate::ast::EnumVariantFields::Unit => false,
+            crate::ast::EnumVariantFields::Tuple(values) => {
+                values.iter().any(expr_contains_teleport_expr)
+            }
+            crate::ast::EnumVariantFields::Struct(values) => values
+                .iter()
+                .any(|(_, value)| expr_contains_teleport_expr(value)),
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            values.iter().any(expr_contains_teleport_expr)
+        }
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|value| expr_contains_teleport_expr(value))
+                || end
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_teleport_expr(value))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_contains_teleport_expr(condition)
+                || block_contains_teleport_expr(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_teleport_expr(branch))
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            expr_contains_teleport_expr(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard.as_ref().is_some_and(expr_contains_teleport_expr)
+                        || expr_contains_teleport_expr(&arm.body)
+                })
+        }
+        Expr::Lambda { body, .. } => expr_contains_teleport_expr(body),
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(offset),
+        Expr::MemLoad { pointer, .. } => expr_contains_teleport_expr(pointer),
+        Expr::MemStore { pointer, value, .. } => {
+            expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(value)
+        }
+        Expr::Alloc { size, .. } => expr_contains_teleport_expr(size),
+        Expr::Realloc { pointer, size, .. } => {
+            expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(size)
+        }
+        Expr::SendMsg { target, data, .. } => {
+            expr_contains_teleport_expr(target)
+                || data
+                    .iter()
+                    .any(|(_, value)| expr_contains_teleport_expr(value))
+        }
+        Expr::Spawn { init, .. } => init
+            .iter()
+            .any(|(_, value)| expr_contains_teleport_expr(value)),
+        Expr::Block(block, _) => block_contains_teleport_expr(block),
+        _ => false,
+    }
+}
+
+fn else_branch_contains_teleport_expr(branch: &crate::ast::ElseBranch) -> bool {
+    match branch {
+        crate::ast::ElseBranch::Else(block) => block_contains_teleport_expr(block),
+        crate::ast::ElseBranch::ElseIf(condition, block, next) => {
+            expr_contains_teleport_expr(condition)
+                || block_contains_teleport_expr(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_teleport_expr(branch))
+        }
+    }
+}
+
 fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
     for item in items {
         match item {
@@ -1528,12 +1891,28 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
                 if block_contains_ownership_expr(&function.ast.body) {
                     summary.ownership_ops += 1;
                 }
+                if block_contains_teleport_expr(&function.ast.body) {
+                    summary.teleports += 1;
+                }
             }
             TypedItem::Component(_) => summary.components += 1,
             TypedItem::Actor(_) => summary.actors += 1,
             TypedItem::AsyncTask(_) => summary.async_tasks += 1,
             TypedItem::Patch(_) => summary.patches += 1,
             TypedItem::Law(_) => summary.laws += 1,
+            TypedItem::Axiom(_) => summary.axioms += 1,
+            TypedItem::Pulse(pulse) => {
+                summary.pulses += 1;
+                if block_contains_ownership_expr(&pulse.ast.body) {
+                    summary.ownership_ops += 1;
+                }
+                if block_contains_teleport_expr(&pulse.ast.body) {
+                    summary.teleports += 1;
+                }
+            }
+            TypedItem::Struct(struct_def) if struct_def.ast.is_shattered() => {
+                summary.shatters += 1;
+            }
             TypedItem::Converge(_) => summary.converges += 1,
             TypedItem::World(world) => {
                 summary.worlds += 1;

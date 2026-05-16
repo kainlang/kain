@@ -30,6 +30,9 @@ pub const COMPUTE_STREAM_DEFAULT_CADENCE: &str = "continuous";
 /// Capability key emitted when a shader authors explicit compute metadata.
 pub const COMPUTE_PLAN_CAPABILITY_KEY: &str = "gpu.compute-plan";
 
+/// Canonical attribute marker attached by the `shatter struct` surface syntax.
+pub const SHATTER_ATTRIBUTE_NAME: &str = "shatter";
+
 /// A complete KAIN program/module
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -49,6 +52,9 @@ pub enum Item {
     /// `law name(args) -> Bool: body`
     Law(LawDef),
 
+    /// `axiom Name: when target(...), guarantee ..., fallback ...`
+    Axiom(AxiomDef),
+
     /// `converge name(args) -> Type: spec/fast lanes`
     Converge(ConvergeDef),
 
@@ -60,6 +66,9 @@ pub enum Item {
 
     /// `orchestrate name(args) -> Type: stages`
     Orchestrate(OrchestrateDef),
+
+    /// `pulse name every 16ms [jitter 1ms]: body`
+    Pulse(PulseDef),
 
     /// `component Name(props) -> UI with Reactive: jsx`
     Component(Component),
@@ -171,6 +180,70 @@ pub struct LawDef {
     pub visibility: Visibility,
     pub attributes: Vec<Attribute>,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AxiomDef {
+    pub name: String,
+    pub predicates: Vec<AxiomPredicate>,
+    pub guarantees: Vec<String>,
+    pub fallback: Option<String>,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AxiomPredicate {
+    Target(String),
+    Arch(String),
+    Capability(String),
+}
+
+impl AxiomPredicate {
+    pub fn kind(&self) -> &'static str {
+        match self {
+            AxiomPredicate::Target(_) => "target",
+            AxiomPredicate::Arch(_) => "arch",
+            AxiomPredicate::Capability(_) => "capability",
+        }
+    }
+
+    pub fn value(&self) -> &str {
+        match self {
+            AxiomPredicate::Target(value)
+            | AxiomPredicate::Arch(value)
+            | AxiomPredicate::Capability(value) => value,
+        }
+    }
+
+    pub fn authored(&self) -> String {
+        format!("{}({})", self.kind(), self.value())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PulseDef {
+    pub name: String,
+    pub interval: PulseDuration,
+    pub jitter: Option<PulseDuration>,
+    pub body: Block,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PulseDuration {
+    pub value: i64,
+    pub unit: String,
+    pub span: Span,
+}
+
+impl PulseDuration {
+    pub fn as_authored(&self) -> String {
+        format!("{}{}", self.value, self.unit)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -998,6 +1071,14 @@ pub struct Struct {
     pub span: Span,
 }
 
+impl Struct {
+    pub fn is_shattered(&self) -> bool {
+        self.attributes
+            .iter()
+            .any(|attribute| attribute.name == SHATTER_ATTRIBUTE_NAME)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
     pub name: String,
@@ -1527,6 +1608,15 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Destructive zero-copy handoff across worlds: `teleport value from A to B [via channel]`
+    Teleport {
+        value: Box<Expr>,
+        source_world: String,
+        target_world: String,
+        channel: Option<String>,
+        span: Span,
+    },
+
     /// Cast: `value as Type`
     Cast {
         value: Box<Expr>,
@@ -1624,6 +1714,7 @@ impl Expr {
             | Expr::Observe { span: s, .. }
             | Expr::Collapse { span: s, .. }
             | Expr::Decay { span: s, .. }
+            | Expr::Teleport { span: s, .. }
             | Expr::Cast { span: s, .. }
             | Expr::Try(_, s)
             | Expr::Await(_, s)
@@ -2231,6 +2322,13 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
                 }
             }
         }
+        Item::Axiom(axiom) => {
+            for attr in &axiom.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
         Item::Converge(converge) => {
             for param in &converge.params {
                 collect_type_names_from_type(&param.ty, out);
@@ -2277,6 +2375,14 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
             }
             collect_type_names_from_block(&orchestrate.body, out);
             for attr in &orchestrate.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
+        Item::Pulse(pulse) => {
+            collect_type_names_from_block(&pulse.body, out);
+            for attr in &pulse.attributes {
                 for arg in &attr.args {
                     collect_type_names_from_expr(arg, out);
                 }
@@ -2896,6 +3002,9 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
         }
         Expr::Decay { target, .. } => {
             collect_type_names_from_expr(target, out);
+        }
+        Expr::Teleport { value, .. } => {
+            collect_type_names_from_expr(value, out);
         }
         Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
             collect_type_names_from_expr(inner, out);

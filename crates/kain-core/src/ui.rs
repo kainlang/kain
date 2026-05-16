@@ -1150,6 +1150,24 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
         Expr::Decay { target, .. } => {
             format!("decay {}", render_authored_expr_contract(target))
         }
+        Expr::Teleport {
+            value,
+            source_world,
+            target_world,
+            channel,
+            ..
+        } => {
+            let mut rendered = format!(
+                "teleport {} from {} to {}",
+                render_authored_expr_contract(value),
+                source_world,
+                target_world
+            );
+            if let Some(channel) = channel {
+                rendered.push_str(&format!(" via {channel}"));
+            }
+            rendered
+        }
         Expr::Lambda { params, body, .. } => {
             let rendered_params = params
                 .iter()

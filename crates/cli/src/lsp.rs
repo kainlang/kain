@@ -461,6 +461,13 @@ impl<'a> AnalysisBuilder<'a> {
                 SymbolKind::FUNCTION,
                 AnalysisCompletionKind::Function,
             ),
+            Item::Axiom(axiom) => self.simple_named_item_symbol(
+                &axiom.name,
+                axiom.span,
+                Some(format!("axiom {}", axiom.name)),
+                SymbolKind::CONSTANT,
+                AnalysisCompletionKind::Function,
+            ),
             Item::Converge(converge) => self.simple_named_item_symbol(
                 &converge.name,
                 converge.span,
@@ -476,6 +483,13 @@ impl<'a> AnalysisBuilder<'a> {
                 AnalysisCompletionKind::Module,
             ),
             Item::Entangle(entangle) => self.collect_entangle_symbol(entangle),
+            Item::Pulse(pulse) => self.simple_named_item_symbol(
+                &pulse.name,
+                pulse.span,
+                Some(format!("pulse {}", pulse.name)),
+                SymbolKind::EVENT,
+                AnalysisCompletionKind::Function,
+            ),
             Item::Orchestrate(orchestrate) => self.simple_named_item_symbol(
                 &orchestrate.name,
                 orchestrate.span,
