@@ -14,6 +14,11 @@ extern "C" {
 #define KAIN_NATIVE_NET_UNSUPPORTED_PLATFORM -4
 #define KAIN_NATIVE_NET_IO_ERROR -5
 #define KAIN_NATIVE_NET_PARSE_ERROR -6
+#define KAIN_NATIVE_NET_PROTOCOL_UNSUPPORTED -7
+
+#define KAIN_NATIVE_NET_CAPABILITY_UNAVAILABLE 0
+#define KAIN_NATIVE_NET_CAPABILITY_DEGRADED 1
+#define KAIN_NATIVE_NET_CAPABILITY_AVAILABLE 2
 
 #define KAIN_NATIVE_NET_MAX_KEY 64
 #define KAIN_NATIVE_NET_MAX_TEXT 4096
@@ -29,14 +34,19 @@ extern "C" {
 typedef struct KainNativeNetFunctionTable {
     int64_t (*reset)(void);
     int64_t (*platform_available)(void);
+    const char* (*platform_name)(void);
+    int64_t (*capability_state)(const char* capability_key);
     int64_t (*tcp_connect)(const char* host, int64_t port, int64_t timeout_ms);
     int64_t (*tcp_listen)(const char* host, int64_t port);
     int64_t (*tcp_accept)(int64_t listener_id, int64_t timeout_ms);
     int64_t (*http_request_create)(const char* method, const char* url);
+    int64_t (*http_request_set_protocol)(int64_t request_id, const char* protocol_name);
     int64_t (*http_client_send)(int64_t request_id);
+    const char* (*http_response_protocol)(int64_t response_id);
     int64_t (*http_server_create)(const char* host, int64_t port);
     int64_t (*http_server_listen)(int64_t server_id);
     int64_t (*http_server_pump)(int64_t server_id, int64_t timeout_ms);
+    int64_t (*http_server_pending_request_count)(int64_t server_id);
     int64_t (*last_status)(void);
 } KainNativeNetFunctionTable;
 
@@ -44,6 +54,8 @@ extern const KainNativeNetFunctionTable g_kain_native_net_function_table;
 
 int64_t kain_native_net_reset(void);
 int64_t kain_native_net_platform_available(void);
+const char* kain_native_net_platform_name(void);
+int64_t kain_native_net_capability_state(const char* capability_key);
 
 int64_t kain_native_tcp_connect(const char* host, int64_t port, int64_t timeout_ms);
 int64_t kain_native_tcp_listen(const char* host, int64_t port);
@@ -61,8 +73,11 @@ int64_t kain_native_http_request_set_header(int64_t request_id, const char* key,
 int64_t kain_native_http_request_set_body_text(int64_t request_id, const char* payload);
 int64_t kain_native_http_request_set_body_hex(int64_t request_id, const char* payload_hex);
 int64_t kain_native_http_request_set_timeout(int64_t request_id, int64_t timeout_ms);
+int64_t kain_native_http_request_set_protocol(int64_t request_id, const char* protocol_name);
+const char* kain_native_http_request_protocol(int64_t request_id);
 int64_t kain_native_http_client_send(int64_t request_id);
 int64_t kain_native_http_response_status(int64_t response_id);
+const char* kain_native_http_response_protocol(int64_t response_id);
 const char* kain_native_http_response_header(int64_t response_id, const char* key);
 const char* kain_native_http_response_body_text(int64_t response_id);
 const char* kain_native_http_response_body_hex(int64_t response_id);
@@ -80,6 +95,7 @@ int64_t kain_native_http_server_route_actor(
     const char* message_kind
 );
 int64_t kain_native_http_server_pump(int64_t server_id, int64_t timeout_ms);
+int64_t kain_native_http_server_pending_request_count(int64_t server_id);
 int64_t kain_native_http_server_next_request(int64_t server_id);
 const char* kain_native_http_request_method(int64_t incoming_request_id);
 const char* kain_native_http_request_path(int64_t incoming_request_id);

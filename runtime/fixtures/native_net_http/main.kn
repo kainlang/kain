@@ -33,6 +33,9 @@ fn main() -> Int:
     if next != incoming:
         return 6
 
+    if http_server_pending_request_count(server) != 0:
+        return 61
+
     let method = http_request_method(incoming)
     if method != "POST":
         return 7
@@ -45,12 +48,18 @@ fn main() -> Int:
     if body != "hello-actor":
         return 9
 
+    if http_request_protocol(incoming) != "http/1.1":
+        return 62
+
     let _respond = http_respond_text(incoming, 201, "kain-net-ok")
     let response_text = tcp_read_text(client)
     if response_text == "":
         return 10
 
     let client_request = http_request_create("GET", http_local_url(port, "/client-symbol-proof"))
+    let _client_protocol = http_request_set_protocol(client_request, "http/1.1")
+    if http_request_protocol(client_request) != "http/1.1":
+        return 63
     let _client_timeout = http_request_set_timeout(client_request, 1)
     let _client_destroy = http_request_destroy(client_request)
 

@@ -5,8 +5,54 @@ use thiserror::Error;
 #[serde(rename_all = "snake_case")]
 pub enum NetProtocol {
     Tcp,
+    Tls,
     Http11,
     Https,
+    Http2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpProtocolPreference {
+    Http11,
+    Http2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetCapabilityState {
+    Unavailable,
+    Degraded,
+    Available,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NetCapability {
+    pub name: String,
+    pub state: NetCapabilityState,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TlsClientSpec {
+    pub server_name: String,
+    pub alpn_protocols: Vec<String>,
+    pub accept_invalid_certificates: bool,
+}
+
+impl TlsClientSpec {
+    pub fn https(server_name: impl Into<String>) -> Self {
+        Self {
+            server_name: server_name.into(),
+            alpn_protocols: Vec::new(),
+            accept_invalid_certificates: false,
+        }
+    }
+
+    pub fn with_alpn(mut self, protocol: impl Into<String>) -> Self {
+        self.alpn_protocols.push(protocol.into());
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,6 +80,7 @@ pub struct HttpHeader {
 pub struct HttpRequestSpec {
     pub method: String,
     pub url: String,
+    pub protocol: HttpProtocolPreference,
     pub headers: Vec<HttpHeader>,
     pub body_text: String,
     pub timeout_ms: i64,
@@ -44,6 +91,7 @@ impl HttpRequestSpec {
         Self {
             method: method.into(),
             url: url.into(),
+            protocol: HttpProtocolPreference::Http11,
             headers: Vec::new(),
             body_text: String::new(),
             timeout_ms: 30_000,
@@ -60,6 +108,11 @@ impl HttpRequestSpec {
 
     pub fn with_body_text(mut self, body_text: impl Into<String>) -> Self {
         self.body_text = body_text.into();
+        self
+    }
+
+    pub fn with_protocol(mut self, protocol: HttpProtocolPreference) -> Self {
+        self.protocol = protocol;
         self
     }
 }
@@ -129,6 +182,8 @@ pub enum NetError {
     CapacityExceeded,
     #[error("network subsystem does not support this platform capability")]
     UnsupportedPlatform,
+    #[error("network transport protocol is unsupported on this path")]
+    UnsupportedProtocol,
     #[error("network I/O failed")]
     Io,
     #[error("{message}")]
@@ -137,7 +192,10 @@ pub enum NetError {
 
 #[cfg(test)]
 mod tests {
-    use super::{HttpRequestSpec, HttpServerSpec, NetProtocol, TcpEndpoint};
+    use super::{
+        HttpProtocolPreference, HttpRequestSpec, HttpServerSpec, NetCapabilityState, NetProtocol,
+        TcpEndpoint, TlsClientSpec,
+    };
 
     #[test]
     fn tcp_endpoint_is_plain_host_and_port() {
@@ -151,6 +209,7 @@ mod tests {
         let request = HttpRequestSpec::new("GET", "http://127.0.0.1/");
         assert_eq!(request.method, "GET");
         assert_eq!(request.timeout_ms, 30_000);
+        assert_eq!(request.protocol, HttpProtocolPreference::Http11);
         assert!(request.headers.is_empty());
         assert!(request.body_text.is_empty());
     }
@@ -175,5 +234,25 @@ mod tests {
     #[test]
     fn protocol_names_are_stable() {
         assert_eq!(NetProtocol::Tcp, NetProtocol::Tcp);
+        assert_eq!(NetProtocol::Tls, NetProtocol::Tls);
+        assert_eq!(NetProtocol::Http2, NetProtocol::Http2);
+    }
+
+    #[test]
+    fn tls_client_builder_accumulates_alpn_protocols() {
+        let tls = TlsClientSpec::https("example.test").with_alpn("h2");
+        assert_eq!(tls.server_name, "example.test");
+        assert_eq!(tls.alpn_protocols, vec!["h2".to_string()]);
+        assert!(!tls.accept_invalid_certificates);
+    }
+
+    #[test]
+    fn capability_states_are_stable() {
+        assert_eq!(
+            NetCapabilityState::Unavailable,
+            NetCapabilityState::Unavailable
+        );
+        assert_eq!(NetCapabilityState::Degraded, NetCapabilityState::Degraded);
+        assert_eq!(NetCapabilityState::Available, NetCapabilityState::Available);
     }
 }

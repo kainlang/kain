@@ -5,6 +5,12 @@ fn kain_native_net_reset() -> Int
 fn kain_native_net_platform_available() -> Int
 
 @extern
+fn kain_native_net_platform_name() -> String
+
+@extern
+fn kain_native_net_capability_state(capability_key: String) -> Int
+
+@extern
 fn kain_native_tcp_connect(host: String, port: Int, timeout_ms: Int) -> Int
 
 @extern
@@ -50,10 +56,19 @@ fn kain_native_http_request_set_body_hex(request_id: Int, payload_hex: String) -
 fn kain_native_http_request_set_timeout(request_id: Int, timeout_ms: Int) -> Int
 
 @extern
+fn kain_native_http_request_set_protocol(request_id: Int, protocol_name: String) -> Int
+
+@extern
+fn kain_native_http_request_protocol(request_id: Int) -> String
+
+@extern
 fn kain_native_http_client_send(request_id: Int) -> Int
 
 @extern
 fn kain_native_http_response_status(response_id: Int) -> Int
+
+@extern
+fn kain_native_http_response_protocol(response_id: Int) -> String
 
 @extern
 fn kain_native_http_response_header(response_id: Int, key: String) -> String
@@ -84,6 +99,9 @@ fn kain_native_http_server_route_actor(server_id: Int, method: String, path: Str
 
 @extern
 fn kain_native_http_server_pump(server_id: Int, timeout_ms: Int) -> Int
+
+@extern
+fn kain_native_http_server_pending_request_count(server_id: Int) -> Int
 
 @extern
 fn kain_native_http_server_next_request(server_id: Int) -> Int
@@ -136,6 +154,18 @@ pub fn net_reset() -> Int:
 pub fn net_platform_available() -> Int:
     return kain_native_net_platform_available()
 
+pub fn net_platform_name() -> String:
+    return kain_native_net_platform_name()
+
+pub fn net_capability_state(capability_key: String) -> Int:
+    return kain_native_net_capability_state(capability_key)
+
+pub fn net_capability_supported(capability_key: String) -> Bool:
+    return net_capability_state(capability_key) > 0
+
+pub fn net_capability_available(capability_key: String) -> Bool:
+    return net_capability_state(capability_key) == 2
+
 pub fn tcp_connect(host: String, port: Int, timeout_ms: Int) -> Int:
     return kain_native_tcp_connect(host, port, timeout_ms)
 
@@ -181,11 +211,20 @@ pub fn http_request_set_body_hex(request_id: Int, payload_hex: String) -> Int:
 pub fn http_request_set_timeout(request_id: Int, timeout_ms: Int) -> Int:
     return kain_native_http_request_set_timeout(request_id, timeout_ms)
 
+pub fn http_request_set_protocol(request_id: Int, protocol_name: String) -> Int:
+    return kain_native_http_request_set_protocol(request_id, protocol_name)
+
+pub fn http_request_protocol(request_id: Int) -> String:
+    return kain_native_http_request_protocol(request_id)
+
 pub fn http_client_send(request_id: Int) -> Int:
     return kain_native_http_client_send(request_id)
 
 pub fn http_response_status(response_id: Int) -> Int:
     return kain_native_http_response_status(response_id)
+
+pub fn http_response_protocol(response_id: Int) -> String:
+    return kain_native_http_response_protocol(response_id)
 
 pub fn http_response_header(response_id: Int, key: String) -> String:
     return kain_native_http_response_header(response_id, key)
@@ -219,6 +258,9 @@ pub fn http_route_actor(server_id: Int, method: String, path: String, actor_id: 
 
 pub fn http_server_pump(server_id: Int, timeout_ms: Int) -> Int:
     return kain_native_http_server_pump(server_id, timeout_ms)
+
+pub fn http_server_pending_request_count(server_id: Int) -> Int:
+    return kain_native_http_server_pending_request_count(server_id)
 
 pub fn http_server_next_request(server_id: Int) -> Int:
     return kain_native_http_server_next_request(server_id)

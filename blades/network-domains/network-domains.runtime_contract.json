@@ -3,6 +3,11 @@
   "target": "llvm",
   "required_capabilities": [
     {
+      "key": "actors.syntax",
+      "source": "kain-core",
+      "detail": "Program declares actor items that require runtime-backed semantics."
+    },
+    {
       "key": "compiler.typed-program",
       "source": "kain-core",
       "detail": "Typed frontend output is available for runtime packaging."
@@ -30,6 +35,16 @@
   ],
   "service_bindings": [
     {
+      "service": "actor.registry",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
+      "service": "actor.runtime",
+      "provider": "runtime/native",
+      "lane": "raw-native"
+    },
+    {
       "service": "base.diagnostics",
       "provider": "runtime/native",
       "lane": "raw-native"
@@ -51,6 +66,11 @@
     }
   ],
   "items": [
+    {
+      "id": "actor:NetworkDomainProbe",
+      "name": "NetworkDomainProbe",
+      "kind": "actor"
+    },
     {
       "id": "function:client_send",
       "name": "client_send",
@@ -4772,6 +4792,21 @@
       "kind": "function"
     },
     {
+      "id": "use:std::native::http",
+      "name": "std::native::http",
+      "kind": "use"
+    },
+    {
+      "id": "use:std::native::http2",
+      "name": "std::native::http2",
+      "kind": "use"
+    },
+    {
+      "id": "use:std::native::net",
+      "name": "std::native::net",
+      "kind": "use"
+    },
+    {
       "id": "use:std::native::net",
       "name": "std::native::net",
       "kind": "use"
@@ -4784,12 +4819,19 @@
     {
       "id": "use:std::native::net",
       "name": "std::native::net",
+      "kind": "use"
+    },
+    {
+      "id": "use:std::native::tls",
+      "name": "std::native::tls",
       "kind": "use"
     }
   ],
   "reflection": {
     "emitted": true,
-    "schema_names": [],
+    "schema_names": [
+      "NetworkDomainProbe"
+    ],
     "notes": [
       "Full reflection payload emitted from kain-core.",
       "Includes type schemas, item metadata, actors, components, and messages."
@@ -11438,13 +11480,29 @@
       },
       {
         "item_id": 944,
+        "name": "NetworkDomainProbe",
+        "kind": "actor",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 945,
         "name": "main",
         "kind": "function",
         "module_path": "",
         "type_id": null
       }
     ],
-    "actors": [],
+    "actors": [
+      {
+        "item_id": 944,
+        "name": "NetworkDomainProbe",
+        "message_types": [
+          "HttpRequest"
+        ],
+        "state_type": "NetworkDomainProbeState"
+      }
+    ],
     "components": [],
     "messages": []
   }

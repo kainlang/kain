@@ -64,12 +64,14 @@ typedef struct KainNativeHttpRequest {
     int64_t actor_id;
     char actor_message_kind[KAIN_NATIVE_NET_MAX_KEY];
     char actor_payload[KAIN_NATIVE_NET_MAX_TEXT];
+    char protocol[KAIN_NATIVE_NET_MAX_KEY];
 } KainNativeHttpRequest;
 
 typedef struct KainNativeHttpResponse {
     int in_use;
     int64_t id;
     int64_t status_code;
+    char protocol[KAIN_NATIVE_NET_MAX_KEY];
     KainNativeNetHeader headers[KAIN_NATIVE_NET_MAX_HEADERS];
     int64_t header_count;
     unsigned char* body;
@@ -158,6 +160,8 @@ static int64_t g_last_status = KAIN_NATIVE_NET_OK;
 static char g_last_error_kind[KAIN_NATIVE_NET_MAX_KEY] = "ok";
 static char g_last_error_message[KAIN_NATIVE_NET_MAX_TEXT] = "";
 static const char g_empty_string[] = "";
+static const char g_http_protocol_http11[] = "http/1.1";
+static const char g_http_protocol_http2[] = "http/2";
 
 static int kain_native_net_size_add_overflow(size_t left, size_t right, size_t* out) {
     if (out == 0) {
@@ -388,6 +392,45 @@ static int kain_native_net_text_equal_ci(const char* left, const char* right) {
 #else
     return strcasecmp(left, right) == 0;
 #endif
+}
+
+static const char* kain_native_net_normalize_protocol_name(const char* protocol_name) {
+    if (protocol_name == 0 || protocol_name[0] == '\0') {
+        return g_http_protocol_http11;
+    }
+    if (kain_native_net_text_equal_ci(protocol_name, "http/1.1") ||
+        kain_native_net_text_equal_ci(protocol_name, "http1") ||
+        kain_native_net_text_equal_ci(protocol_name, "http11")) {
+        return g_http_protocol_http11;
+    }
+    if (kain_native_net_text_equal_ci(protocol_name, "http/2") ||
+        kain_native_net_text_equal_ci(protocol_name, "http2") ||
+        kain_native_net_text_equal_ci(protocol_name, "h2")) {
+        return g_http_protocol_http2;
+    }
+    return 0;
+}
+
+static const char* kain_native_net_http_version_token_from_protocol(const char* protocol_name) {
+    const char* normalized = kain_native_net_normalize_protocol_name(protocol_name);
+    if (normalized == 0) {
+        return 0;
+    }
+    if (normalized == g_http_protocol_http2) {
+        return "HTTP/2";
+    }
+    return "HTTP/1.1";
+}
+
+static const char* kain_native_net_protocol_from_http_version_token(const char* version_token) {
+    if (version_token == 0 || version_token[0] == '\0') {
+        return g_http_protocol_http11;
+    }
+    if (kain_native_net_text_equal_ci(version_token, "HTTP/2") ||
+        kain_native_net_text_equal_ci(version_token, "HTTP/2.0")) {
+        return g_http_protocol_http2;
+    }
+    return g_http_protocol_http11;
 }
 
 static const char* kain_native_net_string(const char* source) {
@@ -700,6 +743,7 @@ static KainNativeHttpRequest* kain_native_net_alloc_request(int incoming) {
     g_requests[slot].id = g_next_request_id++;
     g_requests[slot].socket_handle = INVALID_SOCKET;
     g_requests[slot].timeout_ms = 30000;
+    kain_native_net_copy(g_requests[slot].protocol, sizeof(g_requests[slot].protocol), g_http_protocol_http11);
     bit = UINT64_C(1) << slot;
     g_request_occupancy_bits |= bit;
     if (!kain_native_net_index_insert(
@@ -751,6 +795,7 @@ static KainNativeHttpResponse* kain_native_net_alloc_response(void) {
     memset(&g_responses[slot], 0, sizeof(g_responses[slot]));
     g_responses[slot].in_use = 1;
     g_responses[slot].id = g_next_response_id++;
+    kain_native_net_copy(g_responses[slot].protocol, sizeof(g_responses[slot].protocol), g_http_protocol_http11);
     bit = UINT64_C(1) << slot;
     g_response_occupancy_bits |= bit;
     if (!kain_native_net_index_insert(
@@ -1090,8 +1135,13 @@ static int kain_native_net_parse_http_request(KainNativeHttpRequest* request, un
         free(text);
         return 0;
     }
-    *version = '\0';
+    *version++ = '\0';
     kain_native_net_copy(request->method, sizeof(request->method), line);
+    kain_native_net_copy(
+        request->protocol,
+        sizeof(request->protocol),
+        kain_native_net_protocol_from_http_version_token(version)
+    );
     {
         char* query = strchr(target, '?');
         if (query != 0) {
@@ -1139,13 +1189,29 @@ static int kain_native_net_parse_http_request(KainNativeHttpRequest* request, un
     return 1;
 }
 
-static int64_t kain_native_net_store_http_response(int64_t status_code, const KainNativeNetHeader* headers, int64_t header_count, const unsigned char* body, size_t body_length) {
+static int64_t kain_native_net_store_http_response(
+    int64_t status_code,
+    const char* protocol_name,
+    const KainNativeNetHeader* headers,
+    int64_t header_count,
+    const unsigned char* body,
+    size_t body_length
+) {
     KainNativeHttpResponse* response = kain_native_net_alloc_response();
+    const char* normalized_protocol = kain_native_net_normalize_protocol_name(protocol_name);
     int64_t index;
     if (response == 0) {
         return kain_native_net_fail(KAIN_NATIVE_NET_CAPACITY_EXCEEDED, "capacity", "HTTP response capacity exceeded");
     }
     response->status_code = status_code;
+    if (normalized_protocol == 0) {
+        normalized_protocol = g_http_protocol_http11;
+    }
+    kain_native_net_copy(
+        response->protocol,
+        sizeof(response->protocol),
+        normalized_protocol
+    );
     for (index = 0; index < header_count && index < KAIN_NATIVE_NET_MAX_HEADERS; ++index) {
         response->headers[index] = headers[index];
         response->header_count++;
@@ -1173,8 +1239,23 @@ static int64_t kain_native_net_send_raw_http_client(KainNativeHttpRequest* reque
     size_t response_length = 0u;
     size_t response_capacity = 0u;
     char request_head[KAIN_NATIVE_NET_MAX_TEXT];
+    const char* request_protocol = kain_native_net_normalize_protocol_name(request->protocol);
     int header_index;
     int64_t result_id;
+    if (request_protocol == 0) {
+        return kain_native_net_fail(
+            KAIN_NATIVE_NET_INVALID_ARGUMENT,
+            "invalid-protocol",
+            "HTTP request protocol name is invalid"
+        );
+    }
+    if (request_protocol == g_http_protocol_http2) {
+        return kain_native_net_fail(
+            KAIN_NATIVE_NET_PROTOCOL_UNSUPPORTED,
+            "unsupported-protocol",
+            "HTTP/2 client requests require the HTTPS WinHTTP lane in v1"
+        );
+    }
     socket_handle = kain_native_net_connect_socket(url->host, url->port);
     if (socket_handle == INVALID_SOCKET) {
         return kain_native_net_fail(KAIN_NATIVE_NET_IO_ERROR, "connect", "HTTP client TCP connect failed");
@@ -1182,9 +1263,10 @@ static int64_t kain_native_net_send_raw_http_client(KainNativeHttpRequest* reque
     snprintf(
         request_head,
         sizeof(request_head),
-        "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\nContent-Length: %llu\r\n",
+        "%s %s %s\r\nHost: %s\r\nConnection: close\r\nContent-Length: %llu\r\n",
         request->method[0] ? request->method : "GET",
         url->path[0] ? url->path : "/",
+        kain_native_net_http_version_token_from_protocol(request_protocol),
         url->host,
         (unsigned long long)request->body_length
     );
@@ -1228,6 +1310,7 @@ static int64_t kain_native_net_send_raw_http_client(KainNativeHttpRequest* reque
     {
         char* header_end = strstr((char*)response_bytes, "\r\n\r\n");
         int64_t status = 0;
+        const char* response_protocol = g_http_protocol_http11;
         KainNativeNetHeader headers[KAIN_NATIVE_NET_MAX_HEADERS];
         int64_t header_count = 0;
         unsigned char* body = response_bytes;
@@ -1239,9 +1322,20 @@ static int64_t kain_native_net_send_raw_http_client(KainNativeHttpRequest* reque
             *header_end = '\0';
             body = (unsigned char*)header_end + 4;
             body_length = response_length - (size_t)(body - response_bytes);
-            status = atoll((char*)response_bytes + 9);
             line = strstr((char*)response_bytes, "\r\n");
             if (line != 0) {
+                char* status_code_text;
+                *line = '\0';
+                status_code_text = strchr((char*)response_bytes, ' ');
+                if (status_code_text != 0) {
+                    *status_code_text++ = '\0';
+                    while (*status_code_text == ' ') {
+                        ++status_code_text;
+                    }
+                    status = atoll(status_code_text);
+                }
+                response_protocol =
+                    kain_native_net_protocol_from_http_version_token((char*)response_bytes);
                 line += 2;
                 while (*line) {
                     next_line = strstr(line, "\r\n");
@@ -1262,7 +1356,14 @@ static int64_t kain_native_net_send_raw_http_client(KainNativeHttpRequest* reque
                 }
             }
         }
-        result_id = kain_native_net_store_http_response(status, headers, header_count, body, body_length);
+        result_id = kain_native_net_store_http_response(
+            status,
+            response_protocol,
+            headers,
+            header_count,
+            body,
+            body_length
+        );
     }
     free(response_bytes);
     return result_id;
@@ -1297,9 +1398,18 @@ static int64_t kain_native_net_send_winhttp_client(KainNativeHttpRequest* reques
     unsigned char* response_body = 0;
     size_t body_length = 0u;
     size_t body_capacity = 0u;
+    const char* request_protocol = kain_native_net_normalize_protocol_name(request->protocol);
+    const char* response_protocol = g_http_protocol_http11;
     DWORD status_code = 0u;
     DWORD status_size = sizeof(status_code);
     int64_t response_id;
+    if (request_protocol == 0) {
+        return kain_native_net_fail(
+            KAIN_NATIVE_NET_INVALID_ARGUMENT,
+            "invalid-protocol",
+            "HTTP request protocol name is invalid"
+        );
+    }
     host_wide = kain_native_net_wide_from_utf8(url->host);
     path_wide = kain_native_net_wide_from_utf8(url->path[0] ? url->path : "/");
     method_wide = kain_native_net_wide_from_utf8(request->method[0] ? request->method : "GET");
@@ -1332,6 +1442,31 @@ static int64_t kain_native_net_send_winhttp_client(KainNativeHttpRequest* reques
         response_id = kain_native_net_fail(KAIN_NATIVE_NET_IO_ERROR, "winhttp", "WinHttpOpenRequest failed");
         goto cleanup;
     }
+    if (request_protocol == g_http_protocol_http2) {
+#if defined(WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL) && defined(WINHTTP_PROTOCOL_FLAG_HTTP2)
+        DWORD enabled_protocols = WINHTTP_PROTOCOL_FLAG_HTTP2;
+        if (!WinHttpSetOption(
+                win_request,
+                WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
+                &enabled_protocols,
+                sizeof(enabled_protocols)
+            )) {
+            response_id = kain_native_net_fail(
+                KAIN_NATIVE_NET_PROTOCOL_UNSUPPORTED,
+                "unsupported-protocol",
+                "WinHTTP could not enable HTTP/2 for this request"
+            );
+            goto cleanup;
+        }
+#else
+        response_id = kain_native_net_fail(
+            KAIN_NATIVE_NET_PROTOCOL_UNSUPPORTED,
+            "unsupported-protocol",
+            "HTTP/2 requires a WinHTTP SDK with protocol option support"
+        );
+        goto cleanup;
+#endif
+    }
     {
         int64_t index;
         for (index = 0; index < request->header_count; ++index) {
@@ -1357,6 +1492,20 @@ static int64_t kain_native_net_send_winhttp_client(KainNativeHttpRequest* reques
         response_id = kain_native_net_fail(KAIN_NATIVE_NET_IO_ERROR, "winhttp", "WinHTTP send/receive failed");
         goto cleanup;
     }
+#if defined(WINHTTP_OPTION_HTTP_PROTOCOL_USED) && defined(WINHTTP_PROTOCOL_FLAG_HTTP2)
+    {
+        DWORD protocol_used = 0u;
+        DWORD protocol_used_size = sizeof(protocol_used);
+        if (WinHttpQueryOption(
+                win_request,
+                WINHTTP_OPTION_HTTP_PROTOCOL_USED,
+                &protocol_used,
+                &protocol_used_size
+            ) && (protocol_used & WINHTTP_PROTOCOL_FLAG_HTTP2) != 0u) {
+            response_protocol = g_http_protocol_http2;
+        }
+    }
+#endif
     WinHttpQueryHeaders(
         win_request,
         WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
@@ -1389,7 +1538,14 @@ static int64_t kain_native_net_send_winhttp_client(KainNativeHttpRequest* reques
         }
         free(chunk);
     }
-    response_id = kain_native_net_store_http_response((int64_t)status_code, 0, 0, response_body, body_length);
+    response_id = kain_native_net_store_http_response(
+        (int64_t)status_code,
+        response_protocol,
+        0,
+        0,
+        response_body,
+        body_length
+    );
 cleanup:
     free(response_body);
     free(host_wide);
@@ -1457,6 +1613,71 @@ int64_t kain_native_net_reset(void) {
 
 int64_t kain_native_net_platform_available(void) {
     return 1;
+}
+
+const char* kain_native_net_platform_name(void) {
+#ifdef _WIN32
+    kain_native_net_ok();
+    return kain_native_net_string("windows");
+#elif defined(__APPLE__)
+    kain_native_net_ok();
+    return kain_native_net_string("macos");
+#elif defined(__linux__)
+    kain_native_net_ok();
+    return kain_native_net_string("linux");
+#else
+    kain_native_net_ok();
+    return kain_native_net_string("unknown");
+#endif
+}
+
+int64_t kain_native_net_capability_state(const char* capability_key) {
+    if (capability_key == 0 || capability_key[0] == '\0') {
+        return kain_native_net_fail(
+            KAIN_NATIVE_NET_INVALID_ARGUMENT,
+            "invalid-capability",
+            "network capability key is required"
+        );
+    }
+    if (kain_native_net_text_equal_ci(capability_key, "net") ||
+        kain_native_net_text_equal_ci(capability_key, "tcp") ||
+        kain_native_net_text_equal_ci(capability_key, "http1.client") ||
+        kain_native_net_text_equal_ci(capability_key, "http.client") ||
+        kain_native_net_text_equal_ci(capability_key, "http1.server") ||
+        kain_native_net_text_equal_ci(capability_key, "http.server")) {
+        kain_native_net_ok();
+        return KAIN_NATIVE_NET_CAPABILITY_AVAILABLE;
+    }
+    if (kain_native_net_text_equal_ci(capability_key, "tls.client") ||
+        kain_native_net_text_equal_ci(capability_key, "https.client")) {
+#ifdef _WIN32
+        kain_native_net_ok();
+        return KAIN_NATIVE_NET_CAPABILITY_AVAILABLE;
+#else
+        kain_native_net_ok();
+        return KAIN_NATIVE_NET_CAPABILITY_UNAVAILABLE;
+#endif
+    }
+    if (kain_native_net_text_equal_ci(capability_key, "http2.client")) {
+#ifdef _WIN32
+        kain_native_net_ok();
+        return KAIN_NATIVE_NET_CAPABILITY_DEGRADED;
+#else
+        kain_native_net_ok();
+        return KAIN_NATIVE_NET_CAPABILITY_UNAVAILABLE;
+#endif
+    }
+    if (kain_native_net_text_equal_ci(capability_key, "tls.server") ||
+        kain_native_net_text_equal_ci(capability_key, "https.server") ||
+        kain_native_net_text_equal_ci(capability_key, "http2.server")) {
+        kain_native_net_ok();
+        return KAIN_NATIVE_NET_CAPABILITY_UNAVAILABLE;
+    }
+    return kain_native_net_fail(
+        KAIN_NATIVE_NET_INVALID_ARGUMENT,
+        "invalid-capability",
+        "network capability key is unknown"
+    );
 }
 
 int64_t kain_native_tcp_connect(const char* host, int64_t port, int64_t timeout_ms) {
@@ -1680,14 +1901,58 @@ int64_t kain_native_http_request_set_timeout(int64_t request_id, int64_t timeout
     return kain_native_net_ok();
 }
 
+int64_t kain_native_http_request_set_protocol(int64_t request_id, const char* protocol_name) {
+    KainNativeHttpRequest* request = kain_native_net_request(request_id);
+    const char* normalized_protocol;
+    if (request == 0) {
+        return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-request", "HTTP request not found");
+    }
+    normalized_protocol = kain_native_net_normalize_protocol_name(protocol_name);
+    if (normalized_protocol == 0) {
+        return kain_native_net_fail(
+            KAIN_NATIVE_NET_INVALID_ARGUMENT,
+            "invalid-protocol",
+            "HTTP request protocol name is invalid"
+        );
+    }
+    kain_native_net_copy(request->protocol, sizeof(request->protocol), normalized_protocol);
+    return kain_native_net_ok();
+}
+
+const char* kain_native_http_request_protocol(int64_t request_id) {
+    KainNativeHttpRequest* request = kain_native_net_request(request_id);
+    if (request == 0) {
+        kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-request", "HTTP request not found");
+        return kain_native_net_string("");
+    }
+    kain_native_net_ok();
+    return kain_native_net_string(request->protocol);
+}
+
 int64_t kain_native_http_client_send(int64_t request_id) {
     KainNativeHttpRequest* request = kain_native_net_request(request_id);
     KainNativeParsedUrl parsed;
+    const char* request_protocol;
     if (request == 0) {
         return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-request", "HTTP request not found");
     }
     if (!kain_native_net_parse_url(request->url, &parsed)) {
         return kain_native_net_fail(KAIN_NATIVE_NET_PARSE_ERROR, "invalid-url", "HTTP request URL could not be parsed");
+    }
+    request_protocol = kain_native_net_normalize_protocol_name(request->protocol);
+    if (request_protocol == 0) {
+        return kain_native_net_fail(
+            KAIN_NATIVE_NET_INVALID_ARGUMENT,
+            "invalid-protocol",
+            "HTTP request protocol name is invalid"
+        );
+    }
+    if (!parsed.secure && request_protocol == g_http_protocol_http2) {
+        return kain_native_net_fail(
+            KAIN_NATIVE_NET_PROTOCOL_UNSUPPORTED,
+            "unsupported-protocol",
+            "HTTP/2 client requests currently require an HTTPS URL"
+        );
     }
 #ifdef _WIN32
     if (parsed.secure) {
@@ -1707,6 +1972,16 @@ int64_t kain_native_http_response_status(int64_t response_id) {
     }
     kain_native_net_ok();
     return response->status_code;
+}
+
+const char* kain_native_http_response_protocol(int64_t response_id) {
+    KainNativeHttpResponse* response = kain_native_net_response(response_id);
+    if (response == 0) {
+        kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-response", "HTTP response not found");
+        return kain_native_net_string("");
+    }
+    kain_native_net_ok();
+    return kain_native_net_string(response->protocol);
 }
 
 const char* kain_native_http_response_header(int64_t response_id, const char* key) {
@@ -1920,6 +2195,22 @@ int64_t kain_native_http_server_pump(int64_t server_id, int64_t timeout_ms) {
     return request->id;
 }
 
+int64_t kain_native_http_server_pending_request_count(int64_t server_id) {
+    KainNativeHttpServer* server = kain_native_net_server(server_id);
+    uint64_t pending_mask;
+    int64_t pending_count = 0;
+    if (server == 0) {
+        return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-server", "HTTP server not found");
+    }
+    pending_mask = server->pending_request_slots & g_request_occupancy_bits;
+    while (pending_mask != 0u) {
+        ++pending_count;
+        pending_mask &= pending_mask - 1u;
+    }
+    kain_native_net_ok();
+    return pending_count;
+}
+
 int64_t kain_native_http_server_next_request(int64_t server_id) {
     KainNativeHttpServer* server = kain_native_net_server(server_id);
     uint64_t pending_mask;
@@ -2054,7 +2345,7 @@ static int64_t kain_native_net_respond_bytes(KainNativeHttpRequest* request, int
     request->responded = 1;
     kain_native_net_socket_close(request->socket_handle);
     request->socket_handle = INVALID_SOCKET;
-    return kain_native_net_ok();
+    return kain_native_http_request_destroy(request->id);
 }
 
 int64_t kain_native_http_respond_text(int64_t incoming_request_id, int64_t status_code, const char* payload) {
@@ -2114,13 +2405,18 @@ const char* kain_native_net_last_error_message(void) {
 const KainNativeNetFunctionTable g_kain_native_net_function_table = {
     kain_native_net_reset,
     kain_native_net_platform_available,
+    kain_native_net_platform_name,
+    kain_native_net_capability_state,
     kain_native_tcp_connect,
     kain_native_tcp_listen,
     kain_native_tcp_accept,
     kain_native_http_request_create,
+    kain_native_http_request_set_protocol,
     kain_native_http_client_send,
+    kain_native_http_response_protocol,
     kain_native_http_server_create,
     kain_native_http_server_listen,
     kain_native_http_server_pump,
+    kain_native_http_server_pending_request_count,
     kain_native_net_last_status
 };

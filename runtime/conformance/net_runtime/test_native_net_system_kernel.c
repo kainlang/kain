@@ -34,6 +34,14 @@ static int expect_text_contains(const char* label, const char* actual, const cha
     return 0;
 }
 
+static int expect_non_empty_text(const char* label, const char* actual) {
+    if (actual == 0 || actual[0] == '\0') {
+        fprintf(stderr, "%s: expected non-empty text\n", label);
+        return 1;
+    }
+    return 0;
+}
+
 typedef struct HttpServerThreadArgs {
     int64_t port;
     char response_text[4096];
@@ -70,6 +78,23 @@ static int run_tcp_loopback(void) {
     kain_native_tcp_close(client);
     kain_native_tcp_close(server);
     kain_native_tcp_listener_close(listener);
+    return 0;
+}
+
+static int run_net_capability_surface(void) {
+    const char* platform_name = kain_native_net_platform_name();
+    if (expect_non_empty_text("platform name", platform_name)) return 18;
+    if (expect_int("tcp capability", kain_native_net_capability_state("tcp"), KAIN_NATIVE_NET_CAPABILITY_AVAILABLE)) return 19;
+    if (expect_int("http client capability", kain_native_net_capability_state("http.client"), KAIN_NATIVE_NET_CAPABILITY_AVAILABLE)) return 20;
+    if (expect_int("http server capability", kain_native_net_capability_state("http.server"), KAIN_NATIVE_NET_CAPABILITY_AVAILABLE)) return 21;
+#ifdef _WIN32
+    if (expect_text_contains("platform name windows", platform_name, "windows")) return 22;
+    if (expect_int("tls client capability", kain_native_net_capability_state("tls.client"), KAIN_NATIVE_NET_CAPABILITY_AVAILABLE)) return 23;
+    if (expect_int("http2 client capability", kain_native_net_capability_state("http2.client"), KAIN_NATIVE_NET_CAPABILITY_DEGRADED)) return 24;
+#else
+    if (expect_int("tls client capability", kain_native_net_capability_state("tls.client"), KAIN_NATIVE_NET_CAPABILITY_UNAVAILABLE)) return 23;
+    if (expect_int("http2 client capability", kain_native_net_capability_state("http2.client"), KAIN_NATIVE_NET_CAPABILITY_UNAVAILABLE)) return 24;
+#endif
     return 0;
 }
 
@@ -118,6 +143,7 @@ static int run_http_server_roundtrip(void) {
     const char* method;
     const char* path;
     const char* body;
+    const char* protocol;
 #ifdef _WIN32
     HANDLE thread_handle;
 #else
@@ -140,20 +166,23 @@ static int run_http_server_roundtrip(void) {
     if (expect_positive("http incoming", incoming)) return 25;
     next = kain_native_http_server_next_request(server);
     if (expect_int("http next request", next, incoming)) return 26;
+    if (expect_int("http pending request count", kain_native_http_server_pending_request_count(server), 0)) return 27;
     method = kain_native_http_request_method(incoming);
     path = kain_native_http_request_path(incoming);
     body = kain_native_http_request_body_text(incoming);
-    if (expect_text_contains("http method", method, "POST")) return 27;
-    if (expect_text_contains("http path", path, "/actor")) return 28;
-    if (expect_text_contains("http body", body, "hello-actor")) return 29;
-    if (expect_int("http respond", kain_native_http_respond_text(incoming, 201, "actor-ok"), 0)) return 30;
+    protocol = kain_native_http_request_protocol(incoming);
+    if (expect_text_contains("http method", method, "POST")) return 28;
+    if (expect_text_contains("http path", path, "/actor")) return 29;
+    if (expect_text_contains("http body", body, "hello-actor")) return 30;
+    if (expect_text_contains("http protocol", protocol, "http/1.1")) return 31;
+    if (expect_int("http respond", kain_native_http_respond_text(incoming, 201, "actor-ok"), 0)) return 32;
 #ifdef _WIN32
     WaitForSingleObject(thread_handle, 5000);
     CloseHandle(thread_handle);
 #else
     pthread_join(thread_handle, 0);
 #endif
-    if (expect_text_contains("http client response", thread_args.response_text, "actor-ok")) return 31;
+    if (expect_text_contains("http client response", thread_args.response_text, "actor-ok")) return 33;
     kain_native_http_server_close(server);
     return 0;
 }
@@ -267,6 +296,7 @@ static int run_http_client_roundtrip(void) {
 #endif
     request = kain_native_http_request_create("GET", url);
     if (expect_positive("http client request", request)) return 42;
+    if (expect_int("http client request protocol", kain_native_http_request_set_protocol(request, "http/1.1"), 0)) return 43;
     response = kain_native_http_client_send(request);
     if (response <= 0) {
         fprintf(
@@ -275,11 +305,12 @@ static int run_http_client_roundtrip(void) {
             kain_native_net_last_error_kind(),
             kain_native_net_last_error_message()
         );
-        if (expect_positive("http client response", response)) return 43;
+        if (expect_positive("http client response", response)) return 44;
     }
-    if (expect_int("http client status", kain_native_http_response_status(response), 200)) return 44;
+    if (expect_int("http client status", kain_native_http_response_status(response), 200)) return 45;
+    if (expect_text_contains("http client protocol", kain_native_http_response_protocol(response), "http/1.1")) return 46;
     response_text = kain_native_http_response_body_text(response);
-    if (expect_text_contains("http client body", response_text, "client-proof-ok")) return 45;
+    if (expect_text_contains("http client body", response_text, "client-proof-ok")) return 47;
 #ifdef _WIN32
     WaitForSingleObject(thread_handle, 5000);
     CloseHandle(thread_handle);
@@ -290,17 +321,63 @@ static int run_http_client_roundtrip(void) {
     return 0;
 }
 
+static int run_http_server_request_slot_reuse(void) {
+    int64_t server = kain_native_http_server_create("127.0.0.1", 0);
+    int64_t port;
+    int round;
+    if (expect_positive("reuse server", server)) return 48;
+    if (expect_int("reuse listen", kain_native_http_server_listen(server), 0)) return 49;
+    port = kain_native_http_server_local_port(server);
+    if (expect_positive("reuse port", port)) return 50;
+    for (round = 0; round < 96; ++round) {
+        int64_t client = kain_native_tcp_connect("127.0.0.1", port, 5000);
+        int64_t incoming;
+        int64_t next;
+        const char* response_text;
+        if (expect_positive("reuse client", client)) return 51;
+        if (expect_int(
+                "reuse write",
+                kain_native_tcp_write_text(client, "GET /reuse HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"),
+                0
+            )) return 52;
+        incoming = kain_native_http_server_pump(server, 5000);
+        if (incoming <= 0) {
+            fprintf(
+                stderr,
+                "reuse pump diagnostics round=%d: %s - %s\n",
+                round,
+                kain_native_net_last_error_kind(),
+                kain_native_net_last_error_message()
+            );
+            return 53;
+        }
+        next = kain_native_http_server_next_request(server);
+        if (expect_int("reuse next", next, incoming)) return 54;
+        if (expect_int("reuse respond", kain_native_http_respond_text(incoming, 200, "slot-ok"), 0)) return 55;
+        response_text = kain_native_tcp_read_text(client);
+        if (expect_text_contains("reuse response text", response_text, "slot-ok")) return 56;
+        if (expect_int("reuse pending request count", kain_native_http_server_pending_request_count(server), 0)) return 57;
+        kain_native_tcp_close(client);
+    }
+    kain_native_http_server_close(server);
+    return 0;
+}
+
 int main(void) {
     int result;
     if (expect_int("reset", kain_native_net_reset(), 0)) return 1;
     if (expect_int("platform available", kain_native_net_platform_available(), 1)) return 2;
     result = run_tcp_loopback();
     if (result != 0) return result;
+    result = run_net_capability_surface();
+    if (result != 0) return result;
     result = run_http_server_roundtrip();
     if (result != 0) return result;
     result = run_http_invalid_content_length_rejected();
     if (result != 0) return result;
     result = run_http_client_roundtrip();
+    if (result != 0) return result;
+    result = run_http_server_request_slot_reuse();
     if (result != 0) return result;
     if (expect_int("final reset", kain_native_net_reset(), 0)) return 60;
     return 0;
