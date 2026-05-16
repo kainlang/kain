@@ -174,6 +174,57 @@
       "cpp": "cases/option_result/main.cpp",
       "javascript": "cases/option_result/main.js",
       "python": "cases/option_result/main.py"
+    },
+    {
+      "id": "async_ready_chain",
+      "title": "Async Ready Chain",
+      "description": "Hot loop over immediately-ready futures. Kain uses native async/await lowering; Rust uses a Tokio current-thread runtime and async fn await points.",
+      "maturity": "implemented",
+      "fairness_note": "This intentionally measures ready-future async overhead, not IO wakeups or task fanout. Rust is built with Cargo because Tokio is an external runtime crate.",
+      "language_notes": {
+        "rust": "Cargo release build with tokio rt/macros; no C++/JS/Python lane for this dependency-focused comparison."
+      },
+      "languages": {
+        "kain": "cases/async_ready_chain/main.kn",
+        "rust": "cases/async_ready_chain/src/main.rs"
+      },
+      "rust_manifest": "cases/async_ready_chain/Cargo.toml",
+      "rust_package": "async-ready-chain",
+      "rust_binary": "async-ready-chain"
+    },
+    {
+      "id": "tcp_loopback_tokio",
+      "title": "TCP Loopback Tokio",
+      "description": "Repeated localhost TCP echo handshakes. Kain uses the native net substrate; Rust uses Tokio TCP with async accept/connect/read/write.",
+      "maturity": "implemented",
+      "fairness_note": "This compares usable local networking paths, not identical schedulers. Kain's current native TCP facade is synchronous around readiness helpers; Rust's lane is Tokio async IO.",
+      "language_notes": {
+        "rust": "Cargo release build with tokio net/io-util/macros/rt; no C++/JS/Python lane for this async-runtime comparison."
+      },
+      "languages": {
+        "kain": "cases/tcp_loopback_tokio/main.kn",
+        "rust": "cases/tcp_loopback_tokio/src/main.rs"
+      },
+      "rust_manifest": "cases/tcp_loopback_tokio/Cargo.toml",
+      "rust_package": "tcp-loopback-tokio",
+      "rust_binary": "tcp-loopback-tokio"
+    },
+    {
+      "id": "rayon_parallel_reduce",
+      "title": "Rayon Parallel Reduce",
+      "description": "Large deterministic integer reduction. Rust uses Rayon parallel iterators; Kain currently runs the equivalent scalar reduction as the durable slot for future actor/parallel lowering.",
+      "maturity": "parallel-proxy",
+      "fairness_note": "Do not read this as a completed parallel Kain comparison yet. This case exists to track the gap against Rayon until Kain LLVM exposes proven user-level data-parallel fanout.",
+      "language_notes": {
+        "rust": "Cargo release build with rayon; intentionally Kain/Rust-only per the parallel-runtime comparison."
+      },
+      "languages": {
+        "kain": "cases/rayon_parallel_reduce/main.kn",
+        "rust": "cases/rayon_parallel_reduce/src/main.rs"
+      },
+      "rust_manifest": "cases/rayon_parallel_reduce/Cargo.toml",
+      "rust_package": "rayon-parallel-reduce",
+      "rust_binary": "rayon-parallel-reduce"
     }
   ]
 }

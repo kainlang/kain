@@ -8,13 +8,15 @@ description: Use when adding, changing, running, or reviewing the multi-language
 ## Contract
 
 - `benchmark/benchmarks.json` is the source of truth for the suite, cases, source paths, maturity labels, language notes, and fairness notes.
-- Every normal benchmark case must have dependency-free paired source files:
+- Every normal benchmark case should have dependency-free paired source files:
   - `benchmark/cases/<case>/main.kn`
   - `benchmark/cases/<case>/main.rs`
   - `benchmark/cases/<case>/main.cpp`
   - `benchmark/cases/<case>/main.js`
   - `benchmark/cases/<case>/main.py`
-- Case programs must not use external language dependencies. Rust and C++ may use their standard libraries; JavaScript may use Node builtins; Python may use the standard library; Kain may use language/runtime builtins and local imports.
+- Case programs should not use external language dependencies unless the benchmark is explicitly about an ecosystem runtime such as Tokio or Rayon.
+- Case-specific language subsets are declared with a `languages` map in `benchmark/benchmarks.json`. The runner intersects the requested languages with the case's declared languages and renders unselected/missing global columns as `n/a`.
+- Rust normally uses direct `rustc`. Rust dependency cases opt into Cargo by adding `rust_manifest`, and may set `rust_package` / `rust_binary`. Per-case Cargo manifests inside this repo need an empty `[workspace]` table so Cargo does not treat them as orphan members of the root workspace.
 - The Python runner may use the standard library for orchestration, timing, JSON, and Markdown report output.
 - Generated outputs belong under `benchmark/out/` and should stay ignored except `benchmark/out/.gitignore`.
 - The native benchmark console lives under `benchmark/blades/kain-benchmark`, and the user-facing executable is `benchmark/kain-benchmark.exe`.
@@ -24,6 +26,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Main command: `python benchmark/run.py`
 - Focus one case: `python benchmark/run.py --case contention_wall --runs 3 --warmups 1`
 - Run a language subset: `python benchmark/run.py --languages js,py --runs 1 --warmups 0`
+- Run a Kain/Rust-only dependency case: `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 5 --warmups 2`
 - Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe`
 - Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx D:\Kain-Lang\toolchain\llvm\bin\clang++.exe`
 - The runner prefers a direct Bazel-built release `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe` and expects a `clang++`/`g++`-style CLI when you override it.
@@ -60,6 +63,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Keep benchmark constants local inside `main` or helper functions unless the case is explicitly exercising top-level const behavior.
 - Include deterministic checksum/exit-code validation so benchmarked work cannot disappear silently.
 - If Kain does not yet expose the exact runtime primitive needed, keep the case but mark `maturity` as `proxy`, `semantic-proxy`, or `dispatch-skeleton` in `benchmarks.json`.
+- For Kain/Rust-only comparisons such as Tokio/Rayon, declare only those two languages in the case `languages` map; do not add empty C++/JS/Python placeholders.
 - Never claim a proxy is a completed win. Use `fairness_note` and `language_notes` to explain semantic gaps.
 - JavaScript and Python lanes should mirror algorithmic shape where possible, but avoid importing npm/pip dependencies or measuring unrelated framework overhead.
 - For Kain low-level memory cases, `alloc(count, "T")` and `realloc_mem(ptr, count, "T", ...)` use element counts, not byte counts. Do not pass `sizeof_type("T")` for a single-cell allocation unless you intentionally want `sizeof(T)` elements.
@@ -70,6 +74,8 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `ghost_mirror`: Rust/C++/JavaScript/Python use TCP loopback for a 1 MiB payload; Kain uses entangle-backed in-process world mirroring plus helper-owned payload mutation.
 - `evolutionary_loop`: Rust/C++/JavaScript/Python use runtime feature detection or equivalent branch dispatch; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
 - `ownership_memory`: direct `collapse`/`observe`/`decay` smoke against ordinary boxed/object ownership lanes.
+- `tcp_loopback_tokio`: Kain native TCP loopback versus Rust Tokio TCP. This is an implemented networking comparison, but the fairness note must keep saying Kain's current native TCP facade is synchronous around readiness helpers while Rust uses Tokio async IO.
+- `rayon_parallel_reduce`: Rayon parallel iterators versus Kain scalar proxy. Keep `maturity` as `parallel-proxy` until Kain LLVM has proven user-level data-parallel fanout.
 
 ## Current Basic Edge Cases
 
@@ -79,6 +85,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `alloc_churn`: many small allocation/write/read/lifetime-end cycles.
 - `struct_method`: aggregate construction plus explicit `score_pair(pair)` field access. Avoid receiver method field access until that native codegen gap is fixed.
 - `option_result`: Option/Result tagged value creation, branching, and unwrap paths.
+- `async_ready_chain`: ready-future async/await overhead versus Tokio current-thread ready futures. Keep the Kain source on the known-good `return async 2` style until dynamic async value capture lowering is repaired; a dynamic-capture version compiled but failed checksum in the benchmark spike.
 - `scalar_mix`: top-level const lowering and a checksum guard.
 - `recursive_sum`: recursion and call-stack lowering in a tight loop.
 - `string_ops`: ASCII substring search plus string length/indexing over fixed ASCII strings.
@@ -93,6 +100,9 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Syntax-check all JS/Python case files and compile the C++ lane.
 - `python benchmark/run.py --languages cpp --runs 1 --warmups 0 --timeout 300`
 - `python benchmark/run.py --case scalar_mix --languages kain,rust,cpp,javascript,python --runs 1 --warmups 0 --timeout 300`
+- `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 1 --warmups 0 --timeout 600`
+- `python benchmark/run.py --case tcp_loopback_tokio --languages kain,rust --runs 1 --warmups 0 --timeout 900`
+- `python benchmark/run.py --case rayon_parallel_reduce --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
 - Build `benchmark/kain-benchmark.exe` with the blade compile helper and capture a non-empty native UI screenshot.
 - Inspect `benchmark/out/reports/latest.llm.md` and `latest.json` before summarizing results.

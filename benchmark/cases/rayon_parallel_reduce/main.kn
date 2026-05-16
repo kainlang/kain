@@ -1,0 +1,14 @@
+fn main() -> Int:
+    let iterations: Int = 4000000
+    let modulus: Int = 1000000007
+    let expected: Int = 987976414
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        let lane: Int = ((i * 31) + (i / 8)) % 1000003
+        acc = (acc + lane) % modulus
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0

@@ -1,0 +1,48 @@
+fn main() -> Int:
+    let _runtime = native_runtime_init()
+    let _reset = net_reset()
+
+    if net_platform_available() != 1:
+        let _shutdown_unavailable = native_runtime_shutdown()
+        return 0
+
+    let rounds: Int = 400
+    let expected: Int = 31090
+    let listener = tcp_listen("127.0.0.1", 0)
+    if listener <= 0:
+        return 1
+
+    let port = tcp_listener_local_port(listener)
+    if port <= 0:
+        return 2
+
+    var acc: Int = 0
+    var i: Int = 0
+    while i < rounds:
+        let client = tcp_connect("127.0.0.1", port, 5000)
+        if client <= 0:
+            return 3
+        let server = tcp_accept(listener, 5000)
+        if server <= 0:
+            return 4
+
+        let _client_write = tcp_write_text(client, "kain-net-benchmark")
+        let received = tcp_read_text(server)
+        if received != "kain-net-benchmark":
+            return 5
+
+        let _server_write = tcp_write_text(server, "kain-net-pong")
+        let response = tcp_read_text(client)
+        if response != "kain-net-pong":
+            return 6
+
+        acc = (acc + (i % 97) + len(received) + len(response)) % 1000000007
+        let _server_close = tcp_close(server)
+        let _client_close = tcp_close(client)
+        i = i + 1
+
+    let _listener_close = tcp_listener_close(listener)
+    let _shutdown = native_runtime_shutdown()
+    if acc != expected:
+        return 7
+    return 0

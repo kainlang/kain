@@ -1,0 +1,10 @@
+[package]
+name = "rayon-parallel-reduce"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rayon = "1.10.0"
+
+[workspace]

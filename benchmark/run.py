@@ -338,6 +338,25 @@ def case_source_relative(case: dict[str, Any], language: str) -> str:
     raise KeyError(f"case {case['id']} has no source for {language}")
 
 
+def declared_case_languages(case: dict[str, Any]) -> set[str]:
+    language_sources = case.get("languages")
+    if isinstance(language_sources, dict) and language_sources:
+        return {language for language in language_sources if language in LANGUAGE_ORDER}
+    return {language for language in LANGUAGE_ORDER if LANGUAGE_SOURCE_KEYS[language] in case}
+
+
+def selected_case_languages(case: dict[str, Any], requested_languages: list[str]) -> list[str]:
+    declared = declared_case_languages(case)
+    selected = [language for language in requested_languages if language in declared]
+    if not selected:
+        available = ", ".join(language for language in LANGUAGE_ORDER if language in declared) or "none"
+        requested = ", ".join(requested_languages)
+        raise ValueError(
+            f"case {case['id']} has no selected languages. requested={requested}; available={available}"
+        )
+    return selected
+
+
 def case_source_path(case: dict[str, Any], language: str) -> Path:
     return BENCHMARK_ROOT / case_source_relative(case, language)
 
@@ -430,6 +449,52 @@ def build_rust_case(
     case_id = case["id"]
     build_dir = BUILD_ROOT / case_id / "rust"
     build_dir.mkdir(parents=True, exist_ok=True)
+    rust_manifest = case.get("rust_manifest")
+    if rust_manifest:
+        manifest_path = BENCHMARK_ROOT / str(rust_manifest)
+        cargo = shutil.which("cargo") or "cargo"
+        package_name = str(case.get("rust_package", case_id.replace("_", "-")))
+        exe_stem = str(case.get("rust_binary", package_name))
+        exe_path = build_dir / "target" / "release" / executable_name(exe_stem)
+        command = [
+            cargo,
+            "build",
+            "--release",
+            "--manifest-path",
+            repo_relative(manifest_path),
+            "--target-dir",
+            repo_relative(build_dir / "target"),
+        ]
+        if not shutil.which(cargo) and not Path(cargo).exists():
+            return missing_tool_build("rust", command, f"Cargo executable not found: {cargo}")
+        if no_build:
+            return {
+                "ok": exe_path.exists(),
+                "language": "rust",
+                "exe": str(exe_path),
+                "run_command": [str(exe_path)],
+                "command": command,
+                "flags": ["cargo", "release"],
+                "build_ms": 0.0,
+                "stdout": "",
+                "stderr": "",
+                "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
+            }
+        result = run_command(command, timeout=timeout)
+        ok = result.returncode == 0 and exe_path.exists()
+        return {
+            "ok": ok,
+            "language": "rust",
+            "exe": str(exe_path),
+            "run_command": [str(exe_path)],
+            "command": command,
+            "flags": ["cargo", "release"],
+            "build_ms": result.elapsed_ms,
+            "stdout": result.stdout[-4000:],
+            "stderr": result.stderr[-4000:],
+            "error": "" if ok else "Cargo Rust build failed or did not produce executable.",
+        }
+
     exe_path = build_dir / executable_name(case_id)
     command = [
         rustc,
@@ -739,11 +804,12 @@ def benchmark_case(
     no_build: bool,
     kain_native_env: dict[str, str],
 ) -> dict[str, Any]:
-    validate_case_files(case, languages)
+    case_languages = selected_case_languages(case, languages)
+    validate_case_files(case, case_languages)
     build_results: dict[str, dict[str, Any]] = {}
     run_results: dict[str, dict[str, Any]] = {}
 
-    for language in languages:
+    for language in case_languages:
         build_results[language] = build_language_case(
             case,
             language,
@@ -754,7 +820,7 @@ def benchmark_case(
         )
         run_results[language] = measure_program(build_results[language], warmups, runs, timeout)
 
-    winner, fastest_ms = compute_winner(run_results, languages)
+    winner, fastest_ms = compute_winner(run_results, case_languages)
     return {
         "id": case["id"],
         "title": case.get("title", case["id"]),
@@ -762,15 +828,16 @@ def benchmark_case(
         "maturity": case.get("maturity", "implemented"),
         "fairness_note": case.get("fairness_note", ""),
         "language_notes": case.get("language_notes", {}),
+        "languages": case_languages,
         "source": {
             language: case_source_relative(case, language)
-            for language in languages
+            for language in case_languages
         },
         "build": build_results,
         "run": run_results,
         "winner": winner,
         "fastest_median_ms": fastest_ms,
-        "relative_to_fastest": compute_relative_to_fastest(run_results, fastest_ms, languages),
+        "relative_to_fastest": compute_relative_to_fastest(run_results, fastest_ms, case_languages),
     }
 
 
@@ -812,7 +879,8 @@ def render_summary_table(report: dict[str, Any]) -> str:
     for case in report["cases"]:
         cells = [case["id"], case["maturity"], case["winner"]]
         for language in languages:
-            cells.append(fmt_ms(case["run"][language]["median_ms"]))
+            run = case["run"].get(language)
+            cells.append(fmt_ms(run["median_ms"]) if run else "n/a")
         rows.append(markdown_table_row(cells))
     return "\n".join(rows)
 
@@ -838,6 +906,7 @@ def render_toolchain(report: dict[str, Any]) -> str:
 
 
 def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
+    case_languages = case.get("languages", languages)
     lines = [
         f"### {case['id']} - {case['title']}",
         "",
@@ -851,17 +920,17 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
     language_notes = case.get("language_notes", {})
     if language_notes:
         lines.append("- language_notes:")
-        for language in languages:
+        for language in case_languages:
             note = language_notes.get(language)
             if note:
                 lines.append(f"  - {language}: {note}")
 
     lines.extend(["", "Sources:"])
-    for language in languages:
+    for language in case_languages:
         lines.append(f"- {language}: `{case['source'][language]}`")
 
     lines.extend(["", "Measurements:"])
-    for language in languages:
+    for language in case_languages:
         build = case["build"][language]
         run = case["run"][language]
         lines.extend(
@@ -1008,7 +1077,8 @@ def main() -> int:
             "python": python_path,
         }
         for case in selected_cases(manifest, args.only_case):
-            print(f"[bench] {case['id']}")
+            case_languages = selected_case_languages(case, languages)
+            print(f"[bench] {case['id']} ({', '.join(case_languages)})")
             result = benchmark_case(
                 case=case,
                 languages=languages,
@@ -1023,7 +1093,7 @@ def main() -> int:
         report["ok"] = all(
             case["run"][language]["ok"]
             for case in report["cases"]
-            for language in languages
+            for language in case.get("languages", languages)
         )
     except Exception as exc:
         report["fatal_error"] = str(exc)

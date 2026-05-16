@@ -1,5 +1,34 @@
 # Kain Memory
 
+# 2026-05-16 - Benchmark suite now supports Kain/Rust-only Cargo dependency cases for Tokio/Rayon pressure
+
+The benchmark lane was missing async-runtime, networking, and data-parallel ecosystem pressure. The runner now supports manifest-declared language subsets and per-case Cargo Rust builds, so the normal dependency-free C++/Rust/JS/Python cases stay simple while focused Tokio/Rayon comparisons can live in the same reporting pipeline.
+
+What changed:
+
+- `benchmark/run.py` now intersects requested languages with each case's declared `languages` map, renders unavailable global language columns as `n/a`, and computes pass/fail only over the actual case languages.
+- Rust cases still default to direct `rustc`, but cases with `rust_manifest` build through Cargo release with a case-local target dir. Per-case Cargo manifests need an empty `[workspace]` so Cargo does not treat them as orphan members of the repo root workspace.
+- Added `benchmark/cases/async_ready_chain`: Kain ready-future `await` versus Tokio current-thread ready futures.
+- Added `benchmark/cases/tcp_loopback_tokio`: Kain native TCP loopback versus Tokio TCP accept/connect/read/write.
+- Added `benchmark/cases/rayon_parallel_reduce`: Kain scalar reduction proxy versus Rayon parallel iterators. This remains `parallel-proxy` until Kain LLVM has proven user-level data-parallel fanout.
+- Updated `benchmark/README.md`, `ARCHITECTURE.md`, and `.agents/skills/kain-benchmark-pipeline/SKILL.md` with the new case model.
+
+Validation and telemetry:
+
+- `python -m py_compile benchmark/run.py`
+- JSON parse of `benchmark/benchmarks.json`
+- `python benchmark/run.py --case async_ready_chain --languages kain,rust --warmups 2 --runs 5 --timeout 900 --no-build`
+- `async_ready_chain`: Kain `173.811 ms`, Tokio `8.905 ms`; Kain is `19.52x` slower on immediate ready-future overhead.
+- `python benchmark/run.py --case tcp_loopback_tokio --languages kain,rust --warmups 2 --runs 5 --timeout 900 --no-build`
+- `tcp_loopback_tokio`: Kain `151.044 ms`, Tokio `3003.172 ms`; Kain wins this local loopback shape by `19.88x`, but the fairness note must keep saying Kain's facade is synchronous around readiness helpers while Rust uses Tokio async IO.
+- `python benchmark/run.py --case rayon_parallel_reduce --languages kain,rust --warmups 2 --runs 5 --timeout 900 --no-build`
+- `rayon_parallel_reduce`: Kain `24.392 ms`, Rayon `10.302 ms`; Rust is `2.37x` faster, which is the current parallel fanout gap.
+
+Durable lessons:
+
+- Dynamic value capture into a Kain `async` ready future compiled but failed checksum during the spike, so `async_ready_chain` intentionally uses the known-good `return async 2` shape until async capture lowering is fixed.
+- The benchmark suite still lacks first-class GPU/SIMD/parser/hashmap/filesystem/process/HTTP-client cases; these should be added as focused manifest cases with honest maturity/fairness labels rather than forcing every language into every case.
+
 # 2026-05-16 - Kaintana desktop acceptance is now genuinely desktop-only, and Vulkan moved into an optional adapter + separate acceptance blade
 
 The “why does `kaintana-test.exe` open the Vulkan proof window?” bug turned out to be a real architecture leak, not user confusion. The desktop acceptance blade and the Vulkan proof were sharing one consuming blade manifest plus one root output name, so the Vulkan compile overwrote `kaintana-test.exe`, and the desktop executable also kept importing `vulkain_bridge.dll` through the mixed manifest/module surface.
