@@ -1,5 +1,180 @@
 # Kain Memory
 
+# 2026-05-16 - Native LLVM actor ask/reply now uses a dedicated reply-port fast path, typed non-Int replies are proven live, and the Erlang benchmark moved from broken roundtrip to measured steady-state
+
+The native LLVM actor lane could already `spawn` actors and `send` messages, but the real `ask` / `ask_timeout` roundtrip was still wrong in the codegen/runtime seam: reply ports were effectively `i64`-shaped, typed replies such as `Bool` were not a first-class path, and the return leg still paid the generic mailbox enqueue/dequeue tax even when the target was the synthetic reply port. This pass fixed correctness first, then cut a real chunk out of the hot return path.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` no longer treats reply ports as a fake `%...Reply = { i64 }` payload contract.
+- Native LLVM `ask` / `ask_timeout` now lower through the real reply target type when codegen has target-type context:
+  - `i64` replies keep the scalar fast wrapper through `kain_actor_reply_port_wait_i64`.
+  - typed replies such as `Bool` use the generic `kain_actor_reply_port_wait(...)` path and load the correctly typed stack slot.
+- `send reply_to.Reply(value = ...)` no longer routes through generic `kain_actor_send` for the return leg. Reply-port targets now lower to the dedicated runtime symbol `kain_actor_reply_port_send(actor_id, payload_ptr, payload_size)`.
+- `runtime/native/src/core/kain_runtime_actor.c` now treats reply-port state as generic payload-backed storage, not `i64`-only storage, and the direct reply-port send path copies replies straight into reply-port state:
+  - tiny replies use inline state storage,
+  - larger replies allocate once into reply-port-owned storage,
+  - the synthetic reply-port actor no longer needs mailbox traffic just to complete an `ask`.
+- `runtime/native/include/kain_runtime_actor.h`, `crates/kain-actor/src/native.rs`, and actor ABI tests were updated so `kain_actor_reply_port_send`, `kain_actor_reply_port_wait`, and `kain_actor_reply_port_wait_i64` stay in sync as a real ABI surface.
+- `runtime/fixtures/native_actor_ask_roundtrip/main.kn` and `blades/actor-ask-roundtrip/src/main.kn` now prove both `Int` and `Bool` ask/reply roundtrips under native LLVM.
+
+Proof and validation:
+
+- Focused LLVM/codegen tests passed:
+  - `cargo test -p kain-sys-codegen --test llvm_codegen_test actor_ask_reply -- --nocapture`
+- Actor/native contract checks passed:
+  - `cargo test -p kain-actor native_actor_ -- --nocapture`
+  - `cargo test -p kain-core ask_timeout_builtin_round_trips_actor_reply -- --nocapture`
+- Live native LLVM proof executable passed:
+  - `target\\debug\\kain.exe check runtime\\fixtures\\native_actor_ask_roundtrip\\main.kn --target llvm`
+  - compiled `runtime/fixtures/native_actor_ask_roundtrip/native_actor_ask_roundtrip.exe`
+  - running that executable returned exit code `0`
+- Blade proof passed after rebuild:
+  - `blades/actor-ask-roundtrip/actor-ask-roundtrip.exe` returned exit code `0`
+- Solver evidence:
+  - `D:\\Kain-Lang\\z3\\reports\\20260516T061932Z-actor-reply-port-inline-send-bounds.json` -> `unsat`
+  - `D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260516T061932Z-native-actor-reply-port-fastpath-pass.json` -> actor lane `7/7` proved
+  - `D:\\Kain-Lang\\crates\\kain-sys-codegen\\z3\\reports\\20260516T061932Z-llvm-codegen-reply-port-fastpath-pass.json` -> llvm lane `19/19` proved
+
+Benchmark result:
+
+- `benchmark/out/reports/latest.llm.md` now measures a real, passing Kain/Erlang actor ask/reply comparison again after the fix.
+- Latest one-run report at `2026-05-16T06:24:26Z`:
+  - Kain: `5502.362 ms`
+  - Erlang: `391.797 ms`
+  - Kain is still `14.04x` slower on this steady-state mailbox roundtrip shape.
+- This is still not parity, but it is materially better than the earlier passing one-run report (`6660.188 ms` vs `397.643 ms`, about `16.75x` slower). The dedicated reply-port send fast path cut roughly `1.16 s` from the Kain row in this slice without changing the case semantics.
+
+Durable lessons:
+
+- If native LLVM ask/reply breaks again, inspect the full seam together:
+  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - `runtime/native/include/kain_runtime_actor.h`
+  - `runtime/native/src/core/kain_runtime_actor.c`
+  - `crates/kain-actor/src/native.rs`
+- Typed ask replies are only fully honored where LLVM lowering has target-type context. Explicit typed bindings such as `let allowed: Bool = ask_timeout(...)` are the current proof shape to keep alive.
+- The return leg is now intentionally asymmetric:
+  - request messages still use generic actor mailbox send,
+  - reply-port sends bypass generic mailbox traffic through `kain_actor_reply_port_send`.
+- The benchmark runner can still hit a transient Windows runtime-cache cleanup race where a stale `generated/native_runtime/cache/.../*.obj.tmp` removal reports `Access is denied`. In this pass the first rerun failed that way and the second identical rerun passed once the cache quieted. Treat that as cache-state fallout first, not immediate evidence of a codegen/runtime semantic regression.
+
+# 2026-05-16 - Benchmark suite now covers the remaining low-level systems categories, adds Erlang actor comparison, and exposes two real native-runtime gaps
+
+The benchmark lane was still missing most of the "whole machine" picture: SIMD pressure, map lookups, JSON/parser work, filesystem, process/stdout, local HTTP, actor mailbox fanout, Unicode-heavy string work, allocator large-object churn, GPU submission, and direct shared-library FFI stress. This pass filled in those categories, taught the runner about Erlang and per-case support artifacts, and then ran the full suite so the gaps are no longer speculative.
+
+What changed:
+
+- `benchmark/run.py` now supports Erlang rows end-to-end:
+  - `erlang` is a real suite language,
+  - the runner resolves `erl` / `erlc`,
+  - and on Windows it prefers the official OTP `bin` directory over PATH wrappers so `erlc.exe` can actually find `erlexec.dll`.
+- `benchmark/run.py` also grew the missing support-artifact plumbing:
+  - `ffi_shared_call_stress` now compiles `benchmark/ffi_boundary/native/ffi_boundary.c` into a shared DLL plus import library under `benchmark/out/build/...`,
+  - copies the runtime DLL beside each built executable,
+  - and compiles the Kain row from the case directory so the case-local `KAIN.toml` for `use c::ffi_boundary_shared` resolves through nearest-manifest lookup.
+- `benchmark/run.py` now decodes subprocess output as UTF-8 with replacement. This was necessary because the new Unicode-heavy benchmark could otherwise crash report generation on Windows text decoding.
+- Added the missing benchmark cases:
+  - `simd_lane_mix`
+  - `native_map_lookup`
+  - `json_manual_roundtrip`
+  - `filesystem_stream`
+  - `process_stdio_loop`
+  - `http_server_concurrency`
+  - `actor_mailbox_erlang`
+  - `unicode_string_heavy`
+  - `allocator_large_object_churn`
+  - `gpu_graphics_submit`
+  - `ffi_shared_call_stress`
+- Updated `benchmark/README.md`, `ARCHITECTURE.md`, and `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future agents know:
+  - the suite is now manifest-subset aware,
+  - Erlang is a first-class comparison lane,
+  - shared-library support artifacts are runner-owned,
+  - and the HTTP/actor caveats below are real telemetry, not benchmark superstition.
+
+Validation and telemetry:
+
+- `python -m py_compile benchmark/run.py`
+- JSON parse of `benchmark/benchmarks.json`
+- Focused smoke passes for the new cases plus a full suite sweep:
+  - `python benchmark/run.py --runs 5 --warmups 2 --timeout 900`
+- The latest full report lives at:
+  - `benchmark/out/reports/latest.llm.md`
+  - `benchmark/out/reports/latest.json`
+- Key new measurements from the full `2` warmup / `5` run sweep:
+  - `simd_lane_mix`: Kain `164.051 ms`, Rust `11.279 ms`, C++ `8.509 ms` -> Kain `19.28x` slower than fastest.
+  - `native_map_lookup`: Kain `233.616 ms`, Rust `30.288 ms`, C++ `33.007 ms` -> Kain `7.71x` slower than fastest.
+  - `json_manual_roundtrip`: Kain `2084.504 ms`, Rust `128.503 ms`, C++ `100.129 ms` -> Kain `20.82x` slower than fastest.
+  - `filesystem_stream`: Kain `205.312 ms`, Rust `115.304 ms`, C++ `91.517 ms` -> Kain `2.24x` slower than fastest.
+  - `process_stdio_loop`: Kain `15900.943 ms`, Rust `4952.415 ms`, C++ `7422.407 ms` -> Kain `3.21x` slower than fastest.
+  - `actor_mailbox_erlang`: Kain `6326.130 ms`, Erlang `404.883 ms` -> Kain `15.62x` slower.
+  - `unicode_string_heavy`: Kain `13.663 ms`, Rust `8.950 ms`, C++ `8.096 ms` -> Kain `1.69x` slower than fastest.
+  - `allocator_large_object_churn`: Kain `48.687 ms`, Rust `36.012 ms`, C++ `34.981 ms` -> Kain `1.39x` slower than fastest.
+  - `gpu_graphics_submit`: Kain-only `35.747 ms`.
+  - `ffi_shared_call_stress`: Kain `59.459 ms`, Rust `53.700 ms`, C++ `51.884 ms` -> Kain only `1.15x` slower than fastest.
+- The strongest suite-level new Kain win is still networking-oriented:
+  - `tcp_loopback_tokio`: Kain `145.756 ms`, Tokio `3171.441 ms` -> Kain `21.76x` faster on this local loopback shape.
+
+Hard findings:
+
+- `http_server_concurrency` is not just "behind Rust"; the Kain row currently fails outright on repeated local POST rounds. The benchmark now records the real native-runtime diagnostic:
+  - `net_last_status = -3`
+  - `net_last_error_kind = capacity`
+  - `net_last_error_message = HTTP incoming request capacity exceeded`
+- `actor_mailbox_erlang` exposed a cold-start wobble in the current Kain ask/reply path. The deterministic checksum should be `10399419`; without a warmup ask per worker, the first measured pass could wobble once even though the steady-state path is correct. Both Kain and Erlang rows now do one unmeasured warmup ask per worker before timing.
+
+Durable lessons:
+
+- Kain benchmark cases that depend on a case-local `KAIN.toml` plus `use c::...` are sensitive to the current working directory. If the runner compiles them from repo root instead of the case directory, nearest-manifest resolution can fail and fake a language/runtime bug.
+- On Windows, do not trust PATH-wrapped Erlang shims by default. Resolve `erl.exe` and `erlc.exe` from the official OTP `bin` directory first or the build can fail before the benchmark even starts.
+- Unicode-heavy cases are a runner problem as much as a language problem. If subprocess output is decoded with the host code page instead of UTF-8-with-replacement, the report lane itself becomes flaky.
+- The current Kain HTTP capacity failure is important enough to keep visible in the suite. Do not "fix" the benchmark by reducing traffic until the runtime issue is actually solved.
+- The actor benchmark should continue to measure steady-state mailbox cost, not cold-start scheduler/setup noise. Keep the one-shot per-worker warmup unless the native ask/reply cold-start wobble is truly repaired.
+
+# 2026-05-15 - Kaintana now has a real DCC-style desktop proof shell, richer authored widgets, and a non-jittery desktop presenter
+
+The previous Kaintana desktop acceptance was technically proving services, but the visible shell looked rough: low-resolution text, repaint jitter, no meaningful resize scaling, and not enough surface area to stress a real tool-style UI. This pass pushed the framework and the acceptance blade forward together instead of papering over the screenshot.
+
+What changed:
+
+- `blades/kaintana/src/kaintana.kn` grew the next authoring layer:
+  - `kaintana_split_top`, `kaintana_split_bottom`, and `kaintana_grid_cell` for real shell composition.
+  - `kaintana_immediate_toolbar_button`, `kaintana_immediate_slider`, and `kaintana_immediate_chart_bar` for tool-app surfaces.
+  - `kaintana_primitive_fill` and `kaintana_primitive_text` so Kaintana can still author low-level bespoke UI without waiting for a widget catalog.
+  - richer desktop text sizing so the compatibility presenter reflects the intended hierarchy better.
+- `blades/kaintana/native/kaintana_desktop_bridge.c` stopped behaving like a flickery static slideshow:
+  - it now scales authored geometry and text to the live client size,
+  - paints through a memory buffer before blitting to the window,
+  - and keeps the frame-budget stay-alive loop without invalidating the whole window every frame.
+- `blades/kaintana-test/src/main.kn` was rebuilt into the new oxide DCC control deck:
+  - top bar,
+  - tool rail,
+  - viewport block,
+  - chart lane,
+  - low-level authoring lane,
+  - inspector with stacked actions and sliders,
+  - keypad surface,
+  - host-service metrics,
+  - snapshot + input-trace proof surface.
+- The host-service/menu proof remains in native UI state plus `kaintana_test_desktop_snapshot.txt` / `kaintana_test_desktop_input_trace.txt`, but the visible popover overlay is no longer forced into the final BMP because it harmed legibility more than it helped.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File D:\\Kain-Lang\\blades\\kaintana\\run.ps1 -NoRun`
+- `powershell -ExecutionPolicy Bypass -File D:\\Kain-Lang\\blades\\kaintana-test\\run.ps1 -NoRun`
+- Direct desktop proof run with `KAINTANA_TEST_FRAME_BUDGET=240` regenerated the clean BMP and reports.
+- Direct long-live proof:
+  - `KAINTANA_TEST_FRAME_BUDGET=1000`
+  - `backend=desktop`
+  - `frames=1000`
+  - `last_error=ok`
+  - measured runtime about `26.8 s`
+
+Durable lessons:
+
+- Kaintana layout helpers are asymmetric. `kaintana_split_right(rect, fraction, gap)` uses `fraction` as the left-side share, so a 25% right inspector should use roughly `0.75`, not `0.25`.
+- The desktop bridge is still a compatibility presenter, not a production renderer. It is good enough for proof shells when the scene stays text/rect-oriented, but visual clarity depends on authored spacing and restrained copy length.
+- For service validation, keep the source of truth in snapshot/input-trace artifacts. Visual overlays are optional and should only stay in the live shell when they improve readability.
+
 # 2026-05-16 - Benchmark suite now supports Kain/Rust-only Cargo dependency cases for Tokio/Rayon pressure
 
 The benchmark lane was missing async-runtime, networking, and data-parallel ecosystem pressure. The runner now supports manifest-declared language subsets and per-case Cargo Rust builds, so the normal dependency-free C++/Rust/JS/Python cases stay simple while focused Tokio/Rayon comparisons can live in the same reporting pipeline.

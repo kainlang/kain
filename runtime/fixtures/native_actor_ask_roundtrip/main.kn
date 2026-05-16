@@ -1,0 +1,20 @@
+actor Echo:
+    on Call(reply_to: P, request: Int):
+        send reply_to.Reply(value = request + 1)
+
+actor Gate:
+    on Probe(reply_to: P, request: Int):
+        send reply_to.Reply(value = request == 7)
+
+fn main() -> Int:
+    let _runtime = native_runtime_init()
+    let echo = spawn Echo()
+    let gate = spawn Gate()
+    let first = ask(echo, "Call", 9)
+    let second = ask_timeout(echo, "Call", 40, 1000)
+    let allowed: Bool = ask(gate, "Probe", 7)
+    let denied: Bool = ask_timeout(gate, "Probe", 9, 1000)
+    let _shutdown = native_runtime_shutdown()
+    if first == 10 and second == 41 and allowed and denied == false:
+        return 0
+    return 1

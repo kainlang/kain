@@ -166,6 +166,15 @@ fn native_actor_abi_defaults_match_runtime_contract() {
         .required_runtime_symbols()
         .contains(&"kain_actor_abi_descriptor"));
     assert!(contract
+        .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_send"));
+    assert!(contract
+        .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_wait"));
+    assert!(contract
+        .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_wait_i64"));
+    assert!(contract
         .required_stdlib_symbols()
         .contains(&"kain_native_actor_default_ask_timeout_ms"));
 }

@@ -85,6 +85,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `tcp_loopback_tokio`: Kain native TCP loopback versus Rust Tokio TCP. This is an implemented networking comparison, but the fairness note must keep saying Kain's current native TCP facade is synchronous around readiness helpers while Rust uses Tokio async IO.
 - `http_server_concurrency`: Kain native local HTTP route handling versus Tokio request batches. Keep the Kain row visible even while it currently fails repeated local POST rounds with `HTTP incoming request capacity exceeded`; that is real runtime telemetry.
 - `actor_mailbox_erlang`: Kain native LLVM actor ask/reply fanout versus Erlang process mailbox request/reply. Both rows intentionally perform one unmeasured warmup ask per worker so the report reflects steady-state mailbox traffic rather than startup effects.
+  The Kain reply leg now uses the dedicated native fast path `kain_actor_reply_port_send(...)` rather than generic mailbox enqueue/dequeue; if performance regresses again, inspect the actor runtime/codegen seam before changing the case.
 - `rayon_parallel_reduce`: Rayon parallel iterators versus Kain scalar proxy. Keep `maturity` as `parallel-proxy` until Kain LLVM has proven user-level data-parallel fanout.
 
 ## Current Basic Edge Cases
@@ -123,6 +124,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `python benchmark/run.py --case tcp_loopback_tokio --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case rayon_parallel_reduce --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 1 --warmups 0 --timeout 900`
+  If this row fails with a Kain build error mentioning `generated/native_runtime/cache/.../*.obj.tmp` and `Access is denied`, rerun once after the cache quiesces before treating it as a semantic actor regression.
 - `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case http_server_concurrency --languages rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`

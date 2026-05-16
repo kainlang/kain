@@ -1367,6 +1367,60 @@ fn drive() -> Int:
 }
 
 #[test]
+fn llvm_generates_actor_ask_reply_roundtrip_paths() {
+    let program = typed_program_from_source(
+        r#"
+actor Echo:
+    on Call(reply_to: P, request: Int):
+        send reply_to.Reply(value = request + 1)
+
+fn drive() -> Int:
+    let echo = spawn Echo()
+    return ask_timeout(echo, "Call", 9, 1000)
+"#,
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%KainReplyPort = type { i64 }"));
+    assert!(llvm.contains("call i8* @kain_actor_reply_port_new()"));
+    assert!(llvm.contains("call i64 @kain_actor_reply_port_actor_id(i8*"));
+    assert!(llvm.contains("declare i32 @kain_actor_reply_port_send(i64, i8*, i64)"));
+    assert!(llvm.contains("call i32 @kain_actor_reply_port_send(i64 "));
+    assert!(llvm.contains("call i64 @kain_actor_reply_port_wait_i64(i8*"));
+    assert!(llvm.contains("call void @kain_actor_reply_port_destroy(i8*"));
+    assert!(llvm.contains("extractvalue %KainReplyPort"));
+    assert!(llvm.contains("%Echo_Call = type { %KainReplyPort, i64 }"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "actor-ask-reply-roundtrip");
+}
+
+#[test]
+fn llvm_generates_typed_actor_ask_reply_wait_for_bool_payloads() {
+    let program = typed_program_from_source(
+        r#"
+actor Gate:
+    on Probe(reply_to: P, request: Int):
+        send reply_to.Reply(value = request == 7)
+
+fn drive() -> Bool:
+    let gate = spawn Gate()
+    let allowed: Bool = ask_timeout(gate, "Probe", 7, 1000)
+    return allowed
+"#,
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare i32 @kain_actor_reply_port_wait(i8*, i64, i8*, i64, i64*)"));
+    assert!(llvm.contains("call i32 @kain_actor_reply_port_wait(i8*"));
+    assert!(llvm.contains("store i1"));
+    assert!(llvm.contains("%Gate_Probe = type { %KainReplyPort, i64 }"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "actor-ask-reply-bool-roundtrip");
+}
+
+#[test]
 fn llvm_generates_float_arithmetic_and_comparisons() {
     let blend = TypedItem::Function(TypedFunction {
         ast: Function {

@@ -508,6 +508,30 @@ int kain_actor_try_receive(
 );
 
 /*
+ * Native LLVM reply-port bridge.
+ *
+ * These helpers back compiler-lowered `ask` / `ask_timeout` roundtrips. A reply
+ * port is a tiny runtime-owned actor handle that accepts the first reply payload
+ * and lets the compiler wait or cancel without inventing a second mailbox ABI.
+ */
+void* kain_actor_reply_port_new(void);
+KainActorId kain_actor_reply_port_actor_id(void* reply_port_handle);
+void kain_actor_reply_port_destroy(void* reply_port_handle);
+int kain_actor_reply_port_send(
+    KainActorId reply_port_actor_id,
+    const void* reply_data,
+    size_t reply_size
+);
+int kain_actor_reply_port_wait(
+    void* reply_port_handle,
+    long long timeout_ms,
+    void* out_reply_data,
+    size_t out_reply_capacity,
+    size_t* out_reply_size
+);
+long long kain_actor_reply_port_wait_i64(void* reply_port_handle, long long timeout_ms);
+
+/*
  * Shutdown Actor
  *
  * Requests graceful shutdown of an actor. Returns 0 on success, non-zero on error.

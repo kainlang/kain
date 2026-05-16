@@ -102,6 +102,9 @@ const KAIN_NATIVE_TAG_OPTION_NONE_LLVM: i64 = 0;
 const KAIN_NATIVE_TAG_OPTION_SOME_LLVM: i64 = 1;
 const KAIN_NATIVE_TAG_RESULT_OK_LLVM: i64 = 2;
 const KAIN_NATIVE_TAG_RESULT_ERR_LLVM: i64 = 3;
+const KAIN_NATIVE_DEFAULT_ASK_TIMEOUT_MS_LLVM: i64 = 30_000;
+const KAIN_NATIVE_REPLY_PORT_ACTOR_NAME: &str = "KainReplyPort";
+const KAIN_NATIVE_REPLY_PORT_TYPE: &str = "%KainReplyPort";
 
 fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
     match name {
@@ -519,6 +522,7 @@ impl LlvmGenerator {
                 "Option" if generics.len() == 1 => "i8*".into(),
                 "Result" if generics.len() == 2 => "i8*".into(),
                 "Future" if generics.len() == 1 => "i8*".into(),
+                "P" => KAIN_NATIVE_REPLY_PORT_TYPE.into(),
                 _ => self.map_type_from_str(name),
             },
             kain_core::ast::Type::Tuple(items, _) => {
@@ -553,6 +557,7 @@ impl LlvmGenerator {
             "Bool" | "bool" => "i1".into(),
             "String" | "str" => "i8*".into(),
             "Unit" | "Void" | "()" | "void" => "void".into(),
+            "P" => KAIN_NATIVE_REPLY_PORT_TYPE.into(),
             "KainActorId" => "i64".into(),
             "KainActorExitReason" => "i32".into(),
             "KainActorState" => "i32".into(),
@@ -1757,6 +1762,7 @@ impl LlvmGenerator {
             "i1" | "i8" | "i64" => "0".into(),
             "void" => "0".into(),
             _ if ty.ends_with('*') => "null".into(),
+            _ if ty.starts_with('%') => "zeroinitializer".into(),
             _ => "0".into(),
         }
     }
@@ -1859,6 +1865,18 @@ impl LlvmGenerator {
                 }
             }
             _ => {}
+        }
+
+        if target_ty != "void" {
+            if let Expr::Call { callee, args, span } = expr {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(result) =
+                        self.compile_actor_builtin_ask(name, args, *span, Some(target_ty))?
+                    {
+                        return Ok(result);
+                    }
+                }
+            }
         }
 
         if matches!(expr, Expr::None(_)) {
@@ -3978,6 +3996,358 @@ impl LlvmGenerator {
         hash
     }
 
+    fn llvm_type_is_reply_port(&self, ty: &str) -> bool {
+        ty == KAIN_NATIVE_REPLY_PORT_TYPE
+    }
+
+    fn actor_name_for_handle_type(&self, handle_ty: &str) -> Option<String> {
+        if self.llvm_type_is_reply_port(handle_ty) {
+            return Some(KAIN_NATIVE_REPLY_PORT_ACTOR_NAME.to_string());
+        }
+        if handle_ty.starts_with('%') && handle_ty.ends_with('*') {
+            return Some(
+                handle_ty
+                    .trim_start_matches('%')
+                    .trim_end_matches('*')
+                    .to_string(),
+            );
+        }
+        None
+    }
+
+    fn compile_actor_handle_id(
+        &mut self,
+        handle_val: &str,
+        handle_ty: &str,
+        span: Span,
+    ) -> KainResult<String> {
+        if self.llvm_type_is_reply_port(handle_ty) {
+            let actor_id = self.next_reg();
+            self.emit(&format!(
+                "  {} = extractvalue {} {}, 0",
+                actor_id, handle_ty, handle_val
+            ));
+            return Ok(actor_id);
+        }
+
+        let actor_name = self.actor_name_for_handle_type(handle_ty).ok_or_else(|| {
+            KainError::codegen(
+                format!("Cannot use non-actor type {} as an actor handle", handle_ty),
+                span,
+            )
+        })?;
+        let actor_id_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 0",
+            actor_id_ptr, actor_name, handle_ty, handle_val
+        ));
+        let actor_id = self.next_reg();
+        self.emit(&format!("  {} = load i64, i64* {}", actor_id, actor_id_ptr));
+        Ok(actor_id)
+    }
+
+    fn compile_actor_builtin_ask(
+        &mut self,
+        builtin_name: &str,
+        args: &[kain_core::ast::CallArg],
+        span: Span,
+        reply_target_ty: Option<&str>,
+    ) -> KainResult<Option<(String, String)>> {
+        if builtin_name != "ask" && builtin_name != "ask_timeout" {
+            return Ok(None);
+        }
+
+        let expected_args = if builtin_name == "ask" { 3 } else { 4 };
+        if args.len() != expected_args {
+            return Err(KainError::codegen(
+                format!(
+                    "{} expects {} arguments (actor, message, request{})",
+                    builtin_name,
+                    expected_args,
+                    if builtin_name == "ask_timeout" {
+                        ", timeout_ms"
+                    } else {
+                        ""
+                    }
+                ),
+                span,
+            ));
+        }
+
+        let (target_val, target_ty) = self.compile_expr(&args[0].value)?;
+        let actor_name = self.actor_name_for_handle_type(&target_ty).ok_or_else(|| {
+            KainError::codegen(
+                format!(
+                    "{} expects an actor handle as its first argument, got {}",
+                    builtin_name, target_ty
+                ),
+                span,
+            )
+        })?;
+        if actor_name == KAIN_NATIVE_REPLY_PORT_ACTOR_NAME {
+            return Err(KainError::codegen(
+                format!("{} cannot target a reply port handle", builtin_name),
+                span,
+            ));
+        }
+        let target_id = self.compile_actor_handle_id(&target_val, &target_ty, span)?;
+
+        let message_name = match &args[1].value {
+            Expr::String(value, _) => value.clone(),
+            _ => return Err(KainError::codegen(
+                format!(
+                    "{} currently requires a literal actor message name under the native LLVM lane",
+                    builtin_name
+                ),
+                span,
+            )),
+        };
+
+        let request_payload_name = format!("{}_{}", actor_name, message_name);
+        let request_fields = self
+            .struct_defs
+            .get(&request_payload_name)
+            .cloned()
+            .ok_or_else(|| {
+                KainError::codegen(
+                    format!(
+                        "Cannot lower {} for unknown actor message '{}.{}'",
+                        builtin_name, actor_name, message_name
+                    ),
+                    span,
+                )
+            })?;
+
+        if request_fields.len() != 2 || request_fields[0].1 != KAIN_NATIVE_REPLY_PORT_TYPE {
+            return Err(KainError::codegen(
+                format!(
+                    "{} currently requires actor message '{}.{}' to start with reply_to: P",
+                    builtin_name, actor_name, message_name
+                ),
+                span,
+            ));
+        }
+
+        let wait_target_ty = match reply_target_ty {
+            Some("void") | None => "i64",
+            Some(target_ty) => target_ty,
+        };
+        let use_i64_wait = wait_target_ty == "i64";
+        let zero_reply_value = self.zero_value_for_ty(wait_target_ty);
+
+        let reply_port_handle = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @kain_actor_reply_port_new()",
+            reply_port_handle
+        ));
+        let reply_port_actor_id = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @kain_actor_reply_port_actor_id(i8* {})",
+            reply_port_actor_id, reply_port_handle
+        ));
+        let reply_port_value = self.next_reg();
+        self.emit(&format!(
+            "  {} = insertvalue {} zeroinitializer, i64 {}, 0",
+            reply_port_value, KAIN_NATIVE_REPLY_PORT_TYPE, reply_port_actor_id
+        ));
+
+        let request_payload_ty = format!("%{}", request_payload_name);
+        let request_payload_ptr_ty = format!("{}*", request_payload_ty);
+        let request_payload_ptr = self.next_reg();
+        self.emit_entry_alloca(&request_payload_ptr, &request_payload_ty);
+
+        for (index, (_, field_ty)) in request_fields.iter().enumerate() {
+            let field_ptr = self.next_reg();
+            self.emit(&format!(
+                "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
+                field_ptr, request_payload_ty, request_payload_ptr_ty, request_payload_ptr, index
+            ));
+            if index == 0 {
+                self.emit(&format!(
+                    "  store {} {}, {}* {}",
+                    field_ty, reply_port_value, field_ty, field_ptr
+                ));
+                continue;
+            }
+            let (request_value, request_value_ty) =
+                self.compile_expr_for_target_type(&args[2].value, field_ty)?;
+            self.emit(&format!(
+                "  store {} {}, {}* {}",
+                request_value_ty, request_value, field_ty, field_ptr
+            ));
+        }
+
+        let request_payload_i8 = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast {}* {} to i8*",
+            request_payload_i8, request_payload_ty, request_payload_ptr
+        ));
+        let request_payload_size_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr {}, {}* null, i32 1",
+            request_payload_size_ptr, request_payload_ty, request_payload_ty
+        ));
+        let request_payload_size = self.next_reg();
+        self.emit(&format!(
+            "  {} = ptrtoint {}* {} to i64",
+            request_payload_size, request_payload_ty, request_payload_size_ptr
+        ));
+
+        let outbound_message_ptr = self.next_reg();
+        self.emit_entry_alloca(&outbound_message_ptr, "%KainActorMessage");
+
+        let outbound_type_tag_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 0",
+            outbound_type_tag_ptr, outbound_message_ptr
+        ));
+        self.emit(&format!(
+            "  store i64 {}, i64* {}",
+            self.hash_message_tag(&actor_name, &message_name),
+            outbound_type_tag_ptr
+        ));
+
+        let outbound_data_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 1",
+            outbound_data_ptr, outbound_message_ptr
+        ));
+        self.emit(&format!(
+            "  store i8* {}, i8** {}",
+            request_payload_i8, outbound_data_ptr
+        ));
+
+        let outbound_size_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 2",
+            outbound_size_ptr, outbound_message_ptr
+        ));
+        self.emit(&format!(
+            "  store i64 {}, i64* {}",
+            request_payload_size, outbound_size_ptr
+        ));
+
+        let outbound_sender_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 3",
+            outbound_sender_ptr, outbound_message_ptr
+        ));
+        self.emit(&format!("  store i64 0, i64* {}", outbound_sender_ptr));
+
+        let send_status = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i32 @kain_actor_send(i64 {}, %KainActorMessage* {}, i8* null)",
+            send_status, target_id, outbound_message_ptr
+        ));
+
+        let timeout_value = if builtin_name == "ask" {
+            KAIN_NATIVE_DEFAULT_ASK_TIMEOUT_MS_LLVM.to_string()
+        } else {
+            let (timeout_value, timeout_ty) =
+                self.compile_expr_for_target_type(&args[3].value, "i64")?;
+            debug_assert_eq!(timeout_ty, "i64");
+            timeout_value
+        };
+
+        let send_ok = self.next_reg();
+        self.emit(&format!("  {} = icmp eq i32 {}, 0", send_ok, send_status));
+        let label_wait = self.next_label();
+        let label_fail = self.next_label();
+        let label_merge = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            send_ok, label_wait, label_fail
+        ));
+
+        self.emit_label(&label_wait);
+        let reply_value = if use_i64_wait {
+            let reply_value = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_actor_reply_port_wait_i64(i8* {}, i64 {})",
+                reply_value, reply_port_handle, timeout_value
+            ));
+            reply_value
+        } else {
+            let reply_slot = self.next_reg();
+            self.emit_entry_alloca(&reply_slot, wait_target_ty);
+            self.emit(&format!(
+                "  store {} {}, {}* {}",
+                wait_target_ty, zero_reply_value, wait_target_ty, reply_slot
+            ));
+            let reply_slot_i8 = self.next_reg();
+            self.emit(&format!(
+                "  {} = bitcast {}* {} to i8*",
+                reply_slot_i8, wait_target_ty, reply_slot
+            ));
+            let reply_size_out_ptr = self.next_reg();
+            self.emit_entry_alloca(&reply_size_out_ptr, "i64");
+            self.emit(&format!("  store i64 0, i64* {}", reply_size_out_ptr));
+            let reply_capacity = self.abi_layout_for_ty(wait_target_ty, span)?.0;
+            let wait_status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i32 @kain_actor_reply_port_wait(i8* {}, i64 {}, i8* {}, i64 {}, i64* {})",
+                wait_status,
+                reply_port_handle,
+                timeout_value,
+                reply_slot_i8,
+                reply_capacity,
+                reply_size_out_ptr
+            ));
+            let wait_ok = self.next_reg();
+            self.emit(&format!("  {} = icmp eq i32 {}, 0", wait_ok, wait_status));
+            let label_wait_value = self.next_label();
+            let label_wait_timeout = self.next_label();
+            let label_wait_merge = self.next_label();
+            self.emit(&format!(
+                "  br i1 {}, label %{}, label %{}",
+                wait_ok, label_wait_value, label_wait_timeout
+            ));
+
+            self.emit_label(&label_wait_value);
+            let loaded_reply = self.next_reg();
+            self.emit(&format!(
+                "  {} = load {}, {}* {}",
+                loaded_reply, wait_target_ty, wait_target_ty, reply_slot
+            ));
+            let wait_value_block = self.current_block.clone();
+            self.emit(&format!("  br label %{}", label_wait_merge));
+
+            self.emit_label(&label_wait_timeout);
+            let wait_timeout_block = self.current_block.clone();
+            self.emit(&format!("  br label %{}", label_wait_merge));
+
+            self.emit_label(&label_wait_merge);
+            let merged_reply = self.next_reg();
+            self.emit(&format!(
+                "  {} = phi {} [{}, %{}], [{}, %{}]",
+                merged_reply,
+                wait_target_ty,
+                loaded_reply,
+                wait_value_block,
+                zero_reply_value,
+                wait_timeout_block
+            ));
+            merged_reply
+        };
+        let reply_block = self.current_block.clone();
+        self.emit(&format!("  br label %{}", label_merge));
+
+        self.emit_label(&label_fail);
+        self.emit(&format!(
+            "  call void @kain_actor_reply_port_destroy(i8* {})",
+            reply_port_handle
+        ));
+        self.emit(&format!("  br label %{}", label_merge));
+
+        self.emit_label(&label_merge);
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi {} [{}, %{}], [{}, %{}]",
+            result, wait_target_ty, reply_value, reply_block, zero_reply_value, label_fail
+        ));
+        Ok(Some((result, wait_target_ty.into())))
+    }
+
     fn callable_signature(
         &self,
         resolved_type: &ResolvedType,
@@ -4425,6 +4795,10 @@ impl LlvmGenerator {
         self.collect_native_entanglements(&program.items);
         self.collect_program_tuple_types(program);
         self.emit_runtime_abi_types();
+        self.struct_defs.insert(
+            KAIN_NATIVE_REPLY_PORT_ACTOR_NAME.to_string(),
+            vec![("__actor_id".to_string(), "i64".to_string())],
+        );
 
         // 2a. Pre-scan Structs to register and emit definitions
         for item in &program.items {
@@ -4782,6 +5156,7 @@ impl LlvmGenerator {
     fn emit_runtime_abi_types(&mut self) {
         self.emit("; Canonical native runtime ABI types");
         self.emit("%KainActorMessage = type { i64, i8*, i64, i64 }");
+        self.emit("%KainReplyPort = type { i64 }");
         self.emit(&format!(
             "%KainActorSpawnConfig = type {{ i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [{} x i8] }}",
             NATIVE_ACTOR_NAME_MAX_BYTES
@@ -4844,6 +5219,12 @@ impl LlvmGenerator {
         self.emit("declare i64 @kain_actor_spawn(%KainActorSpawnConfig*, i8*)");
         self.emit("declare i32 @kain_actor_send(i64, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_receive(i8*, %KainActorMessage*, i8*)");
+        self.emit("declare i8* @kain_actor_reply_port_new()");
+        self.emit("declare i64 @kain_actor_reply_port_actor_id(i8*)");
+        self.emit("declare void @kain_actor_reply_port_destroy(i8*)");
+        self.emit("declare i32 @kain_actor_reply_port_send(i64, i8*, i64)");
+        self.emit("declare i32 @kain_actor_reply_port_wait(i8*, i64, i8*, i64, i64*)");
+        self.emit("declare i64 @kain_actor_reply_port_wait_i64(i8*, i64)");
         self.emit("declare void @KAIN_set_destructor(i8*, void(i8*)*)");
         self.emit("declare void @free(i8*)");
         self.emit("declare void @abort()");
@@ -7228,28 +7609,54 @@ impl LlvmGenerator {
                 span,
             } => {
                 let (target_val, target_ty) = self.compile_expr(target)?;
-                let actor_name = if target_ty.starts_with('%') && target_ty.ends_with('*') {
-                    target_ty
-                        .trim_start_matches('%')
-                        .trim_end_matches('*')
-                        .to_string()
-                } else {
-                    return Err(KainError::codegen(
+                let actor_name = self.actor_name_for_handle_type(&target_ty).ok_or_else(|| {
+                    KainError::codegen(
                         format!(
                             "Cannot send message '{}' to non-actor type {}",
                             message, target_ty
                         ),
                         *span,
-                    ));
-                };
+                    )
+                })?;
+                let target_id = self.compile_actor_handle_id(&target_val, &target_ty, *span)?;
 
-                let target_id_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 0",
-                    target_id_ptr, actor_name, target_ty, target_val
-                ));
-                let target_id = self.next_reg();
-                self.emit(&format!("  {} = load i64, i64* {}", target_id, target_id_ptr));
+                if actor_name == KAIN_NATIVE_REPLY_PORT_ACTOR_NAME {
+                    let (payload_mem, message_size) = if message != "Reply" {
+                        return Err(KainError::codegen(
+                            format!(
+                                "Reply port handles only accept the synthetic 'Reply' message, found '{}'",
+                                message
+                            ),
+                            *span,
+                        ));
+                    } else if data.is_empty() {
+                        ("null".to_string(), "0".to_string())
+                    } else {
+                        if data.len() != 1 {
+                            return Err(KainError::codegen(
+                                "Reply port messages accept at most one payload field named 'value'",
+                                *span,
+                            ));
+                        }
+                        let (field_name, payload_expr) = &data[0];
+                        if field_name != "value" {
+                            return Err(KainError::codegen(
+                                "Reply port payload field must be named 'value'",
+                                *span,
+                            ));
+                        }
+                        let (payload_value, payload_ty) = self.compile_expr(payload_expr)?;
+                        let (payload_ptr, payload_size) = self
+                            .compile_payload_pointer_from_value(&payload_value, &payload_ty, *span)?;
+                        (payload_ptr, payload_size.to_string())
+                    };
+                    let send_status = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = call i32 @kain_actor_reply_port_send(i64 {}, i8* {}, i64 {})",
+                        send_status, target_id, payload_mem, message_size
+                    ));
+                    return Ok(("0".into(), "i64".into()));
+                }
 
                 let sender_id = if let Some((self_addr, self_ty)) = self.locals.get("self").cloned()
                 {
@@ -7269,16 +7676,18 @@ impl LlvmGenerator {
                     "0".to_string()
                 };
 
-                let payload_struct_name = format!("{}_{}", actor_name, message);
                 let message_ptr = self.next_reg();
                 self.emit_entry_alloca(&message_ptr, "%KainActorMessage");
 
-                let payload_mem = if let Some(field_defs) =
-                    self.struct_defs.get(&payload_struct_name).cloned()
+                let (payload_mem, message_size) = if let Some(field_defs) = self
+                    .struct_defs
+                    .get(&format!("{}_{}", actor_name, message))
+                    .cloned()
                 {
                     if field_defs.is_empty() {
-                        "null".to_string()
+                        ("null".to_string(), "0".to_string())
                     } else {
+                        let payload_struct_name = format!("{}_{}", actor_name, message);
                         let payload_ty = format!("%{}", payload_struct_name);
                         let payload_ptr_ty = format!("{}*", payload_ty);
                         let payload_ptr = self.next_reg();
@@ -7325,10 +7734,10 @@ impl LlvmGenerator {
                             "  {} = bitcast {}* {} to i8*",
                             payload_i8, payload_ty, payload_ptr
                         ));
-                        payload_i8
+                        (payload_i8, size_reg)
                     }
                 } else {
-                    "null".to_string()
+                    ("null".to_string(), "0".to_string())
                 };
 
                 let message_tag = self.hash_message_tag(&actor_name, message);
@@ -7357,26 +7766,6 @@ impl LlvmGenerator {
                     "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 2",
                     message_size_ptr, message_ptr
                 ));
-                let message_size = if payload_mem == "null" {
-                    "0".to_string()
-                } else {
-                    let payload_struct_name = format!("{}_{}", actor_name, message);
-                    let payload_ty = format!("%{}", payload_struct_name);
-                    let payload_ptr_ty = format!("{}*", payload_ty);
-                    let size_ptr_reg = self.next_reg();
-                    self.emit(&format!(
-                        "  {} = getelementptr {}, {}, i32 1",
-                        size_ptr_reg,
-                        payload_ty,
-                        format!("{}* null", payload_ty)
-                    ));
-                    let size_reg = self.next_reg();
-                    self.emit(&format!(
-                        "  {} = ptrtoint {}* {} to i64",
-                        size_reg, payload_ptr_ty, size_ptr_reg
-                    ));
-                    size_reg
-                };
                 self.emit(&format!(
                     "  store i64 {}, i64* {}",
                     message_size, message_size_ptr
@@ -7891,6 +8280,11 @@ impl LlvmGenerator {
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(result) = self.compile_lowered_helper_call(name, args, *span) {
                         return result;
+                    }
+                    if let Some(result) =
+                        self.compile_actor_builtin_ask(name, args, *span, None)?
+                    {
+                        return Ok(result);
                     }
                     if let Some(result) =
                         self.compile_native_variant_function_call(name, args, *span)?
