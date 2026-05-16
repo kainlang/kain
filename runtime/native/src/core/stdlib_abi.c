@@ -38,22 +38,30 @@ void* kain_alloc_rc(size_t size, long long type_tag);
 #define ABI_TAG_RESULT_ERR 3
 #define ABI_TAG_FUTURE 4
 
+#ifndef KAIN_RUNTIME_INIT_NET_RESET
+#define KAIN_RUNTIME_INIT_NET_RESET 1
+#endif
+
+#ifndef KAIN_RUNTIME_INIT_PROCESS_RESET
+#define KAIN_RUNTIME_INIT_PROCESS_RESET 1
+#endif
+
+#ifndef KAIN_RUNTIME_INIT_ACTOR_SHUTDOWN
+#define KAIN_RUNTIME_INIT_ACTOR_SHUTDOWN 1
+#endif
+
 typedef struct KainNativeTaggedValue {
     int64_t tag;
     int64_t payload_size;
     unsigned char payload[];
 } KainNativeTaggedValue;
 
-typedef struct KainNativeReadyFuturePayload {
-    int64_t payload_size;
-    unsigned char payload[];
-} KainNativeReadyFuturePayload;
-
 typedef struct KainNativeFutureValue {
     int64_t tag;
     int64_t payload_size;
     KainTaskId task_id;
     void* cached_result;
+    unsigned char inline_payload[];
 } KainNativeFutureValue;
 
 static KainDiagnostic abi_diag(void) {
@@ -65,15 +73,25 @@ static KainDiagnostic abi_diag(void) {
 int64_t abi_runtime_init(void) {
     /* Actors lazy-init on first spawn or registry touch so pure native
      * programs skip pooled scheduler startup during process bring-up. */
+#if KAIN_RUNTIME_INIT_NET_RESET
     abi_net_reset();
+#endif
+#if KAIN_RUNTIME_INIT_PROCESS_RESET
     abi_process_reset();
+#endif
     return 0;
 }
 
 int64_t abi_runtime_shutdown(void) {
+#if KAIN_RUNTIME_INIT_NET_RESET
     abi_net_reset();
+#endif
+#if KAIN_RUNTIME_INIT_PROCESS_RESET
     abi_process_reset();
+#endif
+#if KAIN_RUNTIME_INIT_ACTOR_SHUTDOWN
     kain_actor_runtime_shutdown();
+#endif
     return 0;
 }
 
@@ -220,87 +238,47 @@ void* abi_result_ok_option(const void* value) {
     return abi_option_some(tagged->payload, tagged->payload_size);
 }
 
-static KainPollResult abi_ready_future_task(
-    KainFutureContext* context,
-    void* user_data,
-    void** result
+static int abi_future_allocation_size(
+    int64_t payload_size,
+    size_t* allocation_size
 ) {
-    const KainNativeReadyFuturePayload* ready_payload = (const KainNativeReadyFuturePayload*)user_data;
-    void* copied;
-    (void)context;
-
-    if (result == 0) {
-        return KAIN_POLL_ERROR;
+    if (allocation_size == 0 || payload_size < 0) {
+        return 0;
     }
-    *result = 0;
-    if (ready_payload == 0 || ready_payload->payload_size < 0) {
-        return KAIN_POLL_ERROR;
+    if (abi_size_add_overflows(sizeof(KainNativeFutureValue), (size_t)payload_size)) {
+        return 0;
     }
-    if (ready_payload->payload_size == 0) {
-        return KAIN_POLL_READY;
-    }
-
-    copied = malloc((size_t)ready_payload->payload_size);
-    if (copied == 0) {
-        return KAIN_POLL_ERROR;
-    }
-    memcpy(copied, ready_payload->payload, (size_t)ready_payload->payload_size);
-    *result = copied;
-    return KAIN_POLL_READY;
+    *allocation_size = sizeof(KainNativeFutureValue) + (size_t)payload_size;
+    return 1;
 }
 
-static KainNativeReadyFuturePayload* abi_ready_future_payload_new(
-    const void* payload,
-    int64_t payload_size
-) {
-    KainNativeReadyFuturePayload* ready_payload;
-    size_t allocation_size;
-
-    if (payload_size < 0) {
-        return 0;
-    }
-    allocation_size = sizeof(KainNativeReadyFuturePayload) + (size_t)payload_size;
-    ready_payload = (KainNativeReadyFuturePayload*)malloc(allocation_size);
-    if (ready_payload == 0) {
-        return 0;
-    }
-    ready_payload->payload_size = payload_size;
-    if (payload != 0 && payload_size > 0) {
-        memcpy(ready_payload->payload, payload, (size_t)payload_size);
-    } else if (payload_size > 0) {
-        memset(ready_payload->payload, 0, (size_t)payload_size);
-    }
-    return ready_payload;
+static int abi_future_is_inline_ready(const KainNativeFutureValue* future) {
+    /* task_id == 0 is the ready-inline sentinel. The payload tail stays within
+     * the RC allocation; see z3/proofs-experimental/async-ready-future-inline-payload-bounds.smt2. */
+    return future != 0 && future->task_id == KAIN_TASK_ID_INVALID;
 }
 
 void* abi_future_ready_from_value(const void* payload, int64_t payload_size) {
-    KainDiagnostic diag = abi_diag();
-    KainTaskSpawnConfig config;
-    KainNativeReadyFuturePayload* ready_payload = abi_ready_future_payload_new(payload, payload_size);
     KainNativeFutureValue* future_value;
+    size_t allocation_size;
 
-    if (ready_payload == 0) {
+    if (!abi_future_allocation_size(payload_size, &allocation_size)) {
         return 0;
     }
 
-    future_value = (KainNativeFutureValue*)kain_alloc_rc(sizeof(KainNativeFutureValue), 4);
+    future_value = (KainNativeFutureValue*)kain_alloc_rc(allocation_size, 4);
     if (future_value == 0) {
-        free(ready_payload);
         return 0;
     }
-
-    kain_task_spawn_config_init(&config);
-    config.task_fn = abi_ready_future_task;
-    config.user_data = ready_payload;
-    config.result_size = (size_t)payload_size;
 
     future_value->tag = ABI_TAG_FUTURE;
     future_value->payload_size = payload_size;
-    future_value->cached_result = 0;
-    future_value->task_id = kain_task_spawn(&config, &diag);
-    if (future_value->task_id == KAIN_TASK_ID_INVALID) {
-        free(ready_payload);
-        return 0;
+    future_value->task_id = KAIN_TASK_ID_INVALID;
+    future_value->cached_result = payload_size > 0 ? future_value->inline_payload : 0;
+    if (payload != 0 && payload_size > 0) {
+        memcpy(future_value->inline_payload, payload, (size_t)payload_size);
+    } else if (payload_size > 0) {
+        memset(future_value->inline_payload, 0, (size_t)payload_size);
     }
     return future_value;
 }
@@ -318,6 +296,9 @@ int64_t abi_future_state(const void* future_value) {
     if (future == 0) {
         return -1;
     }
+    if (abi_future_is_inline_ready(future)) {
+        return (int64_t)KAIN_TASK_STATE_COMPLETED;
+    }
     return (int64_t)kain_task_get_state(future->task_id);
 }
 
@@ -333,7 +314,9 @@ int64_t abi_future_await_payload_copy(const void* future_value, void* out_payloa
         return -2;
     }
 
-    if (future->cached_result != 0) {
+    if (abi_future_is_inline_ready(future)) {
+        result = future->cached_result;
+    } else if (future->cached_result != 0) {
         result = future->cached_result;
     } else if (kain_task_await(future->task_id, &result, &diag) != 0) {
         return -3;

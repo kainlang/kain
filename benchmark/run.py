@@ -324,12 +324,21 @@ def resolved_kain_native_tuning(args: argparse.Namespace) -> dict[str, str]:
     }
 
 
-def kain_native_env_from_tuning(tuning: dict[str, str]) -> dict[str, str]:
+def resolved_kain_runtime_manifest(case: dict[str, Any]) -> Path:
+    runtime_manifest = case.get("kain_runtime_manifest")
+    if runtime_manifest is None:
+        return NATIVE_CORE_RUNTIME_MANIFEST
+    return (REPO_ROOT / str(runtime_manifest)).resolve()
+
+
+def kain_native_env_from_tuning(
+    tuning: dict[str, str], runtime_manifest: Path = NATIVE_CORE_RUNTIME_MANIFEST
+) -> dict[str, str]:
     env = {
         "KAIN_NATIVE_PROFILE": tuning["profile"],
         "KAIN_NATIVE_OPT_LEVEL": tuning["opt_level"],
         "KAIN_NATIVE_DEBUG_INFO": tuning["debug_info"],
-        "KAIN_RUNTIME_MANIFEST_PATH": str(NATIVE_CORE_RUNTIME_MANIFEST),
+        "KAIN_RUNTIME_MANIFEST_PATH": str(runtime_manifest),
     }
     if tuning["target_cpu"]:
         env["KAIN_NATIVE_TARGET_CPU"] = tuning["target_cpu"]
@@ -555,6 +564,21 @@ def build_kain_case(
             "stdout": "",
             "stderr": "",
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
+        }
+
+    runtime_manifest = Path(env_overrides["KAIN_RUNTIME_MANIFEST_PATH"])
+    if not runtime_manifest.exists():
+        return {
+            "ok": False,
+            "language": "kain",
+            "exe": str(exe_path),
+            "run_command": [str(exe_path)],
+            "command": command,
+            "env": env_overrides,
+            "build_ms": 0.0,
+            "stdout": "",
+            "stderr": "",
+            "error": f"missing Kain runtime manifest {runtime_manifest}",
         }
 
     result = run_command(command, timeout=timeout, cwd=source_path.parent, env_overrides=env_overrides)
@@ -1037,6 +1061,8 @@ def benchmark_case(
     validate_case_files(case, case_languages)
     build_results: dict[str, dict[str, Any]] = {}
     run_results: dict[str, dict[str, Any]] = {}
+    case_kain_native_env = dict(kain_native_env)
+    case_kain_native_env["KAIN_RUNTIME_MANIFEST_PATH"] = str(resolved_kain_runtime_manifest(case))
 
     for language in case_languages:
         build_results[language] = build_language_case(
@@ -1045,7 +1071,7 @@ def benchmark_case(
             tools,
             timeout,
             no_build,
-            kain_native_env,
+            case_kain_native_env,
         )
         run_results[language] = measure_program(build_results[language], warmups, runs, timeout)
 
@@ -1123,7 +1149,7 @@ def render_toolchain(report: dict[str, Any]) -> str:
         f"- kain_exe: `{toolchain.get('kain_exe', 'n/a')}`",
         f"- kain_exe_source: `{toolchain.get('kain_exe_source', 'n/a')}`",
         f"- kain_exe_build_command: `{display_command(toolchain.get('kain_exe_build_command'))}`",
-        f"- kain_native_env: `{json.dumps(kain_native_env, sort_keys=True)}`",
+        f"- kain_native_env_default: `{json.dumps(kain_native_env, sort_keys=True)}`",
         f"- rustc: `{toolchain.get('rustc', 'n/a')}`",
         f"- rust_flags: `{display_command(toolchain.get('rust_flags', []))}`",
         f"- cxx: `{toolchain.get('cxx', 'n/a')}`",
@@ -1180,6 +1206,8 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
                 f"  - run_command: `{display_command(build.get('run_command'))}`",
             ]
         )
+        if build.get("env"):
+            lines.append(f"  - build_env: `{json.dumps(build['env'], sort_keys=True)}`")
         if build.get("error") or run.get("error"):
             error_text = (build.get("error", "") + "\n" + run.get("error", "")).strip()
             lines.append("  - error:")

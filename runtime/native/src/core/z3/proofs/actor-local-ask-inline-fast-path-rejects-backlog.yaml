@@ -1,0 +1,101 @@
+version: 1
+id: kain.native.core.proofs.actor_local_ask_inline_fast_path_rejects_backlog
+kind: find_counterexample
+description: The local ask inline fast path is only legal for the first message
+  in an otherwise empty mailbox. A backlog mailbox must fall back to the normal
+  queued path instead of stealing older work inline.
+tags:
+- actor
+- scheduler
+- microcell
+- ask
+- backlog
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_ask_send_ref
+  start_line: 2076
+  reason: inline local asks require mailbox_was_empty and mailbox count exactly one after enqueue
+case:
+  declarations:
+  - name: mailbox_count_before
+    sort:
+      kind: int
+  - name: in_queue
+    sort:
+      kind: int
+  - name: in_turn
+    sort:
+      kind: int
+  - name: eligible
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - mailbox_count_before
+    - 0
+  - op: or
+    args:
+    - op: eq
+      args:
+      - in_queue
+      - 0
+    - op: eq
+      args:
+      - in_queue
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - in_turn
+      - 0
+    - op: eq
+      args:
+      - in_turn
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - eligible
+      - 0
+    - op: eq
+      args:
+      - eligible
+      - 1
+  claim:
+    op: implies
+    args:
+    - op: gt
+      args:
+      - mailbox_count_before
+      - 0
+    - op: eq
+      args:
+      - op: ite
+        args:
+        - op: and
+          args:
+          - op: eq
+            args:
+            - eligible
+            - 1
+          - op: eq
+            args:
+            - in_queue
+            - 0
+          - op: eq
+            args:
+            - in_turn
+            - 0
+          - op: eq
+            args:
+            - op: add
+              args:
+              - mailbox_count_before
+              - 1
+            - 1
+        - 1
+        - 0
+      - 0

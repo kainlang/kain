@@ -16,6 +16,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - `benchmark/cases/<case>/main.py`
 - Case programs should not use external language dependencies unless the benchmark is explicitly about an ecosystem runtime such as Tokio or Rayon.
 - Case-specific language subsets are declared with a `languages` map in `benchmark/benchmarks.json`. The runner intersects the requested languages with the case's declared languages and renders unselected/missing global columns as `n/a`.
+- Kain cases may set `"kain_runtime_manifest": "runtime/<manifest>.toml"` in `benchmark/benchmarks.json` when the honest lane needs a narrower native runtime bundle than `runtime/native_core_runtime.toml`.
 - Rust normally uses direct `rustc`. Rust dependency cases opt into Cargo by adding `rust_manifest`, and may set `rust_package` / `rust_binary`. Per-case Cargo manifests inside this repo need an empty `[workspace]` table so Cargo does not treat them as orphan members of the root workspace.
 - Erlang dependency-free actor/runtime cases compile through `erlc` and run through `erl -noshell`. On Windows, prefer the official OTP `bin` directory over PATH wrapper shims so `erlc.exe` can find `erlexec.dll`.
 - Some cases require runner-built support artifacts. `ffi_shared_call_stress` compiles `benchmark/ffi_boundary/native/ffi_boundary.c` into a DLL plus import library under `benchmark/out/build/...`, copies the DLL beside each executable, and must compile the Kain row from the case directory so the case-local `KAIN.toml` for `use c::...` resolves.
@@ -38,7 +39,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx D:\Kain-Lang\toolchain\llvm\bin\clang++.exe`
 - Pin Erlang tools: `python benchmark/run.py --case actor_mailbox_erlang --languages erlang --erl "C:\Program Files\Erlang OTP\bin\erl.exe" --erlc "C:\Program Files\Erlang OTP\bin\erlc.exe"`
 - The runner prefers a direct Bazel-built release `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe` and expects a `clang++`/`g++`-style CLI when you override it. Erlang auto-detects from the official OTP `bin` directory first; override `--erl` / `--erlc` only when you intentionally want a different pair.
-- Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release` with `opt-level=3`, `target-cpu=native`, no debug info, and `KAIN_RUNTIME_MANIFEST_PATH=runtime/native_core_runtime.toml` unless you intentionally override it in code for an app/vendor benchmark.
+- Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release` with `opt-level=3`, `target-cpu=native`, no debug info, and `KAIN_RUNTIME_MANIFEST_PATH=runtime/native_core_runtime.toml` unless a case overrides it with `kain_runtime_manifest`.
 - Subprocess stdout/stderr is decoded as UTF-8 with replacement so Unicode-heavy case output does not crash report generation on Windows.
 - Reports are written to:
   - `benchmark/out/reports/latest.llm.md`
@@ -104,7 +105,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `alloc_churn`: many small allocation/write/read/lifetime-end cycles.
 - `struct_method`: aggregate construction plus explicit `score_pair(pair)` field access. Avoid receiver method field access until that native codegen gap is fixed.
 - `option_result`: Option/Result tagged value creation, branching, and unwrap paths.
-- `async_ready_chain`: ready-future async/await overhead versus Tokio current-thread ready futures. Keep the Kain source on the known-good `return async 2` style until dynamic async value capture lowering is repaired; a dynamic-capture version compiled but failed checksum in the benchmark spike.
+- `async_ready_chain`: ready-future async/await overhead versus Tokio current-thread ready futures. Keep the Kain source on the known-good `return async 2` style until dynamic async value capture lowering is repaired; a dynamic-capture version compiled but failed checksum in the benchmark spike. This row now points Kain at `runtime/native_async_benchmark_runtime.toml`, and its win depends on benchmark-release native section GC in `crates/cli/src/main.rs`; if the Kain exe balloons again, inspect the case manifest override and the native link flags before blaming async lowering.
 - `simd_lane_mix`: integer dot product. Rust and C++ use explicit AVX2 when available; Kain remains the scalar SIMD proxy lane until first-class SIMD intrinsics land in the benchmark surface.
 - `native_map_lookup`: fixed-key string-hash lookup pressure over a small native map.
 - `json_manual_roundtrip`: manual parse plus serialization over two small JSON payload shapes. Keep the case manual until the native LLVM JSON builtins stop failing to link in this checkout.

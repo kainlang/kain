@@ -31,6 +31,7 @@ pub const REQUIRED_NATIVE_ACTOR_SYMBOLS: &[&str] = &[
     "kain_actor_spawn_config_init",
     "kain_actor_spawn",
     "kain_actor_send",
+    "kain_actor_ask_send_ref",
     "kain_actor_receive",
     "kain_actor_try_receive",
     "kain_actor_reply_port_new",

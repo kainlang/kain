@@ -435,7 +435,7 @@ typedef struct {
 
     /* Scheduler integration */
     int in_scheduler_queue;         /* 1 if currently in ready queue */
-    int in_scheduler_turn;          /* 1 if a pooled worker owns the current turn */
+    int in_scheduler_turn;          /* 1 if a scheduler-owned microcell turn is in flight */
 
     /* Diagnostics */
     KainDiagnostic last_error;
@@ -574,6 +574,21 @@ KainActorId kain_actor_spawn(
  */
 int kain_actor_send(
     KainActorId target_id,
+    const KainActorMessage* message,
+    KainDiagnostic* diag
+);
+
+/*
+ * Ask Send by Exact Actor Ref
+ *
+ * Compiler-lowered local asks use the full generation-tagged actor ref so the
+ * runtime can reject stale handles and opportunistically run the first local
+ * microcell turn inline when the target mailbox is empty and not already owned
+ * by the scheduler. If the fast path is not legal, this falls back to normal
+ * mailbox enqueue semantics.
+ */
+int kain_actor_ask_send_ref(
+    const KainActorRef* target_ref,
     const KainActorMessage* message,
     KainDiagnostic* diag
 );

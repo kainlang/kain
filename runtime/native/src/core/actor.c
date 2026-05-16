@@ -160,7 +160,17 @@ static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity);
 static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox);
 static MessageNode* kain_actor_mailbox_take_cached_node(KainActorMailbox* mailbox);
 static void kain_actor_mailbox_cache_or_free_node(KainActorMailbox* mailbox, MessageNode* node);
+static int kain_actor_mailbox_append_copied_locked(
+    KainActorMailbox* mailbox,
+    const KainActorMessage* message
+);
 static int kain_actor_is_microcell_turn_actor(const KainActorState_Internal* actor);
+static void kain_actor_scheduler_busy_worker_begin(void);
+static void kain_actor_scheduler_busy_worker_end(void);
+static void kain_actor_execute_microcell_turn(
+    KainActorState_Internal* actor,
+    int count_busy_worker
+);
 static void kain_actor_ref_zero(KainActorRef* actor_ref);
 static void kain_actor_ref_write_live(
     KainActorRef* actor_ref,
@@ -1145,10 +1155,137 @@ static void kain_actor_mailbox_cache_or_free_node(KainActorMailbox* mailbox, Mes
     free(node);
 }
 
+static int kain_actor_mailbox_append_copied_locked(
+    KainActorMailbox* mailbox,
+    const KainActorMessage* message
+) {
+    MessageNode* node;
+
+    if (mailbox == NULL || message == NULL) {
+        return -1;
+    }
+    if (mailbox->closed) {
+        return -2;
+    }
+    if (mailbox->capacity > 0 && mailbox->count >= mailbox->capacity) {
+        return -3;
+    }
+
+    node = kain_actor_mailbox_take_cached_node(mailbox);
+    if (node == NULL) {
+        node = (MessageNode*)malloc(sizeof(MessageNode));
+    }
+    if (node == NULL) {
+        return -4;
+    }
+
+    node->type_tag = message->type_tag;
+    node->sender_id = message->sender_id;
+    node->data_size = message->data_size;
+    node->next = NULL;
+
+    if (message->data != NULL && message->data_size > 0) {
+        node->data = malloc(message->data_size);
+        if (node->data == NULL) {
+            kain_actor_mailbox_cache_or_free_node(mailbox, node);
+            return -4;
+        }
+        memcpy(node->data, message->data, message->data_size);
+    } else {
+        node->data = NULL;
+    }
+
+    if (mailbox->tail == NULL) {
+        mailbox->head = node;
+        mailbox->tail = node;
+    } else {
+        mailbox->tail->next = node;
+        mailbox->tail = node;
+    }
+    mailbox->count++;
+    return 0;
+}
+
 static int kain_actor_is_microcell_turn_actor(const KainActorState_Internal* actor) {
     return actor != NULL &&
            actor->entry_kind == KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN &&
            actor->turn_fn != NULL;
+}
+
+static void kain_actor_scheduler_busy_worker_begin(void) {
+#ifdef _WIN32
+    EnterCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_lock(&g_scheduler.lock);
+#endif
+    g_scheduler.busy_workers++;
+    if (g_scheduler.busy_workers > g_scheduler.max_busy_workers) {
+        g_scheduler.max_busy_workers = g_scheduler.busy_workers;
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+}
+
+static void kain_actor_scheduler_busy_worker_end(void) {
+#ifdef _WIN32
+    EnterCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_lock(&g_scheduler.lock);
+#endif
+    if (g_scheduler.busy_workers > 0u) {
+        g_scheduler.busy_workers--;
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_scheduler.lock);
+#else
+    pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+}
+
+static void kain_actor_execute_microcell_turn(
+    KainActorState_Internal* actor,
+    int count_busy_worker
+) {
+    KainActorTurnStatus turn_status = KAIN_ACTOR_TURN_IDLE;
+
+    if (actor == NULL) {
+        return;
+    }
+    if (actor->state == KAIN_ACTOR_STATE_INITIALIZING) {
+        actor->state = KAIN_ACTOR_STATE_RUNNING;
+    }
+    if (actor->state == KAIN_ACTOR_STATE_RUNNING) {
+        if (count_busy_worker) {
+            kain_actor_scheduler_busy_worker_begin();
+        }
+
+        turn_status = actor->turn_fn(
+            actor->actor_id,
+            &actor->mailbox,
+            actor->user_data,
+            actor->microcell_turn_budget
+        );
+
+        if (turn_status == KAIN_ACTOR_TURN_STOPPED) {
+            kain_actor_finalize_exit_state(actor, KAIN_ACTOR_EXIT_NORMAL);
+            kain_actor_complete_exit_side_effects(actor);
+        } else if (turn_status == KAIN_ACTOR_TURN_CRASHED) {
+            kain_actor_finalize_exit_state(actor, KAIN_ACTOR_EXIT_CRASHED);
+            kain_actor_complete_exit_side_effects(actor);
+        }
+
+        if (count_busy_worker) {
+            kain_actor_scheduler_busy_worker_end();
+        }
+    } else if (actor->state == KAIN_ACTOR_STATE_SHUTTING_DOWN ||
+               actor->state == KAIN_ACTOR_STATE_FAILED) {
+        kain_actor_finalize_exit_state(actor, actor->exit_reason);
+        kain_actor_complete_exit_side_effects(actor);
+    }
+    kain_scheduler_finish_turn(actor);
 }
 
 static void kain_actor_close_mailbox(KainActorState_Internal* actor) {
@@ -1860,6 +1997,7 @@ int kain_actor_send(
     KainDiagnostic* diag
 ) {
     KainActorState_Internal* actor = kain_actor_table_get(target_id);
+    int append_result;
     if (actor == NULL) {
         if (diag != NULL) {
             kain_diagnostic_init(diag);
@@ -1879,8 +2017,8 @@ int kain_actor_send(
     pthread_mutex_lock(&mailbox->lock);
 #endif
 
-    /* Check if mailbox is closed */
-    if (mailbox->closed) {
+    append_result = kain_actor_mailbox_append_copied_locked(mailbox, message);
+    if (append_result == -2) {
         if (diag != NULL) {
             kain_diagnostic_init(diag);
             diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
@@ -1895,9 +2033,7 @@ int kain_actor_send(
 #endif
         return -1;
     }
-
-    /* Check capacity (bounded mailbox) */
-    if (mailbox->capacity > 0 && mailbox->count >= mailbox->capacity) {
+    if (append_result == -3) {
         if (diag != NULL) {
             kain_diagnostic_init(diag);
             diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
@@ -1912,13 +2048,7 @@ int kain_actor_send(
 #endif
         return -1;
     }
-
-    /* Create or recycle a message node. */
-    MessageNode* node = kain_actor_mailbox_take_cached_node(mailbox);
-    if (node == NULL) {
-        node = (MessageNode*)malloc(sizeof(MessageNode));
-    }
-    if (node == NULL) {
+    if (append_result != 0) {
 #ifdef _WIN32
         LeaveCriticalSection(&mailbox->lock);
 #else
@@ -1927,43 +2057,137 @@ int kain_actor_send(
         return -1;
     }
 
-    node->type_tag = message->type_tag;
-    node->sender_id = message->sender_id;
-    node->data_size = message->data_size;
-    node->next = NULL;
-
-    /* Copy message data */
-    if (message->data != NULL && message->data_size > 0) {
-        node->data = malloc(message->data_size);
-        if (node->data == NULL) {
-            free(node);
-#ifdef _WIN32
-            LeaveCriticalSection(&mailbox->lock);
-#else
-            pthread_mutex_unlock(&mailbox->lock);
-#endif
-            return -1;
-        }
-        memcpy(node->data, message->data, message->data_size);
-    } else {
-        node->data = NULL;
-    }
-
-    /* Add to queue */
-    if (mailbox->tail == NULL) {
-        mailbox->head = node;
-        mailbox->tail = node;
-    } else {
-        mailbox->tail->next = node;
-        mailbox->tail = node;
-    }
-    mailbox->count++;
-
     if (kain_actor_is_microcell_turn_actor(actor)) {
         kain_scheduler_ready_actor(actor);
     }
 
     /* Signal not empty */
+#ifdef _WIN32
+    SetEvent(mailbox->not_empty);
+    LeaveCriticalSection(&mailbox->lock);
+#else
+    pthread_cond_signal(&mailbox->not_empty);
+    pthread_mutex_unlock(&mailbox->lock);
+#endif
+
+    return 0;
+}
+
+int kain_actor_ask_send_ref(
+    const KainActorRef* target_ref,
+    const KainActorMessage* message,
+    KainDiagnostic* diag
+) {
+    KainActorState_Internal* actor = NULL;
+    KainActorMailbox* mailbox;
+    int append_result;
+    int mailbox_was_empty;
+    int inline_execute = 0;
+
+    if (target_ref == NULL || message == NULL) {
+        return -1;
+    }
+
+    kain_actor_runtime_ensure_initialized();
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+    if (!kain_actor_table_ref_matches_locked(target_ref, &actor) || actor == NULL) {
+#ifdef _WIN32
+        LeaveCriticalSection(&g_actor_table.lock);
+#else
+        pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            diag->code = KAIN_DIAG_CODE_ACTOR_NOT_FOUND;
+            snprintf(diag->message, sizeof(diag->message), "Actor ref is stale or dead");
+        }
+        return -1;
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+
+    mailbox = &actor->mailbox;
+#ifdef _WIN32
+    EnterCriticalSection(&mailbox->lock);
+#else
+    pthread_mutex_lock(&mailbox->lock);
+#endif
+
+    mailbox_was_empty = mailbox->count == 0u;
+    append_result = kain_actor_mailbox_append_copied_locked(mailbox, message);
+    if (append_result != 0) {
+        if (diag != NULL) {
+            kain_diagnostic_init(diag);
+            diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
+            diag->severity = KAIN_DIAG_SEVERITY_ERROR;
+            if (append_result == -2) {
+                diag->code = KAIN_DIAG_CODE_ACTOR_MAILBOX_CLOSED;
+                snprintf(diag->message, sizeof(diag->message), "Mailbox is closed");
+            } else if (append_result == -3) {
+                diag->code = KAIN_DIAG_CODE_ACTOR_MAILBOX_FULL;
+                snprintf(diag->message, sizeof(diag->message), "Mailbox is full");
+            } else {
+                diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
+                snprintf(diag->message, sizeof(diag->message), "Ask enqueue allocation failed");
+            }
+        }
+#ifdef _WIN32
+        LeaveCriticalSection(&mailbox->lock);
+#else
+        pthread_mutex_unlock(&mailbox->lock);
+#endif
+        return -1;
+    }
+
+    if (mailbox_was_empty &&
+        kain_actor_is_microcell_turn_actor(actor) &&
+        actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_MICROCELL &&
+        actor->locality_class == KAIN_ACTOR_LOCALITY_LOCAL &&
+        (actor->state == KAIN_ACTOR_STATE_INITIALIZING ||
+         actor->state == KAIN_ACTOR_STATE_RUNNING)) {
+#ifdef _WIN32
+        EnterCriticalSection(&g_scheduler.lock);
+#else
+        pthread_mutex_lock(&g_scheduler.lock);
+#endif
+        if (!g_scheduler.shutdown &&
+            !actor->in_scheduler_queue &&
+            !actor->in_scheduler_turn &&
+            mailbox->count == 1u) {
+            actor->in_scheduler_turn = 1;
+            inline_execute = 1;
+        }
+#ifdef _WIN32
+        LeaveCriticalSection(&g_scheduler.lock);
+#else
+        pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+    }
+
+    if (inline_execute) {
+#ifdef _WIN32
+        LeaveCriticalSection(&mailbox->lock);
+#else
+        pthread_mutex_unlock(&mailbox->lock);
+#endif
+        kain_actor_execute_microcell_turn(actor, 0);
+        return 0;
+    }
+
+    if (kain_actor_is_microcell_turn_actor(actor)) {
+        kain_scheduler_ready_actor(actor);
+    }
+
 #ifdef _WIN32
     SetEvent(mailbox->not_empty);
     LeaveCriticalSection(&mailbox->lock);
@@ -2847,60 +3071,7 @@ static void* kain_scheduler_worker_thread(void* param) {
 
         KainActorState_Internal* actor = kain_actor_table_get(actor_id);
         if (actor != NULL && kain_actor_is_microcell_turn_actor(actor)) {
-            KainActorTurnStatus turn_status = KAIN_ACTOR_TURN_IDLE;
-            if (actor->state == KAIN_ACTOR_STATE_INITIALIZING) {
-                actor->state = KAIN_ACTOR_STATE_RUNNING;
-            }
-            if (actor->state == KAIN_ACTOR_STATE_RUNNING) {
-#ifdef _WIN32
-                EnterCriticalSection(&g_scheduler.lock);
-#else
-                pthread_mutex_lock(&g_scheduler.lock);
-#endif
-                g_scheduler.busy_workers++;
-                if (g_scheduler.busy_workers > g_scheduler.max_busy_workers) {
-                    g_scheduler.max_busy_workers = g_scheduler.busy_workers;
-                }
-#ifdef _WIN32
-                LeaveCriticalSection(&g_scheduler.lock);
-#else
-                pthread_mutex_unlock(&g_scheduler.lock);
-#endif
-
-                turn_status = actor->turn_fn(
-                    actor->actor_id,
-                    &actor->mailbox,
-                    actor->user_data,
-                    actor->microcell_turn_budget
-                );
-
-                if (turn_status == KAIN_ACTOR_TURN_STOPPED) {
-                    kain_actor_finalize_exit_state(actor, KAIN_ACTOR_EXIT_NORMAL);
-                    kain_actor_complete_exit_side_effects(actor);
-                } else if (turn_status == KAIN_ACTOR_TURN_CRASHED) {
-                    kain_actor_finalize_exit_state(actor, KAIN_ACTOR_EXIT_CRASHED);
-                    kain_actor_complete_exit_side_effects(actor);
-                }
-
-#ifdef _WIN32
-                EnterCriticalSection(&g_scheduler.lock);
-#else
-                pthread_mutex_lock(&g_scheduler.lock);
-#endif
-                if (g_scheduler.busy_workers > 0) {
-                    g_scheduler.busy_workers--;
-                }
-#ifdef _WIN32
-                LeaveCriticalSection(&g_scheduler.lock);
-#else
-                pthread_mutex_unlock(&g_scheduler.lock);
-#endif
-            } else if (actor->state == KAIN_ACTOR_STATE_SHUTTING_DOWN ||
-                       actor->state == KAIN_ACTOR_STATE_FAILED) {
-                kain_actor_finalize_exit_state(actor, actor->exit_reason);
-                kain_actor_complete_exit_side_effects(actor);
-            }
-            kain_scheduler_finish_turn(actor);
+            kain_actor_execute_microcell_turn(actor, 1);
         } else if (actor != NULL && actor->state == KAIN_ACTOR_STATE_INITIALIZING) {
 #ifdef _WIN32
             EnterCriticalSection(&g_scheduler.lock);

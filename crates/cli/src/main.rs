@@ -198,6 +198,24 @@ impl NativeToolchainTuning {
             command.arg(format!("-march={target_cpu}"));
             command.arg(format!("-mtune={target_cpu}"));
         }
+        if self.profile != NativeToolchainProfile::Debug {
+            command.arg("-ffunction-sections");
+            command.arg("-fdata-sections");
+        }
+    }
+
+    fn apply_link_gc_flags(&self, command: &mut Command) {
+        if self.profile == NativeToolchainProfile::Debug {
+            return;
+        }
+        if cfg!(windows) {
+            command.arg("-Wl,/OPT:REF");
+            command.arg("-Wl,/OPT:ICF");
+        } else if cfg!(target_os = "macos") {
+            command.arg("-Wl,-dead_strip");
+        } else {
+            command.arg("-Wl,--gc-sections");
+        }
     }
 
     fn fingerprint_lines(&self) -> [String; 4] {
@@ -1045,6 +1063,7 @@ fn run_source(
                     if target == CompileTarget::Llvm {
                         cmd.arg("-Wno-override-module");
                     }
+                    native_toolchain_tuning.apply_link_gc_flags(&mut cmd);
 
                     for shared_library in cffi_link_inputs.shared_libraries {
                         cmd.arg(shared_library);

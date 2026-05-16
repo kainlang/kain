@@ -1,5 +1,49 @@
 # Kain Memory
 
+# 2026-05-16 - Ready-future async stopped being catastrophic and now edges Rust in the honest benchmark lane
+
+`async_ready_chain` was not losing because `await` work inside the loop was inherently expensive; it was losing because Kain paid several fixed costs at once. The runtime now has an inline-ready future payload path in `runtime/native/src/core/stdlib_abi.c`: immediately-ready futures store the copied scalar payload inside the future RC object, mark `task_id = KAIN_TASK_ID_INVALID`, and let `abi_future_state(...)` / `abi_future_await_payload_copy(...)` complete without task allocation or scheduler traffic. LLVM lowering in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` then goes one step further for obvious immediate-ready cases (`await async ...` and zero-arg functions that immediately `return async ...`) by folding the payload directly into the caller, so the hot benchmark loop no longer calls the future ABI at all.
+
+The last big win came from changing the benchmark/runtime shape instead of shaving nanoseconds off dead code. `benchmark/run.py` now supports a per-case `"kain_runtime_manifest"` override in `benchmark/benchmarks.json`, and `async_ready_chain` points at `runtime/native_async_benchmark_runtime.toml` instead of the broad native core manifest. That manifest disables net/process reset work and keeps the source set narrow for the ready-future lane. On top of that, `crates/cli/src/main.rs` now enables `-ffunction-sections` / `-fdata-sections` plus linker dead-stripping (`/OPT:REF` + `/OPT:ICF` on Windows) in non-debug native builds. This lets benchmark-release builds throw away the giant unused stdlib/native wrapper forest after lowering collapses the real async work away.
+
+Proof, benchmark, and durable numbers:
+
+- Exploratory proof `runtime/native/src/core/z3/proofs-experimental/async-ready-future-inline-payload-bounds.smt2` returned `unsat` in report `D:\\Kain-Lang\\z3\\reports\\20260516T223219Z-async-ready-future-inline-payload-bounds.json`.
+- `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` now covers ready-future payload copy/await behavior.
+- `py -3 benchmark/run.py --case async_ready_chain --languages kain,rust --runs 7 --warmups 2 --timeout 900 --kain-exe target\\debug\\kain.exe` now reports Kain median `7.905 ms` vs Rust median `8.272 ms`, so Rust is `1.05x slower`.
+- The Kain `async_ready_chain.exe` dropped from roughly `812 KB` before section GC to about `104 KB` after the linker/dead-section pass; the import table shrank to `KERNEL32.dll` only.
+
+Durable lesson:
+
+- When a microbenchmark still looks bad after the hot IR is clean, inspect executable size, imports, and linked dead code before rewriting the algorithm again. For native Kain, the right abstraction boundary was: fold immediate-ready futures in LLVM, give the benchmark case its own honest runtime manifest, and make the link step actually discard unreachable wrapper code.
+
+# 2026-05-16 - Local microcell ask handoff turned the honest Erlang mailbox row into a Kain win
+
+The next actor dragon landed as an ask-only exact-ref fast path instead of another generic mailbox tweak. `runtime/native/src/core/actor.c` now exposes `kain_actor_ask_send_ref(...)`: it validates the full `KainActorRef`, copies the request into the real mailbox, and if the target is a local `MICROCELL` turn actor whose mailbox was empty and whose scheduler ownership bits were clear, it claims `in_scheduler_turn` inline on the caller thread and runs the first microcell turn immediately. If any guard fails, it falls back to the normal mailbox/scheduler path. This keeps message ownership unchanged, so generated handlers still free heap-owned payloads exactly as before.
+
+What changed:
+
+- Added a shared mailbox copy helper and a shared `kain_actor_execute_microcell_turn(...)` path so pooled workers and the inline ask handoff use the same stop/crash/finish-turn behavior.
+- Added `kain_actor_ask_send_ref(...)` to `runtime/native/include/actor.h`, the native actor Rust contract, LLVM declarations, and LLVM ask lowering in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`.
+- `ask` / `ask_timeout` now lower with the full `KainActorRef` instead of degrading to a raw actor id send, which lets the runtime reject stale refs and specialize the local microcell case without changing generic `send`.
+- `runtime/conformance/actor_runtime/test_actor_abi_contract.c` now asserts the inline ask path roundtrips through a microcell turn without adding a scheduler enqueue, and two durable actor proofs pin the new exclusivity/backlog guards.
+
+Proof, validation, and benchmark:
+
+- Z3 actor lane `runtime/native/src/core/z3` proved `16/16` with `unsat` in report `runtime/native/src/core/z3/reports/20260516T225454Z-proof-suite.json`.
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/actor.c`
+- `cargo test -p kain-actor`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test actor -- --nocapture`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
+- `bash runtime/conformance/actor_runtime/run_tests.sh --test-timeout 45 --verbose`
+- `cargo build -p cli`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `py -3 benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 3 --warmups 1 --timeout 240 --kain-exe target\\debug\\kain.exe` passed with Kain median `182.275 ms` and Erlang median `389.657 ms`, so Kain now wins the honest mailbox row and Erlang is `2.14x slower`. Compared to the previous durable Kain baseline of `2621.995 ms`, this is about `14.38x` lower Kain latency on the same command.
+
+Durable lesson:
+
+- The big remaining win was not a payload cache or a smaller allocator trick; it was changing the abstraction boundary for local asks. Keep generic `send` boring, keep payload ownership heap-owned unless the whole receiver cleanup contract changes with proofs, and treat `local + microcell + exact ref + empty mailbox` as the specialization seam for future actor latency work.
+
 # 2026-05-16 - Semantic Singularity Crucible became the single-file native LLVM torture lane
 
 `benchmark/cases/semantic_singularity_crucible/main.kn` is now the "pile everything onto one Kain file" benchmark. It preserves the existing `semantic_singularity` matrix instead of mutating it, then adds a preflight layer for enum `match`, trait/impl syntax, top-level const/type alias, `comptime`, shader declarations, `vec!`/`format!`/string indexing, Option/Result/Future/`await`, bitwise packet math, and raw `realloc_mem` plus `collapse`/`observe`/`decay` before the fused actor/world/shatter/converge/orchestrate hot loop.

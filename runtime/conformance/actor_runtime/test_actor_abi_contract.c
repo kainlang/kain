@@ -26,6 +26,18 @@ typedef struct {
     KainActorId sender_id;
 } MonitorProbe;
 
+typedef struct {
+    KainActorRef reply_to;
+    long long value;
+} AskProbeRequest;
+
+typedef struct {
+    volatile int turns;
+    volatile int errors;
+    volatile int saw_running_state;
+    long long last_request;
+} AskProbe;
+
 static int expect_true(int condition, int code, const char* label) {
     if (!condition) {
         printf("FAIL %d: %s\n", code, label);
@@ -146,6 +158,47 @@ static KainActorExitReason blocking_actor_bootstrap(
             free(message.data);
         }
     }
+}
+
+static KainActorTurnStatus ask_probe_turn(
+    KainActorId actor_id,
+    KainActorMailbox* mailbox,
+    void* user_data,
+    unsigned int budget
+) {
+    AskProbe* probe = (AskProbe*)user_data;
+    KainActorMessage message;
+    KainDiagnostic diag;
+    AskProbeRequest* request;
+    long long reply_value;
+    (void)budget;
+
+    kain_diagnostic_init(&diag);
+    if (kain_actor_try_receive(mailbox, &message, &diag) != 0) {
+        return KAIN_ACTOR_TURN_IDLE;
+    }
+
+    if (message.data == NULL || message.data_size != sizeof(AskProbeRequest)) {
+        probe->errors = 1;
+        if (message.data != NULL) {
+            free(message.data);
+        }
+        return KAIN_ACTOR_TURN_CRASHED;
+    }
+
+    request = (AskProbeRequest*)message.data;
+    probe->turns++;
+    probe->last_request = request->value;
+    probe->saw_running_state = kain_actor_get_state(actor_id) == KAIN_ACTOR_STATE_RUNNING;
+    reply_value = request->value + 7;
+    if (kain_actor_reply_port_send_ref(&request->reply_to, &reply_value, sizeof(reply_value)) != 0) {
+        probe->errors = 2;
+        free(message.data);
+        return KAIN_ACTOR_TURN_CRASHED;
+    }
+
+    free(message.data);
+    return KAIN_ACTOR_TURN_IDLE;
 }
 
 static KainActorId spawn_named_actor(
@@ -361,6 +414,78 @@ int main(void) {
         kain_actor_reply_port_destroy(reply_port);
         status = expect_true(!kain_actor_ref_is_live(&rebound_reply_ref), 46, "reply ref dies after destroy");
         if (status != 0) return status;
+    }
+
+    {
+        AskProbe probe;
+        KainActorSpawnConfig config;
+        KainActorId actor_id;
+        KainActorRef actor_ref;
+        void* reply_port;
+        KainActorRef reply_ref;
+        AskProbeRequest request;
+        KainActorMessage ask_message;
+        KainActorSchedulerSnapshot scheduler_before;
+        KainActorSchedulerSnapshot scheduler_after;
+        long long reply_value;
+
+        memset(&probe, 0, sizeof(probe));
+        memset(&actor_ref, 0, sizeof(actor_ref));
+        memset(&reply_ref, 0, sizeof(reply_ref));
+        memset(&request, 0, sizeof(request));
+        memset(&ask_message, 0, sizeof(ask_message));
+
+        kain_actor_spawn_config_init(&config);
+        config.entry_kind = KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN;
+        config.turn_fn = ask_probe_turn;
+        config.user_data = &probe;
+        snprintf(config.name, sizeof(config.name), "%s", "ask_probe");
+        actor_id = kain_actor_spawn(&config, &diag);
+        status = expect_true(actor_id != KAIN_ACTOR_ID_INVALID, 47, "ask probe spawn");
+        if (status != 0) return status;
+        kain_actor_ref_from_id(actor_id, &actor_ref);
+        status = expect_true(kain_actor_ref_is_live(&actor_ref), 48, "ask probe ref live");
+        if (status != 0) return status;
+
+        reply_port = kain_actor_reply_port_new();
+        status = expect_true(reply_port != NULL, 49, "ask probe reply port allocates");
+        if (status != 0) return status;
+        kain_actor_reply_port_actor_ref(reply_port, &reply_ref);
+
+        request.reply_to = reply_ref;
+        request.value = 35;
+        ask_message.type_tag = 0xA551ULL;
+        ask_message.data = &request;
+        ask_message.data_size = sizeof(request);
+        ask_message.sender_id = KAIN_ACTOR_ID_INVALID;
+
+        kain_actor_scheduler_snapshot(&scheduler_before);
+        status = expect_true(
+            kain_actor_ask_send_ref(&actor_ref, &ask_message, &diag) == 0,
+            50,
+            "ask send ref succeeds"
+        );
+        if (status != 0) return status;
+        kain_actor_scheduler_snapshot(&scheduler_after);
+
+        status = expect_true(probe.turns == 1, 51, "ask probe runs exactly one turn inline");
+        if (status != 0) return status;
+        status = expect_true(probe.errors == 0, 52, "ask probe turn has no errors");
+        if (status != 0) return status;
+        status = expect_true(probe.saw_running_state == 1, 53, "ask probe executes while actor is running");
+        if (status != 0) return status;
+        status = expect_true(probe.last_request == 35, 54, "ask probe receives original request payload");
+        if (status != 0) return status;
+        status = expect_true(
+            scheduler_after.total_enqueued == scheduler_before.total_enqueued,
+            55,
+            "inline ask does not enqueue a scheduler turn"
+        );
+        if (status != 0) return status;
+        reply_value = kain_actor_reply_port_wait_i64(reply_port, 1000);
+        status = expect_true(reply_value == 42, 56, "ask probe reply roundtrips");
+        if (status != 0) return status;
+        kain_actor_reply_port_destroy(reply_port);
     }
 
     {

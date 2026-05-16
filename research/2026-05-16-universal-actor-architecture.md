@@ -1,7 +1,4 @@
 # Universal Actor Architecture
-
-- Date: 2026-05-16
-- Status: active
 - Repo Root: `D:\Kain-Lang`
 - Session Slug: `universal-actor-architecture`
 

@@ -1,0 +1,123 @@
+version: 1
+id: kain.native.core.proofs.actor_local_ask_inline_claim_preserves_exclusive_turn
+kind: find_counterexample
+description: The local ask fast path may claim an inline microcell turn only when
+  scheduler queue ownership is clear. The post-claim state still carries at most
+  one scheduler owner bit.
+tags:
+- actor
+- scheduler
+- microcell
+- ask
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_ask_send_ref
+  start_line: 2076
+  reason: inline local asks set in_scheduler_turn only when queue ownership is clear
+case:
+  declarations:
+  - name: in_queue
+    sort:
+      kind: int
+  - name: in_turn
+    sort:
+      kind: int
+  - name: mailbox_count
+    sort:
+      kind: int
+  - name: eligible
+    sort:
+      kind: int
+  constraints:
+  - op: or
+    args:
+    - op: eq
+      args:
+      - in_queue
+      - 0
+    - op: eq
+      args:
+      - in_queue
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - in_turn
+      - 0
+    - op: eq
+      args:
+      - in_turn
+      - 1
+  - op: or
+    args:
+    - op: eq
+      args:
+      - eligible
+      - 0
+    - op: eq
+      args:
+      - eligible
+      - 1
+  - op: ge
+    args:
+    - mailbox_count
+    - 0
+  - op: le
+    args:
+    - op: add
+      args:
+      - in_queue
+      - in_turn
+    - 1
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - op: ite
+        args:
+        - op: and
+          args:
+          - op: eq
+            args:
+            - eligible
+            - 1
+          - op: eq
+            args:
+            - mailbox_count
+            - 1
+          - op: eq
+            args:
+            - in_queue
+            - 0
+          - op: eq
+            args:
+            - in_turn
+            - 0
+        - 0
+        - in_queue
+      - op: ite
+        args:
+        - op: and
+          args:
+          - op: eq
+            args:
+            - eligible
+            - 1
+          - op: eq
+            args:
+            - mailbox_count
+            - 1
+          - op: eq
+            args:
+            - in_queue
+            - 0
+          - op: eq
+            args:
+            - in_turn
+            - 0
+        - 1
+        - in_turn
+    - 1

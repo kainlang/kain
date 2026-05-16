@@ -238,6 +238,9 @@ struct LlvmGenerator {
     extern_functions: HashSet<String>,
     /// Callable names defined by the lowered program itself, including target stdlib wrappers.
     defined_functions: HashSet<String>,
+    /// Zero-arg functions whose entire Future result is a compile-time visible
+    /// immediate async payload, so `await f()` can inline the payload directly.
+    immediate_ready_future_payloads: HashMap<String, Expr>,
     /// Maps string content to global variable name
     strings: HashMap<String, String>,
     string_counter: usize,
@@ -299,6 +302,7 @@ impl LlvmGenerator {
             string_function_params: HashMap::new(),
             extern_functions: HashSet::new(),
             defined_functions: HashSet::new(),
+            immediate_ready_future_payloads: HashMap::new(),
             strings: HashMap::new(),
             string_counter: 0,
             loop_stack: Vec::new(),
@@ -2758,12 +2762,76 @@ impl LlvmGenerator {
         Ok((future, "i8*".to_string()))
     }
 
+    fn extract_immediate_ready_future_payload_expr<'a>(expr: &'a Expr) -> Option<&'a Expr> {
+        match expr {
+            Expr::AsyncBlock(payload, _) => Some(payload.as_ref()),
+            Expr::Paren(inner, _) => Self::extract_immediate_ready_future_payload_expr(inner),
+            Expr::Return(Some(inner), _) => Self::extract_immediate_ready_future_payload_expr(inner),
+            _ => None,
+        }
+    }
+
+    fn extract_zero_arg_immediate_ready_future_payload(func: &TypedFunction) -> Option<Expr> {
+        if !func.ast.params.is_empty() {
+            return None;
+        }
+
+        let returns_future = match &func.resolved_type {
+            ResolvedType::Function { ret, .. } => matches!(ret.as_ref(), ResolvedType::Future(_)),
+            _ => false,
+        } || matches!(
+            func.ast.return_type.as_ref(),
+            Some(Type::Named { name, generics, .. }) if name == "Future" && generics.len() == 1
+        ) || matches!(
+            func.ast.return_type.as_ref(),
+            Some(Type::Impl { trait_name, .. }) if trait_name == "Future"
+        );
+        if !returns_future {
+            return None;
+        }
+
+        match func.ast.body.stmts.as_slice() {
+            [Stmt::Return(Some(expr), _)] => Self::extract_immediate_ready_future_payload_expr(expr),
+            [Stmt::Expr(expr)] => Self::extract_immediate_ready_future_payload_expr(expr),
+            _ => None,
+        }
+        .cloned()
+    }
+
+    fn compile_immediate_ready_future_for_target_type(
+        &mut self,
+        future_expr: &Expr,
+        target_ty: &str,
+    ) -> KainResult<Option<(String, String)>> {
+        match future_expr {
+            Expr::AsyncBlock(body, _) => Ok(Some(self.compile_expr_for_target_type(body, target_ty)?)),
+            Expr::Paren(inner, _) => {
+                self.compile_immediate_ready_future_for_target_type(inner, target_ty)
+            }
+            Expr::Call { callee, args, .. } if args.is_empty() => {
+                let Expr::Ident(name, _) = callee.as_ref() else {
+                    return Ok(None);
+                };
+                let Some(payload) = self.immediate_ready_future_payloads.get(name).cloned() else {
+                    return Ok(None);
+                };
+                Ok(Some(self.compile_expr_for_target_type(&payload, target_ty)?))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn compile_await_for_target_type(
         &mut self,
         future_expr: &Expr,
         target_ty: &str,
         span: Span,
     ) -> KainResult<(String, String)> {
+        if let Some(inlined_result) =
+            self.compile_immediate_ready_future_for_target_type(future_expr, target_ty)?
+        {
+            return Ok(inlined_result);
+        }
         let (future_value, future_ty) = self.compile_expr(future_expr)?;
         if future_ty != "i8*" {
             return Err(KainError::codegen(
@@ -4554,7 +4622,13 @@ impl LlvmGenerator {
                 span,
             ));
         }
-        let target_id = self.compile_actor_handle_id(&target_val, &target_ty, span)?;
+        let target_ref = self.compile_actor_handle_ref_value(&target_val, &target_ty, span)?;
+        let target_ref_ptr = self.next_reg();
+        self.emit_entry_alloca(&target_ref_ptr, ACTOR_REF_LLVM_TYPE);
+        self.emit(&format!(
+            "  store {} {}, {}* {}",
+            ACTOR_REF_LLVM_TYPE, target_ref, ACTOR_REF_LLVM_TYPE, target_ref_ptr
+        ));
 
         let message_name = match &args[1].value {
             Expr::String(value, _) => value.clone(),
@@ -4708,8 +4782,8 @@ impl LlvmGenerator {
 
         let send_status = self.next_reg();
         self.emit(&format!(
-            "  {} = call i32 @kain_actor_send(i64 {}, %KainActorMessage* {}, i8* null)",
-            send_status, target_id, outbound_message_ptr
+            "  {} = call i32 @kain_actor_ask_send_ref({}* {}, %KainActorMessage* {}, i8* null)",
+            send_status, ACTOR_REF_LLVM_TYPE, target_ref_ptr, outbound_message_ptr
         ));
 
         let timeout_value = if builtin_name == "ask" {
@@ -4954,6 +5028,12 @@ impl LlvmGenerator {
                         self.extern_functions.insert(func.ast.name.clone());
                     } else {
                         self.defined_functions.insert(func.ast.name.clone());
+                        if let Some(payload) =
+                            Self::extract_zero_arg_immediate_ready_future_payload(func)
+                        {
+                            self.immediate_ready_future_payloads
+                                .insert(func.ast.name.clone(), payload);
+                        }
                     }
                 }
                 TypedItem::Patch(patch) => {
@@ -5793,6 +5873,7 @@ impl LlvmGenerator {
         self.emit("declare void @kain_actor_spawn_config_init(%KainActorSpawnConfig*)");
         self.emit("declare i64 @kain_actor_spawn(%KainActorSpawnConfig*, i8*)");
         self.emit("declare i32 @kain_actor_send(i64, %KainActorMessage*, i8*)");
+        self.emit("declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_receive(i8*, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_try_receive(i8*, %KainActorMessage*, i8*)");
         self.emit("declare void @kain_actor_ref_from_id(i64, %KainActorRef*)");
@@ -6220,6 +6301,7 @@ impl LlvmGenerator {
         } else {
             (callable_name, false)
         };
+        let callable_linkage = if is_main { "" } else { " internal" };
 
         let mut param_str = String::new();
         for (index, _) in params.iter().enumerate() {
@@ -6236,8 +6318,8 @@ impl LlvmGenerator {
             ""
         };
         self.emit(&format!(
-            "define {} @{}({}){} {{",
-            ret_type, llvm_name, param_str, inline_attr
+            "define{} {} @{}({}){} {{",
+            callable_linkage, ret_type, llvm_name, param_str, inline_attr
         ));
         self.emit_label("entry");
 

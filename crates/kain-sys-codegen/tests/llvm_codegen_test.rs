@@ -838,7 +838,6 @@ fn main() -> Int:
     assert!(!llvm.contains("call i64 @abi_option_is_some"));
     assert!(!llvm.contains("call i64 @abi_result_is_err"));
     assert!(llvm.contains("call i8* @abi_future_ready_from_value"));
-    assert!(llvm.contains("call i64 @abi_future_await_payload_copy"));
 
     let maybe_start = llvm
         .find("define i8* @maybe(i1 %arg0)")
@@ -862,6 +861,16 @@ fn main() -> Int:
         .find("\n}\n")
         .expect("main function should terminate");
     let main_ir = &main_rest[..main_end];
+    assert!(
+        !main_ir.contains("call i8* @ready()"),
+        "await on immediate ready future should inline the payload instead of calling ready():\n{}",
+        main_ir
+    );
+    assert!(
+        !main_ir.contains("call i64 @abi_future_await_payload_copy"),
+        "await on immediate ready future should not hit the runtime await ABI in main():\n{}",
+        main_ir
+    );
     let tagged_temp_release_count = main_ir.matches("call void @rc_release(i8*").count();
     assert!(
         tagged_temp_release_count >= 5,
@@ -1554,6 +1563,10 @@ fn drive() -> Int:
     assert!(llvm.contains("%KainReplyPort = type { %KainActorRef }"));
     assert!(llvm.contains("call i8* @kain_actor_reply_port_new()"));
     assert!(llvm.contains("call void @kain_actor_reply_port_actor_ref(i8*"));
+    assert!(llvm.contains(
+        "declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)"
+    ));
+    assert!(llvm.contains("call i32 @kain_actor_ask_send_ref(%KainActorRef* "));
     assert!(llvm.contains("declare i32 @kain_actor_reply_port_send_ref(%KainActorRef*, i8*, i64)"));
     assert!(llvm.contains("call i32 @kain_actor_reply_port_send_ref(%KainActorRef* "));
     assert!(llvm.contains("call i64 @kain_actor_reply_port_wait_i64(i8*"));

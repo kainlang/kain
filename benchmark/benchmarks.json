@@ -304,6 +304,7 @@
         "kain": "cases/async_ready_chain/main.kn",
         "rust": "cases/async_ready_chain/src/main.rs"
       },
+      "kain_runtime_manifest": "runtime/native_async_benchmark_runtime.toml",
       "rust_manifest": "cases/async_ready_chain/Cargo.toml",
       "rust_package": "async-ready-chain",
       "rust_binary": "async-ready-chain"

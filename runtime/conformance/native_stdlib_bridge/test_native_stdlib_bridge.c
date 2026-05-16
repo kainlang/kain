@@ -1,4 +1,5 @@
 #include "../../native/include/stdlib_abi.h"
+#include "../../native/include/async.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -130,6 +131,57 @@ int main(void) {
     status = expect_int(abi_sleep_millis(0) == 0, 22);
     if (status != 0) {
         return status;
+    }
+
+    {
+        int64_t future_input = 42;
+        int64_t future_output = 0;
+        int64_t future_output_again = 0;
+        void* ready_future = abi_future_ready_from_value(&future_input, (int64_t)sizeof(future_input));
+
+        status = expect_int(ready_future != 0, 27);
+        if (status != 0) {
+            return status;
+        }
+
+        status = expect_int(abi_future_state(ready_future) == (int64_t)KAIN_TASK_STATE_COMPLETED, 28);
+        if (status != 0) {
+            return status;
+        }
+
+        status = expect_int(
+            abi_future_await_payload_copy(
+                ready_future,
+                &future_output,
+                (int64_t)sizeof(future_output)
+            ) == (int64_t)sizeof(future_output),
+            29
+        );
+        if (status != 0) {
+            return status;
+        }
+
+        status = expect_int(future_output == future_input, 47);
+        if (status != 0) {
+            return status;
+        }
+
+        status = expect_int(
+            abi_future_await_payload_copy(
+                ready_future,
+                &future_output_again,
+                (int64_t)sizeof(future_output_again)
+            ) == (int64_t)sizeof(future_output_again),
+            48
+        );
+        if (status != 0) {
+            return status;
+        }
+
+        status = expect_int(future_output_again == future_input, 49);
+        if (status != 0) {
+            return status;
+        }
     }
 
     const char* fs_dir = abi_fs_temp_dir("kain-native-fs");
