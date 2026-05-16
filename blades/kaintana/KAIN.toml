@@ -1,0 +1,53 @@
+[package]
+name = "kaintana"
+version = "0.1.0"
+description = "Blade-owned Kain UI framework with immediate, retained, theme, host, and embed lanes."
+
+[blade]
+name = "kaintana"
+kind = "kain_library"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[[blade.dependencies]]
+name = "vulkain"
+kind = "kain"
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/kaintana.kn",
+  "native/kaintana_desktop_bridge.h",
+  "native/kaintana_desktop_bridge.c",
+  "build-desktop.ps1",
+  "run.ps1",
+]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "kaintana_desktop_bridge"
+header = "native/kaintana_desktop_bridge.h"
+shared_lib = ".kain/native/kaintana_desktop_bridge.obj"
+link_libs = ["user32", "gdi32"]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+header = "../vulkain/native/vulkain_bridge.h"
+shared_lib = "../vulkain/.kain/native/${kain_dynlib:vulkain_bridge}"

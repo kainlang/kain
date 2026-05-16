@@ -1,0 +1,20 @@
+// style: solar broadcast framework probe
+use c::kaintana_desktop_bridge
+use c::vulkain_bridge
+use kaintana::kaintana_backend_desktop
+use kaintana::kaintana_default_window_spec
+use kaintana::kaintana_desktop_probe
+use kaintana::kaintana_theme_named
+use kaintana::kaintana_vulkan_embed_available
+
+fn main() -> Int:
+    let spec = kaintana_default_window_spec("Kaintana // Framework Probe", 960, 540, kaintana_backend_desktop())
+    let theme = kaintana_theme_named("solar-broadcast")
+    println("kaintana.theme=" + theme.name)
+    println("kaintana.desktop=" + str(kaintana_desktop_probe()))
+    println("kaintana.vulkan=" + str(kaintana_vulkan_embed_available()))
+    if spec.width != 960:
+        return 10
+    if kaintana_desktop_probe() != 1:
+        return 20
+    return 0

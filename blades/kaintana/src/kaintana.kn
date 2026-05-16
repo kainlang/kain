@@ -1,0 +1,442 @@
+use vulkain::vulkain_frames_presented
+use vulkain::vulkain_probe
+use vulkain::vulkain_run_window
+use vulkain::vulkain_vertices_drawn
+use vulkain::vulkain_write_report
+
+pub struct KaintanaRect:
+    x: Float
+    y: Float
+    width: Float
+    height: Float
+
+pub struct KaintanaTheme:
+    name: String
+    shell_red: Int
+    shell_green: Int
+    shell_blue: Int
+    panel_red: Int
+    panel_green: Int
+    panel_blue: Int
+    accent_red: Int
+    accent_green: Int
+    accent_blue: Int
+    ink_red: Int
+    ink_green: Int
+    ink_blue: Int
+    muted_red: Int
+    muted_green: Int
+    muted_blue: Int
+    signal_red: Int
+    signal_green: Int
+    signal_blue: Int
+
+pub struct KaintanaWindowSpec:
+    title: String
+    width: Int
+    height: Int
+    frame_budget: Int
+    backend_id: String
+    passive_backend_id: String
+    clear_red: Int
+    clear_green: Int
+    clear_blue: Int
+    accent_red: Int
+    accent_green: Int
+    accent_blue: Int
+    vertex_shader_path: String
+    fragment_shader_path: String
+    frame_report_path: String
+    host_report_path: String
+    screenshot_path: String
+
+fn kaintana_channel_float(value: Int) -> Float:
+    var clamped = value
+    if clamped < 0:
+        clamped = 0
+    if clamped > 255:
+        clamped = 255
+    return Float(clamped) / 255.0
+
+fn kaintana_apply_fill_color(session_id: Int, node_id: Int, red: Int, green: Int, blue: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "fill", kaintana_channel_float(red), kaintana_channel_float(green), kaintana_channel_float(blue), 1.0)
+
+fn kaintana_apply_ink_color(session_id: Int, node_id: Int, red: Int, green: Int, blue: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", kaintana_channel_float(red), kaintana_channel_float(green), kaintana_channel_float(blue), 1.0)
+
+fn kaintana_desktop_fill(rect: KaintanaRect, red: Int, green: Int, blue: Int, alpha: Int) -> Int:
+    return kaintana_native_desktop_push_rect(Int(rect.x), Int(rect.y), Int(rect.width), Int(rect.height), red, green, blue, alpha)
+
+fn kaintana_desktop_text(text: String, x: Float, y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int:
+    return kaintana_native_desktop_push_text(text, Int(x), Int(y), red, green, blue, alpha)
+
+fn kaintana_panel_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, label: String, rect: KaintanaRect) -> Int:
+    return ui_reconcile_labeled_node(session_id, parent_id, kind, stable_key, "", "region", label, rect.x, rect.y, rect.width, rect.height)
+
+fn kaintana_text_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, label: String, rect: KaintanaRect) -> Int:
+    return ui_reconcile_labeled_node(session_id, parent_id, kind, stable_key, text, "label", label, rect.x, rect.y, rect.width, rect.height)
+
+fn kaintana_focusable_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, label: String, rect: KaintanaRect) -> Int:
+    return ui_reconcile_focusable_node(session_id, parent_id, kind, stable_key, text, "button", label, rect.x, rect.y, rect.width, rect.height)
+
+pub fn kaintana_backend_desktop() -> String:
+    return "desktop"
+
+pub fn kaintana_backend_vulkan() -> String:
+    return "vulkan"
+
+pub fn kaintana_rect(x: Float, y: Float, width: Float, height: Float) -> KaintanaRect:
+    return KaintanaRect { x: x, y: y, width: width, height: height }
+
+pub fn kaintana_inset(rect: KaintanaRect, left: Float, top: Float, right: Float, bottom: Float) -> KaintanaRect:
+    return KaintanaRect {
+        x: ui_layout_inset_x(rect.x, left),
+        y: ui_layout_inset_y(rect.y, top),
+        width: ui_layout_inset_width(rect.width, left, right),
+        height: ui_layout_inset_height(rect.height, top, bottom),
+    }
+
+pub fn kaintana_split_left(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    return KaintanaRect {
+        x: rect.x,
+        y: rect.y,
+        width: ui_layout_split_left_width(rect.width, fraction, gap),
+        height: rect.height,
+    }
+
+pub fn kaintana_split_right(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    return KaintanaRect {
+        x: ui_layout_split_right_x(rect.x, rect.width, fraction, gap),
+        y: rect.y,
+        width: ui_layout_split_right_width(rect.width, fraction, gap),
+        height: rect.height,
+    }
+
+pub fn kaintana_column_slot(rect: KaintanaRect, index_offset: Float, item_height: Float, gap: Float) -> KaintanaRect:
+    return KaintanaRect {
+        x: rect.x,
+        y: ui_layout_column_y(index_offset, rect.y, item_height, gap),
+        width: rect.width,
+        height: item_height,
+    }
+
+pub fn kaintana_row_slot(rect: KaintanaRect, index_offset: Float, item_width: Float, gap: Float) -> KaintanaRect:
+    return KaintanaRect {
+        x: ui_layout_row_x(index_offset, rect.x, item_width, gap),
+        y: rect.y,
+        width: item_width,
+        height: rect.height,
+    }
+
+pub fn kaintana_window_rect(spec: KaintanaWindowSpec) -> KaintanaRect:
+    return KaintanaRect { x: 0.0, y: 0.0, width: Float(spec.width), height: Float(spec.height) }
+
+pub fn kaintana_window_spec(title: String, width: Int, height: Int, frame_budget: Int, backend_id: String, passive_backend_id: String, clear_red: Int, clear_green: Int, clear_blue: Int, accent_red: Int, accent_green: Int, accent_blue: Int, vertex_shader_path: String, fragment_shader_path: String, frame_report_path: String, host_report_path: String, screenshot_path: String) -> KaintanaWindowSpec:
+    return KaintanaWindowSpec {
+        title: title,
+        width: width,
+        height: height,
+        frame_budget: frame_budget,
+        backend_id: backend_id,
+        passive_backend_id: passive_backend_id,
+        clear_red: clear_red,
+        clear_green: clear_green,
+        clear_blue: clear_blue,
+        accent_red: accent_red,
+        accent_green: accent_green,
+        accent_blue: accent_blue,
+        vertex_shader_path: vertex_shader_path,
+        fragment_shader_path: fragment_shader_path,
+        frame_report_path: frame_report_path,
+        host_report_path: host_report_path,
+        screenshot_path: screenshot_path,
+    }
+
+pub fn kaintana_default_window_spec(title: String, width: Int, height: Int, backend_id: String) -> KaintanaWindowSpec:
+    return kaintana_window_spec(
+        title,
+        width,
+        height,
+        180,
+        backend_id,
+        "software",
+        8,
+        14,
+        26,
+        255,
+        112,
+        68,
+        "../vulkain/.kain/gpu/basic_window/vulkain_basic.vert.spv",
+        "../vulkain/.kain/gpu/basic_window/vulkain_basic.frag.spv",
+        ".kain/run/kaintana_frame_report.txt",
+        ".kain/run/kaintana_host_report.txt",
+        ".kain/run/kaintana_host.bmp"
+    )
+
+pub fn kaintana_theme_solar_broadcast() -> KaintanaTheme:
+    return KaintanaTheme {
+        name: "solar-broadcast",
+        shell_red: 14,
+        shell_green: 18,
+        shell_blue: 30,
+        panel_red: 28,
+        panel_green: 34,
+        panel_blue: 52,
+        accent_red: 255,
+        accent_green: 128,
+        accent_blue: 76,
+        ink_red: 244,
+        ink_green: 234,
+        ink_blue: 214,
+        muted_red: 150,
+        muted_green: 164,
+        muted_blue: 186,
+        signal_red: 104,
+        signal_green: 255,
+        signal_blue: 214,
+    }
+
+pub fn kaintana_theme_marine_terminal() -> KaintanaTheme:
+    return KaintanaTheme {
+        name: "marine-terminal",
+        shell_red: 10,
+        shell_green: 28,
+        shell_blue: 42,
+        panel_red: 18,
+        panel_green: 52,
+        panel_blue: 68,
+        accent_red: 32,
+        accent_green: 196,
+        accent_blue: 255,
+        ink_red: 226,
+        ink_green: 247,
+        ink_blue: 250,
+        muted_red: 132,
+        muted_green: 182,
+        muted_blue: 194,
+        signal_red: 255,
+        signal_green: 210,
+        signal_blue: 82,
+    }
+
+pub fn kaintana_theme_kawaii_voltage() -> KaintanaTheme:
+    return KaintanaTheme {
+        name: "kawaii-voltage",
+        shell_red: 28,
+        shell_green: 14,
+        shell_blue: 36,
+        panel_red: 60,
+        panel_green: 24,
+        panel_blue: 70,
+        accent_red: 255,
+        accent_green: 118,
+        accent_blue: 184,
+        ink_red: 255,
+        ink_green: 244,
+        ink_blue: 248,
+        muted_red: 214,
+        muted_green: 162,
+        muted_blue: 190,
+        signal_red: 146,
+        signal_green: 255,
+        signal_blue: 196,
+    }
+
+pub fn kaintana_theme_named(theme_name: String) -> KaintanaTheme:
+    if theme_name == "marine-terminal":
+        return kaintana_theme_marine_terminal()
+    if theme_name == "kawaii-voltage":
+        return kaintana_theme_kawaii_voltage()
+    return kaintana_theme_solar_broadcast()
+
+pub fn kaintana_session_create(app_name: String, spec: KaintanaWindowSpec) -> Int:
+    return ui_host_session_create(app_name, spec.title, spec.width, spec.height, spec.passive_backend_id)
+
+pub fn kaintana_begin_frame(session_id: Int, revision_key: String, delta_ms: Float) -> Int:
+    if len(revision_key) > 0:
+        let _reload = native_ui_hot_reload_begin(session_id, revision_key)
+    return ui_frame_begin(session_id, delta_ms)
+
+pub fn kaintana_commit_frame(session_id: Int) -> Int:
+    let _reload = native_ui_hot_reload_commit(session_id)
+    return ui_frame_submit(session_id)
+
+pub fn kaintana_hot_reload_generation(session_id: Int) -> Int:
+    return native_ui_hot_reload_generation(session_id)
+
+pub fn kaintana_hot_reload_key(session_id: Int) -> String:
+    return native_ui_hot_reload_key(session_id)
+
+pub fn kaintana_desktop_probe() -> Int:
+    return kaintana_native_desktop_probe()
+
+pub fn kaintana_vulkan_embed_available() -> Int:
+    return vulkain_probe()
+
+pub fn kaintana_desktop_scene_begin(spec: KaintanaWindowSpec) -> Int:
+    return kaintana_native_desktop_begin_scene(spec.title, spec.width, spec.height, spec.clear_red, spec.clear_green, spec.clear_blue)
+
+pub fn kaintana_desktop_scene_active() -> Int:
+    return kaintana_native_desktop_scene_active()
+
+pub fn kaintana_desktop_scene_write_report(path: String) -> Int:
+    return kaintana_native_desktop_write_report(path)
+
+pub fn kaintana_desktop_scene_write_bmp(path: String) -> Int:
+    return kaintana_native_desktop_write_bmp(path)
+
+pub fn kaintana_apply_shell_theme(session_id: Int, node_id: Int, theme: KaintanaTheme) -> Int:
+    let _fill = kaintana_apply_fill_color(session_id, node_id, theme.shell_red, theme.shell_green, theme.shell_blue)
+    return kaintana_apply_ink_color(session_id, node_id, theme.ink_red, theme.ink_green, theme.ink_blue)
+
+pub fn kaintana_apply_panel_theme(session_id: Int, node_id: Int, theme: KaintanaTheme) -> Int:
+    let _fill = kaintana_apply_fill_color(session_id, node_id, theme.panel_red, theme.panel_green, theme.panel_blue)
+    return kaintana_apply_ink_color(session_id, node_id, theme.ink_red, theme.ink_green, theme.ink_blue)
+
+pub fn kaintana_apply_accent_theme(session_id: Int, node_id: Int, theme: KaintanaTheme) -> Int:
+    let _fill = kaintana_apply_fill_color(session_id, node_id, theme.accent_red, theme.accent_green, theme.accent_blue)
+    return kaintana_apply_ink_color(session_id, node_id, theme.shell_red, theme.shell_green, theme.shell_blue)
+
+pub fn kaintana_apply_signal_theme(session_id: Int, node_id: Int, theme: KaintanaTheme) -> Int:
+    let _fill = kaintana_apply_fill_color(session_id, node_id, theme.signal_red, theme.signal_green, theme.signal_blue)
+    return kaintana_apply_ink_color(session_id, node_id, theme.shell_red, theme.shell_green, theme.shell_blue)
+
+pub fn kaintana_apply_text_theme(session_id: Int, node_id: Int, theme: KaintanaTheme) -> Int:
+    return kaintana_apply_ink_color(session_id, node_id, theme.ink_red, theme.ink_green, theme.ink_blue)
+
+pub fn kaintana_apply_muted_text_theme(session_id: Int, node_id: Int, theme: KaintanaTheme) -> Int:
+    return kaintana_apply_ink_color(session_id, node_id, theme.muted_red, theme.muted_green, theme.muted_blue)
+
+pub fn kaintana_retained_region(session_id: Int, parent_id: Int, stable_key: String, role_label: String, rect: KaintanaRect, theme: KaintanaTheme) -> Int:
+    let node = kaintana_panel_node(session_id, parent_id, "kaintana.retained.region", stable_key, role_label, rect)
+    let _theme = kaintana_apply_panel_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _desktop = kaintana_desktop_fill(rect, theme.panel_red, theme.panel_green, theme.panel_blue, 255)
+    return node
+
+pub fn kaintana_retained_surface(session_id: Int, parent_id: Int, stable_key: String, surface_kind: String, caption: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = ui_reconcile_stateful_node(session_id, parent_id, "kaintana.retained.surface", stable_key, surface_kind, caption, rect.x, rect.y, rect.width, rect.height)
+    let _theme = kaintana_apply_panel_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, caption, rect.x + 16.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.panel_red, theme.panel_green, theme.panel_blue, 255)
+    let _desktop_text = kaintana_desktop_text(caption, rect.x + 16.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    return node
+
+pub fn kaintana_retained_label(session_id: Int, parent_id: Int, stable_key: String, text: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_text_node(session_id, parent_id, "kaintana.retained.label", stable_key, text, text, rect)
+    let _theme = kaintana_apply_text_theme(session_id, node, theme)
+    let _text = ui_render_text_value(session_id, node, font_resource_id, text, rect.x, rect.y + baseline_y, "ink")
+    let _desktop = kaintana_desktop_text(text, rect.x, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    return node
+
+pub fn kaintana_retained_muted_label(session_id: Int, parent_id: Int, stable_key: String, text: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_text_node(session_id, parent_id, "kaintana.retained.muted", stable_key, text, text, rect)
+    let _theme = kaintana_apply_muted_text_theme(session_id, node, theme)
+    let _text = ui_render_text_value(session_id, node, font_resource_id, text, rect.x, rect.y + baseline_y, "ink")
+    let _desktop = kaintana_desktop_text(text, rect.x, rect.y + baseline_y, theme.muted_red, theme.muted_green, theme.muted_blue, 255)
+    return node
+
+pub fn kaintana_retained_action(session_id: Int, parent_id: Int, stable_key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_focusable_node(session_id, parent_id, "kaintana.retained.action", stable_key, label, label, rect)
+    let _theme = kaintana_apply_accent_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.accent_red, theme.accent_green, theme.accent_blue, 255)
+    let _desktop_text = kaintana_desktop_text(label, rect.x + 16.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    return node
+
+pub fn kaintana_immediate_panel(session_id: Int, parent_id: Int, stable_key: String, caption: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_panel_node(session_id, parent_id, "kaintana.immediate.panel", stable_key, caption, rect)
+    let _theme = kaintana_apply_shell_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, caption, rect.x + 16.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    let _desktop_text = kaintana_desktop_text(caption, rect.x + 16.0, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    return node
+
+pub fn kaintana_immediate_badge(session_id: Int, parent_id: Int, stable_key: String, caption: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_panel_node(session_id, parent_id, "kaintana.immediate.badge", stable_key, caption, rect)
+    let _theme = kaintana_apply_signal_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, caption, rect.x + 12.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.signal_red, theme.signal_green, theme.signal_blue, 255)
+    let _desktop_text = kaintana_desktop_text(caption, rect.x + 12.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    return node
+
+pub fn kaintana_immediate_button(session_id: Int, parent_id: Int, stable_key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let node = kaintana_focusable_node(session_id, parent_id, "kaintana.immediate.button", stable_key, label, label, rect)
+    let _theme = kaintana_apply_accent_theme(session_id, node, theme)
+    let _box = ui_render_box(session_id, node, "fill")
+    let _text = ui_render_text_value(session_id, node, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink")
+    let _desktop_fill = kaintana_desktop_fill(rect, theme.accent_red, theme.accent_green, theme.accent_blue, 255)
+    let _desktop_text = kaintana_desktop_text(label, rect.x + 16.0, rect.y + baseline_y, theme.shell_red, theme.shell_green, theme.shell_blue, 255)
+    return node
+
+pub fn kaintana_immediate_metric(session_id: Int, parent_id: Int, stable_key: String, label: String, value: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let metric_text = label + " // " + value
+    let node = kaintana_text_node(session_id, parent_id, "kaintana.immediate.metric", stable_key, metric_text, metric_text, rect)
+    let _theme = kaintana_apply_text_theme(session_id, node, theme)
+    let _text = ui_render_text_value(session_id, node, font_resource_id, metric_text, rect.x, rect.y + baseline_y, "ink")
+    let _desktop = kaintana_desktop_text(metric_text, rect.x, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
+    return node
+
+pub fn kaintana_click_node(session_id: Int, node_id: Int) -> Int:
+    let center_x = native_ui_node_x(session_id, node_id) + (native_ui_node_width(session_id, node_id) * 0.5)
+    let center_y = native_ui_node_y(session_id, node_id) + (native_ui_node_height(session_id, node_id) * 0.5)
+    let _down = native_ui_push_event(session_id, "pointer.down", node_id, center_x, center_y, 0, "primary")
+    return native_ui_push_event(session_id, "pointer.up", node_id, center_x, center_y, 0, "primary")
+
+pub fn kaintana_button_activated(session_id: Int, node_id: Int) -> Int:
+    if ui_event_targets(session_id, node_id) == 1:
+        let _hover = ui_apply_hover_flag(session_id, node_id, native_ui_event_x(session_id), native_ui_event_y(session_id))
+        let _pressed = ui_apply_pressed_flag_from_event(session_id, node_id)
+        if ui_event_kind_is(session_id, "pointer.up") == 1:
+            return 1
+    return 0
+
+pub fn kaintana_frame_report_text(session_id: Int, spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String) -> String:
+    var output = "framework=kaintana\n"
+    output = output + "headline=" + headline + "\n"
+    output = output + "theme=" + theme.name + "\n"
+    output = output + "backend=" + spec.backend_id + "\n"
+    output = output + "passive_backend=" + native_ui_host_backend(session_id) + "\n"
+    output = output + "frame_index=" + str(native_ui_frame_index(session_id)) + "\n"
+    output = output + "host_hash=" + str(native_ui_host_frame_hash(session_id)) + "\n"
+    output = output + "node_count=" + str(native_ui_node_count(session_id)) + "\n"
+    output = output + "draw_count=" + str(native_ui_draw_command_count(session_id)) + "\n"
+    output = output + "dirty_count=" + str(native_ui_dirty_count(session_id)) + "\n"
+    output = output + "hot_reload_generation=" + str(kaintana_hot_reload_generation(session_id)) + "\n"
+    output = output + "hot_reload_key=" + kaintana_hot_reload_key(session_id) + "\n"
+    output = output + "entangle_registered=" + str(native_entangle_registered_count()) + "\n"
+    output = output + "entangle_propagations=" + str(native_entangle_propagation_count()) + "\n"
+    return output
+
+pub fn kaintana_write_frame_report(session_id: Int, spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String) -> String:
+    write_file(spec.frame_report_path, kaintana_frame_report_text(session_id, spec, theme, headline))
+    return spec.frame_report_path
+
+pub fn kaintana_host_frames_presented(spec: KaintanaWindowSpec) -> Int:
+    if spec.backend_id == kaintana_backend_vulkan():
+        return vulkain_frames_presented()
+    return kaintana_native_desktop_frames_presented()
+
+pub fn kaintana_host_geometry_count(spec: KaintanaWindowSpec) -> Int:
+    if spec.backend_id == kaintana_backend_vulkan():
+        return vulkain_vertices_drawn()
+    return kaintana_native_desktop_command_count()
+
+pub fn kaintana_host_run_window(spec: KaintanaWindowSpec) -> Int:
+    if spec.backend_id == kaintana_backend_vulkan():
+        return vulkain_run_window(spec.title, spec.width, spec.height, spec.frame_budget, spec.clear_red, spec.clear_green, spec.clear_blue, spec.accent_red, spec.accent_green, spec.accent_blue, spec.vertex_shader_path, spec.fragment_shader_path)
+    return kaintana_native_desktop_run_window(spec.frame_budget)
+
+pub fn kaintana_host_write_report(spec: KaintanaWindowSpec) -> Int:
+    if spec.backend_id == kaintana_backend_vulkan():
+        return vulkain_write_report(spec.host_report_path)
+    return kaintana_native_desktop_write_report(spec.host_report_path)
+
+pub fn kaintana_host_write_screenshot(spec: KaintanaWindowSpec) -> Int:
+    if spec.backend_id == kaintana_backend_vulkan():
+        return 0
+    return kaintana_desktop_scene_write_bmp(spec.screenshot_path)

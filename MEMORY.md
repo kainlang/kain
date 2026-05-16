@@ -1,5 +1,34 @@
 # Kain Memory
 
+# 2026-05-15 - Kaintana is now a real blade-owned UI framework package with desktop and Vulkan acceptance proofs
+
+The all-in-one UI framework idea is real now, and it landed in the right layer: not as new runtime-owned UI architecture, but as a blade-owned Kain package that sits above the passive raw UI ABI. The important design win is that `kaintana` owns the authored UI surface, themes, layout vocabulary, session helpers, and host routing, while `runtime/native` stays the generic substrate.
+
+What changed:
+
+- Added `blades/kaintana/` as the framework package. `src/kaintana.kn` now exports the first public Kaintana surface: `KaintanaWindowSpec`, theme packs (`solar-broadcast`, `marine-terminal`, `kawaii-voltage`), rect/split/row/column helpers, passive session/hot-reload wrappers over `stdlib/native/ui.kn`, immediate helpers (`panel`, `badge`, `button`, `metric`), retained helpers (`region`, `surface`, `label`), and backend-neutral host helpers that route to either the blade-local desktop host or the reusable `vulkain` lane.
+- Added the blade-owned desktop compatibility host in `blades/kaintana/native/kaintana_desktop_bridge.c` plus `build-desktop.ps1`. It is intentionally small and compatibility-scoped: Win32/GDI only, a fixed command buffer of rect/text operations, screenshot/report support, and zero runtime ownership creep.
+- Added `blades/kaintana-test/` as the acceptance blade. `src/main.kn` is the desktop workbench proof, and `entrypoints/vulkan.kn` is the foreign-presenter Vulkan proof. Both are full Kain apps that drive `world`, `entangle`, `patch`, `law`, `converge`, and `orchestrate` while calling into the Kaintana package for UI authoring.
+- `blades/kaintana-test/run.ps1` now truthfully compiles the selected entrypoint for `desktop`, `vulkan`, or `all` instead of writing a fake runtime-config file that the app never consumed. The proof artifacts now land under `.kain/run/` as `kaintana_test_desktop.bmp`, `kaintana_test_desktop_frame.txt`, `kaintana_test_desktop_host.txt`, `kaintana_test_vulkan_frame.txt`, and `kaintana_test_vulkan_host.txt`.
+- Fixed `kaintana_frame_report_text(...)` in `blades/kaintana/src/kaintana.kn`. The first attempt wrote pointer-looking garbage because the old array/loop string builder shape did not serialize the way it looked in source. The current sequential append form writes stable textual telemetry.
+- The desktop acceptance artifact is visually real and readable: the screenshot shows the intended solar-broadcast workbench shell with a left rail, hero surface, telemetry lane, and command lane instead of a placeholder or a runtime-owned canned panel kit.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File D:\Kain-Lang\blades\kaintana\run.ps1 -NoRun`
+- `powershell -ExecutionPolicy Bypass -File D:\Kain-Lang\blades\kaintana-test\run.ps1 -Backend desktop`
+- `powershell -ExecutionPolicy Bypass -File D:\Kain-Lang\blades\kaintana-test\run.ps1 -Backend vulkan`
+- `mcp__z3_local__.check_smt2(report_name="kaintana-desktop-command-capacity", ...)` -> `unsat`, report `z3/reports/20260516T015051Z-kaintana-desktop-command-capacity.json`
+- `mcp__z3_local__.check_smt2(report_name="kaintana-layout-split-partition", ...)` -> `unsat`, report `z3/reports/20260516T015051Z-kaintana-layout-split-partition.json`
+- `samply --help` again confirmed the current Windows limitation: recording is Linux/macOS-only here, and Windows can only load existing profiles.
+
+Durable lessons:
+
+- Kaintana should keep proving the architecture rule, not breaking it: runtime UI stays passive, while actual presenters and framework vocabulary live in blades.
+- `use c::...` imports are still resolved from the consuming blade's local `[[c_ffi.libraries]]` entries. Wrapping a native bridge in a library blade does not make the bridge declaration transitive yet, so consumer blades must repeat those `c_ffi` manifest entries.
+- Imported local Kain modules that contain `world` / `entangle` declarations currently double-stage those bindings during native LLVM artifact staging. The symptom is `entangle endpoint '...' participates in more than one binding`. Until that compiler behavior is fixed, keep Kaintana showcase entrypoints self-contained and only share plain helper modules across files.
+- The current Vulkan proof is honest but intentionally narrow: it proves Kaintana can drive the same high-level app contract into a foreign presenter lane (`vulkain`) without runtime changes. It does not yet translate the full authored Kaintana scene graph into Vulkan draw commands.
+
 # 2026-05-15 - `blades/pong` is now a real visual state-lattice demo, and LLVM learned the scalar constructor/direct-call coercions it needed to compile it
 
 The fresh `blades/pong` workspace turned into a good dogfood task because it hit two real truths at once: the authored Kain state lattice was worth keeping, but the current native UI host adapter is passive-only, and the LLVM backend still had a scalar-constructor/direct-call coercion gap that a new blade exposed immediately.
