@@ -650,12 +650,27 @@ impl LlvmGenerator {
             .unwrap_or(false)
     }
 
+    fn current_scope_elides_ephemeral_zero_init(&self, name: &str) -> bool {
+        self.ephemeral_zero_init_elision_scopes
+            .last()
+            .map(|candidates| candidates.contains(name))
+            .unwrap_or(false)
+    }
+
     fn current_known_i64_literals(&self) -> HashMap<String, i64> {
         let mut merged = HashMap::new();
         for scope in &self.known_i64_literal_scopes {
             for (name, literal) in scope {
                 merged.insert(name.clone(), *literal);
             }
+        }
+        merged
+    }
+
+    fn current_known_llvm_types(&self) -> HashMap<String, String> {
+        let mut merged = HashMap::new();
+        for (name, (_, ty)) in &self.locals {
+            merged.insert(name.clone(), ty.clone());
         }
         merged
     }
@@ -671,6 +686,21 @@ impl LlvmGenerator {
                 Some((stride, zeroed))
             }
             _ => None,
+        }
+    }
+
+    fn helper_alloc_is_single_cell(expr: &Expr, known_i64_bindings: &HashMap<String, i64>) -> bool {
+        match expr {
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_alloc")
+                    && args.len() == 3 =>
+            {
+                matches!(
+                    Self::resolve_i64_literal(&args[0].value, known_i64_bindings),
+                    Some(1)
+                ) && Self::resolve_zeroed_literal(&args[2].value, known_i64_bindings).is_some()
+            }
+            _ => false,
         }
     }
 
@@ -753,6 +783,223 @@ impl LlvmGenerator {
                 scope.insert(name, literal);
             }
         }
+    }
+
+    fn obvious_llvm_type_byte_width(llvm_ty: &str) -> Option<i64> {
+        match llvm_ty {
+            "i1" | "i8" => Some(1),
+            "i32" => Some(4),
+            "i64" | "double" => Some(8),
+            ty if ty.ends_with('*') => Some(8),
+            _ => None,
+        }
+    }
+
+    fn expr_obvious_llvm_ty(
+        &self,
+        expr: &Expr,
+        known_llvm_types: &HashMap<String, String>,
+    ) -> Option<String> {
+        match expr {
+            Expr::Int(_, _) => Some("i64".to_string()),
+            Expr::Float(_, _) => Some("double".to_string()),
+            Expr::Bool(_, _) => Some("i1".to_string()),
+            Expr::String(_, _) => Some("i8*".to_string()),
+            Expr::Ident(name, _) => known_llvm_types.get(name).cloned(),
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Try(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Comptime(inner, _)
+            | Expr::Ref { value: inner, .. }
+            | Expr::AddrOf { value: inner, .. }
+            | Expr::Cast { value: inner, .. } => self.expr_obvious_llvm_ty(inner, known_llvm_types),
+            Expr::Unary { operand, .. } => self.expr_obvious_llvm_ty(operand, known_llvm_types),
+            Expr::Binary { left, right, .. } => {
+                let left_ty = self.expr_obvious_llvm_ty(left, known_llvm_types);
+                let right_ty = self.expr_obvious_llvm_ty(right, known_llvm_types);
+                match (left_ty.as_deref(), right_ty.as_deref()) {
+                    (Some("double"), _) | (_, Some("double")) => Some("double".to_string()),
+                    (Some(left), Some(right)) if left == right => Some(left.to_string()),
+                    (Some("i64"), Some("i1")) | (Some("i1"), Some("i64")) => {
+                        Some("i64".to_string())
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn stmt_binds_obvious_llvm_ty(
+        &self,
+        stmt: &Stmt,
+        known_llvm_types: &HashMap<String, String>,
+    ) -> Option<(String, String)> {
+        match stmt {
+            Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                ty: Some(declared_ty),
+                ..
+            } => Some((name.clone(), self.map_type_from_ast(declared_ty))),
+            Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(value),
+                ..
+            } => self
+                .expr_obvious_llvm_ty(value, known_llvm_types)
+                .map(|ty| (name.clone(), ty)),
+            _ => None,
+        }
+    }
+
+    fn expr_is_full_width_initial_store_on_target(
+        &self,
+        expr: &Expr,
+        target: &str,
+        storage_byte_len: i64,
+        known_llvm_types: &HashMap<String, String>,
+    ) -> bool {
+        match expr {
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_store")
+                    && args.len() == 2
+                    && Self::expr_is_exact_target_pointer(&args[0].value, target) =>
+            {
+                self.expr_obvious_llvm_ty(&args[1].value, known_llvm_types)
+                    .as_deref()
+                    .and_then(Self::obvious_llvm_type_byte_width)
+                    .map(|width| width == storage_byte_len)
+                    .unwrap_or(false)
+            }
+            Expr::MemStore { pointer, value, .. }
+                if Self::expr_is_exact_target_pointer(pointer, target) =>
+            {
+                self.expr_obvious_llvm_ty(value, known_llvm_types)
+                    .as_deref()
+                    .and_then(Self::obvious_llvm_type_byte_width)
+                    .map(|width| width == storage_byte_len)
+                    .unwrap_or(false)
+            }
+            _ => false,
+        }
+    }
+
+    fn stmt_is_full_width_initial_store_on_target(
+        &self,
+        stmt: &Stmt,
+        target: &str,
+        storage_byte_len: i64,
+        known_llvm_types: &HashMap<String, String>,
+    ) -> bool {
+        match stmt {
+            Stmt::Expr(expr) => self.expr_is_full_width_initial_store_on_target(
+                expr,
+                target,
+                storage_byte_len,
+                known_llvm_types,
+            ),
+            _ => false,
+        }
+    }
+
+    fn collapse_body_begins_with_full_width_store(
+        &self,
+        body: &Expr,
+        target: &str,
+        storage_byte_len: i64,
+        known_llvm_types: &HashMap<String, String>,
+    ) -> bool {
+        match body {
+            Expr::Block(block, _) => block
+                .stmts
+                .first()
+                .map(|stmt| {
+                    self.stmt_is_full_width_initial_store_on_target(
+                        stmt,
+                        target,
+                        storage_byte_len,
+                        known_llvm_types,
+                    )
+                })
+                .unwrap_or(false),
+            _ => self.expr_is_full_width_initial_store_on_target(
+                body,
+                target,
+                storage_byte_len,
+                known_llvm_types,
+            ),
+        }
+    }
+
+    fn remaining_statements_allow_ephemeral_zero_init_elision(
+        &self,
+        stmts: &[Stmt],
+        target: &str,
+        storage_byte_len: i64,
+        known_llvm_types: &HashMap<String, String>,
+    ) -> bool {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Expr(Expr::Collapse {
+                    target: ownership_target,
+                    body,
+                    ..
+                }) if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    return self.collapse_body_begins_with_full_width_store(
+                        body,
+                        target,
+                        storage_byte_len,
+                        known_llvm_types,
+                    );
+                }
+                Stmt::Let {
+                    value:
+                        Some(Expr::Collapse {
+                            target: ownership_target,
+                            body,
+                            ..
+                        }),
+                    ..
+                } if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    return self.collapse_body_begins_with_full_width_store(
+                        body,
+                        target,
+                        storage_byte_len,
+                        known_llvm_types,
+                    );
+                }
+                Stmt::Expr(Expr::Observe {
+                    target: ownership_target,
+                    ..
+                }) if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    return false;
+                }
+                Stmt::Let {
+                    value:
+                        Some(Expr::Observe {
+                            target: ownership_target,
+                            ..
+                        }),
+                    ..
+                } if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    return false;
+                }
+                Stmt::Expr(Expr::Decay {
+                    target: decay_target,
+                    ..
+                }) if Self::expr_is_exact_target_pointer(decay_target, target) => {
+                    return false;
+                }
+                _ => {
+                    if Self::debug_mentions_identifier(stmt, target) {
+                        return false;
+                    }
+                }
+            }
+        }
+        false
     }
 
     fn expr_is_safe_for_ephemeral_local(expr: &Expr, target: &str) -> bool {
@@ -1074,19 +1321,8 @@ impl LlvmGenerator {
                 ..
             } = stmt
             {
-                let is_single_cell_helper_alloc = match value {
-                    Expr::Call { callee, args, .. }
-                        if matches!(callee.as_ref(), Expr::Ident(callee_name, _) if callee_name == "__kain_alloc")
-                            && args.len() == 3 =>
-                    {
-                        matches!(
-                            Self::resolve_i64_literal(&args[0].value, &known_i64_bindings),
-                            Some(1)
-                        ) && Self::resolve_zeroed_literal(&args[2].value, &known_i64_bindings)
-                            .is_some()
-                    }
-                    _ => false,
-                };
+                let is_single_cell_helper_alloc =
+                    Self::helper_alloc_is_single_cell(value, &known_i64_bindings);
                 if is_single_cell_helper_alloc
                     && Self::remaining_statements_preserve_ephemeral_contract(
                         &block.stmts[index + 1..],
@@ -1099,6 +1335,55 @@ impl LlvmGenerator {
 
             if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {
                 known_i64_bindings.insert(name, literal);
+            }
+        }
+
+        candidates
+    }
+
+    fn collect_block_ephemeral_zero_init_elision_names(
+        &self,
+        block: &Block,
+        inherited_known_i64_bindings: &HashMap<String, i64>,
+        inherited_known_llvm_types: &HashMap<String, String>,
+    ) -> HashSet<String> {
+        let mut candidates = HashSet::new();
+        let mut known_i64_bindings = inherited_known_i64_bindings.clone();
+        let mut known_llvm_types = inherited_known_llvm_types.clone();
+
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            if let Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                ty: Some(_),
+                value: Some(value),
+                ..
+            } = stmt
+            {
+                if let Some((storage_byte_len, zeroed)) = Self::helper_alloc_storage_layout(value) {
+                    if zeroed
+                        && Self::helper_alloc_is_single_cell(value, &known_i64_bindings)
+                        && Self::remaining_statements_preserve_ephemeral_contract(
+                            &block.stmts[index + 1..],
+                            name,
+                        )
+                        && self.remaining_statements_allow_ephemeral_zero_init_elision(
+                            &block.stmts[index + 1..],
+                            name,
+                            storage_byte_len,
+                            &known_llvm_types,
+                        )
+                    {
+                        candidates.insert(name.clone());
+                    }
+                }
+            }
+
+            if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {
+                known_i64_bindings.insert(name, literal);
+            }
+            if let Some((name, llvm_ty)) = self.stmt_binds_obvious_llvm_ty(stmt, &known_llvm_types)
+            {
+                known_llvm_types.insert(name, llvm_ty);
             }
         }
 
@@ -5418,15 +5703,24 @@ impl LlvmGenerator {
     fn compile_block(&mut self, block: &Block) -> KainResult<()> {
         self.scopes.push(Vec::new());
         let inherited_known_i64_bindings = self.current_known_i64_literals();
+        let inherited_known_llvm_types = self.current_known_llvm_types();
         self.ephemeral_candidate_scopes
             .push(Self::collect_block_ephemeral_candidate_names(
                 block,
                 &inherited_known_i64_bindings,
             ));
+        self.ephemeral_zero_init_elision_scopes.push(
+            self.collect_block_ephemeral_zero_init_elision_names(
+                block,
+                &inherited_known_i64_bindings,
+                &inherited_known_llvm_types,
+            ),
+        );
         self.known_i64_literal_scopes.push(HashMap::new());
         for stmt in &block.stmts {
             if let Err(err) = self.compile_stmt(stmt) {
                 self.known_i64_literal_scopes.pop();
+                self.ephemeral_zero_init_elision_scopes.pop();
                 self.ephemeral_candidate_scopes.pop();
                 return Err(err);
             }
@@ -5434,6 +5728,7 @@ impl LlvmGenerator {
         }
         self.emit_scope_exit();
         self.known_i64_literal_scopes.pop();
+        self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
         Ok(())
     }
@@ -5441,11 +5736,19 @@ impl LlvmGenerator {
     fn compile_block_with_result(&mut self, block: &Block) -> KainResult<Option<(String, String)>> {
         self.scopes.push(Vec::new());
         let inherited_known_i64_bindings = self.current_known_i64_literals();
+        let inherited_known_llvm_types = self.current_known_llvm_types();
         self.ephemeral_candidate_scopes
             .push(Self::collect_block_ephemeral_candidate_names(
                 block,
                 &inherited_known_i64_bindings,
             ));
+        self.ephemeral_zero_init_elision_scopes.push(
+            self.collect_block_ephemeral_zero_init_elision_names(
+                block,
+                &inherited_known_i64_bindings,
+                &inherited_known_llvm_types,
+            ),
+        );
         self.known_i64_literal_scopes.push(HashMap::new());
         let mut last_res = None;
         let mut last_is_new = false;
@@ -5460,6 +5763,7 @@ impl LlvmGenerator {
                 } else {
                     if let Err(err) = self.compile_stmt(stmt) {
                         self.known_i64_literal_scopes.pop();
+                        self.ephemeral_zero_init_elision_scopes.pop();
                         self.ephemeral_candidate_scopes.pop();
                         return Err(err);
                     }
@@ -5468,6 +5772,7 @@ impl LlvmGenerator {
             } else {
                 if let Err(err) = self.compile_stmt(stmt) {
                     self.known_i64_literal_scopes.pop();
+                    self.ephemeral_zero_init_elision_scopes.pop();
                     self.ephemeral_candidate_scopes.pop();
                     return Err(err);
                 }
@@ -5487,6 +5792,7 @@ impl LlvmGenerator {
 
         self.emit_scope_exit();
         self.known_i64_literal_scopes.pop();
+        self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
         Ok(last_res)
     }
@@ -5646,6 +5952,8 @@ impl LlvmGenerator {
                             if let Some((storage_byte_len, zeroed)) =
                                 Self::helper_alloc_storage_layout(val_expr)
                             {
+                                let emit_initial_zero =
+                                    zeroed && !self.current_scope_elides_ephemeral_zero_init(name);
                                 let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                                 self.reg_count += 1;
                                 self.emit_entry_alloca(&addr_reg, "i64");
@@ -5653,7 +5961,7 @@ impl LlvmGenerator {
                                 let storage_array_ty = format!("[{} x i8]", storage_byte_len);
                                 let storage_reg = self.next_reg();
                                 self.emit_entry_alloca(&storage_reg, &storage_array_ty);
-                                if zeroed {
+                                if emit_initial_zero {
                                     self.emit(&format!(
                                         "  store {} {}, {}* {}, align 1",
                                         storage_array_ty,
@@ -5982,6 +6290,21 @@ impl LlvmGenerator {
         func_name: &str,
         args: &[kain_core::ast::CallArg],
     ) -> KainResult<(String, String)> {
+        if args.len() == 1 {
+            let constructor_target_ty = match func_name {
+                "Int" | "i64" => Some("i64"),
+                "i32" => Some("i32"),
+                "i8" => Some("i8"),
+                "Float" | "f64" | "double" => Some("double"),
+                "Bool" | "bool" => Some("i1"),
+                _ => None,
+            };
+            if let Some(target_ty) = constructor_target_ty {
+                let (value, value_ty) = self.compile_expr(&args[0].value)?;
+                return self.coerce_compiled_value_to_target_type(value, &value_ty, target_ty);
+            }
+        }
+
         if func_name == "len" && args.len() == 1 {
             if let Some(length_value) = self.compile_string_length_value(&args[0].value)? {
                 return Ok((length_value, "i64".to_string()));
@@ -6010,7 +6333,15 @@ impl LlvmGenerator {
                 continue;
             }
 
-            let (val, ty) = self.compile_expr(&arg.value)?;
+            let (mut val, mut ty) = self.compile_expr(&arg.value)?;
+
+            if matches!(param_ty.as_str(), "i64" | "i32" | "i8" | "i1" | "double")
+                && matches!(ty.as_str(), "i64" | "i32" | "i8" | "i1" | "double")
+                && ty != param_ty
+            {
+                val = self.cast_numeric_value(val, &ty, &param_ty)?;
+                ty = param_ty.clone();
+            }
 
             if !is_extern
                 && ty == "i8*"

@@ -426,6 +426,40 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_coerces_numeric_call_arguments_to_declared_param_types() {
+    let source = r#"
+fn takes_float(x: Float) -> Float:
+    return x
+
+fn main() -> Float:
+    return takes_float(7)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains("define double @takes_float(double %arg0)"));
+    assert!(llvm.contains("sitofp i64 7 to double"));
+    assert!(!llvm.contains("@Float("));
+}
+
+#[test]
+fn llvm_lowers_float_constructor_calls_as_numeric_casts() {
+    let source = r#"
+fn main() -> Float:
+    return Float(7)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains("sitofp i64 7 to double"));
+    assert!(!llvm.contains("@Float("));
+}
+
+#[test]
 fn llvm_lowers_native_ui_host_services_without_component_catalog() {
     let source = r#"
 @extern
@@ -1260,6 +1294,7 @@ fn llvm_erases_ephemeral_single_cell_ownership_to_local_storage() {
     assert!(!llvm.contains("call i32 @__kain_ownership_end_collapse_helper(i8*"));
     assert!(!llvm.contains("call i32 @__kain_ownership_decay(i8*"));
     assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(!llvm.contains("store [8 x i8] zeroinitializer"));
     assert!(llvm.contains("alloca i64"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "ephemeral-ownership-erasure");
 }
@@ -1277,8 +1312,22 @@ fn llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage() {
     assert!(!llvm.contains("call i32 @__kain_ownership_begin_observe_helper(i8*"));
     assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
     assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(!llvm.contains("store [8 x i8] zeroinitializer"));
     assert!(llvm.contains("alloca [8 x i8]"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-ephemeral-ownership-erasure");
+}
+
+#[test]
+fn llvm_keeps_ephemeral_zero_init_when_first_use_is_read() {
+    let typed = typed_program_from_source(
+        "fn own_zero_init() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(1, \"Int\")\n    collapse cell:\n        let current = mem_load(cell, \"Int\")\n        mem_store(cell, current + 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("store [8 x i8] zeroinitializer"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "ephemeral-zero-init-retained");
 }
 
 #[test]

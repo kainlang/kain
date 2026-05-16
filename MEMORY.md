@@ -1,5 +1,78 @@
 # Kain Memory
 
+# 2026-05-15 - `blades/pong` is now a real visual state-lattice demo, and LLVM learned the scalar constructor/direct-call coercions it needed to compile it
+
+The fresh `blades/pong` workspace turned into a good dogfood task because it hit two real truths at once: the authored Kain state lattice was worth keeping, but the current native UI host adapter is passive-only, and the LLVM backend still had a scalar-constructor/direct-call coercion gap that a new blade exposed immediately.
+
+What changed:
+
+- Added the new blade workspace under `blades/pong/` with data-driven config in `config/pong_demo.json`, a Kain-authored `src/main.kn` that drives `world` / `entangle` / actor / `collapse` / `observe` state, layout/theme/helpers modules, and a blade-local run script that keeps all artifacts under `.kain/`.
+- Replaced the old false-negative entangle self-check in `blades/pong/src/main.kn` with runtime-backed evidence from `native_entangle_registered_count()` and `native_entangle_propagation_count()`. The report and the on-screen metric now reflect the runtime's actual registration/propagation surface instead of trusting a stale mirror snapshot.
+- Added a real blade-owned Win32/WGL presenter through `[c_ffi]`: `blades/pong/native/pong_window_bridge.h`, `blades/pong/native/pong_window_bridge.c`, `blades/pong/build-pong-window.ps1`, and the `KAIN.toml`/`run.ps1` wiring. The visible window, screenshot capture, and close semantics now come from that bridge, while the passive native-UI session remains in the blade as an authored state/report surface.
+- The presenter writes `blades/pong/.kain/run/pong.bmp` and `blades/pong/.kain/run/pong_window_report.txt`. The screenshot shows the intended vector-arcade board, swarm field, trail, side telemetry bars, and score pips.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now lowers scalar constructor/cast calls like `Float(...)`, `Int(...)`, and `Bool(...)` as real numeric coercions instead of inventing undeclared direct calls such as `@Float`. The same pass also coerces direct-call numeric arguments to the declared LLVM primitive param type when the callee expects a different scalar width/type.
+- Added LLVM regressions in `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`:
+  - `llvm_coerces_numeric_call_arguments_to_declared_param_types`
+  - `llvm_lowers_float_constructor_calls_as_numeric_casts`
+- Added real local Pong SMT artifacts under `blades/pong/z3/proofs-experimental/`:
+  - `pong-vertical-bounce-clamp.smt2`
+  - `pong-paddle-clamp.smt2`
+  - `pong-swarm-sample-grid.smt2`
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_coerces_numeric_call_arguments_to_declared_param_types -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_constructor_calls_as_numeric_casts -- --nocapture`
+- `powershell -ExecutionPolicy Bypass -Command "& 'D:\\Kain-Lang\\blades\\pong\\run.ps1'"`
+- `mcp__z3_local__.check_smt2(report_name="pong-vertical-bounce-clamp", ...)` -> `unsat`, report `z3/reports/20260516T011236Z-pong-vertical-bounce-clamp.json`
+- `mcp__z3_local__.check_smt2(report_name="pong-paddle-clamp", ...)` -> `unsat`, report `z3/reports/20260516T011236Z-pong-paddle-clamp.json`
+- `mcp__z3_local__.check_smt2(report_name="pong-swarm-sample-grid", ...)` -> `unsat`, report `z3/reports/20260516T011340Z-pong-swarm-sample-grid.json`
+- `samply --help` on this Windows host confirmed the current limitation: `samply record` is Linux/macOS-only here, and Windows can only load existing profiles.
+
+Durable lessons:
+
+- In this checkout, `ui_host_session_create(..., "software")` does not mean "real window." It means a passive session/draw-command recording lane. If a blade needs actual pixels or screenshot artifacts, it must bring a blade-owned presenter through `[c_ffi]` or another live host path.
+- `blades/pong` is now the small reference blade for that split: Kain owns the state lattice and proof/report logic, while a blade-local presenter owns the window.
+- If a new blade starts failing with undeclared scalar constructor calls (`@Float`, `@Int`) or mismatched primitive call signatures, do not patch the authored Kain around it first. Re-check `compile_direct_call` in the LLVM backend and the two Pong-driven regressions above.
+
+# 2026-05-15 - Ephemeral-local ownership cells now elide dead zero-fill when a full-width store dominates the first read
+
+The next LLVM ownership win landed cleanly: fresh zeroed helper cells that already qualify for the `EphemeralLocal` erasure lane no longer pay an entry `zeroinitializer` store when the compiler can prove the first ownership use is a full-width dominating write on the exact cell before any read. This keeps the earlier semantic contract honest: if the fresh zero state could still be observed, the zero-fill stays. If it provably cannot, the compiler stops doing it.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now tracks a second proof-backed nomination set beside the existing ephemeral-local candidate set: block-scoped names whose zero-fill is dead under the current statement order.
+- Added conservative type/width inference for obvious scalar LLVM lanes (`i1`, `i8`, `i32`, `i64`, `double`, and pointer-width values) so the backend can recognize full-width stores without pretending it understands arbitrary aggregate payloads.
+- Added a dominance-style source scan for the local block: the pass only elides zero-init when the first ownership touch on the target is a `collapse` whose body begins with a full-width `mem_store` / `__kain_mem_store` to the exact pointer, and the remainder of the block still satisfies the old fresh/non-escaping ownership contract.
+- `compile_stmt` now emits the ephemeral stack slot without `store [N x i8] zeroinitializer` when that proof-backed nomination succeeds. Read-before-write shapes stay on the earlier zeroed lane.
+- Added a retained-zero regression in `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`: `llvm_keeps_ephemeral_zero_init_when_first_use_is_read`.
+- Added new proofs:
+  - `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-zero-init-elides-under-dominating-full-width-store.yaml`
+  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-zero-init-dead-after-dominating-full-width-store.smt2`
+- Updated `.agents/skills/kain-ownership-system/SKILL.md`, `ARCHITECTURE.md`, and a new benchmark note so future LLVM work treats zero-init elision as part of the ephemeral-local ownership theorem, not as a benchmark-only hack.
+
+Validation:
+
+- `cargo fmt -p kain-sys-codegen`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_ephemeral_single_cell_ownership_to_local_storage -- --exact --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage -- --exact --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_keeps_ephemeral_zero_init_when_first_use_is_read -- --exact --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path -- --exact --nocapture`
+- `mcp__z3_local__.check_smt2(report_name="ownership-ephemeral-zero-init-dead-after-dominating-full-width-store", ...)` -> `unsat`, report `z3/reports/20260516T003258Z-ownership-ephemeral-zero-init-dead-after-dominating-full-width-store.json`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-ephemeral-zero-init-elision")` -> `19/19 proved`, report `crates/kain-sys-codegen/z3/reports/20260516T003258Z-llvm-ephemeral-zero-init-elision.json`
+- `python benchmark/run.py --case alloc_churn --languages kain,rust --runs 9 --warmups 2` -> report `benchmark/out/reports/20260516T003453Z.llm.md`
+
+Current benchmark reality:
+
+- `alloc_churn` improved again on the stable `9`-run / `2`-warmup lane: Kain moved from `13.767 ms` in `benchmark/out/reports/20260516T000619Z.llm.md` down to `12.718 ms` in `benchmark/out/reports/20260516T003453Z.llm.md`, while Rust measured `10.201 ms`.
+- Relative to the earlier corrected pre-erasure baseline `17.459 ms`, the combined ephemeral-local passes have now removed `4.741 ms` from Kain on this case, about a `27.2%` median reduction.
+- The generated hot loop in `benchmark/out/build/alloc_churn/kain/alloc_churn.ll` still shows the intended alien shape: `@main` uses stack-backed `[8 x i8]` storage at line `9601`, stores the computed value directly at line `9622`, loads it back at line `9625`, and no longer emits a `store [8 x i8] zeroinitializer` before the first write.
+
+Durable conclusion:
+
+- The ownership theorem surface just widened in a meaningful way. Kain is no longer only proving “this heap/runtime protocol can evaporate”; it is also proving “the fresh zero state itself is unobservable here, so the zero-fill can evaporate too.”
+- The remaining `alloc_churn` wall is now visibly scalar: stack traffic plus the per-iteration `% modulus` at `alloc_churn.ll:9631`. The next LLVM/Z3 frontier on this case should focus on register residency and a proof-backed modulo lowering rather than more ownership-runtime surgery.
+
 # 2026-05-15 - LLVM now carries an ephemeral-local ownership witness lane that erases fresh loop-local cells into stack byte storage
 
 The moonshot branch is real now: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` has a compiler-owned `EphemeralLocal` provenance lane for fresh single-cell helper allocations whose ownership trace never escapes the local block. This is the first production lowering where the right question stopped being “how do we make heap bookkeeping cheaper?” and became “was a physical heap object ever semantically required here at all?”

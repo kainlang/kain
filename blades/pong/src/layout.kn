@@ -1,0 +1,116 @@
+pub fn topbar_x() -> Float:
+    return 22.0
+
+pub fn topbar_y() -> Float:
+    return 22.0
+
+pub fn topbar_w(window_width: Int) -> Float:
+    return window_width - 44.0
+
+pub fn topbar_h() -> Float:
+    return 52.0
+
+pub fn board_x(window_width: Int, board_width: Int) -> Float:
+    return (window_width - board_width) * 0.5
+
+pub fn board_y() -> Float:
+    return 120.0
+
+pub fn board_w(board_width: Int) -> Float:
+    return board_width + 0.0
+
+pub fn board_h(board_height: Int) -> Float:
+    return board_height + 0.0
+
+pub fn left_panel_x() -> Float:
+    return 22.0
+
+pub fn left_panel_y() -> Float:
+    return 120.0
+
+pub fn left_panel_w(window_width: Int, board_width: Int) -> Float:
+    return board_x(window_width, board_width) - 40.0
+
+pub fn left_panel_h(window_height: Int) -> Float:
+    return window_height - 208.0
+
+pub fn right_panel_x(window_width: Int, board_width: Int) -> Float:
+    return board_x(window_width, board_width) + board_width + 18.0
+
+pub fn right_panel_y() -> Float:
+    return 120.0
+
+pub fn right_panel_w(window_width: Int, board_width: Int) -> Float:
+    return window_width - right_panel_x(window_width, board_width) - 22.0
+
+pub fn right_panel_h(window_height: Int) -> Float:
+    return window_height - 208.0
+
+pub fn status_x() -> Float:
+    return 22.0
+
+pub fn status_y(window_height: Int) -> Float:
+    return window_height - 72.0
+
+pub fn status_w(window_width: Int) -> Float:
+    return window_width - 44.0
+
+pub fn status_h() -> Float:
+    return 34.0
+
+pub fn left_panel_title_x() -> Float:
+    return 38.0
+
+pub fn left_panel_title_y() -> Float:
+    return 142.0
+
+pub fn right_panel_title_x(window_width: Int, board_width: Int) -> Float:
+    return right_panel_x(window_width, board_width) + 18.0
+
+pub fn right_panel_title_y() -> Float:
+    return 142.0
+
+pub fn button_x() -> Float:
+    return 38.0
+
+pub fn button_y(slot: Int) -> Float:
+    return 188.0 + (slot * 58.0)
+
+pub fn button_w(window_width: Int, board_width: Int) -> Float:
+    return left_panel_w(window_width, board_width) - 34.0
+
+pub fn button_h() -> Float:
+    return 42.0
+
+pub fn metric_x(window_width: Int, board_width: Int) -> Float:
+    return right_panel_x(window_width, board_width) + 18.0
+
+pub fn metric_y(slot: Int) -> Float:
+    return 188.0 + (slot * 44.0)
+
+pub fn metric_w(window_width: Int, board_width: Int) -> Float:
+    return right_panel_w(window_width, board_width) - 36.0
+
+pub fn metric_h() -> Float:
+    return 24.0
+
+pub fn board_caption_x(window_width: Int, board_width: Int) -> Float:
+    return board_x(window_width, board_width) + 30.0
+
+pub fn board_caption_y() -> Float:
+    return 140.0
+
+pub fn board_subtitle_x(window_width: Int, board_width: Int) -> Float:
+    return board_x(window_width, board_width) + 30.0
+
+pub fn board_subtitle_y() -> Float:
+    return 172.0
+
+pub fn board_score_left_x(window_width: Int, board_width: Int) -> Float:
+    return board_x(window_width, board_width) + (board_width * 0.28)
+
+pub fn board_score_right_x(window_width: Int, board_width: Int) -> Float:
+    return board_x(window_width, board_width) + (board_width * 0.64)
+
+pub fn board_score_y() -> Float:
+    return 156.0

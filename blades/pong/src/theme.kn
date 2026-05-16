@@ -1,0 +1,78 @@
+pub fn apply_shell_theme(session_id: Int, root_id: Int, topbar_id: Int, left_panel_id: Int, board_id: Int, right_panel_id: Int, status_id: Int, style_name: String) -> Int:
+    if style_name == "vector_arcade_oscilloscope":
+        let _root = ui_style_color_rgba(session_id, root_id, "fill", 0.015, 0.02, 0.025, 1.0)
+        let _topbar = ui_style_color_rgba(session_id, topbar_id, "fill", 0.045, 0.08, 0.07, 0.96)
+        let _left = ui_style_color_rgba(session_id, left_panel_id, "fill", 0.03, 0.05, 0.05, 0.98)
+        let _board = ui_style_color_rgba(session_id, board_id, "fill", 0.02, 0.03, 0.03, 1.0)
+        let _right = ui_style_color_rgba(session_id, right_panel_id, "fill", 0.03, 0.05, 0.05, 0.98)
+        return ui_style_color_rgba(session_id, status_id, "fill", 0.04, 0.08, 0.07, 0.98)
+    let _root = ui_style_color_rgba(session_id, root_id, "fill", 0.05, 0.05, 0.07, 1.0)
+    let _topbar = ui_style_color_rgba(session_id, topbar_id, "fill", 0.09, 0.09, 0.12, 0.96)
+    let _left = ui_style_color_rgba(session_id, left_panel_id, "fill", 0.08, 0.08, 0.11, 0.98)
+    let _board = ui_style_color_rgba(session_id, board_id, "fill", 0.04, 0.04, 0.06, 1.0)
+    let _right = ui_style_color_rgba(session_id, right_panel_id, "fill", 0.08, 0.08, 0.11, 0.98)
+    return ui_style_color_rgba(session_id, status_id, "fill", 0.09, 0.09, 0.12, 0.98)
+
+pub fn apply_title_text(session_id: Int, node_id: Int, style_name: String) -> Int:
+    if style_name == "vector_arcade_oscilloscope":
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.82, 1.0, 0.82, 1.0)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.98, 0.98, 0.98, 1.0)
+
+pub fn apply_dim_text(session_id: Int, node_id: Int, style_name: String) -> Int:
+    if style_name == "vector_arcade_oscilloscope":
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.52, 0.82, 0.72, 1.0)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.78, 0.82, 0.86, 1.0)
+
+pub fn apply_metric_text(session_id: Int, node_id: Int, style_name: String) -> Int:
+    if style_name == "vector_arcade_oscilloscope":
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.74, 0.95, 0.90, 1.0)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.90, 0.92, 0.96, 1.0)
+
+pub fn apply_status_text(session_id: Int, node_id: Int, style_name: String) -> Int:
+    if style_name == "vector_arcade_oscilloscope":
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.95, 0.97, 0.80, 1.0)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.96, 0.96, 0.96, 1.0)
+
+pub fn apply_action_theme(session_id: Int, node_id: Int, style_name: String, armed: Int) -> Int:
+    let hovered = native_ui_node_has_flag(session_id, node_id, "hovered")
+    let pressed = native_ui_node_has_flag(session_id, node_id, "pressed")
+    if style_name == "vector_arcade_oscilloscope":
+        if pressed == 1:
+            let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.80, 1.0, 0.72, 0.92)
+            return ui_style_color_rgba(session_id, node_id, "ink", 0.03, 0.05, 0.04, 1.0)
+        if hovered == 1:
+            let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.30, 0.72, 0.55, 0.82)
+            return ui_style_color_rgba(session_id, node_id, "ink", 0.95, 1.0, 0.95, 1.0)
+        if armed != 0:
+            let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.16, 0.42, 0.34, 0.82)
+            return ui_style_color_rgba(session_id, node_id, "ink", 0.84, 1.0, 0.88, 1.0)
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.08, 0.18, 0.16, 0.90)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.70, 0.95, 0.83, 1.0)
+    let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.16, 0.16, 0.20, 0.90)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.95, 0.95, 0.96, 1.0)
+
+pub fn apply_board_theme(session_id: Int, node_id: Int, style_name: String, chaos_mode: Int) -> Int:
+    if style_name == "vector_arcade_oscilloscope":
+        let _fill = ui_style_color_rgba(session_id, node_id, "pong.board", 0.01, 0.02, 0.02, 1.0)
+        let _grid = ui_style_color_rgba(session_id, node_id, "pong.grid", 0.08, 0.32, 0.22, 0.34)
+        let _net = ui_style_color_rgba(session_id, node_id, "pong.net", 0.70, 0.98, 0.82, 0.82)
+        let _trail = ui_style_color_rgba(session_id, node_id, "pong.trail", 0.40, 0.92, 0.78, 0.22)
+        let _left = ui_style_color_rgba(session_id, node_id, "pong.left_paddle", 0.65, 0.98, 0.88, 0.96)
+        let _right = ui_style_color_rgba(session_id, node_id, "pong.right_paddle", 1.0, 0.84, 0.38, 0.96)
+        let _ball = ui_style_color_rgba(session_id, node_id, "pong.ball", 0.95, 1.0, 0.88, 1.0)
+        let _swarm = ui_style_color_rgba(session_id, node_id, "pong.swarm", 0.18, 0.90, 0.78, 0.48)
+        if chaos_mode != 0:
+            let _swarm_hot = ui_style_color_rgba(session_id, node_id, "pong.swarm_hot", 1.0, 0.34, 0.20, 0.70)
+            return ui_style_color_rgba(session_id, node_id, "pong.border", 0.95, 0.38, 0.20, 0.88)
+        let _swarm_hot = ui_style_color_rgba(session_id, node_id, "pong.swarm_hot", 0.70, 1.0, 0.52, 0.68)
+        return ui_style_color_rgba(session_id, node_id, "pong.border", 0.42, 0.98, 0.80, 0.88)
+    let _board = ui_style_color_rgba(session_id, node_id, "pong.board", 0.04, 0.05, 0.07, 1.0)
+    let _grid = ui_style_color_rgba(session_id, node_id, "pong.grid", 0.20, 0.20, 0.24, 0.30)
+    let _net = ui_style_color_rgba(session_id, node_id, "pong.net", 0.90, 0.90, 0.94, 0.76)
+    let _trail = ui_style_color_rgba(session_id, node_id, "pong.trail", 0.70, 0.70, 0.80, 0.22)
+    let _left = ui_style_color_rgba(session_id, node_id, "pong.left_paddle", 0.90, 0.90, 0.94, 0.94)
+    let _right = ui_style_color_rgba(session_id, node_id, "pong.right_paddle", 0.90, 0.74, 0.46, 0.94)
+    let _ball = ui_style_color_rgba(session_id, node_id, "pong.ball", 0.98, 0.98, 0.98, 1.0)
+    let _swarm = ui_style_color_rgba(session_id, node_id, "pong.swarm", 0.60, 0.80, 0.92, 0.46)
+    let _swarm_hot = ui_style_color_rgba(session_id, node_id, "pong.swarm_hot", 0.96, 0.42, 0.28, 0.68)
+    return ui_style_color_rgba(session_id, node_id, "pong.border", 0.92, 0.92, 0.96, 0.88)

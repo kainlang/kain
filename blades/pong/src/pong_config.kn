@@ -1,0 +1,185 @@
+pub struct PongConfig:
+    app_name: String
+    window_title: String
+    style_name: String
+    window_width: Int
+    window_height: Int
+    board_width: Int
+    board_height: Int
+    frame_budget: Int
+    logical_swarm_count: Int
+    render_swarm_sample_count: Int
+    ball_size: Int
+    paddle_width: Int
+    paddle_height: Int
+    left_paddle_speed: Int
+    right_paddle_speed: Int
+    ball_speed_x: Int
+    ball_speed_y: Int
+    serve_delay_frames: Int
+    score_to_win: Int
+    left_bias: Int
+    right_bias: Int
+    show_scanlines: Bool
+    auto_demo: Bool
+
+fn starts_with_at(text: String, index: Int, needle: String) -> Bool:
+    if index < 0:
+        return false
+    if index + len(needle) > len(text):
+        return false
+    let offset = 0
+    while offset < len(needle):
+        if char_at(text, index + offset) != char_at(needle, offset):
+            return false
+        offset = offset + 1
+    return true
+
+fn find_substring(text: String, needle: String, start: Int) -> Int:
+    if len(needle) == 0:
+        return start
+    let index = start
+    while index + len(needle) <= len(text):
+        if starts_with_at(text, index, needle):
+            return index
+        index = index + 1
+    return -1
+
+fn is_digit_char(ch: String) -> Bool:
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+
+fn digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let sign = 1
+    let index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let value = 0
+    while index < len(text):
+        value = value * 10 + digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn skip_json_whitespace(text: String, start: Int) -> Int:
+    let index = start
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch != " " and ch != "\n" and ch != "\r" and ch != "\t":
+            return index
+        index = index + 1
+    return index
+
+fn find_json_value_start(text: String, key: String) -> Int:
+    let quoted_key = "\"" + key + "\""
+    let key_index = find_substring(text, quoted_key, 0)
+    if key_index < 0:
+        return -1
+    let cursor = key_index + len(quoted_key)
+    while cursor < len(text):
+        if char_at(text, cursor) == ":":
+            return skip_json_whitespace(text, cursor + 1)
+        cursor = cursor + 1
+    return -1
+
+fn pong_string_setting(text: String, key: String, default_value: String) -> String:
+    let value_index = find_json_value_start(text, key)
+    if value_index < 0 or value_index >= len(text):
+        return default_value
+    if char_at(text, value_index) != "\"":
+        return default_value
+    let cursor = value_index + 1
+    let value = ""
+    while cursor < len(text):
+        let ch = char_at(text, cursor)
+        if ch == "\"":
+            return value
+        value = value + ch
+        cursor = cursor + 1
+    return default_value
+
+fn pong_int_setting(text: String, key: String, default_value: Int) -> Int:
+    let value_index = find_json_value_start(text, key)
+    if value_index < 0 or value_index >= len(text):
+        return default_value
+    let cursor = value_index
+    if char_at(text, cursor) == "-":
+        cursor = cursor + 1
+    let end_index = cursor
+    while end_index < len(text) and is_digit_char(char_at(text, end_index)):
+        end_index = end_index + 1
+    if cursor == end_index:
+        return default_value
+    return parse_int_text(substring(text, value_index, end_index))
+
+fn pong_bool_setting(text: String, key: String, default_value: Bool) -> Bool:
+    let value_index = find_json_value_start(text, key)
+    if value_index < 0 or value_index >= len(text):
+        return default_value
+    if starts_with_at(text, value_index, "true"):
+        return true
+    if starts_with_at(text, value_index, "false"):
+        return false
+    return default_value
+
+pub fn pong_config_default_path() -> String:
+    return "config/pong_demo.json"
+
+pub fn pong_config_resolved_path() -> String:
+    let override_path = env("KAIN_PONG_CONFIG")
+    if len(override_path) > 0:
+        return override_path
+    return pong_config_default_path()
+
+pub fn load_pong_config() -> PongConfig:
+    let path = pong_config_resolved_path()
+    let raw_text = "{}"
+    if fs_exists(path):
+        raw_text = fs_read_text(path)
+    return PongConfig {
+        app_name: pong_string_setting(raw_text, "app_name", "pong-state-lattice"),
+        window_title: pong_string_setting(raw_text, "window_title", "Pong // Quantum State Lattice"),
+        style_name: pong_string_setting(raw_text, "style_name", "vector_arcade_oscilloscope"),
+        window_width: pong_int_setting(raw_text, "window_width", 1460),
+        window_height: pong_int_setting(raw_text, "window_height", 900),
+        board_width: pong_int_setting(raw_text, "board_width", 900),
+        board_height: pong_int_setting(raw_text, "board_height", 560),
+        frame_budget: pong_int_setting(raw_text, "frame_budget", 192),
+        logical_swarm_count: pong_int_setting(raw_text, "logical_swarm_count", 100000),
+        render_swarm_sample_count: pong_int_setting(raw_text, "render_swarm_sample_count", 192),
+        ball_size: pong_int_setting(raw_text, "ball_size", 14),
+        paddle_width: pong_int_setting(raw_text, "paddle_width", 18),
+        paddle_height: pong_int_setting(raw_text, "paddle_height", 104),
+        left_paddle_speed: pong_int_setting(raw_text, "left_paddle_speed", 8),
+        right_paddle_speed: pong_int_setting(raw_text, "right_paddle_speed", 7),
+        ball_speed_x: pong_int_setting(raw_text, "ball_speed_x", 7),
+        ball_speed_y: pong_int_setting(raw_text, "ball_speed_y", 5),
+        serve_delay_frames: pong_int_setting(raw_text, "serve_delay_frames", 8),
+        score_to_win: pong_int_setting(raw_text, "score_to_win", 9),
+        left_bias: pong_int_setting(raw_text, "left_bias", 0),
+        right_bias: pong_int_setting(raw_text, "right_bias", 14),
+        show_scanlines: pong_bool_setting(raw_text, "show_scanlines", true),
+        auto_demo: pong_bool_setting(raw_text, "auto_demo", true)
+    }

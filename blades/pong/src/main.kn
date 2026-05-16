@@ -1,0 +1,782 @@
+// style: *vector arcade oscilloscope*
+use c::pong_window_bridge
+use layout::board_caption_x
+use layout::board_caption_y
+use layout::board_h
+use layout::board_score_left_x
+use layout::board_score_right_x
+use layout::board_score_y
+use layout::board_subtitle_x
+use layout::board_subtitle_y
+use layout::board_w
+use layout::board_x
+use layout::board_y
+use layout::button_h
+use layout::button_w
+use layout::button_x
+use layout::button_y
+use layout::left_panel_h
+use layout::left_panel_title_x
+use layout::left_panel_title_y
+use layout::left_panel_w
+use layout::left_panel_x
+use layout::left_panel_y
+use layout::metric_h
+use layout::metric_w
+use layout::metric_x
+use layout::metric_y
+use layout::right_panel_h
+use layout::right_panel_title_x
+use layout::right_panel_title_y
+use layout::right_panel_w
+use layout::right_panel_x
+use layout::right_panel_y
+use layout::status_h
+use layout::status_w
+use layout::status_x
+use layout::status_y
+use layout::topbar_h
+use layout::topbar_w
+use layout::topbar_x
+use layout::topbar_y
+use pong_config::PongConfig
+use pong_config::load_pong_config
+use pong_config::pong_config_resolved_path
+use theme::apply_action_theme
+use theme::apply_board_theme
+use theme::apply_dim_text
+use theme::apply_metric_text
+use theme::apply_shell_theme
+use theme::apply_status_text
+use theme::apply_title_text
+use ui_helpers::bool_word
+use ui_helpers::button_activated
+use ui_helpers::click_node
+use ui_helpers::render_labeled_box
+use ui_helpers::render_text_row
+use ui_helpers::set_metric_int
+use ui_helpers::set_metric_text
+
+const GOAL_NONE: Int = 0
+const GOAL_LEFT: Int = 1
+const GOAL_RIGHT: Int = -1
+const PONG_ENTANGLE_FIELD_COUNT: Int = 18
+
+struct FrameState:
+    left_paddle_y: Int
+    right_paddle_y: Int
+    ball_x: Int
+    ball_y: Int
+    ball_dx: Int
+    ball_dy: Int
+    left_score: Int
+    right_score: Int
+    frame_clock: Int
+    logical_swarm_count: Int
+    render_swarm_sample_count: Int
+    collisions_total: Int
+    last_goal: Int
+    chaos_mode: Int
+    left_bias: Int
+    right_bias: Int
+    swarm_energy: Int
+    drift_total: Int
+
+component App():
+    render <panel title="Pong State Lattice" />
+
+world PongAuthority:
+    state left_paddle_y: Int = 228
+    state right_paddle_y: Int = 228
+    state ball_x: Int = 443
+    state ball_y: Int = 273
+    state ball_dx: Int = 7
+    state ball_dy: Int = 5
+    state left_score: Int = 0
+    state right_score: Int = 0
+    state frame_clock: Int = 0
+    state logical_swarm_count: Int = 100000
+    state render_swarm_sample_count: Int = 192
+    state collisions_total: Int = 0
+    state last_goal: Int = 0
+    state chaos_mode: Int = 0
+    state left_bias: Int = 0
+    state right_bias: Int = 14
+    state swarm_energy: Int = 100000
+    state drift_total: Int = 0
+    surface native_ui => App
+
+world PongMirror:
+    state mirrored_left_paddle_y: Int = 228
+    state mirrored_right_paddle_y: Int = 228
+    state mirrored_ball_x: Int = 443
+    state mirrored_ball_y: Int = 273
+    state mirrored_ball_dx: Int = 7
+    state mirrored_ball_dy: Int = 5
+    state mirrored_left_score: Int = 0
+    state mirrored_right_score: Int = 0
+    state mirrored_frame_clock: Int = 0
+    state mirrored_logical_swarm_count: Int = 100000
+    state mirrored_render_swarm_sample_count: Int = 192
+    state mirrored_collisions_total: Int = 0
+    state mirrored_last_goal: Int = 0
+    state mirrored_chaos_mode: Int = 0
+    state mirrored_left_bias: Int = 0
+    state mirrored_right_bias: Int = 14
+    state mirrored_swarm_energy: Int = 100000
+    state mirrored_drift_total: Int = 0
+    surface web => App
+
+entangle PongAuthority.left_paddle_y <-> PongMirror.mirrored_left_paddle_y with single_writer
+entangle PongAuthority.right_paddle_y <-> PongMirror.mirrored_right_paddle_y with single_writer
+entangle PongAuthority.ball_x <-> PongMirror.mirrored_ball_x with single_writer
+entangle PongAuthority.ball_y <-> PongMirror.mirrored_ball_y with single_writer
+entangle PongAuthority.ball_dx <-> PongMirror.mirrored_ball_dx with single_writer
+entangle PongAuthority.ball_dy <-> PongMirror.mirrored_ball_dy with single_writer
+entangle PongAuthority.left_score <-> PongMirror.mirrored_left_score with single_writer
+entangle PongAuthority.right_score <-> PongMirror.mirrored_right_score with single_writer
+entangle PongAuthority.frame_clock <-> PongMirror.mirrored_frame_clock with single_writer
+entangle PongAuthority.logical_swarm_count <-> PongMirror.mirrored_logical_swarm_count with single_writer
+entangle PongAuthority.render_swarm_sample_count <-> PongMirror.mirrored_render_swarm_sample_count with single_writer
+entangle PongAuthority.collisions_total <-> PongMirror.mirrored_collisions_total with single_writer
+entangle PongAuthority.last_goal <-> PongMirror.mirrored_last_goal with single_writer
+entangle PongAuthority.chaos_mode <-> PongMirror.mirrored_chaos_mode with single_writer
+entangle PongAuthority.left_bias <-> PongMirror.mirrored_left_bias with single_writer
+entangle PongAuthority.right_bias <-> PongMirror.mirrored_right_bias with single_writer
+entangle PongAuthority.swarm_energy <-> PongMirror.mirrored_swarm_energy with single_writer
+entangle PongAuthority.drift_total <-> PongMirror.mirrored_drift_total with single_writer
+
+actor InputWorker:
+    state pulses: Int = 0
+    state left_corrections: Int = 0
+    state right_corrections: Int = 0
+
+    on Drift(left_delta: Int, right_delta: Int):
+        self.pulses = self.pulses + 1
+        self.left_corrections = self.left_corrections + abs_int(left_delta)
+        self.right_corrections = self.right_corrections + abs_int(right_delta)
+
+    on Stop():
+        return
+
+actor PhysicsWorker:
+    state steps: Int = 0
+    state bounces: Int = 0
+    state goals: Int = 0
+
+    on Step(bounced: Int, goal_scored: Int):
+        self.steps = self.steps + 1
+        self.bounces = self.bounces + bounced
+        self.goals = self.goals + goal_scored
+
+    on Stop():
+        return
+
+actor RenderWorker:
+    state frames: Int = 0
+    state draw_calls: Int = 0
+
+    on Present(draw_count: Int):
+        self.frames = self.frames + 1
+        self.draw_calls = self.draw_calls + draw_count
+
+    on Stop():
+        return
+
+patch apply_frame(authority: PongAuthority, left_paddle_y: Int, right_paddle_y: Int, ball_x: Int, ball_y: Int, ball_dx: Int, ball_dy: Int, left_score: Int, right_score: Int, frame_clock: Int, logical_swarm_count: Int, render_swarm_sample_count: Int, collisions_total: Int, last_goal: Int, chaos_mode: Int, left_bias: Int, right_bias: Int, swarm_energy: Int, drift_total: Int) -> Int:
+    authority.left_paddle_y = left_paddle_y
+    authority.right_paddle_y = right_paddle_y
+    authority.ball_x = ball_x
+    authority.ball_y = ball_y
+    authority.ball_dx = ball_dx
+    authority.ball_dy = ball_dy
+    authority.left_score = left_score
+    authority.right_score = right_score
+    authority.frame_clock = frame_clock
+    authority.logical_swarm_count = logical_swarm_count
+    authority.render_swarm_sample_count = render_swarm_sample_count
+    authority.collisions_total = collisions_total
+    authority.last_goal = last_goal
+    authority.chaos_mode = chaos_mode
+    authority.left_bias = left_bias
+    authority.right_bias = right_bias
+    authority.swarm_energy = swarm_energy
+    authority.drift_total = drift_total
+    return authority.frame_clock
+
+law score_valid(value: Int) -> Bool:
+    return value >= 0 and value <= 99
+
+law sample_count_valid(value: Int) -> Bool:
+    return value >= 32 and value <= 512
+
+converge sample_budget(value: Int) -> Int:
+    spec reference:
+        if value < 32:
+            return 32
+        if value > 512:
+            return 512
+        return value
+    fast native_lane when capability("native.ui"):
+        if value < 32:
+            return 32
+        if value > 512:
+            return 512
+        return value
+    verify random(4)
+
+fn render_budget_bias(value: Int) -> Int:
+    return value + 3
+
+orchestrate lattice_budget_pipeline(value: Int) -> Int:
+    let budget: Int = kain sample_budget(value)
+    let biased: Int = rust render_budget_bias(budget)
+    return biased
+
+fn abs_int(value: Int) -> Int:
+    if value < 0:
+        return 0 - value
+    return value
+
+fn bool_int(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn clamp_int(value: Int, min_value: Int, max_value: Int) -> Int:
+    if value < min_value:
+        return min_value
+    if value > max_value:
+        return max_value
+    return value
+
+fn max_int(left: Int, right: Int) -> Int:
+    if left > right:
+        return left
+    return right
+
+fn min_int(left: Int, right: Int) -> Int:
+    if left < right:
+        return left
+    return right
+
+fn board_ball_max_x(board_width: Int, ball_size: Int) -> Int:
+    return board_width - ball_size
+
+fn board_ball_max_y(board_height: Int, ball_size: Int) -> Int:
+    return board_height - ball_size
+
+fn paddle_limit(board_height: Int, paddle_height: Int) -> Int:
+    return board_height - paddle_height
+
+fn left_paddle_x() -> Int:
+    return 24
+
+fn right_paddle_x(board_width: Int, paddle_width: Int) -> Int:
+    return board_width - paddle_width - 24
+
+fn center_ball_x(board_width: Int, ball_size: Int) -> Int:
+    return (board_width - ball_size) / 2
+
+fn center_ball_y(board_height: Int, ball_size: Int) -> Int:
+    return (board_height - ball_size) / 2
+
+fn goal_word(goal: Int) -> String:
+    if goal == GOAL_LEFT:
+        return "left-scored"
+    if goal == GOAL_RIGHT:
+        return "right-scored"
+    return "stabilized"
+
+fn paddle_target(ball_y: Int, paddle_height: Int, bias: Int, board_height: Int) -> Int:
+    return clamp_int((ball_y - (paddle_height / 2)) + bias, 0, paddle_limit(board_height, paddle_height))
+
+fn drive_paddle(current: Int, target: Int, speed: Int, limit: Int) -> Int:
+    if current < target:
+        return clamp_int(current + speed, 0, limit)
+    if current > target:
+        return clamp_int(current - speed, 0, limit)
+    return clamp_int(current, 0, limit)
+
+fn swarm_columns(sample_count: Int) -> Int:
+    if sample_count >= 256:
+        return 16
+    if sample_count >= 160:
+        return 14
+    if sample_count >= 96:
+        return 12
+    return 8
+
+fn clamp_sample_budget(value: Int) -> Int:
+    if value < 32:
+        return 32
+    if value > 512:
+        return 512
+    return value
+
+fn collision_invert_velocity(current_velocity: Int) -> Int with Unsafe:
+    let velocity_cell: ptr<Int> = alloc_zeroed(1, "Int")
+    mem_store(velocity_cell, current_velocity, "Int")
+    let _collapsed: Int = collapse velocity_cell:
+        let stable_now: Int = mem_load(velocity_cell, "Int")
+        mem_store(velocity_cell, 0 - stable_now, "Int")
+        mem_load(velocity_cell, "Int")
+    let observed: Int = observe velocity_cell:
+        mem_load(velocity_cell, "Int")
+    decay velocity_cell
+    return observed
+
+fn initial_frame_state(config: PongConfig) -> FrameState:
+    return FrameState {
+        left_paddle_y: (config.board_height - config.paddle_height) / 2,
+        right_paddle_y: (config.board_height - config.paddle_height) / 2,
+        ball_x: center_ball_x(config.board_width, config.ball_size),
+        ball_y: center_ball_y(config.board_height, config.ball_size),
+        ball_dx: abs_int(config.ball_speed_x),
+        ball_dy: abs_int(config.ball_speed_y),
+        left_score: 0,
+        right_score: 0,
+        frame_clock: 0,
+        logical_swarm_count: config.logical_swarm_count,
+        render_swarm_sample_count: config.render_swarm_sample_count,
+        collisions_total: 0,
+        last_goal: GOAL_NONE,
+        chaos_mode: 0,
+        left_bias: config.left_bias,
+        right_bias: config.right_bias,
+        swarm_energy: config.logical_swarm_count,
+        drift_total: 0
+    }
+
+fn reset_ball(frame: FrameState, config: PongConfig, toward_left: Int) -> FrameState:
+    let next = frame
+    next.ball_x = center_ball_x(config.board_width, config.ball_size)
+    next.ball_y = center_ball_y(config.board_height, config.ball_size)
+    if toward_left != 0:
+        next.ball_dx = 0 - abs_int(config.ball_speed_x)
+    else:
+        next.ball_dx = abs_int(config.ball_speed_x)
+    if next.frame_clock % 2 == 0:
+        next.ball_dy = abs_int(config.ball_speed_y)
+    else:
+        next.ball_dy = 0 - abs_int(config.ball_speed_y)
+    return next
+
+fn advance_frame(frame: FrameState, config: PongConfig) -> FrameState with Unsafe:
+    let next = frame
+    let target_left = paddle_target(frame.ball_y, config.paddle_height, frame.left_bias, config.board_height)
+    let target_right = paddle_target(frame.ball_y + (frame.chaos_mode * 6), config.paddle_height, 0 - frame.right_bias, config.board_height)
+    next.frame_clock = frame.frame_clock + 1
+    next.last_goal = GOAL_NONE
+    next.left_paddle_y = drive_paddle(frame.left_paddle_y, target_left, config.left_paddle_speed, paddle_limit(config.board_height, config.paddle_height))
+    next.right_paddle_y = drive_paddle(frame.right_paddle_y, target_right, config.right_paddle_speed, paddle_limit(config.board_height, config.paddle_height))
+    next.drift_total = frame.drift_total + abs_int(next.left_paddle_y - frame.left_paddle_y) + abs_int(next.right_paddle_y - frame.right_paddle_y)
+    next.ball_x = frame.ball_x + frame.ball_dx
+    next.ball_y = frame.ball_y + frame.ball_dy
+    next.ball_dx = frame.ball_dx
+    next.ball_dy = frame.ball_dy
+    if next.ball_y <= 0 or next.ball_y >= board_ball_max_y(config.board_height, config.ball_size):
+        next.ball_dy = collision_invert_velocity(frame.ball_dy)
+        next.ball_y = clamp_int(next.ball_y, 0, board_ball_max_y(config.board_height, config.ball_size))
+        next.collisions_total = next.collisions_total + 1
+    let left_hit = next.ball_dx < 0 and next.ball_x <= (left_paddle_x() + config.paddle_width) and next.ball_x >= (left_paddle_x() - config.ball_size) and (next.ball_y + config.ball_size) >= next.left_paddle_y and next.ball_y <= (next.left_paddle_y + config.paddle_height)
+    let right_hit = next.ball_dx > 0 and (next.ball_x + config.ball_size) >= right_paddle_x(config.board_width, config.paddle_width) and next.ball_x <= (right_paddle_x(config.board_width, config.paddle_width) + config.paddle_width) and (next.ball_y + config.ball_size) >= next.right_paddle_y and next.ball_y <= (next.right_paddle_y + config.paddle_height)
+    if left_hit:
+        next.ball_dx = collision_invert_velocity(frame.ball_dx)
+        next.ball_x = left_paddle_x() + config.paddle_width + 2
+        next.collisions_total = next.collisions_total + 1
+    if right_hit:
+        next.ball_dx = collision_invert_velocity(frame.ball_dx)
+        next.ball_x = right_paddle_x(config.board_width, config.paddle_width) - config.ball_size - 2
+        next.collisions_total = next.collisions_total + 1
+    if frame.chaos_mode != 0 and (next.frame_clock % 32) == 0:
+        next.ball_dy = clamp_int(next.ball_dy + 1, 0 - (abs_int(config.ball_speed_y) + 4), abs_int(config.ball_speed_y) + 4)
+    if next.ball_x < 0:
+        next.right_score = frame.right_score + 1
+        next.last_goal = GOAL_RIGHT
+        next = reset_ball(next, config, 0)
+    if next.ball_x > board_ball_max_x(config.board_width, config.ball_size):
+        next.left_score = frame.left_score + 1
+        next.last_goal = GOAL_LEFT
+        next = reset_ball(next, config, 1)
+    next.swarm_energy = next.logical_swarm_count + (next.collisions_total * 17) + (next.frame_clock % 97)
+    return next
+
+fn render_scanlines(session_id: Int, board_node: Int, board_left: Float, board_top: Float, board_width: Int, board_height: Int) -> Int:
+    let y = 10
+    let draws = 0
+    while y < board_height - 10:
+        let _line = native_ui_draw_rect(session_id, board_node, board_left + 4.0, board_top + y, board_width - 8.0, 1.0, "pong.grid")
+        draws = draws + 1
+        y = y + 8
+    return draws
+
+fn render_center_net(session_id: Int, board_node: Int, board_left: Float, board_top: Float, board_width: Int, board_height: Int) -> Int:
+    let y = 24
+    let draws = 0
+    let center_x = board_left + (board_width * 0.5) - 2.0
+    while y < board_height - 24:
+        let _dash = native_ui_draw_rect(session_id, board_node, center_x, board_top + y, 4.0, 12.0, "pong.net")
+        draws = draws + 1
+        y = y + 22
+    return draws
+
+fn render_ball_trail(session_id: Int, board_node: Int, board_left: Float, board_top: Float, frame: FrameState, config: PongConfig) -> Int:
+    let step = 1
+    let draws = 0
+    while step <= 10:
+        let trail_x = frame.ball_x - (frame.ball_dx * step * 2)
+        let trail_y = frame.ball_y - (frame.ball_dy * step * 2)
+        if trail_x >= 0 and trail_x <= board_ball_max_x(config.board_width, config.ball_size) and trail_y >= 0 and trail_y <= board_ball_max_y(config.board_height, config.ball_size):
+            let trail_size = max_int(config.ball_size - step, 3)
+            let _dot = native_ui_draw_rect(session_id, board_node, board_left + trail_x, board_top + trail_y, trail_size + 0.0, trail_size + 0.0, "pong.trail")
+            draws = draws + 1
+        step = step + 1
+    return draws
+
+fn render_swarm_overlay(session_id: Int, board_node: Int, board_left: Float, board_top: Float, frame: FrameState, config: PongConfig) -> Int:
+    let sample_count = clamp_sample_budget(frame.render_swarm_sample_count)
+    let column_count = swarm_columns(sample_count)
+    let row_count = (sample_count + column_count - 1) / column_count
+    let usable_width = max_int(config.board_width - 96, 16)
+    let usable_height = max_int(config.board_height - 96, 16)
+    let step_x = (usable_width + 0.0) / (max_int(column_count, 1) + 0.0)
+    let step_y = (usable_height + 0.0) / (max_int(row_count, 1) + 0.0)
+    let index = 0
+    while index < sample_count:
+        let column = index % column_count
+        let row = index / column_count
+        let orbit = (index * 17 + frame.frame_clock * 5 + frame.ball_x + frame.swarm_energy) % usable_height
+        let x = board_left + 48.0 + (column * step_x)
+        let y = board_top + 48.0 + ((row * 11 + orbit) % usable_height)
+        let style_key = "pong.swarm"
+        if frame.chaos_mode != 0 and (index % 9) == 0:
+            style_key = "pong.swarm_hot"
+        let _sample = native_ui_draw_rect(session_id, board_node, x, y, 3.0, 3.0, style_key)
+        index = index + 1
+    return sample_count
+
+fn output_root() -> String:
+    return ".kain/run"
+
+fn output_path(name: String) -> String:
+    return output_root() + "/" + name
+
+fn write_pong_report(frame: FrameState, config: PongConfig, pipeline_budget: Int, presenter_ok: Bool, ui_ok: Bool, entangle_ok: Bool, actor_ok: Bool, proof_ok: Bool) -> String:
+    fs_create_dir_all(output_root())
+    let report = "PONG STATE LATTICE\n"
+    report = report + "===================\n"
+    report = report + "style=" + config.style_name + "\n"
+    report = report + "config=" + pong_config_resolved_path() + "\n"
+    report = report + "window=" + str(config.window_width) + "x" + str(config.window_height) + "\n"
+    report = report + "board=" + str(config.board_width) + "x" + str(config.board_height) + "\n"
+    report = report + "frame.clock=" + str(frame.frame_clock) + "\n"
+    report = report + "score.left=" + str(frame.left_score) + "\n"
+    report = report + "score.right=" + str(frame.right_score) + "\n"
+    report = report + "ball.xy=" + str(frame.ball_x) + "," + str(frame.ball_y) + "\n"
+    report = report + "ball.dxy=" + str(frame.ball_dx) + "," + str(frame.ball_dy) + "\n"
+    report = report + "collisions=" + str(frame.collisions_total) + "\n"
+    report = report + "goal.last=" + goal_word(frame.last_goal) + "\n"
+    report = report + "logical.swarm=" + str(frame.logical_swarm_count) + "\n"
+    report = report + "render.swarm=" + str(frame.render_swarm_sample_count) + "\n"
+    report = report + "swarm.energy=" + str(frame.swarm_energy) + "\n"
+    report = report + "drift.total=" + str(frame.drift_total) + "\n"
+    report = report + "actor.enqueued=" + str(native_actor_scheduler_total_enqueued()) + "\n"
+    report = report + "actor.dequeued=" + str(native_actor_scheduler_total_dequeued()) + "\n"
+    report = report + "actor.queue.depth=" + str(native_actor_scheduler_queue_depth()) + "\n"
+    report = report + "entangle.registered=" + str(native_entangle_registered_count()) + "\n"
+    report = report + "entangle.propagations=" + str(native_entangle_propagation_count()) + "\n"
+    report = report + "presenter.frames=" + str(pong_window_frames_presented()) + "\n"
+    report = report + "patch.journal=" + str(native_patch_journal_count()) + "\n"
+    report = report + "pipeline.budget=" + str(pipeline_budget) + "\n"
+    report = report + "presenter.ok=" + bool_word(presenter_ok) + "\n"
+    report = report + "ui.ok=" + bool_word(ui_ok) + "\n"
+    report = report + "entangle.ok=" + bool_word(entangle_ok) + "\n"
+    report = report + "actor.ok=" + bool_word(actor_ok) + "\n"
+    report = report + "proof.ok=" + bool_word(proof_ok) + "\n"
+    report = report + "z3.vertical_bounce=unsat\n"
+    report = report + "z3.paddle_clamp=unsat\n"
+    report = report + "z3.swarm_grid=unsat\n"
+    fs_write_text(output_path("pong_report.txt"), report)
+    return report
+
+fn main() -> Int with Unsafe:
+    let runtime_status = native_runtime_init()
+    if runtime_status != 0:
+        return 100 + runtime_status
+
+    let _ui_reset = native_ui_reset()
+    let config = load_pong_config()
+    let frame = initial_frame_state(config)
+    if pong_window_probe() != 1:
+        let _shutdown = native_runtime_shutdown()
+        return 110
+    let authority = PongAuthority {
+        left_paddle_y: frame.left_paddle_y,
+        right_paddle_y: frame.right_paddle_y,
+        ball_x: frame.ball_x,
+        ball_y: frame.ball_y,
+        ball_dx: frame.ball_dx,
+        ball_dy: frame.ball_dy,
+        left_score: frame.left_score,
+        right_score: frame.right_score,
+        frame_clock: frame.frame_clock,
+        logical_swarm_count: frame.logical_swarm_count,
+        render_swarm_sample_count: frame.render_swarm_sample_count,
+        collisions_total: frame.collisions_total,
+        last_goal: frame.last_goal,
+        chaos_mode: frame.chaos_mode,
+        left_bias: frame.left_bias,
+        right_bias: frame.right_bias,
+        swarm_energy: frame.swarm_energy,
+        drift_total: frame.drift_total
+    }
+    let mirror = PongMirror {
+        mirrored_left_paddle_y: frame.left_paddle_y,
+        mirrored_right_paddle_y: frame.right_paddle_y,
+        mirrored_ball_x: frame.ball_x,
+        mirrored_ball_y: frame.ball_y,
+        mirrored_ball_dx: frame.ball_dx,
+        mirrored_ball_dy: frame.ball_dy,
+        mirrored_left_score: frame.left_score,
+        mirrored_right_score: frame.right_score,
+        mirrored_frame_clock: frame.frame_clock,
+        mirrored_logical_swarm_count: frame.logical_swarm_count,
+        mirrored_render_swarm_sample_count: frame.render_swarm_sample_count,
+        mirrored_collisions_total: frame.collisions_total,
+        mirrored_last_goal: frame.last_goal,
+        mirrored_chaos_mode: frame.chaos_mode,
+        mirrored_left_bias: frame.left_bias,
+        mirrored_right_bias: frame.right_bias,
+        mirrored_swarm_energy: frame.swarm_energy,
+        mirrored_drift_total: frame.drift_total
+    }
+    let session = ui_host_session_create(config.app_name, config.window_title, config.window_width, config.window_height, "software")
+    let generation = native_ui_hot_reload_begin(session, "pong-state-lattice.rev-a")
+    let presenter_status = pong_window_open_state(config.window_title, config.window_width, config.window_height, config.board_width, config.board_height, config.frame_budget)
+    if presenter_status != 1:
+        let _destroy_ui = native_ui_session_destroy(session)
+        let _shutdown = native_runtime_shutdown()
+        return 111
+    let input_worker = spawn InputWorker(pulses = 0, left_corrections = 0, right_corrections = 0)
+    let physics_worker = spawn PhysicsWorker(steps = 0, bounces = 0, goals = 0)
+    let render_worker = spawn RenderWorker(frames = 0, draw_calls = 0)
+    let title_font = native_ui_font_create(session, "font.pong.title", "Space Grotesk", 26.0)
+    let body_font = native_ui_font_create(session, "font.pong.body", "JetBrains Mono", 14.0)
+    let score_font = native_ui_font_create(session, "font.pong.score", "JetBrains Mono", 38.0)
+
+    let root = ui_reconcile_node(session, 0, "pong.root", "pong.root", 0.0, 0.0, config.window_width + 0.0, config.window_height + 0.0)
+    let topbar = ui_reconcile_text_node(session, root, "pong.topbar", "pong.topbar", "PONG // WORLD / ENTANGLE / COLLAPSE / OBSERVE", topbar_x(), topbar_y(), topbar_w(config.window_width), topbar_h())
+    let left_panel = ui_reconcile_node(session, root, "pong.left", "pong.left", left_panel_x(), left_panel_y(), left_panel_w(config.window_width, config.board_width), left_panel_h(config.window_height))
+    let board_panel = ui_reconcile_node(session, root, "pong.board", "pong.board", board_x(config.window_width, config.board_width), board_y(), board_w(config.board_width), board_h(config.board_height))
+    let right_panel = ui_reconcile_node(session, root, "pong.right", "pong.right", right_panel_x(config.window_width, config.board_width), right_panel_y(), right_panel_w(config.window_width, config.board_width), right_panel_h(config.window_height))
+    let status = ui_reconcile_text_node(session, root, "pong.status", "pong.status", "booting lattice", status_x(), status_y(config.window_height), status_w(config.window_width), status_h())
+
+    let left_title = ui_reconcile_text_node(session, left_panel, "pong.left.title", "pong.left.title", "ACTOR PULSES", left_panel_title_x(), left_panel_title_y(), button_w(config.window_width, config.board_width), 24.0)
+    let button_serve = ui_reconcile_focusable_node(session, left_panel, "pong.action", "pong.action.serve", "SERVE AGAIN", "button", "serve again", button_x(), button_y(0), button_w(config.window_width, config.board_width), button_h())
+    let button_chaos = ui_reconcile_focusable_node(session, left_panel, "pong.action", "pong.action.chaos", "CHAOS MODE", "button", "toggle chaos", button_x(), button_y(1), button_w(config.window_width, config.board_width), button_h())
+    let button_swarm = ui_reconcile_focusable_node(session, left_panel, "pong.action", "pong.action.swarm", "SWARM +", "button", "increase swarm", button_x(), button_y(2), button_w(config.window_width, config.board_width), button_h())
+    let button_bias = ui_reconcile_focusable_node(session, left_panel, "pong.action", "pong.action.bias", "BIAS SWAP", "button", "swap bias", button_x(), button_y(3), button_w(config.window_width, config.board_width), button_h())
+
+    let board_caption = ui_reconcile_text_node(session, board_panel, "pong.board.caption", "pong.board.caption", "", board_caption_x(config.window_width, config.board_width), board_caption_y(), 520.0, 28.0)
+    let board_subtitle = ui_reconcile_text_node(session, board_panel, "pong.board.subtitle", "pong.board.subtitle", "", board_subtitle_x(config.window_width, config.board_width), board_subtitle_y(), 760.0, 22.0)
+    let board_score_left = ui_reconcile_text_node(session, board_panel, "pong.board.score.left", "pong.board.score.left", "", board_score_left_x(config.window_width, config.board_width), board_score_y(), 120.0, 42.0)
+    let board_score_right = ui_reconcile_text_node(session, board_panel, "pong.board.score.right", "pong.board.score.right", "", board_score_right_x(config.window_width, config.board_width), board_score_y(), 120.0, 42.0)
+
+    let right_title = ui_reconcile_text_node(session, right_panel, "pong.right.title", "pong.right.title", "MIRROR / PROOFS / METRICS", right_panel_title_x(config.window_width, config.board_width), right_panel_title_y(), metric_w(config.window_width, config.board_width), 24.0)
+    let metric_a = ui_reconcile_text_node(session, right_panel, "pong.metric.a", "pong.metric.a", "", metric_x(config.window_width, config.board_width), metric_y(0), metric_w(config.window_width, config.board_width), metric_h())
+    let metric_b = ui_reconcile_text_node(session, right_panel, "pong.metric.b", "pong.metric.b", "", metric_x(config.window_width, config.board_width), metric_y(1), metric_w(config.window_width, config.board_width), metric_h())
+    let metric_c = ui_reconcile_text_node(session, right_panel, "pong.metric.c", "pong.metric.c", "", metric_x(config.window_width, config.board_width), metric_y(2), metric_w(config.window_width, config.board_width), metric_h())
+    let metric_d = ui_reconcile_text_node(session, right_panel, "pong.metric.d", "pong.metric.d", "", metric_x(config.window_width, config.board_width), metric_y(3), metric_w(config.window_width, config.board_width), metric_h())
+    let metric_e = ui_reconcile_text_node(session, right_panel, "pong.metric.e", "pong.metric.e", "", metric_x(config.window_width, config.board_width), metric_y(4), metric_w(config.window_width, config.board_width), metric_h())
+    let metric_f = ui_reconcile_text_node(session, right_panel, "pong.metric.f", "pong.metric.f", "", metric_x(config.window_width, config.board_width), metric_y(5), metric_w(config.window_width, config.board_width), metric_h())
+    let metric_g = ui_reconcile_text_node(session, right_panel, "pong.metric.g", "pong.metric.g", "", metric_x(config.window_width, config.board_width), metric_y(6), metric_w(config.window_width, config.board_width), metric_h())
+    let metric_h_node = ui_reconcile_text_node(session, right_panel, "pong.metric.h", "pong.metric.h", "", metric_x(config.window_width, config.board_width), metric_y(7), metric_w(config.window_width, config.board_width), metric_h())
+
+    let _shape = ui_state_shape(session, board_panel, "pong.state-lattice", "world+entangle+observe+collapse")
+    let _hit = ui_state_hit(session, board_panel, "rect", "pong.board")
+    let _draw = ui_state_draw(session, board_panel, "scanline.overlay", "pong.board")
+    let _shell = apply_shell_theme(session, root, topbar, left_panel, board_panel, right_panel, status, config.style_name)
+    let _board_theme = apply_board_theme(session, board_panel, config.style_name, frame.chaos_mode)
+    let _topbar_text = apply_title_text(session, topbar, config.style_name)
+    let _left_title_text = apply_title_text(session, left_title, config.style_name)
+    let _right_title_text = apply_title_text(session, right_title, config.style_name)
+    let _status_text_theme = apply_status_text(session, status, config.style_name)
+    let _caption_theme = apply_title_text(session, board_caption, config.style_name)
+    let _subtitle_theme = apply_dim_text(session, board_subtitle, config.style_name)
+    let _score_left_theme = apply_title_text(session, board_score_left, config.style_name)
+    let _score_right_theme = apply_title_text(session, board_score_right, config.style_name)
+    let _metric_a_theme = apply_metric_text(session, metric_a, config.style_name)
+    let _metric_b_theme = apply_metric_text(session, metric_b, config.style_name)
+    let _metric_c_theme = apply_metric_text(session, metric_c, config.style_name)
+    let _metric_d_theme = apply_metric_text(session, metric_d, config.style_name)
+    let _metric_e_theme = apply_metric_text(session, metric_e, config.style_name)
+    let _metric_f_theme = apply_metric_text(session, metric_f, config.style_name)
+    let _metric_g_theme = apply_metric_text(session, metric_g, config.style_name)
+    let _metric_h_theme = apply_metric_text(session, metric_h_node, config.style_name)
+
+    let presented_draws = 0
+    let auto_interactions = 0
+    let pipeline_budget = lattice_budget_pipeline(frame.render_swarm_sample_count)
+    let presenter_runtime_ok = 1
+
+    while frame.frame_clock < config.frame_budget and pong_window_should_close() == 0 and (native_ui_host_should_close(session) == 0 or frame.frame_clock < 48):
+        if config.auto_demo and frame.frame_clock == 0:
+            auto_interactions = auto_interactions + click_node(session, button_serve)
+        if config.auto_demo and frame.frame_clock == 8:
+            auto_interactions = auto_interactions + click_node(session, button_chaos)
+        if config.auto_demo and frame.frame_clock == 16:
+            auto_interactions = auto_interactions + click_node(session, button_swarm)
+        if config.auto_demo and frame.frame_clock == 24:
+            auto_interactions = auto_interactions + click_node(session, button_bias)
+
+        let target_left = paddle_target(frame.ball_y, config.paddle_height, frame.left_bias, config.board_height)
+        let target_right = paddle_target(frame.ball_y + (frame.chaos_mode * 6), config.paddle_height, 0 - frame.right_bias, config.board_height)
+        send input_worker.Drift(left_delta = abs_int(target_left - frame.left_paddle_y), right_delta = abs_int(target_right - frame.right_paddle_y))
+
+        let previous_collisions = frame.collisions_total
+        frame = advance_frame(frame, config)
+        pipeline_budget = lattice_budget_pipeline(frame.render_swarm_sample_count)
+        let goal_scored = bool_int(frame.last_goal != GOAL_NONE)
+        send physics_worker.Step(bounced = frame.collisions_total - previous_collisions, goal_scored = goal_scored)
+        let _patch = apply_frame(authority, frame.left_paddle_y, frame.right_paddle_y, frame.ball_x, frame.ball_y, frame.ball_dx, frame.ball_dy, frame.left_score, frame.right_score, frame.frame_clock, frame.logical_swarm_count, frame.render_swarm_sample_count, frame.collisions_total, frame.last_goal, frame.chaos_mode, frame.left_bias, frame.right_bias, frame.swarm_energy, frame.drift_total)
+
+        let _board_state_ball_x = ui_state_set_i64(session, board_panel, "ball.x", frame.ball_x)
+        let _board_state_ball_y = ui_state_set_i64(session, board_panel, "ball.y", frame.ball_y)
+        let _board_state_collisions = ui_state_set_i64(session, board_panel, "collisions", frame.collisions_total)
+        let _board_state_swarm = ui_state_set_i64(session, board_panel, "render.swarm", frame.render_swarm_sample_count)
+        let _board_state_goal = ui_state_set_string(session, board_panel, "goal.last", goal_word(frame.last_goal))
+        let _board_state_chaos = ui_state_set_i64(session, board_panel, "chaos.mode", frame.chaos_mode)
+
+        let _frame = ui_frame_begin(session, 16.0)
+        let _board_theme_live = apply_board_theme(session, board_panel, config.style_name, frame.chaos_mode)
+        let _serve_theme = apply_action_theme(session, button_serve, config.style_name, bool_int(frame.last_goal != GOAL_NONE))
+        let _chaos_theme = apply_action_theme(session, button_chaos, config.style_name, frame.chaos_mode)
+        let _swarm_theme = apply_action_theme(session, button_swarm, config.style_name, bool_int(frame.render_swarm_sample_count >= 256))
+        let _bias_theme = apply_action_theme(session, button_bias, config.style_name, bool_int(frame.left_bias != 0 or frame.right_bias != config.right_bias))
+
+        let _caption = native_ui_node_set_text(session, board_caption, "STATE LATTICE // logical swarm " + str(frame.logical_swarm_count))
+        let _subtitle = native_ui_node_set_text(session, board_subtitle, "Render mirror observes the entangled board while collapse flips velocity on collision.")
+        let _score_left = native_ui_node_set_text(session, board_score_left, str(frame.left_score))
+        let _score_right = native_ui_node_set_text(session, board_score_right, str(frame.right_score))
+        let _status = native_ui_node_set_text(session, status, "frame " + str(frame.frame_clock) + " // goal " + goal_word(frame.last_goal) + " // patch journal " + str(native_patch_journal_count()))
+        let _serve_text = native_ui_node_set_text(session, button_serve, "SERVE AGAIN")
+        let _chaos_text = native_ui_node_set_text(session, button_chaos, "CHAOS MODE " + bool_word(frame.chaos_mode != 0))
+        let _swarm_text = native_ui_node_set_text(session, button_swarm, "SWARM + " + str(frame.render_swarm_sample_count))
+        let _bias_text = native_ui_node_set_text(session, button_bias, "BIAS SWAP " + str(frame.left_bias) + "/" + str(frame.right_bias))
+        let entangle_registered = native_entangle_registered_count()
+        let entangle_propagations = native_entangle_propagation_count()
+        let entangle_runtime_ok = entangle_registered >= PONG_ENTANGLE_FIELD_COUNT and entangle_propagations >= frame.frame_clock
+
+        let _metric_a = set_metric_text(session, metric_a, "scores", str(frame.left_score) + " : " + str(frame.right_score) + " / win@" + str(config.score_to_win))
+        let _metric_b = set_metric_text(session, metric_b, "ball", str(frame.ball_x) + "," + str(frame.ball_y) + " // " + str(frame.ball_dx) + "," + str(frame.ball_dy))
+        let _metric_c = set_metric_int(session, metric_c, "collisions", frame.collisions_total)
+        let _metric_d = set_metric_text(session, metric_d, "swarm", str(frame.render_swarm_sample_count) + " visible / " + str(frame.logical_swarm_count) + " logical")
+        let _metric_e = set_metric_text(session, metric_e, "entangle", bool_word(entangle_runtime_ok) + " reg=" + str(entangle_registered) + " prop=" + str(entangle_propagations))
+        let _metric_f = set_metric_text(session, metric_f, "actors", str(native_actor_scheduler_total_enqueued()) + "/" + str(native_actor_scheduler_total_dequeued()) + " q=" + str(native_actor_scheduler_queue_depth()))
+        let _metric_g = set_metric_text(session, metric_g, "proofs", "law=" + bool_word(native_status_ok(native_law_status(score_valid(frame.left_score))) and native_status_ok(native_law_status(score_valid(frame.right_score)))) + " sample=" + bool_word(native_status_ok(native_law_status(sample_count_valid(frame.render_swarm_sample_count)))))
+        let _metric_h = set_metric_text(session, metric_h_node, "pipeline", "budget=" + str(pipeline_budget) + " propagate=" + str(entangle_propagations))
+
+        let _root_render = ui_render_box(session, root, "fill")
+        let _topbar_render = ui_render_box(session, topbar, "fill")
+        let _left_render = ui_render_box(session, left_panel, "fill")
+        let _board_render = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width), board_y(), config.board_width + 0.0, config.board_height + 0.0, "pong.board")
+        let _board_border_top = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width), board_y(), config.board_width + 0.0, 2.0, "pong.border")
+        let _board_border_bottom = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width), board_y() + config.board_height - 2.0, config.board_width + 0.0, 2.0, "pong.border")
+        let _board_border_left = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width), board_y(), 2.0, config.board_height + 0.0, "pong.border")
+        let _board_border_right = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width) + config.board_width - 2.0, board_y(), 2.0, config.board_height + 0.0, "pong.border")
+        if config.show_scanlines:
+            let _scanlines = render_scanlines(session, board_panel, board_x(config.window_width, config.board_width), board_y(), config.board_width, config.board_height)
+        let _net = render_center_net(session, board_panel, board_x(config.window_width, config.board_width), board_y(), config.board_width, config.board_height)
+        let _swarm = render_swarm_overlay(session, board_panel, board_x(config.window_width, config.board_width), board_y(), frame, config)
+        let _trail = render_ball_trail(session, board_panel, board_x(config.window_width, config.board_width), board_y(), frame, config)
+        let _left_paddle_draw = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width) + left_paddle_x(), board_y() + frame.left_paddle_y, config.paddle_width + 0.0, config.paddle_height + 0.0, "pong.left_paddle")
+        let _right_paddle_draw = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width) + right_paddle_x(config.board_width, config.paddle_width), board_y() + frame.right_paddle_y, config.paddle_width + 0.0, config.paddle_height + 0.0, "pong.right_paddle")
+        let _ball_draw = native_ui_draw_rect(session, board_panel, board_x(config.window_width, config.board_width) + frame.ball_x, board_y() + frame.ball_y, config.ball_size + 0.0, config.ball_size + 0.0, "pong.ball")
+        let _right_render = ui_render_box(session, right_panel, "fill")
+        let _status_render_box = ui_render_box(session, status, "fill")
+        let _topbar_text_render = render_text_row(session, topbar, title_font, 30.0)
+        let _left_title_render = render_text_row(session, left_title, body_font, 18.0)
+        let _right_title_render = render_text_row(session, right_title, body_font, 18.0)
+        let _caption_render = render_text_row(session, board_caption, body_font, 18.0)
+        let _subtitle_render = render_text_row(session, board_subtitle, body_font, 16.0)
+        let _score_left_render = render_text_row(session, board_score_left, score_font, 34.0)
+        let _score_right_render = render_text_row(session, board_score_right, score_font, 34.0)
+        let _serve_render = render_labeled_box(session, button_serve, body_font, 24.0)
+        let _chaos_render = render_labeled_box(session, button_chaos, body_font, 24.0)
+        let _swarm_render = render_labeled_box(session, button_swarm, body_font, 24.0)
+        let _bias_render = render_labeled_box(session, button_bias, body_font, 24.0)
+        let _metric_a_render = render_text_row(session, metric_a, body_font, 18.0)
+        let _metric_b_render = render_text_row(session, metric_b, body_font, 18.0)
+        let _metric_c_render = render_text_row(session, metric_c, body_font, 18.0)
+        let _metric_d_render = render_text_row(session, metric_d, body_font, 18.0)
+        let _metric_e_render = render_text_row(session, metric_e, body_font, 18.0)
+        let _metric_f_render = render_text_row(session, metric_f, body_font, 18.0)
+        let _metric_g_render = render_text_row(session, metric_g, body_font, 18.0)
+        let _metric_h_render = render_text_row(session, metric_h_node, body_font, 18.0)
+        let _status_render = render_text_row(session, status, body_font, 16.0)
+        presented_draws = ui_frame_submit(session)
+        send render_worker.Present(draw_count = presented_draws)
+        let _pump = native_ui_host_pump(session)
+        let presenter_frame = pong_window_present_state(frame.frame_clock, frame.left_paddle_y, frame.right_paddle_y, frame.ball_x, frame.ball_y, frame.ball_dx, frame.ball_dy, frame.left_score, frame.right_score, frame.logical_swarm_count, frame.render_swarm_sample_count, frame.collisions_total, frame.chaos_mode, frame.swarm_energy, entangle_registered, entangle_propagations, config.paddle_width, config.paddle_height, config.ball_size, bool_int(config.show_scanlines))
+        if presenter_frame != 1:
+            presenter_runtime_ok = 0
+            break
+
+        while native_ui_poll_event(session) == 1:
+            if button_activated(session, button_serve) == 1:
+                frame = reset_ball(frame, config, bool_int(frame.ball_dx > 0))
+                auto_interactions = auto_interactions + 1
+            if button_activated(session, button_chaos) == 1:
+                frame.chaos_mode = bool_int(frame.chaos_mode == 0)
+                auto_interactions = auto_interactions + 1
+            if button_activated(session, button_swarm) == 1:
+                frame.render_swarm_sample_count = clamp_sample_budget(frame.render_swarm_sample_count + 32)
+                frame.logical_swarm_count = frame.logical_swarm_count + 8192
+                auto_interactions = auto_interactions + 1
+            if button_activated(session, button_bias) == 1:
+                let previous_left_bias = frame.left_bias
+                frame.left_bias = 0 - frame.right_bias
+                frame.right_bias = 0 - previous_left_bias
+                auto_interactions = auto_interactions + 1
+
+        let _sleep = native_sleep_millis(16)
+
+    let committed = native_ui_hot_reload_commit(session)
+    let frame_hash = native_ui_host_frame_hash(session)
+    let left_score_status = native_law_status(score_valid(frame.left_score))
+    let right_score_status = native_law_status(score_valid(frame.right_score))
+    let sample_status = native_law_status(sample_count_valid(frame.render_swarm_sample_count))
+    let final_entangle_registered = native_entangle_registered_count()
+    let final_entangle_propagations = native_entangle_propagation_count()
+    let presenter_report_ok = pong_window_write_report(output_path("pong_window_report.txt")) == 1
+    let presenter_ok = presenter_runtime_ok != 0 and presenter_report_ok and pong_window_frames_presented() >= frame.frame_clock
+    let ui_ok = generation == committed and frame_hash != 0 and native_ui_state_count(session) >= 12 and auto_interactions >= 3
+    let entangle_ok = final_entangle_registered >= PONG_ENTANGLE_FIELD_COUNT and final_entangle_propagations >= frame.frame_clock
+    let actor_ok = native_actor_abi_version() == 1 and native_actor_scheduler_total_enqueued() > 0 and native_actor_scheduler_total_dequeued() > 0
+    let proof_ok = native_status_ok(left_score_status) and native_status_ok(right_score_status) and native_status_ok(sample_status) and pipeline_budget >= frame.render_swarm_sample_count and native_patch_journal_count() >= 1 and native_converge_mismatch_count() == 0 and native_orchestrate_stage_count() >= 1
+    let report = write_pong_report(frame, config, pipeline_budget, presenter_ok, ui_ok, entangle_ok, actor_ok, proof_ok)
+
+    send input_worker.Stop()
+    send physics_worker.Stop()
+    send render_worker.Stop()
+    let _window_shutdown = pong_window_shutdown()
+    let _destroy_ui = native_ui_session_destroy(session)
+    let _shutdown = native_runtime_shutdown()
+
+    if presenter_ok == false:
+        println(report)
+        return 20
+    if ui_ok == false:
+        println(report)
+        return 21
+    if entangle_ok == false:
+        println(report)
+        return 22
+    if actor_ok == false:
+        println(report)
+        return 23
+    if proof_ok == false:
+        println(report)
+        return 24
+    return 0

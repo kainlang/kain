@@ -1,0 +1,37 @@
+pub fn node_center_x(session_id: Int, node_id: Int) -> Float:
+    return native_ui_node_x(session_id, node_id) + (native_ui_node_width(session_id, node_id) * 0.5)
+
+pub fn node_center_y(session_id: Int, node_id: Int) -> Float:
+    return native_ui_node_y(session_id, node_id) + (native_ui_node_height(session_id, node_id) * 0.5)
+
+pub fn click_node(session_id: Int, node_id: Int) -> Int:
+    let center_x = node_center_x(session_id, node_id)
+    let center_y = node_center_y(session_id, node_id)
+    let _down = native_ui_push_event(session_id, "pointer.down", node_id, center_x, center_y, 0, "primary")
+    return native_ui_push_event(session_id, "pointer.up", node_id, center_x, center_y, 0, "primary")
+
+pub fn button_activated(session_id: Int, node_id: Int) -> Int:
+    if ui_event_targets(session_id, node_id) == 1:
+        let _hover = ui_apply_hover_flag(session_id, node_id, native_ui_event_x(session_id), native_ui_event_y(session_id))
+        let _pressed = ui_apply_pressed_flag_from_event(session_id, node_id)
+        if ui_event_kind_is(session_id, "pointer.up") == 1:
+            return 1
+    return 0
+
+pub fn set_metric_int(session_id: Int, node_id: Int, label: String, value: Int) -> Int:
+    return native_ui_node_set_text(session_id, node_id, label + ": " + str(value))
+
+pub fn set_metric_text(session_id: Int, node_id: Int, label: String, value: String) -> Int:
+    return native_ui_node_set_text(session_id, node_id, label + ": " + value)
+
+pub fn render_labeled_box(session_id: Int, node_id: Int, font_resource_id: Int, baseline_y: Float) -> Int:
+    let _box = ui_render_box(session_id, node_id, "fill")
+    return ui_render_text_in_box(session_id, node_id, font_resource_id, 14.0, baseline_y, "ink")
+
+pub fn render_text_row(session_id: Int, node_id: Int, font_resource_id: Int, baseline_y: Float) -> Int:
+    return ui_render_text_in_box(session_id, node_id, font_resource_id, 0.0, baseline_y, "ink")
+
+pub fn bool_word(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
