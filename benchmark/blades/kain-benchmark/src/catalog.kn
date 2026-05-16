@@ -1,5 +1,5 @@
 pub fn benchmark_language_count() -> Int:
-    return 4
+    return 5
 
 pub fn benchmark_language_label(index: Int) -> String:
     if index == 0:
@@ -7,11 +7,13 @@ pub fn benchmark_language_label(index: Int) -> String:
     if index == 1:
         return "RUST LLVM"
     if index == 2:
+        return "C++ CLANG"
+    if index == 3:
         return "NODE JS"
     return "CPYTHON"
 
 pub fn benchmark_language_cli() -> String:
-    return "kain,rust,javascript,python"
+    return "kain,rust,cpp,javascript,python"
 
 pub fn benchmark_case_count() -> Int:
     return 14

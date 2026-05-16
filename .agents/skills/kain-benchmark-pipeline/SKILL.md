@@ -1,6 +1,6 @@
 ---
 name: kain-benchmark-pipeline
-description: Use when adding, changing, running, or reviewing the multi-language benchmark lane under benchmark/, including Kain/Rust/JavaScript/Python cases, benchmark/benchmarks.json, benchmark/run.py, LLM-readable reports, the benchmark blade console, and fairness/maturity notes for Kain pressure tests.
+description: Use when adding, changing, running, or reviewing the multi-language benchmark lane under benchmark/, including Kain/Rust/C++/JavaScript/Python cases, benchmark/benchmarks.json, benchmark/run.py, LLM-readable reports, the benchmark blade console, and fairness/maturity notes for Kain pressure tests.
 ---
 
 # Kain Benchmark Pipeline
@@ -11,9 +11,10 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Every normal benchmark case must have dependency-free paired source files:
   - `benchmark/cases/<case>/main.kn`
   - `benchmark/cases/<case>/main.rs`
+  - `benchmark/cases/<case>/main.cpp`
   - `benchmark/cases/<case>/main.js`
   - `benchmark/cases/<case>/main.py`
-- Case programs must not use external language dependencies. Rust may use `std`; JavaScript may use Node builtins; Python may use the standard library; Kain may use language/runtime builtins and local imports.
+- Case programs must not use external language dependencies. Rust and C++ may use their standard libraries; JavaScript may use Node builtins; Python may use the standard library; Kain may use language/runtime builtins and local imports.
 - The Python runner may use the standard library for orchestration, timing, JSON, and Markdown report output.
 - Generated outputs belong under `benchmark/out/` and should stay ignored except `benchmark/out/.gitignore`.
 - The native benchmark console lives under `benchmark/blades/kain-benchmark`, and the user-facing executable is `benchmark/kain-benchmark.exe`.
@@ -24,7 +25,8 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Focus one case: `python benchmark/run.py --case contention_wall --runs 3 --warmups 1`
 - Run a language subset: `python benchmark/run.py --languages js,py --runs 1 --warmups 0`
 - Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe`
-- The runner prefers a direct Bazel-built release `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`.
+- Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx D:\Kain-Lang\toolchain\llvm\bin\clang++.exe`
+- The runner prefers a direct Bazel-built release `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe` and expects a `clang++`/`g++`-style CLI when you override it.
 - Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release` with `opt-level=3`, `target-cpu=native`, no debug info, and `KAIN_RUNTIME_MANIFEST_PATH=runtime/native_core_runtime.toml` unless you intentionally override it in code for an app/vendor benchmark.
 - Reports are written to:
   - `benchmark/out/reports/latest.llm.md`
@@ -54,12 +56,13 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - If Kain does not yet expose the exact runtime primitive needed, keep the case but mark `maturity` as `proxy`, `semantic-proxy`, or `dispatch-skeleton` in `benchmarks.json`.
 - Never claim a proxy is a completed win. Use `fairness_note` and `language_notes` to explain semantic gaps.
 - JavaScript and Python lanes should mirror algorithmic shape where possible, but avoid importing npm/pip dependencies or measuring unrelated framework overhead.
+- For Kain low-level memory cases, `alloc(count, "T")` and `realloc_mem(ptr, count, "T", ...)` use element counts, not byte counts. Do not pass `sizeof_type("T")` for a single-cell allocation unless you intentionally want `sizeof(T)` elements.
 
 ## Current Pressure Cases
 
-- `contention_wall`: Rust uses 100 OS threads and `AtomicI64`; Kain currently uses a zero-lock `collapse` proxy; JavaScript/Python use scalar proxies to avoid worker/GIL overhead dominating the comparison.
-- `ghost_mirror`: Rust/JavaScript/Python use stdlib TCP loopback for a 1 MiB payload; Kain uses entangle-backed in-process world mirroring plus helper-owned payload mutation.
-- `evolutionary_loop`: Rust/JavaScript/Python use runtime feature detection or equivalent branch dispatch; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
+- `contention_wall`: Rust and C++ use 100 OS threads and an atomic counter; Kain currently uses a zero-lock `collapse` proxy; JavaScript/Python use scalar proxies to avoid worker/GIL overhead dominating the comparison.
+- `ghost_mirror`: Rust/C++/JavaScript/Python use TCP loopback for a 1 MiB payload; Kain uses entangle-backed in-process world mirroring plus helper-owned payload mutation.
+- `evolutionary_loop`: Rust/C++/JavaScript/Python use runtime feature detection or equivalent branch dispatch; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
 - `ownership_memory`: direct `collapse`/`observe`/`decay` smoke against ordinary boxed/object ownership lanes.
 
 ## Current Basic Edge Cases
@@ -72,14 +75,16 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `option_result`: Option/Result tagged value creation, branching, and unwrap paths.
 - `scalar_mix`: top-level const lowering and a checksum guard.
 - `recursive_sum`: recursion and call-stack lowering in a tight loop.
-- `string_ops`: ASCII substring search plus string length/indexing over top-level string consts.
+- `string_ops`: ASCII substring search plus string length/indexing over fixed ASCII strings.
+  - As of `2026-05-15`, the case intentionally removes dead `% MODULUS` math and uses a boolean branch toggle instead of `% 2` parity math, but keeps substring search on the general path. The specialized win we kept is in the LLVM lowering, not in benchmark-only hand-tuned substring kernels.
+  - The LLVM fast path still depends on string-aware const metadata, entry-cached string lengths, direct bytewise `char_at(...) == char_at(...)` lowering, and borrowed internal string params that skip caller retain/callee release churn. If `string_ops` regresses, inspect `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` before blaming the C runtime.
 - `array_scan`: fixed-array indexing and weighted accumulation.
 
 ## Validation
 
 - `python -m py_compile benchmark/run.py`
-- Syntax-check all JS/Python case files.
-- `python benchmark/run.py --languages javascript,python --runs 1 --warmups 0 --timeout 300`
-- `python benchmark/run.py --case scalar_mix --languages kain,rust,javascript,python --runs 1 --warmups 0 --timeout 300`
+- Syntax-check all JS/Python case files and compile the C++ lane.
+- `python benchmark/run.py --languages cpp --runs 1 --warmups 0 --timeout 300`
+- `python benchmark/run.py --case scalar_mix --languages kain,rust,cpp,javascript,python --runs 1 --warmups 0 --timeout 300`
 - Build `benchmark/kain-benchmark.exe` with the blade compile helper and capture a non-empty native UI screenshot.
 - Inspect `benchmark/out/reports/latest.llm.md` and `latest.json` before summarizing results.

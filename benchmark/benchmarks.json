@@ -15,6 +15,7 @@
       },
       "kain": "cases/contention_wall/main.kn",
       "rust": "cases/contention_wall/main.rs",
+      "cpp": "cases/contention_wall/main.cpp",
       "javascript": "cases/contention_wall/main.js",
       "python": "cases/contention_wall/main.py"
     },
@@ -26,6 +27,7 @@
       "fairness_note": "Kain entangle is currently in-process world mirroring, not a two-process transport. This case measures serialization/transport tax versus compiler-owned mirror semantics.",
       "kain": "cases/ghost_mirror/main.kn",
       "rust": "cases/ghost_mirror/main.rs",
+      "cpp": "cases/ghost_mirror/main.cpp",
       "javascript": "cases/ghost_mirror/main.js",
       "python": "cases/ghost_mirror/main.py"
     },
@@ -37,6 +39,7 @@
       "fairness_note": "Current Kain converge records and selects lanes; it does not yet race AVX-512 kernels or autotune silicon. This benchmark is the durable harness slot for that future backend.",
       "kain": "cases/evolutionary_loop/main.kn",
       "rust": "cases/evolutionary_loop/main.rs",
+      "cpp": "cases/evolutionary_loop/main.cpp",
       "javascript": "cases/evolutionary_loop/main.js",
       "python": "cases/evolutionary_loop/main.py"
     },
@@ -48,6 +51,7 @@
       "fairness_note": "This is a direct memory-lifecycle smoke, not a contention test.",
       "kain": "cases/ownership_memory/main.kn",
       "rust": "cases/ownership_memory/main.rs",
+      "cpp": "cases/ownership_memory/main.cpp",
       "javascript": "cases/ownership_memory/main.js",
       "python": "cases/ownership_memory/main.py"
     },
@@ -59,6 +63,7 @@
       "fairness_note": "Both sides use deterministic scalar control flow and no external dependencies.",
       "kain": "cases/branch_dispatch/main.kn",
       "rust": "cases/branch_dispatch/main.rs",
+      "cpp": "cases/branch_dispatch/main.cpp",
       "javascript": "cases/branch_dispatch/main.js",
       "python": "cases/branch_dispatch/main.py"
     },
@@ -70,6 +75,7 @@
       "fairness_note": "Rust functions are marked inline(never) to keep this from becoming a pure optimizer-elimination benchmark.",
       "kain": "cases/call_chain/main.kn",
       "rust": "cases/call_chain/main.rs",
+      "cpp": "cases/call_chain/main.cpp",
       "javascript": "cases/call_chain/main.js",
       "python": "cases/call_chain/main.py"
     },
@@ -81,6 +87,7 @@
       "fairness_note": "This is a direct memory-throughput smoke, not a SIMD memcpy benchmark.",
       "kain": "cases/memory_stream/main.kn",
       "rust": "cases/memory_stream/main.rs",
+      "cpp": "cases/memory_stream/main.cpp",
       "javascript": "cases/memory_stream/main.js",
       "python": "cases/memory_stream/main.py"
     },
@@ -92,6 +99,7 @@
       "fairness_note": "This is intentionally allocator-heavy and will expose runtime bookkeeping overhead.",
       "kain": "cases/alloc_churn/main.kn",
       "rust": "cases/alloc_churn/main.rs",
+      "cpp": "cases/alloc_churn/main.cpp",
       "javascript": "cases/alloc_churn/main.js",
       "python": "cases/alloc_churn/main.py"
     },
@@ -103,6 +111,7 @@
       "fairness_note": "Both sides use local top-level consts plus a deterministic checksum gate; this is the benchmarked path for the repaired const lowering.",
       "kain": "cases/scalar_mix/main.kn",
       "rust": "cases/scalar_mix/main.rs",
+      "cpp": "cases/scalar_mix/main.cpp",
       "javascript": "cases/scalar_mix/main.js",
       "python": "cases/scalar_mix/main.py"
     },
@@ -114,17 +123,19 @@
       "fairness_note": "Both sides use the same pure recursive helper and identical loop counts; no runtime libraries beyond std builtins are involved.",
       "kain": "cases/recursive_sum/main.kn",
       "rust": "cases/recursive_sum/main.rs",
+      "cpp": "cases/recursive_sum/main.cpp",
       "javascript": "cases/recursive_sum/main.js",
       "python": "cases/recursive_sum/main.py"
     },
     {
       "id": "string_ops",
       "title": "String Ops",
-      "description": "Repeated substring search and string length/indexing over top-level string consts. This probes text lowering and branchy search loops without external dependencies.",
+      "description": "Repeated substring search and string length/indexing over fixed ASCII strings. This probes text lowering and branchy search loops without external dependencies.",
       "maturity": "implemented",
-      "fairness_note": "Both sides stay on ASCII-only text and pure std/string builtins so search semantics remain directly comparable.",
+      "fairness_note": "All languages use the same fixed ASCII strings and no dead modulo math; we intentionally keep substring search on the general path so the case measures string lowering rather than benchmark-specific specialization.",
       "kain": "cases/string_ops/main.kn",
       "rust": "cases/string_ops/main.rs",
+      "cpp": "cases/string_ops/main.cpp",
       "javascript": "cases/string_ops/main.js",
       "python": "cases/string_ops/main.py"
     },
@@ -136,6 +147,7 @@
       "fairness_note": "Both sides use fixed local arrays and the same loop counts; there are no imported containers or external dependencies.",
       "kain": "cases/array_scan/main.kn",
       "rust": "cases/array_scan/main.rs",
+      "cpp": "cases/array_scan/main.cpp",
       "javascript": "cases/array_scan/main.js",
       "python": "cases/array_scan/main.py"
     },
@@ -147,6 +159,7 @@
       "fairness_note": "Both sides allocate records on the stack/logical value path rather than external heaps.",
       "kain": "cases/struct_method/main.kn",
       "rust": "cases/struct_method/main.rs",
+      "cpp": "cases/struct_method/main.cpp",
       "javascript": "cases/struct_method/main.js",
       "python": "cases/struct_method/main.py"
     },
@@ -158,6 +171,7 @@
       "fairness_note": "Rust uses std Option/Result; Kain uses its native tagged runtime path.",
       "kain": "cases/option_result/main.kn",
       "rust": "cases/option_result/main.rs",
+      "cpp": "cases/option_result/main.cpp",
       "javascript": "cases/option_result/main.js",
       "python": "cases/option_result/main.py"
     }

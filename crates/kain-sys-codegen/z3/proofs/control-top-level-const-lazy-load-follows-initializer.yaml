@@ -2,9 +2,10 @@ version: 1
 id: kain.sys.codegen.llvm.proofs.control_top_level_const_lazy_load_follows_initializer
 kind: check_smt2
 description: Top-level consts that require runtime initialization emit a lazy initializer
-  that stores the computed value before setting the init flag, and every const load
-  emits a call to that initializer before the load. Under those control-ordering assumptions,
-  a generated load cannot observe the lazy const in an uninitialized state.
+  that stores the computed value before setting the init flag. Const uses either
+  hoist that initializer once into the current function entry preamble or emit the
+  call at the use site; under those control-ordering assumptions, a generated load
+  cannot observe the lazy const in an uninitialized state.
 tags:
 - llvm
 - control
@@ -12,11 +13,11 @@ tags:
 - initializer
 source:
   path: D:/Kain-Lang/crates/kain-sys-codegen/src/codegen_llvm/mod.rs
-  symbol: compile_const_load
-  start_line: 2883
-  reason: compile_const_load emits the initializer call before loading the global,
-    while compile_const_initializer stores the value before writing the initialized
-    flag
+  symbol: emit_const_init_call_if_needed
+  start_line: 3458
+  reason: emit_const_init_call_if_needed now hoists runtime const init into the
+    function entry preamble when possible, while compile_const_initializer still
+    stores the value before writing the initialized flag
 case:
   smt2: '(set-logic QF_LIA)
 

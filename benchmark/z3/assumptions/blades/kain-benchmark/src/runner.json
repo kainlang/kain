@@ -1,0 +1,492 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(fs_path_join(\".\", \"benchmarks.json\"))",
+      "id": "benchmark-root.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 4,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 52,
+        "end_line": 4,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 4
+      },
+      "symbol": "benchmark_root",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(fs_path_join(\".\", \"benchmarks.json\")):",
+      "variables": [
+        "benchmarks",
+        "fs_exists",
+        "fs_path_join",
+        "json"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(fs_path_join(nested, \"benchmarks.json\"))",
+      "id": "benchmark-root.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 8,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 55,
+        "end_line": 8,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 8
+      },
+      "symbol": "benchmark_root",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(fs_path_join(nested, \"benchmarks.json\")):",
+      "variables": [
+        "benchmarks",
+        "fs_exists",
+        "fs_path_join",
+        "json",
+        "nested"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(fs_path_join(up_one, \"benchmarks.json\"))",
+      "id": "benchmark-root.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 12,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 55,
+        "end_line": 12,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 12
+      },
+      "symbol": "benchmark_root",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(fs_path_join(up_one, \"benchmarks.json\")):",
+      "variables": [
+        "benchmarks",
+        "fs_exists",
+        "fs_path_join",
+        "json",
+        "up_one"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(fs_path_join(up_two, \"benchmarks.json\"))",
+      "id": "benchmark-root.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 16,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 55,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "benchmark_root",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(fs_path_join(up_two, \"benchmarks.json\")):",
+      "variables": [
+        "benchmarks",
+        "fs_exists",
+        "fs_path_join",
+        "json",
+        "up_two"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(fs_path_join(up_three, \"benchmarks.json\"))",
+      "id": "benchmark-root.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 20,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 57,
+        "end_line": 20,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 20
+      },
+      "symbol": "benchmark_root",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(fs_path_join(up_three, \"benchmarks.json\")):",
+      "variables": [
+        "benchmarks",
+        "fs_exists",
+        "fs_path_join",
+        "json",
+        "up_three"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(path)",
+      "id": "latest-json-report-path.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 33,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 20,
+        "end_line": 33,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 33
+      },
+      "symbol": "latest_json_report_path",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(path):",
+      "variables": [
+        "fs_exists",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(case_filter) > 0",
+      "id": "latest-json-report-path.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 48,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 25,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "latest_json_report_path",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if len(case_filter) > 0:",
+      "variables": [
+        "case_filter",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(path)",
+      "id": "latest-llm-report-path.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 33,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 20,
+        "end_line": 33,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 33
+      },
+      "symbol": "latest_llm_report_path",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(path):",
+      "variables": [
+        "fs_exists",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(case_filter) > 0",
+      "id": "latest-llm-report-path.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 48,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 25,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "latest_llm_report_path",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if len(case_filter) > 0:",
+      "variables": [
+        "case_filter",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "offset",
+        "role": "offset-like",
+        "type": "Int"
+      },
+      "id": "report-preview.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "kain",
+      "line": 31,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 59,
+        "end_line": 31,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 31
+      },
+      "symbol": "report_preview",
+      "text": "pub fn report_preview(offset: Int, length: Int) -> String:",
+      "variables": [
+        "offset"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "length",
+        "role": "length-like",
+        "type": "Int"
+      },
+      "id": "report-preview.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "kain",
+      "line": 31,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 59,
+        "end_line": 31,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 31
+      },
+      "symbol": "report_preview",
+      "text": "pub fn report_preview(offset: Int, length: Int) -> String:",
+      "variables": [
+        "length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fs_exists(path)",
+      "id": "report-preview.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 33,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 20,
+        "end_line": 33,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 33
+      },
+      "symbol": "report_preview",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if fs_exists(path):",
+      "variables": [
+        "fs_exists",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(case_filter) > 0",
+      "id": "report-preview.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 48,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 25,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "report_preview",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if len(case_filter) > 0:",
+      "variables": [
+        "case_filter",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "child",
+          0
+        ],
+        "op": "le"
+      },
+      "expression": "child <= 0",
+      "id": "report-preview.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 53,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 15,
+        "end_line": 53,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 53
+      },
+      "symbol": "report_preview",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if child <= 0:",
+      "variables": [
+        "child"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(case_filter) > 0",
+      "id": "run-benchmark-suite.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 48,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 25,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "run_benchmark_suite",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if len(case_filter) > 0:",
+      "variables": [
+        "case_filter",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "child",
+          0
+        ],
+        "op": "le"
+      },
+      "expression": "child <= 0",
+      "id": "run-benchmark-suite.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 53,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+      "span": {
+        "end_col": 15,
+        "end_line": 53,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+        "start_col": 1,
+        "start_line": 53
+      },
+      "symbol": "run_benchmark_suite",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if child <= 0:",
+      "variables": [
+        "child"
+      ]
+    }
+  ],
+  "language": "kain",
+  "source_hash": "c643f0d345b3aa9293ab8614b5b6cc18548b5816cd5a62b5d968be604ceffe58",
+  "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\runner.kn",
+  "version": 1
+}

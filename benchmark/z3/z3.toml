@@ -1,0 +1,43 @@
+[pack]
+name = "kain.benchmark.proofs"
+scope = ".."
+languages = ["generic"]
+
+[solver]
+timeout_ms = 5000
+size_bits = 64
+
+[sources]
+include = ["**/*"]
+exclude = ["z3/**", "target/**", "node_modules/**"]
+
+[templates]
+use = ["builtin:*", "local:templates/*.yaml"]
+
+[plugins]
+use = ["local:*", "global:*"]
+
+[fixtures]
+use = ["fixtures/**/*.*"]
+
+[ci]
+smoke = ["proofs/**/*.yaml"]
+full = ["proofs/**/*.*"]
+
+[analysis]
+persist_summaries = true
+persist_assumptions = true
+refresh_on_run = true
+refresh_lanes = ["smoke", "full"]
+include = ["**/*"]
+exclude = ["z3/**", "target/**", "node_modules/**"]
+
+[reports]
+path = "reports"
+keep_history = true
+
+[engines]
+
+[engines.libclang]
+compile_flags = []
+include_paths = []

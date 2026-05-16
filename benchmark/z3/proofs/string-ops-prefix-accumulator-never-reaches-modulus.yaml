@@ -1,0 +1,38 @@
+version: 1
+id: kain.benchmark.proofs.string_ops_prefix_accumulator_never_reaches_modulus
+kind: check_smt2
+description: The string_ops benchmark previously reduced each iteration through
+  `% MODULUS`, but every loop step only adds either 17 or 24 and the loop runs
+  at most 100000 times. This proof shows every reachable prefix sum stays far
+  below 1000000007, so removing the modulo is behavior-preserving for the whole
+  benchmark and keeps the case focused on string work instead of dead integer
+  reduction.
+tags:
+- benchmark
+- string_ops
+- arithmetic
+- fairness
+source:
+  path: D:/Kain-Lang/benchmark/cases/string_ops/main.kn
+  symbol: main
+  start_line: 26
+  reason: the benchmark loop alternates between two fixed positive deltas and
+    no reachable prefix sum crosses the old modulus
+case:
+  smt2: '(set-logic QF_LIA)
+
+    (declare-const even_steps Int)
+    (declare-const odd_steps Int)
+
+    (assert (>= even_steps 0))
+    (assert (>= odd_steps 0))
+    (assert (<= (+ even_steps odd_steps) 100000))
+
+    (define-fun prefix_acc () Int
+      (+ (* 17 even_steps) (* 24 odd_steps)))
+
+    (assert (>= prefix_acc 1000000007))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

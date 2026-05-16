@@ -1,0 +1,72 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "run() != EXPECTED",
+      "id": "main.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 20,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\ownership_memory\\main.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 20,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\ownership_memory\\main.rs",
+        "start_col": 1,
+        "start_line": 20
+      },
+      "symbol": "main",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if run() != EXPECTED {",
+      "variables": [
+        "EXPECTED",
+        "run"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "i",
+          "ITERATIONS"
+        ],
+        "op": "lt"
+      },
+      "expression": "i < ITERATIONS",
+      "id": "run.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 9,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\ownership_memory\\main.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 9,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\ownership_memory\\main.rs",
+        "start_col": 1,
+        "start_line": 9
+      },
+      "symbol": "run",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while i < ITERATIONS {",
+      "variables": [
+        "ITERATIONS",
+        "i"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "7401faea31a6db47639f4daaa32fcacdde5a2afa831c43214757cb7bf8869824",
+  "source_path": "D:\\Kain-Lang\\benchmark\\cases\\ownership_memory\\main.rs",
+  "version": 1
+}

@@ -1,0 +1,216 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "i",
+          "ITERATIONS"
+        ],
+        "op": "lt"
+      },
+      "expression": "i < ITERATIONS",
+      "id": "main.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 26,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 26,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+        "start_col": 1,
+        "start_line": 26
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while i < ITERATIONS {",
+      "variables": [
+        "ITERATIONS",
+        "i"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "observed",
+          "EXPECTED"
+        ],
+        "op": "neq"
+      },
+      "expression": "observed != EXPECTED",
+      "id": "main.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 38,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 38,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+        "start_col": 1,
+        "start_line": 38
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if observed != EXPECTED {",
+      "variables": [
+        "EXPECTED",
+        "observed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "maybe-value.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 6,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 6,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+        "start_col": 1,
+        "start_line": 6
+      },
+      "symbol": "maybe_value",
+      "text": "fn maybe_value(value: i64) -> Option<i64> {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "value",
+              5
+            ],
+            "op": "mod"
+          },
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "value % 5 == 0",
+      "id": "maybe-value.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 7,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 7,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+        "start_col": 1,
+        "start_line": 7
+      },
+      "symbol": "maybe_value",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if value % 5 == 0 {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "parse-value.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 15,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+      "span": {
+        "end_col": 58,
+        "end_line": 15,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+        "start_col": 1,
+        "start_line": 15
+      },
+      "symbol": "parse_value",
+      "text": "fn parse_value(value: i64) -> Result<i64, &'static str> {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "value",
+              7
+            ],
+            "op": "mod"
+          },
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "value % 7 == 0",
+      "id": "parse-value.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 16,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "parse_value",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if value % 7 == 0 {",
+      "variables": [
+        "value"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "589eda181136661995cd6c2382e2501183756ba76e32cdf849a8be7598130610",
+  "source_path": "D:\\Kain-Lang\\benchmark\\cases\\option_result\\main.rs",
+  "version": 1
+}

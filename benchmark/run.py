@@ -31,16 +31,18 @@ REPORT_ROOT = OUT_ROOT / "reports"
 NATIVE_CORE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
-LANGUAGE_ORDER = ["kain", "rust", "javascript", "python"]
+LANGUAGE_ORDER = ["kain", "rust", "cpp", "javascript", "python"]
 LANGUAGE_LABELS = {
     "kain": "Kain LLVM",
     "rust": "Rust LLVM",
+    "cpp": "C++ Clang",
     "javascript": "JavaScript Node",
     "python": "Python CPython",
 }
 LANGUAGE_SOURCE_KEYS = {
     "kain": "kain",
     "rust": "rust",
+    "cpp": "cpp",
     "javascript": "javascript",
     "python": "python",
 }
@@ -73,6 +75,13 @@ RUST_RELEASE_FLAGS = [
     "panic=abort",
     "-C",
     "overflow-checks=off",
+]
+
+CPP_RELEASE_FLAGS = [
+    "-std=c++20",
+    "-O3",
+    "-march=native",
+    "-DNDEBUG",
 ]
 
 KAIN_NATIVE_PROFILE_DEFAULTS: dict[str, dict[str, str]] = {
@@ -233,6 +242,22 @@ def resolve_tool(explicit: str | None, env_key: str, default_name: str) -> str:
     return shutil.which(requested) or requested
 
 
+def resolve_cpp_compiler(explicit: str | None) -> str:
+    if explicit or os.environ.get("CXX"):
+        return resolve_tool(explicit, "CXX", "clang++")
+
+    bundled = REPO_ROOT / "toolchain" / "llvm" / "bin" / executable_name("clang++")
+    if bundled.exists():
+        return str(bundled.resolve())
+
+    for candidate in ("clang++", "g++", "c++"):
+        found = shutil.which(candidate)
+        if found:
+            return found
+
+    return "clang++"
+
+
 def resolved_kain_native_tuning(args: argparse.Namespace) -> dict[str, str]:
     profile = args.kain_native_profile
     defaults = KAIN_NATIVE_PROFILE_DEFAULTS[profile]
@@ -287,6 +312,9 @@ def parse_languages(raw_languages: str | None) -> list[str]:
         "py": "python",
         "cpython": "python",
         "rs": "rust",
+        "c++": "cpp",
+        "cxx": "cpp",
+        "cplusplus": "cpp",
         "kn": "kain",
     }
     normalized: list[str] = []
@@ -441,6 +469,68 @@ def build_rust_case(
     }
 
 
+def cpp_link_flags_for_case(case_id: str) -> list[str]:
+    if os.name == "nt" and case_id == "ghost_mirror":
+        return ["-lws2_32"]
+    return []
+
+
+def build_cpp_case(
+    case: dict[str, Any],
+    cxx: str,
+    timeout: int,
+    no_build: bool,
+) -> dict[str, Any]:
+    case_id = case["id"]
+    source = case_source_path(case, "cpp")
+    build_dir = BUILD_ROOT / case_id / "cpp"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    exe_path = build_dir / executable_name(case_id)
+    link_flags = cpp_link_flags_for_case(case_id)
+    command = [
+        cxx,
+        repo_relative(source),
+        *CPP_RELEASE_FLAGS,
+        "-o",
+        repo_relative(exe_path),
+        *link_flags,
+    ]
+
+    if not shutil.which(cxx) and not Path(cxx).exists():
+        return missing_tool_build("cpp", command, f"C++ compiler not found: {cxx}")
+
+    if no_build:
+        return {
+            "ok": exe_path.exists(),
+            "language": "cpp",
+            "exe": str(exe_path),
+            "run_command": [str(exe_path)],
+            "command": command,
+            "flags": CPP_RELEASE_FLAGS,
+            "link_flags": link_flags,
+            "build_ms": 0.0,
+            "stdout": "",
+            "stderr": "",
+            "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
+        }
+
+    result = run_command(command, timeout=timeout)
+    ok = result.returncode == 0 and exe_path.exists()
+    return {
+        "ok": ok,
+        "language": "cpp",
+        "exe": str(exe_path),
+        "run_command": [str(exe_path)],
+        "command": command,
+        "flags": CPP_RELEASE_FLAGS,
+        "link_flags": link_flags,
+        "build_ms": result.elapsed_ms,
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "error": "" if ok else "C++ build failed or did not produce executable.",
+    }
+
+
 def build_javascript_case(
     case: dict[str, Any],
     node: str,
@@ -535,6 +625,8 @@ def build_language_case(
         return build_kain_case(case, tools["kain"], timeout, no_build, kain_native_env)
     if language == "rust":
         return build_rust_case(case, tools["rustc"], timeout, no_build)
+    if language == "cpp":
+        return build_cpp_case(case, tools["cxx"], timeout, no_build)
     if language == "javascript":
         return build_javascript_case(case, tools["node"], timeout, no_build)
     if language == "python":
@@ -737,6 +829,8 @@ def render_toolchain(report: dict[str, Any]) -> str:
         f"- kain_native_env: `{json.dumps(kain_native_env, sort_keys=True)}`",
         f"- rustc: `{toolchain.get('rustc', 'n/a')}`",
         f"- rust_flags: `{display_command(toolchain.get('rust_flags', []))}`",
+        f"- cxx: `{toolchain.get('cxx', 'n/a')}`",
+        f"- cpp_flags: `{display_command(toolchain.get('cpp_flags', []))}`",
         f"- node: `{toolchain.get('node', 'n/a')}`",
         f"- python: `{toolchain.get('python', 'n/a')}`",
     ]
@@ -844,12 +938,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=str(BENCHMARK_ROOT / "benchmarks.json"))
     parser.add_argument("--case", dest="only_case")
-    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,javascript,python")
+    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,javascript,python")
     parser.add_argument("--runs", type=int)
     parser.add_argument("--warmups", type=int)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--kain-exe")
     parser.add_argument("--rustc", default=os.environ.get("RUSTC", "rustc"))
+    parser.add_argument("--cxx")
     parser.add_argument("--node", default=os.environ.get("NODE", "node"))
     parser.add_argument("--python", default=os.environ.get("PYTHON", sys.executable))
     parser.add_argument(
@@ -889,11 +984,13 @@ def main() -> int:
     try:
         kain_exe = resolve_kain_exe(args.kain_exe, args.timeout) if "kain" in languages else None
         rustc_path = resolve_tool(args.rustc, "RUSTC", "rustc")
+        cxx_path = resolve_cpp_compiler(args.cxx)
         node_path = resolve_tool(args.node, "NODE", "node")
         python_path = resolve_tool(args.python, "PYTHON", sys.executable)
         tools: dict[str, Any] = {
             "kain": kain_exe,
             "rustc": rustc_path,
+            "cxx": cxx_path,
             "node": node_path,
             "python": python_path,
         }
@@ -905,6 +1002,8 @@ def main() -> int:
             "kain_native_env": kain_native_env,
             "rustc": rustc_path,
             "rust_flags": RUST_RELEASE_FLAGS,
+            "cxx": cxx_path,
+            "cpp_flags": CPP_RELEASE_FLAGS,
             "node": node_path,
             "python": python_path,
         }

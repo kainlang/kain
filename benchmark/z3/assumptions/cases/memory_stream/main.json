@@ -1,0 +1,119 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "i",
+          "CELLS"
+        ],
+        "op": "lt"
+      },
+      "expression": "i < CELLS",
+      "id": "main.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 8,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\memory_stream\\main.rs",
+      "span": {
+        "end_col": 18,
+        "end_line": 8,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\memory_stream\\main.rs",
+        "start_col": 1,
+        "start_line": 8
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while i < CELLS {",
+      "variables": [
+        "CELLS",
+        "i"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "j",
+          "CELLS"
+        ],
+        "op": "lt"
+      },
+      "expression": "j < CELLS",
+      "id": "main.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 15,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\memory_stream\\main.rs",
+      "span": {
+        "end_col": 18,
+        "end_line": 15,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\memory_stream\\main.rs",
+        "start_col": 1,
+        "start_line": 15
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while j < CELLS {",
+      "variables": [
+        "CELLS",
+        "j"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "checksum",
+          "EXPECTED"
+        ],
+        "op": "neq"
+      },
+      "expression": "checksum != EXPECTED",
+      "id": "main.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 20,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\memory_stream\\main.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 20,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\memory_stream\\main.rs",
+        "start_col": 1,
+        "start_line": 20
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if checksum != EXPECTED {",
+      "variables": [
+        "EXPECTED",
+        "checksum"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "0f48aed3a0f60ca372892e499a20e37925bb5813a02deac33ba544cf5f5d591a",
+  "source_path": "D:\\Kain-Lang\\benchmark\\cases\\memory_stream\\main.rs",
+  "version": 1
+}

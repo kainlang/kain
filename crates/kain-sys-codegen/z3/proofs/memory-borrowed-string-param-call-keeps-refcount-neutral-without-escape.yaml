@@ -1,0 +1,40 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.memory_borrowed_string_param_call_keeps_refcount_neutral_without_escape
+kind: check_smt2
+description: Internal string-parameter calls now use borrowed aliases instead of
+  caller-side retain plus callee-side release. When ownership does not escape the
+  callee, or when escape sites retain explicitly, both paths must leave the caller-visible
+  reference count unchanged.
+tags:
+- llvm
+- memory
+- string
+- rc
+- borrowed
+source:
+  path: D:/Kain-Lang/crates/kain-sys-codegen/src/codegen_llvm/mod.rs
+  symbol: compile_direct_call
+  start_line: 5176
+  reason: compile_direct_call skips caller retains for borrowed string parameters,
+    while compile_named_callable marks those params as borrowed locals so scope exit
+    does not release them
+case:
+  smt2: '(set-logic QF_LIA)
+
+    (declare-const caller_refcount Int)
+    (declare-const escape_retain_count Int)
+
+    (assert (>= caller_refcount 1))
+    (assert (>= escape_retain_count 0))
+
+    (define-fun retained_call_path_after_frame () Int
+      (+ (- (+ caller_refcount 1) 1) escape_retain_count))
+
+    (define-fun borrowed_call_path_after_frame () Int
+      (+ caller_refcount escape_retain_count))
+
+    (assert (not (= retained_call_path_after_frame borrowed_call_path_after_frame)))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

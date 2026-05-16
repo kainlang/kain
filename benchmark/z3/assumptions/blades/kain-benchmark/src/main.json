@@ -1,0 +1,630 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ui_event_targets(session, node) == 1",
+      "id": "handle-button-event.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 81,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 41,
+        "end_line": 81,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 81
+      },
+      "symbol": "handle_button_event",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if ui_event_targets(session, node) == 1:",
+      "variables": [
+        "node",
+        "session",
+        "ui_event_targets"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(actual) != len(expected)",
+      "id": "handle-button-event.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 87,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 33,
+        "end_line": 87,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 87
+      },
+      "symbol": "handle_button_event",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if len(actual) != len(expected):",
+      "variables": [
+        "actual",
+        "expected",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "index < len(expected)",
+      "id": "handle-button-event.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 90,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 29,
+        "end_line": 90,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 90
+      },
+      "symbol": "handle_button_event",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while index < len(expected):",
+      "variables": [
+        "expected",
+        "index",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "char_at(actual, index) != char_at(expected, index)",
+      "id": "handle-button-event.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 91,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 55,
+        "end_line": 91,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 91
+      },
+      "symbol": "handle_button_event",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if char_at(actual, index) != char_at(expected, index):",
+      "variables": [
+        "actual",
+        "char_at",
+        "expected",
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "runtime_status",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "runtime_status != 0",
+      "id": "handle-button-event.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 98,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 24,
+        "end_line": 98,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 98
+      },
+      "symbol": "handle_button_event",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if runtime_status != 0:",
+      "variables": [
+        "runtime_status"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "runtime_status",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "runtime_status != 0",
+      "id": "main.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 98,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 24,
+        "end_line": 98,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 98
+      },
+      "symbol": "main",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if runtime_status != 0:",
+      "variables": [
+        "runtime_status"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "text_equals(auto_run, \"quick\") == 1",
+      "id": "main.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 112,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 40,
+        "end_line": 112,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 112
+      },
+      "symbol": "main",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if text_equals(auto_run, \"quick\") == 1:",
+      "variables": [
+        "auto_run",
+        "quick",
+        "text_equals"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ui_event_targets(session, node) == 1",
+      "id": "render-box-label.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 81,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 41,
+        "end_line": 81,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 81
+      },
+      "symbol": "render_box_label",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if ui_event_targets(session, node) == 1:",
+      "variables": [
+        "node",
+        "session",
+        "ui_event_targets"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(actual) != len(expected)",
+      "id": "render-box-label.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 87,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 33,
+        "end_line": 87,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 87
+      },
+      "symbol": "render_box_label",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if len(actual) != len(expected):",
+      "variables": [
+        "actual",
+        "expected",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "index < len(expected)",
+      "id": "render-box-label.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 90,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 29,
+        "end_line": 90,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 90
+      },
+      "symbol": "render_box_label",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while index < len(expected):",
+      "variables": [
+        "expected",
+        "index",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "char_at(actual, index) != char_at(expected, index)",
+      "id": "render-box-label.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 91,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 55,
+        "end_line": 91,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 91
+      },
+      "symbol": "render_box_label",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if char_at(actual, index) != char_at(expected, index):",
+      "variables": [
+        "actual",
+        "char_at",
+        "expected",
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "runtime_status",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "runtime_status != 0",
+      "id": "render-box-label.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 98,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 24,
+        "end_line": 98,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 98
+      },
+      "symbol": "render_box_label",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if runtime_status != 0:",
+      "variables": [
+        "runtime_status"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ui_event_targets(session, node) == 1",
+      "id": "render-text-line.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 81,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 41,
+        "end_line": 81,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 81
+      },
+      "symbol": "render_text_line",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if ui_event_targets(session, node) == 1:",
+      "variables": [
+        "node",
+        "session",
+        "ui_event_targets"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(actual) != len(expected)",
+      "id": "render-text-line.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 87,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 33,
+        "end_line": 87,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 87
+      },
+      "symbol": "render_text_line",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if len(actual) != len(expected):",
+      "variables": [
+        "actual",
+        "expected",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "index < len(expected)",
+      "id": "render-text-line.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 90,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 29,
+        "end_line": 90,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 90
+      },
+      "symbol": "render_text_line",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while index < len(expected):",
+      "variables": [
+        "expected",
+        "index",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "char_at(actual, index) != char_at(expected, index)",
+      "id": "render-text-line.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 91,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 55,
+        "end_line": 91,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 91
+      },
+      "symbol": "render_text_line",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if char_at(actual, index) != char_at(expected, index):",
+      "variables": [
+        "actual",
+        "char_at",
+        "expected",
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len(actual) != len(expected)",
+      "id": "text-equals.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 87,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 33,
+        "end_line": 87,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 87
+      },
+      "symbol": "text_equals",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if len(actual) != len(expected):",
+      "variables": [
+        "actual",
+        "expected",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "index < len(expected)",
+      "id": "text-equals.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 90,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 29,
+        "end_line": 90,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 90
+      },
+      "symbol": "text_equals",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while index < len(expected):",
+      "variables": [
+        "expected",
+        "index",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "char_at(actual, index) != char_at(expected, index)",
+      "id": "text-equals.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 91,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 55,
+        "end_line": 91,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 91
+      },
+      "symbol": "text_equals",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if char_at(actual, index) != char_at(expected, index):",
+      "variables": [
+        "actual",
+        "char_at",
+        "expected",
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "runtime_status",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "runtime_status != 0",
+      "id": "text-equals.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "kain",
+      "line": 98,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+      "span": {
+        "end_col": 24,
+        "end_line": 98,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+        "start_col": 1,
+        "start_line": 98
+      },
+      "symbol": "text_equals",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if runtime_status != 0:",
+      "variables": [
+        "runtime_status"
+      ]
+    }
+  ],
+  "language": "kain",
+  "source_hash": "37d84ecbdb609d69983a0ecebeaed67a6a62421c3a368b04b0602ab4cdf3da9d",
+  "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\main.kn",
+  "version": 1
+}

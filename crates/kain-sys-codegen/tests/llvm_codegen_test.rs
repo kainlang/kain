@@ -1219,7 +1219,7 @@ fn llvm_lowers_ownership_keywords_to_runtime_guards() {
 #[test]
 fn llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path() {
     let typed = typed_program_from_source(
-        "fn own_local() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(sizeof_type(\"Int\"), \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
+        "fn own_local_pair() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(2, \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
     );
 
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
@@ -1237,6 +1237,48 @@ fn llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path() {
     assert!(llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
     assert!(!llvm.contains("call i32 @__kain_ownership_ensure_imported(i8*"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "ownership-helper-fast-path");
+}
+
+#[test]
+fn llvm_erases_ephemeral_single_cell_ownership_to_local_storage() {
+    let typed = typed_program_from_source(
+        "fn own_local() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(1, \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_ensure_imported(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_observe(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_end_observe(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_end_collapse(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_observe_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_end_observe_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_end_collapse_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(llvm.contains("alloca i64"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "ephemeral-ownership-erasure");
+}
+
+#[test]
+fn llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage() {
+    let typed = typed_program_from_source(
+        "fn own_loop_local() -> Int:\n    let cell_count: Int = 1\n    var acc: Int = 0\n    var i: Int = 0\n    while i < 4:\n        let mut cell: ptr<Int> = alloc_zeroed(cell_count, \"Int\")\n        collapse cell:\n            mem_store(cell, i + 7, \"Int\")\n            0\n        let read = observe cell:\n            mem_load(cell, \"Int\")\n        decay cell\n        acc = acc + read\n        i = i + 1\n    return acc\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_observe_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(llvm.contains("alloca [8 x i8]"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-ephemeral-ownership-erasure");
 }
 
 #[test]

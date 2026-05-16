@@ -63,6 +63,13 @@ These expression forms are the core of the memory surface:
 These forms are not just syntax. They are the expressions the backend lowers to
 helper calls, layout queries, or target-specific memory operations.
 
+Allocation count rule:
+
+- `alloc(n, "T")` and `alloc_zeroed(n, "T")` use `n` as an element count, not a byte count.
+- `realloc_mem(ptr, n, "T", ...)` uses `n` as the new element count.
+- The helper ABI multiplies `count * sizeof(T)` internally, so `alloc_zeroed(sizeof_type("Int"), "Int")` allocates eight `Int` cells on the current 64-bit lane, not one.
+- If you want one `Int`, spell it as `alloc_zeroed(1, "Int")`.
+
 ## Ownership Keywords
 
 `crates/kain-ownership` is the shared semantic home for the first-class

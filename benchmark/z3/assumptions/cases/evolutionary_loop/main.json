@@ -1,0 +1,245 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "choose.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 16,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "choose",
+      "text": "fn choose(value: i64) -> i64 {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "std::is_x86_feature_detected!(\"avx2\")",
+      "id": "choose.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 19,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 19,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 19
+      },
+      "symbol": "choose",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if std::is_x86_feature_detected!(\"avx2\") {",
+      "variables": [
+        "avx2",
+        "is_x86_feature_detected",
+        "std"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "i",
+          "ITERATIONS"
+        ],
+        "op": "lt"
+      },
+      "expression": "i < ITERATIONS",
+      "id": "main.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 39,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 39,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 39
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while i < ITERATIONS {",
+      "variables": [
+        "ITERATIONS",
+        "i"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "observed",
+          "EXPECTED"
+        ],
+        "op": "neq"
+      },
+      "expression": "observed != EXPECTED",
+      "id": "main.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 44,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 44,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 44
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if observed != EXPECTED {",
+      "variables": [
+        "EXPECTED",
+        "observed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "mix.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 27,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 27,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 27
+      },
+      "symbol": "mix",
+      "text": "fn mix(value: i64) -> i64 {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "pipeline.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 32,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 32,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 32
+      },
+      "symbol": "pipeline",
+      "text": "fn pipeline(value: i64) -> i64 {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "scalar-lane.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 6,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 6,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 6
+      },
+      "symbol": "scalar_lane",
+      "text": "fn scalar_lane(value: i64) -> i64 {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "wide-lane.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 11,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 11,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+        "start_col": 1,
+        "start_line": 11
+      },
+      "symbol": "wide_lane",
+      "text": "fn wide_lane(value: i64) -> i64 {",
+      "variables": [
+        "value"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "3511a97adf126eade90330dd7e1aa6d691415626266e6aa784797cdb6a5e3d90",
+  "source_path": "D:\\Kain-Lang\\benchmark\\cases\\evolutionary_loop\\main.rs",
+  "version": 1
+}

@@ -1,0 +1,60 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.control_char_at_byte_fast_path_preserves_empty_string_equality
+kind: check_smt2
+description: The LLVM char_at equality fast path replaces two heap-allocated
+  one-character strings plus deep_eq with direct byte loads. Under Kain's char_at
+  contract, out-of-bounds reads behave like the empty string, so equality must stay
+  true when both sides are invalid, false when exactly one side is invalid, and byte
+  equality when both sides are valid.
+tags:
+- llvm
+- control
+- string
+- char_at
+- equality
+source:
+  path: D:/Kain-Lang/crates/kain-sys-codegen/src/codegen_llvm/mod.rs
+  symbol: compile_char_at_string_equality_fast_path
+  start_line: 641
+  reason: compile_char_at_string_equality_fast_path lowers char_at(lhs, i) == char_at(rhs, j)
+    into validity checks plus direct byte comparison instead of allocating temporary
+    one-character strings and calling deep_eq
+case:
+  smt2: '(set-logic QF_LIA)
+
+    (declare-const left_valid Int)
+    (declare-const right_valid Int)
+    (declare-const left_byte Int)
+    (declare-const right_byte Int)
+
+    (assert (or (= left_valid 0) (= left_valid 1)))
+    (assert (or (= right_valid 0) (= right_valid 1)))
+    (assert (<= 0 left_byte))
+    (assert (<= left_byte 255))
+    (assert (<= 0 right_byte))
+    (assert (<= right_byte 255))
+
+    (define-fun bytes_equal () Int
+      (ite (= left_byte right_byte) 1 0))
+
+    (define-fun reference_eq () Int
+      (ite (= left_valid 1)
+        (ite (= right_valid 1) bytes_equal 0)
+        (ite (= right_valid 1) 0 1)))
+
+    (define-fun both_invalid () Int
+      (ite (and (= left_valid 0) (= right_valid 0)) 1 0))
+
+    (define-fun both_valid () Int
+      (ite (and (= left_valid 1) (= right_valid 1)) 1 0))
+
+    (define-fun fast_eq () Int
+      (ite (= both_invalid 1)
+        1
+        (ite (= both_valid 1) bytes_equal 0)))
+
+    (assert (not (= reference_eq fast_eq)))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

@@ -1,6 +1,6 @@
 fn main() -> Int:
-    let stride: Int = sizeof_type("Int")
-    let mut base: ptr<Int> = alloc_zeroed((2 * stride), "Int")
+    let cell_count: Int = 2
+    let mut base: ptr<Int> = alloc_zeroed(cell_count, "Int")
     let tail: ptr<Int> = ptr_offset(base, 1, "Int")
 
     mem_store(base, 7, "Int")

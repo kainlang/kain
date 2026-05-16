@@ -64,6 +64,14 @@ struct NativeEntangleBinding {
 enum OwnershipPointerProvenance {
     ImportedOrUnknown,
     HelperOwned,
+    EphemeralLocal,
+}
+
+#[derive(Clone, Debug)]
+struct EphemeralOwnershipLocalWitness {
+    storage_reg: String,
+    storage_array_ty: String,
+    storage_byte_len: i64,
 }
 
 const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
@@ -138,6 +146,17 @@ struct LlvmGenerator {
     /// Pointer-like locals whose provenance is solver-proved helper-owned and may
     /// use the helper-header ownership fast path without imported registration.
     helper_owned_pointer_locals: HashMap<String, OwnershipPointerProvenance>,
+    /// Fresh single-cell helper locals whose ownership protocol can stay in the
+    /// compiler because the cell never escapes its local block.
+    ephemeral_owned_pointer_locals: HashMap<String, EphemeralOwnershipLocalWitness>,
+    /// Precomputed block-local candidates for ephemeral-cell erasure.
+    ephemeral_candidate_scopes: Vec<HashSet<String>>,
+    /// Ephemeral locals whose fresh zero-fill is provably dead because the first
+    /// ownership use is a full-width dominating store before any read.
+    ephemeral_zero_init_elision_scopes: Vec<HashSet<String>>,
+    /// Block-scoped i64 literals known to the compiler for nested ephemeral
+    /// candidate nomination.
+    known_i64_literal_scopes: Vec<HashMap<String, i64>>,
     /// Locals that are borrowed views and must not be released on scope exit.
     borrowed_locals: HashSet<String>,
     /// Maps function names to return type
@@ -197,6 +216,10 @@ impl LlvmGenerator {
             label_count: 0,
             locals: HashMap::new(),
             helper_owned_pointer_locals: HashMap::new(),
+            ephemeral_owned_pointer_locals: HashMap::new(),
+            ephemeral_candidate_scopes: Vec::new(),
+            ephemeral_zero_init_elision_scopes: Vec::new(),
+            known_i64_literal_scopes: Vec::new(),
             borrowed_locals: HashSet::new(),
             functions: HashMap::new(),
             function_params: HashMap::new(),
@@ -566,6 +589,7 @@ impl LlvmGenerator {
         name: &str,
         provenance: OwnershipPointerProvenance,
     ) {
+        self.ephemeral_owned_pointer_locals.remove(name);
         if provenance == OwnershipPointerProvenance::HelperOwned {
             self.helper_owned_pointer_locals
                 .insert(name.to_string(), OwnershipPointerProvenance::HelperOwned);
@@ -574,16 +598,18 @@ impl LlvmGenerator {
         }
     }
 
-    fn ownership_pointer_provenance_for_expr(
-        &self,
-        expr: &Expr,
-    ) -> OwnershipPointerProvenance {
+    fn ownership_pointer_provenance_for_expr(&self, expr: &Expr) -> OwnershipPointerProvenance {
         match expr {
-            Expr::Ident(name, _) => self
-                .helper_owned_pointer_locals
-                .get(name)
-                .copied()
-                .unwrap_or(OwnershipPointerProvenance::ImportedOrUnknown),
+            Expr::Ident(name, _) => {
+                if self.ephemeral_owned_pointer_locals.contains_key(name) {
+                    OwnershipPointerProvenance::EphemeralLocal
+                } else {
+                    self.helper_owned_pointer_locals
+                        .get(name)
+                        .copied()
+                        .unwrap_or(OwnershipPointerProvenance::ImportedOrUnknown)
+                }
+            }
             Expr::Paren(inner, _) => self.ownership_pointer_provenance_for_expr(inner),
             Expr::Cast { value, .. } => self.ownership_pointer_provenance_for_expr(value),
             Expr::Call { callee, args, .. } => match callee.as_ref() {
@@ -603,6 +629,480 @@ impl LlvmGenerator {
             },
             _ => OwnershipPointerProvenance::ImportedOrUnknown,
         }
+    }
+
+    fn ephemeral_local_witness_for_pointer_expr(
+        &self,
+        expr: &Expr,
+    ) -> Option<EphemeralOwnershipLocalWitness> {
+        match expr {
+            Expr::Ident(name, _) => self.ephemeral_owned_pointer_locals.get(name).cloned(),
+            Expr::Paren(inner, _) => self.ephemeral_local_witness_for_pointer_expr(inner),
+            Expr::Cast { value, .. } => self.ephemeral_local_witness_for_pointer_expr(value),
+            _ => None,
+        }
+    }
+
+    fn current_scope_marks_ephemeral_candidate(&self, name: &str) -> bool {
+        self.ephemeral_candidate_scopes
+            .last()
+            .map(|candidates| candidates.contains(name))
+            .unwrap_or(false)
+    }
+
+    fn current_known_i64_literals(&self) -> HashMap<String, i64> {
+        let mut merged = HashMap::new();
+        for scope in &self.known_i64_literal_scopes {
+            for (name, literal) in scope {
+                merged.insert(name.clone(), *literal);
+            }
+        }
+        merged
+    }
+
+    fn helper_alloc_storage_layout(expr: &Expr) -> Option<(i64, bool)> {
+        match expr {
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_alloc")
+                    && args.len() == 3 =>
+            {
+                let stride = Self::resolve_i64_literal(&args[1].value, &HashMap::new())?;
+                let zeroed = Self::resolve_zeroed_literal(&args[2].value, &HashMap::new())?;
+                Some((stride, zeroed))
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_i64_literal(expr: &Expr, known_i64_bindings: &HashMap<String, i64>) -> Option<i64> {
+        match expr {
+            Expr::Int(value, _) => Some(*value),
+            Expr::Ident(name, _) => known_i64_bindings.get(name).copied(),
+            Expr::Paren(inner, _) => Self::resolve_i64_literal(inner, known_i64_bindings),
+            Expr::Cast { value, .. } => Self::resolve_i64_literal(value, known_i64_bindings),
+            _ => None,
+        }
+    }
+
+    fn resolve_zeroed_literal(
+        expr: &Expr,
+        known_i64_bindings: &HashMap<String, i64>,
+    ) -> Option<bool> {
+        match expr {
+            Expr::Bool(value, _) => Some(*value),
+            Expr::Paren(inner, _) => Self::resolve_zeroed_literal(inner, known_i64_bindings),
+            Expr::Cast { value, .. } => Self::resolve_zeroed_literal(value, known_i64_bindings),
+            _ => match Self::resolve_i64_literal(expr, known_i64_bindings) {
+                Some(0) => Some(false),
+                Some(1) => Some(true),
+                _ => None,
+            },
+        }
+    }
+
+    fn debug_mentions_identifier<T: std::fmt::Debug>(node: &T, target: &str) -> bool {
+        format!("{:?}", node).contains(&format!("\"{}\"", target))
+    }
+
+    fn expr_is_exact_target_pointer(expr: &Expr, target: &str) -> bool {
+        match expr {
+            Expr::Ident(name, _) => name == target,
+            Expr::Paren(inner, _) => Self::expr_is_exact_target_pointer(inner, target),
+            Expr::Cast { value, .. } => Self::expr_is_exact_target_pointer(value, target),
+            _ => false,
+        }
+    }
+
+    fn stmt_binds_i64_literal(
+        stmt: &Stmt,
+        known_i64_bindings: &HashMap<String, i64>,
+    ) -> Option<(String, i64)> {
+        match stmt {
+            Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(value),
+                ..
+            } => Self::resolve_i64_literal(value, known_i64_bindings)
+                .map(|literal| (name.clone(), literal)),
+            _ => None,
+        }
+    }
+
+    fn stmt_assigned_identifier_name(stmt: &Stmt) -> Option<&str> {
+        match stmt {
+            Stmt::Expr(Expr::Assign { target, .. }) => match target.as_ref() {
+                Expr::Ident(name, _) => Some(name.as_str()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn record_stmt_i64_literal_effects(&mut self, stmt: &Stmt) {
+        if let Some(name) = Self::stmt_assigned_identifier_name(stmt) {
+            for scope in self.known_i64_literal_scopes.iter_mut().rev() {
+                if scope.remove(name).is_some() {
+                    break;
+                }
+            }
+        }
+
+        let known_i64_bindings = self.current_known_i64_literals();
+        if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {
+            if let Some(scope) = self.known_i64_literal_scopes.last_mut() {
+                scope.insert(name, literal);
+            }
+        }
+    }
+
+    fn expr_is_safe_for_ephemeral_local(expr: &Expr, target: &str) -> bool {
+        match expr {
+            Expr::Int(_, _)
+            | Expr::Float(_, _)
+            | Expr::String(_, _)
+            | Expr::Bool(_, _)
+            | Expr::None(_)
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. }
+            | Expr::Continue(_) => true,
+            Expr::Ident(name, _) => name != target,
+            Expr::FString(parts, _) | Expr::Array(parts, _) | Expr::Tuple(parts, _) => parts
+                .iter()
+                .all(|part| Self::expr_is_safe_for_ephemeral_local(part, target)),
+            Expr::MacroCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_for_ephemeral_local(arg, target)),
+            Expr::Binary { left, right, .. } => {
+                Self::expr_is_safe_for_ephemeral_local(left, target)
+                    && Self::expr_is_safe_for_ephemeral_local(right, target)
+            }
+            Expr::Unary { operand, .. }
+            | Expr::Paren(operand, _)
+            | Expr::Deref(operand, _)
+            | Expr::Try(operand, _)
+            | Expr::Await(operand, _)
+            | Expr::AsyncBlock(operand, _)
+            | Expr::Comptime(operand, _)
+            | Expr::Return(Some(operand), _)
+            | Expr::Break(Some(operand), _) => {
+                Self::expr_is_safe_for_ephemeral_local(operand, target)
+            }
+            Expr::Return(None, _) | Expr::Break(None, _) => true,
+            Expr::Call { callee, args, .. } => {
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_load") {
+                    args.len() == 1 && Self::expr_is_exact_target_pointer(&args[0].value, target)
+                } else if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_store")
+                {
+                    args.len() == 2
+                        && Self::expr_is_exact_target_pointer(&args[0].value, target)
+                        && Self::expr_is_safe_for_ephemeral_local(&args[1].value, target)
+                } else {
+                    Self::expr_is_safe_for_ephemeral_local(callee, target)
+                        && args
+                            .iter()
+                            .all(|arg| Self::expr_is_safe_for_ephemeral_local(&arg.value, target))
+                }
+            }
+            Expr::StageCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_for_ephemeral_local(&arg.value, target)),
+            Expr::MethodCall { receiver, args, .. } => {
+                Self::expr_is_safe_for_ephemeral_local(receiver, target)
+                    && args
+                        .iter()
+                        .all(|arg| Self::expr_is_safe_for_ephemeral_local(&arg.value, target))
+            }
+            Expr::Field { object, .. } => Self::expr_is_safe_for_ephemeral_local(object, target),
+            Expr::Index { object, index, .. } => {
+                Self::expr_is_safe_for_ephemeral_local(object, target)
+                    && Self::expr_is_safe_for_ephemeral_local(index, target)
+            }
+            Expr::Assign {
+                target: assign_target,
+                value,
+                ..
+            } => {
+                Self::expr_is_safe_for_ephemeral_local(assign_target, target)
+                    && Self::expr_is_safe_for_ephemeral_local(value, target)
+            }
+            Expr::Struct { fields, rest, .. } => {
+                fields
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target))
+                    && rest
+                        .as_ref()
+                        .map(|value| Self::expr_is_safe_for_ephemeral_local(value, target))
+                        .unwrap_or(true)
+            }
+            Expr::AggregateInit { fields, .. } => fields
+                .iter()
+                .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target)),
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => true,
+                kain_core::ast::EnumVariantFields::Tuple(values) => values
+                    .iter()
+                    .all(|value| Self::expr_is_safe_for_ephemeral_local(value, target)),
+                kain_core::ast::EnumVariantFields::Struct(values) => values
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target)),
+            },
+            Expr::Range { start, end, .. } => {
+                start
+                    .as_ref()
+                    .map(|value| Self::expr_is_safe_for_ephemeral_local(value, target))
+                    .unwrap_or(true)
+                    && end
+                        .as_ref()
+                        .map(|value| Self::expr_is_safe_for_ephemeral_local(value, target))
+                        .unwrap_or(true)
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::expr_is_safe_for_ephemeral_local(condition, target)
+                    && Self::block_is_safe_for_ephemeral_local(then_branch, target)
+                    && else_branch
+                        .as_ref()
+                        .map(|branch| Self::else_branch_is_safe_for_ephemeral_local(branch, target))
+                        .unwrap_or(true)
+            }
+            Expr::Lambda { body, .. } => Self::expr_is_safe_for_ephemeral_local(body, target),
+            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } | Expr::Cast { value, .. } => {
+                Self::expr_is_safe_for_ephemeral_local(value, target)
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                !Self::expr_is_exact_target_pointer(pointer, target)
+                    && Self::expr_is_safe_for_ephemeral_local(pointer, target)
+                    && Self::expr_is_safe_for_ephemeral_local(offset, target)
+            }
+            Expr::MemLoad { pointer, .. } => Self::expr_is_exact_target_pointer(pointer, target),
+            Expr::MemStore { pointer, value, .. } => {
+                Self::expr_is_exact_target_pointer(pointer, target)
+                    && Self::expr_is_safe_for_ephemeral_local(value, target)
+            }
+            Expr::Alloc { size, .. } => Self::expr_is_safe_for_ephemeral_local(size, target),
+            Expr::Realloc { pointer, size, .. } => {
+                Self::expr_is_safe_for_ephemeral_local(pointer, target)
+                    && Self::expr_is_safe_for_ephemeral_local(size, target)
+            }
+            Expr::Observe {
+                target: observe_target,
+                body,
+                ..
+            }
+            | Expr::Collapse {
+                target: observe_target,
+                body,
+                ..
+            } => {
+                !Self::expr_is_exact_target_pointer(observe_target, target)
+                    && Self::expr_is_safe_for_ephemeral_local(observe_target, target)
+                    && Self::expr_is_safe_for_ephemeral_local(body, target)
+            }
+            Expr::Decay {
+                target: decay_target,
+                ..
+            } => {
+                !Self::expr_is_exact_target_pointer(decay_target, target)
+                    && Self::expr_is_safe_for_ephemeral_local(decay_target, target)
+            }
+            Expr::Spawn { init, .. } => init
+                .iter()
+                .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target)),
+            Expr::SendMsg {
+                target: send_target,
+                data,
+                ..
+            } => {
+                Self::expr_is_safe_for_ephemeral_local(send_target, target)
+                    && data
+                        .iter()
+                        .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target))
+            }
+            Expr::Block(block, _) => Self::block_is_safe_for_ephemeral_local(block, target),
+            Expr::Match { .. } | Expr::JSX(_, _) => !Self::debug_mentions_identifier(expr, target),
+        }
+    }
+
+    fn stmt_is_safe_for_ephemeral_local(stmt: &Stmt, target: &str) -> bool {
+        match stmt {
+            Stmt::Let { pattern, value, .. } => {
+                !Self::debug_mentions_identifier(pattern, target)
+                    && value
+                        .as_ref()
+                        .map(|expr| Self::expr_is_safe_for_ephemeral_local(expr, target))
+                        .unwrap_or(true)
+            }
+            Stmt::Expr(expr) => Self::expr_is_safe_for_ephemeral_local(expr, target),
+            Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                Self::expr_is_safe_for_ephemeral_local(expr, target)
+            }
+            Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
+            Stmt::For { iter, body, .. } => {
+                Self::expr_is_safe_for_ephemeral_local(iter, target)
+                    && Self::block_is_safe_for_ephemeral_local(body, target)
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                Self::expr_is_safe_for_ephemeral_local(condition, target)
+                    && Self::block_is_safe_for_ephemeral_local(body, target)
+            }
+            Stmt::Loop { body, .. } => Self::block_is_safe_for_ephemeral_local(body, target),
+            Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+        }
+    }
+
+    fn block_is_safe_for_ephemeral_local(block: &Block, target: &str) -> bool {
+        block
+            .stmts
+            .iter()
+            .all(|stmt| Self::stmt_is_safe_for_ephemeral_local(stmt, target))
+    }
+
+    fn else_branch_is_safe_for_ephemeral_local(else_branch: &ElseBranch, target: &str) -> bool {
+        match else_branch {
+            ElseBranch::Else(block) => Self::block_is_safe_for_ephemeral_local(block, target),
+            ElseBranch::ElseIf(condition, then_branch, nested_else) => {
+                Self::expr_is_safe_for_ephemeral_local(condition, target)
+                    && Self::block_is_safe_for_ephemeral_local(then_branch, target)
+                    && nested_else
+                        .as_ref()
+                        .map(|branch| Self::else_branch_is_safe_for_ephemeral_local(branch, target))
+                        .unwrap_or(true)
+            }
+        }
+    }
+
+    fn remaining_statements_preserve_ephemeral_contract(stmts: &[Stmt], target: &str) -> bool {
+        let mut saw_decay = false;
+        let mut saw_ownership_use = false;
+
+        for stmt in stmts {
+            if saw_decay {
+                if Self::debug_mentions_identifier(stmt, target) {
+                    return false;
+                }
+                continue;
+            }
+
+            match stmt {
+                Stmt::Expr(Expr::Decay {
+                    target: decay_target,
+                    ..
+                }) if Self::expr_is_exact_target_pointer(decay_target, target) => {
+                    saw_decay = true;
+                }
+                Stmt::Expr(Expr::Collapse {
+                    target: ownership_target,
+                    body,
+                    ..
+                }) if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    if !Self::expr_is_safe_for_ephemeral_local(body, target) {
+                        return false;
+                    }
+                    saw_ownership_use = true;
+                }
+                Stmt::Expr(Expr::Observe {
+                    target: ownership_target,
+                    body,
+                    ..
+                }) if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    if !Self::expr_is_safe_for_ephemeral_local(body, target) {
+                        return false;
+                    }
+                    saw_ownership_use = true;
+                }
+                Stmt::Let {
+                    value:
+                        Some(Expr::Observe {
+                            target: ownership_target,
+                            body,
+                            ..
+                        }),
+                    ..
+                } if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    if !Self::expr_is_safe_for_ephemeral_local(body, target) {
+                        return false;
+                    }
+                    saw_ownership_use = true;
+                }
+                Stmt::Let {
+                    value:
+                        Some(Expr::Collapse {
+                            target: ownership_target,
+                            body,
+                            ..
+                        }),
+                    ..
+                } if Self::expr_is_exact_target_pointer(ownership_target, target) => {
+                    if !Self::expr_is_safe_for_ephemeral_local(body, target) {
+                        return false;
+                    }
+                    saw_ownership_use = true;
+                }
+                _ => {
+                    if Self::debug_mentions_identifier(stmt, target) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        saw_decay && saw_ownership_use
+    }
+
+    fn collect_block_ephemeral_candidate_names(
+        block: &Block,
+        inherited_known_i64_bindings: &HashMap<String, i64>,
+    ) -> HashSet<String> {
+        let mut candidates = HashSet::new();
+        let mut known_i64_bindings = inherited_known_i64_bindings.clone();
+
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            if let Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                ty: Some(_),
+                value: Some(value),
+                ..
+            } = stmt
+            {
+                let is_single_cell_helper_alloc = match value {
+                    Expr::Call { callee, args, .. }
+                        if matches!(callee.as_ref(), Expr::Ident(callee_name, _) if callee_name == "__kain_alloc")
+                            && args.len() == 3 =>
+                    {
+                        matches!(
+                            Self::resolve_i64_literal(&args[0].value, &known_i64_bindings),
+                            Some(1)
+                        ) && Self::resolve_zeroed_literal(&args[2].value, &known_i64_bindings)
+                            .is_some()
+                    }
+                    _ => false,
+                };
+                if is_single_cell_helper_alloc
+                    && Self::remaining_statements_preserve_ephemeral_contract(
+                        &block.stmts[index + 1..],
+                        name,
+                    )
+                {
+                    candidates.insert(name.clone());
+                }
+            }
+
+            if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {
+                known_i64_bindings.insert(name, literal);
+            }
+        }
+
+        candidates
     }
 
     fn extract_string_literal(expr: &Expr) -> Option<String> {
@@ -629,8 +1129,10 @@ impl LlvmGenerator {
             Expr::Ident(name, _) => self.is_known_string_ident(name),
             Expr::Binary {
                 left, op, right, ..
-            } => *op == BinaryOp::Add
-                && (self.expr_is_known_string(left) || self.expr_is_known_string(right)),
+            } => {
+                *op == BinaryOp::Add
+                    && (self.expr_is_known_string(left) || self.expr_is_known_string(right))
+            }
             _ => false,
         }
     }
@@ -805,7 +1307,10 @@ impl LlvmGenerator {
             left_byte_ptr, left_ptr, left_index
         ));
         let left_byte = self.next_reg();
-        self.emit(&format!("  {} = load i8, i8* {}, align 1", left_byte, left_byte_ptr));
+        self.emit(&format!(
+            "  {} = load i8, i8* {}, align 1",
+            left_byte, left_byte_ptr
+        ));
         let right_byte_ptr = self.next_reg();
         self.emit(&format!(
             "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
@@ -1411,8 +1916,32 @@ impl LlvmGenerator {
         &mut self,
         pointer: &Expr,
         load_ty: &str,
-        _span: Span,
+        span: Span,
     ) -> KainResult<(String, String)> {
+        if let Some(witness) = self.ephemeral_local_witness_for_pointer_expr(pointer) {
+            let (load_size, _) = self.abi_layout_for_ty(load_ty, span)?;
+            if load_size as i64 <= witness.storage_byte_len {
+                let storage_i8 = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
+                    storage_i8,
+                    witness.storage_array_ty,
+                    witness.storage_array_ty,
+                    witness.storage_reg
+                ));
+                let typed_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    typed_ptr, storage_i8, load_ty
+                ));
+                let loaded = self.next_reg();
+                self.emit(&format!(
+                    "  {} = load {}, {}* {}, align 1",
+                    loaded, load_ty, load_ty, typed_ptr
+                ));
+                return Ok((loaded, load_ty.to_string()));
+            }
+        }
         let (ptr, ptr_ty) = self.compile_expr(pointer)?;
         let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
         let ptr_i8 = self.next_reg();
@@ -1434,8 +1963,32 @@ impl LlvmGenerator {
         &mut self,
         pointer: &Expr,
         value: &Expr,
-        _span: Span,
+        span: Span,
     ) -> KainResult<(String, String)> {
+        if let Some(witness) = self.ephemeral_local_witness_for_pointer_expr(pointer) {
+            let (stored_value, stored_ty) = self.compile_expr(value)?;
+            let (store_size, _) = self.abi_layout_for_ty(&stored_ty, span)?;
+            if store_size as i64 <= witness.storage_byte_len {
+                let storage_i8 = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
+                    storage_i8,
+                    witness.storage_array_ty,
+                    witness.storage_array_ty,
+                    witness.storage_reg
+                ));
+                let typed_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    typed_ptr, storage_i8, stored_ty
+                ));
+                self.emit(&format!(
+                    "  store {} {}, {}* {}, align 1",
+                    stored_ty, stored_value, stored_ty, typed_ptr
+                ));
+                return Ok((stored_value, stored_ty));
+            }
+        }
         let (ptr, ptr_ty) = self.compile_expr(pointer)?;
         let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
         let (stored_value, stored_ty) = self.compile_expr(value)?;
@@ -1463,7 +2016,7 @@ impl LlvmGenerator {
         let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
         let ptr_i8 = self.next_reg();
         self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
-        if provenance != OwnershipPointerProvenance::HelperOwned {
+        if provenance == OwnershipPointerProvenance::ImportedOrUnknown {
             self.emit_lazy_import_ownership_region(&ptr_i8);
         }
         Ok((ptr_i8, provenance))
@@ -1522,6 +2075,11 @@ impl LlvmGenerator {
         imported_end_fn: &str,
         helper_end_fn: &str,
     ) -> KainResult<(String, String)> {
+        if self.ownership_pointer_provenance_for_expr(target)
+            == OwnershipPointerProvenance::EphemeralLocal
+        {
+            return self.compile_expr(body);
+        }
         let (ptr_i8, provenance) = self.compile_ownership_pointer(target)?;
         let begin_fn = if provenance == OwnershipPointerProvenance::HelperOwned {
             helper_begin_fn
@@ -1540,6 +2098,11 @@ impl LlvmGenerator {
     }
 
     fn compile_decay_expr(&mut self, target: &Expr) -> KainResult<(String, String)> {
+        if self.ownership_pointer_provenance_for_expr(target)
+            == OwnershipPointerProvenance::EphemeralLocal
+        {
+            return Ok(("0".to_string(), "void".to_string()));
+        }
         let (ptr_i8, provenance) = self.compile_ownership_pointer(target)?;
         let decay_fn = if provenance == OwnershipPointerProvenance::HelperOwned {
             "__kain_ownership_decay_helper"
@@ -4292,7 +4855,11 @@ impl LlvmGenerator {
             if Self::ast_type_is_string(&param.ty) {
                 self.string_locals.insert(param.name.clone());
                 let length_reg = self.next_reg();
-                self.emit(&format!("  {} = call i64 @strlen(i8* %arg{})", length_reg, i + 1));
+                self.emit(&format!(
+                    "  {} = call i64 @strlen(i8* %arg{})",
+                    length_reg,
+                    i + 1
+                ));
                 self.string_length_values
                     .insert(param.name.clone(), length_reg);
             }
@@ -4458,7 +5025,10 @@ impl LlvmGenerator {
             {
                 self.string_locals.insert(param.name.clone());
                 let length_reg = self.next_reg();
-                self.emit(&format!("  {} = call i64 @strlen(i8* %arg{})", length_reg, index));
+                self.emit(&format!(
+                    "  {} = call i64 @strlen(i8* %arg{})",
+                    length_reg, index
+                ));
                 self.string_length_values
                     .insert(param.name.clone(), length_reg);
                 if borrowed_string_params.get(index).copied().unwrap_or(false) {
@@ -4847,15 +5417,36 @@ impl LlvmGenerator {
 
     fn compile_block(&mut self, block: &Block) -> KainResult<()> {
         self.scopes.push(Vec::new());
+        let inherited_known_i64_bindings = self.current_known_i64_literals();
+        self.ephemeral_candidate_scopes
+            .push(Self::collect_block_ephemeral_candidate_names(
+                block,
+                &inherited_known_i64_bindings,
+            ));
+        self.known_i64_literal_scopes.push(HashMap::new());
         for stmt in &block.stmts {
-            self.compile_stmt(stmt)?;
+            if let Err(err) = self.compile_stmt(stmt) {
+                self.known_i64_literal_scopes.pop();
+                self.ephemeral_candidate_scopes.pop();
+                return Err(err);
+            }
+            self.record_stmt_i64_literal_effects(stmt);
         }
         self.emit_scope_exit();
+        self.known_i64_literal_scopes.pop();
+        self.ephemeral_candidate_scopes.pop();
         Ok(())
     }
 
     fn compile_block_with_result(&mut self, block: &Block) -> KainResult<Option<(String, String)>> {
         self.scopes.push(Vec::new());
+        let inherited_known_i64_bindings = self.current_known_i64_literals();
+        self.ephemeral_candidate_scopes
+            .push(Self::collect_block_ephemeral_candidate_names(
+                block,
+                &inherited_known_i64_bindings,
+            ));
+        self.known_i64_literal_scopes.push(HashMap::new());
         let mut last_res = None;
         let mut last_is_new = false;
 
@@ -4865,11 +5456,22 @@ impl LlvmGenerator {
                     let (val, ty) = self.compile_expr(expr)?;
                     last_res = Some((val, ty));
                     last_is_new = self.is_new_object(expr);
+                    self.record_stmt_i64_literal_effects(stmt);
                 } else {
-                    self.compile_stmt(stmt)?;
+                    if let Err(err) = self.compile_stmt(stmt) {
+                        self.known_i64_literal_scopes.pop();
+                        self.ephemeral_candidate_scopes.pop();
+                        return Err(err);
+                    }
+                    self.record_stmt_i64_literal_effects(stmt);
                 }
             } else {
-                self.compile_stmt(stmt)?;
+                if let Err(err) = self.compile_stmt(stmt) {
+                    self.known_i64_literal_scopes.pop();
+                    self.ephemeral_candidate_scopes.pop();
+                    return Err(err);
+                }
+                self.record_stmt_i64_literal_effects(stmt);
             }
         }
 
@@ -4884,6 +5486,8 @@ impl LlvmGenerator {
         }
 
         self.emit_scope_exit();
+        self.known_i64_literal_scopes.pop();
+        self.ephemeral_candidate_scopes.pop();
         Ok(last_res)
     }
 
@@ -5038,6 +5642,56 @@ impl LlvmGenerator {
                 if let Some(val_expr) = value {
                     // Allocate and Store
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
+                        if self.current_scope_marks_ephemeral_candidate(name) {
+                            if let Some((storage_byte_len, zeroed)) =
+                                Self::helper_alloc_storage_layout(val_expr)
+                            {
+                                let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
+                                self.reg_count += 1;
+                                self.emit_entry_alloca(&addr_reg, "i64");
+
+                                let storage_array_ty = format!("[{} x i8]", storage_byte_len);
+                                let storage_reg = self.next_reg();
+                                self.emit_entry_alloca(&storage_reg, &storage_array_ty);
+                                if zeroed {
+                                    self.emit(&format!(
+                                        "  store {} {}, {}* {}, align 1",
+                                        storage_array_ty,
+                                        "zeroinitializer",
+                                        storage_array_ty,
+                                        storage_reg
+                                    ));
+                                }
+
+                                let storage_ptr_i64 = self.next_reg();
+                                self.emit(&format!(
+                                    "  {} = ptrtoint {}* {} to i64",
+                                    storage_ptr_i64, storage_array_ty, storage_reg
+                                ));
+                                self.emit(&format!(
+                                    "  store i64 {}, i64* {}",
+                                    storage_ptr_i64, addr_reg
+                                ));
+
+                                self.string_length_values.remove(name);
+                                self.locals
+                                    .insert(name.clone(), (addr_reg, "i64".to_string()));
+                                self.helper_owned_pointer_locals.remove(name);
+                                self.ephemeral_owned_pointer_locals.insert(
+                                    name.clone(),
+                                    EphemeralOwnershipLocalWitness {
+                                        storage_reg,
+                                        storage_array_ty,
+                                        storage_byte_len,
+                                    },
+                                );
+                                if let Some(scope) = self.scopes.last_mut() {
+                                    scope.push(name.clone());
+                                }
+                                return Ok(());
+                            }
+                        }
+
                         let target_ty =
                             ty.as_ref().map(|declared| self.map_type_from_ast(declared));
                         let (val_reg, val_ty) = if let Some(target_ty) = target_ty.as_deref() {

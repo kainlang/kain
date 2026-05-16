@@ -2,11 +2,11 @@ fn main() -> Int:
     let iterations: Int = 50000
     let modulus: Int = 1000000007
     let expected: Int = 250324993
-    let stride: Int = sizeof_type("Int")
+    let cell_count: Int = 1
     var acc: Int = 0
     var i: Int = 0
     while i < iterations:
-        let mut cell: ptr<Int> = alloc_zeroed(stride, "Int")
+        let mut cell: ptr<Int> = alloc_zeroed(cell_count, "Int")
         collapse cell:
             mem_store(cell, i + 7, "Int")
             0

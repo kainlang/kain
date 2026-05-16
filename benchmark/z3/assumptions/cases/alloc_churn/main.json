@@ -1,0 +1,82 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "i",
+          "ITERATIONS"
+        ],
+        "op": "lt"
+      },
+      "expression": "i < ITERATIONS",
+      "id": "main.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 8,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\alloc_churn\\main.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 8,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\alloc_churn\\main.rs",
+        "start_col": 1,
+        "start_line": 8
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while i < ITERATIONS {",
+      "variables": [
+        "ITERATIONS",
+        "i"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "acc",
+          "EXPECTED"
+        ],
+        "op": "neq"
+      },
+      "expression": "acc != EXPECTED",
+      "id": "main.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 15,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\benchmark\\cases\\alloc_churn\\main.rs",
+      "span": {
+        "end_col": 21,
+        "end_line": 15,
+        "path": "D:\\Kain-Lang\\benchmark\\cases\\alloc_churn\\main.rs",
+        "start_col": 1,
+        "start_line": 15
+      },
+      "symbol": "main",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if acc != EXPECTED {",
+      "variables": [
+        "EXPECTED",
+        "acc"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "a508533bd912f54f050e5976be5f0f6ceb5c0cae0065c3cc8d03745e76cf30ef",
+  "source_path": "D:\\Kain-Lang\\benchmark\\cases\\alloc_churn\\main.rs",
+  "version": 1
+}

@@ -1,0 +1,62 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "Int"
+      },
+      "id": "action-x.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "kain",
+      "line": 25,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\layout.kn",
+      "span": {
+        "end_col": 38,
+        "end_line": 25,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\layout.kn",
+        "start_col": 1,
+        "start_line": 25
+      },
+      "symbol": "action_x",
+      "text": "pub fn action_x(index: Int) -> Float:",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "Int"
+      },
+      "id": "stat-x.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "kain",
+      "line": 37,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\layout.kn",
+      "span": {
+        "end_col": 36,
+        "end_line": 37,
+        "path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\layout.kn",
+        "start_col": 1,
+        "start_line": 37
+      },
+      "symbol": "stat_x",
+      "text": "pub fn stat_x(index: Int) -> Float:",
+      "variables": [
+        "index"
+      ]
+    }
+  ],
+  "language": "kain",
+  "source_hash": "870a59f5b4e6bb4855943957cd8c485841fc18ef5258480fd103d81b7e7b9737",
+  "source_path": "D:\\Kain-Lang\\benchmark\\blades\\kain-benchmark\\src\\layout.kn",
+  "version": 1
+}

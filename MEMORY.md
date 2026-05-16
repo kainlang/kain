@@ -1,5 +1,79 @@
 # Kain Memory
 
+# 2026-05-15 - LLVM now carries an ephemeral-local ownership witness lane that erases fresh loop-local cells into stack byte storage
+
+The moonshot branch is real now: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` has a compiler-owned `EphemeralLocal` provenance lane for fresh single-cell helper allocations whose ownership trace never escapes the local block. This is the first production lowering where the right question stopped being “how do we make heap bookkeeping cheaper?” and became “was a physical heap object ever semantically required here at all?”
+
+What changed:
+
+- Added `OwnershipPointerProvenance::EphemeralLocal`, `EphemeralOwnershipLocalWitness`, and block-local candidate tracking in the LLVM backend.
+- Fresh single-cell helper allocs that stay inside a balanced `collapse -> observe -> decay` trace now lower to stack-backed `[N x i8]` storage plus direct load/store lowering instead of `__kain_alloc(...)`, `__kain_ownership_*`, and `inttoptr` helper traffic.
+- Fixed the first real benchmark-shaped bug in the candidate matcher: nested blocks originally lost outer literal facts such as `cell_count = 1`, so loop-local `alloc_zeroed(cell_count, "Int")` in `alloc_churn` could not prove the single-cell contract. The backend now carries block-scoped known-`Int` literal maps far enough for nested ephemeral nomination.
+- Added a new LLVM regression in `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` for the exact loop-local `alloc_churn` shape: `llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage`.
+- Updated `.agents/skills/kain-ownership-system/SKILL.md` and `ARCHITECTURE.md` so future work treats the ephemeral lane as a proof-backed ownership species, not a benchmark-only trick.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_ephemeral_single_cell_ownership_to_local_storage -- --exact --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage -- --exact --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path -- --exact --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards -- --exact --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_consumes_lowered_alloc_and_realloc_helpers -- --exact --nocapture`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-ephemeral-loop-local-ownership-erasure")` -> `18/18 proved`, report `crates/kain-sys-codegen/z3/reports/20260516T000551Z-llvm-ephemeral-loop-local-ownership-erasure.json`
+- `python benchmark/run.py --case alloc_churn --languages kain,rust --runs 5 --warmups 1` -> report `benchmark/out/reports/20260516T000522Z.llm.md`
+- `python benchmark/run.py --case ownership_memory --languages kain,rust --runs 5 --warmups 1` -> report `benchmark/out/reports/20260516T000551Z.llm.md`
+- `python benchmark/run.py --case alloc_churn --languages kain,rust --runs 9 --warmups 2` -> report `benchmark/out/reports/20260516T000619Z.llm.md`
+
+Current benchmark reality:
+
+- `alloc_churn` now emits the intended alien shape in `benchmark/out/build/alloc_churn/kain/alloc_churn.ll`: stack-backed `[8 x i8]` storage in `@main`, no `__kain_alloc(...)`, and no ownership runtime calls in the hot cell path.
+- On the more stable `9`-run / `2`-warmup report `benchmark/out/reports/20260516T000619Z.llm.md`, `alloc_churn` improved from the earlier post-contract baseline `17.459 ms` down to `13.767 ms`. Rust still led at `10.673 ms`, so the pass removed a large category of work but did not yet close the last scalar gap.
+- On the `5`-run / `1`-warmup report `benchmark/out/reports/20260516T000551Z.llm.md`, `ownership_memory` stayed on the erased lane but still measured `18.019 ms` vs Rust `11.614 ms`. That confirms the old diagnosis: once heap/runtime protocol disappears, this case is mostly scalarization/register-residency/math lowering, not a native ownership-helper emergency.
+
+Durable conclusion:
+
+- The ephemeral-local witness lane is now a real production contract, not just a research note. It proved that a fresh helper-owned cell can evaporate out of the heap/runtime universe when the ownership trace is local and balanced.
+- The remaining `alloc_churn` gap is now mostly outside the ownership runtime. The next best LLVM-side attack is likely dead zero-init elision for ephemeral locals that are always written before first read, plus any remaining scalar/register cleanup in the hot loop.
+
+# 2026-05-15 - Low-level helper alloc count is element-count, not byte-count, and the first ephemeral-cell erasure theorem surface is now saved
+
+The helper ABI contract has to stay explicit: `alloc(count, "T")` and `realloc_mem(ptr, count, "T", ...)` are element-count APIs, not byte-count APIs. A small but important repo-wide smell had crept into the benchmark and fixture authoring surface, where some single-`Int` cells were written as `alloc_zeroed(sizeof_type("Int"), "Int")`. Under the live helper ABI in `runtime/native/include/kain_runtime_memory.h`, that allocates `8` `Int` cells on the current 64-bit lane, not one.
+
+What changed:
+
+- Corrected the affected Kain sources to use element counts instead of byte counts for one-cell or two-cell heap storage:
+  - `benchmark/cases/alloc_churn/main.kn`
+  - `benchmark/cases/ownership_memory/main.kn`
+  - `benchmark/cases/contention_wall/main.kn`
+  - `runtime/fixtures/llvm_heap_memory/main.kn`
+  - `docs/examples/07_low_level_memory_and_layout.kn`
+- Updated `docs/syntax-and-semantics/low-level-memory.md` to say the rule explicitly: `alloc(n, "T")` uses `n` as element count and the helper ABI multiplies by `sizeof(T)` internally.
+- Updated `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future benchmark work does not regress into byte-style heap authoring for single-cell cases.
+- Added two solver-backed research artifacts:
+  - `runtime/native/src/core/z3/proofs-experimental/helper-abi-single-int-cell-requires-one-element-count.smt2`
+  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-cell-store-load-decay-erases-to-ssa.smt2`
+- Expanded `research/2026-05-15-ephemeral-cell-erasure.md` from a stub into the actual frontier note for the moonshot branch.
+
+Validation:
+
+- `mcp__z3_local__.check_smt2(report_name="helper-abi-single-int-cell-requires-one-element-count", ...)` -> `unsat`
+- `mcp__z3_local__.check_smt2(report_name="ownership-ephemeral-cell-store-load-decay-erases-to-ssa", ...)` -> `unsat`
+- `python benchmark/run.py --case alloc_churn --languages kain,rust --runs 5 --warmups 1`
+- `python benchmark/run.py --case ownership_memory --languages kain,rust --runs 5 --warmups 1`
+- `python benchmark/run.py --case contention_wall --languages kain,rust --runs 3 --warmups 1`
+- `kain.exe runtime/fixtures/llvm_heap_memory/main.kn -t llvm -o runtime/fixtures/llvm_heap_memory/.kain/llvm_heap_memory.ll` plus executing the generated `.exe`
+- `kain.exe docs/examples/07_low_level_memory_and_layout.kn -t llvm -o docs/examples/.kain/07_low_level_memory_and_layout.ll` plus executing the generated `.exe` (`memory_total=11`)
+
+Current benchmark reality:
+
+- `alloc_churn` on the warm corrected rerun landed at Kain `17.459 ms` vs Rust `9.411 ms` in `benchmark/out/reports/20260515T232656Z.llm.md`.
+- `ownership_memory` landed at Kain `15.070 ms` vs Rust `10.823 ms` in `benchmark/out/reports/20260515T232601Z.llm.md`.
+- `contention_wall` still posted a massive proxy win at Kain `12.764 ms` vs Rust `1758.026 ms` in `benchmark/out/reports/20260515T232632Z.llm.md`.
+
+Durable conclusion:
+
+- The byte-count authoring mistake was real and needed to be fixed, but it does not erase the remaining `alloc_churn` gap by itself. The real next frontier is still the one we wanted: compiler-owned ephemeral ownership cells. Once a helper-owned cell is fresh, non-escaping, single-store, and alias-free, the meaningful question is no longer “how do we make heap bookkeeping cheaper?” but “can we prove the heap object was never semantically required?” Future LLVM work should introduce an explicit ephemeral-local provenance/witness class rather than trying to shave more nanoseconds off the same helper protocol forever.
+
 # 2026-05-15 - The generic ownership prepare path was the wrong abstraction; LLVM and the native runtime now split imported and helper-owned ownership calls
 
 The earlier helper-slot optimization exposed a deeper bug: `__kain_ownership_prepare_managed_pointer(...)` tried to infer helper-owned provenance by reading bytes before an arbitrary pointer. A saved solver witness now proves the old contract admitted a bad state where prepare returned success on a fake helper-looking prefix without actually making the later ownership operation safe.
