@@ -4,6 +4,7 @@ param(
     [string]$Backend = "all",
     [ValidateSet("dev", "release")]
     [string]$BazelConfig = "dev",
+    [int]$FrameBudget = 0,
     [string]$KainBin = $env:KAIN_BIN
 )
 
@@ -50,7 +51,15 @@ function Invoke-KaintanaRun([string]$SelectedBackend) {
     }
 
     if (!$NoRun) {
-        & $rootExe
+        if ($FrameBudget -gt 0) {
+            $env:KAINTANA_TEST_FRAME_BUDGET = [string]$FrameBudget
+        }
+        try {
+            & $rootExe
+        }
+        finally {
+            Remove-Item Env:KAINTANA_TEST_FRAME_BUDGET -ErrorAction SilentlyContinue
+        }
     }
 }
 

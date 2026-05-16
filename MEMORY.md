@@ -1,5 +1,59 @@
 # Kain Memory
 
+# 2026-05-16 - Native crash forensics is now a first-class repo workflow, and the first proven crash family is archived Win32/GL modal-menu reentrancy rather than the current Kaintana/Pong presenters
+
+The repo needed a durable way to answer native crash questions from the machine-code edge instead of replaying the same detective work through a million-line checkout. That now exists, and the first full pass produced a much cleaner split between “real crash root cause” and “current apps feel finicky.”
+
+What changed:
+
+- Added the repo-wide crash tool at `tools/crash-forensics/analyze_native_crash.ps1`.
+  - Inputs: matching exe + Windows dump, with optional emitted `.ll`, frame report, and host report paths.
+  - Outputs: a summary report plus raw LLDB and `llvm-objdump` logs under `.kain/forensics/`.
+  - The tool now resolves the first app-owned frame, translates the ASLR-loaded frame address back into file-image VMA through `image lookup -a ... (module_image + offset)` plus PE `ImageBase`, scans emitted LLVM IR for non-entry `alloca`, and records last-frame evidence from host/app reports.
+- Added repo-local operator guidance at `.agents/skills/native-crash-forensics/SKILL.md`.
+- Added frame-budget pressure overrides to the active blades:
+  - `blades/kaintana-test/run.ps1 -FrameBudget <N>` via `KAINTANA_TEST_FRAME_BUDGET`
+  - `blades/pong/run.ps1 -FrameBudget <N>` via `KAIN_PONG_FRAME_BUDGET`
+  - `blades/pong/src/pong_config.kn` and both `blades/kaintana-test` entrypoints now honor those env overrides directly in Kain code, so future long-run repro does not need temp config files or source edits.
+- Updated `ARCHITECTURE.md` and `.agents/skills/kaintana-framework/SKILL.md` so future agents know the new crash workflow and the already-proven archived Win32/GL crash signature.
+
+Hard findings:
+
+- The first verified machine-level crash family on this host is old runtime-owned Win32/GL menu handling, not the current blade-owned presenters.
+  - Windows dumps: `%LOCALAPPDATA%\\CrashDumps\\kain_example_workbench.exe.*.dmp`
+  - Matching binary: `target/kain-example/kain_example_workbench.exe`
+  - Forensics report: `target/kain-example/.kain/forensics/kain_example_workbench-crash-report.txt`
+  - LLDB shows `Exception 0xc00000fd` and the first Kain-owned frame at `kain_native_ui_win32_gl_process_menu` in `kain_native_ui_host_win32_gl.c:649`.
+  - The app-code disassembly window now lands around `0x140061940`, proving we are looking at the archived modal-menu path rather than guessing from system DLL frames alone.
+  - The dump stack is deep in `gdi32full.dll`/`TextShaping.dll` text work after `wglUseFontBitmapsA`, which matches the archived source shape where `TrackPopupMenuEx(...)` is entered before `active_menu_id` is cleared.
+- The current live blades did not reproduce the “crash after N frames” claim on this machine:
+  - `blades/kaintana-test` desktop host: `frames=4000`, `last_error=ok` in `.kain/run/kaintana_test_desktop_host.txt`
+  - `blades/kaintana-test` Vulkan host: `frames_presented=4000`, `last_error=ok` in `.kain/run/kaintana_test_vulkan_host.txt`
+  - `blades/pong`: `frame.clock=4000`, `presenter.frames=4000`, `presenter.ok=true`, `last_error=ok` in `.kain/run/pong_report.txt` and `.kain/run/pong_window_report.txt`
+  - No fresh `kaintana-test.exe.*.dmp` or `pong.exe.*.dmp` files were emitted under `%LOCALAPPDATA%\\CrashDumps` during these pressure runs.
+- The current emitted LLVM IR does not support the older loop-local-`alloca` hypothesis for these two blades:
+  - `kaintana-test` non-entry `alloca` count: `0`
+  - `pong` non-entry `alloca` count: `0`
+
+Solver-backed reasoning:
+
+- `z3/reports/20260516T030317Z-archived-gl-menu-reentry-witness.json` is `sat`: if menu state remains active during the modal loop, reentry is admissible.
+- `z3/reports/20260516T030331Z-archived-gl-menu-preclear-blocks-reentry-clean.json` is `unsat`: the simple “pre-clear active menu before modal loop continues” model blocks that reentry class.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File tools/crash-forensics/analyze_native_crash.ps1 -ExePath target/kain-example/kain_example_workbench.exe -DumpPath %LOCALAPPDATA%\\CrashDumps\\kain_example_workbench.exe.32876.dmp`
+- Direct long-run Kaintana desktop executable with `KAINTANA_TEST_FRAME_BUDGET=4000`
+- `powershell -ExecutionPolicy Bypass -File blades/kaintana-test/run.ps1 -Backend vulkan -FrameBudget 4000`
+- `powershell -ExecutionPolicy Bypass -File blades/pong/run.ps1 -FrameBudget 4000`
+
+Durable lessons:
+
+- Separate “crashed native app” from “old archived host path crashed.” The current Kaintana desktop/Vulkan and Pong lanes are stable through 4000-frame pressure here; the archived runtime-owned Win32/GL host is the first actually-proven bad egg.
+- When the stop PC is in a system DLL, the right assembly window is usually the first app-owned frame, not the raw faulting address. On Windows minidumps, normalize through `image lookup -a <first-app-frame>` plus PE `ImageBase` before feeding `llvm-objdump`.
+- For native UI/graphics stability work, repo-local frame-budget overrides are worth keeping in the blade surface. They make deterministic long-run repro and binary-searching a threshold far cheaper than constantly editing configs or source.
+- There is also a separate launcher seam worth remembering: `D:\\Kain-Bazel\\bin\\kain.exe` currently misroutes `-o` through `scripts/windows/launch-bazel-cli.ps1` and can fail with “parameter name 'o' is ambiguous.” That is not a crash root cause, but it can poison pressure-testing if you assume the shim behaves like the real compiler binary.
+
 # 2026-05-16 - Realtime/native UI staging no longer double-registers imported `world` / `entangle` modules
 
 The imported-module failure was real, but the bug lived in driver staging, not in `world` / `entangle` semantics themselves. The bad path was `compile_realtime_app_bundle(...)` in `crates/kain-driver`: it built the typed frontend from flattened imports, then reused that flattened user source for the UI/runtime registration pass. That meant imported module items were present once as inlined top-level declarations and then loaded a second time through the original `use` import, which is why native LLVM/native UI staging surfaced `entangle endpoint '...' participates in more than one binding`.

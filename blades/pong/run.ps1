@@ -1,7 +1,8 @@
 param(
     [switch]$Interactive,
     [ValidateSet("dev", "release")]
-    [string]$BazelConfig = "dev"
+    [string]$BazelConfig = "dev",
+    [int]$FrameBudget = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,6 +43,9 @@ if (Test-Path $llvmPath) {
 }
 
 $env:KAIN_PONG_CONFIG = $configPath
+if ($FrameBudget -gt 0) {
+    $env:KAIN_PONG_FRAME_BUDGET = [string]$FrameBudget
+}
 if (!$Interactive) {
     $env:PONG_WINDOW_SCREENSHOT_PATH = $screenshotPath
     $env:PONG_WINDOW_SCREENSHOT_FRAME = "168"
@@ -57,6 +61,7 @@ try {
 finally {
     Pop-Location
     Remove-Item Env:KAIN_PONG_CONFIG -ErrorAction SilentlyContinue
+    Remove-Item Env:KAIN_PONG_FRAME_BUDGET -ErrorAction SilentlyContinue
     Remove-Item Env:PONG_WINDOW_SCREENSHOT_PATH -ErrorAction SilentlyContinue
     Remove-Item Env:PONG_WINDOW_SCREENSHOT_FRAME -ErrorAction SilentlyContinue
 }

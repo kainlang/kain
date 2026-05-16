@@ -83,6 +83,15 @@ fn parse_int_text(text: String) -> Int:
         index = index + 1
     return value * sign
 
+fn pong_env_override_int(key: String, default_value: Int) -> Int:
+    let override_text = env(key)
+    if len(override_text) == 0:
+        return default_value
+    let override_value = parse_int_text(override_text)
+    if override_value <= 0:
+        return default_value
+    return override_value
+
 fn skip_json_whitespace(text: String, start: Int) -> Int:
     let index = start
     while index < len(text):
@@ -166,7 +175,7 @@ pub fn load_pong_config() -> PongConfig:
         window_height: pong_int_setting(raw_text, "window_height", 900),
         board_width: pong_int_setting(raw_text, "board_width", 900),
         board_height: pong_int_setting(raw_text, "board_height", 560),
-        frame_budget: pong_int_setting(raw_text, "frame_budget", 192),
+        frame_budget: pong_env_override_int("KAIN_PONG_FRAME_BUDGET", pong_int_setting(raw_text, "frame_budget", 192)),
         logical_swarm_count: pong_int_setting(raw_text, "logical_swarm_count", 100000),
         render_swarm_sample_count: pong_int_setting(raw_text, "render_swarm_sample_count", 192),
         ball_size: pong_int_setting(raw_text, "ball_size", 14),

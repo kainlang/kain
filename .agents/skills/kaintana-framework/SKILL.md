@@ -41,6 +41,7 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
   - Vulkan foreign-presenter showcase entrypoint
 - `blades/kaintana-test/run.ps1`
   - chooses `desktop`, `vulkan`, or `all`
+  - `-FrameBudget` overrides the default long-run host pressure count through `KAINTANA_TEST_FRAME_BUDGET`
 
 ## Kain Authoring Pattern
 
@@ -81,6 +82,12 @@ Desktop acceptance proof:
 powershell -ExecutionPolicy Bypass -File .\blades\kaintana-test\run.ps1 -Backend desktop
 ```
 
+Long-run desktop pressure test:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\blades\kaintana-test\run.ps1 -Backend desktop -FrameBudget 2400
+```
+
 Vulkan acceptance proof:
 
 ```powershell
@@ -106,3 +113,4 @@ Current Z3 checks:
 - `[c_ffi]` bindings are not transitive through a library blade yet. If `blades/kaintana` wraps a native bridge, consumer blades such as `blades/kaintana-test` still need their own matching `[[c_ffi.libraries]]` entries for `use c::...`.
 - `ui_host_session_create(..., "software")` is still passive. It records authored session/draw state; it does not open a live OS window by itself.
 - The current Vulkan proof proves host routing into a foreign presenter lane. It does not yet rasterize the full Kaintana scene graph through Vulkan.
+- If the desktop acceptance app appears to crash after many frames, do not guess from the host code first. Re-run with a high `-FrameBudget`, collect `%LOCALAPPDATA%\CrashDumps\kaintana-test.exe.*.dmp` if Windows emits one, and then feed the dump plus `.kain/out/kaintana-test/kaintana-test.ll`, `.kain/run/kaintana_test_*_frame.txt`, and `.kain/run/kaintana_test_*_host.txt` into `tools/crash-forensics/analyze_native_crash.ps1`.

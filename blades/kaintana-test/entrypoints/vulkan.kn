@@ -79,6 +79,55 @@ orchestrate broadcast_pipeline(value: Int) -> Int:
     let biased: Int = rust lane_bias(projected)
     return biased
 
+fn kaintana_is_digit_char(ch: String) -> Bool:
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+
+fn kaintana_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn kaintana_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let sign = 1
+    let index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let value = 0
+    while index < len(text):
+        if !kaintana_is_digit_char(char_at(text, index)):
+            return value * sign
+        value = value * 10 + kaintana_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn kaintana_frame_budget_or_default(default_value: Int) -> Int:
+    let override_text = env("KAINTANA_TEST_FRAME_BUDGET")
+    if len(override_text) == 0:
+        return default_value
+    let override_value = kaintana_parse_int_text(override_text)
+    if override_value <= 0:
+        return default_value
+    return override_value
+
 pub struct KaintanaTestSettings:
     title: String
     backend: String
@@ -106,7 +155,7 @@ pub fn kaintana_test_settings_desktop() -> KaintanaTestSettings:
         theme_name: "solar-broadcast",
         width: 1360,
         height: 860,
-        frame_budget: 180,
+        frame_budget: kaintana_frame_budget_or_default(180),
         revision_key: "kaintana-test-desktop-v1",
         clear_red: 10,
         clear_green: 14,
@@ -128,7 +177,7 @@ pub fn kaintana_test_settings_vulkan() -> KaintanaTestSettings:
         theme_name: "marine-terminal",
         width: 1280,
         height: 720,
-        frame_budget: 180,
+        frame_budget: kaintana_frame_budget_or_default(180),
         revision_key: "kaintana-test-vulkan-v1",
         clear_red: 6,
         clear_green: 18,
