@@ -230,7 +230,6 @@ struct WorldSurfaceSelection {
 
 #[derive(Debug, Clone)]
 struct FrontendSourceBundle {
-    user_source: String,
     full_source: String,
 }
 
@@ -344,15 +343,11 @@ impl DriverSession {
         root_component: Option<&str>,
     ) -> Result<RealtimeAppBundleOutput, KainError> {
         let typed = self.frontend_to_typed_program(source, target)?;
-        let frontend =
-            build_frontend_source_bundle(source, target).unwrap_or_else(|_| FrontendSourceBundle {
-                user_source: source.to_string(),
-                full_source: source.to_string(),
-            });
         let resolved_world = resolve_world_selection(&typed, target, root_component)?;
+        let prepared_ui_source = prepare_frontend_source_for_target(source, target)?;
         let ui_output = if let Some(root_component) = resolved_world.root_component.as_deref() {
             Some(kain_core::build_ui_output_from_source(
-                &frontend.user_source,
+                &prepared_ui_source,
                 root_component,
             )?)
         } else {
@@ -826,7 +821,6 @@ fn build_frontend_source_bundle(
     let user_source = assemble_frontend_user_source(&collector.module_sources, &prepared_source);
     let stdlib_source = stdlib::load_stdlib_for_target(target);
     Ok(FrontendSourceBundle {
-        user_source: user_source.clone(),
         full_source: format!("{stdlib_source}\n{user_source}"),
     })
 }
@@ -1773,6 +1767,64 @@ component Shell():
                 .map(|world| world.name.as_str()),
             Some("ShellWorld")
         );
+    }
+
+    #[test]
+    fn compile_realtime_bundle_supports_imported_world_and_entangle_modules() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_dir = temp.path().join("src");
+        let import_dir = temp.path().join("intentkit");
+        let main_path = main_dir.join("main.kn");
+        let import_path = import_dir.join("intents.kn");
+        fs::create_dir_all(&main_dir).expect("main dir");
+        fs::create_dir_all(&import_dir).expect("import dir");
+        fs::write(
+            &main_path,
+            r#"
+use intentkit::intents
+
+component App():
+    render <panel title="Studio" />
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &import_path,
+            r#"
+world Physics:
+    state hp: Int = 7
+    surface native_ui => App
+
+world Hud:
+    state hp_display: Int = 7
+    surface web => App
+
+entangle Physics.hp <-> Hud.hp_display with single_writer
+"#,
+        )
+        .expect("import source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            compile_realtime_app_bundle(&source, CompileTarget::Rust, None)
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let output = result.expect("realtime bundle should load imported entangle module once");
+        assert_eq!(
+            output
+                .bundle
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
+            Some("Physics")
+        );
+        assert_eq!(output.bundle.entanglements.len(), 1);
+        assert_eq!(output.bundle.entanglements[0].authority, "Physics.hp");
+        assert_eq!(output.bundle.entanglements[0].mirror, "Hud.hp_display");
     }
 
     #[test]

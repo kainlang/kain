@@ -1,5 +1,29 @@
 # Kain Memory
 
+# 2026-05-16 - Realtime/native UI staging no longer double-registers imported `world` / `entangle` modules
+
+The imported-module failure was real, but the bug lived in driver staging, not in `world` / `entangle` semantics themselves. The bad path was `compile_realtime_app_bundle(...)` in `crates/kain-driver`: it built the typed frontend from flattened imports, then reused that flattened user source for the UI/runtime registration pass. That meant imported module items were present once as inlined top-level declarations and then loaded a second time through the original `use` import, which is why native LLVM/native UI staging surfaced `entangle endpoint '...' participates in more than one binding`.
+
+What changed:
+
+- `crates/kain-driver/src/lib.rs` now keeps the old import-flattened path for frontend typing and bundle emission, but the UI pass uses `prepare_frontend_source_for_target(...)` instead of the flattened frontend import bundle. That preserves target preparation such as `[c_ffi]` augmentation while letting filesystem modules load exactly once through normal module resolution.
+- Added a driver regression in `crates/kain-driver/src/lib.rs`: `compile_realtime_bundle_supports_imported_world_and_entangle_modules`.
+- Added the native-app regression in `crates/kain-driver/src/native_app.rs`: `compile_native_app_bundle_supports_imported_world_and_entangle_modules`.
+- Removed the now-dead `FrontendSourceBundle.user_source` field, which only existed to feed the broken flattened-UI path.
+
+Validation:
+
+- `cargo fmt -p kain-driver`
+- `cargo test -p kain-driver compile_realtime_bundle_supports_imported_world_and_entangle_modules --target-dir target/codex-entangle-fix -- --nocapture`
+- `cargo test -p kain-driver compile_native_app_bundle_supports_imported_world_and_entangle_modules --target-dir target/codex-entangle-fix -- --nocapture`
+- `mcp__z3_local__.check_smt2(report_name="driver-ui-flattened-import-replay-breaks-single-registration", ...)` -> `unsat`, report `z3/reports/20260516T023319Z-driver-ui-flattened-import-replay-breaks-single-registration.json`
+
+Durable lessons:
+
+- Flattened frontend source is for typechecking and emitted bundle synthesis. It is not automatically safe to feed back into runtime/UI registration, because the original `use` import still exists and may replay the same declarations.
+- Target-prepared source is the correct UI/runtime staging input for lanes that need generated FFI modules but still rely on normal filesystem module loading.
+- The `[c_ffi]` consumer-manifest caveat is still real. This fix restores modular imported `world` / `entangle` apps; it does not make `[[c_ffi.libraries]]` declarations transitive across blades.
+
 # 2026-05-15 - Dedicated FFI-boundary telemetry now proves the native LLVM lane is lean while the interpreter/live bridge path is still brutally expensive
 
 The repo needed one benchmark that answered the narrow ABI question directly instead of burying it inside the multi-language suite. That landed as `benchmark/ffi_boundary/`, and in the process it also exposed a real CLI dogfood bug in the direct LLVM/C compile path for `use c::...`.
@@ -60,7 +84,7 @@ Durable lessons:
 
 - Kaintana should keep proving the architecture rule, not breaking it: runtime UI stays passive, while actual presenters and framework vocabulary live in blades.
 - `use c::...` imports are still resolved from the consuming blade's local `[[c_ffi.libraries]]` entries. Wrapping a native bridge in a library blade does not make the bridge declaration transitive yet, so consumer blades must repeat those `c_ffi` manifest entries.
-- Imported local Kain modules that contain `world` / `entangle` declarations currently double-stage those bindings during native LLVM artifact staging. The symptom is `entangle endpoint '...' participates in more than one binding`. Until that compiler behavior is fixed, keep Kaintana showcase entrypoints self-contained and only share plain helper modules across files.
+- Imported local Kain modules that contain `world` / `entangle` declarations no longer need the old self-contained-entrypoint workaround. The bug was in realtime/native UI staging replaying flattened imports plus the original `use`; if this symptom ever returns, re-check `crates/kain-driver::compile_realtime_app_bundle(...)` before treating it as an entangle semantics failure.
 - The current Vulkan proof is honest but intentionally narrow: it proves Kaintana can drive the same high-level app contract into a foreign presenter lane (`vulkain`) without runtime changes. It does not yet translate the full authored Kaintana scene graph into Vulkan draw commands.
 
 # 2026-05-15 - `blades/pong` is now a real visual state-lattice demo, and LLVM learned the scalar constructor/direct-call coercions it needed to compile it

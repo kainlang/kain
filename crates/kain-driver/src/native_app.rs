@@ -2326,6 +2326,71 @@ component App():
     }
 
     #[test]
+    fn compile_native_app_bundle_supports_imported_world_and_entangle_modules() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = TempDir::new().expect("temp dir");
+        let main_dir = temp.path().join("src");
+        let import_dir = temp.path().join("intentkit");
+        let main_path = main_dir.join("main.kn");
+        let import_path = import_dir.join("intents.kn");
+        fs::create_dir_all(&main_dir).expect("main dir");
+        fs::create_dir_all(&import_dir).expect("import dir");
+        fs::write(
+            &main_path,
+            r#"
+use intentkit::intents
+
+component App():
+    render <panel title="Studio" />
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &import_path,
+            r#"
+world Physics:
+    state hp: Int = 7
+    surface native_ui => App
+
+world Hud:
+    state hp_display: Int = 7
+    surface web => App
+
+entangle Physics.hp <-> Hud.hp_display with single_writer
+"#,
+        )
+        .expect("import source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            compile_native_app_bundle(
+                &source,
+                &NativeAppBundleConfig {
+                    source_file_name: Some("main.kn".to_string()),
+                    ..Default::default()
+                },
+            )
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let bundle = result.expect("native app bundle should accept imported entangle module");
+        assert_eq!(bundle.metadata.root_component, "App");
+        assert_eq!(
+            bundle
+                .realtime
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
+            Some("Physics")
+        );
+        assert_eq!(bundle.realtime.entanglements.len(), 1);
+        assert_eq!(bundle.realtime.entanglements[0].authority, "Physics.hp");
+        assert_eq!(bundle.realtime.entanglements[0].mirror, "Hud.hp_display");
+    }
+
+    #[test]
     fn materialize_native_app_bundle_writes_scaffold_and_artifacts() {
         let temp = TempDir::new().expect("temp dir");
         let project_dir = temp.path().join("native-app");
