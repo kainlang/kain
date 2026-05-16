@@ -1,5 +1,38 @@
 # Kain Memory
 
+# 2026-05-16 - FFI-boundary benchmark now includes Zig and confirms Kain LLVM is in the same native-call neighborhood
+
+The dedicated ABI benchmark now answers the Zig comparison directly instead of relying on smell. `benchmark/ffi_boundary/run.py` resolves `zig`, builds `sources/zig_pure.zig` and `sources/zig_c_object.zig` with `zig build-exe -O ReleaseFast`, and reports those rows beside Kain LLVM pure, Kain LLVM C object/shared, interpreter pure, and interpreter/live bridge.
+
+What changed:
+
+- Added `benchmark/ffi_boundary/sources/zig_pure.zig`, a no-inline Zig version of the same integer kernel with the same `10,000,000` loop count and checksum.
+- Added `benchmark/ffi_boundary/sources/zig_c_object.zig`, a Zig caller for the same generated C object used by the Kain LLVM object path.
+- Updated `benchmark/ffi_boundary/run.py` with `--zig` / `ZIG` resolution, Zig `ReleaseFast` builds, Zig report rows, and Zig 0.17-dev Windows output handling. This Zig build emits a runnable PE at the requested `-femit-bin=path` without requiring a `.exe` suffix.
+- Updated `ARCHITECTURE.md` and `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future agents use this lane for “is Kain LLVM near Zig/C?” questions.
+
+Validation:
+
+- `zig version` -> `0.17.0-dev.304+9787df942`
+- `python -m py_compile benchmark/ffi_boundary/run.py`
+- `python benchmark/ffi_boundary/run.py --warmups 1 --runs 2 --timeout 300`
+- `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
+
+Current stable report from `benchmark/out/reports/ffi_boundary_latest.llm.md`:
+
+- `Kain LLVM Pure`: `96.035 ms` median over `10,000,000` calls, about `9.60 ns/call`
+- `Kain LLVM C Object`: `103.650 ms`, about `10.36 ns/call`
+- `Kain LLVM C Shared`: `97.528 ms`, about `9.75 ns/call`
+- `Zig Pure`: `101.788 ms`, about `10.18 ns/call`
+- `Zig C Object`: `94.153 ms`, about `9.42 ns/call`
+- `Kain Interpret Pure`: `114.080 ms` over `10,000` calls, about `11,408.02 ns/call`
+- `Kain Interpret C Shared`: `3021.407 ms`, about `302,140.73 ns/call`
+
+Durable conclusion:
+
+- Yes, Kain LLVM is in the Zig/C native neighborhood on this microbench. The fastest row was `Zig C Object` at `9.42 ns/call`; `Kain LLVM Pure` was `9.60 ns/call`; `Kain LLVM Shared` was `9.75 ns/call`. Those differences are small enough to treat as normal native-code noise and codegen shape, not a structural performance wall.
+- The interpreter/live bridge remains the non-target lane for hot paths. It is useful for bootstrap/dev semantics, but the serious runtime target is LLVM.
+
 # 2026-05-16 - Native crash forensics is now a first-class repo workflow, and the first proven crash family is archived Win32/GL modal-menu reentrancy rather than the current Kaintana/Pong presenters
 
 The repo needed a durable way to answer native crash questions from the machine-code edge instead of replaying the same detective work through a million-line checkout. That now exists, and the first full pass produced a much cleaner split between “real crash root cause” and “current apps feel finicky.”

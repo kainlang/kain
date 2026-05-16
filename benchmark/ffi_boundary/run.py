@@ -5,7 +5,7 @@ Dedicated Kain FFI boundary benchmark.
 This benchmark answers one narrow question:
 how much boundary tax do we pay when the same tiny helper lives in
 pure Kain, a directly linked C object, a directly linked shared library,
-or the interpreter/live bridge path.
+the interpreter/live bridge path, or equivalent Zig ReleaseFast code.
 """
 
 from __future__ import annotations
@@ -74,11 +74,17 @@ VARIANTS = [
         10_000,
         needs_shared_runtime=True,
     ),
+    Variant("zig_pure", "Zig Pure", "zig", "zig_pure.zig", 10_000_000),
+    Variant("zig_c_object", "Zig C Object", "zig", "zig_c_object.zig", 10_000_000),
 ]
 
 
 def executable_name(stem: str) -> str:
     return f"{stem}.exe" if os.name == "nt" else stem
+
+
+def zig_executable_name(stem: str) -> str:
+    return stem
 
 
 def dynamic_library_name(stem: str) -> str:
@@ -167,6 +173,22 @@ def resolve_clang(explicit: str | None) -> Path:
         if candidate.exists():
             return candidate.resolve()
     raise FileNotFoundError("Could not resolve clang; pass --clang or set CLANG.")
+
+
+def resolve_zig(explicit: str | None) -> Path:
+    candidates: list[Path] = []
+    if explicit:
+        candidates.append(Path(explicit))
+    env_zig = os.environ.get("ZIG")
+    if env_zig:
+        candidates.append(Path(env_zig))
+    path_zig = shutil.which("zig")
+    if path_zig:
+        candidates.append(Path(path_zig))
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    raise FileNotFoundError("Could not resolve zig; pass --zig or set ZIG.")
 
 
 def native_benchmark_env() -> dict[str, str]:
@@ -303,6 +325,41 @@ def build_llvm_variant(
     }
 
 
+def build_zig_variant(
+    variant: Variant,
+    zig: Path,
+    timeout: int,
+    native_artifacts: dict[str, Path],
+) -> dict[str, object]:
+    build_dir = BUILD_ROOT / variant.id
+    build_dir.mkdir(parents=True, exist_ok=True)
+    exe_path = build_dir / zig_executable_name(variant.id)
+    source_path = SOURCE_ROOT / variant.source_name
+    command = [
+        str(zig),
+        "build-exe",
+        str(source_path),
+        "-O",
+        "ReleaseFast",
+        "-femit-bin=" + str(exe_path),
+    ]
+    if variant.id == "zig_c_object":
+        command.append(str(native_artifacts["object"]))
+    result = run_command(command, cwd=CASE_ROOT, timeout=timeout)
+    ok = result.returncode == 0 and exe_path.exists()
+    return {
+        "ok": ok,
+        "variant": variant.id,
+        "kind": variant.kind,
+        "command": command,
+        "build_ms": result.elapsed_ms,
+        "exe": str(exe_path),
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "error": "" if ok else "Zig build failed or did not produce executable.",
+    }
+
+
 def prepare_interpret_variant(
     variant: Variant,
     kain_exe: Path,
@@ -392,6 +449,7 @@ def render_markdown(report: dict[str, object]) -> str:
         f"- warmups: `{report['warmups']}`",
         f"- runs: `{report['runs']}`",
         f"- clang: `{report['clang']}`",
+        f"- zig: `{report['zig']}`",
         f"- kain: `{report['kain']}`",
         "",
         "## Results",
@@ -423,6 +481,7 @@ def render_markdown(report: dict[str, object]) -> str:
             "- `llvm_object` is the lean direct-link object path.",
             "- `llvm_shared` is the direct native shared-library path.",
             "- `interpret_shared` exercises the current live bridge path, including the generated Rust-side bridge layer.",
+            "- `zig_pure` and `zig_c_object` use Zig ReleaseFast with the same loop count and checksum as the LLVM variants.",
             "- `ns/call` uses the median wall-clock time divided by the variant's fixed iteration count.",
             "",
             "## Build Details",
@@ -451,6 +510,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Dedicated Kain FFI boundary benchmark")
     parser.add_argument("--kain-exe", help="Explicit path to kain.exe")
     parser.add_argument("--clang", help="Explicit path to clang")
+    parser.add_argument("--zig", help="Explicit path to zig")
     parser.add_argument("--warmups", type=int, default=1)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=300)
@@ -461,10 +521,11 @@ def main() -> int:
 
     kain_exe = resolve_kain_exe(args.kain_exe)
     clang = resolve_clang(args.clang)
+    zig = resolve_zig(args.zig)
     write_case_manifest()
     native_artifacts = compile_native_artifacts(clang, args.timeout)
     llvm_env = native_benchmark_env()
-    shared_env = shared_runtime_env(NATIVE_ROOT)
+    shared_env = shared_runtime_env(GENERATED_NATIVE_ROOT)
 
     results: list[dict[str, object]] = []
     for variant in VARIANTS:
@@ -481,6 +542,19 @@ def main() -> int:
                     warmups=args.warmups,
                     runs=args.runs,
                     env_overrides=run_env,
+                )
+            else:
+                run = {"ok": False, "warmups_ms": [], "samples_ms": [], "error": build["error"]}
+        elif variant.kind == "zig":
+            build = build_zig_variant(variant, zig, args.timeout, native_artifacts)
+            if build["ok"]:
+                command = [str(build["exe"])]
+                run = measure_command(
+                    command,
+                    cwd=Path(build["exe"]).parent,
+                    timeout=args.timeout,
+                    warmups=args.warmups,
+                    runs=args.runs,
                 )
             else:
                 run = {"ok": False, "warmups_ms": [], "samples_ms": [], "error": build["error"]}
@@ -522,6 +596,7 @@ def main() -> int:
         "runs": args.runs,
         "kain": str(kain_exe),
         "clang": str(clang),
+        "zig": str(zig),
         "native_artifacts": {key: str(value) for key, value in native_artifacts.items()},
         "results": results,
     }
