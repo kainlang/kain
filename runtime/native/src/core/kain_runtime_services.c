@@ -432,7 +432,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_IO_NET,
         "IO Network",
-        "Native TCP and HTTP/1.1 networking primitives",
+        "Native TCP, protocol-aware HTTP client/server, capability-query, and Windows-first HTTPS/HTTP2 client primitives",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_NATIVE_NET_SERVICE_STATUS,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,

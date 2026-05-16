@@ -21,7 +21,7 @@ Current pressure cases:
 - `ghost_mirror`: std/socket TCP loopback payload transfer for Rust/C++/JavaScript/Python versus Kain entangle-backed world mirroring plus payload mutation.
 - `evolutionary_loop`: runtime feature-detected lane choice versus Kain `converge` / `orchestrate` dispatch syntax.
 - `tcp_loopback_tokio`: Kain native TCP loopback versus Rust Tokio TCP accept/connect/read/write.
-- `http_server_concurrency`: Kain native local HTTP route handling versus Rust Tokio request batches. Kain is still the synchronous semantic proxy lane here.
+- `http_server_concurrency`: Kain native local HTTP route handling versus Rust Tokio request batches. Kain is still the synchronous semantic proxy lane here, but the old request-slot exhaustion failure is fixed and the case now completes repeatedly.
 - `actor_mailbox_erlang`: Kain native LLVM actor ask/reply fanout versus direct Erlang mailbox request/reply over four long-lived workers.
 - `rayon_parallel_reduce`: Rayon parallel integer reduction versus Kain scalar proxy, reserved as the future Kain data-parallel fanout slot.
 
@@ -54,7 +54,7 @@ Known Kain gaps exposed while shaping these cases:
 - Method receiver field access in the struct benchmark hit a native codegen gap, so `struct_method` uses `score_pair(pair)` instead of `pair.score()`.
 - Dynamic value capture into a Kain `async` ready future failed checksum during the async benchmark spike; `async_ready_chain` currently uses the known-good `return async 2` shape and should stay that way until async capture lowering is fixed.
 - Native LLVM JSON builtins currently fail to link in this checkout (`json_parse`, `json_object_new`, `json_object_set`, `json_string`, `json_get_*`), so `json_manual_roundtrip` stays manual and keeps that linker gap visible as telemetry instead of hiding it behind a vendor JSON crate.
-- `http_server_concurrency` currently exposes a real Kain runtime failure on repeated local POST rounds: `net_last_error_kind=capacity` and `net_last_error_message=HTTP incoming request capacity exceeded`.
+- `http_server_concurrency` no longer fails with request-capacity exhaustion after the incoming-request auto-release fix, but it still measures the current synchronous HTTP surface against Tokio async request batching and remains a meaningful runtime gap.
 - `actor_mailbox_erlang` intentionally performs one unmeasured warmup ask per worker before timing. Without that, the current Kain ask/reply path shows a one-off cold-start wobble even though the steady-state checksum is correct.
 
 Run the suite from the repo root:

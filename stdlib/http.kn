@@ -1,0 +1,106 @@
+use std::native::net
+
+pub fn request_create(method: String, url: String) -> Int:
+    return http_request_create(method, url)
+
+pub fn request_set_header(request_id: Int, key: String, value: String) -> Int:
+    return http_request_set_header(request_id, key, value)
+
+pub fn request_set_body_text(request_id: Int, payload: String) -> Int:
+    return http_request_set_body_text(request_id, payload)
+
+pub fn request_set_body_hex(request_id: Int, payload_hex: String) -> Int:
+    return http_request_set_body_hex(request_id, payload_hex)
+
+pub fn request_set_timeout(request_id: Int, timeout_ms: Int) -> Int:
+    return http_request_set_timeout(request_id, timeout_ms)
+
+pub fn request_protocol(request_id: Int) -> String:
+    return http_request_protocol(request_id)
+
+pub fn client_send(request_id: Int) -> Int:
+    return http_client_send(request_id)
+
+pub fn response_status(response_id: Int) -> Int:
+    return http_response_status(response_id)
+
+pub fn response_protocol(response_id: Int) -> String:
+    return http_response_protocol(response_id)
+
+pub fn response_header(response_id: Int, key: String) -> String:
+    return http_response_header(response_id, key)
+
+pub fn response_body_text(response_id: Int) -> String:
+    return http_response_body_text(response_id)
+
+pub fn response_body_hex(response_id: Int) -> String:
+    return http_response_body_hex(response_id)
+
+pub fn request_destroy(request_id: Int) -> Int:
+    return http_request_destroy(request_id)
+
+pub fn response_destroy(response_id: Int) -> Int:
+    return http_response_destroy(response_id)
+
+pub fn server_create(host: String, port: Int) -> Int:
+    return http_server_create(host, port)
+
+pub fn server_create_localhost(port: Int) -> Int:
+    return http_server_create_localhost(port)
+
+pub fn server_listen(server_id: Int) -> Int:
+    return http_server_listen(server_id)
+
+pub fn server_local_port(server_id: Int) -> Int:
+    return http_server_local_port(server_id)
+
+pub fn server_pending_request_count(server_id: Int) -> Int:
+    return http_server_pending_request_count(server_id)
+
+pub fn route_actor(server_id: Int, method: String, path: String, actor_id: Int, message_kind: String) -> Int:
+    return http_route_actor(server_id, method, path, actor_id, message_kind)
+
+pub fn server_pump(server_id: Int, timeout_ms: Int) -> Int:
+    return http_server_pump(server_id, timeout_ms)
+
+pub fn server_next_request(server_id: Int) -> Int:
+    return http_server_next_request(server_id)
+
+pub fn request_method(incoming_request_id: Int) -> String:
+    return http_request_method(incoming_request_id)
+
+pub fn request_path(incoming_request_id: Int) -> String:
+    return http_request_path(incoming_request_id)
+
+pub fn request_query(incoming_request_id: Int) -> String:
+    return http_request_query(incoming_request_id)
+
+pub fn request_header(incoming_request_id: Int, key: String) -> String:
+    return http_request_header(incoming_request_id, key)
+
+pub fn request_body_text(incoming_request_id: Int) -> String:
+    return http_request_body_text(incoming_request_id)
+
+pub fn request_body_hex(incoming_request_id: Int) -> String:
+    return http_request_body_hex(incoming_request_id)
+
+pub fn respond_text(incoming_request_id: Int, status_code: Int, payload: String) -> Int:
+    return http_respond_text(incoming_request_id, status_code, payload)
+
+pub fn respond_hex(incoming_request_id: Int, status_code: Int, payload_hex: String) -> Int:
+    return http_respond_hex(incoming_request_id, status_code, payload_hex)
+
+pub fn response_set_header_for_request(incoming_request_id: Int, key: String, value: String) -> Int:
+    return http_response_set_header_for_request(incoming_request_id, key, value)
+
+pub fn server_close(server_id: Int) -> Int:
+    return http_server_close(server_id)
+
+pub fn local_url(port: Int, path: String) -> String:
+    return http_local_url(port, path)
+
+pub fn get_text(url: String) -> String:
+    return http_get_text(url)
+
+pub fn post_text(url: String, payload: String) -> String:
+    return http_post_text(url, payload)

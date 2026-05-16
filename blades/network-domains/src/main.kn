@@ -1,7 +1,7 @@
-use std::native::net
-use std::native::http
-use std::native::tls
-use std::native::http2
+use std::net
+use std::http
+use std::tls
+use std::http2
 
 actor NetworkDomainProbe:
     state hits: Int = 0

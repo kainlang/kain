@@ -1,0 +1,35 @@
+use std::native::net
+
+pub fn http2_client_state() -> Int:
+    return net_capability_state("http2.client")
+
+pub fn http2_client_supported() -> Bool:
+    return net_capability_supported("http2.client")
+
+pub fn http2_client_available() -> Bool:
+    return net_capability_available("http2.client")
+
+pub fn http2_request_upgrade(request_id: Int) -> Int:
+    return http_request_set_protocol(request_id, "http/2")
+
+pub fn http2_request_create(method: String, url: String) -> Int:
+    let request = http_request_create(method, url)
+    let _protocol = http2_request_upgrade(request)
+    return request
+
+pub fn http2_request_protocol(request_id: Int) -> String:
+    return http_request_protocol(request_id)
+
+pub fn http2_client_send(request_id: Int) -> Int:
+    return http_client_send(request_id)
+
+pub fn http2_response_protocol(response_id: Int) -> String:
+    return http_response_protocol(response_id)
+
+pub fn http2_response_negotiated(response_id: Int) -> Bool:
+    return http_response_protocol(response_id) == "http/2"
+
+pub fn http2_get_text(url: String) -> String:
+    let request = http2_request_create("GET", url)
+    let response = http2_client_send(request)
+    return http_response_body_text(response)

@@ -4792,18 +4792,13 @@
       "kind": "function"
     },
     {
-      "id": "use:std::native::http",
-      "name": "std::native::http",
+      "id": "use:std::http",
+      "name": "std::http",
       "kind": "use"
     },
     {
-      "id": "use:std::native::http2",
-      "name": "std::native::http2",
-      "kind": "use"
-    },
-    {
-      "id": "use:std::native::net",
-      "name": "std::native::net",
+      "id": "use:std::http2",
+      "name": "std::http2",
       "kind": "use"
     },
     {
@@ -4822,8 +4817,13 @@
       "kind": "use"
     },
     {
-      "id": "use:std::native::tls",
-      "name": "std::native::tls",
+      "id": "use:std::net",
+      "name": "std::net",
+      "kind": "use"
+    },
+    {
+      "id": "use:std::tls",
+      "name": "std::tls",
       "kind": "use"
     }
   ],

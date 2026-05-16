@@ -1,5 +1,54 @@
 # Kain Memory
 
+# 2026-05-16 - First-class networking domains now land as public `std.net`, `std.http`, `std.tls`, and `std.http2`, and the old HTTP request-capacity failure is fixed at the runtime seam
+
+This pass finished the built-in networking-domain plan without adding new syntax. The runtime and portable contract work still lives in `crates/kain-net`, `stdlib/native/*.kn`, and `runtime/native/src/core/kain_native_net_system.c`, but authored Kain source can now import the public root modules `std.net`, `std.http`, `std.tls`, and `std.http2` directly.
+
+What changed:
+
+- `crates/kain-net` now carries the broader portable contract shape for this lane:
+  - `HttpProtocolPreference`
+  - `NetCapabilityState`
+  - `NetCapability`
+  - `TlsClientSpec`
+  - HTTP request specs with protocol preference instead of implicit HTTP/1.1-only intent
+- The native C ABI gained the missing query/control seams for the higher layers:
+  - platform name
+  - capability-state lookup
+  - per-request HTTP protocol selection
+  - request/response protocol inspection
+  - pending-request count per local server
+- `runtime/native/src/core/kain_native_net_system.c` now stores request and response protocol strings, rejects unsupported raw-socket HTTP/2 paths explicitly, asks WinHTTP for HTTP/2 only on the secure client lane, and reports the negotiated response protocol back to Kain.
+- The important runtime fix is that successful `http_respond_*` now destroys the consumed incoming request handle immediately. That closes the old request-slot leak behind `HTTP incoming request capacity exceeded` on repeated local POST rounds.
+- `stdlib/native/http.kn`, `tls.kn`, and `http2.kn` were added as native-profile domains, and the root stdlib now mirrors them at:
+  - `stdlib/net.kn`
+  - `stdlib/http.kn`
+  - `stdlib/tls.kn`
+  - `stdlib/http2.kn`
+- `blades/network-domains` is the dogfood blade for this surface. It now imports the public root modules, proves raw TCP + local HTTP + actor route handling, checks protocol metadata, creates TLS/HTTP2 request handles, and validates capability-state reporting under native LLVM.
+
+Proof and validation:
+
+- `cargo test -p kain-net`
+- `cargo test -p kain-sys-codegen llvm_lowers_native_net_tcp_http_and_actor_route_primitives -- --nocapture`
+- `cargo test -p kain-sys-codegen c_backend_keeps_native_net_symbols_as_declarations -- --nocapture`
+- `bash runtime/conformance/net_runtime/run_tests.sh --verbose`
+- full native core Z3 proof pack: `41/41 proved`
+- direct LLVM compile + run of:
+  - `runtime/fixtures/native_net_http/main.kn`
+  - `blades/network-domains/src/main.kn`
+
+Benchmark telemetry after the fix:
+
+- `tcp_loopback_tokio`: Kain `144.878 ms`, Rust Tokio `4242.232 ms` -> Kain about `29.28x` faster on this local loopback shape.
+- `http_server_concurrency`: Kain `124.991 ms`, Rust Tokio `38.677 ms` -> Kain no longer fails; it is still about `3.23x` slower on this synchronous-versus-async local HTTP shape.
+
+Durable lessons:
+
+- The most important current networking gap is no longer request-slot exhaustion; it is the remaining synchronous HTTP surface and Windows-first secure-client/backend coverage.
+- `std.http2` is intentionally honest about maturity. It proves protocol intent and negotiated response reporting on the secure client lane, not a full portable HTTP/2 server/runtime yet.
+- For one-file native networking proofs, the durable validation path is still direct LLVM compilation, not the generic bare-file `kain check`/`kain run` path.
+
 # 2026-05-16 - Core machine-stones keywords landed: axiom, pulse, shatter, and teleport
 
 This pass added the final pre-`seal` keyword quartet as first-class Kain syntax and typed compiler metadata:

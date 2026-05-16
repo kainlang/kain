@@ -286,7 +286,7 @@
       "maturity": "semantic-proxy",
       "fairness_note": "This keeps the category visible while Kain's current native HTTP surface is still synchronous. Rust measures real local async concurrency; Kain measures the matching request/response semantics without async task fanout yet.",
       "language_notes": {
-        "kain": "The current Kain row is intentionally kept live even though repeated local POST rounds still fail in this checkout with net_last_error_kind=capacity and net_last_error_message=HTTP incoming request capacity exceeded. Treat that as real runtime telemetry, not a flaky benchmark.",
+        "kain": "The current Kain row now completes repeated local POST rounds after the request-handle auto-release fix. Keep reading it as a synchronous semantic proxy rather than a finished async HTTP story.",
         "rust": "Cargo release build with tokio net/io-util/macros/rt/sync; this is intentionally a Kain/Rust-only HTTP runtime comparison."
       },
       "languages": {

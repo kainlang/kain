@@ -293,7 +293,7 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 platforms = ["windows", "linux"]
-description = "Native TCP and HTTP/1.1 networking primitives"
+description = "Native TCP, protocol-aware HTTP client/server, capability-query, and Windows-first HTTPS/HTTP2 client primitives"
 
 [[services]]
 key = "io.process"
