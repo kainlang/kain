@@ -1,10 +1,8 @@
 // style: solar broadcast control deck
 use c::kaintana_desktop_bridge
-use c::vulkain_bridge
 use kaintana::KaintanaTheme
 use kaintana::KaintanaWindowSpec
 use kaintana::kaintana_backend_desktop
-use kaintana::kaintana_backend_vulkan
 use kaintana::kaintana_begin_frame
 use kaintana::kaintana_button_activated
 use kaintana::kaintana_click_node
@@ -32,7 +30,6 @@ use kaintana::kaintana_session_create
 use kaintana::kaintana_split_left
 use kaintana::kaintana_split_right
 use kaintana::kaintana_theme_named
-use kaintana::kaintana_vulkan_embed_available
 use kaintana::kaintana_window_rect
 use kaintana::kaintana_window_spec
 use kaintana::kaintana_write_frame_report
@@ -166,30 +163,8 @@ pub fn kaintana_test_settings_desktop() -> KaintanaTestSettings:
         frame_report_path: ".kain/run/kaintana_test_desktop_frame.txt",
         host_report_path: ".kain/run/kaintana_test_desktop_host.txt",
         screenshot_path: ".kain/run/kaintana_test_desktop.bmp",
-        vertex_shader_path: "../vulkain/.kain/gpu/basic_window/vulkain_basic.vert.spv",
-        fragment_shader_path: "../vulkain/.kain/gpu/basic_window/vulkain_basic.frag.spv",
-    }
-
-pub fn kaintana_test_settings_vulkan() -> KaintanaTestSettings:
-    return KaintanaTestSettings {
-        title: "Kaintana // Marine Relay Embed",
-        backend: kaintana_backend_vulkan(),
-        theme_name: "marine-terminal",
-        width: 1280,
-        height: 720,
-        frame_budget: kaintana_frame_budget_or_default(180),
-        revision_key: "kaintana-test-vulkan-v1",
-        clear_red: 6,
-        clear_green: 18,
-        clear_blue: 30,
-        accent_red: 32,
-        accent_green: 196,
-        accent_blue: 255,
-        frame_report_path: ".kain/run/kaintana_test_vulkan_frame.txt",
-        host_report_path: ".kain/run/kaintana_test_vulkan_host.txt",
-        screenshot_path: ".kain/run/kaintana_test_vulkan.bmp",
-        vertex_shader_path: "../vulkain/.kain/gpu/basic_window/vulkain_basic.vert.spv",
-        fragment_shader_path: "../vulkain/.kain/gpu/basic_window/vulkain_basic.frag.spv",
+        vertex_shader_path: "",
+        fragment_shader_path: "",
     }
 
 fn build_window_spec(settings: KaintanaTestSettings) -> KaintanaWindowSpec:
@@ -232,9 +207,6 @@ fn main() -> Int:
     if settings.backend == kaintana_backend_desktop() and kaintana_desktop_probe() != 1:
         println("desktop host unavailable")
         return 11
-    if settings.backend == kaintana_backend_vulkan() and kaintana_vulkan_embed_available() != 1:
-        println("vulkan host unavailable")
-        return 12
 
     if settings.backend == kaintana_backend_desktop():
         let _scene = kaintana_desktop_scene_begin(spec)
@@ -267,7 +239,7 @@ fn main() -> Int:
     let _brand = kaintana_immediate_badge(session, rail_panel, "badge.brand", "KAINTANA", kaintana_column_slot(rail_inner, 0.0, 34.0, 12.0), theme, badge_font, 20.0)
     let _theme_badge = kaintana_immediate_badge(session, rail_panel, "badge.theme", theme.name, kaintana_column_slot(rail_inner, 1.0, 34.0, 12.0), theme, badge_font, 20.0)
     let _backend_badge = kaintana_immediate_badge(session, rail_panel, "badge.backend", settings.backend, kaintana_column_slot(rail_inner, 2.0, 34.0, 12.0), theme, badge_font, 20.0)
-    let _rail_label = kaintana_retained_muted_label(session, rail_panel, "rail.copy", "A blade-owned UI framework proving immediate panels, retained surfaces, hot reload keys, and host adapters without touching the language runtime.", kaintana_rect(rail_inner.x, rail_inner.y + 130.0, rail_inner.width, 120.0), theme, body_font, 18.0)
+    let _rail_label = kaintana_retained_muted_label(session, rail_panel, "rail.copy", "This desktop acceptance blade proves the default Kaintana host lane stays clean while foreign presenters remain opt-in adapters.", kaintana_rect(rail_inner.x, rail_inner.y + 130.0, rail_inner.width, 120.0), theme, body_font, 18.0)
 
     let boost_button = kaintana_immediate_button(session, command_panel, "action.boost", "PATCH // BOOST ENERGY", kaintana_column_slot(command_inner, 0.0, 56.0, 16.0), theme, body_font, 34.0)
     let reroute_button = kaintana_immediate_button(session, command_panel, "action.reroute", "CONVERGE // REROUTE", kaintana_column_slot(command_inner, 1.0, 56.0, 16.0), theme, body_font, 34.0)
@@ -287,9 +259,9 @@ fn main() -> Int:
     let headline = headline_for_backend(settings.backend, energy, projected_energy)
 
     let _hero_title = kaintana_retained_label(session, hero_surface, "hero.title", "THE LANGUAGE OWNS THE UI VOCABULARY NOW", kaintana_rect(hero_inner.x, hero_inner.y, hero_inner.width, 44.0), theme, title_font, 30.0)
-    let _hero_subtitle = kaintana_retained_muted_label(session, hero_surface, "hero.subtitle", "Kaintana is the framework lane: dual-register authoring, blade-owned desktop host, and a Vulkan embed path sitting above the passive native UI substrate.", kaintana_rect(hero_inner.x, hero_inner.y + 52.0, hero_inner.width, 70.0), theme, body_font, 18.0)
+    let _hero_subtitle = kaintana_retained_muted_label(session, hero_surface, "hero.subtitle", "Kaintana is the framework lane: dual-register authoring, a blade-owned desktop host, and optional foreign presenter adapters sitting above the passive native UI substrate.", kaintana_rect(hero_inner.x, hero_inner.y + 52.0, hero_inner.width, 70.0), theme, body_font, 18.0)
     let _hero_signal = kaintana_retained_label(session, hero_surface, "hero.signal", headline, kaintana_rect(hero_inner.x, hero_inner.y + 132.0, hero_inner.width, 32.0), theme, body_font, 20.0)
-    let _hero_hint = kaintana_retained_muted_label(session, hero_surface, "hero.hint", "Desktop host renders the authored scene directly. Vulkan host proves the foreign presenter adapter lane using the same Kaintana app contract.", kaintana_rect(hero_inner.x, hero_inner.y + 180.0, hero_inner.width, 48.0), theme, body_font, 18.0)
+    let _hero_hint = kaintana_retained_muted_label(session, hero_surface, "hero.hint", "Desktop host renders the authored scene directly. Foreign presenter blades stay out of this executable so the default app never silently flips into another backend.", kaintana_rect(hero_inner.x, hero_inner.y + 180.0, hero_inner.width, 48.0), theme, body_font, 18.0)
 
     let _telemetry_title = kaintana_retained_label(session, telemetry_panel, "telemetry.title", "LIVE TELEMETRY", kaintana_rect(telemetry_inner.x, telemetry_inner.y, telemetry_inner.width, 24.0), theme, badge_font, 18.0)
     let _metric_energy = kaintana_immediate_metric(session, telemetry_panel, "metric.energy", "authority.energy", str(energy), kaintana_column_slot(kaintana_rect(telemetry_inner.x, telemetry_inner.y + 42.0, telemetry_inner.width, telemetry_inner.height - 42.0), 0.0, 28.0, 10.0), theme, body_font, 18.0)
@@ -300,7 +272,7 @@ fn main() -> Int:
     let _metric_prop = kaintana_immediate_metric(session, telemetry_panel, "metric.prop", "entangle.propagations", str(native_entangle_propagation_count()), kaintana_column_slot(kaintana_rect(telemetry_inner.x, telemetry_inner.y + 42.0, telemetry_inner.width, telemetry_inner.height - 42.0), 5.0, 28.0, 10.0), theme, body_font, 18.0)
 
     let _command_title = kaintana_retained_label(session, command_panel, "command.title", "COMMAND BAY", kaintana_rect(command_inner.x, command_inner.y + 208.0, command_inner.width, 24.0), theme, badge_font, 18.0)
-    let _command_copy = kaintana_retained_muted_label(session, command_panel, "command.copy", "Runtime stays passive below. Kaintana owns framework and host adapters.", kaintana_rect(command_inner.x, command_inner.y + 244.0, command_inner.width, 90.0), theme, body_font, 18.0)
+    let _command_copy = kaintana_retained_muted_label(session, command_panel, "command.copy", "Runtime stays passive below. Kaintana owns the framework. Foreign presenters stay isolated in their own blades.", kaintana_rect(command_inner.x, command_inner.y + 244.0, command_inner.width, 90.0), theme, body_font, 18.0)
     let _command_host = kaintana_immediate_metric(session, command_panel, "command.host", "host.geometry", str(kaintana_host_geometry_count(spec)), kaintana_rect(command_inner.x, command_inner.y + 350.0, command_inner.width, 28.0), theme, body_font, 18.0)
 
     let _commit = kaintana_commit_frame(session)

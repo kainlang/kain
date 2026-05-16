@@ -1,5 +1,38 @@
 # Kain Memory
 
+# 2026-05-16 - Kaintana desktop acceptance is now genuinely desktop-only, and Vulkan moved into an optional adapter + separate acceptance blade
+
+The “why does `kaintana-test.exe` open the Vulkan proof window?” bug turned out to be a real architecture leak, not user confusion. The desktop acceptance blade and the Vulkan proof were sharing one consuming blade manifest plus one root output name, so the Vulkan compile overwrote `kaintana-test.exe`, and the desktop executable also kept importing `vulkain_bridge.dll` through the mixed manifest/module surface.
+
+What changed:
+
+- `blades/kaintana/` is now the desktop-default core only. `src/kaintana.kn` no longer imports `vulkain`, `src/main.kn` no longer probes Vulkan, `KAIN.toml` no longer declares `vulkain_bridge`, and `run.ps1` no longer builds or stages Vulkan artifacts.
+- Added `blades/kaintana-vulkan/` as the optional adapter blade. `src/kaintana_vulkan.kn` now owns the Vulkan probe/run/report wrappers over `blades/vulkain`, while the base framework stays clean.
+- `blades/kaintana-test/` is now strictly the desktop acceptance blade. Its `run.ps1` only builds `kaintana-test.exe`; `src/main.kn` no longer imports Vulkan symbols or Vulkan host checks; the stale `entrypoints/vulkan.kn`, root `kaintana-test-vulkan.exe`, and root `vulkain_bridge.dll` were removed.
+- Added `blades/kaintana-vulkan-test/` as the dedicated foreign-presenter acceptance blade. It imports `kaintana` plus `kaintana-vulkan`, stages `vulkain_bridge.dll` locally, and writes its own `.kain/run/kaintana_vulkan_test_*` artifacts.
+- Cleaned stale mixed-backend artifacts out of the desktop lane and deleted the leftover `vulkain_bridge.dll` from `blades/kaintana/` itself.
+
+Machine-level proof:
+
+- `llvm-objdump -p blades/kaintana-test/kaintana-test.exe` no longer lists `vulkain_bridge.dll` in the import table.
+- `llvm-objdump -p blades/kaintana/kaintana.exe` also no longer lists `vulkain_bridge.dll`.
+- After deleting `blades/kaintana-test/vulkain_bridge.dll`, running `blades/kaintana-test/kaintana-test.exe` still succeeds and reports `backend=desktop frames=180 geometry=34`.
+- The dedicated Vulkan lane still succeeds independently: `blades/kaintana-vulkan-test/kaintana-vulkan-test.exe` reports `backend=vulkan frames=180 geometry=540`.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File D:\\Kain-Lang\\blades\\kaintana\\run.ps1 -NoRun`
+- `powershell -ExecutionPolicy Bypass -File D:\\Kain-Lang\\blades\\kaintana-test\\run.ps1 -NoRun`
+- `powershell -ExecutionPolicy Bypass -File D:\\Kain-Lang\\blades\\kaintana-vulkan\\run.ps1 -NoRun`
+- `powershell -ExecutionPolicy Bypass -File D:\\Kain-Lang\\blades\\kaintana-vulkan-test\\run.ps1 -NoRun`
+- Direct desktop run: `Set-Location D:\\Kain-Lang\\blades\\kaintana-test; .\\kaintana-test.exe`
+- Direct Vulkan run: `Set-Location D:\\Kain-Lang\\blades\\kaintana-vulkan-test; .\\kaintana-vulkan-test.exe`
+
+Durable lessons:
+
+- Until Kain grows per-entry or transitive `[c_ffi]` semantics, backend-specific acceptance apps should live in separate consuming blades. Sharing one manifest across desktop and Vulkan proofs is enough to contaminate import tables and even overwrite the user-facing root executable.
+- The current Kaintana widget helpers still emit desktop fill/text bridge calls during composition, so non-desktop consumers must keep `kaintana_desktop_bridge` symbols in scope for now even when they do not open the desktop host. The next architectural cleanup would be to move those desktop side effects behind a more renderer-neutral presentation seam.
+
 # 2026-05-16 - FFI-boundary benchmark now includes Zig and confirms Kain LLVM is in the same native-call neighborhood
 
 The dedicated ABI benchmark now answers the Zig comparison directly instead of relying on smell. `benchmark/ffi_boundary/run.py` resolves `zig`, builds `sources/zig_pure.zig` and `sources/zig_c_object.zig` with `zig build-exe -O ReleaseFast`, and reports those rows beside Kain LLVM pure, Kain LLVM C object/shared, interpreter pure, and interpreter/live bridge.

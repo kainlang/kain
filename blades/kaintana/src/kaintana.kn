@@ -1,9 +1,3 @@
-use vulkain::vulkain_frames_presented
-use vulkain::vulkain_probe
-use vulkain::vulkain_run_window
-use vulkain::vulkain_vertices_drawn
-use vulkain::vulkain_write_report
-
 pub struct KaintanaRect:
     x: Float
     y: Float
@@ -49,6 +43,35 @@ pub struct KaintanaWindowSpec:
     frame_report_path: String
     host_report_path: String
     screenshot_path: String
+
+pub struct KaintanaActionBinding:
+    source_kind: String
+    event_kind: String
+    code: String
+    action: String
+
+pub struct KaintanaAxisBinding:
+    source_kind: String
+    event_kind: String
+    code: String
+    axis: String
+    scale: Float
+
+pub struct KaintanaMenuItem:
+    stable_key: String
+    label: String
+    command_id: Int
+
+pub struct KaintanaPopoverSpec:
+    stable_key: String
+    width: Float
+    height: Float
+    offset_x: Float
+    offset_y: Float
+
+pub struct KaintanaHarnessSpec:
+    snapshot_path: String
+    input_trace_path: String
 
 fn kaintana_channel_float(value: Int) -> Float:
     var clamped = value
@@ -166,12 +189,57 @@ pub fn kaintana_default_window_spec(title: String, width: Int, height: Int, back
         255,
         112,
         68,
-        "../vulkain/.kain/gpu/basic_window/vulkain_basic.vert.spv",
-        "../vulkain/.kain/gpu/basic_window/vulkain_basic.frag.spv",
+        "",
+        "",
         ".kain/run/kaintana_frame_report.txt",
         ".kain/run/kaintana_host_report.txt",
         ".kain/run/kaintana_host.bmp"
     )
+
+pub fn kaintana_action_binding(source_kind: String, event_kind: String, code: String, action: String) -> KaintanaActionBinding:
+    return KaintanaActionBinding {
+        source_kind: source_kind,
+        event_kind: event_kind,
+        code: code,
+        action: action,
+    }
+
+pub fn kaintana_axis_binding(source_kind: String, event_kind: String, code: String, axis: String, scale: Float) -> KaintanaAxisBinding:
+    return KaintanaAxisBinding {
+        source_kind: source_kind,
+        event_kind: event_kind,
+        code: code,
+        axis: axis,
+        scale: scale,
+    }
+
+pub fn kaintana_key_down_binding(code: String, action: String) -> KaintanaActionBinding:
+    return kaintana_action_binding(input_source_keyboard(), "key_down", code, action)
+
+pub fn kaintana_key_up_binding(code: String, action: String) -> KaintanaActionBinding:
+    return kaintana_action_binding(input_source_keyboard(), "key_up", code, action)
+
+pub fn kaintana_menu_item(stable_key: String, label: String, command_id: Int) -> KaintanaMenuItem:
+    return KaintanaMenuItem {
+        stable_key: stable_key,
+        label: label,
+        command_id: command_id,
+    }
+
+pub fn kaintana_popover_spec(stable_key: String, width: Float, height: Float, offset_x: Float, offset_y: Float) -> KaintanaPopoverSpec:
+    return KaintanaPopoverSpec {
+        stable_key: stable_key,
+        width: width,
+        height: height,
+        offset_x: offset_x,
+        offset_y: offset_y,
+    }
+
+pub fn kaintana_harness_spec(snapshot_path: String, input_trace_path: String) -> KaintanaHarnessSpec:
+    return KaintanaHarnessSpec {
+        snapshot_path: snapshot_path,
+        input_trace_path: input_trace_path,
+    }
 
 pub fn kaintana_theme_solar_broadcast() -> KaintanaTheme:
     return KaintanaTheme {
@@ -267,11 +335,72 @@ pub fn kaintana_hot_reload_generation(session_id: Int) -> Int:
 pub fn kaintana_hot_reload_key(session_id: Int) -> String:
     return native_ui_hot_reload_key(session_id)
 
+pub fn kaintana_action_reset() -> Int:
+    return input_reset()
+
+pub fn kaintana_action_session_create(app_name: String) -> Int:
+    return input_session_create(app_name)
+
+pub fn kaintana_action_session_destroy(action_session_id: Int) -> Int:
+    return input_session_destroy(action_session_id)
+
+pub fn kaintana_action_bind(action_session_id: Int, binding: KaintanaActionBinding) -> Int:
+    return input_bind_action(action_session_id, binding.source_kind, binding.event_kind, binding.code, binding.action)
+
+pub fn kaintana_axis_bind(action_session_id: Int, binding: KaintanaAxisBinding) -> Int:
+    return input_bind_axis(action_session_id, binding.source_kind, binding.event_kind, binding.code, binding.axis, binding.scale)
+
+pub fn kaintana_action_begin_frame(action_session_id: Int, delta_ms: Float) -> Int:
+    return input_begin_frame(action_session_id, delta_ms)
+
+pub fn kaintana_action_push_key_down(action_session_id: Int, source_id: String, code: String) -> Int:
+    return input_push_key_down(action_session_id, source_id, code)
+
+pub fn kaintana_action_push_key_up(action_session_id: Int, source_id: String, code: String) -> Int:
+    return input_push_key_up(action_session_id, source_id, code)
+
+pub fn kaintana_action_push_text(action_session_id: Int, source_kind: String, source_id: String, code: String, text: String) -> Int:
+    return input_push_text(action_session_id, source_kind, source_id, code, text)
+
+pub fn kaintana_action_push_axis(action_session_id: Int, source_kind: String, source_id: String, code: String, value: Float) -> Int:
+    return input_push_axis(action_session_id, source_kind, source_id, code, value)
+
+pub fn kaintana_action_push_agent_intent(action_session_id: Int, source_id: String, action: String, command_text: String, confidence: Float) -> Int:
+    return input_push_agent_intent(action_session_id, source_id, action, command_text, confidence)
+
+pub fn kaintana_action_pressed(action_session_id: Int, action: String) -> Int:
+    return input_action_pressed(action_session_id, action)
+
+pub fn kaintana_action_down(action_session_id: Int, action: String) -> Int:
+    return input_action_down(action_session_id, action)
+
+pub fn kaintana_action_released(action_session_id: Int, action: String) -> Int:
+    return input_action_released(action_session_id, action)
+
+pub fn kaintana_action_axis_value(action_session_id: Int, axis: String) -> Float:
+    return input_axis_value(action_session_id, axis)
+
+pub fn kaintana_action_frame_index(action_session_id: Int) -> Int:
+    return input_frame_index(action_session_id)
+
+pub fn kaintana_action_event_count(action_session_id: Int) -> Int:
+    return input_event_count(action_session_id)
+
+pub fn kaintana_action_text_commit_count(action_session_id: Int) -> Int:
+    return input_text_commit_count(action_session_id)
+
+pub fn kaintana_action_text_commit(action_session_id: Int, index: Int) -> String:
+    return input_text_commit(action_session_id, index)
+
+pub fn kaintana_action_trace_text(action_session_id: Int) -> String:
+    return input_trace_json(action_session_id)
+
+pub fn kaintana_action_write_trace(action_session_id: Int, path: String) -> String:
+    write_file(path, kaintana_action_trace_text(action_session_id))
+    return path
+
 pub fn kaintana_desktop_probe() -> Int:
     return kaintana_native_desktop_probe()
-
-pub fn kaintana_vulkan_embed_available() -> Int:
-    return vulkain_probe()
 
 pub fn kaintana_desktop_scene_begin(spec: KaintanaWindowSpec) -> Int:
     return kaintana_native_desktop_begin_scene(spec.title, spec.width, spec.height, spec.clear_red, spec.clear_green, spec.clear_blue)
@@ -381,6 +510,18 @@ pub fn kaintana_immediate_metric(session_id: Int, parent_id: Int, stable_key: St
     let _desktop = kaintana_desktop_text(metric_text, rect.x, rect.y + baseline_y, theme.ink_red, theme.ink_green, theme.ink_blue, 255)
     return node
 
+pub fn kaintana_poll_event(session_id: Int) -> Int:
+    return native_ui_poll_event(session_id)
+
+pub fn kaintana_event_kind(session_id: Int) -> String:
+    return native_ui_event_kind(session_id)
+
+pub fn kaintana_event_target(session_id: Int) -> Int:
+    return native_ui_event_target(session_id)
+
+pub fn kaintana_event_text(session_id: Int) -> String:
+    return native_ui_event_text(session_id)
+
 pub fn kaintana_click_node(session_id: Int, node_id: Int) -> Int:
     let center_x = native_ui_node_x(session_id, node_id) + (native_ui_node_width(session_id, node_id) * 0.5)
     let center_y = native_ui_node_y(session_id, node_id) + (native_ui_node_height(session_id, node_id) * 0.5)
@@ -394,6 +535,149 @@ pub fn kaintana_button_activated(session_id: Int, node_id: Int) -> Int:
         if ui_event_kind_is(session_id, "pointer.up") == 1:
             return 1
     return 0
+
+pub fn kaintana_focus_node(session_id: Int, node_id: Int) -> Int:
+    return native_ui_focus(session_id, node_id)
+
+pub fn kaintana_focused_node(session_id: Int) -> Int:
+    return native_ui_focused_node(session_id)
+
+pub fn kaintana_focus_is(session_id: Int, node_id: Int) -> Int:
+    if kaintana_focused_node(session_id) == node_id:
+        return 1
+    return 0
+
+pub fn kaintana_action_activated(session_id: Int, action_session_id: Int, node_id: Int, action: String) -> Int:
+    let pointer_activation = kaintana_button_activated(session_id, node_id)
+    if kaintana_focus_is(session_id, node_id) == 1 and kaintana_action_down(action_session_id, action) == 1:
+        let _pressed = native_ui_node_set_flag(session_id, node_id, "pressed", 1)
+    if kaintana_focus_is(session_id, node_id) == 1 and kaintana_action_released(action_session_id, action) == 1:
+        let _released = native_ui_node_set_flag(session_id, node_id, "pressed", 0)
+    if pointer_activation == 1:
+        return 1
+    if kaintana_focus_is(session_id, node_id) == 1 and kaintana_action_pressed(action_session_id, action) == 1:
+        let _focus = native_ui_focus(session_id, node_id)
+        return 1
+    return 0
+
+pub fn kaintana_activate_focused_action(session_id: Int) -> Int:
+    let focused = kaintana_focused_node(session_id)
+    if focused <= 0:
+        return 0
+    return kaintana_click_node(session_id, focused)
+
+pub fn kaintana_render_focus_ring(session_id: Int, node_id: Int, theme: KaintanaTheme, spread: Float) -> Int:
+    if kaintana_focus_is(session_id, node_id) != 1:
+        return 0
+    let x = native_ui_node_x(session_id, node_id) - spread
+    let y = native_ui_node_y(session_id, node_id) - spread
+    let width = native_ui_node_width(session_id, node_id) + (spread * 2.0)
+    let height = native_ui_node_height(session_id, node_id) + (spread * 2.0)
+    let _ring = ui_style_color_rgba(session_id, node_id, "kaintana.focus.ring", kaintana_channel_float(theme.signal_red), kaintana_channel_float(theme.signal_green), kaintana_channel_float(theme.signal_blue), 0.86)
+    let _draw = ui_render_box_at(session_id, node_id, x, y, width, height, "kaintana.focus.ring")
+    let _desktop = kaintana_desktop_fill(kaintana_rect(x, y, width, height), theme.signal_red, theme.signal_green, theme.signal_blue, 132)
+    return 1
+
+pub fn kaintana_clipboard_copy_text(session_id: Int, text: String) -> Int:
+    return native_ui_clipboard_set_text(session_id, text)
+
+pub fn kaintana_clipboard_text(session_id: Int) -> String:
+    return native_ui_clipboard_text(session_id)
+
+pub fn kaintana_ime_begin(session_id: Int, node_id: Int) -> Int:
+    return native_ui_ime_begin(session_id, node_id)
+
+pub fn kaintana_ime_commit_text(session_id: Int, text: String) -> Int:
+    return native_ui_ime_commit_text(session_id, text)
+
+pub fn kaintana_ime_end(session_id: Int) -> Int:
+    return native_ui_ime_end(session_id)
+
+pub fn kaintana_ime_active_node(session_id: Int) -> Int:
+    return native_ui_ime_active_node(session_id)
+
+pub fn kaintana_ime_text(session_id: Int) -> String:
+    return native_ui_ime_text(session_id)
+
+pub fn kaintana_menu_create(session_id: Int, stable_key: String) -> Int:
+    return native_ui_menu_create(session_id, stable_key)
+
+pub fn kaintana_menu_add_item(session_id: Int, menu_id: Int, item: KaintanaMenuItem) -> Int:
+    return native_ui_menu_add_item(session_id, menu_id, item.stable_key, item.label, item.command_id)
+
+pub fn kaintana_menu_open(session_id: Int, menu_id: Int, x: Float, y: Float) -> Int:
+    return native_ui_menu_open(session_id, menu_id, x, y)
+
+pub fn kaintana_menu_open_below_node(session_id: Int, menu_id: Int, node_id: Int, offset_y: Float) -> Int:
+    return kaintana_menu_open(session_id, menu_id, native_ui_node_x(session_id, node_id), native_ui_node_y(session_id, node_id) + native_ui_node_height(session_id, node_id) + offset_y)
+
+pub fn kaintana_active_menu(session_id: Int) -> Int:
+    return native_ui_menu_active(session_id)
+
+pub fn kaintana_menu_item_count(session_id: Int, menu_id: Int) -> Int:
+    return native_ui_menu_item_count(session_id, menu_id)
+
+pub fn kaintana_menu_item_label(session_id: Int, menu_id: Int, index: Int) -> String:
+    return native_ui_menu_item_label(session_id, menu_id, index)
+
+pub fn kaintana_menu_item_command(session_id: Int, menu_id: Int, index: Int) -> Int:
+    return native_ui_menu_item_command(session_id, menu_id, index)
+
+pub fn kaintana_dialog_request(session_id: Int, kind: String, title: String, message: String) -> Int:
+    return native_ui_dialog_request(session_id, kind, title, message)
+
+pub fn kaintana_active_dialog(session_id: Int) -> Int:
+    return native_ui_dialog_active(session_id)
+
+pub fn kaintana_dialog_kind(session_id: Int) -> String:
+    return native_ui_dialog_kind(session_id)
+
+pub fn kaintana_dialog_title(session_id: Int) -> String:
+    return native_ui_dialog_title(session_id)
+
+pub fn kaintana_dialog_message(session_id: Int) -> String:
+    return native_ui_dialog_message(session_id)
+
+pub fn kaintana_dialog_respond(session_id: Int, dialog_id: Int, result_code: Int, response_text: String) -> Int:
+    return native_ui_dialog_respond(session_id, dialog_id, result_code, response_text)
+
+pub fn kaintana_dialog_poll_response(session_id: Int) -> Int:
+    return native_ui_dialog_poll_response(session_id)
+
+pub fn kaintana_dialog_response_text(session_id: Int) -> String:
+    return native_ui_dialog_response_text(session_id)
+
+fn kaintana_popover_state_key(spec: KaintanaPopoverSpec) -> String:
+    return "kaintana.popover.open." + spec.stable_key
+
+pub fn kaintana_popover_open(session_id: Int, anchor_node_id: Int, spec: KaintanaPopoverSpec) -> Int:
+    return ui_state_set_bool(session_id, anchor_node_id, kaintana_popover_state_key(spec), 1)
+
+pub fn kaintana_popover_close(session_id: Int, anchor_node_id: Int, spec: KaintanaPopoverSpec) -> Int:
+    return ui_state_set_bool(session_id, anchor_node_id, kaintana_popover_state_key(spec), 0)
+
+pub fn kaintana_popover_is_open(session_id: Int, anchor_node_id: Int, spec: KaintanaPopoverSpec) -> Int:
+    return ui_state_bool(session_id, anchor_node_id, kaintana_popover_state_key(spec), 0)
+
+pub fn kaintana_popover_rect(session_id: Int, anchor_node_id: Int, bounds: KaintanaRect, spec: KaintanaPopoverSpec) -> KaintanaRect:
+    let preferred_x = native_ui_node_x(session_id, anchor_node_id) + spec.offset_x
+    let preferred_y = native_ui_node_y(session_id, anchor_node_id) + native_ui_node_height(session_id, anchor_node_id) + spec.offset_y
+    let right_edge = ui_rect_right(bounds.x, bounds.width)
+    let bottom_edge = ui_rect_bottom(bounds.y, bounds.height)
+    let max_x = ui_float_max(bounds.x, right_edge - spec.width)
+    let max_y = ui_float_max(bounds.y, bottom_edge - spec.height)
+    return kaintana_rect(
+        ui_float_clamp(preferred_x, bounds.x, max_x),
+        ui_float_clamp(preferred_y, bounds.y, max_y),
+        spec.width,
+        spec.height
+    )
+
+pub fn kaintana_popover_region(session_id: Int, parent_id: Int, anchor_node_id: Int, caption: String, bounds: KaintanaRect, spec: KaintanaPopoverSpec, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    if kaintana_popover_is_open(session_id, anchor_node_id, spec) != 1:
+        return 0
+    let rect = kaintana_popover_rect(session_id, anchor_node_id, bounds, spec)
+    return kaintana_retained_surface(session_id, parent_id, "popover." + spec.stable_key, "surface.popover", caption, rect, theme, font_resource_id, baseline_y)
 
 pub fn kaintana_frame_report_text(session_id: Int, spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String) -> String:
     var output = "framework=kaintana\n"
@@ -416,27 +700,53 @@ pub fn kaintana_write_frame_report(session_id: Int, spec: KaintanaWindowSpec, th
     write_file(spec.frame_report_path, kaintana_frame_report_text(session_id, spec, theme, headline))
     return spec.frame_report_path
 
+pub fn kaintana_snapshot_text(session_id: Int, action_session_id: Int, spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String) -> String:
+    var output = kaintana_frame_report_text(session_id, spec, theme, headline)
+    output = output + "focused_node=" + str(kaintana_focused_node(session_id)) + "\n"
+    output = output + "clipboard_text=" + kaintana_clipboard_text(session_id) + "\n"
+    output = output + "ime_active_node=" + str(kaintana_ime_active_node(session_id)) + "\n"
+    output = output + "ime_text=" + kaintana_ime_text(session_id) + "\n"
+    let active_menu = kaintana_active_menu(session_id)
+    output = output + "menu_active=" + str(active_menu) + "\n"
+    if active_menu > 0:
+        let menu_count = kaintana_menu_item_count(session_id, active_menu)
+        output = output + "menu_item_count=" + str(menu_count) + "\n"
+        if menu_count > 0:
+            output = output + "menu_item_0_label=" + kaintana_menu_item_label(session_id, active_menu, 0) + "\n"
+            output = output + "menu_item_0_command=" + str(kaintana_menu_item_command(session_id, active_menu, 0)) + "\n"
+    let active_dialog = kaintana_active_dialog(session_id)
+    output = output + "dialog_active=" + str(active_dialog) + "\n"
+    if active_dialog > 0:
+        output = output + "dialog_kind=" + kaintana_dialog_kind(session_id) + "\n"
+        output = output + "dialog_title=" + kaintana_dialog_title(session_id) + "\n"
+        output = output + "dialog_message=" + kaintana_dialog_message(session_id) + "\n"
+        output = output + "dialog_response_text=" + kaintana_dialog_response_text(session_id) + "\n"
+    if action_session_id > 0:
+        output = output + "action_frame_index=" + str(kaintana_action_frame_index(action_session_id)) + "\n"
+        output = output + "action_event_count=" + str(kaintana_action_event_count(action_session_id)) + "\n"
+        output = output + "action_text_commit_count=" + str(kaintana_action_text_commit_count(action_session_id)) + "\n"
+        if kaintana_action_text_commit_count(action_session_id) > 0:
+            output = output + "action_text_commit_0=" + kaintana_action_text_commit(action_session_id, 0) + "\n"
+        output = output + "action_trace=" + kaintana_action_trace_text(action_session_id) + "\n"
+    return output
+
+pub fn kaintana_write_harness_artifacts(session_id: Int, action_session_id: Int, spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String, harness: KaintanaHarnessSpec) -> String:
+    write_file(harness.snapshot_path, kaintana_snapshot_text(session_id, action_session_id, spec, theme, headline))
+    if len(harness.input_trace_path) > 0 and action_session_id > 0:
+        let _trace = kaintana_action_write_trace(action_session_id, harness.input_trace_path)
+    return harness.snapshot_path
+
 pub fn kaintana_host_frames_presented(spec: KaintanaWindowSpec) -> Int:
-    if spec.backend_id == kaintana_backend_vulkan():
-        return vulkain_frames_presented()
     return kaintana_native_desktop_frames_presented()
 
 pub fn kaintana_host_geometry_count(spec: KaintanaWindowSpec) -> Int:
-    if spec.backend_id == kaintana_backend_vulkan():
-        return vulkain_vertices_drawn()
     return kaintana_native_desktop_command_count()
 
 pub fn kaintana_host_run_window(spec: KaintanaWindowSpec) -> Int:
-    if spec.backend_id == kaintana_backend_vulkan():
-        return vulkain_run_window(spec.title, spec.width, spec.height, spec.frame_budget, spec.clear_red, spec.clear_green, spec.clear_blue, spec.accent_red, spec.accent_green, spec.accent_blue, spec.vertex_shader_path, spec.fragment_shader_path)
     return kaintana_native_desktop_run_window(spec.frame_budget)
 
 pub fn kaintana_host_write_report(spec: KaintanaWindowSpec) -> Int:
-    if spec.backend_id == kaintana_backend_vulkan():
-        return vulkain_write_report(spec.host_report_path)
     return kaintana_native_desktop_write_report(spec.host_report_path)
 
 pub fn kaintana_host_write_screenshot(spec: KaintanaWindowSpec) -> Int:
-    if spec.backend_id == kaintana_backend_vulkan():
-        return 0
     return kaintana_desktop_scene_write_bmp(spec.screenshot_path)

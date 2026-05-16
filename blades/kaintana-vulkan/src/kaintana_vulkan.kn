@@ -1,0 +1,24 @@
+use kaintana::KaintanaWindowSpec
+use vulkain::vulkain_frames_presented
+use vulkain::vulkain_probe
+use vulkain::vulkain_run_window
+use vulkain::vulkain_vertices_drawn
+use vulkain::vulkain_write_report
+
+pub fn kaintana_vulkan_embed_available() -> Int:
+    return vulkain_probe()
+
+pub fn kaintana_vulkan_host_frames_presented(spec: KaintanaWindowSpec) -> Int:
+    return vulkain_frames_presented()
+
+pub fn kaintana_vulkan_host_geometry_count(spec: KaintanaWindowSpec) -> Int:
+    return vulkain_vertices_drawn()
+
+pub fn kaintana_vulkan_host_run_window(spec: KaintanaWindowSpec) -> Int:
+    return vulkain_run_window(spec.title, spec.width, spec.height, spec.frame_budget, spec.clear_red, spec.clear_green, spec.clear_blue, spec.accent_red, spec.accent_green, spec.accent_blue, spec.vertex_shader_path, spec.fragment_shader_path)
+
+pub fn kaintana_vulkan_host_write_report(spec: KaintanaWindowSpec) -> Int:
+    return vulkain_write_report(spec.host_report_path)
+
+pub fn kaintana_vulkan_host_write_screenshot(spec: KaintanaWindowSpec) -> Int:
+    return 0

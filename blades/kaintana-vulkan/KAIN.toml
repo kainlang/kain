@@ -1,10 +1,11 @@
 [package]
-name = "kaintana-test"
+name = "kaintana-vulkan"
 version = "0.1.0"
-description = "Consumer proof blade for the Kaintana framework."
+description = "Optional Vulkan embed adapter lane for the Kaintana UI framework."
 
 [blade]
-name = "kaintana-test"
+name = "kaintana-vulkan"
+kind = "kain_library"
 entry = "src/main.kn"
 source_roots = ["src"]
 module_roots = ["src"]
@@ -12,6 +13,10 @@ build_targets = ["llvm"]
 
 [[blade.dependencies]]
 name = "kaintana"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "vulkain"
 kind = "kain"
 
 [run]
@@ -31,6 +36,7 @@ entry = "src/main.kn"
 target = "llvm"
 inputs = [
   "src/main.kn",
+  "src/kaintana_vulkan.kn",
   "run.ps1",
 ]
 
@@ -41,3 +47,8 @@ name = "kaintana_desktop_bridge"
 header = "../kaintana/native/kaintana_desktop_bridge.h"
 shared_lib = "../kaintana/.kain/native/kaintana_desktop_bridge.obj"
 link_libs = ["user32", "gdi32"]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+header = "../vulkain/native/vulkain_bridge.h"
+shared_lib = "../vulkain/.kain/native/${kain_dynlib:vulkain_bridge}"
