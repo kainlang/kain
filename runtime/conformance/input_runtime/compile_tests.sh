@@ -31,16 +31,16 @@ else
     LDFLAGS="-lm"
 fi
 
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_core.c" -o "$OUT_DIR/kain_runtime_core.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_version.c" -o "$OUT_DIR/kain_runtime_version.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_diagnostics.c" -o "$OUT_DIR/kain_runtime_diagnostics.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_native_input_system.c" -o "$OUT_DIR/kain_native_input_system.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/core.c" -o "$OUT_DIR/kain_runtime_core.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/version.c" -o "$OUT_DIR/runtime_version.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/diagnostics.c" -o "$OUT_DIR/runtime_diagnostics.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/input_system.c" -o "$OUT_DIR/abi_input_system.o"
 
 "$C_COMPILER" $CFLAGS \
     "$SCRIPT_DIR/test_native_input_system_kernel.c" \
     "$OUT_DIR/kain_runtime_core.o" \
-    "$OUT_DIR/kain_runtime_version.o" \
-    "$OUT_DIR/kain_runtime_diagnostics.o" \
-    "$OUT_DIR/kain_native_input_system.o" \
+    "$OUT_DIR/runtime_version.o" \
+    "$OUT_DIR/runtime_diagnostics.o" \
+    "$OUT_DIR/abi_input_system.o" \
     -o "$OUT_DIR/native_input_system_kernel.exe" \
     $LDFLAGS

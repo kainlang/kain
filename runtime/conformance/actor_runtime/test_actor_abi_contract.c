@@ -1,4 +1,4 @@
-#include "../../native/include/kain_runtime_actor.h"
+#include "../../native/include/actor.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -9,8 +9,8 @@ tags:
 - hex
 - allocation
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
-  symbol: kain_native_process_encode_hex
+  path: D:\Kain-Lang\runtime\native\src\core\process_system.c
+  symbol: abi_process_encode_hex
   start_line: 355
   reason: byte_length * 2 + 1 is checked before allocating the encoded buffer
 case:

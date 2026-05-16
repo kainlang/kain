@@ -308,7 +308,7 @@ impl CGen {
         self.has_entanglements = true;
 
         self.write_line(
-            "int64_t kain_native_entangle_register(const char * authority, const char * mirror, const char * policy, const char * type_name);",
+            "int64_t abi_entangle_register(const char * authority, const char * mirror, const char * policy, const char * type_name);",
         );
         self.write_line("typedef struct KainCEntangleBinding {");
         self.push_indent();
@@ -339,7 +339,7 @@ impl CGen {
         self.write_line("for (size_t index = 0; index < __kain_entanglement_count; index++) {");
         self.push_indent();
         self.write_line("const KainCEntangleBinding *binding = &__kain_entanglements[index];");
-        self.write_line("(void)kain_native_entangle_register(binding->authority, binding->mirror, binding->policy, binding->type_name);");
+        self.write_line("(void)abi_entangle_register(binding->authority, binding->mirror, binding->policy, binding->type_name);");
         self.pop_indent();
         self.write_line("}");
         self.pop_indent();
@@ -798,7 +798,7 @@ impl CGen {
                 ))
             }
             Expr::Spawn { actor, init, .. } => Ok(format!(
-                "kain_native_actor_spawn(\"{}\", \"{}\")",
+                "abi_actor_spawn(\"{}\", \"{}\")",
                 self.escape_string(actor),
                 self.escape_string(&self.render_actor_payload_pairs(init)?)
             )),
@@ -808,7 +808,7 @@ impl CGen {
                 data,
                 ..
             } => Ok(format!(
-                "kain_native_actor_send({}, \"{}\", \"{}\")",
+                "abi_actor_send({}, \"{}\", \"{}\")",
                 self.gen_expr(target)?,
                 self.escape_string(message),
                 self.escape_string(&self.render_actor_payload_pairs(data)?)

@@ -5,8 +5,8 @@
  * behavior using the canonical runtime diagnostics service.
  */
 
-#include "../../native/include/kain_runtime_diagnostics.h"
-#include "../../native/include/kain_runtime_version.h"
+#include "../../native/include/diagnostics.h"
+#include "../../native/include/version.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -57,10 +57,10 @@ static int test_diagnostic_record_creation(void) {
         return 1;
     }
 
-    if (diag.runtime_abi_version != KAIN_RUNTIME_ABI_VERSION_CURRENT) {
+    if (diag.runtime_abi_version != RUNTIME_ABI_VERSION_CURRENT) {
         printf(
             "  FAIL: runtime ABI mismatch (expected 0x%08X, got 0x%08X)\n",
-            KAIN_RUNTIME_ABI_VERSION_CURRENT,
+            RUNTIME_ABI_VERSION_CURRENT,
             diag.runtime_abi_version
         );
         return 1;

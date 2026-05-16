@@ -11,8 +11,8 @@ tags:
 - bindings
 - capacity
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_realtime.c
-  symbol: kain_runtime_graphics_parse_binding_objects
+  path: D:\Kain-Lang\runtime\native\src\core\realtime.c
+  symbol: graphics_bundle_parse_binding_objects
   start_line: 442
   reason: count < max_bindings is enforced before binding = &bindings[count] and ++count
 case:

@@ -9,8 +9,8 @@ tags:
 - buffer-growth
 - size_t
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
-  symbol: kain_native_net_append_bytes
+  path: D:\Kain-Lang\runtime\native\src\core\net_system.c
+  symbol: abi_net_append_bytes
   start_line: 328
   reason: length + byte_count + slack is now checked in two explicit additions
 case:

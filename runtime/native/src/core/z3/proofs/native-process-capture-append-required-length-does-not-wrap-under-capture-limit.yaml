@@ -9,8 +9,8 @@ tags:
 - capture
 - buffer-growth
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
-  symbol: kain_native_process_capture_append
+  path: D:\Kain-Lang\runtime\native\src\core\process_system.c
+  symbol: abi_process_capture_append
   start_line: 269
   reason: capture->length + to_copy is checked before reserve and bounded by the capture limit
 case:

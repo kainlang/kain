@@ -60,7 +60,7 @@
       "install_kain.py"
     ],
     "runtime_stamp_files": [
-      "runtime/kain_runtime.c",
+      "runtime/runtime.c",
       "runtime/native_core_runtime.toml",
       "blades/kain-mcp/config/runtime_policy.json"
     ]

@@ -131,7 +131,7 @@ impl CppGen {
         self.write_line(
             "// This backend provides PARTIAL support for the canonical low-level helper",
         );
-        self.write_line("// surface defined in runtime/native/include/kain_runtime_memory.h");
+        self.write_line("// surface defined in runtime/native/include/memory.h");
         self.write_line("//");
         self.write_line("// SUPPORTED HELPERS:");
         self.write_line(

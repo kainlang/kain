@@ -186,10 +186,10 @@ fn main() -> Int:
 fn llvm_uses_explicit_native_stdlib_wrapper_string_signatures() {
     let source = r#"
 @extern
-fn kain_native_fs_read_text(path: String) -> String
+fn abi_fs_read_text(path: String) -> String
 
 pub fn fs_read_text(path: String) -> String:
-    return kain_native_fs_read_text(path)
+    return abi_fs_read_text(path)
 
 fn main() -> Int:
     let value = fs_read_text("note.txt")
@@ -202,7 +202,7 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm.contains("declare i8* @kain_native_fs_read_text(i8* %arg0)"));
+    assert!(llvm.contains("declare i8* @abi_fs_read_text(i8* %arg0)"));
     assert!(llvm.contains("define i8* @fs_read_text(i8* %arg0)"));
     assert!(!llvm.contains("declare i8* @fs_read_text(i8*"));
     assert!(llvm.contains("call i1 @deep_eq(i8*"));
@@ -212,36 +212,36 @@ fn main() -> Int:
 fn llvm_lowers_native_input_action_primitives() {
     let source = r#"
 @extern
-fn kain_native_input_session_create(name: String) -> Int
+fn abi_input_session_create(name: String) -> Int
 
 @extern
-fn kain_native_input_bind_action(session_id: Int, source_kind: String, event_kind: String, code: String, action: String) -> Int
+fn abi_input_bind_action(session_id: Int, source_kind: String, event_kind: String, code: String, action: String) -> Int
 
 @extern
-fn kain_native_input_push_agent_intent(session_id: Int, source_id: String, action: String, command_text: String, confidence: Float) -> Int
+fn abi_input_push_agent_intent(session_id: Int, source_id: String, action: String, command_text: String, confidence: Float) -> Int
 
 @extern
-fn kain_native_input_begin_frame(session_id: Int, delta_ms: Float) -> Int
+fn abi_input_begin_frame(session_id: Int, delta_ms: Float) -> Int
 
 @extern
-fn kain_native_input_action_pressed(session_id: Int, action: String) -> Int
+fn abi_input_action_pressed(session_id: Int, action: String) -> Int
 
 fn main() -> Int:
-    let session = kain_native_input_session_create("agent-input")
-    let _binding = kain_native_input_bind_action(session, "human.keyboard", "key_down", "Enter", "confirm")
-    let _event = kain_native_input_push_agent_intent(session, "codex", "confirm", "activate", 0.95)
-    let _frame = kain_native_input_begin_frame(session, 16.0)
-    return kain_native_input_action_pressed(session, "confirm")
+    let session = abi_input_session_create("agent-input")
+    let _binding = abi_input_bind_action(session, "human.keyboard", "key_down", "Enter", "confirm")
+    let _event = abi_input_push_agent_intent(session, "codex", "confirm", "activate", 0.95)
+    let _frame = abi_input_begin_frame(session, 16.0)
+    return abi_input_action_pressed(session, "confirm")
 "#;
 
     let program = typed_program_from_source(source);
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm.contains("declare i64 @kain_native_input_session_create(i8* %arg0)"));
-    assert!(llvm.contains("declare i64 @kain_native_input_bind_action(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, i8* %arg4)"));
-    assert!(llvm.contains("declare i64 @kain_native_input_push_agent_intent(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, double %arg4)"));
-    assert!(llvm.contains("call i64 @kain_native_input_action_pressed"));
+    assert!(llvm.contains("declare i64 @abi_input_session_create(i8* %arg0)"));
+    assert!(llvm.contains("declare i64 @abi_input_bind_action(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, i8* %arg4)"));
+    assert!(llvm.contains("declare i64 @abi_input_push_agent_intent(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, double %arg4)"));
+    assert!(llvm.contains("call i64 @abi_input_action_pressed"));
     assert!(llvm.contains("agent-input"));
     assert!(llvm.contains("codex"));
 }
@@ -250,46 +250,46 @@ fn main() -> Int:
 fn llvm_lowers_native_process_and_pty_primitives() {
     let source = r#"
 @extern
-fn kain_native_process_spec_create(executable: String) -> Int
+fn abi_process_spec_create(executable: String) -> Int
 
 @extern
-fn kain_native_process_spec_add_arg(spec_id: Int, argument: String) -> Int
+fn abi_process_spec_add_arg(spec_id: Int, argument: String) -> Int
 
 @extern
-fn kain_native_process_spec_set_stdout_mode(spec_id: Int, mode: String) -> Int
+fn abi_process_spec_set_stdout_mode(spec_id: Int, mode: String) -> Int
 
 @extern
-fn kain_native_process_spawn(spec_id: Int) -> Int
+fn abi_process_spawn(spec_id: Int) -> Int
 
 @extern
-fn kain_native_process_wait(process_id: Int, timeout_ms: Int) -> Int
+fn abi_process_wait(process_id: Int, timeout_ms: Int) -> Int
 
 @extern
-fn kain_native_process_stdout_capture_text(process_id: Int) -> String
+fn abi_process_stdout_capture_text(process_id: Int) -> String
 
 @extern
-fn kain_native_process_spawn_pty(spec_id: Int, columns: Int, rows: Int) -> Int
+fn abi_process_spawn_pty(spec_id: Int, columns: Int, rows: Int) -> Int
 
 @extern
-fn kain_native_process_pty_write_text(process_id: Int, text: String) -> Int
+fn abi_process_pty_write_text(process_id: Int, text: String) -> Int
 
 @extern
-fn kain_native_process_pty_capture_text(process_id: Int) -> String
+fn abi_process_pty_capture_text(process_id: Int) -> String
 
 fn main() -> Int:
-    let echo = kain_native_process_spec_create("cmd.exe")
-    let _arg_a = kain_native_process_spec_add_arg(echo, "/d")
-    let _arg_b = kain_native_process_spec_add_arg(echo, "/c")
-    let _arg_c = kain_native_process_spec_add_arg(echo, "echo process-proof")
-    let _stdout = kain_native_process_spec_set_stdout_mode(echo, "pipe")
-    let child = kain_native_process_spawn(echo)
-    let _wait = kain_native_process_wait(child, 5000)
-    let captured = kain_native_process_stdout_capture_text(child)
+    let echo = abi_process_spec_create("cmd.exe")
+    let _arg_a = abi_process_spec_add_arg(echo, "/d")
+    let _arg_b = abi_process_spec_add_arg(echo, "/c")
+    let _arg_c = abi_process_spec_add_arg(echo, "echo process-proof")
+    let _stdout = abi_process_spec_set_stdout_mode(echo, "pipe")
+    let child = abi_process_spawn(echo)
+    let _wait = abi_process_wait(child, 5000)
+    let captured = abi_process_stdout_capture_text(child)
 
-    let shell = kain_native_process_spec_create("cmd.exe")
-    let pty = kain_native_process_spawn_pty(shell, 120, 40)
-    let _write = kain_native_process_pty_write_text(pty, "echo pty-proof\r\nexit\r\n")
-    let interactive = kain_native_process_pty_capture_text(pty)
+    let shell = abi_process_spec_create("cmd.exe")
+    let pty = abi_process_spawn_pty(shell, 120, 40)
+    let _write = abi_process_pty_write_text(pty, "echo pty-proof\r\nexit\r\n")
+    let interactive = abi_process_pty_capture_text(pty)
 
     if captured != "" and interactive != "":
         return child + pty
@@ -300,13 +300,13 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm.contains("declare i64 @kain_native_process_spec_create(i8* %arg0)"));
-    assert!(llvm.contains("declare i64 @kain_native_process_spec_add_arg(i64 %arg0, i8* %arg1)"));
-    assert!(llvm.contains("declare i64 @kain_native_process_spawn(i64 %arg0)"));
+    assert!(llvm.contains("declare i64 @abi_process_spec_create(i8* %arg0)"));
+    assert!(llvm.contains("declare i64 @abi_process_spec_add_arg(i64 %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i64 @abi_process_spawn(i64 %arg0)"));
     assert!(llvm
-        .contains("declare i64 @kain_native_process_spawn_pty(i64 %arg0, i64 %arg1, i64 %arg2)"));
-    assert!(llvm.contains("declare i8* @kain_native_process_stdout_capture_text(i64 %arg0)"));
-    assert!(llvm.contains("call i64 @kain_native_process_pty_write_text"));
+        .contains("declare i64 @abi_process_spawn_pty(i64 %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i8* @abi_process_stdout_capture_text(i64 %arg0)"));
+    assert!(llvm.contains("call i64 @abi_process_pty_write_text"));
     assert!(llvm.contains("echo process-proof"));
     assert!(llvm.contains("echo pty-proof"));
 }
@@ -315,62 +315,62 @@ fn main() -> Int:
 fn llvm_lowers_native_net_tcp_http_and_actor_route_primitives() {
     let source = r#"
 @extern
-fn kain_native_net_platform_name() -> String
+fn abi_net_platform_name() -> String
 
 @extern
-fn kain_native_net_capability_state(capability_key: String) -> Int
+fn abi_net_capability_state(capability_key: String) -> Int
 
 @extern
-fn kain_native_tcp_connect(host: String, port: Int, timeout_ms: Int) -> Int
+fn abi_tcp_connect(host: String, port: Int, timeout_ms: Int) -> Int
 
 @extern
-fn kain_native_tcp_write_text(connection_id: Int, payload: String) -> Int
+fn abi_tcp_write_text(connection_id: Int, payload: String) -> Int
 
 @extern
-fn kain_native_http_request_create(method: String, url: String) -> Int
+fn abi_http_request_create(method: String, url: String) -> Int
 
 @extern
-fn kain_native_http_request_set_protocol(request_id: Int, protocol_name: String) -> Int
+fn abi_http_request_set_protocol(request_id: Int, protocol_name: String) -> Int
 
 @extern
-fn kain_native_http_client_send(request_id: Int) -> Int
+fn abi_http_client_send(request_id: Int) -> Int
 
 @extern
-fn kain_native_http_response_protocol(response_id: Int) -> String
+fn abi_http_response_protocol(response_id: Int) -> String
 
 @extern
-fn kain_native_http_response_body_text(response_id: Int) -> String
+fn abi_http_response_body_text(response_id: Int) -> String
 
 @extern
-fn kain_native_http_server_create(host: String, port: Int) -> Int
+fn abi_http_server_create(host: String, port: Int) -> Int
 
 @extern
-fn kain_native_http_server_route_actor(server_id: Int, method: String, path: String, actor_id: Int, message_kind: String) -> Int
+fn abi_http_server_route_actor(server_id: Int, method: String, path: String, actor_id: Int, message_kind: String) -> Int
 
 @extern
-fn kain_native_http_server_pump(server_id: Int, timeout_ms: Int) -> Int
+fn abi_http_server_pump(server_id: Int, timeout_ms: Int) -> Int
 
 @extern
-fn kain_native_http_server_pending_request_count(server_id: Int) -> Int
+fn abi_http_server_pending_request_count(server_id: Int) -> Int
 
 @extern
-fn kain_native_http_respond_text(incoming_request_id: Int, status_code: Int, payload: String) -> Int
+fn abi_http_respond_text(incoming_request_id: Int, status_code: Int, payload: String) -> Int
 
 fn main() -> Int:
-    let _platform = kain_native_net_platform_name()
-    let _capability = kain_native_net_capability_state("http2.client")
-    let tcp = kain_native_tcp_connect("127.0.0.1", 8080, 100)
-    let _write = kain_native_tcp_write_text(tcp, "ping")
-    let server = kain_native_http_server_create("127.0.0.1", 0)
-    let _route = kain_native_http_server_route_actor(server, "GET", "/actor", 7, "HttpRequest")
-    let incoming = kain_native_http_server_pump(server, 1)
-    let _pending = kain_native_http_server_pending_request_count(server)
-    let _respond = kain_native_http_respond_text(incoming, 200, "ok")
-    let request = kain_native_http_request_create("GET", "http://127.0.0.1/")
-    let _protocol = kain_native_http_request_set_protocol(request, "http/2")
-    let response = kain_native_http_client_send(request)
-    let _response_protocol = kain_native_http_response_protocol(response)
-    let body = kain_native_http_response_body_text(response)
+    let _platform = abi_net_platform_name()
+    let _capability = abi_net_capability_state("http2.client")
+    let tcp = abi_tcp_connect("127.0.0.1", 8080, 100)
+    let _write = abi_tcp_write_text(tcp, "ping")
+    let server = abi_http_server_create("127.0.0.1", 0)
+    let _route = abi_http_server_route_actor(server, "GET", "/actor", 7, "HttpRequest")
+    let incoming = abi_http_server_pump(server, 1)
+    let _pending = abi_http_server_pending_request_count(server)
+    let _respond = abi_http_respond_text(incoming, 200, "ok")
+    let request = abi_http_request_create("GET", "http://127.0.0.1/")
+    let _protocol = abi_http_request_set_protocol(request, "http/2")
+    let response = abi_http_client_send(request)
+    let _response_protocol = abi_http_response_protocol(response)
+    let body = abi_http_response_body_text(response)
     if body != "":
         return response
     return tcp
@@ -380,18 +380,18 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm.contains("declare i8* @kain_native_net_platform_name()"));
-    assert!(llvm.contains("declare i64 @kain_native_net_capability_state(i8* %arg0)"));
-    assert!(llvm.contains("declare i64 @kain_native_tcp_connect(i8* %arg0, i64 %arg1, i64 %arg2)"));
-    assert!(llvm.contains("declare i64 @kain_native_http_request_create(i8* %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i8* @abi_net_platform_name()"));
+    assert!(llvm.contains("declare i64 @abi_net_capability_state(i8* %arg0)"));
+    assert!(llvm.contains("declare i64 @abi_tcp_connect(i8* %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i64 @abi_http_request_create(i8* %arg0, i8* %arg1)"));
     assert!(
-        llvm.contains("declare i64 @kain_native_http_request_set_protocol(i64 %arg0, i8* %arg1)")
+        llvm.contains("declare i64 @abi_http_request_set_protocol(i64 %arg0, i8* %arg1)")
     );
-    assert!(llvm.contains("declare i64 @kain_native_http_client_send(i64 %arg0)"));
-    assert!(llvm.contains("declare i8* @kain_native_http_response_protocol(i64 %arg0)"));
-    assert!(llvm.contains("declare i64 @kain_native_http_server_route_actor(i64 %arg0, i8* %arg1, i8* %arg2, i64 %arg3, i8* %arg4)"));
-    assert!(llvm.contains("declare i64 @kain_native_http_server_pending_request_count(i64 %arg0)"));
-    assert!(llvm.contains("call i64 @kain_native_http_respond_text"));
+    assert!(llvm.contains("declare i64 @abi_http_client_send(i64 %arg0)"));
+    assert!(llvm.contains("declare i8* @abi_http_response_protocol(i64 %arg0)"));
+    assert!(llvm.contains("declare i64 @abi_http_server_route_actor(i64 %arg0, i8* %arg1, i8* %arg2, i64 %arg3, i8* %arg4)"));
+    assert!(llvm.contains("declare i64 @abi_http_server_pending_request_count(i64 %arg0)"));
+    assert!(llvm.contains("call i64 @abi_http_respond_text"));
     assert!(llvm.contains("HttpRequest"));
     assert!(llvm.contains("http2.client"));
 }
@@ -400,34 +400,34 @@ fn main() -> Int:
 fn llvm_lowers_single_file_native_ui_primitives_without_component_catalog() {
     let source = r#"
 @extern
-fn kain_native_ui_session_create(app_name: String, width: Int, height: Int) -> Int
+fn abi_ui_session_create(app_name: String, width: Int, height: Int) -> Int
 
 @extern
-fn kain_native_ui_node_create(session_id: Int, kind: String) -> Int
+fn abi_ui_node_create(session_id: Int, kind: String) -> Int
 
 @extern
-fn kain_native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+fn abi_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
 
 @extern
-fn kain_native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
+fn abi_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
 
 @extern
-fn kain_native_ui_present(session_id: Int) -> Int
+fn abi_ui_present(session_id: Int) -> Int
 
 pub fn native_ui_session_create(app_name: String, width: Int, height: Int) -> Int:
-    return kain_native_ui_session_create(app_name, width, height)
+    return abi_ui_session_create(app_name, width, height)
 
 pub fn native_ui_node_create(session_id: Int, kind: String) -> Int:
-    return kain_native_ui_node_create(session_id, kind)
+    return abi_ui_node_create(session_id, kind)
 
 pub fn native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int:
-    return kain_native_ui_node_set_rect(session_id, node_id, x, y, width, height)
+    return abi_ui_node_set_rect(session_id, node_id, x, y, width, height)
 
 pub fn native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return kain_native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
+    return abi_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
 
 pub fn native_ui_present(session_id: Int) -> Int:
-    return kain_native_ui_present(session_id)
+    return abi_ui_present(session_id)
 
 fn main() -> Int:
     let session = native_ui_session_create("single-file-authoring", 960, 540)
@@ -444,10 +444,10 @@ fn main() -> Int:
         .expect("llvm should be utf8");
 
     assert!(llvm
-        .contains("declare i64 @kain_native_ui_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_node_create(i64 %arg0, i8* %arg1)"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_node_set_rect(i64 %arg0, i64 %arg1, double %arg2, double %arg3, double %arg4, double %arg5)"));
-    assert!(llvm.contains("call i64 @kain_native_ui_draw_rect"));
+        .contains("declare i64 @abi_ui_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i64 @abi_ui_node_create(i64 %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i64 @abi_ui_node_set_rect(i64 %arg0, i64 %arg1, double %arg2, double %arg3, double %arg4, double %arg5)"));
+    assert!(llvm.contains("call i64 @abi_ui_draw_rect"));
     assert!(llvm.contains("user.authored.command-strip"));
     assert!(!llvm.contains("button"));
     assert!(!llvm.contains("panel"));
@@ -491,85 +491,85 @@ fn main() -> Float:
 fn llvm_lowers_native_ui_host_services_without_component_catalog() {
     let source = r#"
 @extern
-fn kain_native_ui_session_create(app_name: String, width: Int, height: Int) -> Int
+fn abi_ui_session_create(app_name: String, width: Int, height: Int) -> Int
 
 @extern
-fn kain_native_ui_node_create(session_id: Int, kind: String) -> Int
+fn abi_ui_node_create(session_id: Int, kind: String) -> Int
 
 @extern
-fn kain_native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+fn abi_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
 
 @extern
-fn kain_native_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int
+fn abi_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int
 
 @extern
-fn kain_native_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
+fn abi_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
 
 @extern
-fn kain_native_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
+fn abi_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
 
 @extern
-fn kain_native_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
+fn abi_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
 
 @extern
-fn kain_native_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
+fn abi_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
 
 @extern
-fn kain_native_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
+fn abi_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
 
 @extern
-fn kain_native_ui_state_count(session_id: Int) -> Int
+fn abi_ui_state_count(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_host_attach(session_id: Int, backend_id: String) -> Int
+fn abi_ui_host_attach(session_id: Int, backend_id: String) -> Int
 
 @extern
-fn kain_native_ui_host_present(session_id: Int) -> Int
+fn abi_ui_host_present(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int
+fn abi_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int
 
 @extern
-fn kain_native_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int
+fn abi_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int
 
 @extern
-fn kain_native_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int
+fn abi_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int
 
 @extern
-fn kain_native_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
+fn abi_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
 
 @extern
-fn kain_native_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
+fn abi_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
 
 @extern
-fn kain_native_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int
+fn abi_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int
 
 @extern
-fn kain_native_ui_clipboard_set_text(session_id: Int, text: String) -> Int
+fn abi_ui_clipboard_set_text(session_id: Int, text: String) -> Int
 
 @extern
-fn kain_native_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
+fn abi_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
 
 fn main() -> Int:
-    let session = kain_native_ui_session_create("single-file-host-authoring", 960, 540)
-    let _backend = kain_native_ui_host_attach(session, "software")
-    let _reload = kain_native_ui_hot_reload_begin(session, "rev-a")
-    let root = kain_native_ui_node_create(session, "app.root")
-    let command = kain_native_ui_node_create(session, "author.command")
-    let _root_key = kain_native_ui_node_set_stable_key(session, root, "root")
-    let _command_key = kain_native_ui_node_set_stable_key(session, command, "command.launch")
-    let _command_rect = kain_native_ui_node_set_rect(session, command, 16.0, 16.0, 180.0, 36.0)
-    let font = kain_native_ui_font_create(session, "font.body", "Inter", 14.0)
-    let width = kain_native_ui_text_measure_width(session, font, "Launch")
-    let texture = kain_native_ui_texture_create(session, "texture.icon", 32, 32, "rgba8", 4096)
-    let _upload = kain_native_ui_resource_set_bytes_hex(session, texture, "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
-    let _shape = kain_native_ui_node_set_state_string(session, command, "shape.kind", "tetra.surface")
-    let _resource_state = kain_native_ui_node_set_state_i64(session, command, "resource.id", texture)
-    let _draw = kain_native_ui_draw_resource(session, command, texture, 164.0, 18.0, 32.0, 32.0, "icon")
-    let _text = kain_native_ui_draw_text(session, command, font, 28.0, 38.0, "Launch", "label")
-    let _clipboard = kain_native_ui_clipboard_set_text(session, "Launch")
-    if kain_native_ui_node_find_by_stable_key(session, "command.launch") == command and width > 10.0 and kain_native_ui_node_state_string(session, command, "shape.kind", "") == "tetra.surface" and kain_native_ui_node_state_i64(session, command, "resource.id", 0) == texture and kain_native_ui_state_count(session) == 2:
-        return kain_native_ui_host_present(session)
+    let session = abi_ui_session_create("single-file-host-authoring", 960, 540)
+    let _backend = abi_ui_host_attach(session, "software")
+    let _reload = abi_ui_hot_reload_begin(session, "rev-a")
+    let root = abi_ui_node_create(session, "app.root")
+    let command = abi_ui_node_create(session, "author.command")
+    let _root_key = abi_ui_node_set_stable_key(session, root, "root")
+    let _command_key = abi_ui_node_set_stable_key(session, command, "command.launch")
+    let _command_rect = abi_ui_node_set_rect(session, command, 16.0, 16.0, 180.0, 36.0)
+    let font = abi_ui_font_create(session, "font.body", "Inter", 14.0)
+    let width = abi_ui_text_measure_width(session, font, "Launch")
+    let texture = abi_ui_texture_create(session, "texture.icon", 32, 32, "rgba8", 4096)
+    let _upload = abi_ui_resource_set_bytes_hex(session, texture, "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
+    let _shape = abi_ui_node_set_state_string(session, command, "shape.kind", "tetra.surface")
+    let _resource_state = abi_ui_node_set_state_i64(session, command, "resource.id", texture)
+    let _draw = abi_ui_draw_resource(session, command, texture, 164.0, 18.0, 32.0, 32.0, "icon")
+    let _text = abi_ui_draw_text(session, command, font, 28.0, 38.0, "Launch", "label")
+    let _clipboard = abi_ui_clipboard_set_text(session, "Launch")
+    if abi_ui_node_find_by_stable_key(session, "command.launch") == command and width > 10.0 and abi_ui_node_state_string(session, command, "shape.kind", "") == "tetra.surface" and abi_ui_node_state_i64(session, command, "resource.id", 0) == texture and abi_ui_state_count(session) == 2:
+        return abi_ui_host_present(session)
     return 0
 "#;
 
@@ -577,20 +577,20 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm.contains("declare i64 @kain_native_ui_host_attach(i64 %arg0, i8* %arg1)"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_font_create"));
-    assert!(llvm.contains("declare double @kain_native_ui_text_measure_width"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_resource_set_bytes_hex"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_draw_text"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_node_set_state_string"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_node_set_state_i64"));
-    assert!(llvm.contains("declare i8* @kain_native_ui_node_state_string"));
-    assert!(llvm.contains("declare i64 @kain_native_ui_state_count"));
-    assert!(llvm.contains("call i64 @kain_native_ui_draw_resource"));
-    assert!(llvm.contains("call i64 @kain_native_ui_draw_text"));
-    assert!(llvm.contains("call i64 @kain_native_ui_node_set_state_string"));
-    assert!(llvm.contains("call i64 @kain_native_ui_node_state_i64"));
-    assert!(llvm.contains("call i64 @kain_native_ui_host_present"));
+    assert!(llvm.contains("declare i64 @abi_ui_host_attach(i64 %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i64 @abi_ui_font_create"));
+    assert!(llvm.contains("declare double @abi_ui_text_measure_width"));
+    assert!(llvm.contains("declare i64 @abi_ui_resource_set_bytes_hex"));
+    assert!(llvm.contains("declare i64 @abi_ui_draw_text"));
+    assert!(llvm.contains("declare i64 @abi_ui_node_set_state_string"));
+    assert!(llvm.contains("declare i64 @abi_ui_node_set_state_i64"));
+    assert!(llvm.contains("declare i8* @abi_ui_node_state_string"));
+    assert!(llvm.contains("declare i64 @abi_ui_state_count"));
+    assert!(llvm.contains("call i64 @abi_ui_draw_resource"));
+    assert!(llvm.contains("call i64 @abi_ui_draw_text"));
+    assert!(llvm.contains("call i64 @abi_ui_node_set_state_string"));
+    assert!(llvm.contains("call i64 @abi_ui_node_state_i64"));
+    assert!(llvm.contains("call i64 @abi_ui_host_present"));
     assert!(llvm.contains("tetra.surface"));
     assert!(llvm.contains("command.launch"));
     assert!(!llvm.contains("button"));
@@ -601,58 +601,58 @@ fn main() -> Int:
 fn llvm_lowers_native_graphics_engine_primitives_without_scene_catalog() {
     let source = r#"
 @extern
-fn kain_native_graphics_session_create(app_name: String, width: Int, height: Int) -> Int
+fn abi_graphics_session_create(app_name: String, width: Int, height: Int) -> Int
 
 @extern
-fn kain_native_graphics_backend_select(session_id: Int, backend_id: String) -> Int
+fn abi_graphics_backend_select(session_id: Int, backend_id: String) -> Int
 
 @extern
-fn kain_native_graphics_shader_spirv_from_hex(session_id: Int, key: String, stage: String, entry_point: String, bytes_hex: String) -> Int
+fn abi_graphics_shader_spirv_from_hex(session_id: Int, key: String, stage: String, entry_point: String, bytes_hex: String) -> Int
 
 @extern
-fn kain_native_graphics_buffer_create_from_hex(session_id: Int, kind: String, label: String, bytes_hex: String, element_stride: Int) -> Int
+fn abi_graphics_buffer_create_from_hex(session_id: Int, kind: String, label: String, bytes_hex: String, element_stride: Int) -> Int
 
 @extern
-fn kain_native_graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, index_buffer_id: Int, vertex_count: Int, index_count: Int) -> Int
+fn abi_graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, index_buffer_id: Int, vertex_count: Int, index_count: Int) -> Int
 
 @extern
-fn kain_native_graphics_pipeline_create(session_id: Int, label: String, vertex_shader_id: Int, fragment_shader_id: Int, backend_id: String) -> Int
+fn abi_graphics_pipeline_create(session_id: Int, label: String, vertex_shader_id: Int, fragment_shader_id: Int, backend_id: String) -> Int
 
 @extern
-fn kain_native_graphics_begin_frame(session_id: Int, delta_ms: Float) -> Int
+fn abi_graphics_begin_frame(session_id: Int, delta_ms: Float) -> Int
 
 @extern
-fn kain_native_graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int
+fn abi_graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int
 
 @extern
-fn kain_native_graphics_present(session_id: Int) -> Int
+fn abi_graphics_present(session_id: Int) -> Int
 
 pub fn native_graphics_session_create(app_name: String, width: Int, height: Int) -> Int:
-    return kain_native_graphics_session_create(app_name, width, height)
+    return abi_graphics_session_create(app_name, width, height)
 
 pub fn native_graphics_backend_select(session_id: Int, backend_id: String) -> Int:
-    return kain_native_graphics_backend_select(session_id, backend_id)
+    return abi_graphics_backend_select(session_id, backend_id)
 
 pub fn native_graphics_shader_spirv_from_hex(session_id: Int, key: String, stage: String, entry_point: String, bytes_hex: String) -> Int:
-    return kain_native_graphics_shader_spirv_from_hex(session_id, key, stage, entry_point, bytes_hex)
+    return abi_graphics_shader_spirv_from_hex(session_id, key, stage, entry_point, bytes_hex)
 
 pub fn native_graphics_buffer_create_from_hex(session_id: Int, kind: String, label: String, bytes_hex: String, element_stride: Int) -> Int:
-    return kain_native_graphics_buffer_create_from_hex(session_id, kind, label, bytes_hex, element_stride)
+    return abi_graphics_buffer_create_from_hex(session_id, kind, label, bytes_hex, element_stride)
 
 pub fn native_graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, index_buffer_id: Int, vertex_count: Int, index_count: Int) -> Int:
-    return kain_native_graphics_mesh_create(session_id, label, vertex_buffer_id, index_buffer_id, vertex_count, index_count)
+    return abi_graphics_mesh_create(session_id, label, vertex_buffer_id, index_buffer_id, vertex_count, index_count)
 
 pub fn native_graphics_pipeline_create(session_id: Int, label: String, vertex_shader_id: Int, fragment_shader_id: Int, backend_id: String) -> Int:
-    return kain_native_graphics_pipeline_create(session_id, label, vertex_shader_id, fragment_shader_id, backend_id)
+    return abi_graphics_pipeline_create(session_id, label, vertex_shader_id, fragment_shader_id, backend_id)
 
 pub fn native_graphics_begin_frame(session_id: Int, delta_ms: Float) -> Int:
-    return kain_native_graphics_begin_frame(session_id, delta_ms)
+    return abi_graphics_begin_frame(session_id, delta_ms)
 
 pub fn native_graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int:
-    return kain_native_graphics_draw_mesh(session_id, pipeline_id, mesh_id, instance_count)
+    return abi_graphics_draw_mesh(session_id, pipeline_id, mesh_id, instance_count)
 
 pub fn native_graphics_present(session_id: Int) -> Int:
-    return kain_native_graphics_present(session_id)
+    return abi_graphics_present(session_id)
 
 fn main() -> Int:
     let session = native_graphics_session_create("kain-authored-engine", 1280, 720)
@@ -673,11 +673,11 @@ fn main() -> Int:
         .expect("llvm should be utf8");
 
     assert!(llvm.contains(
-        "declare i64 @kain_native_graphics_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"
+        "declare i64 @abi_graphics_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"
     ));
-    assert!(llvm.contains("declare i64 @kain_native_graphics_shader_spirv_from_hex"));
-    assert!(llvm.contains("declare i64 @kain_native_graphics_buffer_create_from_hex"));
-    assert!(llvm.contains("call i64 @kain_native_graphics_draw_mesh"));
+    assert!(llvm.contains("declare i64 @abi_graphics_shader_spirv_from_hex"));
+    assert!(llvm.contains("declare i64 @abi_graphics_buffer_create_from_hex"));
+    assert!(llvm.contains("call i64 @abi_graphics_draw_mesh"));
     assert!(llvm.contains("author.mesh.triangle"));
     assert!(llvm.contains("vulkan"));
     assert!(!llvm.contains("geometry_fixture"));
@@ -748,30 +748,30 @@ fn main() -> Int:
     assert!(llvm.contains("define i1 @revision_is_valid(i64 %arg0)"));
     assert!(llvm.contains("define i64 @choose_value(i64 %arg0)"));
     assert!(llvm.contains("define i64 @pipeline(i64 %arg0)"));
-    assert!(llvm.contains("declare i32 @kain_runtime_entangle_register(i8*, i8*, i8*, i8*)"));
+    assert!(llvm.contains("declare i32 @entangle_register(i8*, i8*, i8*, i8*)"));
     assert!(llvm.contains("define void @__kain_register_entanglements()"));
-    assert!(llvm.contains("call i32 @kain_runtime_entangle_register"));
+    assert!(llvm.contains("call i32 @entangle_register"));
     assert!(llvm.contains("call void @__kain_register_entanglements()"));
     assert!(llvm.contains("call void @__kain_init_world_Studio()"));
     assert!(llvm.contains("call i1 @revision_is_valid(i64"));
     assert!(llvm.contains("call i64 @choose_value(i64"));
     assert!(llvm.contains("call i64 @stage_bias(i64"));
     assert!(llvm.contains("call i64 @pipeline(i64"));
-    assert!(llvm.contains("call i64 @kain_native_patch_begin"));
-    assert!(llvm.contains("call i64 @kain_native_patch_record_i64"));
-    assert!(llvm.contains("call i64 @kain_native_patch_commit"));
-    assert!(llvm.contains("call i64 @kain_native_entangle_record_i64"));
+    assert!(llvm.contains("call i64 @abi_patch_begin"));
+    assert!(llvm.contains("call i64 @abi_patch_record_i64"));
+    assert!(llvm.contains("call i64 @abi_patch_commit"));
+    assert!(llvm.contains("call i64 @abi_entangle_record_i64"));
     assert!(llvm.contains("define i64 @choose_value__spec"));
     assert!(llvm.contains("define i64 @choose_value__fast_interpret_lane"));
     assert!(llvm.contains("define i64 @choose_value__fast_llvm_lane"));
     assert!(llvm.contains("define i64 @choose_value__fast_avx2_lane"));
     assert!(llvm.contains("define i64 @choose_value__fast_native_lane"));
-    assert!(llvm.contains("call i64 @kain_native_cpu_capability_mask_for_key"));
-    assert!(llvm.contains("call i64 @kain_native_cpu_feature_mask()"));
-    assert!(llvm.contains("call i64 @kain_native_converge_select_lane_for_key"));
+    assert!(llvm.contains("call i64 @abi_cpu_capability_mask_for_key"));
+    assert!(llvm.contains("call i64 @abi_cpu_feature_mask()"));
+    assert!(llvm.contains("call i64 @abi_converge_select_lane_for_key"));
     assert!(llvm.contains("switch i64"));
-    assert!(llvm.contains("call i64 @kain_native_orchestrate_stage_begin"));
-    assert!(llvm.contains("call i64 @kain_native_orchestrate_stage_end_i64"));
+    assert!(llvm.contains("call i64 @abi_orchestrate_stage_begin"));
+    assert!(llvm.contains("call i64 @abi_orchestrate_stage_end_i64"));
     assert!(llvm.contains("Studio.counter"));
     assert!(llvm.contains("Mirror.counter"));
     assert!(llvm.contains("single_writer"));
@@ -822,16 +822,16 @@ fn main() -> Int:
     assert!(llvm.contains("store i64 2, i64*"));
     assert!(llvm.contains("store i64 3, i64*"));
     assert!(llvm.contains("getelementptr inbounds i8, i8*"));
-    assert!(!llvm.contains("call i8* @kain_native_option_none()"));
-    assert!(!llvm.contains("call i8* @kain_native_option_some"));
-    assert!(!llvm.contains("call i8* @kain_native_result_ok"));
-    assert!(!llvm.contains("call i8* @kain_native_result_err"));
-    assert!(!llvm.contains("call i64 @kain_native_tagged_is_success"));
-    assert!(!llvm.contains("call i64 @kain_native_tagged_payload_copy"));
-    assert!(!llvm.contains("call i64 @kain_native_option_is_some"));
-    assert!(!llvm.contains("call i64 @kain_native_result_is_err"));
-    assert!(llvm.contains("call i8* @kain_native_future_ready_from_value"));
-    assert!(llvm.contains("call i64 @kain_native_future_await_payload_copy"));
+    assert!(!llvm.contains("call i8* @abi_option_none()"));
+    assert!(!llvm.contains("call i8* @abi_option_some"));
+    assert!(!llvm.contains("call i8* @abi_result_ok"));
+    assert!(!llvm.contains("call i8* @abi_result_err"));
+    assert!(!llvm.contains("call i64 @abi_tagged_is_success"));
+    assert!(!llvm.contains("call i64 @abi_tagged_payload_copy"));
+    assert!(!llvm.contains("call i64 @abi_option_is_some"));
+    assert!(!llvm.contains("call i64 @abi_result_is_err"));
+    assert!(llvm.contains("call i8* @abi_future_ready_from_value"));
+    assert!(llvm.contains("call i64 @abi_future_await_payload_copy"));
 
     let maybe_start = llvm
         .find("define i8* @maybe(i1 %arg0)")

@@ -13,7 +13,7 @@ if [[ ! -x "$EXE_PATH" ]]; then
 fi
 
 if [[ -n "$BACKEND_ID" ]]; then
-  export KAIN_RUNTIME_RENDERER_BACKEND="$BACKEND_ID"
+  export RENDERER_BACKEND="$BACKEND_ID"
 fi
 
 exec "$EXE_PATH"

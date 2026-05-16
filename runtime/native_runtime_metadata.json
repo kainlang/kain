@@ -40,48 +40,48 @@
   },
   "sources": {
     "core": [
-      "native/src/core/kain_runtime_core.c",
-      "native/src/core/kain_runtime_version.c",
-      "native/src/core/kain_runtime_diagnostics.c",
-      "native/src/core/kain_runtime_services.c",
-      "native/src/core/kain_runtime_contract.c",
-      "native/src/core/kain_runtime_entangle.c",
-      "native/src/core/kain_runtime_native_stdlib.c",
-      "native/src/core/kain_native_input_system.c",
-      "native/src/core/kain_native_net_system.c",
-      "native/src/core/kain_native_process_system.c",
-      "native/src/core/kain_native_graphics_system.c",
-      "native/src/core/kain_runtime_renderer_backend.c",
-      "native/src/core/kain_runtime_renderer_session.c",
-      "native/src/core/kain_runtime_scene.c",
-      "native/src/core/kain_runtime_reflection.c",
-      "native/src/core/kain_runtime_realtime.c",
-      "native/src/core/kain_runtime_async.c",
-      "native/src/core/kain_runtime_compatibility.c",
-      "native/src/core/kain_runtime_host_bridge.c",
-      "native/src/core/kain_runtime_memory.c",
-      "native/src/core/kain_runtime_ownership.c",
-      "native/src/core/kain_runtime_bitfield.c",
-      "native/src/core/kain_runtime_union.c",
-      "native/src/core/kain_runtime_actor.c"
+      "native/src/core/core.c",
+      "native/src/core/version.c",
+      "native/src/core/diagnostics.c",
+      "native/src/core/services.c",
+      "native/src/core/contract.c",
+      "native/src/core/entangle.c",
+      "native/src/core/stdlib_abi.c",
+      "native/src/core/input_system.c",
+      "native/src/core/net_system.c",
+      "native/src/core/process_system.c",
+      "native/src/core/graphics_system.c",
+      "native/src/core/renderer_backend.c",
+      "native/src/core/renderer_session.c",
+      "native/src/core/scene.c",
+      "native/src/core/reflection.c",
+      "native/src/core/realtime.c",
+      "native/src/core/async.c",
+      "native/src/core/compatibility.c",
+      "native/src/core/host_bridge.c",
+      "native/src/core/memory.c",
+      "native/src/core/ownership.c",
+      "native/src/core/bitfield.c",
+      "native/src/core/union.c",
+      "native/src/core/actor.c"
     ],
     "platform": [
-      "native/src/platform/kain_runtime_platform.c"
+      "native/src/platform/platform.c"
     ],
     "platform_win32": [
       "native/src/platform/win32/kain_win32_app_host.c",
       "native/src/platform/win32/kain_win32_input_host.c",
-      "native/src/platform/win32/kain_runtime_win32_shared.c"
+      "native/src/platform/win32/win32_shared.c"
     ],
     "platform_linux": [
-      "native/src/platform/linux/kain_runtime_linux_shared.c"
+      "native/src/platform/linux/linux_shared.c"
     ],
     "ui": [
-      "native/src/ui/kain_ui_compiled_bundle.c",
-      "native/src/ui/kain_native_ui_system.c",
-      "native/src/ui/kain_native_ui_host_adapter.c",
-      "native/src/ui/kain_ui_runtime.c",
-      "native/src/ui/kain_ui_hot_reload.c"
+      "native/src/ui/ui_compiled_bundle.c",
+      "native/src/ui/ui_system.c",
+      "native/src/ui/ui_host_adapter.c",
+      "native/src/ui/ui_runtime.c",
+      "native/src/ui/ui_hot_reload.c"
     ]
   },
   "services": [

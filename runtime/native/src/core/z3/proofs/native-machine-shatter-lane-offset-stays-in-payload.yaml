@@ -11,7 +11,7 @@ tags:
 - shatter
 - memory
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_machine_stones.c
+  path: D:\Kain-Lang\runtime\native\src\core\machine_stones.c
   symbol: kain_machine_shatter_lane_ptr
   reason: lane pointer arithmetic must stay inside the contiguous SoA payload
 case:

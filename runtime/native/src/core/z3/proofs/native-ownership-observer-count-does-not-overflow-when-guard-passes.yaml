@@ -8,7 +8,7 @@ tags:
 - observe
 - overflow
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_ownership.c
+  path: D:\Kain-Lang\runtime\native\src\core\ownership.c
   symbol: __kain_ownership_begin_observe
   start_line: 174
   reason: begin_observe returns overflow before observers += 1 when observers is UINT32_MAX

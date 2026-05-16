@@ -1,4 +1,4 @@
-#include "../../native/include/kain_runtime_graphics.h"
+#include "../../native/include/graphics_bundle.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -353,9 +353,9 @@ static int write_text_file(const char* path, const char* text) {
 static int test_graphics_bundle_from_json(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsValidation validation;
-    char summary[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
+    char summary[GRAPHICS_BUNDLE_MAX_SUMMARY];
 
-    if (!check_true(kain_runtime_graphics_load_from_json(kGraphicsBundleJson, &bundle), "load_from_json")) {
+    if (!check_true(graphics_bundle_load_from_json(kGraphicsBundleJson, &bundle), "load_from_json")) {
         return 0;
     }
     if (!check_true(bundle.loaded == 1, "bundle.loaded")) return 0;
@@ -398,17 +398,17 @@ static int test_graphics_bundle_from_json(void) {
     if (!check_str_eq(bundle.primary_material_refs, "terrain", "bundle.primary_material_refs")) return 0;
     if (!check_contains(bundle.primary_shader_ref_keys, "shader::terrain::compute", "bundle.primary_shader_ref_keys")) return 0;
 
-    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation), "validate_bundle")) return 0;
+    if (!check_true(graphics_bundle_validate_bundle(&bundle, &validation), "validate_bundle")) return 0;
     if (!check_true(validation.graphics_lane_ready == 1, "validation.graphics_lane_ready")) return 0;
     if (!check_true(validation.compute_metadata_valid == 1, "validation.compute_metadata_valid")) return 0;
     if (!check_true(validation.has_compute_artifacts == 1, "validation.has_compute_artifacts")) return 0;
     if (!check_true(validation.has_material_bindings == 1, "validation.has_material_bindings")) return 0;
     if (!check_true(validation.material_binding_valid == 1, "validation.material_binding_valid")) return 0;
     if (!check_true(validation.compute_plan_valid == 1, "validation.compute_plan_valid")) return 0;
-    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle")) return 0;
+    if (!check_true(viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle")) return 0;
     if (!check_contains(validation.reason, "ready", "validation.reason")) return 0;
 
-    kain_runtime_graphics_format_summary(&bundle, summary, sizeof(summary));
+    graphics_bundle_format_summary(&bundle, summary, sizeof(summary));
     if (!check_contains(summary, "shader refs v/f/c=1/1/1", "summary shader refs")) return 0;
     if (!check_contains(summary, "compute bind/t/s/n=2/0/0/0", "summary compute bindings")) return 0;
     if (!check_contains(summary, "graph p/a/d=3/4/2", "summary render graph")) return 0;
@@ -421,9 +421,9 @@ static int test_graphics_material_and_compute_snapshot_persistence(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsBundle snapshot;
     KainRuntimeGraphicsValidation validation;
-    char summary[KAIN_RUNTIME_GRAPHICS_MAX_SUMMARY];
+    char summary[GRAPHICS_BUNDLE_MAX_SUMMARY];
 
-    if (!check_true(kain_runtime_graphics_load_from_json(kGraphicsBundleJson, &bundle), "load_snapshot_bundle")) {
+    if (!check_true(graphics_bundle_load_from_json(kGraphicsBundleJson, &bundle), "load_snapshot_bundle")) {
         return 0;
     }
 
@@ -437,13 +437,13 @@ static int test_graphics_material_and_compute_snapshot_persistence(void) {
     if (!check_true(snapshot.primary_compute.resource_binding_count == 2, "snapshot.primary_compute.resource_binding_count")) return 0;
     if (!check_true(snapshot.primary_compute.workgroup_size[0] == 8, "snapshot.primary_compute.workgroup_size[0]")) return 0;
     if (!check_true(snapshot.primary_compute.dispatch_size[0] == 16, "snapshot.primary_compute.dispatch_size[0]")) return 0;
-    if (!check_true(kain_runtime_graphics_validate_bundle(&snapshot, &validation), "validate_snapshot_bundle")) return 0;
+    if (!check_true(graphics_bundle_validate_bundle(&snapshot, &validation), "validate_snapshot_bundle")) return 0;
     if (!check_true(validation.graphics_lane_ready == 1, "validation.graphics_lane_ready(snapshot)")) return 0;
     if (!check_true(validation.material_binding_valid == 1, "validation.material_binding_valid(snapshot)")) return 0;
     if (!check_true(validation.compute_plan_valid == 1, "validation.compute_plan_valid(snapshot)")) return 0;
-    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&snapshot) == 1, "viewport_supports_graphics_bundle(snapshot)")) return 0;
+    if (!check_true(viewport_supports_graphics_bundle(&snapshot) == 1, "viewport_supports_graphics_bundle(snapshot)")) return 0;
 
-    kain_runtime_graphics_format_summary(&snapshot, summary, sizeof(summary));
+    graphics_bundle_format_summary(&snapshot, summary, sizeof(summary));
     if (!check_contains(summary, "shader refs v/f/c=1/1/1", "snapshot summary shader refs")) return 0;
     if (!check_contains(summary, "compute bind/t/s/n=2/0/0/0", "snapshot summary compute bindings")) return 0;
     if (!check_contains(summary, "schedule s/b=3/2", "snapshot summary compute schedule")) return 0;
@@ -459,7 +459,7 @@ static int test_graphics_bundle_from_path(void) {
     if (!check_true(write_text_file(temp_path, kGraphicsBundleJson), "write_text_file")) {
         return 0;
     }
-    if (!check_true(kain_runtime_graphics_load_from_path(temp_path, &bundle), "load_from_path")) {
+    if (!check_true(graphics_bundle_load_from_path(temp_path, &bundle), "load_from_path")) {
         remove(temp_path);
         return 0;
     }
@@ -471,7 +471,7 @@ static int test_graphics_bundle_from_path(void) {
         remove(temp_path);
         return 0;
     }
-    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle(path)")) {
+    if (!check_true(viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle(path)")) {
         remove(temp_path);
         return 0;
     }
@@ -487,42 +487,42 @@ static int test_graphics_bundle_from_env(void) {
     if (!check_true(write_text_file(temp_path, kGraphicsBundleJson), "write_text_file(env)")) {
         return 0;
     }
-    if (!check_true(_putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, temp_path) == 0, "_putenv_s(set)")) {
+    if (!check_true(_putenv_s(GRAPHICS_BUNDLE_ENV, temp_path) == 0, "_putenv_s(set)")) {
         remove(temp_path);
         return 0;
     }
-    if (!check_true(kain_runtime_graphics_load_from_env(KAIN_RUNTIME_GRAPHICS_ENV, &bundle), "load_from_env")) {
-        _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
+    if (!check_true(graphics_bundle_load_from_env(GRAPHICS_BUNDLE_ENV, &bundle), "load_from_env")) {
+        _putenv_s(GRAPHICS_BUNDLE_ENV, "");
         remove(temp_path);
         return 0;
     }
     if (!check_str_eq(bundle.load_origin, "env", "bundle.load_origin(env)")) {
-        _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
+        _putenv_s(GRAPHICS_BUNDLE_ENV, "");
         remove(temp_path);
         return 0;
     }
     if (!check_str_eq(bundle.source_path, temp_path, "bundle.source_path(env)")) {
-        _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
+        _putenv_s(GRAPHICS_BUNDLE_ENV, "");
         remove(temp_path);
         return 0;
     }
-    if (!check_true(kain_runtime_graphics_load_for_current_process(KAIN_RUNTIME_GRAPHICS_ENV, &bundle), "load_for_current_process")) {
-        _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
+    if (!check_true(graphics_bundle_load_for_current_process(GRAPHICS_BUNDLE_ENV, &bundle), "load_for_current_process")) {
+        _putenv_s(GRAPHICS_BUNDLE_ENV, "");
         remove(temp_path);
         return 0;
     }
     if (!check_str_eq(bundle.load_origin, "env", "bundle.load_origin(current_process)")) {
-        _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
+        _putenv_s(GRAPHICS_BUNDLE_ENV, "");
         remove(temp_path);
         return 0;
     }
-    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle(env)")) {
-        _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
+    if (!check_true(viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle(env)")) {
+        _putenv_s(GRAPHICS_BUNDLE_ENV, "");
         remove(temp_path);
         return 0;
     }
 
-    _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
+    _putenv_s(GRAPHICS_BUNDLE_ENV, "");
     remove(temp_path);
     return 1;
 }
@@ -531,14 +531,14 @@ static int test_graphics_invalid_and_rejected_target(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsValidation validation;
 
-    if (!check_true(kain_runtime_graphics_load_from_json("{\"schema_version\": 1, \"target\": \"llvm\"", &bundle) == 0,
+    if (!check_true(graphics_bundle_load_from_json("{\"schema_version\": 1, \"target\": \"llvm\"", &bundle) == 0,
             "invalid_json_rejected")) {
         return 0;
     }
-    if (!check_true(kain_runtime_graphics_load_from_json(kRustGraphicsBundleJson, &bundle), "load_rust_bundle")) {
+    if (!check_true(graphics_bundle_load_from_json(kRustGraphicsBundleJson, &bundle), "load_rust_bundle")) {
         return 0;
     }
-    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_rust_bundle")) {
+    if (!check_true(graphics_bundle_validate_bundle(&bundle, &validation) == 0, "validate_rust_bundle")) {
         return 0;
     }
     if (!check_true(validation.graphics_lane_ready == 0, "validation.graphics_lane_ready(rust)")) {
@@ -547,7 +547,7 @@ static int test_graphics_invalid_and_rejected_target(void) {
     if (!check_contains(validation.reason, "llvm", "validation.reason(rust)")) {
         return 0;
     }
-    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 0, "viewport_supports_graphics_bundle(rust)")) {
+    if (!check_true(viewport_supports_graphics_bundle(&bundle) == 0, "viewport_supports_graphics_bundle(rust)")) {
         return 0;
     }
     return 1;
@@ -557,10 +557,10 @@ static int test_graphics_rejects_incomplete_material_plan(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsValidation validation;
 
-    if (!check_true(kain_runtime_graphics_load_from_json(kInvalidMaterialGraphicsBundleJson, &bundle), "load_invalid_material_bundle")) {
+    if (!check_true(graphics_bundle_load_from_json(kInvalidMaterialGraphicsBundleJson, &bundle), "load_invalid_material_bundle")) {
         return 0;
     }
-    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_invalid_material_bundle")) {
+    if (!check_true(graphics_bundle_validate_bundle(&bundle, &validation) == 0, "validate_invalid_material_bundle")) {
         return 0;
     }
     if (!check_true(validation.has_material_bindings == 0, "validation.has_material_bindings(invalid material)")) {
@@ -582,10 +582,10 @@ static int test_graphics_rejects_incomplete_compute_plan(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsValidation validation;
 
-    if (!check_true(kain_runtime_graphics_load_from_json(kInvalidComputeGraphicsBundleJson, &bundle), "load_invalid_compute_bundle")) {
+    if (!check_true(graphics_bundle_load_from_json(kInvalidComputeGraphicsBundleJson, &bundle), "load_invalid_compute_bundle")) {
         return 0;
     }
-    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_invalid_compute_bundle")) {
+    if (!check_true(graphics_bundle_validate_bundle(&bundle, &validation) == 0, "validate_invalid_compute_bundle")) {
         return 0;
     }
     if (!check_true(validation.has_material_bindings == 1, "validation.has_material_bindings(invalid compute)")) {

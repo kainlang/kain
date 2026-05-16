@@ -8,7 +8,7 @@ tags:
 - realloc
 - helper-slot
 source:
-  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\ownership.c
   symbol: __kain_ownership_relocate_helper_allocation
   start_line: 289
   reason: helper realloc returns before region pointer rewrite unless state is idle and observers is zero

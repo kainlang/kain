@@ -1,4 +1,4 @@
-#include "../../native/include/kain_runtime_compatibility.h"
+#include "../../native/include/compatibility.h"
 
 #include <stddef.h>
 #include <stdio.h>

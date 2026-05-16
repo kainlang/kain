@@ -1,164 +1,164 @@
 @extern
-fn kain_native_fs_read_text(path: String) -> String
+fn abi_fs_read_text(path: String) -> String
 
 @extern
-fn kain_native_fs_read_text_range(path: String, offset: Int, length: Int) -> String
+fn abi_fs_read_text_range(path: String, offset: Int, length: Int) -> String
 
 @extern
-fn kain_native_fs_write_text(path: String, content: String) -> Int
+fn abi_fs_write_text(path: String, content: String) -> Int
 
 @extern
-fn kain_native_fs_append_text(path: String, content: String) -> Int
+fn abi_fs_append_text(path: String, content: String) -> Int
 
 @extern
-fn kain_native_fs_atomic_write_text(path: String, content: String) -> Int
+fn abi_fs_atomic_write_text(path: String, content: String) -> Int
 
 @extern
-fn kain_native_fs_read_bytes_hex(path: String) -> String
+fn abi_fs_read_bytes_hex(path: String) -> String
 
 @extern
-fn kain_native_fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String
+fn abi_fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String
 
 @extern
-fn kain_native_fs_write_bytes_hex(path: String, hex: String) -> Int
+fn abi_fs_write_bytes_hex(path: String, hex: String) -> Int
 
 @extern
-fn kain_native_fs_exists(path: String) -> Bool
+fn abi_fs_exists(path: String) -> Bool
 
 @extern
-fn kain_native_fs_is_file(path: String) -> Bool
+fn abi_fs_is_file(path: String) -> Bool
 
 @extern
-fn kain_native_fs_is_dir(path: String) -> Bool
+fn abi_fs_is_dir(path: String) -> Bool
 
 @extern
-fn kain_native_fs_metadata_text(path: String) -> String
+fn abi_fs_metadata_text(path: String) -> String
 
 @extern
-fn kain_native_fs_read_dir_paths_text(path: String) -> String
+fn abi_fs_read_dir_paths_text(path: String) -> String
 
 @extern
-fn kain_native_fs_walk_paths_text(path: String) -> String
+fn abi_fs_walk_paths_text(path: String) -> String
 
 @extern
-fn kain_native_fs_create_dir_all(path: String) -> Int
+fn abi_fs_create_dir_all(path: String) -> Int
 
 @extern
-fn kain_native_fs_copy_file(src: String, dest: String) -> Int
+fn abi_fs_copy_file(src: String, dest: String) -> Int
 
 @extern
-fn kain_native_fs_copy_file_streaming(src: String, dest: String, chunk_size: Int) -> Int
+fn abi_fs_copy_file_streaming(src: String, dest: String, chunk_size: Int) -> Int
 
 @extern
-fn kain_native_fs_move_path(src: String, dest: String) -> Int
+fn abi_fs_move_path(src: String, dest: String) -> Int
 
 @extern
-fn kain_native_fs_remove_file(path: String) -> Int
+fn abi_fs_remove_file(path: String) -> Int
 
 @extern
-fn kain_native_fs_remove_dir_all(path: String) -> Int
+fn abi_fs_remove_dir_all(path: String) -> Int
 
 @extern
-fn kain_native_fs_temp_file(prefix: String) -> String
+fn abi_fs_temp_file(prefix: String) -> String
 
 @extern
-fn kain_native_fs_temp_dir(prefix: String) -> String
+fn abi_fs_temp_dir(prefix: String) -> String
 
 @extern
-fn kain_native_fs_hash_file(path: String) -> String
+fn abi_fs_hash_file(path: String) -> String
 
 @extern
-fn kain_native_fs_path_join(base: String, child: String) -> String
+fn abi_fs_path_join(base: String, child: String) -> String
 
 @extern
-fn kain_native_fs_last_status() -> Int
+fn abi_fs_last_status() -> Int
 
 @extern
-fn kain_native_fs_last_error_kind() -> String
+fn abi_fs_last_error_kind() -> String
 
 @extern
-fn kain_native_fs_last_error_message() -> String
+fn abi_fs_last_error_message() -> String
 
 pub fn native_fs_last_status() -> Int:
-    return kain_native_fs_last_status()
+    return abi_fs_last_status()
 
 pub fn native_fs_last_error_kind() -> String:
-    return kain_native_fs_last_error_kind()
+    return abi_fs_last_error_kind()
 
 pub fn native_fs_last_error_message() -> String:
-    return kain_native_fs_last_error_message()
+    return abi_fs_last_error_message()
 
 pub fn fs_read_text(path: String) -> String:
-    return kain_native_fs_read_text(path)
+    return abi_fs_read_text(path)
 
 pub fn fs_read_text_range(path: String, offset: Int, length: Int) -> String:
-    return kain_native_fs_read_text_range(path, offset, length)
+    return abi_fs_read_text_range(path, offset, length)
 
 pub fn fs_write_text(path: String, content: String) -> Unit:
-    let _status = kain_native_fs_write_text(path, content)
+    let _status = abi_fs_write_text(path, content)
 
 pub fn fs_append_text(path: String, content: String) -> Unit:
-    let _status = kain_native_fs_append_text(path, content)
+    let _status = abi_fs_append_text(path, content)
 
 pub fn fs_atomic_write_text(path: String, content: String) -> Unit:
-    let _status = kain_native_fs_atomic_write_text(path, content)
+    let _status = abi_fs_atomic_write_text(path, content)
 
 pub fn fs_read_bytes_hex(path: String) -> String:
-    return kain_native_fs_read_bytes_hex(path)
+    return abi_fs_read_bytes_hex(path)
 
 pub fn fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String:
-    return kain_native_fs_read_byte_range_hex(path, offset, length)
+    return abi_fs_read_byte_range_hex(path, offset, length)
 
 pub fn fs_write_bytes_hex(path: String, hex: String) -> Unit:
-    let _status = kain_native_fs_write_bytes_hex(path, hex)
+    let _status = abi_fs_write_bytes_hex(path, hex)
 
 pub fn fs_exists(path: String) -> Bool:
-    return kain_native_fs_exists(path)
+    return abi_fs_exists(path)
 
 pub fn fs_is_file(path: String) -> Bool:
-    return kain_native_fs_is_file(path)
+    return abi_fs_is_file(path)
 
 pub fn fs_is_dir(path: String) -> Bool:
-    return kain_native_fs_is_dir(path)
+    return abi_fs_is_dir(path)
 
 pub fn fs_metadata_text(path: String) -> String:
-    return kain_native_fs_metadata_text(path)
+    return abi_fs_metadata_text(path)
 
 pub fn fs_read_dir_paths_text(path: String) -> String:
-    return kain_native_fs_read_dir_paths_text(path)
+    return abi_fs_read_dir_paths_text(path)
 
 pub fn fs_walk_paths_text(path: String) -> String:
-    return kain_native_fs_walk_paths_text(path)
+    return abi_fs_walk_paths_text(path)
 
 pub fn fs_create_dir_all(path: String) -> Unit:
-    let _status = kain_native_fs_create_dir_all(path)
+    let _status = abi_fs_create_dir_all(path)
 
 pub fn fs_copy_file(src: String, dest: String) -> Unit:
-    let _status = kain_native_fs_copy_file(src, dest)
+    let _status = abi_fs_copy_file(src, dest)
 
 pub fn fs_copy_file_streaming(src: String, dest: String, chunk_size: Int) -> Int:
-    return kain_native_fs_copy_file_streaming(src, dest, chunk_size)
+    return abi_fs_copy_file_streaming(src, dest, chunk_size)
 
 pub fn fs_move_path(src: String, dest: String) -> Unit:
-    let _status = kain_native_fs_move_path(src, dest)
+    let _status = abi_fs_move_path(src, dest)
 
 pub fn fs_remove_file(path: String) -> Unit:
-    let _status = kain_native_fs_remove_file(path)
+    let _status = abi_fs_remove_file(path)
 
 pub fn fs_remove_dir_all(path: String) -> Unit:
-    let _status = kain_native_fs_remove_dir_all(path)
+    let _status = abi_fs_remove_dir_all(path)
 
 pub fn fs_temp_file(prefix: String) -> String:
-    return kain_native_fs_temp_file(prefix)
+    return abi_fs_temp_file(prefix)
 
 pub fn fs_temp_dir(prefix: String) -> String:
-    return kain_native_fs_temp_dir(prefix)
+    return abi_fs_temp_dir(prefix)
 
 pub fn fs_hash_file(path: String) -> String:
-    return kain_native_fs_hash_file(path)
+    return abi_fs_hash_file(path)
 
 pub fn fs_path_join(base: String, child: String) -> String:
-    return kain_native_fs_path_join(base, child)
+    return abi_fs_path_join(base, child)
 
 # root-domain aliases: generated public std names
 pub fn fs_last_status() -> Int:

@@ -8,7 +8,7 @@ tags:
 - helper-slot
 - fast-path
 source:
-  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\ownership.c
   symbol: kain_ownership_helper_slot_from_token_unlocked
   start_line: 207
   reason: helper-only observe/collapse/decay must reject imported or mismatched regions even if the packed header token looks valid

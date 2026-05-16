@@ -44,9 +44,9 @@ if [[ -z "${XAUTHORITY:-}" ]]; then
     fi
 fi
 
-export KAIN_RUNTIME_CONTRACT="${KAIN_RUNTIME_CONTRACT:-$binary_base.runtime_contract.json}"
+export RUNTIME_CONTRACT="${RUNTIME_CONTRACT:-$binary_base.runtime_contract.json}"
 export KAIN_REALTIME_APP_BUNDLE="${KAIN_REALTIME_APP_BUNDLE:-$binary_base.realtime_app.json}"
-export KAIN_RUNTIME_CONTRACT_STRICT="${KAIN_RUNTIME_CONTRACT_STRICT:-1}"
+export CONTRACT_STRICT="${CONTRACT_STRICT:-1}"
 
 cd "$script_dir"
 printf 'Launching LLVM dogfood lab: %s\n' "$launch_candidate"

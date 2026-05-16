@@ -10,8 +10,8 @@ tags:
 - journal
 - capacity
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_native_stdlib.c
-  symbol: kain_native_patch_record_i64
+  path: D:\Kain-Lang\runtime\native\src\core\stdlib_abi.c
+  symbol: abi_patch_record_i64
   start_line: 700
   reason: g_kain_native_patch_journal_count increments only after the journal-capacity guard
 case:

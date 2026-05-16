@@ -1,4 +1,4 @@
-#include "../../native/include/kain_runtime_graphics.h"
+#include "../../native/include/graphics_bundle.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -205,12 +205,12 @@ static int check_contains(const char* actual, const char* needle, const char* la
 static int test_overflow_bindings_clamp(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsValidation validation;
-    if (!check_true(kain_runtime_graphics_load_from_json(kOverflowBindingsJson, &bundle), "load_overflow_bindings")) return 0;
+    if (!check_true(graphics_bundle_load_from_json(kOverflowBindingsJson, &bundle), "load_overflow_bindings")) return 0;
     if (!check_true(bundle.primary_material.loaded == 1, "bundle.primary_material.loaded")) return 0;
     if (!check_true(bundle.primary_compute.loaded == 1, "bundle.primary_compute.loaded")) return 0;
-    if (!check_true(bundle.primary_material.resource_binding_count == KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS, "material bindings clamped")) return 0;
-    if (!check_true(bundle.primary_compute.resource_binding_count == KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS, "compute bindings clamped")) return 0;
-    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation), "validate_overflow_bindings")) return 0;
+    if (!check_true(bundle.primary_material.resource_binding_count == GRAPHICS_BUNDLE_MAX_BINDINGS, "material bindings clamped")) return 0;
+    if (!check_true(bundle.primary_compute.resource_binding_count == GRAPHICS_BUNDLE_MAX_BINDINGS, "compute bindings clamped")) return 0;
+    if (!check_true(graphics_bundle_validate_bundle(&bundle, &validation), "validate_overflow_bindings")) return 0;
     if (!check_true(validation.graphics_lane_ready == 1, "validation.graphics_lane_ready(overflow)")) return 0;
     return 1;
 }
@@ -218,8 +218,8 @@ static int test_overflow_bindings_clamp(void) {
 static int test_duplicate_slots_rejected(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsValidation validation;
-    if (!check_true(kain_runtime_graphics_load_from_json(kDuplicateSlotJson, &bundle), "load_duplicate_slot")) return 0;
-    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_duplicate_slot")) return 0;
+    if (!check_true(graphics_bundle_load_from_json(kDuplicateSlotJson, &bundle), "load_duplicate_slot")) return 0;
+    if (!check_true(graphics_bundle_validate_bundle(&bundle, &validation) == 0, "validate_duplicate_slot")) return 0;
     if (!check_true(validation.material_binding_valid == 0, "validation.material_binding_valid(duplicate slot)")) return 0;
     if (!check_contains(validation.reason, "material binding plan", "validation.reason(duplicate slot)")) return 0;
     return 1;
@@ -228,19 +228,19 @@ static int test_duplicate_slots_rejected(void) {
 static int test_unknown_stage_rejected(void) {
     KainRuntimeGraphicsBundle bundle;
     KainRuntimeGraphicsValidation validation;
-    if (!check_true(kain_runtime_graphics_load_from_json(kUnknownStageJson, &bundle), "load_unknown_stage")) return 0;
-    if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_unknown_stage")) return 0;
+    if (!check_true(graphics_bundle_load_from_json(kUnknownStageJson, &bundle), "load_unknown_stage")) return 0;
+    if (!check_true(graphics_bundle_validate_bundle(&bundle, &validation) == 0, "validate_unknown_stage")) return 0;
     if (!check_true(validation.material_binding_valid == 0, "validation.material_binding_valid(unknown stage)")) return 0;
     return 1;
 }
 
 static int test_reload_resets_state(void) {
     KainRuntimeGraphicsBundle bundle;
-    if (!check_true(kain_runtime_graphics_load_from_json(kOverflowBindingsJson, &bundle), "load_first")) return 0;
+    if (!check_true(graphics_bundle_load_from_json(kOverflowBindingsJson, &bundle), "load_first")) return 0;
     if (!check_true(bundle.primary_compute.loaded == 1, "bundle.primary_compute.loaded(first)")) return 0;
-    if (!check_true(bundle.primary_material.resource_binding_count == KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS, "bundle.primary_material.resource_binding_count(first)")) return 0;
+    if (!check_true(bundle.primary_material.resource_binding_count == GRAPHICS_BUNDLE_MAX_BINDINGS, "bundle.primary_material.resource_binding_count(first)")) return 0;
 
-    if (!check_true(kain_runtime_graphics_load_from_json(kEmptyRenderJson, &bundle), "load_second")) return 0;
+    if (!check_true(graphics_bundle_load_from_json(kEmptyRenderJson, &bundle), "load_second")) return 0;
     if (!check_true(bundle.loaded == 1, "bundle.loaded(second)")) return 0;
     if (!check_true(bundle.scene_count == 0, "bundle.scene_count(second)")) return 0;
     if (!check_true(bundle.material_count == 0, "bundle.material_count(second)")) return 0;

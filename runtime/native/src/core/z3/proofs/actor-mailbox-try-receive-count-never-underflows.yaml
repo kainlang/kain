@@ -9,7 +9,7 @@ tags:
 - try-receive
 - invariant
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_actor_try_receive
   start_line: 839
   reason: mailbox->count-- occurs after the empty-mailbox early return

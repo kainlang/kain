@@ -1,5 +1,5 @@
 ; Experimental closed-domain proof for the compact machine-stones capability
-; token signature used before strcmp verification in kain_runtime_machine_stones.c.
+; token signature used before strcmp verification in machine_stones.c.
 (set-logic QF_BV)
 (define-fun sig ((len (_ BitVec 32)) (first (_ BitVec 32)) (second (_ BitVec 32)) (last (_ BitVec 32))) (_ BitVec 32)
   (bvxor (bvshl len #x00000018)

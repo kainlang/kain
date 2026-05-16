@@ -1,5 +1,31 @@
 # Kain Memory
 
+# 2026-05-16 - Native runtime prefix churn was cut over to clean ABI/domain names
+
+The native C runtime no longer uses `kain_native_*`, `kain_runtime_*`, `KAIN_NATIVE_*`, or `KAIN_RUNTIME_*` as the live C ABI/file naming scheme. The old names were making runtime maintenance and `rg` workflows painfully noisy, so this pass generated a manifest-driven rename and applied it across the live runtime, native stdlib wrappers, native manifests, conformance references, and LLVM/direct-C codegen references.
+
+What changed:
+
+- Added `tools/native_runtime/build_kain_prefix_rename_manifest.py` and `tools/native_runtime/apply_kain_prefix_rename_manifest.py`.
+- The reviewed manifest lives at `runtime/native/kain_prefix_rename_manifest.json`; it intentionally preserves old -> new mappings as historical rename data.
+- Live lowercase native ABI facade symbols now use `abi_*`, for example `abi_option_some`, `abi_runtime_init`, `abi_actor_spawn`, `abi_net_tcp_connect`, `abi_ui_session_create`, and `abi_graphics_session_create`.
+- Runtime-internal domain files now use normal names such as `runtime/native/include/stdlib_abi.h`, `runtime/native/include/net_system.h`, `runtime/native/src/core/stdlib_abi.c`, `runtime/native/src/core/net_system.c`, `runtime/native/src/ui/ui_system.c`, and `runtime/runtime.c`.
+- One real post-rename collision was found and fixed: the low-level entangle registry now uses `entangle_registry_*` so it does not collide with public Kain stdlib wrapper names like `entangle_register`.
+- `runtime/native/kain_prefixed_symbol_inventory.md` and `.json` were regenerated after the pass and now report zero live C-ish symbols under the default runtime-native scan.
+
+Proof and validation:
+
+- Native core Z3 full lane proved `46/46` with `unsat` in report `runtime/native/src/core/z3/reports/20260516T095659Z-native-runtime-prefix-rename-full.json`.
+- Focused `clang -fsyntax-only -Iruntime/native/include` passed for the renamed core runtime modules including `core.c`, `stdlib_abi.c`, `actor.c`, `net_system.c`, `process_system.c`, `graphics_system.c`, `ui_system.c`, `ui_runtime.c`, and `machine_stones.c`.
+- `cargo check -p kain-sys-codegen`.
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`.
+- Direct native LLVM compile/run returned exit code `0` for `blades/stdlib-domains`, `blades/network-domains`, and `blades/machine-stones`.
+
+Current caveat:
+
+- `KAIN_NATIVE_PROFILE` and related benchmark-tuning env vars still exist intentionally for now. They are operator/runtime-target configuration names, not C ABI/file prefixes. Rename them separately only if the benchmark and CLI docs are moved together.
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture` still has the pre-existing `llvm_lowers_option_result_future_to_native_tagged_runtime` retain-path failure. Rename-related LLVM tests passed; do not confuse that RC retain bug with this prefix cleanup.
+
 # 2026-05-16 - Machine stones now have native LLVM/C backend exploitation instead of metadata-only lowering
 
 This pass took the `axiom`, `pulse`, `shatter struct`, and `teleport` quartet from frontend/runtime-contract truth into the native execution substrate. The surface syntax stayed stable; the change is that native LLVM now emits explicit runtime ABI calls and the C runtime owns the hardware-facing parts.

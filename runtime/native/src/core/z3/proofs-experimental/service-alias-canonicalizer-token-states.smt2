@@ -1,5 +1,5 @@
 ; Experimental Z3 reference proof for the service alias fast path in
-; kain_runtime_services.c.
+; services.c.
 ; Claim: the lowercase-folded 64-bit first-32-byte token state used by the
 ; branchy switch is collision-free across the current alias universe.
 (set-logic QF_BV)

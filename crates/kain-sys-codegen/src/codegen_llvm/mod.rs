@@ -112,15 +112,15 @@ const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
     LLVM_TARGET_LINUX_X64_GNU,
     LLVM_TARGET_MACOS_ARM64,
 ];
-const KAIN_NATIVE_TAGGED_HEADER_BYTES: i64 = 16;
-const KAIN_NATIVE_TAG_OPTION_NONE_LLVM: i64 = 0;
-const KAIN_NATIVE_TAG_OPTION_SOME_LLVM: i64 = 1;
-const KAIN_NATIVE_TAG_RESULT_OK_LLVM: i64 = 2;
-const KAIN_NATIVE_TAG_RESULT_ERR_LLVM: i64 = 3;
-const KAIN_NATIVE_DEFAULT_ASK_TIMEOUT_MS_LLVM: i64 = 30_000;
-const KAIN_NATIVE_ACTOR_REF_TYPE: &str = "%KainActorRef";
-const KAIN_NATIVE_REPLY_PORT_ACTOR_NAME: &str = "KainReplyPort";
-const KAIN_NATIVE_REPLY_PORT_TYPE: &str = "%KainReplyPort";
+const ABI_TAGGED_HEADER_BYTES: i64 = 16;
+const ABI_TAG_OPTION_NONE_LLVM: i64 = 0;
+const ABI_TAG_OPTION_SOME_LLVM: i64 = 1;
+const ABI_TAG_RESULT_OK_LLVM: i64 = 2;
+const ABI_TAG_RESULT_ERR_LLVM: i64 = 3;
+const ABI_DEFAULT_ASK_TIMEOUT_MS_LLVM: i64 = 30_000;
+const ACTOR_REF_LLVM_TYPE: &str = "%KainActorRef";
+const REPLY_PORT_ACTOR_NAME: &str = "KainReplyPort";
+const REPLY_PORT_LLVM_TYPE: &str = "%KainReplyPort";
 const KAIN_CONVERGE_LANE_MAX_LLVM: usize = 8;
 
 fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
@@ -135,10 +135,10 @@ fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
 fn llvm_runtime_declaration_is_preemitted(name: &str) -> bool {
     matches!(
         name,
-        "kain_native_cpu_feature_mask"
-            | "kain_native_cpu_capability_mask_for_key"
-            | "kain_native_converge_select_lane_for_key"
-            | "kain_native_converge_record_telemetry"
+        "abi_cpu_feature_mask"
+            | "abi_cpu_capability_mask_for_key"
+            | "abi_converge_select_lane_for_key"
+            | "abi_converge_record_telemetry"
     )
 }
 
@@ -671,7 +671,7 @@ impl LlvmGenerator {
                 "Option" if generics.len() == 1 => "i8*".into(),
                 "Result" if generics.len() == 2 => "i8*".into(),
                 "Future" if generics.len() == 1 => "i8*".into(),
-                "P" => KAIN_NATIVE_REPLY_PORT_TYPE.into(),
+                "P" => REPLY_PORT_LLVM_TYPE.into(),
                 _ => self.map_type_from_str(name),
             },
             kain_core::ast::Type::Tuple(items, _) => {
@@ -706,7 +706,7 @@ impl LlvmGenerator {
             "Bool" | "bool" => "i1".into(),
             "String" | "str" => "i8*".into(),
             "Unit" | "Void" | "()" | "void" => "void".into(),
-            "P" => KAIN_NATIVE_REPLY_PORT_TYPE.into(),
+            "P" => REPLY_PORT_LLVM_TYPE.into(),
             "KainActorId" => "i64".into(),
             "KainActorExitReason" => "i32".into(),
             "KainActorState" => "i32".into(),
@@ -1968,8 +1968,8 @@ impl LlvmGenerator {
                     let is_success = self.compile_tagged_value_is_tag(
                         &boxed_value,
                         &[
-                            KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
-                            KAIN_NATIVE_TAG_RESULT_OK_LLVM,
+                            ABI_TAG_OPTION_SOME_LLVM,
+                            ABI_TAG_RESULT_OK_LLVM,
                         ],
                         false,
                     );
@@ -2032,7 +2032,7 @@ impl LlvmGenerator {
         if matches!(expr, Expr::None(_)) {
             if target_ty == "i8*" {
                 let value = self.compile_tagged_box_from_payload(
-                    KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                    ABI_TAG_OPTION_NONE_LLVM,
                     None,
                     None,
                     0,
@@ -2163,7 +2163,7 @@ impl LlvmGenerator {
         let payload_ptr = self.next_reg();
         self.emit(&format!(
             "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
-            payload_ptr, boxed_value, KAIN_NATIVE_TAGGED_HEADER_BYTES
+            payload_ptr, boxed_value, ABI_TAGGED_HEADER_BYTES
         ));
         payload_ptr
     }
@@ -2252,7 +2252,7 @@ impl LlvmGenerator {
         payload_ty: Option<&str>,
         payload_size: usize,
     ) -> (String, String) {
-        let allocation_size = KAIN_NATIVE_TAGGED_HEADER_BYTES as usize + payload_size;
+        let allocation_size = ABI_TAGGED_HEADER_BYTES as usize + payload_size;
         let boxed_value = self.next_reg();
         self.emit(&format!(
             "  {} = call i8* @KAIN_alloc(i64 {})",
@@ -2320,7 +2320,7 @@ impl LlvmGenerator {
         payload_ty: &str,
         payload_size: usize,
     ) -> (String, String) {
-        let allocation_size = KAIN_NATIVE_TAGGED_HEADER_BYTES as usize + payload_size;
+        let allocation_size = ABI_TAGGED_HEADER_BYTES as usize + payload_size;
         let boxed_value = self.next_reg();
         self.emit(&format!(
             "  {} = call i8* @KAIN_alloc(i64 {})",
@@ -2643,7 +2643,7 @@ impl LlvmGenerator {
         match (enum_name, variant) {
             ("Option", "None") => {
                 return Ok(Some(self.compile_tagged_box_from_payload(
-                    KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                    ABI_TAG_OPTION_NONE_LLVM,
                     None,
                     None,
                     0,
@@ -2667,9 +2667,9 @@ impl LlvmGenerator {
         let (payload_ptr, payload_size) =
             self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
         let tag = match (enum_name, variant) {
-            ("Option", "Some") => KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
-            ("Result", "Ok") => KAIN_NATIVE_TAG_RESULT_OK_LLVM,
-            ("Result", "Err") => KAIN_NATIVE_TAG_RESULT_ERR_LLVM,
+            ("Option", "Some") => ABI_TAG_OPTION_SOME_LLVM,
+            ("Result", "Ok") => ABI_TAG_RESULT_OK_LLVM,
+            ("Result", "Err") => ABI_TAG_RESULT_ERR_LLVM,
             _ => unreachable!(),
         };
         Ok(Some(self.compile_tagged_box_from_payload(
@@ -2698,7 +2698,7 @@ impl LlvmGenerator {
                 let (payload_ptr, payload_size) =
                     self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
                 Ok(Some(self.compile_tagged_box_from_payload(
-                    KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
+                    ABI_TAG_OPTION_SOME_LLVM,
                     Some(&payload_ptr),
                     Some(&payload_ty),
                     payload_size,
@@ -2715,9 +2715,9 @@ impl LlvmGenerator {
                 let (payload_ptr, payload_size) =
                     self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
                 let tag = if func_name == "Ok" {
-                    KAIN_NATIVE_TAG_RESULT_OK_LLVM
+                    ABI_TAG_RESULT_OK_LLVM
                 } else {
-                    KAIN_NATIVE_TAG_RESULT_ERR_LLVM
+                    ABI_TAG_RESULT_ERR_LLVM
                 };
                 Ok(Some(self.compile_tagged_box_from_payload(
                     tag,
@@ -2736,7 +2736,7 @@ impl LlvmGenerator {
             self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
         let future = self.next_reg();
         self.emit(&format!(
-            "  {} = call i8* @kain_native_future_ready_from_value(i8* {}, i64 {})",
+            "  {} = call i8* @abi_future_ready_from_value(i8* {}, i64 {})",
             future, payload_ptr, payload_size
         ));
         Ok((future, "i8*".to_string()))
@@ -2758,7 +2758,7 @@ impl LlvmGenerator {
         let result = self.compile_tagged_payload_copy(
             &future_value,
             target_ty,
-            "kain_native_future_await_payload_copy",
+            "abi_future_await_payload_copy",
             span,
         )?;
         self.emit_release_if_new_object_expr(future_expr, &future_value, &future_ty);
@@ -2785,8 +2785,8 @@ impl LlvmGenerator {
         let success = self.compile_tagged_value_is_tag(
             &boxed_value,
             &[
-                KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
-                KAIN_NATIVE_TAG_RESULT_OK_LLVM,
+                ABI_TAG_OPTION_SOME_LLVM,
+                ABI_TAG_RESULT_OK_LLVM,
             ],
             false,
         );
@@ -3143,7 +3143,7 @@ impl LlvmGenerator {
                     if let Some(tag) = native_tag {
                         let status = self.next_reg();
                         self.emit(&format!(
-                            "  {} = call i64 @kain_native_tagged_matches(i8* {}, i64 {})",
+                            "  {} = call i64 @abi_tagged_matches(i8* {}, i64 {})",
                             status, scrutinee_val, tag
                         ));
                         let cmp = self.next_reg();
@@ -3593,7 +3593,7 @@ impl LlvmGenerator {
             let path_ptr = self.compile_static_c_string_literal(path);
             let status = self.next_reg();
             self.emit(&format!(
-                "  {} = call i64 @kain_native_patch_record_i64(i8* {}, i8* {}, i64 {}, i64 {})",
+                "  {} = call i64 @abi_patch_record_i64(i8* {}, i8* {}, i64 {}, i64 {})",
                 status, patch_name_ptr, path_ptr, old_value, new_value
             ));
         }
@@ -3629,7 +3629,7 @@ impl LlvmGenerator {
         let mirror = self.compile_static_c_string_literal(&binding.mirror);
         let status = self.next_reg();
         self.emit(&format!(
-            "  {} = call i64 @kain_native_entangle_record_i64(i8* {}, i8* {}, i64 {})",
+            "  {} = call i64 @abi_entangle_record_i64(i8* {}, i8* {}, i64 {})",
             status, authority, mirror, propagated_value
         ));
         Ok(())
@@ -4356,12 +4356,12 @@ impl LlvmGenerator {
     }
 
     fn llvm_type_is_reply_port(&self, ty: &str) -> bool {
-        ty == KAIN_NATIVE_REPLY_PORT_TYPE
+        ty == REPLY_PORT_LLVM_TYPE
     }
 
     fn actor_name_for_handle_type(&self, handle_ty: &str) -> Option<String> {
         if self.llvm_type_is_reply_port(handle_ty) {
-            return Some(KAIN_NATIVE_REPLY_PORT_ACTOR_NAME.to_string());
+            return Some(REPLY_PORT_ACTOR_NAME.to_string());
         }
         if handle_ty.starts_with('%') && handle_ty.ends_with('*') {
             return Some(
@@ -4403,7 +4403,7 @@ impl LlvmGenerator {
         let actor_ref = self.next_reg();
         self.emit(&format!(
             "  {} = load {}, {}* {}",
-            actor_ref, KAIN_NATIVE_ACTOR_REF_TYPE, KAIN_NATIVE_ACTOR_REF_TYPE, actor_id_ptr
+            actor_ref, ACTOR_REF_LLVM_TYPE, ACTOR_REF_LLVM_TYPE, actor_id_ptr
         ));
         Ok(actor_ref)
     }
@@ -4418,7 +4418,7 @@ impl LlvmGenerator {
         let actor_id = self.next_reg();
         self.emit(&format!(
             "  {} = extractvalue {} {}, 0",
-            actor_id, KAIN_NATIVE_ACTOR_REF_TYPE, actor_ref
+            actor_id, ACTOR_REF_LLVM_TYPE, actor_ref
         ));
         Ok(actor_id)
     }
@@ -4461,7 +4461,7 @@ impl LlvmGenerator {
                 span,
             )
         })?;
-        if actor_name == KAIN_NATIVE_REPLY_PORT_ACTOR_NAME {
+        if actor_name == REPLY_PORT_ACTOR_NAME {
             return Err(KainError::codegen(
                 format!("{} cannot target a reply port handle", builtin_name),
                 span,
@@ -4497,7 +4497,7 @@ impl LlvmGenerator {
                 )
             })?;
 
-        if request_fields.len() != 2 || request_fields[0].1 != KAIN_NATIVE_REPLY_PORT_TYPE {
+        if request_fields.len() != 2 || request_fields[0].1 != REPLY_PORT_LLVM_TYPE {
             return Err(KainError::codegen(
                 format!(
                     "{} currently requires actor message '{}.{}' to start with reply_to: P",
@@ -4520,25 +4520,25 @@ impl LlvmGenerator {
             reply_port_handle
         ));
         let reply_port_ref_ptr = self.next_reg();
-        self.emit_entry_alloca(&reply_port_ref_ptr, KAIN_NATIVE_ACTOR_REF_TYPE);
+        self.emit_entry_alloca(&reply_port_ref_ptr, ACTOR_REF_LLVM_TYPE);
         self.emit(&format!(
             "  call void @kain_actor_reply_port_actor_ref(i8* {}, {}* {})",
-            reply_port_handle, KAIN_NATIVE_ACTOR_REF_TYPE, reply_port_ref_ptr
+            reply_port_handle, ACTOR_REF_LLVM_TYPE, reply_port_ref_ptr
         ));
         let reply_port_actor_ref = self.next_reg();
         self.emit(&format!(
             "  {} = load {}, {}* {}",
             reply_port_actor_ref,
-            KAIN_NATIVE_ACTOR_REF_TYPE,
-            KAIN_NATIVE_ACTOR_REF_TYPE,
+            ACTOR_REF_LLVM_TYPE,
+            ACTOR_REF_LLVM_TYPE,
             reply_port_ref_ptr
         ));
         let reply_port_value = self.next_reg();
         self.emit(&format!(
             "  {} = insertvalue {} zeroinitializer, {} {}, 0",
             reply_port_value,
-            KAIN_NATIVE_REPLY_PORT_TYPE,
-            KAIN_NATIVE_ACTOR_REF_TYPE,
+            REPLY_PORT_LLVM_TYPE,
+            ACTOR_REF_LLVM_TYPE,
             reply_port_actor_ref
         ));
 
@@ -4632,7 +4632,7 @@ impl LlvmGenerator {
         ));
 
         let timeout_value = if builtin_name == "ask" {
-            KAIN_NATIVE_DEFAULT_ASK_TIMEOUT_MS_LLVM.to_string()
+            ABI_DEFAULT_ASK_TIMEOUT_MS_LLVM.to_string()
         } else {
             let (timeout_value, timeout_ty) =
                 self.compile_expr_for_target_type(&args[3].value, "i64")?;
@@ -5211,10 +5211,10 @@ impl LlvmGenerator {
         self.collect_program_tuple_types(program);
         self.emit_runtime_abi_types();
         self.struct_defs.insert(
-            KAIN_NATIVE_REPLY_PORT_ACTOR_NAME.to_string(),
+            REPLY_PORT_ACTOR_NAME.to_string(),
             vec![(
                 "__actor_ref".to_string(),
-                KAIN_NATIVE_ACTOR_REF_TYPE.to_string(),
+                ACTOR_REF_LLVM_TYPE.to_string(),
             )],
         );
 
@@ -5259,7 +5259,7 @@ impl LlvmGenerator {
             } else if let TypedItem::Actor(a) = item {
                 let mut fields = Vec::new();
                 // Actor ref is always field 0 so handles can address the canonical runtime ABI.
-                fields.push(("__actor_ref".to_string(), KAIN_NATIVE_ACTOR_REF_TYPE.into()));
+                fields.push(("__actor_ref".to_string(), ACTOR_REF_LLVM_TYPE.into()));
 
                 for state in &a.ast.state {
                     if let Some(res_ty) = a.state_types.get(&state.name) {
@@ -5421,7 +5421,7 @@ impl LlvmGenerator {
         ));
         self.emit(&format!(
             "  call void @kain_actor_ref_from_id(i64 %actor_id, {}* {})",
-            KAIN_NATIVE_ACTOR_REF_TYPE, actor_ref_ptr
+            ACTOR_REF_LLVM_TYPE, actor_ref_ptr
         ));
         self.locals
             .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
@@ -5611,36 +5611,36 @@ impl LlvmGenerator {
         self.emit("declare i64 @array_get(i8*, i64)");
         self.emit("declare void @array_set(i8*, i64, i64)");
         self.emit("declare i64 @array_len(i8*)");
-        self.emit("declare i8* @kain_native_option_none()");
-        self.emit("declare i8* @kain_native_option_some(i8*, i64)");
-        self.emit("declare i64 @kain_native_option_is_some(i8*)");
-        self.emit("declare i64 @kain_native_option_is_none(i8*)");
-        self.emit("declare i64 @kain_native_option_payload_copy(i8*, i8*, i64)");
-        self.emit("declare i8* @kain_native_result_ok(i8*, i64)");
-        self.emit("declare i8* @kain_native_result_err(i8*, i64)");
-        self.emit("declare i64 @kain_native_result_is_ok(i8*)");
-        self.emit("declare i64 @kain_native_result_is_err(i8*)");
-        self.emit("declare i8* @kain_native_result_ok_option(i8*)");
-        self.emit("declare i64 @kain_native_result_payload_copy(i8*, i8*, i64)");
-        self.emit("declare i64 @kain_native_tagged_is_success(i8*)");
-        self.emit("declare i64 @kain_native_tagged_matches(i8*, i64)");
-        self.emit("declare i64 @kain_native_tagged_payload_copy(i8*, i8*, i64)");
-        self.emit("declare i8* @kain_native_future_ready_from_value(i8*, i64)");
-        self.emit("declare i64 @kain_native_future_state(i8*)");
-        self.emit("declare i64 @kain_native_future_await_payload_copy(i8*, i8*, i64)");
-        self.emit("declare i8* @kain_native_async_sleep_future(i64)");
-        self.emit("declare i64 @kain_native_patch_begin(i8*)");
-        self.emit("declare i64 @kain_native_patch_record_i64(i8*, i8*, i64, i64)");
-        self.emit("declare i64 @kain_native_patch_commit(i8*)");
-        self.emit("declare i64 @kain_native_entangle_record_i64(i8*, i8*, i64)");
-        self.emit("declare i64 @kain_native_converge_record_i64(i8*, i8*, i64, i64)");
-        self.emit("declare i64 @kain_native_converge_record_bool(i8*, i8*, i32)");
-        self.emit("declare i64 @kain_native_cpu_feature_mask()");
-        self.emit("declare i64 @kain_native_cpu_capability_mask_for_key(i8*)");
-        self.emit("declare i64 @kain_native_converge_select_lane_for_key(i64, i64, i64, i64)");
-        self.emit("declare i64 @kain_native_converge_record_telemetry(i64, i64, i64, i64, i64)");
-        self.emit("declare i64 @kain_native_orchestrate_stage_begin(i8*, i8*)");
-        self.emit("declare i64 @kain_native_orchestrate_stage_end_i64(i8*, i8*, i64)");
+        self.emit("declare i8* @abi_option_none()");
+        self.emit("declare i8* @abi_option_some(i8*, i64)");
+        self.emit("declare i64 @abi_option_is_some(i8*)");
+        self.emit("declare i64 @abi_option_is_none(i8*)");
+        self.emit("declare i64 @abi_option_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i8* @abi_result_ok(i8*, i64)");
+        self.emit("declare i8* @abi_result_err(i8*, i64)");
+        self.emit("declare i64 @abi_result_is_ok(i8*)");
+        self.emit("declare i64 @abi_result_is_err(i8*)");
+        self.emit("declare i8* @abi_result_ok_option(i8*)");
+        self.emit("declare i64 @abi_result_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i64 @abi_tagged_is_success(i8*)");
+        self.emit("declare i64 @abi_tagged_matches(i8*, i64)");
+        self.emit("declare i64 @abi_tagged_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i8* @abi_future_ready_from_value(i8*, i64)");
+        self.emit("declare i64 @abi_future_state(i8*)");
+        self.emit("declare i64 @abi_future_await_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i8* @abi_async_sleep_future(i64)");
+        self.emit("declare i64 @abi_patch_begin(i8*)");
+        self.emit("declare i64 @abi_patch_record_i64(i8*, i8*, i64, i64)");
+        self.emit("declare i64 @abi_patch_commit(i8*)");
+        self.emit("declare i64 @abi_entangle_record_i64(i8*, i8*, i64)");
+        self.emit("declare i64 @abi_converge_record_i64(i8*, i8*, i64, i64)");
+        self.emit("declare i64 @abi_converge_record_bool(i8*, i8*, i32)");
+        self.emit("declare i64 @abi_cpu_feature_mask()");
+        self.emit("declare i64 @abi_cpu_capability_mask_for_key(i8*)");
+        self.emit("declare i64 @abi_converge_select_lane_for_key(i64, i64, i64, i64)");
+        self.emit("declare i64 @abi_converge_record_telemetry(i64, i64, i64, i64, i64)");
+        self.emit("declare i64 @abi_orchestrate_stage_begin(i8*, i8*)");
+        self.emit("declare i64 @abi_orchestrate_stage_end_i64(i8*, i8*, i64)");
         self.emit("declare i64 @kain_machine_axiom_accept(i8*, i8*, i64)");
         self.emit("declare void @kain_machine_pulse_snapshot(i64, i64, i64, i64*, i64*, i64*)");
         self.emit("declare i8* @kain_machine_teleport_ptr(i8*, i8*, i8*, i8*)");
@@ -5672,11 +5672,11 @@ impl LlvmGenerator {
         if !self.native_entanglements.is_empty() {
             self.emit("");
             self.emit("; Compiler-owned entangle runtime registration");
-            self.emit("declare i32 @kain_runtime_entangle_register(i8*, i8*, i8*, i8*)");
+            self.emit("declare i32 @entangle_register(i8*, i8*, i8*, i8*)");
         }
 
         // Low-Level Memory Helpers (Canonical ABI)
-        // Source: runtime/native/include/kain_runtime_memory.h
+        // Source: runtime/native/include/memory.h
         // Requirements: 1.4, 3.1, 3.4, 3.5
         self.emit("");
         self.emit("; Low-Level Memory Helper Surface");
@@ -6015,7 +6015,7 @@ impl LlvmGenerator {
             let type_name = self.compile_static_c_string_literal(&binding.type_name);
             let status = self.next_reg();
             self.emit(&format!(
-                "  {} = call i32 @kain_runtime_entangle_register(i8* {}, i8* {}, i8* {}, i8* {})",
+                "  {} = call i32 @entangle_register(i8* {}, i8* {}, i8* {}, i8* {})",
                 status, authority, mirror, policy, type_name
             ));
         }
@@ -6113,7 +6113,7 @@ impl LlvmGenerator {
             let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
             let status = self.next_reg();
             self.emit(&format!(
-                "  {} = call i64 @kain_native_patch_begin(i8* {})",
+                "  {} = call i64 @abi_patch_begin(i8* {})",
                 status, patch_name_ptr
             ));
         }
@@ -6166,7 +6166,7 @@ impl LlvmGenerator {
             let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
             let status = self.next_reg();
             self.emit(&format!(
-                "  {} = call i64 @kain_native_patch_commit(i8* {})",
+                "  {} = call i64 @abi_patch_commit(i8* {})",
                 status, patch_name_ptr
             ));
         }
@@ -6530,12 +6530,12 @@ impl LlvmGenerator {
             let capability_key = self.compile_static_c_string_literal(&capability);
             let required_mask = self.next_reg();
             self.emit(&format!(
-                "  {} = call i64 @kain_native_cpu_capability_mask_for_key(i8* {})",
+                "  {} = call i64 @abi_cpu_capability_mask_for_key(i8* {})",
                 required_mask, capability_key
             ));
             let cpu_mask = self.next_reg();
             self.emit(&format!(
-                "  {} = call i64 @kain_native_cpu_feature_mask()",
+                "  {} = call i64 @abi_cpu_feature_mask()",
                 cpu_mask
             ));
             let present_mask = self.next_reg();
@@ -6577,7 +6577,7 @@ impl LlvmGenerator {
             Self::llvm_i64_literal_for_u64(Self::stable_runtime_hash64(&converge.ast.name));
         let selected_lane = self.next_reg();
         self.emit(&format!(
-            "  {} = call i64 @kain_native_converge_select_lane_for_key(i64 {}, i64 0, i64 {}, i64 -1)",
+            "  {} = call i64 @abi_converge_select_lane_for_key(i64 {}, i64 0, i64 {}, i64 -1)",
             selected_lane, converge_key, eligible_mask
         ));
         self.emit(&format!(
@@ -7214,7 +7214,7 @@ impl LlvmGenerator {
                         let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
                         let status = self.next_reg();
                         self.emit(&format!(
-                            "  {} = call i64 @kain_native_patch_commit(i8* {})",
+                            "  {} = call i64 @abi_patch_commit(i8* {})",
                             status, patch_name_ptr
                         ));
                     }
@@ -7235,7 +7235,7 @@ impl LlvmGenerator {
                         let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
                         let status = self.next_reg();
                         self.emit(&format!(
-                            "  {} = call i64 @kain_native_patch_commit(i8* {})",
+                            "  {} = call i64 @abi_patch_commit(i8* {})",
                             status, patch_name_ptr
                         ));
                     }
@@ -7554,14 +7554,14 @@ impl LlvmGenerator {
         let function_name = self.compile_static_c_string_literal(function);
         let begin_status = self.next_reg();
         self.emit(&format!(
-            "  {} = call i64 @kain_native_orchestrate_stage_begin(i8* {}, i8* {})",
+            "  {} = call i64 @abi_orchestrate_stage_begin(i8* {}, i8* {})",
             begin_status, runtime_name, function_name
         ));
         let (value, ty) = self.compile_direct_call(function, args)?;
         if ty == "i64" {
             let end_status = self.next_reg();
             self.emit(&format!(
-                "  {} = call i64 @kain_native_orchestrate_stage_end_i64(i8* {}, i8* {}, i64 {})",
+                "  {} = call i64 @abi_orchestrate_stage_end_i64(i8* {}, i8* {}, i64 {})",
                 end_status, runtime_name, function_name, value
             ));
         }
@@ -7702,7 +7702,7 @@ impl LlvmGenerator {
             Expr::MacroCall { name, args, span } => self.compile_macro_call(name, args, *span),
             Expr::None(_) => {
                 Ok(self.compile_tagged_box_from_payload(
-                    KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                    ABI_TAG_OPTION_NONE_LLVM,
                     None,
                     None,
                     0,
@@ -8382,7 +8382,7 @@ impl LlvmGenerator {
                 ));
                 self.emit(&format!(
                     "  call void @kain_actor_ref_from_id(i64 {}, {}* {})",
-                    actor_id_reg, KAIN_NATIVE_ACTOR_REF_TYPE, actor_ref_ptr
+                    actor_id_reg, ACTOR_REF_LLVM_TYPE, actor_ref_ptr
                 ));
 
                 Ok((struct_ptr, format!("%{}*", actor)))
@@ -8403,7 +8403,7 @@ impl LlvmGenerator {
                         *span,
                     )
                 })?;
-                if actor_name == KAIN_NATIVE_REPLY_PORT_ACTOR_NAME {
+                if actor_name == REPLY_PORT_ACTOR_NAME {
                     let target_ref =
                         self.compile_actor_handle_ref_value(&target_val, &target_ty, *span)?;
                     let (payload_mem, message_size) = if message != "Reply" {
@@ -8436,19 +8436,19 @@ impl LlvmGenerator {
                         (payload_ptr, payload_size.to_string())
                     };
                     let target_ref_ptr = self.next_reg();
-                    self.emit_entry_alloca(&target_ref_ptr, KAIN_NATIVE_ACTOR_REF_TYPE);
+                    self.emit_entry_alloca(&target_ref_ptr, ACTOR_REF_LLVM_TYPE);
                     self.emit(&format!(
                         "  store {} {}, {}* {}",
-                        KAIN_NATIVE_ACTOR_REF_TYPE,
+                        ACTOR_REF_LLVM_TYPE,
                         target_ref,
-                        KAIN_NATIVE_ACTOR_REF_TYPE,
+                        ACTOR_REF_LLVM_TYPE,
                         target_ref_ptr
                     ));
                     let send_status = self.next_reg();
                     self.emit(&format!(
                         "  {} = call i32 @kain_actor_reply_port_send_ref({}* {}, i8* {}, i64 {})",
                         send_status,
-                        KAIN_NATIVE_ACTOR_REF_TYPE,
+                        ACTOR_REF_LLVM_TYPE,
                         target_ref_ptr,
                         payload_mem,
                         message_size
@@ -8673,7 +8673,7 @@ impl LlvmGenerator {
             Expr::Ident(name, span) => {
                 if name == "None" {
                     Ok(self.compile_tagged_box_from_payload(
-                        KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                        ABI_TAG_OPTION_NONE_LLVM,
                         None,
                         None,
                         0,
@@ -8911,7 +8911,7 @@ impl LlvmGenerator {
                             }
                             let result = self.compile_tagged_value_is_tag(
                                 &obj_val,
-                                &[KAIN_NATIVE_TAG_OPTION_SOME_LLVM],
+                                &[ABI_TAG_OPTION_SOME_LLVM],
                                 false,
                             );
                             self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
@@ -8923,7 +8923,7 @@ impl LlvmGenerator {
                             }
                             let result = self.compile_tagged_value_is_tag(
                                 &obj_val,
-                                &[KAIN_NATIVE_TAG_OPTION_NONE_LLVM],
+                                &[ABI_TAG_OPTION_NONE_LLVM],
                                 true,
                             );
                             self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
@@ -8935,7 +8935,7 @@ impl LlvmGenerator {
                             }
                             let result = self.compile_tagged_value_is_tag(
                                 &obj_val,
-                                &[KAIN_NATIVE_TAG_RESULT_OK_LLVM],
+                                &[ABI_TAG_RESULT_OK_LLVM],
                                 false,
                             );
                             self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
@@ -8947,7 +8947,7 @@ impl LlvmGenerator {
                             }
                             let result = self.compile_tagged_value_is_tag(
                                 &obj_val,
-                                &[KAIN_NATIVE_TAG_RESULT_ERR_LLVM],
+                                &[ABI_TAG_RESULT_ERR_LLVM],
                                 false,
                             );
                             self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
@@ -8959,7 +8959,7 @@ impl LlvmGenerator {
                             }
                             let is_ok = self.compile_tagged_value_is_tag(
                                 &obj_val,
-                                &[KAIN_NATIVE_TAG_RESULT_OK_LLVM],
+                                &[ABI_TAG_RESULT_OK_LLVM],
                                 false,
                             );
                             let ok_label = self.next_label();
@@ -8972,7 +8972,7 @@ impl LlvmGenerator {
 
                             self.emit_label(&none_label);
                             let none_value = self.compile_tagged_box_from_payload(
-                                KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                                ABI_TAG_OPTION_NONE_LLVM,
                                 None,
                                 None,
                                 0,
@@ -8984,7 +8984,7 @@ impl LlvmGenerator {
                             let (payload, payload_ty) =
                                 self.compile_tagged_value_payload_copy(&obj_val, "i8*");
                             let some_value = self.compile_tagged_box_from_value(
-                                KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
+                                ABI_TAG_OPTION_SOME_LLVM,
                                 &payload,
                                 &payload_ty,
                                 8,

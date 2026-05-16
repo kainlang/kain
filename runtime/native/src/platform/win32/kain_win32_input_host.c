@@ -1,4 +1,4 @@
-#include "../../../include/kain_runtime_win32.h"
+#include "../../../include/win32.h"
 
 #ifdef _WIN32
 static void kain_win32_mouse_capture_sync(KainWin32MouseCapture* capture) {

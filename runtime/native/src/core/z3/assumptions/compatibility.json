@@ -1,0 +1,823 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "length",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 37,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 37,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 37
+      },
+      "symbol": "if",
+      "text": "if (length >= out_cap) {",
+      "variables": [
+        "length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "migration_hook(&context, diag) != 0",
+      "id": "if.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 321,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 321,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 321
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (migration_hook(&context, diag) != 0) {",
+      "variables": [
+        "context",
+        "diag",
+        "migration_hook"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "diag && diag->code == KAIN_DIAG_CODE_SUCCESS",
+      "id": "if.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 322,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 322,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 322
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (diag && diag->code == KAIN_DIAG_CODE_SUCCESS) {",
+      "variables": [
+        "KAIN_DIAG_CODE_SUCCESS",
+        "code",
+        "diag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "diag && diag->code == KAIN_DIAG_CODE_SUCCESS",
+      "id": "if.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 322,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 322,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 322
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (diag && diag->code == KAIN_DIAG_CODE_SUCCESS) {",
+      "variables": [
+        "KAIN_DIAG_CODE_SUCCESS",
+        "code",
+        "diag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "out_size",
+        "role": "size-like",
+        "type": "!result || !out ||"
+      },
+      "id": "if.parameter-role.5",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 437,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 437,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 437
+      },
+      "symbol": "if",
+      "text": "if (!result || !out || out_size == 0) {",
+      "variables": [
+        "out_size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "handle"
+        ],
+        "op": "not"
+      },
+      "expression": "!handle",
+      "id": "kain-bundle-activate.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 226,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 226,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 226
+      },
+      "symbol": "kain_bundle_activate",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!handle) {",
+      "variables": [
+        "handle"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(handle->state != KAIN_BUNDLE_STATE_INSTALLED &&",
+      "id": "kain-bundle-activate.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 235,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 235,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 235
+      },
+      "symbol": "kain_bundle_activate",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (handle->state != KAIN_BUNDLE_STATE_INSTALLED &&",
+      "variables": [
+        "KAIN_BUNDLE_STATE_INSTALLED",
+        "handle",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "required_abi_version",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "required_abi_version == 0u",
+      "id": "kain-bundle-check-abi-compatibility.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 100,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 100,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 100
+      },
+      "symbol": "kain_bundle_check_abi_compatibility",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (required_abi_version == 0u) {",
+      "variables": [
+        "required_abi_version",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "metadata"
+        ],
+        "op": "not"
+      },
+      "expression": "!metadata",
+      "id": "kain-bundle-compat-metadata-init.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 89,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 89,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 89
+      },
+      "symbol": "kain_bundle_compat_metadata_init",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!metadata) {",
+      "variables": [
+        "metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "handle"
+        ],
+        "op": "not"
+      },
+      "expression": "!handle",
+      "id": "kain-bundle-deactivate.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 250,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 250,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 250
+      },
+      "symbol": "kain_bundle_deactivate",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!handle) {",
+      "variables": [
+        "handle"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "handle->state != KAIN_BUNDLE_STATE_ACTIVE",
+      "id": "kain-bundle-deactivate.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 259,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 259,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 259
+      },
+      "symbol": "kain_bundle_deactivate",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (handle->state != KAIN_BUNDLE_STATE_ACTIVE) {",
+      "variables": [
+        "KAIN_BUNDLE_STATE_ACTIVE",
+        "handle",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "handle"
+        ],
+        "op": "not"
+      },
+      "expression": "!handle",
+      "id": "kain-bundle-get-state.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 359,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 359,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 359
+      },
+      "symbol": "kain_bundle_get_state",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!handle) {",
+      "variables": [
+        "handle"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "handle->state",
+      "id": "kain-bundle-get-state.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 362,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 362,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 362
+      },
+      "symbol": "kain_bundle_get_state",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return handle->state;",
+      "variables": [
+        "handle",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "handle"
+        ],
+        "op": "not"
+      },
+      "expression": "!handle",
+      "id": "kain-bundle-snapshot-state.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 377,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 377,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 377
+      },
+      "symbol": "kain_bundle_snapshot_state",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!handle) {",
+      "variables": [
+        "handle"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "snapshot"
+        ],
+        "op": "not"
+      },
+      "expression": "!snapshot",
+      "id": "kain-bundle-snapshot-state.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 388,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 388,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 388
+      },
+      "symbol": "kain_bundle_snapshot_state",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!snapshot) {",
+      "variables": [
+        "snapshot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "handle"
+        ],
+        "op": "not"
+      },
+      "expression": "!handle",
+      "id": "kain-bundle-uninstall.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 344,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 344,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 344
+      },
+      "symbol": "kain_bundle_uninstall",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!handle) {",
+      "variables": [
+        "handle"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "out_cap",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-copy-text.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 25,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 25,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 25
+      },
+      "symbol": "kain_copy_text",
+      "text": "static void kain_copy_text(char* out, size_t out_cap, const char* text) {",
+      "variables": [
+        "out_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "out"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "out_cap",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!out || out_cap == 0",
+      "id": "kain-copy-text.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 28,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 28,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 28
+      },
+      "symbol": "kain_copy_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!out || out_cap == 0) {",
+      "variables": [
+        "out",
+        "out_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "text"
+        ],
+        "op": "not"
+      },
+      "expression": "!text",
+      "id": "kain-copy-text.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 31,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 31,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 31
+      },
+      "symbol": "kain_copy_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!text) {",
+      "variables": [
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "length",
+          "out_cap"
+        ],
+        "op": "ge"
+      },
+      "expression": "length >= out_cap",
+      "id": "kain-copy-text.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 37,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 37,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 37
+      },
+      "symbol": "kain_copy_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (length >= out_cap) {",
+      "variables": [
+        "length",
+        "out_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "required_runtime_version",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "required_runtime_version == 0u",
+      "id": "version-is-compatible.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 53,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 53,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 53
+      },
+      "symbol": "version_is_compatible",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (required_runtime_version == 0u) {",
+      "variables": [
+        "required_runtime_version",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "current_major",
+          "required_major"
+        ],
+        "op": "neq"
+      },
+      "expression": "current_major != required_major",
+      "id": "version-is-compatible.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 56,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 39,
+        "end_line": 56,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 56
+      },
+      "symbol": "version_is_compatible",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (current_major != required_major) {",
+      "variables": [
+        "current_major",
+        "required_major"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "current_minor",
+          "required_minor"
+        ],
+        "op": "gt"
+      },
+      "expression": "current_minor > required_minor",
+      "id": "version-is-compatible.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 59,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 59,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 59
+      },
+      "symbol": "version_is_compatible",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (current_minor > required_minor) {",
+      "variables": [
+        "current_minor",
+        "required_minor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "current_minor",
+          "required_minor"
+        ],
+        "op": "lt"
+      },
+      "expression": "current_minor < required_minor",
+      "id": "version-is-compatible.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 62,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 62,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 62
+      },
+      "symbol": "version_is_compatible",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (current_minor < required_minor) {",
+      "variables": [
+        "current_minor",
+        "required_minor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "dsl_expression": {
+        "args": [
+          "current_patch",
+          "required_patch"
+        ],
+        "op": "ge"
+      },
+      "expression": "current_patch >= required_patch",
+      "id": "version-is-compatible.return-condition.5",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 65,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 65,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+        "start_col": 1,
+        "start_line": 65
+      },
+      "symbol": "version_is_compatible",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return current_patch >= required_patch;",
+      "variables": [
+        "current_patch",
+        "required_patch"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "3db0417a74516f40abe9106fb567511775206126dc8cf7e3de2083892d0add48",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\compatibility.c",
+  "version": 1
+}

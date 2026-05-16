@@ -1,5 +1,5 @@
 ; Experimental proof for the ownership registry occupancy-word allocator in
-; kain_runtime_ownership.c.
+; ownership.c.
 ; Claim: composing slot = word_index * 64 + bit_index stays inside the
 ; 4096-entry ownership-region table whenever the occupancy scan inputs are in
 ; their compiled ranges.

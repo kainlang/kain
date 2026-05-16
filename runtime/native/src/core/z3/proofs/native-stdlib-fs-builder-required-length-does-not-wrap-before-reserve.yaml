@@ -10,8 +10,8 @@ tags:
 - filesystem
 - buffer-growth
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_native_stdlib.c
-  symbol: kain_native_fs_builder_reserve
+  path: D:\Kain-Lang\runtime\native\src\core\stdlib_abi.c
+  symbol: abi_fs_builder_reserve
   start_line: 964
   reason: required_length and required_length + 1 are overflow-checked before reserve
 case:

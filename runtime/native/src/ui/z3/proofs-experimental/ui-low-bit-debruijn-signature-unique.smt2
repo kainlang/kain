@@ -1,6 +1,6 @@
 ; Exploratory proof for the UI occupancy-bit fast path.
 ; It checks that the de Bruijn multiplier used by
-; `kain_native_ui_low_bit_index_u64` produces a distinct 6-bit signature
+; `abi_ui_low_bit_index_u64` produces a distinct 6-bit signature
 ; for every 64-bit one-hot input before the lookup table is applied.
 
 (set-logic QF_BV)

@@ -9,8 +9,8 @@ tags:
 - spec
 - arguments
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
-  symbol: kain_native_process_spec_add_arg
+  path: D:\Kain-Lang\runtime\native\src\core\process_system.c
+  symbol: abi_process_spec_add_arg
   start_line: 1711
   reason: argument_count increments only after the max-arguments guard
 case:

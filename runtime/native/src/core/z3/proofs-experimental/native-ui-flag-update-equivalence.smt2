@@ -1,5 +1,5 @@
 ; Experimental Z3 proof: native UI branchless flag update/has equivalence.
-; Native source seams: kain_native_ui_node_set_flag and kain_native_ui_node_has_flag.
+; Native source seams: abi_ui_node_set_flag and abi_ui_node_has_flag.
 ; Claim: xor-visible bitmask math equals the previous visible-special-cased branch semantics.
 (set-logic QF_BV)
 (define-fun nonzero-bit ((x (_ BitVec 64))) (_ BitVec 64)

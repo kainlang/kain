@@ -6,8 +6,8 @@
  * Requirements: 6.2, 6.4
  */
 
-#include "../../native/include/kain_runtime_actor.h"
-#include "../../native/include/kain_runtime_diagnostics.h"
+#include "../../native/include/actor.h"
+#include "../../native/include/diagnostics.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,12 +58,12 @@ static KainActorExitReason supervised_child_bootstrap(
 ) {
     (void)mailbox;
     (void)user_data;
-    
+
     g_child_start_count++;
     printf("Supervised child %llu starting (attempt %d)\n", actor_id, g_child_start_count);
-    
+
     sleep(1);
-    
+
     if (g_child_start_count == 1) {
         printf("Supervised child %llu crashing on first attempt\n", actor_id);
         return KAIN_ACTOR_EXIT_CRASHED;
@@ -95,25 +95,25 @@ static KainActorExitReason supervisor_bootstrap(
 ) {
     (void)user_data;
     printf("Supervisor %llu starting\n", actor_id);
-    
+
     /* Wait for messages/notifications */
     KainActorMessage msg;
     KainDiagnostic diag;
-    
+
     while (1) {
         int result = kain_actor_receive(mailbox, &msg, &diag);
         if (result != 0) {
             break;
         }
-        
-        printf("Supervisor %llu received notification (type: 0x%llx)\n", 
+
+        printf("Supervisor %llu received notification (type: 0x%llx)\n",
                actor_id, msg.type_tag);
-        
+
         if (msg.data != NULL) {
             free(msg.data);
         }
     }
-    
+
     printf("Supervisor %llu exiting\n", actor_id);
     return KAIN_ACTOR_EXIT_NORMAL;
 }
@@ -175,25 +175,25 @@ static KainActorExitReason rest_for_one_child_bootstrap(
 
 int main(void) {
     printf("=== Actor Runtime Smoke Test: Supervision ===\n\n");
-    
+
     /* Initialize actor runtime */
     kain_actor_runtime_init();
-    
+
     /* Spawn supervisor */
     KainActorSpawnConfig supervisor_config;
     kain_actor_spawn_config_init(&supervisor_config);
     supervisor_config.bootstrap_fn = supervisor_bootstrap;
     copy_actor_name(supervisor_config.name, "supervisor");
-    
+
     KainDiagnostic diag;
     KainActorId supervisor_id = kain_actor_spawn(&supervisor_config, &diag);
-    
+
     if (supervisor_id == KAIN_ACTOR_ID_INVALID) {
         printf("FAIL: Supervisor spawn failed: %s\n", diag.message);
         return 1;
     }
     printf("Supervisor spawned with ID: %llu\n", supervisor_id);
-    
+
     /* Test 1: Permanent restart policy */
     printf("\n--- Test 1: Permanent Restart Policy ---\n");
 
@@ -205,15 +205,15 @@ int main(void) {
     child_config.supervisor_id = supervisor_id;
     child_config.restart_policy = KAIN_RESTART_POLICY_PERMANENT;
     copy_actor_name(child_config.name, "permanent_child");
-    
+
     KainActorId child_id = kain_actor_spawn(&child_config, &diag);
-    
+
     if (child_id == KAIN_ACTOR_ID_INVALID) {
         printf("FAIL: Child spawn failed: %s\n", diag.message);
         return 1;
     }
     printf("Child spawned with ID: %llu (restart policy: PERMANENT)\n\n", child_id);
-    
+
     /* Wait for crash loop and restart limit to settle */
     sleep(3);
 
@@ -265,22 +265,22 @@ int main(void) {
         printf("FAIL: Permanent child should remain in FAILED state after its initial crash\n");
         return 1;
     }
-    
+
     /* Test 2: Temporary restart policy */
     printf("\n--- Test 2: Temporary Restart Policy ---\n");
-    
+
     KainActorSpawnConfig temp_config;
     kain_actor_spawn_config_init(&temp_config);
     temp_config.bootstrap_fn = temporary_child_bootstrap;
     temp_config.supervisor_id = supervisor_id;
     temp_config.restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
     copy_actor_name(temp_config.name, "temporary_child");
-    
+
     KainActorId temp_id = kain_actor_spawn(&temp_config, &diag);
     printf("Temporary child spawned with ID: %llu\n", temp_id);
-    
+
     sleep(2);
-    
+
     KainActorSupervisionSnapshot temp_snapshot;
     if (kain_actor_get_supervision_snapshot(temp_id, &temp_snapshot, &diag) != 0) {
         printf("FAIL: Could not read temporary child supervision snapshot: %s\n", diag.message);
@@ -303,10 +303,10 @@ int main(void) {
         printf("FAIL: Temporary child should not hit the restart limit\n");
         return 1;
     }
-    
+
     /* Test 3: Transient restart policy */
     printf("\n--- Test 3: Transient Restart Policy ---\n");
-    
+
     g_child_start_count = 0;
 
     KainActorSpawnConfig transient_config;
@@ -315,12 +315,12 @@ int main(void) {
     transient_config.supervisor_id = supervisor_id;
     transient_config.restart_policy = KAIN_RESTART_POLICY_TRANSIENT;
     copy_actor_name(transient_config.name, "transient_child");
-    
+
     KainActorId transient_id = kain_actor_spawn(&transient_config, &diag);
     printf("Transient child spawned with ID: %llu\n", transient_id);
-    
+
     sleep(2);
-    
+
     KainActorSupervisionSnapshot transient_snapshot;
     if (kain_actor_get_supervision_snapshot(transient_id, &transient_snapshot, &diag) != 0) {
         printf("FAIL: Could not read transient child supervision snapshot: %s\n", diag.message);
@@ -447,7 +447,7 @@ int main(void) {
 
     /* Shutdown */
     kain_actor_runtime_shutdown();
-    
+
     printf("\nPASS: Actor supervision test completed successfully\n");
     printf("Note: Supervision restart behavior is now observable through snapshots\n");
     return 0;

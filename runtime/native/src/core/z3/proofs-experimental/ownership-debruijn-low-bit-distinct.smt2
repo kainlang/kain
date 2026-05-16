@@ -1,5 +1,5 @@
 ; Experimental proof for the de Bruijn low-bit decoder used by the ownership
-; registry occupancy allocator in kain_runtime_ownership.c.
+; registry occupancy allocator in ownership.c.
 ; Claim: the top-6-bit hash of every 64-bit one-hot value under
 ; 0x03f79d71b4cb0a89 is collision-free.
 (set-logic QF_BV)

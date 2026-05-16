@@ -2,8 +2,8 @@
  * Platform Parity Conformance Test: Unsupported Platform Stubs
  */
 
-#include "../../native/include/kain_runtime_platform.h"
-#include "../../native/include/kain_runtime_diagnostics.h"
+#include "../../native/include/platform.h"
+#include "../../native/include/diagnostics.h"
 #include <stdio.h>
 #include <string.h>
 

@@ -146,42 +146,42 @@ EOF
             ;;
         native_graphics_engine)
             cat <<'EOF'
-call i64 @kain_native_graphics_session_create(
-call i64 @kain_native_graphics_shader_spirv_from_hex(
-call i64 @kain_native_graphics_buffer_create_from_hex(
-call i64 @kain_native_graphics_mesh_create(
-call i64 @kain_native_graphics_pipeline_create(
-call i64 @kain_native_graphics_draw_mesh(
+call i64 @abi_graphics_session_create(
+call i64 @abi_graphics_shader_spirv_from_hex(
+call i64 @abi_graphics_buffer_create_from_hex(
+call i64 @abi_graphics_mesh_create(
+call i64 @abi_graphics_pipeline_create(
+call i64 @abi_graphics_draw_mesh(
 EOF
             ;;
         native_process_stdio)
             cat <<'EOF'
-call i64 @kain_native_process_spec_create(
-call i64 @kain_native_process_spawn(
-call i64 @kain_native_process_stdin_write_text(
-call i64 @kain_native_process_spawn_pty(
-call i8* @kain_native_process_stdout_capture_text(
-call i8* @kain_native_process_pty_capture_text(
+call i64 @abi_process_spec_create(
+call i64 @abi_process_spawn(
+call i64 @abi_process_stdin_write_text(
+call i64 @abi_process_spawn_pty(
+call i8* @abi_process_stdout_capture_text(
+call i8* @abi_process_pty_capture_text(
 EOF
             ;;
         native_net_http)
             cat <<'EOF'
-call i64 @kain_native_http_server_create(
-call i64 @kain_native_http_server_route_actor(
-call i64 @kain_native_http_server_pump(
-call i64 @kain_native_http_respond_text(
-call i64 @kain_native_tcp_connect(
-call i64 @kain_native_http_request_create(
+call i64 @abi_http_server_create(
+call i64 @abi_http_server_route_actor(
+call i64 @abi_http_server_pump(
+call i64 @abi_http_respond_text(
+call i64 @abi_tcp_connect(
+call i64 @abi_http_request_create(
 EOF
             ;;
         native_ui_runtime_systems)
             cat <<'EOF'
-call i64 @kain_native_ui_host_attach(
-call i64 @kain_native_ui_hot_reload_begin(
-call i64 @kain_native_ui_font_create(
-call double @kain_native_ui_text_measure_width(
-call i64 @kain_native_ui_draw_resource(
-call i64 @kain_native_ui_host_present(
+call i64 @abi_ui_host_attach(
+call i64 @abi_ui_hot_reload_begin(
+call i64 @abi_ui_font_create(
+call double @abi_ui_text_measure_width(
+call i64 @abi_ui_draw_resource(
+call i64 @abi_ui_host_present(
 EOF
             ;;
     esac

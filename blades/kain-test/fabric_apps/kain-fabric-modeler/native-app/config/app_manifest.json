@@ -23,8 +23,8 @@
   },
   "runtime_sidecars": {
     "runtime_bundle": "native_app_bundle.json",
-    "runtime_contract": "kain_runtime_contract.json",
-    "runtime_compatibility": "kain_runtime_compatibility.json",
+    "runtime_contract": "contract.json",
+    "runtime_compatibility": "compatibility.json",
     "realtime_bundle": "kain_realtime_app_bundle.json",
     "shader_bundle": null
   },

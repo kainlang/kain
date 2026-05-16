@@ -37,24 +37,24 @@ COMMON_CFLAGS=(
 )
 
 COMMON_SOURCES=(
-    "$NATIVE_SRC/core/kain_runtime_core.c"
-    "$NATIVE_SRC/core/kain_runtime_version.c"
-    "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
-    "$NATIVE_SRC/core/kain_runtime_services.c"
-    "$NATIVE_SRC/core/kain_runtime_actor.c"
-    "$NATIVE_SRC/core/kain_native_net_system.c"
-    "$NATIVE_SRC/core/kain_native_process_system.c"
-    "$NATIVE_SRC/core/kain_runtime_contract.c"
+    "$NATIVE_SRC/core/core.c"
+    "$NATIVE_SRC/core/version.c"
+    "$NATIVE_SRC/core/diagnostics.c"
+    "$NATIVE_SRC/core/services.c"
+    "$NATIVE_SRC/core/actor.c"
+    "$NATIVE_SRC/core/net_system.c"
+    "$NATIVE_SRC/core/process_system.c"
+    "$NATIVE_SRC/core/contract.c"
 )
 
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then
     PLATFORM_CFLAGS=(-D_CRT_SECURE_NO_WARNINGS)
     PLATFORM_LDFLAGS=(-lws2_32 -lwinhttp -luser32 -lgdi32)
-    COMMON_SOURCES+=("$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c")
+    COMMON_SOURCES+=("$NATIVE_SRC/platform/win32/win32_shared.c")
 else
     PLATFORM_CFLAGS=()
     PLATFORM_LDFLAGS=(-lpthread -lm)
-    COMMON_SOURCES+=("$NATIVE_SRC/platform/linux/kain_runtime_linux_shared.c")
+    COMMON_SOURCES+=("$NATIVE_SRC/platform/linux/linux_shared.c")
 fi
 
 mkdir -p "$OUT_DIR"

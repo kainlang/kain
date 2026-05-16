@@ -3188,7 +3188,7 @@ fn find_runtime_c() -> Option<PathBuf> {
     }
 
     let candidates = [
-        PathBuf::from("runtime/kain_runtime.c"),
+        PathBuf::from("runtime/runtime.c"),
         PathBuf::from("runtime/KAIN_runtime.c"),
         PathBuf::from("src/runtime/c/KAIN_runtime.c"),
     ];
@@ -3202,7 +3202,7 @@ fn find_runtime_c() -> Option<PathBuf> {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
             loop {
-                let candidate = dir.join("runtime").join("kain_runtime.c");
+                let candidate = dir.join("runtime").join("runtime.c");
                 if candidate.exists() {
                     return Some(candidate);
                 }
@@ -4372,7 +4372,7 @@ mod tests {
         fs::create_dir_all(&source_dir).expect("source dir");
         fs::create_dir_all(&include_dir).expect("include dir");
         fs::write(
-            source_dir.join("kain_runtime.c"),
+            source_dir.join("runtime.c"),
             "int main(void) { return 0; }\n",
         )
         .expect("source file");
@@ -4380,7 +4380,7 @@ mod tests {
             manifest_dir.join("native_runtime.toml"),
             r#"
 name = "test-runtime"
-sources = ["src/kain_runtime.c"]
+sources = ["src/runtime.c"]
 include_dirs = ["include"]
 defines = ["KAIN_TEST=1"]
 windows_defines = ["KAIN_WINDOWS=1"]

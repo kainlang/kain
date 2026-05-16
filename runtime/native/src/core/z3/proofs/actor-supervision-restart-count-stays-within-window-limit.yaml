@@ -9,7 +9,7 @@ tags:
 - restart
 - invariant
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_actor_restart_child
   start_line: 2010
   reason: restart_count increments after should_restart accepts the limit

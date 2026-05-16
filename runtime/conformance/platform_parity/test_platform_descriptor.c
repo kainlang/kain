@@ -2,7 +2,7 @@
  * Platform Parity Conformance Test: Current Descriptor
  */
 
-#include "../../native/include/kain_runtime_platform.h"
+#include "../../native/include/platform.h"
 #include <stdio.h>
 #include <string.h>
 

@@ -10,7 +10,7 @@ tags:
 - uintptr
 - overflow
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_memory.c
+  path: D:\Kain-Lang\runtime\native\src\core\memory.c
   symbol: kain_pointer_with_size_offset
   start_line: 102
   reason: base pointer plus field byte offset is overflow-checked before address rebuild

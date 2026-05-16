@@ -9,7 +9,7 @@ tags:
 - realloc
 - overflow
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_memory.c
+  path: D:\Kain-Lang\runtime\native\src\core\memory.c
   symbol: __kain_realloc
   start_line: 279
   reason: new_payload_size is guarded by kain_mul_overflow_size before realloc sizing

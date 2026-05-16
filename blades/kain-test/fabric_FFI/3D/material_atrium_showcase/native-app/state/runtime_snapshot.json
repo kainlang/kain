@@ -191,13 +191,13 @@
       },
       {
         "role": "runtime_contract",
-        "path": "generated/kain_runtime_contract.json",
+        "path": "generated/contract.json",
         "fingerprint": "5439a5f8f332499b",
         "byte_length": 10117
       },
       {
         "role": "runtime_compatibility",
-        "path": "generated/kain_runtime_compatibility.json",
+        "path": "generated/compatibility.json",
         "fingerprint": "adae7d718d0ca0b0",
         "byte_length": 1766
       },

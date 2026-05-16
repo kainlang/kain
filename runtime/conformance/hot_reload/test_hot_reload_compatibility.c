@@ -1,4 +1,4 @@
-#include "../../native/include/kain_runtime_compatibility.h"
+#include "../../native/include/compatibility.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -51,7 +51,7 @@ static int test_abi_mismatch_rejected(void) {
 
     kain_bundle_compat_metadata_init(&metadata);
     copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.abi_mismatch");
-    metadata.required_abi_version = KAIN_RUNTIME_ABI_VERSION_ENCODE(1, 0, 0);
+    metadata.required_abi_version = RUNTIME_ABI_VERSION_ENCODE(1, 0, 0);
 
     if (kain_bundle_validate_compatibility(&metadata, &result) == 0) {
         fprintf(stderr, "expected ABI mismatch to fail validation\n");
@@ -70,7 +70,7 @@ static int test_runtime_mismatch_rejected(void) {
 
     kain_bundle_compat_metadata_init(&metadata);
     copy_text(metadata.bundle_id, sizeof(metadata.bundle_id), "runtime.hot_reload.runtime_mismatch");
-    metadata.required_runtime_version = KAIN_RUNTIME_VERSION_ENCODE(0, 2, 0);
+    metadata.required_runtime_version = VERSION_ENCODE(0, 2, 0);
 
     if (kain_bundle_validate_compatibility(&metadata, &result) == 0) {
         fprintf(stderr, "expected runtime mismatch to fail validation\n");

@@ -8,7 +8,7 @@ tags:
 - overflow
 - pointer
 source:
-  path: D:\Kain-Lang\runtime\native\src\ui\kain_native_ui_system.c
+  path: D:\Kain-Lang\runtime\native\src\ui\ui_system.c
   language: c
   symbol: if
   signature: if (!session->state[index].in_use) {

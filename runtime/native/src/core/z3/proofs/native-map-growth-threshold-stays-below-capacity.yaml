@@ -9,7 +9,7 @@ tags:
 - load-factor
 - capacity
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_core.c
+  path: D:\Kain-Lang\runtime\native\src\core\core.c
   symbol: kain_map_growth_threshold
   start_line: 885
   reason: capacity - (capacity >> 2) leaves at least one empty slot for power-of-two tables

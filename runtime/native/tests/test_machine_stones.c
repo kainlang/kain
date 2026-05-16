@@ -1,4 +1,4 @@
-#include "../include/kain_runtime_machine_stones.h"
+#include "../include/machine_stones.h"
 
 #include <stdint.h>
 #include <stdio.h>

@@ -1,788 +1,788 @@
 @extern
-fn kain_native_ui_reset() -> Int
+fn abi_ui_reset() -> Int
 
 @extern
-fn kain_native_ui_session_create(app_name: String, width: Int, height: Int) -> Int
+fn abi_ui_session_create(app_name: String, width: Int, height: Int) -> Int
 
 @extern
-fn kain_native_ui_session_destroy(session_id: Int) -> Int
+fn abi_ui_session_destroy(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_session_count() -> Int
+fn abi_ui_session_count() -> Int
 
 @extern
-fn kain_native_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int
+fn abi_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int
 
 @extern
-fn kain_native_ui_window_close(session_id: Int) -> Int
+fn abi_ui_window_close(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int
+fn abi_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int
 
 @extern
-fn kain_native_ui_end_frame(session_id: Int) -> Int
+fn abi_ui_end_frame(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_present(session_id: Int) -> Int
+fn abi_ui_present(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_frame_index(session_id: Int) -> Int
+fn abi_ui_frame_index(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_last_presented_frame(session_id: Int) -> Int
+fn abi_ui_last_presented_frame(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_node_create(session_id: Int, kind: String) -> Int
+fn abi_ui_node_create(session_id: Int, kind: String) -> Int
 
 @extern
-fn kain_native_ui_node_destroy(session_id: Int, node_id: Int) -> Int
+fn abi_ui_node_destroy(session_id: Int, node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_node_count(session_id: Int) -> Int
+fn abi_ui_node_count(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_node_exists(session_id: Int, node_id: Int) -> Int
+fn abi_ui_node_exists(session_id: Int, node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int
+fn abi_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int
 
 @extern
-fn kain_native_ui_node_parent(session_id: Int, node_id: Int) -> Int
+fn abi_ui_node_parent(session_id: Int, node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_node_child_count(session_id: Int, node_id: Int) -> Int
+fn abi_ui_node_child_count(session_id: Int, node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+fn abi_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
 
 @extern
-fn kain_native_ui_node_x(session_id: Int, node_id: Int) -> Float
+fn abi_ui_node_x(session_id: Int, node_id: Int) -> Float
 
 @extern
-fn kain_native_ui_node_y(session_id: Int, node_id: Int) -> Float
+fn abi_ui_node_y(session_id: Int, node_id: Int) -> Float
 
 @extern
-fn kain_native_ui_node_width(session_id: Int, node_id: Int) -> Float
+fn abi_ui_node_width(session_id: Int, node_id: Int) -> Float
 
 @extern
-fn kain_native_ui_node_height(session_id: Int, node_id: Int) -> Float
+fn abi_ui_node_height(session_id: Int, node_id: Int) -> Float
 
 @extern
-fn kain_native_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int
+fn abi_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int
 
 @extern
-fn kain_native_ui_node_text(session_id: Int, node_id: Int) -> String
+fn abi_ui_node_text(session_id: Int, node_id: Int) -> String
 
 @extern
-fn kain_native_ui_node_kind(session_id: Int, node_id: Int) -> String
+fn abi_ui_node_kind(session_id: Int, node_id: Int) -> String
 
 @extern
-fn kain_native_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int
+fn abi_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int
 
 @extern
-fn kain_native_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int
+fn abi_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int
 
 @extern
-fn kain_native_ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
+fn abi_ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
 
 @extern
-fn kain_native_ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int
+fn abi_ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int
 
 @extern
-fn kain_native_ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
+fn abi_ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
 
 @extern
-fn kain_native_ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
+fn abi_ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
 
 @extern
-fn kain_native_ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float
+fn abi_ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float
 
 @extern
-fn kain_native_ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
+fn abi_ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
 
 @extern
-fn kain_native_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
+fn abi_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
 
 @extern
-fn kain_native_ui_node_set_state_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int
+fn abi_ui_node_set_state_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int
 
 @extern
-fn kain_native_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
+fn abi_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
 
 @extern
-fn kain_native_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
+fn abi_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
 
 @extern
-fn kain_native_ui_node_state_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float
+fn abi_ui_node_state_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float
 
 @extern
-fn kain_native_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
+fn abi_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
 
 @extern
-fn kain_native_ui_state_count(session_id: Int) -> Int
+fn abi_ui_state_count(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_focus(session_id: Int, node_id: Int) -> Int
+fn abi_ui_focus(session_id: Int, node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_focused_node(session_id: Int) -> Int
+fn abi_ui_focused_node(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_hit_test(session_id: Int, x: Float, y: Float) -> Int
+fn abi_ui_hit_test(session_id: Int, x: Float, y: Float) -> Int
 
 @extern
-fn kain_native_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int
+fn abi_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int
 
 @extern
-fn kain_native_ui_dirty_count(session_id: Int) -> Int
+fn abi_ui_dirty_count(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int
+fn abi_ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int
 
 @extern
-fn kain_native_ui_poll_event(session_id: Int) -> Int
+fn abi_ui_poll_event(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_event_kind(session_id: Int) -> String
+fn abi_ui_event_kind(session_id: Int) -> String
 
 @extern
-fn kain_native_ui_event_target(session_id: Int) -> Int
+fn abi_ui_event_target(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_event_x(session_id: Int) -> Float
+fn abi_ui_event_x(session_id: Int) -> Float
 
 @extern
-fn kain_native_ui_event_y(session_id: Int) -> Float
+fn abi_ui_event_y(session_id: Int) -> Float
 
 @extern
-fn kain_native_ui_event_key_code(session_id: Int) -> Int
+fn abi_ui_event_key_code(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_event_text(session_id: Int) -> String
+fn abi_ui_event_text(session_id: Int) -> String
 
 @extern
-fn kain_native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
+fn abi_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
 
 @extern
-fn kain_native_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
+fn abi_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
 
 @extern
-fn kain_native_ui_draw_command_count(session_id: Int) -> Int
+fn abi_ui_draw_command_count(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_draw_command_kind(session_id: Int, command_index: Int) -> String
+fn abi_ui_draw_command_kind(session_id: Int, command_index: Int) -> String
 
 @extern
-fn kain_native_ui_draw_command_node(session_id: Int, command_index: Int) -> Int
+fn abi_ui_draw_command_node(session_id: Int, command_index: Int) -> Int
 
 @extern
-fn kain_native_ui_host_attach(session_id: Int, backend_id: String) -> Int
+fn abi_ui_host_attach(session_id: Int, backend_id: String) -> Int
 
 @extern
-fn kain_native_ui_host_pump(session_id: Int) -> Int
+fn abi_ui_host_pump(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_host_present(session_id: Int) -> Int
+fn abi_ui_host_present(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_host_presented_draw_count(session_id: Int) -> Int
+fn abi_ui_host_presented_draw_count(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_host_frame_hash(session_id: Int) -> Int
+fn abi_ui_host_frame_hash(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_host_should_close(session_id: Int) -> Int
+fn abi_ui_host_should_close(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_host_backend(session_id: Int) -> String
+fn abi_ui_host_backend(session_id: Int) -> String
 
 @extern
-fn kain_native_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int
+fn abi_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int
 
 @extern
-fn kain_native_ui_node_stable_key(session_id: Int, node_id: Int) -> String
+fn abi_ui_node_stable_key(session_id: Int, node_id: Int) -> String
 
 @extern
-fn kain_native_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
+fn abi_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
 
 @extern
-fn kain_native_ui_accessibility_set_role(session_id: Int, node_id: Int, role: String) -> Int
+fn abi_ui_accessibility_set_role(session_id: Int, node_id: Int, role: String) -> Int
 
 @extern
-fn kain_native_ui_accessibility_set_label(session_id: Int, node_id: Int, label: String) -> Int
+fn abi_ui_accessibility_set_label(session_id: Int, node_id: Int, label: String) -> Int
 
 @extern
-fn kain_native_ui_accessibility_role(session_id: Int, node_id: Int) -> String
+fn abi_ui_accessibility_role(session_id: Int, node_id: Int) -> String
 
 @extern
-fn kain_native_ui_accessibility_label(session_id: Int, node_id: Int) -> String
+fn abi_ui_accessibility_label(session_id: Int, node_id: Int) -> String
 
 @extern
-fn kain_native_ui_draw_command_resource(session_id: Int, command_index: Int) -> Int
+fn abi_ui_draw_command_resource(session_id: Int, command_index: Int) -> Int
 
 @extern
-fn kain_native_ui_draw_command_x(session_id: Int, command_index: Int) -> Float
+fn abi_ui_draw_command_x(session_id: Int, command_index: Int) -> Float
 
 @extern
-fn kain_native_ui_draw_command_y(session_id: Int, command_index: Int) -> Float
+fn abi_ui_draw_command_y(session_id: Int, command_index: Int) -> Float
 
 @extern
-fn kain_native_ui_draw_command_width(session_id: Int, command_index: Int) -> Float
+fn abi_ui_draw_command_width(session_id: Int, command_index: Int) -> Float
 
 @extern
-fn kain_native_ui_draw_command_height(session_id: Int, command_index: Int) -> Float
+fn abi_ui_draw_command_height(session_id: Int, command_index: Int) -> Float
 
 @extern
-fn kain_native_ui_draw_command_text(session_id: Int, command_index: Int) -> String
+fn abi_ui_draw_command_text(session_id: Int, command_index: Int) -> String
 
 @extern
-fn kain_native_ui_draw_command_style(session_id: Int, command_index: Int) -> String
+fn abi_ui_draw_command_style(session_id: Int, command_index: Int) -> String
 
 @extern
-fn kain_native_ui_draw_command_font(session_id: Int, command_index: Int) -> Int
+fn abi_ui_draw_command_font(session_id: Int, command_index: Int) -> Int
 
 @extern
-fn kain_native_ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int
+fn abi_ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int
 
 @extern
-fn kain_native_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int
+fn abi_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int
 
 @extern
-fn kain_native_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int
+fn abi_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int
 
 @extern
-fn kain_native_ui_canvas_create(session_id: Int, key: String, width: Int, height: Int) -> Int
+fn abi_ui_canvas_create(session_id: Int, key: String, width: Int, height: Int) -> Int
 
 @extern
-fn kain_native_ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int
+fn abi_ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int
 
 @extern
-fn kain_native_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int
+fn abi_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int
 
 @extern
-fn kain_native_ui_resource_count(session_id: Int) -> Int
+fn abi_ui_resource_count(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_resource_exists(session_id: Int, resource_id: Int) -> Int
+fn abi_ui_resource_exists(session_id: Int, resource_id: Int) -> Int
 
 @extern
-fn kain_native_ui_resource_type(session_id: Int, resource_id: Int) -> String
+fn abi_ui_resource_type(session_id: Int, resource_id: Int) -> String
 
 @extern
-fn kain_native_ui_resource_key(session_id: Int, resource_id: Int) -> String
+fn abi_ui_resource_key(session_id: Int, resource_id: Int) -> String
 
 @extern
-fn kain_native_ui_resource_width(session_id: Int, resource_id: Int) -> Int
+fn abi_ui_resource_width(session_id: Int, resource_id: Int) -> Int
 
 @extern
-fn kain_native_ui_resource_height(session_id: Int, resource_id: Int) -> Int
+fn abi_ui_resource_height(session_id: Int, resource_id: Int) -> Int
 
 @extern
-fn kain_native_ui_resource_byte_length(session_id: Int, resource_id: Int) -> Int
+fn abi_ui_resource_byte_length(session_id: Int, resource_id: Int) -> Int
 
 @extern
-fn kain_native_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
+fn abi_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
 
 @extern
-fn kain_native_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float
+fn abi_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float
 
 @extern
-fn kain_native_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
+fn abi_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
 
 @extern
-fn kain_native_ui_clipboard_set_text(session_id: Int, text: String) -> Int
+fn abi_ui_clipboard_set_text(session_id: Int, text: String) -> Int
 
 @extern
-fn kain_native_ui_clipboard_text(session_id: Int) -> String
+fn abi_ui_clipboard_text(session_id: Int) -> String
 
 @extern
-fn kain_native_ui_ime_begin(session_id: Int, node_id: Int) -> Int
+fn abi_ui_ime_begin(session_id: Int, node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_ime_commit_text(session_id: Int, text: String) -> Int
+fn abi_ui_ime_commit_text(session_id: Int, text: String) -> Int
 
 @extern
-fn kain_native_ui_ime_end(session_id: Int) -> Int
+fn abi_ui_ime_end(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_ime_active_node(session_id: Int) -> Int
+fn abi_ui_ime_active_node(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_ime_text(session_id: Int) -> String
+fn abi_ui_ime_text(session_id: Int) -> String
 
 @extern
-fn kain_native_ui_drag_begin(session_id: Int, node_id: Int, payload: String, x: Float, y: Float) -> Int
+fn abi_ui_drag_begin(session_id: Int, node_id: Int, payload: String, x: Float, y: Float) -> Int
 
 @extern
-fn kain_native_ui_drag_update(session_id: Int, x: Float, y: Float, drop_target_node_id: Int) -> Int
+fn abi_ui_drag_update(session_id: Int, x: Float, y: Float, drop_target_node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_drag_drop(session_id: Int, drop_target_node_id: Int) -> Int
+fn abi_ui_drag_drop(session_id: Int, drop_target_node_id: Int) -> Int
 
 @extern
-fn kain_native_ui_drag_active_node(session_id: Int) -> Int
+fn abi_ui_drag_active_node(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_drag_drop_target(session_id: Int) -> Int
+fn abi_ui_drag_drop_target(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_drag_x(session_id: Int) -> Float
+fn abi_ui_drag_x(session_id: Int) -> Float
 
 @extern
-fn kain_native_ui_drag_y(session_id: Int) -> Float
+fn abi_ui_drag_y(session_id: Int) -> Float
 
 @extern
-fn kain_native_ui_drag_payload(session_id: Int) -> String
+fn abi_ui_drag_payload(session_id: Int) -> String
 
 @extern
-fn kain_native_ui_menu_create(session_id: Int, key: String) -> Int
+fn abi_ui_menu_create(session_id: Int, key: String) -> Int
 
 @extern
-fn kain_native_ui_menu_add_item(session_id: Int, menu_id: Int, key: String, label: String, command_id: Int) -> Int
+fn abi_ui_menu_add_item(session_id: Int, menu_id: Int, key: String, label: String, command_id: Int) -> Int
 
 @extern
-fn kain_native_ui_menu_open(session_id: Int, menu_id: Int, x: Float, y: Float) -> Int
+fn abi_ui_menu_open(session_id: Int, menu_id: Int, x: Float, y: Float) -> Int
 
 @extern
-fn kain_native_ui_menu_active(session_id: Int) -> Int
+fn abi_ui_menu_active(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_menu_item_count(session_id: Int, menu_id: Int) -> Int
+fn abi_ui_menu_item_count(session_id: Int, menu_id: Int) -> Int
 
 @extern
-fn kain_native_ui_menu_item_label(session_id: Int, menu_id: Int, item_index: Int) -> String
+fn abi_ui_menu_item_label(session_id: Int, menu_id: Int, item_index: Int) -> String
 
 @extern
-fn kain_native_ui_menu_item_command(session_id: Int, menu_id: Int, item_index: Int) -> Int
+fn abi_ui_menu_item_command(session_id: Int, menu_id: Int, item_index: Int) -> Int
 
 @extern
-fn kain_native_ui_dialog_request(session_id: Int, kind: String, title: String, message: String) -> Int
+fn abi_ui_dialog_request(session_id: Int, kind: String, title: String, message: String) -> Int
 
 @extern
-fn kain_native_ui_dialog_active(session_id: Int) -> Int
+fn abi_ui_dialog_active(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_dialog_kind(session_id: Int, dialog_id: Int) -> String
+fn abi_ui_dialog_kind(session_id: Int, dialog_id: Int) -> String
 
 @extern
-fn kain_native_ui_dialog_title(session_id: Int, dialog_id: Int) -> String
+fn abi_ui_dialog_title(session_id: Int, dialog_id: Int) -> String
 
 @extern
-fn kain_native_ui_dialog_message(session_id: Int, dialog_id: Int) -> String
+fn abi_ui_dialog_message(session_id: Int, dialog_id: Int) -> String
 
 @extern
-fn kain_native_ui_dialog_respond(session_id: Int, dialog_id: Int, result: Int, response_text: String) -> Int
+fn abi_ui_dialog_respond(session_id: Int, dialog_id: Int, result: Int, response_text: String) -> Int
 
 @extern
-fn kain_native_ui_dialog_poll_response(session_id: Int) -> Int
+fn abi_ui_dialog_poll_response(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_dialog_response_text(session_id: Int) -> String
+fn abi_ui_dialog_response_text(session_id: Int) -> String
 
 @extern
-fn kain_native_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int
+fn abi_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int
 
 @extern
-fn kain_native_ui_hot_reload_commit(session_id: Int) -> Int
+fn abi_ui_hot_reload_commit(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_hot_reload_generation(session_id: Int) -> Int
+fn abi_ui_hot_reload_generation(session_id: Int) -> Int
 
 @extern
-fn kain_native_ui_hot_reload_key(session_id: Int) -> String
+fn abi_ui_hot_reload_key(session_id: Int) -> String
 
 pub fn native_ui_reset() -> Int:
-    return kain_native_ui_reset()
+    return abi_ui_reset()
 
 pub fn native_ui_session_create(app_name: String, width: Int, height: Int) -> Int:
-    return kain_native_ui_session_create(app_name, width, height)
+    return abi_ui_session_create(app_name, width, height)
 
 pub fn native_ui_session_destroy(session_id: Int) -> Int:
-    return kain_native_ui_session_destroy(session_id)
+    return abi_ui_session_destroy(session_id)
 
 pub fn native_ui_session_count() -> Int:
-    return kain_native_ui_session_count()
+    return abi_ui_session_count()
 
 pub fn native_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int:
-    return kain_native_ui_window_open(session_id, title, width, height)
+    return abi_ui_window_open(session_id, title, width, height)
 
 pub fn native_ui_window_close(session_id: Int) -> Int:
-    return kain_native_ui_window_close(session_id)
+    return abi_ui_window_close(session_id)
 
 pub fn native_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int:
-    return kain_native_ui_begin_frame(session_id, delta_ms)
+    return abi_ui_begin_frame(session_id, delta_ms)
 
 pub fn native_ui_end_frame(session_id: Int) -> Int:
-    return kain_native_ui_end_frame(session_id)
+    return abi_ui_end_frame(session_id)
 
 pub fn native_ui_present(session_id: Int) -> Int:
-    return kain_native_ui_present(session_id)
+    return abi_ui_present(session_id)
 
 pub fn native_ui_frame_index(session_id: Int) -> Int:
-    return kain_native_ui_frame_index(session_id)
+    return abi_ui_frame_index(session_id)
 
 pub fn native_ui_last_presented_frame(session_id: Int) -> Int:
-    return kain_native_ui_last_presented_frame(session_id)
+    return abi_ui_last_presented_frame(session_id)
 
 pub fn native_ui_node_create(session_id: Int, kind: String) -> Int:
-    return kain_native_ui_node_create(session_id, kind)
+    return abi_ui_node_create(session_id, kind)
 
 pub fn native_ui_node_destroy(session_id: Int, node_id: Int) -> Int:
-    return kain_native_ui_node_destroy(session_id, node_id)
+    return abi_ui_node_destroy(session_id, node_id)
 
 pub fn native_ui_node_count(session_id: Int) -> Int:
-    return kain_native_ui_node_count(session_id)
+    return abi_ui_node_count(session_id)
 
 pub fn native_ui_node_exists(session_id: Int, node_id: Int) -> Int:
-    return kain_native_ui_node_exists(session_id, node_id)
+    return abi_ui_node_exists(session_id, node_id)
 
 pub fn native_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int:
-    return kain_native_ui_node_set_parent(session_id, node_id, parent_id)
+    return abi_ui_node_set_parent(session_id, node_id, parent_id)
 
 pub fn native_ui_node_parent(session_id: Int, node_id: Int) -> Int:
-    return kain_native_ui_node_parent(session_id, node_id)
+    return abi_ui_node_parent(session_id, node_id)
 
 pub fn native_ui_node_child_count(session_id: Int, node_id: Int) -> Int:
-    return kain_native_ui_node_child_count(session_id, node_id)
+    return abi_ui_node_child_count(session_id, node_id)
 
 pub fn native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int:
-    return kain_native_ui_node_set_rect(session_id, node_id, x, y, width, height)
+    return abi_ui_node_set_rect(session_id, node_id, x, y, width, height)
 
 pub fn native_ui_node_x(session_id: Int, node_id: Int) -> Float:
-    return kain_native_ui_node_x(session_id, node_id)
+    return abi_ui_node_x(session_id, node_id)
 
 pub fn native_ui_node_y(session_id: Int, node_id: Int) -> Float:
-    return kain_native_ui_node_y(session_id, node_id)
+    return abi_ui_node_y(session_id, node_id)
 
 pub fn native_ui_node_width(session_id: Int, node_id: Int) -> Float:
-    return kain_native_ui_node_width(session_id, node_id)
+    return abi_ui_node_width(session_id, node_id)
 
 pub fn native_ui_node_height(session_id: Int, node_id: Int) -> Float:
-    return kain_native_ui_node_height(session_id, node_id)
+    return abi_ui_node_height(session_id, node_id)
 
 pub fn native_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int:
-    return kain_native_ui_node_set_text(session_id, node_id, text)
+    return abi_ui_node_set_text(session_id, node_id, text)
 
 pub fn native_ui_node_text(session_id: Int, node_id: Int) -> String:
-    return kain_native_ui_node_text(session_id, node_id)
+    return abi_ui_node_text(session_id, node_id)
 
 pub fn native_ui_node_kind(session_id: Int, node_id: Int) -> String:
-    return kain_native_ui_node_kind(session_id, node_id)
+    return abi_ui_node_kind(session_id, node_id)
 
 pub fn native_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int:
-    return kain_native_ui_node_set_flag(session_id, node_id, flag, enabled)
+    return abi_ui_node_set_flag(session_id, node_id, flag, enabled)
 
 pub fn native_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int:
-    return kain_native_ui_node_has_flag(session_id, node_id, flag)
+    return abi_ui_node_has_flag(session_id, node_id, flag)
 
 pub fn native_ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
-    return kain_native_ui_node_set_style_i64(session_id, node_id, key, value)
+    return abi_ui_node_set_style_i64(session_id, node_id, key, value)
 
 pub fn native_ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
-    return kain_native_ui_node_set_style_f64(session_id, node_id, key, value)
+    return abi_ui_node_set_style_f64(session_id, node_id, key, value)
 
 pub fn native_ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
-    return kain_native_ui_node_set_style_string(session_id, node_id, key, value)
+    return abi_ui_node_set_style_string(session_id, node_id, key, value)
 
 pub fn native_ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    return kain_native_ui_node_style_i64(session_id, node_id, key, fallback)
+    return abi_ui_node_style_i64(session_id, node_id, key, fallback)
 
 pub fn native_ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
-    return kain_native_ui_node_style_f64(session_id, node_id, key, fallback)
+    return abi_ui_node_style_f64(session_id, node_id, key, fallback)
 
 pub fn native_ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
-    return kain_native_ui_node_style_string(session_id, node_id, key, fallback)
+    return abi_ui_node_style_string(session_id, node_id, key, fallback)
 
 pub fn native_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
-    return kain_native_ui_node_set_state_i64(session_id, node_id, key, value)
+    return abi_ui_node_set_state_i64(session_id, node_id, key, value)
 
 pub fn native_ui_node_set_state_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
-    return kain_native_ui_node_set_state_f64(session_id, node_id, key, value)
+    return abi_ui_node_set_state_f64(session_id, node_id, key, value)
 
 pub fn native_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
-    return kain_native_ui_node_set_state_string(session_id, node_id, key, value)
+    return abi_ui_node_set_state_string(session_id, node_id, key, value)
 
 pub fn native_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    return kain_native_ui_node_state_i64(session_id, node_id, key, fallback)
+    return abi_ui_node_state_i64(session_id, node_id, key, fallback)
 
 pub fn native_ui_node_state_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
-    return kain_native_ui_node_state_f64(session_id, node_id, key, fallback)
+    return abi_ui_node_state_f64(session_id, node_id, key, fallback)
 
 pub fn native_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
-    return kain_native_ui_node_state_string(session_id, node_id, key, fallback)
+    return abi_ui_node_state_string(session_id, node_id, key, fallback)
 
 pub fn native_ui_state_count(session_id: Int) -> Int:
-    return kain_native_ui_state_count(session_id)
+    return abi_ui_state_count(session_id)
 
 pub fn native_ui_focus(session_id: Int, node_id: Int) -> Int:
-    return kain_native_ui_focus(session_id, node_id)
+    return abi_ui_focus(session_id, node_id)
 
 pub fn native_ui_focused_node(session_id: Int) -> Int:
-    return kain_native_ui_focused_node(session_id)
+    return abi_ui_focused_node(session_id)
 
 pub fn native_ui_hit_test(session_id: Int, x: Float, y: Float) -> Int:
-    return kain_native_ui_hit_test(session_id, x, y)
+    return abi_ui_hit_test(session_id, x, y)
 
 pub fn native_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int:
-    return kain_native_ui_mark_dirty(session_id, node_id, reason)
+    return abi_ui_mark_dirty(session_id, node_id, reason)
 
 pub fn native_ui_dirty_count(session_id: Int) -> Int:
-    return kain_native_ui_dirty_count(session_id)
+    return abi_ui_dirty_count(session_id)
 
 pub fn native_ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int:
-    return kain_native_ui_push_event(session_id, kind, target_node_id, x, y, key_code, text)
+    return abi_ui_push_event(session_id, kind, target_node_id, x, y, key_code, text)
 
 pub fn native_ui_poll_event(session_id: Int) -> Int:
-    return kain_native_ui_poll_event(session_id)
+    return abi_ui_poll_event(session_id)
 
 pub fn native_ui_event_kind(session_id: Int) -> String:
-    return kain_native_ui_event_kind(session_id)
+    return abi_ui_event_kind(session_id)
 
 pub fn native_ui_event_target(session_id: Int) -> Int:
-    return kain_native_ui_event_target(session_id)
+    return abi_ui_event_target(session_id)
 
 pub fn native_ui_event_x(session_id: Int) -> Float:
-    return kain_native_ui_event_x(session_id)
+    return abi_ui_event_x(session_id)
 
 pub fn native_ui_event_y(session_id: Int) -> Float:
-    return kain_native_ui_event_y(session_id)
+    return abi_ui_event_y(session_id)
 
 pub fn native_ui_event_key_code(session_id: Int) -> Int:
-    return kain_native_ui_event_key_code(session_id)
+    return abi_ui_event_key_code(session_id)
 
 pub fn native_ui_event_text(session_id: Int) -> String:
-    return kain_native_ui_event_text(session_id)
+    return abi_ui_event_text(session_id)
 
 pub fn native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return kain_native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
+    return abi_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
 
 pub fn native_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int:
-    return kain_native_ui_draw_text(session_id, node_id, font_resource_id, x, y, text, style_key)
+    return abi_ui_draw_text(session_id, node_id, font_resource_id, x, y, text, style_key)
 
 pub fn native_ui_draw_command_count(session_id: Int) -> Int:
-    return kain_native_ui_draw_command_count(session_id)
+    return abi_ui_draw_command_count(session_id)
 
 pub fn native_ui_draw_command_kind(session_id: Int, command_index: Int) -> String:
-    return kain_native_ui_draw_command_kind(session_id, command_index)
+    return abi_ui_draw_command_kind(session_id, command_index)
 
 pub fn native_ui_draw_command_node(session_id: Int, command_index: Int) -> Int:
-    return kain_native_ui_draw_command_node(session_id, command_index)
+    return abi_ui_draw_command_node(session_id, command_index)
 
 pub fn native_ui_host_attach(session_id: Int, backend_id: String) -> Int:
-    return kain_native_ui_host_attach(session_id, backend_id)
+    return abi_ui_host_attach(session_id, backend_id)
 
 pub fn native_ui_host_pump(session_id: Int) -> Int:
-    return kain_native_ui_host_pump(session_id)
+    return abi_ui_host_pump(session_id)
 
 pub fn native_ui_host_present(session_id: Int) -> Int:
-    return kain_native_ui_host_present(session_id)
+    return abi_ui_host_present(session_id)
 
 pub fn native_ui_host_presented_draw_count(session_id: Int) -> Int:
-    return kain_native_ui_host_presented_draw_count(session_id)
+    return abi_ui_host_presented_draw_count(session_id)
 
 pub fn native_ui_host_frame_hash(session_id: Int) -> Int:
-    return kain_native_ui_host_frame_hash(session_id)
+    return abi_ui_host_frame_hash(session_id)
 
 pub fn native_ui_host_should_close(session_id: Int) -> Int:
-    return kain_native_ui_host_should_close(session_id)
+    return abi_ui_host_should_close(session_id)
 
 pub fn native_ui_host_backend(session_id: Int) -> String:
-    return kain_native_ui_host_backend(session_id)
+    return abi_ui_host_backend(session_id)
 
 pub fn native_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int:
-    return kain_native_ui_node_set_stable_key(session_id, node_id, stable_key)
+    return abi_ui_node_set_stable_key(session_id, node_id, stable_key)
 
 pub fn native_ui_node_stable_key(session_id: Int, node_id: Int) -> String:
-    return kain_native_ui_node_stable_key(session_id, node_id)
+    return abi_ui_node_stable_key(session_id, node_id)
 
 pub fn native_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int:
-    return kain_native_ui_node_find_by_stable_key(session_id, stable_key)
+    return abi_ui_node_find_by_stable_key(session_id, stable_key)
 
 pub fn native_ui_accessibility_set_role(session_id: Int, node_id: Int, role: String) -> Int:
-    return kain_native_ui_accessibility_set_role(session_id, node_id, role)
+    return abi_ui_accessibility_set_role(session_id, node_id, role)
 
 pub fn native_ui_accessibility_set_label(session_id: Int, node_id: Int, label: String) -> Int:
-    return kain_native_ui_accessibility_set_label(session_id, node_id, label)
+    return abi_ui_accessibility_set_label(session_id, node_id, label)
 
 pub fn native_ui_accessibility_role(session_id: Int, node_id: Int) -> String:
-    return kain_native_ui_accessibility_role(session_id, node_id)
+    return abi_ui_accessibility_role(session_id, node_id)
 
 pub fn native_ui_accessibility_label(session_id: Int, node_id: Int) -> String:
-    return kain_native_ui_accessibility_label(session_id, node_id)
+    return abi_ui_accessibility_label(session_id, node_id)
 
 pub fn native_ui_draw_command_resource(session_id: Int, command_index: Int) -> Int:
-    return kain_native_ui_draw_command_resource(session_id, command_index)
+    return abi_ui_draw_command_resource(session_id, command_index)
 
 pub fn native_ui_draw_command_x(session_id: Int, command_index: Int) -> Float:
-    return kain_native_ui_draw_command_x(session_id, command_index)
+    return abi_ui_draw_command_x(session_id, command_index)
 
 pub fn native_ui_draw_command_y(session_id: Int, command_index: Int) -> Float:
-    return kain_native_ui_draw_command_y(session_id, command_index)
+    return abi_ui_draw_command_y(session_id, command_index)
 
 pub fn native_ui_draw_command_width(session_id: Int, command_index: Int) -> Float:
-    return kain_native_ui_draw_command_width(session_id, command_index)
+    return abi_ui_draw_command_width(session_id, command_index)
 
 pub fn native_ui_draw_command_height(session_id: Int, command_index: Int) -> Float:
-    return kain_native_ui_draw_command_height(session_id, command_index)
+    return abi_ui_draw_command_height(session_id, command_index)
 
 pub fn native_ui_draw_command_text(session_id: Int, command_index: Int) -> String:
-    return kain_native_ui_draw_command_text(session_id, command_index)
+    return abi_ui_draw_command_text(session_id, command_index)
 
 pub fn native_ui_draw_command_style(session_id: Int, command_index: Int) -> String:
-    return kain_native_ui_draw_command_style(session_id, command_index)
+    return abi_ui_draw_command_style(session_id, command_index)
 
 pub fn native_ui_draw_command_font(session_id: Int, command_index: Int) -> Int:
-    return kain_native_ui_draw_command_font(session_id, command_index)
+    return abi_ui_draw_command_font(session_id, command_index)
 
 pub fn native_ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int:
-    return kain_native_ui_resource_create(session_id, resource_type, key, width, height, byte_length)
+    return abi_ui_resource_create(session_id, resource_type, key, width, height, byte_length)
 
 pub fn native_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int:
-    return kain_native_ui_font_create(session_id, key, family, size)
+    return abi_ui_font_create(session_id, key, family, size)
 
 pub fn native_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int:
-    return kain_native_ui_texture_create(session_id, key, width, height, format, byte_length)
+    return abi_ui_texture_create(session_id, key, width, height, format, byte_length)
 
 pub fn native_ui_canvas_create(session_id: Int, key: String, width: Int, height: Int) -> Int:
-    return kain_native_ui_canvas_create(session_id, key, width, height)
+    return abi_ui_canvas_create(session_id, key, width, height)
 
 pub fn native_ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int:
-    return kain_native_ui_shader_create(session_id, key, stage, byte_length)
+    return abi_ui_shader_create(session_id, key, stage, byte_length)
 
 pub fn native_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int:
-    return kain_native_ui_resource_set_bytes_hex(session_id, resource_id, bytes_hex)
+    return abi_ui_resource_set_bytes_hex(session_id, resource_id, bytes_hex)
 
 pub fn native_ui_resource_count(session_id: Int) -> Int:
-    return kain_native_ui_resource_count(session_id)
+    return abi_ui_resource_count(session_id)
 
 pub fn native_ui_resource_exists(session_id: Int, resource_id: Int) -> Int:
-    return kain_native_ui_resource_exists(session_id, resource_id)
+    return abi_ui_resource_exists(session_id, resource_id)
 
 pub fn native_ui_resource_type(session_id: Int, resource_id: Int) -> String:
-    return kain_native_ui_resource_type(session_id, resource_id)
+    return abi_ui_resource_type(session_id, resource_id)
 
 pub fn native_ui_resource_key(session_id: Int, resource_id: Int) -> String:
-    return kain_native_ui_resource_key(session_id, resource_id)
+    return abi_ui_resource_key(session_id, resource_id)
 
 pub fn native_ui_resource_width(session_id: Int, resource_id: Int) -> Int:
-    return kain_native_ui_resource_width(session_id, resource_id)
+    return abi_ui_resource_width(session_id, resource_id)
 
 pub fn native_ui_resource_height(session_id: Int, resource_id: Int) -> Int:
-    return kain_native_ui_resource_height(session_id, resource_id)
+    return abi_ui_resource_height(session_id, resource_id)
 
 pub fn native_ui_resource_byte_length(session_id: Int, resource_id: Int) -> Int:
-    return kain_native_ui_resource_byte_length(session_id, resource_id)
+    return abi_ui_resource_byte_length(session_id, resource_id)
 
 pub fn native_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return kain_native_ui_text_measure_width(session_id, font_resource_id, text)
+    return abi_ui_text_measure_width(session_id, font_resource_id, text)
 
 pub fn native_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return kain_native_ui_text_measure_height(session_id, font_resource_id, text)
+    return abi_ui_text_measure_height(session_id, font_resource_id, text)
 
 pub fn native_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return kain_native_ui_draw_resource(session_id, node_id, resource_id, x, y, width, height, style_key)
+    return abi_ui_draw_resource(session_id, node_id, resource_id, x, y, width, height, style_key)
 
 pub fn native_ui_clipboard_set_text(session_id: Int, text: String) -> Int:
-    return kain_native_ui_clipboard_set_text(session_id, text)
+    return abi_ui_clipboard_set_text(session_id, text)
 
 pub fn native_ui_clipboard_text(session_id: Int) -> String:
-    return kain_native_ui_clipboard_text(session_id)
+    return abi_ui_clipboard_text(session_id)
 
 pub fn native_ui_ime_begin(session_id: Int, node_id: Int) -> Int:
-    return kain_native_ui_ime_begin(session_id, node_id)
+    return abi_ui_ime_begin(session_id, node_id)
 
 pub fn native_ui_ime_commit_text(session_id: Int, text: String) -> Int:
-    return kain_native_ui_ime_commit_text(session_id, text)
+    return abi_ui_ime_commit_text(session_id, text)
 
 pub fn native_ui_ime_end(session_id: Int) -> Int:
-    return kain_native_ui_ime_end(session_id)
+    return abi_ui_ime_end(session_id)
 
 pub fn native_ui_ime_active_node(session_id: Int) -> Int:
-    return kain_native_ui_ime_active_node(session_id)
+    return abi_ui_ime_active_node(session_id)
 
 pub fn native_ui_ime_text(session_id: Int) -> String:
-    return kain_native_ui_ime_text(session_id)
+    return abi_ui_ime_text(session_id)
 
 pub fn native_ui_drag_begin(session_id: Int, node_id: Int, payload: String, x: Float, y: Float) -> Int:
-    return kain_native_ui_drag_begin(session_id, node_id, payload, x, y)
+    return abi_ui_drag_begin(session_id, node_id, payload, x, y)
 
 pub fn native_ui_drag_update(session_id: Int, x: Float, y: Float, drop_target_node_id: Int) -> Int:
-    return kain_native_ui_drag_update(session_id, x, y, drop_target_node_id)
+    return abi_ui_drag_update(session_id, x, y, drop_target_node_id)
 
 pub fn native_ui_drag_drop(session_id: Int, drop_target_node_id: Int) -> Int:
-    return kain_native_ui_drag_drop(session_id, drop_target_node_id)
+    return abi_ui_drag_drop(session_id, drop_target_node_id)
 
 pub fn native_ui_drag_active_node(session_id: Int) -> Int:
-    return kain_native_ui_drag_active_node(session_id)
+    return abi_ui_drag_active_node(session_id)
 
 pub fn native_ui_drag_drop_target(session_id: Int) -> Int:
-    return kain_native_ui_drag_drop_target(session_id)
+    return abi_ui_drag_drop_target(session_id)
 
 pub fn native_ui_drag_x(session_id: Int) -> Float:
-    return kain_native_ui_drag_x(session_id)
+    return abi_ui_drag_x(session_id)
 
 pub fn native_ui_drag_y(session_id: Int) -> Float:
-    return kain_native_ui_drag_y(session_id)
+    return abi_ui_drag_y(session_id)
 
 pub fn native_ui_drag_payload(session_id: Int) -> String:
-    return kain_native_ui_drag_payload(session_id)
+    return abi_ui_drag_payload(session_id)
 
 pub fn native_ui_menu_create(session_id: Int, key: String) -> Int:
-    return kain_native_ui_menu_create(session_id, key)
+    return abi_ui_menu_create(session_id, key)
 
 pub fn native_ui_menu_add_item(session_id: Int, menu_id: Int, key: String, label: String, command_id: Int) -> Int:
-    return kain_native_ui_menu_add_item(session_id, menu_id, key, label, command_id)
+    return abi_ui_menu_add_item(session_id, menu_id, key, label, command_id)
 
 pub fn native_ui_menu_open(session_id: Int, menu_id: Int, x: Float, y: Float) -> Int:
-    return kain_native_ui_menu_open(session_id, menu_id, x, y)
+    return abi_ui_menu_open(session_id, menu_id, x, y)
 
 pub fn native_ui_menu_active(session_id: Int) -> Int:
-    return kain_native_ui_menu_active(session_id)
+    return abi_ui_menu_active(session_id)
 
 pub fn native_ui_menu_item_count(session_id: Int, menu_id: Int) -> Int:
-    return kain_native_ui_menu_item_count(session_id, menu_id)
+    return abi_ui_menu_item_count(session_id, menu_id)
 
 pub fn native_ui_menu_item_label(session_id: Int, menu_id: Int, item_index: Int) -> String:
-    return kain_native_ui_menu_item_label(session_id, menu_id, item_index)
+    return abi_ui_menu_item_label(session_id, menu_id, item_index)
 
 pub fn native_ui_menu_item_command(session_id: Int, menu_id: Int, item_index: Int) -> Int:
-    return kain_native_ui_menu_item_command(session_id, menu_id, item_index)
+    return abi_ui_menu_item_command(session_id, menu_id, item_index)
 
 pub fn native_ui_dialog_request(session_id: Int, kind: String, title: String, message: String) -> Int:
-    return kain_native_ui_dialog_request(session_id, kind, title, message)
+    return abi_ui_dialog_request(session_id, kind, title, message)
 
 pub fn native_ui_dialog_active(session_id: Int) -> Int:
-    return kain_native_ui_dialog_active(session_id)
+    return abi_ui_dialog_active(session_id)
 
 pub fn native_ui_dialog_kind(session_id: Int, dialog_id: Int) -> String:
-    return kain_native_ui_dialog_kind(session_id, dialog_id)
+    return abi_ui_dialog_kind(session_id, dialog_id)
 
 pub fn native_ui_dialog_title(session_id: Int, dialog_id: Int) -> String:
-    return kain_native_ui_dialog_title(session_id, dialog_id)
+    return abi_ui_dialog_title(session_id, dialog_id)
 
 pub fn native_ui_dialog_message(session_id: Int, dialog_id: Int) -> String:
-    return kain_native_ui_dialog_message(session_id, dialog_id)
+    return abi_ui_dialog_message(session_id, dialog_id)
 
 pub fn native_ui_dialog_respond(session_id: Int, dialog_id: Int, result: Int, response_text: String) -> Int:
-    return kain_native_ui_dialog_respond(session_id, dialog_id, result, response_text)
+    return abi_ui_dialog_respond(session_id, dialog_id, result, response_text)
 
 pub fn native_ui_dialog_poll_response(session_id: Int) -> Int:
-    return kain_native_ui_dialog_poll_response(session_id)
+    return abi_ui_dialog_poll_response(session_id)
 
 pub fn native_ui_dialog_response_text(session_id: Int) -> String:
-    return kain_native_ui_dialog_response_text(session_id)
+    return abi_ui_dialog_response_text(session_id)
 
 pub fn native_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int:
-    return kain_native_ui_hot_reload_begin(session_id, revision_key)
+    return abi_ui_hot_reload_begin(session_id, revision_key)
 
 pub fn native_ui_hot_reload_commit(session_id: Int) -> Int:
-    return kain_native_ui_hot_reload_commit(session_id)
+    return abi_ui_hot_reload_commit(session_id)
 
 pub fn native_ui_hot_reload_generation(session_id: Int) -> Int:
-    return kain_native_ui_hot_reload_generation(session_id)
+    return abi_ui_hot_reload_generation(session_id)
 
 pub fn native_ui_hot_reload_key(session_id: Int) -> String:
-    return kain_native_ui_hot_reload_key(session_id)
+    return abi_ui_hot_reload_key(session_id)
 
 pub fn ui_layout_column_y(index_offset: Float, start_y: Float, item_height: Float, gap: Float) -> Float:
     return start_y + ((item_height + gap) * index_offset)

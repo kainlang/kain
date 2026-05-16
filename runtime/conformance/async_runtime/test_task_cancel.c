@@ -1,4 +1,4 @@
-#include "kain_runtime_async.h"
+#include "async.h"
 #include <stdio.h>
 
 typedef struct {

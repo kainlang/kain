@@ -9,8 +9,8 @@ tags:
 - utf8
 - buffer-growth
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
-  symbol: kain_native_process_utf8_buffer_append_text
+  path: D:\Kain-Lang\runtime\native\src\core\process_system.c
+  symbol: abi_process_utf8_buffer_append_text
   start_line: 623
   reason: buffer->length + text_length + 1 is checked before reserve
 case:

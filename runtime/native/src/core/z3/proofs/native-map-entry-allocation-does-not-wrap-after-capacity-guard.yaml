@@ -9,7 +9,7 @@ tags:
 - allocation
 - overflow
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_core.c
+  path: D:\Kain-Lang\runtime\native\src\core\core.c
   symbol: map_set
   start_line: 1169
   reason: map_set rejects `new_capacity > SIZE_MAX / sizeof(MapEntry)` before resize

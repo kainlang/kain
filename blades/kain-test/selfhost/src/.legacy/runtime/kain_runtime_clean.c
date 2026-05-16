@@ -2,7 +2,7 @@
 // Kain Runtime Library
 // ============================================================================
 // This provides the runtime functions that LLVM-compiled Kain programs need.
-// Compile with: clang -c kain_runtime.c -o kain_runtime.o
+// Compile with: clang -c runtime.c -o kain_runtime.o
 // Link with:    clang program.ll kain_runtime.o -o program
 // ============================================================================
 

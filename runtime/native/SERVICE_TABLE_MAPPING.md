@@ -10,25 +10,25 @@ For the end-to-end contract flow, also see [C_RUNTIME_CONTRACT_PIPELINE.md](./C_
 
 The following headers define the canonical runtime service table ABI:
 
-1. **kain_runtime_diagnostics.h** - Structured diagnostics and error reporting
-2. **kain_runtime_services.h** - Service registry and capability discovery
-3. **kain_runtime_actor.h** - Actor runtime ABI (spawn, mailbox, supervision)
-4. **kain_runtime_async.h** - Async/task/timer runtime ABI
-5. **kain_runtime_reflection.h** - Reflection payload loading and type metadata
-6. **kain_runtime_compatibility.h** - Hot reload, versioning, and migration
+1. **diagnostics.h** - Structured diagnostics and error reporting
+2. **services.h** - Service registry and capability discovery
+3. **actor.h** - Actor runtime ABI (spawn, mailbox, supervision)
+4. **async.h** - Async/task/timer runtime ABI
+5. **reflection.h** - Reflection payload loading and type metadata
+6. **compatibility.h** - Hot reload, versioning, and migration
 
 ## Existing Service Mapping
 
-### Current Services (from kain_runtime_contract.h)
+### Current Services (from contract.h)
 
 | Old Service Key | Old Mask | Core/Optional | New Service Key | New Header |
 |----------------|----------|---------------|-----------------|------------|
-| `native.app-host` | `KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST` | Core | `platform.app-host` | kain_runtime_services.h |
-| `native.input` | `KAIN_RUNTIME_SERVICE_NATIVE_INPUT` | Core | `platform.input` | kain_runtime_services.h |
-| `native.viewport` | `KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT` | Core | `gfx.viewport` | kain_runtime_services.h |
-| `native.asset.gltf` | `KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF` | Optional | `asset.gltf` | kain_runtime_services.h |
-| `native.ui.compiled-bundle` | `KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED` | Optional | `ui.bundle` | kain_runtime_services.h |
-| `native.compute` | `KAIN_RUNTIME_SERVICE_GFX_COMPUTE` | Optional | `gfx.compute` | kain_runtime_services.h |
+| `native.app-host` | `RUNTIME_SERVICE_NATIVE_APP_HOST` | Core | `platform.app-host` | services.h |
+| `native.input` | `RUNTIME_SERVICE_NATIVE_INPUT` | Core | `platform.input` | services.h |
+| `native.viewport` | `RUNTIME_SERVICE_NATIVE_VIEWPORT` | Core | `gfx.viewport` | services.h |
+| `native.asset.gltf` | `RUNTIME_SERVICE_NATIVE_ASSET_GLTF` | Optional | `asset.gltf` | services.h |
+| `native.ui.compiled-bundle` | `RUNTIME_SERVICE_NATIVE_UI_COMPILED` | Optional | `ui.bundle` | services.h |
+| `native.compute` | `RUNTIME_SERVICE_GFX_COMPUTE` | Optional | `gfx.compute` | services.h |
 
 ### New Service Families
 
@@ -86,16 +86,16 @@ The canonical service table introduces additional service families for future ru
 
 ### Backward Compatibility
 
-The existing service mask constants in `kain_runtime_contract.h` will be preserved during the transition:
+The existing service mask constants in `contract.h` will be preserved during the transition:
 
 ```c
 // Legacy service masks (preserved for compatibility)
-#define KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST        (1u << 0)
-#define KAIN_RUNTIME_SERVICE_NATIVE_INPUT           (1u << 1)
-#define KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT        (1u << 2)
-#define KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF      (1u << 3)
-#define KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED     (1u << 4)
-#define KAIN_RUNTIME_SERVICE_GFX_COMPUTE            (1u << 5)
+#define RUNTIME_SERVICE_NATIVE_APP_HOST        (1u << 0)
+#define RUNTIME_SERVICE_NATIVE_INPUT           (1u << 1)
+#define RUNTIME_SERVICE_NATIVE_VIEWPORT        (1u << 2)
+#define RUNTIME_SERVICE_NATIVE_ASSET_GLTF      (1u << 3)
+#define RUNTIME_SERVICE_NATIVE_UI_COMPILED     (1u << 4)
+#define RUNTIME_SERVICE_GFX_COMPUTE            (1u << 5)
 ```
 
 These will be mapped to the new service registry during Task 1.3 implementation.

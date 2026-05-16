@@ -9,8 +9,8 @@ tags:
 - http
 - request-body
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
-  symbol: kain_native_net_parse_http_request
+  path: D:\Kain-Lang\runtime\native\src\core\net_system.c
+  symbol: abi_net_parse_http_request
   start_line: 704
   reason: header_length + body_length must fit within length before body extraction
 case:

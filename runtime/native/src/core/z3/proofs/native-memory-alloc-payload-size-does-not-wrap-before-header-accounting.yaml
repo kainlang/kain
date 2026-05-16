@@ -9,7 +9,7 @@ tags:
 - allocation
 - overflow
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_memory.c
+  path: D:\Kain-Lang\runtime\native\src\core\memory.c
   symbol: __kain_alloc
   start_line: 248
   reason: payload_size is guarded by kain_mul_overflow_size before allocation sizing

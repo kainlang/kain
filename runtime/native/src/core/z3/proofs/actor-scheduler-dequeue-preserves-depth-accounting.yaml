@@ -9,7 +9,7 @@ tags:
 - queue-depth
 - invariant
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_scheduler_dequeue
   start_line: 1897
   reason: queue_depth-- and total_dequeued++ must remain coherent

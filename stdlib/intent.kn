@@ -1,89 +1,89 @@
 @extern
-fn kain_native_entangle_reset() -> Int
+fn abi_entangle_reset() -> Int
 
 @extern
-fn kain_native_entangle_registered_count() -> Int
+fn abi_entangle_registered_count() -> Int
 
 @extern
-fn kain_native_entangle_register(authority: String, mirror: String, policy: String, type_name: String) -> Int
+fn abi_entangle_register(authority: String, mirror: String, policy: String, type_name: String) -> Int
 
 @extern
-fn kain_native_entangle_get_authority(index: Int) -> String
+fn abi_entangle_get_authority(index: Int) -> String
 
 @extern
-fn kain_native_entangle_get_mirror(index: Int) -> String
+fn abi_entangle_get_mirror(index: Int) -> String
 
 @extern
-fn kain_native_entangle_get_policy(index: Int) -> String
+fn abi_entangle_get_policy(index: Int) -> String
 
 @extern
-fn kain_native_entangle_get_type_name(index: Int) -> String
+fn abi_entangle_get_type_name(index: Int) -> String
 
 @extern
-fn kain_native_patch_journal_count() -> Int
+fn abi_patch_journal_count() -> Int
 
 @extern
-fn kain_native_patch_last_path() -> String
+fn abi_patch_last_path() -> String
 
 @extern
-fn kain_native_entangle_propagation_count() -> Int
+fn abi_entangle_propagation_count() -> Int
 
 @extern
-fn kain_native_entangle_last_authority() -> String
+fn abi_entangle_last_authority() -> String
 
 @extern
-fn kain_native_entangle_last_mirror() -> String
+fn abi_entangle_last_mirror() -> String
 
 @extern
-fn kain_native_converge_mismatch_count() -> Int
+fn abi_converge_mismatch_count() -> Int
 
 @extern
-fn kain_native_orchestrate_stage_count() -> Int
+fn abi_orchestrate_stage_count() -> Int
 
 pub fn native_entangle_reset() -> Int:
-    return kain_native_entangle_reset()
+    return abi_entangle_reset()
 
 pub fn native_entangle_registered_count() -> Int:
-    return kain_native_entangle_registered_count()
+    return abi_entangle_registered_count()
 
 pub fn native_entangle_register(authority: String, mirror: String, policy: String, type_name: String) -> Int:
-    return kain_native_entangle_register(authority, mirror, policy, type_name)
+    return abi_entangle_register(authority, mirror, policy, type_name)
 
 pub fn native_entangle_has_bindings() -> Bool:
     return native_entangle_registered_count() > 0
 
 pub fn native_entangle_get_authority(index: Int) -> String:
-    return kain_native_entangle_get_authority(index)
+    return abi_entangle_get_authority(index)
 
 pub fn native_entangle_get_mirror(index: Int) -> String:
-    return kain_native_entangle_get_mirror(index)
+    return abi_entangle_get_mirror(index)
 
 pub fn native_entangle_get_policy(index: Int) -> String:
-    return kain_native_entangle_get_policy(index)
+    return abi_entangle_get_policy(index)
 
 pub fn native_entangle_get_type_name(index: Int) -> String:
-    return kain_native_entangle_get_type_name(index)
+    return abi_entangle_get_type_name(index)
 
 pub fn native_patch_journal_count() -> Int:
-    return kain_native_patch_journal_count()
+    return abi_patch_journal_count()
 
 pub fn native_patch_last_path() -> String:
-    return kain_native_patch_last_path()
+    return abi_patch_last_path()
 
 pub fn native_entangle_propagation_count() -> Int:
-    return kain_native_entangle_propagation_count()
+    return abi_entangle_propagation_count()
 
 pub fn native_entangle_last_authority() -> String:
-    return kain_native_entangle_last_authority()
+    return abi_entangle_last_authority()
 
 pub fn native_entangle_last_mirror() -> String:
-    return kain_native_entangle_last_mirror()
+    return abi_entangle_last_mirror()
 
 pub fn native_converge_mismatch_count() -> Int:
-    return kain_native_converge_mismatch_count()
+    return abi_converge_mismatch_count()
 
 pub fn native_orchestrate_stage_count() -> Int:
-    return kain_native_orchestrate_stage_count()
+    return abi_orchestrate_stage_count()
 
 pub fn native_law_status(valid: Bool) -> Int:
     if valid:

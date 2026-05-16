@@ -10,8 +10,8 @@ tags:
 - string-copy
 - bounds
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_native_stdlib.c
-  symbol: kain_native_fs_create_parent_dirs
+  path: D:\Kain-Lang\runtime\native\src\core\stdlib_abi.c
+  symbol: abi_fs_create_parent_dirs
   start_line: 1081
   reason: length < sizeof(buffer) is enforced before memcpy(buffer, path, length + 1)
 case:

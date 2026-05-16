@@ -1,0 +1,45 @@
+version: 1
+id: ui.abi_ui_node_create_generic_size_add
+kind: size_add_ok
+description: Size addition overflow in `abi_ui_node_create`
+tags:
+- bitwise
+- bounds
+- overflow
+- pointer
+source:
+  path: D:\Kain-Lang\runtime\native\src\ui\ui_system.c
+  language: c
+  symbol: abi_ui_node_create
+  signature: int64_t abi_ui_node_create(int64_t session_id, const char* kind)
+    {
+  start_line: 914
+  end_line: 948
+  template_id: generic-size-add
+  template_origin: builtin
+  template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml
+  template_engine: regex
+  reason: Size addition overflow in `abi_ui_node_create`
+  bindings: {}
+  binding_spans: {}
+case:
+  size_bits: 64
+  addends:
+  - left
+  - right
+  declarations:
+  - name: left
+    sort:
+      kind: int
+  - name: right
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - left
+    - 0
+  - op: ge
+    args:
+    - right
+    - 0

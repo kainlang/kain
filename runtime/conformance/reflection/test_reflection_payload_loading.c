@@ -6,8 +6,8 @@
  * type/item tables.
  */
 
-#include "../../native/include/kain_runtime_reflection.h"
-#include "../../native/include/kain_runtime_diagnostics.h"
+#include "../../native/include/reflection.h"
+#include "../../native/include/diagnostics.h"
 
 #include <assert.h>
 #include <stdio.h>

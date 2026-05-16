@@ -9,7 +9,7 @@ tags:
 - bounded-queue
 - invariant
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_actor_send
   start_line: 688
   reason: mailbox capacity check before mailbox->count++

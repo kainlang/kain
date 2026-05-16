@@ -9,8 +9,8 @@ tags:
 - content-length
 - cast
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
-  symbol: kain_native_net_parse_content_length_header
+  path: D:\Kain-Lang\runtime\native\src\core\net_system.c
+  symbol: abi_net_parse_content_length_header
   start_line: 139
   reason: strict parser rejects signed Content-Length text before size_t use
 case:

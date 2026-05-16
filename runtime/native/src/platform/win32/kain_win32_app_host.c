@@ -1,4 +1,4 @@
-#include "../../../include/kain_runtime_win32.h"
+#include "../../../include/win32.h"
 
 #ifdef _WIN32
 static LRESULT CALLBACK kain_win32_app_window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {

@@ -1,41 +1,41 @@
 @extern
-fn kain_native_runtime_init() -> Int
+fn abi_runtime_init() -> Int
 
 @extern
-fn kain_native_runtime_shutdown() -> Int
+fn abi_runtime_shutdown() -> Int
 
 @extern
-fn kain_native_runtime_heap_validate() -> Int
+fn abi_runtime_heap_validate() -> Int
 
 @extern
-fn kain_native_cpu_feature_mask() -> Int
+fn abi_cpu_feature_mask() -> Int
 
 @extern
-fn kain_native_cpu_feature_fingerprint() -> Int
+fn abi_cpu_feature_fingerprint() -> Int
 
 @extern
-fn kain_native_cpu_capability_mask_for_key(capability_key: String) -> Int
+fn abi_cpu_capability_mask_for_key(capability_key: String) -> Int
 
 @extern
-fn kain_native_cpu_has_capability(capability_key: String) -> Int
+fn abi_cpu_has_capability(capability_key: String) -> Int
 
 @extern
-fn kain_native_converge_select_lane_for_key(converge_key: Int, shape_key: Int, eligible_mask: Int, fallback_lane: Int) -> Int
+fn abi_converge_select_lane_for_key(converge_key: Int, shape_key: Int, eligible_mask: Int, fallback_lane: Int) -> Int
 
 @extern
-fn kain_native_converge_commit_winner(converge_key: Int, shape_key: Int, winner_lane: Int) -> Int
+fn abi_converge_commit_winner(converge_key: Int, shape_key: Int, winner_lane: Int) -> Int
 
 @extern
-fn kain_native_converge_record_telemetry(converge_key: Int, lane_index: Int, elapsed_ns: Int, ok: Int, mismatch: Int) -> Int
+fn abi_converge_record_telemetry(converge_key: Int, lane_index: Int, elapsed_ns: Int, ok: Int, mismatch: Int) -> Int
 
 @extern
-fn kain_native_converge_telemetry_count() -> Int
+fn abi_converge_telemetry_count() -> Int
 
 @extern
-fn kain_native_converge_cache_probe_count() -> Int
+fn abi_converge_cache_probe_count() -> Int
 
 @extern
-fn kain_native_converge_cache_hit_count() -> Int
+fn abi_converge_cache_hit_count() -> Int
 
 @extern
 fn kain_machine_teleport_count() -> Int
@@ -44,43 +44,43 @@ fn kain_machine_teleport_count() -> Int
 fn kain_machine_teleport_last_token() -> Int
 
 pub fn native_runtime_init() -> Int:
-    return kain_native_runtime_init()
+    return abi_runtime_init()
 
 pub fn native_runtime_shutdown() -> Int:
-    return kain_native_runtime_shutdown()
+    return abi_runtime_shutdown()
 
 pub fn native_runtime_heap_validate() -> Int:
-    return kain_native_runtime_heap_validate()
+    return abi_runtime_heap_validate()
 
 pub fn native_cpu_feature_mask() -> Int:
-    return kain_native_cpu_feature_mask()
+    return abi_cpu_feature_mask()
 
 pub fn native_cpu_feature_fingerprint() -> Int:
-    return kain_native_cpu_feature_fingerprint()
+    return abi_cpu_feature_fingerprint()
 
 pub fn native_cpu_capability_mask(capability_key: String) -> Int:
-    return kain_native_cpu_capability_mask_for_key(capability_key)
+    return abi_cpu_capability_mask_for_key(capability_key)
 
 pub fn native_cpu_has_capability(capability_key: String) -> Int:
-    return kain_native_cpu_has_capability(capability_key)
+    return abi_cpu_has_capability(capability_key)
 
 pub fn native_converge_select_lane(converge_key: Int, shape_key: Int, eligible_mask: Int, fallback_lane: Int) -> Int:
-    return kain_native_converge_select_lane_for_key(converge_key, shape_key, eligible_mask, fallback_lane)
+    return abi_converge_select_lane_for_key(converge_key, shape_key, eligible_mask, fallback_lane)
 
 pub fn native_converge_commit_winner(converge_key: Int, shape_key: Int, winner_lane: Int) -> Int:
-    return kain_native_converge_commit_winner(converge_key, shape_key, winner_lane)
+    return abi_converge_commit_winner(converge_key, shape_key, winner_lane)
 
 pub fn native_converge_record_telemetry(converge_key: Int, lane_index: Int, elapsed_ns: Int, ok: Int, mismatch: Int) -> Int:
-    return kain_native_converge_record_telemetry(converge_key, lane_index, elapsed_ns, ok, mismatch)
+    return abi_converge_record_telemetry(converge_key, lane_index, elapsed_ns, ok, mismatch)
 
 pub fn native_converge_telemetry_count() -> Int:
-    return kain_native_converge_telemetry_count()
+    return abi_converge_telemetry_count()
 
 pub fn native_converge_cache_probe_count() -> Int:
-    return kain_native_converge_cache_probe_count()
+    return abi_converge_cache_probe_count()
 
 pub fn native_converge_cache_hit_count() -> Int:
-    return kain_native_converge_cache_hit_count()
+    return abi_converge_cache_hit_count()
 
 pub fn native_machine_teleport_count() -> Int:
     return kain_machine_teleport_count()

@@ -1,0 +1,45 @@
+version: 1
+id: ui.abi_ui_ensure_style_generic_size_add
+kind: size_add_ok
+description: Size addition overflow in `abi_ui_ensure_style`
+tags:
+- bitwise
+- bounds
+- overflow
+- pointer
+source:
+  path: D:\Kain-Lang\runtime\native\src\ui\ui_system.c
+  language: c
+  symbol: abi_ui_ensure_style
+  signature: static KainNativeUiStyleRecord* abi_ui_ensure_style(KainNativeUiSession*
+    session, int64_t node_id, const char* key) {
+  start_line: 409
+  end_line: 441
+  template_id: generic-size-add
+  template_origin: builtin
+  template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml
+  template_engine: regex
+  reason: Size addition overflow in `abi_ui_ensure_style`
+  bindings: {}
+  binding_spans: {}
+case:
+  size_bits: 64
+  addends:
+  - left
+  - right
+  declarations:
+  - name: left
+    sort:
+      kind: int
+  - name: right
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - left
+    - 0
+  - op: ge
+    args:
+    - right
+    - 0

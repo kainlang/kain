@@ -9,8 +9,8 @@ tags:
 - string-copy
 - bounds
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_entangle.c
-  symbol: kain_runtime_copy_entangle_text
+  path: D:\Kain-Lang\runtime\native\src\core\entangle.c
+  symbol: runtime_copy_entangle_text
   start_line: 8
   reason: len < dst_cap is enforced before copying len + 1 bytes
 case:

@@ -1,5 +1,5 @@
 ; Experimental proof for the async task/timer handle-index sidecars in
-; kain_runtime_async.c.
+; async.c.
 ; Claim: the SplitMix-style id mixer plus masked linear probe can never address
 ; outside the 128-entry handle-index tables.
 (set-logic QF_BV)

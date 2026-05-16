@@ -102,12 +102,12 @@ This implementation satisfies **Requirement 6.3**:
 
 ## Files Modified
 
-1. `runtime/native/include/kain_runtime_actor.h`
+1. `runtime/native/include/actor.h`
    - Added `kain_actor_demonitor()` API declaration
    - Enhanced documentation for monitor/link semantics
    - Documented exit reason encoding in messages
 
-2. `runtime/native/src/core/kain_runtime_actor.c`
+2. `runtime/native/src/core/actor.c`
    - Enhanced `kain_actor_monitor()` with idempotency check
    - Implemented `kain_actor_demonitor()` function
    - Enhanced `kain_actor_link()` for bidirectional storage

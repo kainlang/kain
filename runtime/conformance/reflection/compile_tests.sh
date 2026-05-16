@@ -61,10 +61,10 @@ echo "Compile timeout: ${COMPILE_TIMEOUT_SEC}s"
 echo ""
 
 RUNTIME_SOURCES=(
-    "$NATIVE_SRC/core/kain_runtime_version.c"
-    "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
-    "$NATIVE_SRC/core/kain_runtime_reflection.c"
-    "$NATIVE_SRC/core/kain_runtime_scene.c"
+    "$NATIVE_SRC/core/version.c"
+    "$NATIVE_SRC/core/diagnostics.c"
+    "$NATIVE_SRC/core/reflection.c"
+    "$NATIVE_SRC/core/scene.c"
 )
 
 compile_test() {

@@ -9,8 +9,8 @@ tags:
 - spec
 - environment
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
-  symbol: kain_native_process_spec_set_env
+  path: D:\Kain-Lang\runtime\native\src\core\process_system.c
+  symbol: abi_process_spec_set_env
   start_line: 1760
   reason: environment_count increments only after the max-environment guard
 case:

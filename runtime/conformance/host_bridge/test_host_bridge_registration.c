@@ -1,4 +1,4 @@
-#include "../../native/include/kain_runtime_host_bridge.h"
+#include "../../native/include/host_bridge.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -37,7 +37,7 @@ static int register_runtime_service(
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_SERVICE_STATUS_AVAILABLE,
         requirement,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        RUNTIME_ABI_VERSION_CURRENT,
         NULL
     ) == 0;
 }

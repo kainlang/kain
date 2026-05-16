@@ -75,15 +75,15 @@ try {
 
     $llvm = Get-Content -Raw -Path $outputLl
     $requiredEvidence = @(
-        "call i64 @kain_native_ui_host_attach(",
-        "call i64 @kain_native_ui_node_set_state_string(",
-        "call i64 @kain_native_ui_draw_resource(",
-        "call i64 @kain_native_input_push_agent_intent(",
-        "call i64 @kain_native_graphics_draw_mesh(",
-        "call i64 @kain_native_actor_abi_version(",
-        "call i64 @kain_native_entangle_registered_count(",
-        "call i64 @kain_native_fs_write_text(",
-        "call i64 @kain_native_ui_host_present("
+        "call i64 @abi_ui_host_attach(",
+        "call i64 @abi_ui_node_set_state_string(",
+        "call i64 @abi_ui_draw_resource(",
+        "call i64 @abi_input_push_agent_intent(",
+        "call i64 @abi_graphics_draw_mesh(",
+        "call i64 @abi_actor_abi_version(",
+        "call i64 @abi_entangle_registered_count(",
+        "call i64 @abi_fs_write_text(",
+        "call i64 @abi_ui_host_present("
     )
 
     foreach ($pattern in $requiredEvidence) {

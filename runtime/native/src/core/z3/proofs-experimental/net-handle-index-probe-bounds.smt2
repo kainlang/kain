@@ -1,4 +1,4 @@
-; Experimental proof for the net handle-index sidecars in kain_native_net_system.c.
+; Experimental proof for the net handle-index sidecars in net_system.c.
 ; Claim: the SplitMix-style id mixer plus masked linear probe can never address
 ; outside the 128-entry handle-index tables.
 (set-logic QF_BV)

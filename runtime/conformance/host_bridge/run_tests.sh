@@ -90,14 +90,14 @@ TEST_BINARIES=(
 )
 
 COMMON_SOURCES=(
-    "$NATIVE_SRC/core/kain_runtime_core.c"
-    "$NATIVE_SRC/core/kain_runtime_version.c"
-    "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
-    "$NATIVE_SRC/core/kain_runtime_services.c"
-    "$NATIVE_SRC/core/kain_runtime_actor.c"
-    "$NATIVE_SRC/core/kain_native_net_system.c"
-    "$NATIVE_SRC/core/kain_native_process_system.c"
-    "$NATIVE_SRC/core/kain_runtime_host_bridge.c"
+    "$NATIVE_SRC/core/core.c"
+    "$NATIVE_SRC/core/version.c"
+    "$NATIVE_SRC/core/diagnostics.c"
+    "$NATIVE_SRC/core/services.c"
+    "$NATIVE_SRC/core/actor.c"
+    "$NATIVE_SRC/core/net_system.c"
+    "$NATIVE_SRC/core/process_system.c"
+    "$NATIVE_SRC/core/host_bridge.c"
 )
 
 COMMON_LDFLAGS=()

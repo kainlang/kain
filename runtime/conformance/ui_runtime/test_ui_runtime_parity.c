@@ -1,4 +1,4 @@
-#include "../../native/include/kain_ui_runtime.h"
+#include "../../native/include/ui_runtime.h"
 
 #include <stdio.h>
 #include <stdlib.h>

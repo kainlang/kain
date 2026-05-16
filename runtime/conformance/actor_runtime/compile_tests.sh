@@ -45,37 +45,37 @@ echo "Using compiler: $C_COMPILER"
 
 # Compile runtime sources
 echo "Compiling runtime sources..."
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_core.c" -o "$BIN_DIR/kain_runtime_core.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_version.c" -o "$BIN_DIR/kain_runtime_version.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_diagnostics.c" -o "$BIN_DIR/kain_runtime_diagnostics.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_actor.c" -o "$BIN_DIR/kain_runtime_actor.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/core.c" -o "$BIN_DIR/kain_runtime_core.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/version.c" -o "$BIN_DIR/runtime_version.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/diagnostics.c" -o "$BIN_DIR/runtime_diagnostics.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/actor.c" -o "$BIN_DIR/runtime_actor.o"
 
 # Compile tests
 echo ""
 echo "Compiling test_actor_abi_contract..."
-"$C_COMPILER" $CFLAGS test_actor_abi_contract.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_abi_contract" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_actor_abi_contract.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_actor_abi_contract" $LDFLAGS
 
 echo ""
 echo "Compiling test_actor_spawn_basic..."
-"$C_COMPILER" $CFLAGS test_actor_spawn_basic.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_spawn_basic" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_actor_spawn_basic.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_actor_spawn_basic" $LDFLAGS
 
 echo "Compiling test_actor_registry..."
-"$C_COMPILER" $CFLAGS test_actor_registry.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_registry" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_actor_registry.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_actor_registry" $LDFLAGS
 
 echo "Compiling test_mailbox_backpressure..."
-"$C_COMPILER" $CFLAGS test_mailbox_backpressure.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_mailbox_backpressure" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_mailbox_backpressure.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_mailbox_backpressure" $LDFLAGS
 
 echo "Compiling test_actor_monitors..."
-"$C_COMPILER" $CFLAGS test_actor_monitors.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_monitors" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_actor_monitors.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_actor_monitors" $LDFLAGS
 
 echo "Compiling test_actor_links..."
-"$C_COMPILER" $CFLAGS test_actor_links.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_links" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_actor_links.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_actor_links" $LDFLAGS
 
 echo "Compiling test_actor_supervision..."
-"$C_COMPILER" $CFLAGS test_actor_supervision.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_supervision" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_actor_supervision.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_actor_supervision" $LDFLAGS
 
 echo "Compiling test_actor_scheduler..."
-"$C_COMPILER" $CFLAGS test_actor_scheduler.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_scheduler" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_actor_scheduler.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" "$BIN_DIR/runtime_actor.o" -o "$BIN_DIR/test_actor_scheduler" $LDFLAGS
 
 echo ""
 echo "=== Compilation Complete ==="

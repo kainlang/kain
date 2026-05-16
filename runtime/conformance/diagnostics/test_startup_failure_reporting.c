@@ -5,11 +5,11 @@
  * degraded optional-service reporting through the canonical validation APIs.
  */
 
-#include "../../native/include/kain_runtime_contract.h"
-#include "../../native/include/kain_runtime_diagnostics.h"
-#include "../../native/include/kain_runtime_services.h"
-#include "../../native/include/kain_runtime_version.h"
-#include "../../native/include/kain_runtime_win32.h"
+#include "../../native/include/contract.h"
+#include "../../native/include/diagnostics.h"
+#include "../../native/include/services.h"
+#include "../../native/include/version.h"
+#include "../../native/include/win32.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -46,23 +46,23 @@ static int test_required_service_failure_reporting(void) {
     printf("Test 1: Required Service Failure Reporting\n");
 
 #ifdef _WIN32
-    kain_env_set_flag(KAIN_RUNTIME_CONTRACT_STRICT_ENV, 1);
+    kain_env_set_flag(CONTRACT_STRICT_ENV, 1);
 #endif
 
-    kain_runtime_contract_init(&bundle);
+    contract_init(&bundle);
     bundle.loaded = 1;
     bundle.target_is_llvm = 1;
-    bundle.required_abi_version = KAIN_RUNTIME_ABI_VERSION_CURRENT;
+    bundle.required_abi_version = RUNTIME_ABI_VERSION_CURRENT;
     bundle.service_mask = 0;
     copy_text(bundle.target, sizeof(bundle.target), "llvm");
     copy_text(bundle.load_origin, sizeof(bundle.load_origin), "test");
     copy_text(bundle.source_path, sizeof(bundle.source_path), "runtime/contracts/missing-required.runtime_contract.json");
 
-    kain_runtime_contract_validation_init(&validation);
-    passed = kain_runtime_contract_validate_startup(
+    contract_validation_init(&validation);
+    passed = contract_validate_startup(
         &bundle,
-        KAIN_RUNTIME_SERVICE_CORE_MASK,
-        KAIN_RUNTIME_SERVICE_OPTIONAL_MASK,
+        RUNTIME_SERVICE_CORE_MASK,
+        RUNTIME_SERVICE_OPTIONAL_MASK,
         &validation
     );
 
@@ -81,7 +81,7 @@ static int test_required_service_failure_reporting(void) {
         return 1;
     }
 
-    if (validation.missing_required_mask != KAIN_RUNTIME_SERVICE_CORE_MASK) {
+    if (validation.missing_required_mask != RUNTIME_SERVICE_CORE_MASK) {
         printf("  FAIL: missing required mask mismatch\n");
         return 1;
     }
@@ -92,10 +92,10 @@ static int test_required_service_failure_reporting(void) {
     }
 
     kain_startup_validation_result_init(&result);
-    if (kain_runtime_contract_validate_startup_enhanced(
+    if (contract_validate_startup_enhanced(
             &bundle,
-            KAIN_RUNTIME_SERVICE_CORE_MASK,
-            KAIN_RUNTIME_SERVICE_OPTIONAL_MASK,
+            RUNTIME_SERVICE_CORE_MASK,
+            RUNTIME_SERVICE_OPTIONAL_MASK,
             &result)) {
         printf("  FAIL: enhanced validation should have failed\n");
         return 1;
@@ -136,7 +136,7 @@ static int test_required_service_failure_reporting(void) {
         return 1;
     }
 
-    if (result.bundle_abi_version != KAIN_RUNTIME_ABI_VERSION_CURRENT) {
+    if (result.bundle_abi_version != RUNTIME_ABI_VERSION_CURRENT) {
         printf("  FAIL: bundle ABI version should be preserved in the result\n");
         return 1;
     }
@@ -169,22 +169,22 @@ static int test_optional_service_downgrade_reporting(void) {
     int passed;
 
     printf("Test 2: Optional Service Downgrade Reporting\n");
-    expected_optional_service_count = count_service_bits(KAIN_RUNTIME_SERVICE_OPTIONAL_MASK);
+    expected_optional_service_count = count_service_bits(RUNTIME_SERVICE_OPTIONAL_MASK);
 
-    kain_runtime_contract_init(&bundle);
+    contract_init(&bundle);
     bundle.loaded = 1;
     bundle.target_is_llvm = 1;
-    bundle.required_abi_version = KAIN_RUNTIME_ABI_VERSION_CURRENT;
-    bundle.service_mask = KAIN_RUNTIME_SERVICE_CORE_MASK;
+    bundle.required_abi_version = RUNTIME_ABI_VERSION_CURRENT;
+    bundle.service_mask = RUNTIME_SERVICE_CORE_MASK;
     copy_text(bundle.target, sizeof(bundle.target), "llvm");
     copy_text(bundle.load_origin, sizeof(bundle.load_origin), "test");
     copy_text(bundle.source_path, sizeof(bundle.source_path), "runtime/contracts/degraded-optional.runtime_contract.json");
 
-    kain_runtime_contract_validation_init(&validation);
-    passed = kain_runtime_contract_validate_startup(
+    contract_validation_init(&validation);
+    passed = contract_validate_startup(
         &bundle,
-        KAIN_RUNTIME_SERVICE_CORE_MASK,
-        KAIN_RUNTIME_SERVICE_OPTIONAL_MASK,
+        RUNTIME_SERVICE_CORE_MASK,
+        RUNTIME_SERVICE_OPTIONAL_MASK,
         &validation
     );
 
@@ -199,10 +199,10 @@ static int test_optional_service_downgrade_reporting(void) {
     }
 
     kain_startup_validation_result_init(&result);
-    if (!kain_runtime_contract_validate_startup_enhanced(
+    if (!contract_validate_startup_enhanced(
             &bundle,
-            KAIN_RUNTIME_SERVICE_CORE_MASK,
-            KAIN_RUNTIME_SERVICE_OPTIONAL_MASK,
+            RUNTIME_SERVICE_CORE_MASK,
+            RUNTIME_SERVICE_OPTIONAL_MASK,
             &result)) {
         printf("  FAIL: enhanced validation should succeed for optional downgrades\n");
         return 1;

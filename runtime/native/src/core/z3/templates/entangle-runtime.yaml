@@ -7,7 +7,7 @@ matchers:
     regex_any:
       - "len >= dst_cap"
       - "memcpy\\(dst, src, len \\+ 1\\)"
-      - "kain_runtime_copy_entangle_text"
+      - "runtime_copy_entangle_text"
     arguments:
       declarations:
         - name: len
@@ -31,9 +31,9 @@ matchers:
     title: Entangle register count stays within fixed binding capacity
     helper: find_counterexample
     regex_any:
-      - "g_kain_entangle_binding_count >= KAIN_RUNTIME_ENTANGLE_MAX_BINDINGS"
+      - "g_kain_entangle_binding_count >= ENTANGLE_MAX_BINDINGS"
       - "g_kain_entangle_binding_count \\+= 1"
-      - "kain_runtime_entangle_register"
+      - "entangle_register"
     arguments:
       declarations:
         - name: binding_count

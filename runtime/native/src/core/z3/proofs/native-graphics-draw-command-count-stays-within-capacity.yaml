@@ -10,8 +10,8 @@ tags:
 - draw
 - capacity
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_graphics_system.c
-  symbol: kain_native_graphics_draw_mesh
+  path: D:\Kain-Lang\runtime\native\src\core\graphics_system.c
+  symbol: abi_graphics_draw_mesh
   start_line: 1146
   reason: draw_command_count increments only after the max-draw-commands guard
 case:

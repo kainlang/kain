@@ -10,8 +10,8 @@ tags:
 - response-body
 - size_t
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
-  symbol: kain_native_net_store_http_response
+  path: D:\Kain-Lang\runtime\native\src\core\net_system.c
+  symbol: abi_net_store_http_response
   start_line: 797
   reason: body_length + 1 is checked before response body allocation
 case:

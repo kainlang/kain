@@ -5,9 +5,9 @@ matchers:
     title: Process argument count stays within fixed spec capacity
     helper: find_counterexample
     regex_any:
-      - "argument_count >= KAIN_NATIVE_PROCESS_MAX_ARGUMENTS"
+      - "argument_count >= ABI_PROCESS_MAX_ARGUMENTS"
       - "argument_count \\+= 1"
-      - "kain_native_process_spec_add_arg"
+      - "abi_process_spec_add_arg"
     arguments:
       declarations:
         - name: argument_count
@@ -27,9 +27,9 @@ matchers:
     title: Process environment override count stays within fixed spec capacity
     helper: find_counterexample
     regex_any:
-      - "environment_count >= KAIN_NATIVE_PROCESS_MAX_ENVIRONMENT_ENTRIES"
+      - "environment_count >= ABI_PROCESS_MAX_ENVIRONMENT_ENTRIES"
       - "environment_count \\+= 1"
-      - "kain_native_process_spec_set_env"
+      - "abi_process_spec_set_env"
     arguments:
       declarations:
         - name: environment_count
@@ -49,8 +49,8 @@ matchers:
     title: Process capture append required length stays within the capture ceiling
     helper: size_add_ok
     regex_any:
-      - "KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES - capture->length"
-      - "kain_native_process_capture_reserve"
+      - "ABI_PROCESS_MAX_CAPTURE_BYTES - capture->length"
+      - "abi_process_capture_reserve"
       - "capture->length \\+= to_copy"
     arguments:
       declarations:

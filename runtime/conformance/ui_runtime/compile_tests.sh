@@ -11,7 +11,7 @@ BIN_DIR="$SCRIPT_DIR/bin"
 
 CFLAGS="-I$NATIVE_INCLUDE -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -D_CRT_SECURE_NO_WARNINGS"
 LDFLAGS=""
-PLATFORM_SHARED_SOURCE="$NATIVE_SRC/platform/linux/kain_runtime_linux_shared.c"
+PLATFORM_SHARED_SOURCE="$NATIVE_SRC/platform/linux/linux_shared.c"
 PLATFORM_OBJECTS=()
 
 if [[ -n "${CC:-}" ]]; then
@@ -29,7 +29,7 @@ fi
 
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
     LDFLAGS="-lws2_32 -luser32 -lgdi32 -lshell32"
-    PLATFORM_SHARED_SOURCE="$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c"
+    PLATFORM_SHARED_SOURCE="$NATIVE_SRC/platform/win32/win32_shared.c"
 else
     LDFLAGS="-lpthread -lm"
 fi
@@ -45,14 +45,14 @@ rm -f "$BIN_DIR"/*.o "$BIN_DIR"/*.obj "$BIN_DIR"/*.exe "$BIN_DIR"/* 2>/dev/null 
 
 echo "Compiling supporting runtime objects..."
 "$C_COMPILER" $CFLAGS -c "$PLATFORM_SHARED_SOURCE" -o "$BIN_DIR/kain_runtime_platform_shared.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_core.c" -o "$BIN_DIR/kain_runtime_core.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_version.c" -o "$BIN_DIR/kain_runtime_version.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_diagnostics.c" -o "$BIN_DIR/kain_runtime_diagnostics.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_bundle.c" -o "$BIN_DIR/kain_ui_compiled_bundle.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_runtime.c" -o "$BIN_DIR/kain_ui_runtime.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_hot_reload.c" -o "$BIN_DIR/kain_ui_hot_reload.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_native_ui_host_adapter.c" -o "$BIN_DIR/kain_native_ui_host_adapter.o"
-"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_native_ui_system.c" -o "$BIN_DIR/kain_native_ui_system.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/core.c" -o "$BIN_DIR/kain_runtime_core.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/version.c" -o "$BIN_DIR/runtime_version.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/diagnostics.c" -o "$BIN_DIR/runtime_diagnostics.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/ui_compiled_bundle.c" -o "$BIN_DIR/kain_ui_compiled_bundle.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/ui_runtime.c" -o "$BIN_DIR/kain_ui_runtime.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/ui_hot_reload.c" -o "$BIN_DIR/kain_ui_hot_reload.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/ui_host_adapter.c" -o "$BIN_DIR/abi_ui_host_adapter.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/ui_system.c" -o "$BIN_DIR/abi_ui_system.o"
 
 echo ""
 echo "Compiling test_ui_runtime_bundle..."
@@ -68,10 +68,10 @@ echo "Compiling test_ui_runtime_reload..."
 "$C_COMPILER" $CFLAGS test_ui_runtime_reload.c "$BIN_DIR/kain_ui_runtime.o" "$BIN_DIR/kain_ui_compiled_bundle.o" "$BIN_DIR/kain_ui_hot_reload.o" "$BIN_DIR/kain_runtime_platform_shared.o" -o "$BIN_DIR/test_ui_runtime_reload.exe" $LDFLAGS
 
 echo "Compiling test_native_ui_system_kernel..."
-"$C_COMPILER" $CFLAGS test_native_ui_system_kernel.c "$BIN_DIR/kain_native_ui_system.o" "$BIN_DIR/kain_native_ui_host_adapter.o" "${PLATFORM_OBJECTS[@]}" "$BIN_DIR/kain_runtime_platform_shared.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_kernel.exe" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_native_ui_system_kernel.c "$BIN_DIR/abi_ui_system.o" "$BIN_DIR/abi_ui_host_adapter.o" "${PLATFORM_OBJECTS[@]}" "$BIN_DIR/kain_runtime_platform_shared.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_kernel.exe" $LDFLAGS
 
 echo "Compiling test_native_ui_system_host_services..."
-"$C_COMPILER" $CFLAGS test_native_ui_system_host_services.c "$BIN_DIR/kain_native_ui_system.o" "$BIN_DIR/kain_native_ui_host_adapter.o" "${PLATFORM_OBJECTS[@]}" "$BIN_DIR/kain_runtime_platform_shared.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_host_services.exe" $LDFLAGS
+"$C_COMPILER" $CFLAGS test_native_ui_system_host_services.c "$BIN_DIR/abi_ui_system.o" "$BIN_DIR/abi_ui_host_adapter.o" "${PLATFORM_OBJECTS[@]}" "$BIN_DIR/kain_runtime_platform_shared.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/runtime_version.o" "$BIN_DIR/runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_host_services.exe" $LDFLAGS
 
 echo ""
 echo "=== Compilation Complete ==="

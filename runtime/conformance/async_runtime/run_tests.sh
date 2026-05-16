@@ -87,9 +87,9 @@ COMMON_CFLAGS=(
 )
 
 COMMON_SOURCES=(
-    "$NATIVE_SRC/core/kain_runtime_async.c"
-    "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
-    "$NATIVE_SRC/core/kain_runtime_version.c"
+    "$NATIVE_SRC/core/async.c"
+    "$NATIVE_SRC/core/diagnostics.c"
+    "$NATIVE_SRC/core/version.c"
 )
 
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then

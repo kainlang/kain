@@ -17,7 +17,7 @@ echo ""
 # Compile the test
 clang -o "$OUTPUT_DIR/test_version_info" \
     "$SCRIPT_DIR/test_version_info.c" \
-    "$RUNTIME_DIR/native/src/core/kain_runtime_version.c" \
+    "$RUNTIME_DIR/native/src/core/version.c" \
     -I"$RUNTIME_DIR/native/include" \
     -std=c11 -Wall -Wextra
 

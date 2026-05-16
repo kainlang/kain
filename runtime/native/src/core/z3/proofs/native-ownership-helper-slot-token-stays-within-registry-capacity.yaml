@@ -8,7 +8,7 @@ tags:
 - helper-slot
 - bounds
 source:
-  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\ownership.c
   symbol: __kain_ownership_register_helper_allocation
   start_line: 246
   reason: helper allocations store slot+1 in a 16-bit token and the runtime caps the registry well below that bound

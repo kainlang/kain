@@ -1196,7 +1196,7 @@ fn find_runtime_c() -> Option<std::path::PathBuf>:
         _ =>
             ()
             ()
-    let candidates = [PathBuf__from("runtime/kain_runtime.c"), PathBuf__from("runtime/KAIN_runtime.c"), PathBuf__from("src/runtime/c/KAIN_runtime.c")]
+    let candidates = [PathBuf__from("runtime/runtime.c"), PathBuf__from("runtime/KAIN_runtime.c"), PathBuf__from("src/runtime/c/KAIN_runtime.c")]
     for candidate in candidates:
         if candidate.exists():
             return Option::Some(candidate)
@@ -1206,7 +1206,7 @@ fn find_runtime_c() -> Option<std::path::PathBuf>:
             match exe_path.parent().map(fn(p): p.to_path_buf()):
                 Some(mut dir) =>
                     loop:
-                        let candidate = dir.join("runtime").join("kain_runtime.c")
+                        let candidate = dir.join("runtime").join("runtime.c")
                         if candidate.exists():
                             return Option::Some(candidate)
                         if (!dir.pop()):

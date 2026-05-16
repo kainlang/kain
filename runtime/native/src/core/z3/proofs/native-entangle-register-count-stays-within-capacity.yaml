@@ -9,8 +9,8 @@ tags:
 - registry
 - capacity
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_entangle.c
-  symbol: kain_runtime_entangle_register
+  path: D:\Kain-Lang\runtime\native\src\core\entangle.c
+  symbol: entangle_register
   start_line: 31
   reason: binding_count increments only after the max-bindings guard
 case:

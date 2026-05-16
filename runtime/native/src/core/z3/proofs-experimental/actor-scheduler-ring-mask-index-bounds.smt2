@@ -1,5 +1,5 @@
 ; Experimental proof for the actor scheduler ring queue in
-; kain_runtime_actor.c.
+; actor.c.
 ; Claim: masking arbitrary enqueue/dequeue cursors with 1023 always produces an
 ; in-bounds ring slot for the 1024-entry scheduler queue.
 (set-logic QF_BV)

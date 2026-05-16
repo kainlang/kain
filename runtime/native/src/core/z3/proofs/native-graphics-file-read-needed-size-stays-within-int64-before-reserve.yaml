@@ -11,8 +11,8 @@ tags:
 - buffer-growth
 - abi
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_graphics_system.c
-  symbol: kain_native_graphics_read_file_bytes
+  path: D:\Kain-Lang\runtime\native\src\core\graphics_system.c
+  symbol: abi_graphics_read_file_bytes
   start_line: 378
   reason: total + read must fit within INT64_MAX before reserve and public return
 case:

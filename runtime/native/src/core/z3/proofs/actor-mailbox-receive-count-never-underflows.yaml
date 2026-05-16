@@ -9,7 +9,7 @@ tags:
 - receive
 - invariant
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_actor_receive
   start_line: 807
   reason: mailbox->count-- occurs after a non-empty head check

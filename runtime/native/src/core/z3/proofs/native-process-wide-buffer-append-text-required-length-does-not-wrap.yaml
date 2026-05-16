@@ -9,8 +9,8 @@ tags:
 - wide-text
 - buffer-growth
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
-  symbol: kain_native_process_wide_buffer_append_text
+  path: D:\Kain-Lang\runtime\native\src\core\process_system.c
+  symbol: abi_process_wide_buffer_append_text
   start_line: 534
   reason: buffer->length + text_length + 1 is checked before reserve
 case:

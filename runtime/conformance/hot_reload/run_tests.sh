@@ -90,9 +90,9 @@ TEST_BINARIES=(
 )
 
 COMMON_SOURCES=(
-    "$NATIVE_SRC/core/kain_runtime_version.c"
-    "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
-    "$NATIVE_SRC/core/kain_runtime_compatibility.c"
+    "$NATIVE_SRC/core/version.c"
+    "$NATIVE_SRC/core/diagnostics.c"
+    "$NATIVE_SRC/core/compatibility.c"
 )
 
 TOTAL_TESTS=0

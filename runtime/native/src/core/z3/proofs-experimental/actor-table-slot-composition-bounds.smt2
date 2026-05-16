@@ -1,5 +1,5 @@
 ; Experimental proof for the actor-table occupancy bitset path in
-; kain_runtime_actor.c.
+; actor.c.
 ; Claim: composing slot = word_index * 64 + bit_index stays in the live actor
 ; table range when word_index is in [0, 15], bit_index is in [0, 63], and the
 ; reserved invalid slot bit 0 is excluded for word 0.

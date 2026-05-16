@@ -1,5 +1,5 @@
 ; Experimental Z3 reference proof for the reflection kind classifiers in
-; kain_runtime_reflection.c.
+; reflection.c.
 ; Claim: the 64-bit first-32-byte token state used by the switch classifiers is
 ; collision-free across the current reflection type/item kind universe.
 (set-logic QF_BV)

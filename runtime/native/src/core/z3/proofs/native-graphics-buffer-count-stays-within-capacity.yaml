@@ -9,8 +9,8 @@ tags:
 - buffers
 - capacity
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_native_graphics_system.c
-  symbol: kain_native_graphics_buffer_create
+  path: D:\Kain-Lang\runtime\native\src\core\graphics_system.c
+  symbol: abi_graphics_buffer_create
   start_line: 667
   reason: buffer_count increments only after the max-buffers guard
 case:

@@ -1,0 +1,1185 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "capability_key",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "capability_key == 0",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 157,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 157,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 157
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (capability_key == 0) {",
+      "variables": [
+        "capability_key"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.sse2\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 161,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 161,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 161
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.sse2\") ||",
+      "variables": [
+        "abi_text_equals",
+        "capability_key",
+        "cpu",
+        "sse2",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.avx\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 166,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 166,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 166
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.avx\") ||",
+      "variables": [
+        "abi_text_equals",
+        "avx",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.avx2\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 171,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 171,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 171
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.avx2\") ||",
+      "variables": [
+        "abi_text_equals",
+        "avx2",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.avx512f\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 176,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 58,
+        "end_line": 176,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 176
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.avx512f\") ||",
+      "variables": [
+        "abi_text_equals",
+        "avx512f",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.avx512dq\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 181,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 181,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 181
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.avx512dq\") ||",
+      "variables": [
+        "abi_text_equals",
+        "avx512dq",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.avx512bw\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 186,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 186,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 186
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.avx512bw\") ||",
+      "variables": [
+        "abi_text_equals",
+        "avx512bw",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.avx512vl\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 191,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 191,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 191
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.avx512vl\") ||",
+      "variables": [
+        "abi_text_equals",
+        "avx512vl",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.avx512\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 196,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 57,
+        "end_line": 196,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 196
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.avx512\") ||",
+      "variables": [
+        "abi_text_equals",
+        "avx512",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.fma\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 201,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 201,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 201
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.fma\") ||",
+      "variables": [
+        "abi_text_equals",
+        "capability_key",
+        "cpu",
+        "fma",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(abi_text_equals(capability_key, \"cpu.x86.bmi2\") ||",
+      "id": "abi-cpu-capability-mask-for-key.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 206,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 206,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 206
+      },
+      "symbol": "abi_cpu_capability_mask_for_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_text_equals(capability_key, \"cpu.x86.bmi2\") ||",
+      "variables": [
+        "abi_text_equals",
+        "bmi2",
+        "capability_key",
+        "cpu",
+        "x86"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!abi_cpuid(1, 0, leaf1)",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 86,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 86,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 86
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!abi_cpuid(1, 0, leaf1)) {",
+      "variables": [
+        "abi_cpuid",
+        "leaf1"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "((uint32_t)leaf1[3] & (1u << 26)) != 0",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 90,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 90,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 90
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (((uint32_t)leaf1[3] & (1u << 26)) != 0) {",
+      "variables": [
+        "leaf1",
+        "u",
+        "uint32_t"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "osxsave",
+      "expression": "osxsave",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 96,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 96,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 96
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (osxsave) {",
+      "variables": [
+        "osxsave"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "avx",
+          "ymm_state"
+        ],
+        "op": "and"
+      },
+      "expression": "avx && ymm_state",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 102,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 102,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 102
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (avx && ymm_state) {",
+      "variables": [
+        "avx",
+        "ymm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "((uint32_t)leaf1[2] & (1u << 12)) != 0",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 104,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 104,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 104
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (((uint32_t)leaf1[2] & (1u << 12)) != 0) {",
+      "variables": [
+        "leaf1",
+        "u",
+        "uint32_t"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "abi_cpuid(7, 0, leaf7)",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 109,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 109,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 109
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (abi_cpuid(7, 0, leaf7)) {",
+      "variables": [
+        "abi_cpuid",
+        "leaf7"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(mask & KAIN_CPU_FEATURE_X86_AVX) != 0 && ((ebx & (1u << 5)) != 0)",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 111,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 111,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 111
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if ((mask & KAIN_CPU_FEATURE_X86_AVX) != 0 && ((ebx & (1u << 5)) != 0)) {",
+      "variables": [
+        "KAIN_CPU_FEATURE_X86_AVX",
+        "ebx",
+        "mask",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(ebx & (1u << 8)) != 0",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 114,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 114,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 114
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if ((ebx & (1u << 8)) != 0) {",
+      "variables": [
+        "ebx",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 16)) != 0)",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 117,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 117,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 117
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 16)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 17)) != 0)",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 120,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 120,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 120
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 17)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 30)) != 0)",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 123,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 123,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 123
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 30)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 31)) != 0)",
+      "id": "abi-cpu-detect-feature-mask.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 126,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 126,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 126
+      },
+      "symbol": "abi_cpu_detect_feature_mask",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 31)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "g_kain_native_cpu_feature_mask_initialized"
+        ],
+        "op": "not"
+      },
+      "expression": "!g_kain_native_cpu_feature_mask_initialized",
+      "id": "abi-cpu-feature-mask.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 138,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 138,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 138
+      },
+      "symbol": "abi_cpu_feature_mask",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!g_kain_native_cpu_feature_mask_initialized) {",
+      "variables": [
+        "g_kain_native_cpu_feature_mask_initialized"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "required",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "required == 0",
+      "id": "abi-cpu-has-capability.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 218,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 21,
+        "end_line": 218,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 218
+      },
+      "symbol": "abi_cpu_has_capability",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (required == 0) {",
+      "variables": [
+        "required"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "((present & required) == required) ? 1 : 0",
+      "id": "abi-cpu-has-capability.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 222,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 222,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 222
+      },
+      "symbol": "abi_cpu_has_capability",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return ((present & required) == required) ? 1 : 0;",
+      "variables": [
+        "present",
+        "required"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!__get_cpuid_count((unsigned int)leaf, (unsigned int)subleaf, &eax, &ebx, &ecx, &edx)",
+      "id": "abi-cpuid.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 38,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 93,
+        "end_line": 38,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 38
+      },
+      "symbol": "abi_cpuid",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!__get_cpuid_count((unsigned int)leaf, (unsigned int)subleaf, &eax, &ebx, &ecx, &edx)) {",
+      "variables": [
+        "__get_cpuid_count",
+        "eax",
+        "ebx",
+        "ecx",
+        "edx",
+        "int",
+        "leaf",
+        "subleaf",
+        "unsigned"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "left",
+              0
+            ],
+            "op": "eq"
+          },
+          {
+            "args": [
+              "right",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "left == 0 || right == 0",
+      "id": "abi-text-equals.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 22,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 22,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 22
+      },
+      "symbol": "abi_text_equals",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (left == 0 || right == 0) {",
+      "variables": [
+        "left",
+        "right"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "strcmp(left, right) == 0",
+      "id": "abi-text-equals.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 25,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 25,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 25
+      },
+      "symbol": "abi_text_equals",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return strcmp(left, right) == 0;",
+      "variables": [
+        "left",
+        "right",
+        "strcmp"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "((uint64_t)edx << 32) | (uint64_t)eax",
+      "id": "abi-xgetbv0.return-condition.1",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 68,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 68,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 68
+      },
+      "symbol": "abi_xgetbv0",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return ((uint64_t)edx << 32) | (uint64_t)eax;",
+      "variables": [
+        "eax",
+        "edx",
+        "uint64_t"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "u",
+        "role": "unsigned-int",
+        "type": "((uint32_t)leaf1[3] & (1"
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 90,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 90,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 90
+      },
+      "symbol": "if",
+      "text": "if (((uint32_t)leaf1[3] & (1u << 26)) != 0) {",
+      "variables": [
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "((uint32_t)leaf1[2] & (1u << 12)) != 0",
+      "id": "if.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 104,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 104,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 104
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (((uint32_t)leaf1[2] & (1u << 12)) != 0) {",
+      "variables": [
+        "leaf1",
+        "u",
+        "uint32_t"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "u",
+        "role": "unsigned-int",
+        "type": "((uint32_t)leaf1[2] & (1"
+      },
+      "id": "if.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 104,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 104,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 104
+      },
+      "symbol": "if",
+      "text": "if (((uint32_t)leaf1[2] & (1u << 12)) != 0) {",
+      "variables": [
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(mask & KAIN_CPU_FEATURE_X86_AVX) != 0 && ((ebx & (1u << 5)) != 0)",
+      "id": "if.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 111,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 111,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 111
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if ((mask & KAIN_CPU_FEATURE_X86_AVX) != 0 && ((ebx & (1u << 5)) != 0)) {",
+      "variables": [
+        "KAIN_CPU_FEATURE_X86_AVX",
+        "ebx",
+        "mask",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(ebx & (1u << 8)) != 0",
+      "id": "if.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 114,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 114,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 114
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if ((ebx & (1u << 8)) != 0) {",
+      "variables": [
+        "ebx",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 16)) != 0)",
+      "id": "if.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 117,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 117,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 117
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 16)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 17)) != 0)",
+      "id": "if.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 120,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 120,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 120
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 17)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 30)) != 0)",
+      "id": "if.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 123,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 123,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 123
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 30)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "zmm_state && ((ebx & (1u << 31)) != 0)",
+      "id": "if.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 126,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 126,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+        "start_col": 1,
+        "start_line": 126
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (zmm_state && ((ebx & (1u << 31)) != 0)) {",
+      "variables": [
+        "ebx",
+        "u",
+        "zmm_state"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "2000bb1d1d2c3e28f2d727aa00774d262006e48f1a9dc1cc84be5ba15a5c42e6",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\cpu.c",
+  "version": 1
+}

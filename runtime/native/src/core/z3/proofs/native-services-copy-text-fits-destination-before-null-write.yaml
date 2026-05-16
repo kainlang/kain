@@ -9,7 +9,7 @@ tags:
 - string-copy
 - bounds
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_services.c
+  path: D:\Kain-Lang\runtime\native\src\core\services.c
   symbol: kain_copy_text
   start_line: 26
   reason: length is clamped below out_size before memcpy(out, text, length) and out[length] = 0

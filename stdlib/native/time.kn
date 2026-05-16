@@ -1,14 +1,14 @@
 @extern
-fn kain_native_now_millis() -> Int
+fn abi_now_millis() -> Int
 
 @extern
-fn kain_native_sleep_millis(milliseconds: Int) -> Int
+fn abi_sleep_millis(milliseconds: Int) -> Int
 
 pub fn native_now_millis() -> Int:
-    return kain_native_now_millis()
+    return abi_now_millis()
 
 pub fn native_sleep_millis(milliseconds: Int) -> Int:
-    return kain_native_sleep_millis(milliseconds)
+    return abi_sleep_millis(milliseconds)
 
 pub fn native_deadline_millis(duration_millis: Int) -> Int:
     return native_now_millis() + duration_millis

@@ -6,14 +6,14 @@
  * lookup, and item metadata access.
  */
 
-#include "../../native/include/kain_runtime_reflection.h"
-#include "../../native/include/kain_runtime_diagnostics.h"
+#include "../../native/include/reflection.h"
+#include "../../native/include/diagnostics.h"
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
 
 /* Test reflection payload JSON (minimal example) */
-static const char* TEST_REFLECTION_JSON = 
+static const char* TEST_REFLECTION_JSON =
 "{\n"
 "  \"schema_version\": 1,\n"
 "  \"types\": [\n"
@@ -110,7 +110,7 @@ void test_reflection_schema_version() {
     kain_reflection_get_schema_version(payload, &major, &minor);
 
     printf("  ✓ Schema version: %u.%u\n", major, minor);
-    printf("  ✓ Expected: %u.%u\n", 
+    printf("  ✓ Expected: %u.%u\n",
         KAIN_REFLECTION_SCHEMA_VERSION_MAJOR,
         KAIN_REFLECTION_SCHEMA_VERSION_MINOR
     );

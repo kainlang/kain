@@ -1,0 +1,258 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "size_t"
+      },
+      "id": "entangle-registry-get.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 77,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 77,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 77
+      },
+      "symbol": "entangle_registry_get",
+      "text": "int entangle_registry_get(size_t index, KainRuntimeEntangleBinding* out_binding) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "index",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "entangle-registry-get.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 77,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 77,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 77
+      },
+      "symbol": "entangle_registry_get",
+      "text": "int entangle_registry_get(size_t index, KainRuntimeEntangleBinding* out_binding) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "out_binding",
+              0
+            ],
+            "op": "eq"
+          },
+          {
+            "args": [
+              "index",
+              "g_kain_entangle_binding_count"
+            ],
+            "op": "ge"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "out_binding == 0 || index >= g_kain_entangle_binding_count",
+      "id": "entangle-registry-get.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 78,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 66,
+        "end_line": 78,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 78
+      },
+      "symbol": "entangle_registry_get",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (out_binding == 0 || index >= g_kain_entangle_binding_count) {",
+      "variables": [
+        "g_kain_entangle_binding_count",
+        "index",
+        "out_binding"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 14,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 14,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 14
+      },
+      "symbol": "if",
+      "text": "if (len >= dst_cap) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "g_kain_entangle_binding_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 37,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 37,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 37
+      },
+      "symbol": "if",
+      "text": "if (g_kain_entangle_binding_count >= ENTANGLE_MAX_BINDINGS) {",
+      "variables": [
+        "g_kain_entangle_binding_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "dst_cap",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "runtime-copy-entangle-text.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 8,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 8,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 8
+      },
+      "symbol": "runtime_copy_entangle_text",
+      "text": "static int runtime_copy_entangle_text(char* dst, size_t dst_cap, const char* src) {",
+      "variables": [
+        "dst_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "dst == 0 || dst_cap == 0 || src == 0 || src[0] == '\\0'",
+      "id": "runtime-copy-entangle-text.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 9,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 9,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 9
+      },
+      "symbol": "runtime_copy_entangle_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (dst == 0 || dst_cap == 0 || src == 0 || src[0] == '\\0') {",
+      "variables": [
+        "dst",
+        "dst_cap",
+        "src"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "len",
+          "dst_cap"
+        ],
+        "op": "ge"
+      },
+      "expression": "len >= dst_cap",
+      "id": "runtime-copy-entangle-text.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 14,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 14,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+        "start_col": 1,
+        "start_line": 14
+      },
+      "symbol": "runtime_copy_entangle_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (len >= dst_cap) {",
+      "variables": [
+        "dst_cap",
+        "len"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "9bf4a5bf2ba160934ed82f901426292a46fdaa6b3d1a67e807c9eaf7f99cadf7",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\entangle.c",
+  "version": 1
+}

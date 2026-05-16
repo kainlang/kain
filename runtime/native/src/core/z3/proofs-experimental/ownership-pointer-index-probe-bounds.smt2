@@ -1,5 +1,5 @@
 ; Experimental proof for the ownership pointer-index sidecar in
-; kain_runtime_ownership.c.
+; ownership.c.
 ; Claim: the SplitMix-style pointer mixer plus masked linear probe can never
 ; address outside the 8192-entry pointer-index table.
 (set-logic QF_BV)

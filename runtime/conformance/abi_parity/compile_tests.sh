@@ -45,9 +45,9 @@ if [[ -n "$SECURE_CRT_DEFINE" ]]; then
 fi
 
 RUNTIME_SOURCES=(
-    "$NATIVE_DIR/src/core/kain_runtime_memory.c"
-    "$NATIVE_DIR/src/core/kain_runtime_union.c"
-    "$NATIVE_DIR/src/core/kain_runtime_bitfield.c"
+    "$NATIVE_DIR/src/core/memory.c"
+    "$NATIVE_DIR/src/core/union.c"
+    "$NATIVE_DIR/src/core/bitfield.c"
 )
 
 LDFLAGS=()

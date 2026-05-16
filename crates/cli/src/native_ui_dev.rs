@@ -873,8 +873,8 @@ mod tests {
             },
             runtime_sidecars: NativeUiDevRuntimeSidecars {
                 runtime_bundle: "native_app_bundle.json".to_string(),
-                runtime_contract: "kain_runtime_contract.json".to_string(),
-                runtime_compatibility: "kain_runtime_compatibility.json".to_string(),
+                runtime_contract: "contract.json".to_string(),
+                runtime_compatibility: "compatibility.json".to_string(),
                 realtime_bundle: "kain_realtime_app_bundle.json".to_string(),
                 shader_bundle: Some("kain_shader_bundle.json".to_string()),
                 runtime_snapshot: "runtime_snapshot.json".to_string(),

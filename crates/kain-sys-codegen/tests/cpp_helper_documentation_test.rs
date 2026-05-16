@@ -67,7 +67,7 @@ fn test_cpp_backend_includes_helper_documentation() {
 
     // Verify reference to canonical ABI
     assert!(
-        cpp_code.contains("runtime/native/include/kain_runtime_memory.h"),
+        cpp_code.contains("runtime/native/include/memory.h"),
         "Generated C++ should reference canonical ABI header"
     );
 

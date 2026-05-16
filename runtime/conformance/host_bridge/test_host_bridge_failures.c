@@ -1,4 +1,4 @@
-#include "../../native/include/kain_runtime_host_bridge.h"
+#include "../../native/include/host_bridge.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -36,7 +36,7 @@ static int register_runtime_service(
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_REQUIRED,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        RUNTIME_ABI_VERSION_CURRENT,
         NULL
     ) == 0;
 }
@@ -56,7 +56,7 @@ static int test_abi_mismatch(void) {
     copy_text(module.module_id, sizeof(module.module_id), "bridge.bad_abi");
     module.provider = KAIN_SERVICE_PROVIDER_HOST_NODE;
     module.lane = KAIN_FOREIGN_RUNTIME_NODE;
-    module.abi_version = KAIN_RUNTIME_ABI_VERSION_ENCODE(1, 0, 0);
+    module.abi_version = RUNTIME_ABI_VERSION_ENCODE(1, 0, 0);
 
     if (kain_host_bridge_install_module(&bridge, &runtime_services, &module, 0u, &diag) == 0) {
         fprintf(stderr, "expected ABI mismatch to fail\n");

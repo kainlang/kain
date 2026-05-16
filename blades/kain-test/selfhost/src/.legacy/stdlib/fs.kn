@@ -15,11 +15,11 @@ impl Path:
     /// Create a new Path from a string.
     pub fn new(s: String) -> Path:
         return Path { raw: s }
-    
+
     /// Get the raw string representation.
     pub fn to_string(self) -> String:
         return self.raw
-    
+
     /// Get the file extension (without the dot).
     /// Returns empty string if no extension.
     ///
@@ -32,7 +32,7 @@ impl Path:
         if len(parts) > 1:
             return parts[len(parts) - 1]
         return ""
-    
+
     /// Get the filename without the directory.
     ///
     /// Example:
@@ -49,7 +49,7 @@ impl Path:
                 return win_parts[len(win_parts) - 1]
             return last
         return self.raw
-    
+
     /// Get the filename without extension (the "stem").
     ///
     /// Example:
@@ -65,7 +65,7 @@ impl Path:
                 result = result + "." + parts[i]
             return result
         return name
-    
+
     /// Get the parent directory.
     ///
     /// Example:
@@ -79,7 +79,7 @@ impl Path:
                 result = result + "/" + parts[i]
             return result
         return "."
-    
+
     /// Join this path with another component.
     ///
     /// Example:
@@ -91,7 +91,7 @@ impl Path:
         if ends_with(self.raw, "/") || ends_with(self.raw, "\\"):
             return Path::new(self.raw + other)
         return Path::new(self.raw + "/" + other)
-    
+
     /// Change the extension.
     ///
     /// Example:
@@ -103,7 +103,7 @@ impl Path:
         if parent == ".":
             return Path::new(stem + "." + ext)
         return Path::new(parent + "/" + stem + "." + ext)
-    
+
     /// Check if path has the given extension.
     pub fn has_extension(self, ext: String) -> Bool:
         return self.extension() == ext
@@ -129,7 +129,7 @@ pub fn write(path: String, content: String) -> Unit:
 // =============================================================================
 
 // NOTE: These are placeholders. Full directory support requires
-// extending kain_runtime.c with opendir/readdir or similar.
+// extending runtime.c with opendir/readdir or similar.
 
 /// List files in a directory (placeholder).
 /// Currently returns empty array - needs native implementation.

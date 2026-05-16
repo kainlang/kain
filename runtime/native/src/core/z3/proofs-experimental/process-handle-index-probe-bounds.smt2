@@ -1,5 +1,5 @@
 ; Experimental proof for the process spec/handle index sidecars in
-; kain_native_process_system.c.
+; process_system.c.
 ; Claim: the SplitMix-style id mixer plus masked linear probe can never address
 ; outside the 128-entry handle-index tables.
 (set-logic QF_BV)

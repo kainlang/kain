@@ -11,7 +11,7 @@ tags:
 - identity
 - invariant
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_actor_table_ref_matches_locked
   start_line: 1020
   reason: live actor ref validation requires exact slot, generation, execution class,

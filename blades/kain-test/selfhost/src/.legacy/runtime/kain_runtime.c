@@ -2,7 +2,7 @@
 // Kain Runtime Library
 // ============================================================================
 // This provides the runtime functions that LLVM-compiled Kain programs need.
-// Compile with: clang -c kain_runtime.c -o kain_runtime.o
+// Compile with: clang -c runtime.c -o kain_runtime.o
 // Link with:    clang program.ll kain_runtime.o -o program
 // ============================================================================
 
@@ -262,7 +262,7 @@ void kain_set_args(int argc, char **argv) {
 
 // args() implementation moved to end of file to resolve implicit declaration
 // errors BUT we need it here for linking if main.kn calls it. To avoid implicit
-// declaration errors in kain_runtime.c itself (if any), we should put it after
+// declaration errors in runtime.c itself (if any), we should put it after
 // helpers. However, since we are adding wrappers for linking, we can put them
 // at the end.
 

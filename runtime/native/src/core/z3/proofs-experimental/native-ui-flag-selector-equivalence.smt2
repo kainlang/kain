@@ -1,5 +1,5 @@
 ; Experimental Z3 proof: native UI flag selector.
-; Native source seam: kain_native_ui_flag_info.
+; Native source seam: abi_ui_flag_info.
 ; Claim: branchless flag bit and visible-bit selectors equal exact string classifier semantics.
 (set-logic QF_BV)
 (define-fun nonzero-bit ((x (_ BitVec 64))) (_ BitVec 64)

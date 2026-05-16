@@ -74,7 +74,7 @@ def find_blade_binary(repo_root: Path, kain_binary: str) -> str:
 def smoke_env(repo_root: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("KAIN_STDLIB_PATH", str(repo_root / "stdlib"))
-    env.setdefault("KAIN_RUNTIME_C_PATH", str(repo_root / "runtime" / "kain_runtime.c"))
+    env.setdefault("KAIN_RUNTIME_C_PATH", str(repo_root / "runtime" / "runtime.c"))
     env.setdefault(
         "KAIN_RUNTIME_MANIFEST_PATH",
         str(repo_root / "runtime" / "native_runtime.toml"),

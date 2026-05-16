@@ -5,7 +5,7 @@
  * and preserve the runtime's structured reporting contract.
  */
 
-#include "../../native/include/kain_runtime_diagnostics.h"
+#include "../../native/include/diagnostics.h"
 
 #include <stdio.h>
 #include <string.h>

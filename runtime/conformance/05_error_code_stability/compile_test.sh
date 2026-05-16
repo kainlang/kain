@@ -14,8 +14,8 @@ echo "Compiling error code stability tests..."
 # Compile the test
 gcc -o "$SCRIPT_DIR/test_error_codes" \
     "$SCRIPT_DIR/test_error_codes.c" \
-    "$SRC_DIR/core/kain_runtime_diagnostics.c" \
-    "$SRC_DIR/core/kain_runtime_version.c" \
+    "$SRC_DIR/core/diagnostics.c" \
+    "$SRC_DIR/core/version.c" \
     -I"$INCLUDE_DIR" \
     -std=c99 \
     -Wall -Wextra

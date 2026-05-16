@@ -1,5 +1,5 @@
 ; Experimental proof for the de Bruijn low-bit decoder used by the actor-table
-; occupancy bitset path in kain_runtime_actor.c.
+; occupancy bitset path in actor.c.
 ; Claim: the top-6-bit hash of each 64-bit one-hot value under
 ; 0x03f79d71b4cb0a89 is collision-free, so a 64-entry lookup table can decode
 ; the isolated low bit without ambiguity.

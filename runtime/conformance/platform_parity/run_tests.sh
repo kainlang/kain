@@ -122,9 +122,9 @@ echo ""
 pushd "$SCRIPT_DIR" > /dev/null
 
 compile_sources=(
-    "$NATIVE_SRC/core/kain_runtime_version.c"
-    "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
-    "$NATIVE_SRC/platform/kain_runtime_platform.c"
+    "$NATIVE_SRC/core/version.c"
+    "$NATIVE_SRC/core/diagnostics.c"
+    "$NATIVE_SRC/platform/platform.c"
 )
 
 for binary in "${TEST_BINARIES[@]}"; do

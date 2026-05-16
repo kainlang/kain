@@ -26,8 +26,8 @@
   },
   "runtime_sidecars": {
     "runtime_bundle": "native_app_bundle.json",
-    "runtime_contract": "kain_runtime_contract.json",
-    "runtime_compatibility": "kain_runtime_compatibility.json",
+    "runtime_contract": "contract.json",
+    "runtime_compatibility": "compatibility.json",
     "realtime_bundle": "kain_realtime_app_bundle.json",
     "shader_bundle": null,
     "runtime_snapshot": "runtime_snapshot.json"
@@ -77,13 +77,13 @@
       },
       {
         "role": "runtime_contract",
-        "path": "generated/kain_runtime_contract.json",
+        "path": "generated/contract.json",
         "fingerprint": "5439a5f8f332499b",
         "byte_length": 10117
       },
       {
         "role": "runtime_compatibility",
-        "path": "generated/kain_runtime_compatibility.json",
+        "path": "generated/compatibility.json",
         "fingerprint": "adae7d718d0ca0b0",
         "byte_length": 1766
       },

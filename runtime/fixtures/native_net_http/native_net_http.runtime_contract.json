@@ -602,1868 +602,1868 @@
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_abi_version",
-      "name": "kain_native_actor_abi_version",
+      "id": "function:abi_actor_abi_version",
+      "name": "abi_actor_abi_version",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_default_ask_timeout_ms",
-      "name": "kain_native_actor_default_ask_timeout_ms",
+      "id": "function:abi_actor_default_ask_timeout_ms",
+      "name": "abi_actor_default_ask_timeout_ms",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_default_mailbox_capacity",
-      "name": "kain_native_actor_default_mailbox_capacity",
+      "id": "function:abi_actor_default_mailbox_capacity",
+      "name": "abi_actor_default_mailbox_capacity",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_default_shutdown_grace_ms",
-      "name": "kain_native_actor_default_shutdown_grace_ms",
+      "id": "function:abi_actor_default_shutdown_grace_ms",
+      "name": "abi_actor_default_shutdown_grace_ms",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_demonitor",
-      "name": "kain_native_actor_demonitor",
+      "id": "function:abi_actor_demonitor",
+      "name": "abi_actor_demonitor",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_get_state",
-      "name": "kain_native_actor_get_state",
+      "id": "function:abi_actor_get_state",
+      "name": "abi_actor_get_state",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_invalid_id",
-      "name": "kain_native_actor_invalid_id",
+      "id": "function:abi_actor_invalid_id",
+      "name": "abi_actor_invalid_id",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_kill",
-      "name": "kain_native_actor_kill",
+      "id": "function:abi_actor_kill",
+      "name": "abi_actor_kill",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_link",
-      "name": "kain_native_actor_link",
+      "id": "function:abi_actor_link",
+      "name": "abi_actor_link",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_monitor",
-      "name": "kain_native_actor_monitor",
+      "id": "function:abi_actor_monitor",
+      "name": "abi_actor_monitor",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_registry_lookup",
-      "name": "kain_native_actor_registry_lookup",
+      "id": "function:abi_actor_registry_lookup",
+      "name": "abi_actor_registry_lookup",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_registry_register",
-      "name": "kain_native_actor_registry_register",
+      "id": "function:abi_actor_registry_register",
+      "name": "abi_actor_registry_register",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_registry_unregister",
-      "name": "kain_native_actor_registry_unregister",
+      "id": "function:abi_actor_registry_unregister",
+      "name": "abi_actor_registry_unregister",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_active_workers",
-      "name": "kain_native_actor_scheduler_active_workers",
+      "id": "function:abi_actor_scheduler_active_workers",
+      "name": "abi_actor_scheduler_active_workers",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_busy_workers",
-      "name": "kain_native_actor_scheduler_busy_workers",
+      "id": "function:abi_actor_scheduler_busy_workers",
+      "name": "abi_actor_scheduler_busy_workers",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_max_queue_depth",
-      "name": "kain_native_actor_scheduler_max_queue_depth",
+      "id": "function:abi_actor_scheduler_max_queue_depth",
+      "name": "abi_actor_scheduler_max_queue_depth",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_overflow_thread_spawns",
-      "name": "kain_native_actor_scheduler_overflow_thread_spawns",
+      "id": "function:abi_actor_scheduler_overflow_thread_spawns",
+      "name": "abi_actor_scheduler_overflow_thread_spawns",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_queue_depth",
-      "name": "kain_native_actor_scheduler_queue_depth",
+      "id": "function:abi_actor_scheduler_queue_depth",
+      "name": "abi_actor_scheduler_queue_depth",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_total_dequeued",
-      "name": "kain_native_actor_scheduler_total_dequeued",
+      "id": "function:abi_actor_scheduler_total_dequeued",
+      "name": "abi_actor_scheduler_total_dequeued",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_total_enqueued",
-      "name": "kain_native_actor_scheduler_total_enqueued",
+      "id": "function:abi_actor_scheduler_total_enqueued",
+      "name": "abi_actor_scheduler_total_enqueued",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_scheduler_worker_count",
-      "name": "kain_native_actor_scheduler_worker_count",
+      "id": "function:abi_actor_scheduler_worker_count",
+      "name": "abi_actor_scheduler_worker_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_send",
-      "name": "kain_native_actor_send",
+      "id": "function:abi_actor_send",
+      "name": "abi_actor_send",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_shutdown",
-      "name": "kain_native_actor_shutdown",
+      "id": "function:abi_actor_shutdown",
+      "name": "abi_actor_shutdown",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_spawn",
-      "name": "kain_native_actor_spawn",
+      "id": "function:abi_actor_spawn",
+      "name": "abi_actor_spawn",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_state_invalid",
-      "name": "kain_native_actor_state_invalid",
+      "id": "function:abi_actor_state_invalid",
+      "name": "abi_actor_state_invalid",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_supervision_escalation_count",
-      "name": "kain_native_actor_supervision_escalation_count",
+      "id": "function:abi_actor_supervision_escalation_count",
+      "name": "abi_actor_supervision_escalation_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_supervision_limit_hit",
-      "name": "kain_native_actor_supervision_limit_hit",
+      "id": "function:abi_actor_supervision_limit_hit",
+      "name": "abi_actor_supervision_limit_hit",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_supervision_max_restarts",
-      "name": "kain_native_actor_supervision_max_restarts",
+      "id": "function:abi_actor_supervision_max_restarts",
+      "name": "abi_actor_supervision_max_restarts",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_supervision_observed_child_exit_count",
-      "name": "kain_native_actor_supervision_observed_child_exit_count",
+      "id": "function:abi_actor_supervision_observed_child_exit_count",
+      "name": "abi_actor_supervision_observed_child_exit_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_supervision_restart_attempt_count",
-      "name": "kain_native_actor_supervision_restart_attempt_count",
+      "id": "function:abi_actor_supervision_restart_attempt_count",
+      "name": "abi_actor_supervision_restart_attempt_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_supervision_restart_window_millis",
-      "name": "kain_native_actor_supervision_restart_window_millis",
+      "id": "function:abi_actor_supervision_restart_window_millis",
+      "name": "abi_actor_supervision_restart_window_millis",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_unbounded_mailbox_capacity",
-      "name": "kain_native_actor_unbounded_mailbox_capacity",
+      "id": "function:abi_actor_unbounded_mailbox_capacity",
+      "name": "abi_actor_unbounded_mailbox_capacity",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_actor_unlink",
-      "name": "kain_native_actor_unlink",
+      "id": "function:abi_actor_unlink",
+      "name": "abi_actor_unlink",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_converge_mismatch_count",
-      "name": "kain_native_converge_mismatch_count",
+      "id": "function:abi_converge_mismatch_count",
+      "name": "abi_converge_mismatch_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_get_authority",
-      "name": "kain_native_entangle_get_authority",
+      "id": "function:abi_entangle_get_authority",
+      "name": "abi_entangle_get_authority",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_get_mirror",
-      "name": "kain_native_entangle_get_mirror",
+      "id": "function:abi_entangle_get_mirror",
+      "name": "abi_entangle_get_mirror",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_get_policy",
-      "name": "kain_native_entangle_get_policy",
+      "id": "function:abi_entangle_get_policy",
+      "name": "abi_entangle_get_policy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_get_type_name",
-      "name": "kain_native_entangle_get_type_name",
+      "id": "function:abi_entangle_get_type_name",
+      "name": "abi_entangle_get_type_name",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_last_authority",
-      "name": "kain_native_entangle_last_authority",
+      "id": "function:abi_entangle_last_authority",
+      "name": "abi_entangle_last_authority",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_last_mirror",
-      "name": "kain_native_entangle_last_mirror",
+      "id": "function:abi_entangle_last_mirror",
+      "name": "abi_entangle_last_mirror",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_propagation_count",
-      "name": "kain_native_entangle_propagation_count",
+      "id": "function:abi_entangle_propagation_count",
+      "name": "abi_entangle_propagation_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_register",
-      "name": "kain_native_entangle_register",
+      "id": "function:abi_entangle_register",
+      "name": "abi_entangle_register",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_registered_count",
-      "name": "kain_native_entangle_registered_count",
+      "id": "function:abi_entangle_registered_count",
+      "name": "abi_entangle_registered_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_entangle_reset",
-      "name": "kain_native_entangle_reset",
+      "id": "function:abi_entangle_reset",
+      "name": "abi_entangle_reset",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_append_text",
-      "name": "kain_native_fs_append_text",
+      "id": "function:abi_fs_append_text",
+      "name": "abi_fs_append_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_atomic_write_text",
-      "name": "kain_native_fs_atomic_write_text",
+      "id": "function:abi_fs_atomic_write_text",
+      "name": "abi_fs_atomic_write_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_copy_file",
-      "name": "kain_native_fs_copy_file",
+      "id": "function:abi_fs_copy_file",
+      "name": "abi_fs_copy_file",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_copy_file_streaming",
-      "name": "kain_native_fs_copy_file_streaming",
+      "id": "function:abi_fs_copy_file_streaming",
+      "name": "abi_fs_copy_file_streaming",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_create_dir_all",
-      "name": "kain_native_fs_create_dir_all",
+      "id": "function:abi_fs_create_dir_all",
+      "name": "abi_fs_create_dir_all",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_exists",
-      "name": "kain_native_fs_exists",
+      "id": "function:abi_fs_exists",
+      "name": "abi_fs_exists",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_hash_file",
-      "name": "kain_native_fs_hash_file",
+      "id": "function:abi_fs_hash_file",
+      "name": "abi_fs_hash_file",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_is_dir",
-      "name": "kain_native_fs_is_dir",
+      "id": "function:abi_fs_is_dir",
+      "name": "abi_fs_is_dir",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_is_file",
-      "name": "kain_native_fs_is_file",
+      "id": "function:abi_fs_is_file",
+      "name": "abi_fs_is_file",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_last_error_kind",
-      "name": "kain_native_fs_last_error_kind",
+      "id": "function:abi_fs_last_error_kind",
+      "name": "abi_fs_last_error_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_last_error_message",
-      "name": "kain_native_fs_last_error_message",
+      "id": "function:abi_fs_last_error_message",
+      "name": "abi_fs_last_error_message",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_last_status",
-      "name": "kain_native_fs_last_status",
+      "id": "function:abi_fs_last_status",
+      "name": "abi_fs_last_status",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_metadata_text",
-      "name": "kain_native_fs_metadata_text",
+      "id": "function:abi_fs_metadata_text",
+      "name": "abi_fs_metadata_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_move_path",
-      "name": "kain_native_fs_move_path",
+      "id": "function:abi_fs_move_path",
+      "name": "abi_fs_move_path",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_path_join",
-      "name": "kain_native_fs_path_join",
+      "id": "function:abi_fs_path_join",
+      "name": "abi_fs_path_join",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_read_byte_range_hex",
-      "name": "kain_native_fs_read_byte_range_hex",
+      "id": "function:abi_fs_read_byte_range_hex",
+      "name": "abi_fs_read_byte_range_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_read_bytes_hex",
-      "name": "kain_native_fs_read_bytes_hex",
+      "id": "function:abi_fs_read_bytes_hex",
+      "name": "abi_fs_read_bytes_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_read_dir_paths_text",
-      "name": "kain_native_fs_read_dir_paths_text",
+      "id": "function:abi_fs_read_dir_paths_text",
+      "name": "abi_fs_read_dir_paths_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_read_text",
-      "name": "kain_native_fs_read_text",
+      "id": "function:abi_fs_read_text",
+      "name": "abi_fs_read_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_read_text_range",
-      "name": "kain_native_fs_read_text_range",
+      "id": "function:abi_fs_read_text_range",
+      "name": "abi_fs_read_text_range",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_remove_dir_all",
-      "name": "kain_native_fs_remove_dir_all",
+      "id": "function:abi_fs_remove_dir_all",
+      "name": "abi_fs_remove_dir_all",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_remove_file",
-      "name": "kain_native_fs_remove_file",
+      "id": "function:abi_fs_remove_file",
+      "name": "abi_fs_remove_file",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_temp_dir",
-      "name": "kain_native_fs_temp_dir",
+      "id": "function:abi_fs_temp_dir",
+      "name": "abi_fs_temp_dir",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_temp_file",
-      "name": "kain_native_fs_temp_file",
+      "id": "function:abi_fs_temp_file",
+      "name": "abi_fs_temp_file",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_walk_paths_text",
-      "name": "kain_native_fs_walk_paths_text",
+      "id": "function:abi_fs_walk_paths_text",
+      "name": "abi_fs_walk_paths_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_write_bytes_hex",
-      "name": "kain_native_fs_write_bytes_hex",
+      "id": "function:abi_fs_write_bytes_hex",
+      "name": "abi_fs_write_bytes_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_fs_write_text",
-      "name": "kain_native_fs_write_text",
+      "id": "function:abi_fs_write_text",
+      "name": "abi_fs_write_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_active_backend",
-      "name": "kain_native_graphics_active_backend",
+      "id": "function:abi_graphics_active_backend",
+      "name": "abi_graphics_active_backend",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_backend_available",
-      "name": "kain_native_graphics_backend_available",
+      "id": "function:abi_graphics_backend_available",
+      "name": "abi_graphics_backend_available",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_backend_select",
-      "name": "kain_native_graphics_backend_select",
+      "id": "function:abi_graphics_backend_select",
+      "name": "abi_graphics_backend_select",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_backend_status",
-      "name": "kain_native_graphics_backend_status",
+      "id": "function:abi_graphics_backend_status",
+      "name": "abi_graphics_backend_status",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_backend_supported",
-      "name": "kain_native_graphics_backend_supported",
+      "id": "function:abi_graphics_backend_supported",
+      "name": "abi_graphics_backend_supported",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_begin_frame",
-      "name": "kain_native_graphics_begin_frame",
+      "id": "function:abi_graphics_begin_frame",
+      "name": "abi_graphics_begin_frame",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_buffer_byte_at",
-      "name": "kain_native_graphics_buffer_byte_at",
+      "id": "function:abi_graphics_buffer_byte_at",
+      "name": "abi_graphics_buffer_byte_at",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_buffer_byte_length",
-      "name": "kain_native_graphics_buffer_byte_length",
+      "id": "function:abi_graphics_buffer_byte_length",
+      "name": "abi_graphics_buffer_byte_length",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_buffer_create",
-      "name": "kain_native_graphics_buffer_create",
+      "id": "function:abi_graphics_buffer_create",
+      "name": "abi_graphics_buffer_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_buffer_create_from_hex",
-      "name": "kain_native_graphics_buffer_create_from_hex",
+      "id": "function:abi_graphics_buffer_create_from_hex",
+      "name": "abi_graphics_buffer_create_from_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_buffer_kind",
-      "name": "kain_native_graphics_buffer_kind",
+      "id": "function:abi_graphics_buffer_kind",
+      "name": "abi_graphics_buffer_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_buffer_label",
-      "name": "kain_native_graphics_buffer_label",
+      "id": "function:abi_graphics_buffer_label",
+      "name": "abi_graphics_buffer_label",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_draw_command_count",
-      "name": "kain_native_graphics_draw_command_count",
+      "id": "function:abi_graphics_draw_command_count",
+      "name": "abi_graphics_draw_command_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_draw_command_instances",
-      "name": "kain_native_graphics_draw_command_instances",
+      "id": "function:abi_graphics_draw_command_instances",
+      "name": "abi_graphics_draw_command_instances",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_draw_command_kind",
-      "name": "kain_native_graphics_draw_command_kind",
+      "id": "function:abi_graphics_draw_command_kind",
+      "name": "abi_graphics_draw_command_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_draw_command_mesh",
-      "name": "kain_native_graphics_draw_command_mesh",
+      "id": "function:abi_graphics_draw_command_mesh",
+      "name": "abi_graphics_draw_command_mesh",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_draw_command_pipeline",
-      "name": "kain_native_graphics_draw_command_pipeline",
+      "id": "function:abi_graphics_draw_command_pipeline",
+      "name": "abi_graphics_draw_command_pipeline",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_draw_mesh",
-      "name": "kain_native_graphics_draw_mesh",
+      "id": "function:abi_graphics_draw_mesh",
+      "name": "abi_graphics_draw_mesh",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_end_frame",
-      "name": "kain_native_graphics_end_frame",
+      "id": "function:abi_graphics_end_frame",
+      "name": "abi_graphics_end_frame",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_frame_index",
-      "name": "kain_native_graphics_frame_index",
+      "id": "function:abi_graphics_frame_index",
+      "name": "abi_graphics_frame_index",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_last_error_kind",
-      "name": "kain_native_graphics_last_error_kind",
+      "id": "function:abi_graphics_last_error_kind",
+      "name": "abi_graphics_last_error_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_last_error_message",
-      "name": "kain_native_graphics_last_error_message",
+      "id": "function:abi_graphics_last_error_message",
+      "name": "abi_graphics_last_error_message",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_last_presented_frame",
-      "name": "kain_native_graphics_last_presented_frame",
+      "id": "function:abi_graphics_last_presented_frame",
+      "name": "abi_graphics_last_presented_frame",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_last_status",
-      "name": "kain_native_graphics_last_status",
+      "id": "function:abi_graphics_last_status",
+      "name": "abi_graphics_last_status",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_mesh_create",
-      "name": "kain_native_graphics_mesh_create",
+      "id": "function:abi_graphics_mesh_create",
+      "name": "abi_graphics_mesh_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_mesh_index_count",
-      "name": "kain_native_graphics_mesh_index_count",
+      "id": "function:abi_graphics_mesh_index_count",
+      "name": "abi_graphics_mesh_index_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_mesh_label",
-      "name": "kain_native_graphics_mesh_label",
+      "id": "function:abi_graphics_mesh_label",
+      "name": "abi_graphics_mesh_label",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_mesh_vertex_count",
-      "name": "kain_native_graphics_mesh_vertex_count",
+      "id": "function:abi_graphics_mesh_vertex_count",
+      "name": "abi_graphics_mesh_vertex_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_pipeline_backend",
-      "name": "kain_native_graphics_pipeline_backend",
+      "id": "function:abi_graphics_pipeline_backend",
+      "name": "abi_graphics_pipeline_backend",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_pipeline_create",
-      "name": "kain_native_graphics_pipeline_create",
+      "id": "function:abi_graphics_pipeline_create",
+      "name": "abi_graphics_pipeline_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_pipeline_label",
-      "name": "kain_native_graphics_pipeline_label",
+      "id": "function:abi_graphics_pipeline_label",
+      "name": "abi_graphics_pipeline_label",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_present",
-      "name": "kain_native_graphics_present",
+      "id": "function:abi_graphics_present",
+      "name": "abi_graphics_present",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_reset",
-      "name": "kain_native_graphics_reset",
+      "id": "function:abi_graphics_reset",
+      "name": "abi_graphics_reset",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_session_count",
-      "name": "kain_native_graphics_session_count",
+      "id": "function:abi_graphics_session_count",
+      "name": "abi_graphics_session_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_session_create",
-      "name": "kain_native_graphics_session_create",
+      "id": "function:abi_graphics_session_create",
+      "name": "abi_graphics_session_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_session_destroy",
-      "name": "kain_native_graphics_session_destroy",
+      "id": "function:abi_graphics_session_destroy",
+      "name": "abi_graphics_session_destroy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_shader_byte_at",
-      "name": "kain_native_graphics_shader_byte_at",
+      "id": "function:abi_graphics_shader_byte_at",
+      "name": "abi_graphics_shader_byte_at",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_shader_byte_length",
-      "name": "kain_native_graphics_shader_byte_length",
+      "id": "function:abi_graphics_shader_byte_length",
+      "name": "abi_graphics_shader_byte_length",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_shader_key",
-      "name": "kain_native_graphics_shader_key",
+      "id": "function:abi_graphics_shader_key",
+      "name": "abi_graphics_shader_key",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_shader_spirv_from_file",
-      "name": "kain_native_graphics_shader_spirv_from_file",
+      "id": "function:abi_graphics_shader_spirv_from_file",
+      "name": "abi_graphics_shader_spirv_from_file",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_shader_spirv_from_hex",
-      "name": "kain_native_graphics_shader_spirv_from_hex",
+      "id": "function:abi_graphics_shader_spirv_from_hex",
+      "name": "abi_graphics_shader_spirv_from_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_graphics_shader_stage",
-      "name": "kain_native_graphics_shader_stage",
+      "id": "function:abi_graphics_shader_stage",
+      "name": "abi_graphics_shader_stage",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_client_send",
-      "name": "kain_native_http_client_send",
+      "id": "function:abi_http_client_send",
+      "name": "abi_http_client_send",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_local_url",
-      "name": "kain_native_http_local_url",
+      "id": "function:abi_http_local_url",
+      "name": "abi_http_local_url",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_body_hex",
-      "name": "kain_native_http_request_body_hex",
+      "id": "function:abi_http_request_body_hex",
+      "name": "abi_http_request_body_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_body_text",
-      "name": "kain_native_http_request_body_text",
+      "id": "function:abi_http_request_body_text",
+      "name": "abi_http_request_body_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_create",
-      "name": "kain_native_http_request_create",
+      "id": "function:abi_http_request_create",
+      "name": "abi_http_request_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_destroy",
-      "name": "kain_native_http_request_destroy",
+      "id": "function:abi_http_request_destroy",
+      "name": "abi_http_request_destroy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_header",
-      "name": "kain_native_http_request_header",
+      "id": "function:abi_http_request_header",
+      "name": "abi_http_request_header",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_method",
-      "name": "kain_native_http_request_method",
+      "id": "function:abi_http_request_method",
+      "name": "abi_http_request_method",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_path",
-      "name": "kain_native_http_request_path",
+      "id": "function:abi_http_request_path",
+      "name": "abi_http_request_path",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_protocol",
-      "name": "kain_native_http_request_protocol",
+      "id": "function:abi_http_request_protocol",
+      "name": "abi_http_request_protocol",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_query",
-      "name": "kain_native_http_request_query",
+      "id": "function:abi_http_request_query",
+      "name": "abi_http_request_query",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_set_body_hex",
-      "name": "kain_native_http_request_set_body_hex",
+      "id": "function:abi_http_request_set_body_hex",
+      "name": "abi_http_request_set_body_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_set_body_text",
-      "name": "kain_native_http_request_set_body_text",
+      "id": "function:abi_http_request_set_body_text",
+      "name": "abi_http_request_set_body_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_set_header",
-      "name": "kain_native_http_request_set_header",
+      "id": "function:abi_http_request_set_header",
+      "name": "abi_http_request_set_header",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_set_protocol",
-      "name": "kain_native_http_request_set_protocol",
+      "id": "function:abi_http_request_set_protocol",
+      "name": "abi_http_request_set_protocol",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_request_set_timeout",
-      "name": "kain_native_http_request_set_timeout",
+      "id": "function:abi_http_request_set_timeout",
+      "name": "abi_http_request_set_timeout",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_respond_hex",
-      "name": "kain_native_http_respond_hex",
+      "id": "function:abi_http_respond_hex",
+      "name": "abi_http_respond_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_respond_text",
-      "name": "kain_native_http_respond_text",
+      "id": "function:abi_http_respond_text",
+      "name": "abi_http_respond_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_response_body_hex",
-      "name": "kain_native_http_response_body_hex",
+      "id": "function:abi_http_response_body_hex",
+      "name": "abi_http_response_body_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_response_body_text",
-      "name": "kain_native_http_response_body_text",
+      "id": "function:abi_http_response_body_text",
+      "name": "abi_http_response_body_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_response_destroy",
-      "name": "kain_native_http_response_destroy",
+      "id": "function:abi_http_response_destroy",
+      "name": "abi_http_response_destroy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_response_header",
-      "name": "kain_native_http_response_header",
+      "id": "function:abi_http_response_header",
+      "name": "abi_http_response_header",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_response_protocol",
-      "name": "kain_native_http_response_protocol",
+      "id": "function:abi_http_response_protocol",
+      "name": "abi_http_response_protocol",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_response_set_header_for_request",
-      "name": "kain_native_http_response_set_header_for_request",
+      "id": "function:abi_http_response_set_header_for_request",
+      "name": "abi_http_response_set_header_for_request",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_response_status",
-      "name": "kain_native_http_response_status",
+      "id": "function:abi_http_response_status",
+      "name": "abi_http_response_status",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_close",
-      "name": "kain_native_http_server_close",
+      "id": "function:abi_http_server_close",
+      "name": "abi_http_server_close",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_create",
-      "name": "kain_native_http_server_create",
+      "id": "function:abi_http_server_create",
+      "name": "abi_http_server_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_listen",
-      "name": "kain_native_http_server_listen",
+      "id": "function:abi_http_server_listen",
+      "name": "abi_http_server_listen",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_local_port",
-      "name": "kain_native_http_server_local_port",
+      "id": "function:abi_http_server_local_port",
+      "name": "abi_http_server_local_port",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_next_request",
-      "name": "kain_native_http_server_next_request",
+      "id": "function:abi_http_server_next_request",
+      "name": "abi_http_server_next_request",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_pending_request_count",
-      "name": "kain_native_http_server_pending_request_count",
+      "id": "function:abi_http_server_pending_request_count",
+      "name": "abi_http_server_pending_request_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_pump",
-      "name": "kain_native_http_server_pump",
+      "id": "function:abi_http_server_pump",
+      "name": "abi_http_server_pump",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_http_server_route_actor",
-      "name": "kain_native_http_server_route_actor",
+      "id": "function:abi_http_server_route_actor",
+      "name": "abi_http_server_route_actor",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_action_down",
-      "name": "kain_native_input_action_down",
+      "id": "function:abi_input_action_down",
+      "name": "abi_input_action_down",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_action_pressed",
-      "name": "kain_native_input_action_pressed",
+      "id": "function:abi_input_action_pressed",
+      "name": "abi_input_action_pressed",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_action_released",
-      "name": "kain_native_input_action_released",
+      "id": "function:abi_input_action_released",
+      "name": "abi_input_action_released",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_axis_value",
-      "name": "kain_native_input_axis_value",
+      "id": "function:abi_input_axis_value",
+      "name": "abi_input_axis_value",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_begin_frame",
-      "name": "kain_native_input_begin_frame",
+      "id": "function:abi_input_begin_frame",
+      "name": "abi_input_begin_frame",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_bind_action",
-      "name": "kain_native_input_bind_action",
+      "id": "function:abi_input_bind_action",
+      "name": "abi_input_bind_action",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_bind_axis",
-      "name": "kain_native_input_bind_axis",
+      "id": "function:abi_input_bind_axis",
+      "name": "abi_input_bind_axis",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_event_action",
-      "name": "kain_native_input_event_action",
+      "id": "function:abi_input_event_action",
+      "name": "abi_input_event_action",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_event_code",
-      "name": "kain_native_input_event_code",
+      "id": "function:abi_input_event_code",
+      "name": "abi_input_event_code",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_event_count",
-      "name": "kain_native_input_event_count",
+      "id": "function:abi_input_event_count",
+      "name": "abi_input_event_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_event_kind",
-      "name": "kain_native_input_event_kind",
+      "id": "function:abi_input_event_kind",
+      "name": "abi_input_event_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_event_source_kind",
-      "name": "kain_native_input_event_source_kind",
+      "id": "function:abi_input_event_source_kind",
+      "name": "abi_input_event_source_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_event_text",
-      "name": "kain_native_input_event_text",
+      "id": "function:abi_input_event_text",
+      "name": "abi_input_event_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_frame_index",
-      "name": "kain_native_input_frame_index",
+      "id": "function:abi_input_frame_index",
+      "name": "abi_input_frame_index",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_last_error_kind",
-      "name": "kain_native_input_last_error_kind",
+      "id": "function:abi_input_last_error_kind",
+      "name": "abi_input_last_error_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_last_error_message",
-      "name": "kain_native_input_last_error_message",
+      "id": "function:abi_input_last_error_message",
+      "name": "abi_input_last_error_message",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_last_status",
-      "name": "kain_native_input_last_status",
+      "id": "function:abi_input_last_status",
+      "name": "abi_input_last_status",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_push_agent_intent",
-      "name": "kain_native_input_push_agent_intent",
+      "id": "function:abi_input_push_agent_intent",
+      "name": "abi_input_push_agent_intent",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_push_event",
-      "name": "kain_native_input_push_event",
+      "id": "function:abi_input_push_event",
+      "name": "abi_input_push_event",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_replay_trace",
-      "name": "kain_native_input_replay_trace",
+      "id": "function:abi_input_replay_trace",
+      "name": "abi_input_replay_trace",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_reset",
-      "name": "kain_native_input_reset",
+      "id": "function:abi_input_reset",
+      "name": "abi_input_reset",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_session_count",
-      "name": "kain_native_input_session_count",
+      "id": "function:abi_input_session_count",
+      "name": "abi_input_session_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_session_create",
-      "name": "kain_native_input_session_create",
+      "id": "function:abi_input_session_create",
+      "name": "abi_input_session_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_session_destroy",
-      "name": "kain_native_input_session_destroy",
+      "id": "function:abi_input_session_destroy",
+      "name": "abi_input_session_destroy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_text_commit",
-      "name": "kain_native_input_text_commit",
+      "id": "function:abi_input_text_commit",
+      "name": "abi_input_text_commit",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_text_commit_count",
-      "name": "kain_native_input_text_commit_count",
+      "id": "function:abi_input_text_commit_count",
+      "name": "abi_input_text_commit_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_input_trace_text",
-      "name": "kain_native_input_trace_text",
+      "id": "function:abi_input_trace_text",
+      "name": "abi_input_trace_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_net_capability_state",
-      "name": "kain_native_net_capability_state",
+      "id": "function:abi_net_capability_state",
+      "name": "abi_net_capability_state",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_net_last_error_kind",
-      "name": "kain_native_net_last_error_kind",
+      "id": "function:abi_net_last_error_kind",
+      "name": "abi_net_last_error_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_net_last_error_message",
-      "name": "kain_native_net_last_error_message",
+      "id": "function:abi_net_last_error_message",
+      "name": "abi_net_last_error_message",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_net_last_status",
-      "name": "kain_native_net_last_status",
+      "id": "function:abi_net_last_status",
+      "name": "abi_net_last_status",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_net_platform_available",
-      "name": "kain_native_net_platform_available",
+      "id": "function:abi_net_platform_available",
+      "name": "abi_net_platform_available",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_net_platform_name",
-      "name": "kain_native_net_platform_name",
+      "id": "function:abi_net_platform_name",
+      "name": "abi_net_platform_name",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_net_reset",
-      "name": "kain_native_net_reset",
+      "id": "function:abi_net_reset",
+      "name": "abi_net_reset",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_now_millis",
-      "name": "kain_native_now_millis",
+      "id": "function:abi_now_millis",
+      "name": "abi_now_millis",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_orchestrate_stage_count",
-      "name": "kain_native_orchestrate_stage_count",
+      "id": "function:abi_orchestrate_stage_count",
+      "name": "abi_orchestrate_stage_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_patch_journal_count",
-      "name": "kain_native_patch_journal_count",
+      "id": "function:abi_patch_journal_count",
+      "name": "abi_patch_journal_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_patch_last_path",
-      "name": "kain_native_patch_last_path",
+      "id": "function:abi_patch_last_path",
+      "name": "abi_patch_last_path",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_close",
-      "name": "kain_native_process_close",
+      "id": "function:abi_process_close",
+      "name": "abi_process_close",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_count",
-      "name": "kain_native_process_count",
+      "id": "function:abi_process_count",
+      "name": "abi_process_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_exit_code",
-      "name": "kain_native_process_exit_code",
+      "id": "function:abi_process_exit_code",
+      "name": "abi_process_exit_code",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_is_running",
-      "name": "kain_native_process_is_running",
+      "id": "function:abi_process_is_running",
+      "name": "abi_process_is_running",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_kill",
-      "name": "kain_native_process_kill",
+      "id": "function:abi_process_kill",
+      "name": "abi_process_kill",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_last_error_kind",
-      "name": "kain_native_process_last_error_kind",
+      "id": "function:abi_process_last_error_kind",
+      "name": "abi_process_last_error_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_last_error_message",
-      "name": "kain_native_process_last_error_message",
+      "id": "function:abi_process_last_error_message",
+      "name": "abi_process_last_error_message",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_last_status",
-      "name": "kain_native_process_last_status",
+      "id": "function:abi_process_last_status",
+      "name": "abi_process_last_status",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_os_pid",
-      "name": "kain_native_process_os_pid",
+      "id": "function:abi_process_os_pid",
+      "name": "abi_process_os_pid",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_platform_available",
-      "name": "kain_native_process_platform_available",
+      "id": "function:abi_process_platform_available",
+      "name": "abi_process_platform_available",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_poll",
-      "name": "kain_native_process_poll",
+      "id": "function:abi_process_poll",
+      "name": "abi_process_poll",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_pty_capture_hex",
-      "name": "kain_native_process_pty_capture_hex",
+      "id": "function:abi_process_pty_capture_hex",
+      "name": "abi_process_pty_capture_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_pty_capture_text",
-      "name": "kain_native_process_pty_capture_text",
+      "id": "function:abi_process_pty_capture_text",
+      "name": "abi_process_pty_capture_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_pty_read_hex",
-      "name": "kain_native_process_pty_read_hex",
+      "id": "function:abi_process_pty_read_hex",
+      "name": "abi_process_pty_read_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_pty_read_text",
-      "name": "kain_native_process_pty_read_text",
+      "id": "function:abi_process_pty_read_text",
+      "name": "abi_process_pty_read_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_pty_resize",
-      "name": "kain_native_process_pty_resize",
+      "id": "function:abi_process_pty_resize",
+      "name": "abi_process_pty_resize",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_pty_write_hex",
-      "name": "kain_native_process_pty_write_hex",
+      "id": "function:abi_process_pty_write_hex",
+      "name": "abi_process_pty_write_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_pty_write_text",
-      "name": "kain_native_process_pty_write_text",
+      "id": "function:abi_process_pty_write_text",
+      "name": "abi_process_pty_write_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_reset",
-      "name": "kain_native_process_reset",
+      "id": "function:abi_process_reset",
+      "name": "abi_process_reset",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spawn",
-      "name": "kain_native_process_spawn",
+      "id": "function:abi_process_spawn",
+      "name": "abi_process_spawn",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spawn_pty",
-      "name": "kain_native_process_spawn_pty",
+      "id": "function:abi_process_spawn_pty",
+      "name": "abi_process_spawn_pty",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_add_arg",
-      "name": "kain_native_process_spec_add_arg",
+      "id": "function:abi_process_spec_add_arg",
+      "name": "abi_process_spec_add_arg",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_count",
-      "name": "kain_native_process_spec_count",
+      "id": "function:abi_process_spec_count",
+      "name": "abi_process_spec_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_create",
-      "name": "kain_native_process_spec_create",
+      "id": "function:abi_process_spec_create",
+      "name": "abi_process_spec_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_destroy",
-      "name": "kain_native_process_spec_destroy",
+      "id": "function:abi_process_spec_destroy",
+      "name": "abi_process_spec_destroy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_set_cwd",
-      "name": "kain_native_process_spec_set_cwd",
+      "id": "function:abi_process_spec_set_cwd",
+      "name": "abi_process_spec_set_cwd",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_set_env",
-      "name": "kain_native_process_spec_set_env",
+      "id": "function:abi_process_spec_set_env",
+      "name": "abi_process_spec_set_env",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_set_inherit_environment",
-      "name": "kain_native_process_spec_set_inherit_environment",
+      "id": "function:abi_process_spec_set_inherit_environment",
+      "name": "abi_process_spec_set_inherit_environment",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_set_stderr_mode",
-      "name": "kain_native_process_spec_set_stderr_mode",
+      "id": "function:abi_process_spec_set_stderr_mode",
+      "name": "abi_process_spec_set_stderr_mode",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_set_stdin_mode",
-      "name": "kain_native_process_spec_set_stdin_mode",
+      "id": "function:abi_process_spec_set_stdin_mode",
+      "name": "abi_process_spec_set_stdin_mode",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_spec_set_stdout_mode",
-      "name": "kain_native_process_spec_set_stdout_mode",
+      "id": "function:abi_process_spec_set_stdout_mode",
+      "name": "abi_process_spec_set_stdout_mode",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stderr_capture_hex",
-      "name": "kain_native_process_stderr_capture_hex",
+      "id": "function:abi_process_stderr_capture_hex",
+      "name": "abi_process_stderr_capture_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stderr_capture_text",
-      "name": "kain_native_process_stderr_capture_text",
+      "id": "function:abi_process_stderr_capture_text",
+      "name": "abi_process_stderr_capture_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stderr_read_hex",
-      "name": "kain_native_process_stderr_read_hex",
+      "id": "function:abi_process_stderr_read_hex",
+      "name": "abi_process_stderr_read_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stderr_read_text",
-      "name": "kain_native_process_stderr_read_text",
+      "id": "function:abi_process_stderr_read_text",
+      "name": "abi_process_stderr_read_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stdin_close",
-      "name": "kain_native_process_stdin_close",
+      "id": "function:abi_process_stdin_close",
+      "name": "abi_process_stdin_close",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stdin_write_hex",
-      "name": "kain_native_process_stdin_write_hex",
+      "id": "function:abi_process_stdin_write_hex",
+      "name": "abi_process_stdin_write_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stdin_write_text",
-      "name": "kain_native_process_stdin_write_text",
+      "id": "function:abi_process_stdin_write_text",
+      "name": "abi_process_stdin_write_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stdout_capture_hex",
-      "name": "kain_native_process_stdout_capture_hex",
+      "id": "function:abi_process_stdout_capture_hex",
+      "name": "abi_process_stdout_capture_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stdout_capture_text",
-      "name": "kain_native_process_stdout_capture_text",
+      "id": "function:abi_process_stdout_capture_text",
+      "name": "abi_process_stdout_capture_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stdout_read_hex",
-      "name": "kain_native_process_stdout_read_hex",
+      "id": "function:abi_process_stdout_read_hex",
+      "name": "abi_process_stdout_read_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_stdout_read_text",
-      "name": "kain_native_process_stdout_read_text",
+      "id": "function:abi_process_stdout_read_text",
+      "name": "abi_process_stdout_read_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_terminate",
-      "name": "kain_native_process_terminate",
+      "id": "function:abi_process_terminate",
+      "name": "abi_process_terminate",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_process_wait",
-      "name": "kain_native_process_wait",
+      "id": "function:abi_process_wait",
+      "name": "abi_process_wait",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_runtime_heap_validate",
-      "name": "kain_native_runtime_heap_validate",
+      "id": "function:abi_runtime_heap_validate",
+      "name": "abi_runtime_heap_validate",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_runtime_init",
-      "name": "kain_native_runtime_init",
+      "id": "function:abi_runtime_init",
+      "name": "abi_runtime_init",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_runtime_shutdown",
-      "name": "kain_native_runtime_shutdown",
+      "id": "function:abi_runtime_shutdown",
+      "name": "abi_runtime_shutdown",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_sleep_millis",
-      "name": "kain_native_sleep_millis",
+      "id": "function:abi_sleep_millis",
+      "name": "abi_sleep_millis",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_accept",
-      "name": "kain_native_tcp_accept",
+      "id": "function:abi_tcp_accept",
+      "name": "abi_tcp_accept",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_close",
-      "name": "kain_native_tcp_close",
+      "id": "function:abi_tcp_close",
+      "name": "abi_tcp_close",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_connect",
-      "name": "kain_native_tcp_connect",
+      "id": "function:abi_tcp_connect",
+      "name": "abi_tcp_connect",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_listen",
-      "name": "kain_native_tcp_listen",
+      "id": "function:abi_tcp_listen",
+      "name": "abi_tcp_listen",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_listener_close",
-      "name": "kain_native_tcp_listener_close",
+      "id": "function:abi_tcp_listener_close",
+      "name": "abi_tcp_listener_close",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_listener_local_port",
-      "name": "kain_native_tcp_listener_local_port",
+      "id": "function:abi_tcp_listener_local_port",
+      "name": "abi_tcp_listener_local_port",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_read_hex",
-      "name": "kain_native_tcp_read_hex",
+      "id": "function:abi_tcp_read_hex",
+      "name": "abi_tcp_read_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_read_text",
-      "name": "kain_native_tcp_read_text",
+      "id": "function:abi_tcp_read_text",
+      "name": "abi_tcp_read_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_write_hex",
-      "name": "kain_native_tcp_write_hex",
+      "id": "function:abi_tcp_write_hex",
+      "name": "abi_tcp_write_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_tcp_write_text",
-      "name": "kain_native_tcp_write_text",
+      "id": "function:abi_tcp_write_text",
+      "name": "abi_tcp_write_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_accessibility_label",
-      "name": "kain_native_ui_accessibility_label",
+      "id": "function:abi_ui_accessibility_label",
+      "name": "abi_ui_accessibility_label",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_accessibility_role",
-      "name": "kain_native_ui_accessibility_role",
+      "id": "function:abi_ui_accessibility_role",
+      "name": "abi_ui_accessibility_role",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_accessibility_set_label",
-      "name": "kain_native_ui_accessibility_set_label",
+      "id": "function:abi_ui_accessibility_set_label",
+      "name": "abi_ui_accessibility_set_label",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_accessibility_set_role",
-      "name": "kain_native_ui_accessibility_set_role",
+      "id": "function:abi_ui_accessibility_set_role",
+      "name": "abi_ui_accessibility_set_role",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_begin_frame",
-      "name": "kain_native_ui_begin_frame",
+      "id": "function:abi_ui_begin_frame",
+      "name": "abi_ui_begin_frame",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_canvas_create",
-      "name": "kain_native_ui_canvas_create",
+      "id": "function:abi_ui_canvas_create",
+      "name": "abi_ui_canvas_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_clipboard_set_text",
-      "name": "kain_native_ui_clipboard_set_text",
+      "id": "function:abi_ui_clipboard_set_text",
+      "name": "abi_ui_clipboard_set_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_clipboard_text",
-      "name": "kain_native_ui_clipboard_text",
+      "id": "function:abi_ui_clipboard_text",
+      "name": "abi_ui_clipboard_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_active",
-      "name": "kain_native_ui_dialog_active",
+      "id": "function:abi_ui_dialog_active",
+      "name": "abi_ui_dialog_active",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_kind",
-      "name": "kain_native_ui_dialog_kind",
+      "id": "function:abi_ui_dialog_kind",
+      "name": "abi_ui_dialog_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_message",
-      "name": "kain_native_ui_dialog_message",
+      "id": "function:abi_ui_dialog_message",
+      "name": "abi_ui_dialog_message",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_poll_response",
-      "name": "kain_native_ui_dialog_poll_response",
+      "id": "function:abi_ui_dialog_poll_response",
+      "name": "abi_ui_dialog_poll_response",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_request",
-      "name": "kain_native_ui_dialog_request",
+      "id": "function:abi_ui_dialog_request",
+      "name": "abi_ui_dialog_request",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_respond",
-      "name": "kain_native_ui_dialog_respond",
+      "id": "function:abi_ui_dialog_respond",
+      "name": "abi_ui_dialog_respond",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_response_text",
-      "name": "kain_native_ui_dialog_response_text",
+      "id": "function:abi_ui_dialog_response_text",
+      "name": "abi_ui_dialog_response_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dialog_title",
-      "name": "kain_native_ui_dialog_title",
+      "id": "function:abi_ui_dialog_title",
+      "name": "abi_ui_dialog_title",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_dirty_count",
-      "name": "kain_native_ui_dirty_count",
+      "id": "function:abi_ui_dirty_count",
+      "name": "abi_ui_dirty_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_active_node",
-      "name": "kain_native_ui_drag_active_node",
+      "id": "function:abi_ui_drag_active_node",
+      "name": "abi_ui_drag_active_node",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_begin",
-      "name": "kain_native_ui_drag_begin",
+      "id": "function:abi_ui_drag_begin",
+      "name": "abi_ui_drag_begin",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_drop",
-      "name": "kain_native_ui_drag_drop",
+      "id": "function:abi_ui_drag_drop",
+      "name": "abi_ui_drag_drop",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_drop_target",
-      "name": "kain_native_ui_drag_drop_target",
+      "id": "function:abi_ui_drag_drop_target",
+      "name": "abi_ui_drag_drop_target",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_payload",
-      "name": "kain_native_ui_drag_payload",
+      "id": "function:abi_ui_drag_payload",
+      "name": "abi_ui_drag_payload",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_update",
-      "name": "kain_native_ui_drag_update",
+      "id": "function:abi_ui_drag_update",
+      "name": "abi_ui_drag_update",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_x",
-      "name": "kain_native_ui_drag_x",
+      "id": "function:abi_ui_drag_x",
+      "name": "abi_ui_drag_x",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_drag_y",
-      "name": "kain_native_ui_drag_y",
+      "id": "function:abi_ui_drag_y",
+      "name": "abi_ui_drag_y",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_count",
-      "name": "kain_native_ui_draw_command_count",
+      "id": "function:abi_ui_draw_command_count",
+      "name": "abi_ui_draw_command_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_font",
-      "name": "kain_native_ui_draw_command_font",
+      "id": "function:abi_ui_draw_command_font",
+      "name": "abi_ui_draw_command_font",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_height",
-      "name": "kain_native_ui_draw_command_height",
+      "id": "function:abi_ui_draw_command_height",
+      "name": "abi_ui_draw_command_height",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_kind",
-      "name": "kain_native_ui_draw_command_kind",
+      "id": "function:abi_ui_draw_command_kind",
+      "name": "abi_ui_draw_command_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_node",
-      "name": "kain_native_ui_draw_command_node",
+      "id": "function:abi_ui_draw_command_node",
+      "name": "abi_ui_draw_command_node",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_resource",
-      "name": "kain_native_ui_draw_command_resource",
+      "id": "function:abi_ui_draw_command_resource",
+      "name": "abi_ui_draw_command_resource",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_style",
-      "name": "kain_native_ui_draw_command_style",
+      "id": "function:abi_ui_draw_command_style",
+      "name": "abi_ui_draw_command_style",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_text",
-      "name": "kain_native_ui_draw_command_text",
+      "id": "function:abi_ui_draw_command_text",
+      "name": "abi_ui_draw_command_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_width",
-      "name": "kain_native_ui_draw_command_width",
+      "id": "function:abi_ui_draw_command_width",
+      "name": "abi_ui_draw_command_width",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_x",
-      "name": "kain_native_ui_draw_command_x",
+      "id": "function:abi_ui_draw_command_x",
+      "name": "abi_ui_draw_command_x",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_command_y",
-      "name": "kain_native_ui_draw_command_y",
+      "id": "function:abi_ui_draw_command_y",
+      "name": "abi_ui_draw_command_y",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_rect",
-      "name": "kain_native_ui_draw_rect",
+      "id": "function:abi_ui_draw_rect",
+      "name": "abi_ui_draw_rect",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_resource",
-      "name": "kain_native_ui_draw_resource",
+      "id": "function:abi_ui_draw_resource",
+      "name": "abi_ui_draw_resource",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_draw_text",
-      "name": "kain_native_ui_draw_text",
+      "id": "function:abi_ui_draw_text",
+      "name": "abi_ui_draw_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_end_frame",
-      "name": "kain_native_ui_end_frame",
+      "id": "function:abi_ui_end_frame",
+      "name": "abi_ui_end_frame",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_event_key_code",
-      "name": "kain_native_ui_event_key_code",
+      "id": "function:abi_ui_event_key_code",
+      "name": "abi_ui_event_key_code",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_event_kind",
-      "name": "kain_native_ui_event_kind",
+      "id": "function:abi_ui_event_kind",
+      "name": "abi_ui_event_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_event_target",
-      "name": "kain_native_ui_event_target",
+      "id": "function:abi_ui_event_target",
+      "name": "abi_ui_event_target",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_event_text",
-      "name": "kain_native_ui_event_text",
+      "id": "function:abi_ui_event_text",
+      "name": "abi_ui_event_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_event_x",
-      "name": "kain_native_ui_event_x",
+      "id": "function:abi_ui_event_x",
+      "name": "abi_ui_event_x",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_event_y",
-      "name": "kain_native_ui_event_y",
+      "id": "function:abi_ui_event_y",
+      "name": "abi_ui_event_y",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_focus",
-      "name": "kain_native_ui_focus",
+      "id": "function:abi_ui_focus",
+      "name": "abi_ui_focus",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_focused_node",
-      "name": "kain_native_ui_focused_node",
+      "id": "function:abi_ui_focused_node",
+      "name": "abi_ui_focused_node",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_font_create",
-      "name": "kain_native_ui_font_create",
+      "id": "function:abi_ui_font_create",
+      "name": "abi_ui_font_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_frame_index",
-      "name": "kain_native_ui_frame_index",
+      "id": "function:abi_ui_frame_index",
+      "name": "abi_ui_frame_index",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_hit_test",
-      "name": "kain_native_ui_hit_test",
+      "id": "function:abi_ui_hit_test",
+      "name": "abi_ui_hit_test",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_host_attach",
-      "name": "kain_native_ui_host_attach",
+      "id": "function:abi_ui_host_attach",
+      "name": "abi_ui_host_attach",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_host_backend",
-      "name": "kain_native_ui_host_backend",
+      "id": "function:abi_ui_host_backend",
+      "name": "abi_ui_host_backend",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_host_frame_hash",
-      "name": "kain_native_ui_host_frame_hash",
+      "id": "function:abi_ui_host_frame_hash",
+      "name": "abi_ui_host_frame_hash",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_host_present",
-      "name": "kain_native_ui_host_present",
+      "id": "function:abi_ui_host_present",
+      "name": "abi_ui_host_present",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_host_presented_draw_count",
-      "name": "kain_native_ui_host_presented_draw_count",
+      "id": "function:abi_ui_host_presented_draw_count",
+      "name": "abi_ui_host_presented_draw_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_host_pump",
-      "name": "kain_native_ui_host_pump",
+      "id": "function:abi_ui_host_pump",
+      "name": "abi_ui_host_pump",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_host_should_close",
-      "name": "kain_native_ui_host_should_close",
+      "id": "function:abi_ui_host_should_close",
+      "name": "abi_ui_host_should_close",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_hot_reload_begin",
-      "name": "kain_native_ui_hot_reload_begin",
+      "id": "function:abi_ui_hot_reload_begin",
+      "name": "abi_ui_hot_reload_begin",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_hot_reload_commit",
-      "name": "kain_native_ui_hot_reload_commit",
+      "id": "function:abi_ui_hot_reload_commit",
+      "name": "abi_ui_hot_reload_commit",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_hot_reload_generation",
-      "name": "kain_native_ui_hot_reload_generation",
+      "id": "function:abi_ui_hot_reload_generation",
+      "name": "abi_ui_hot_reload_generation",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_hot_reload_key",
-      "name": "kain_native_ui_hot_reload_key",
+      "id": "function:abi_ui_hot_reload_key",
+      "name": "abi_ui_hot_reload_key",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_ime_active_node",
-      "name": "kain_native_ui_ime_active_node",
+      "id": "function:abi_ui_ime_active_node",
+      "name": "abi_ui_ime_active_node",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_ime_begin",
-      "name": "kain_native_ui_ime_begin",
+      "id": "function:abi_ui_ime_begin",
+      "name": "abi_ui_ime_begin",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_ime_commit_text",
-      "name": "kain_native_ui_ime_commit_text",
+      "id": "function:abi_ui_ime_commit_text",
+      "name": "abi_ui_ime_commit_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_ime_end",
-      "name": "kain_native_ui_ime_end",
+      "id": "function:abi_ui_ime_end",
+      "name": "abi_ui_ime_end",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_ime_text",
-      "name": "kain_native_ui_ime_text",
+      "id": "function:abi_ui_ime_text",
+      "name": "abi_ui_ime_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_last_presented_frame",
-      "name": "kain_native_ui_last_presented_frame",
+      "id": "function:abi_ui_last_presented_frame",
+      "name": "abi_ui_last_presented_frame",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_mark_dirty",
-      "name": "kain_native_ui_mark_dirty",
+      "id": "function:abi_ui_mark_dirty",
+      "name": "abi_ui_mark_dirty",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_menu_active",
-      "name": "kain_native_ui_menu_active",
+      "id": "function:abi_ui_menu_active",
+      "name": "abi_ui_menu_active",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_menu_add_item",
-      "name": "kain_native_ui_menu_add_item",
+      "id": "function:abi_ui_menu_add_item",
+      "name": "abi_ui_menu_add_item",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_menu_create",
-      "name": "kain_native_ui_menu_create",
+      "id": "function:abi_ui_menu_create",
+      "name": "abi_ui_menu_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_menu_item_command",
-      "name": "kain_native_ui_menu_item_command",
+      "id": "function:abi_ui_menu_item_command",
+      "name": "abi_ui_menu_item_command",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_menu_item_count",
-      "name": "kain_native_ui_menu_item_count",
+      "id": "function:abi_ui_menu_item_count",
+      "name": "abi_ui_menu_item_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_menu_item_label",
-      "name": "kain_native_ui_menu_item_label",
+      "id": "function:abi_ui_menu_item_label",
+      "name": "abi_ui_menu_item_label",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_menu_open",
-      "name": "kain_native_ui_menu_open",
+      "id": "function:abi_ui_menu_open",
+      "name": "abi_ui_menu_open",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_child_count",
-      "name": "kain_native_ui_node_child_count",
+      "id": "function:abi_ui_node_child_count",
+      "name": "abi_ui_node_child_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_count",
-      "name": "kain_native_ui_node_count",
+      "id": "function:abi_ui_node_count",
+      "name": "abi_ui_node_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_create",
-      "name": "kain_native_ui_node_create",
+      "id": "function:abi_ui_node_create",
+      "name": "abi_ui_node_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_destroy",
-      "name": "kain_native_ui_node_destroy",
+      "id": "function:abi_ui_node_destroy",
+      "name": "abi_ui_node_destroy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_exists",
-      "name": "kain_native_ui_node_exists",
+      "id": "function:abi_ui_node_exists",
+      "name": "abi_ui_node_exists",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_find_by_stable_key",
-      "name": "kain_native_ui_node_find_by_stable_key",
+      "id": "function:abi_ui_node_find_by_stable_key",
+      "name": "abi_ui_node_find_by_stable_key",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_has_flag",
-      "name": "kain_native_ui_node_has_flag",
+      "id": "function:abi_ui_node_has_flag",
+      "name": "abi_ui_node_has_flag",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_height",
-      "name": "kain_native_ui_node_height",
+      "id": "function:abi_ui_node_height",
+      "name": "abi_ui_node_height",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_kind",
-      "name": "kain_native_ui_node_kind",
+      "id": "function:abi_ui_node_kind",
+      "name": "abi_ui_node_kind",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_parent",
-      "name": "kain_native_ui_node_parent",
+      "id": "function:abi_ui_node_parent",
+      "name": "abi_ui_node_parent",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_flag",
-      "name": "kain_native_ui_node_set_flag",
+      "id": "function:abi_ui_node_set_flag",
+      "name": "abi_ui_node_set_flag",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_parent",
-      "name": "kain_native_ui_node_set_parent",
+      "id": "function:abi_ui_node_set_parent",
+      "name": "abi_ui_node_set_parent",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_rect",
-      "name": "kain_native_ui_node_set_rect",
+      "id": "function:abi_ui_node_set_rect",
+      "name": "abi_ui_node_set_rect",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_stable_key",
-      "name": "kain_native_ui_node_set_stable_key",
+      "id": "function:abi_ui_node_set_stable_key",
+      "name": "abi_ui_node_set_stable_key",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_state_f64",
-      "name": "kain_native_ui_node_set_state_f64",
+      "id": "function:abi_ui_node_set_state_f64",
+      "name": "abi_ui_node_set_state_f64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_state_i64",
-      "name": "kain_native_ui_node_set_state_i64",
+      "id": "function:abi_ui_node_set_state_i64",
+      "name": "abi_ui_node_set_state_i64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_state_string",
-      "name": "kain_native_ui_node_set_state_string",
+      "id": "function:abi_ui_node_set_state_string",
+      "name": "abi_ui_node_set_state_string",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_style_f64",
-      "name": "kain_native_ui_node_set_style_f64",
+      "id": "function:abi_ui_node_set_style_f64",
+      "name": "abi_ui_node_set_style_f64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_style_i64",
-      "name": "kain_native_ui_node_set_style_i64",
+      "id": "function:abi_ui_node_set_style_i64",
+      "name": "abi_ui_node_set_style_i64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_style_string",
-      "name": "kain_native_ui_node_set_style_string",
+      "id": "function:abi_ui_node_set_style_string",
+      "name": "abi_ui_node_set_style_string",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_set_text",
-      "name": "kain_native_ui_node_set_text",
+      "id": "function:abi_ui_node_set_text",
+      "name": "abi_ui_node_set_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_stable_key",
-      "name": "kain_native_ui_node_stable_key",
+      "id": "function:abi_ui_node_stable_key",
+      "name": "abi_ui_node_stable_key",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_state_f64",
-      "name": "kain_native_ui_node_state_f64",
+      "id": "function:abi_ui_node_state_f64",
+      "name": "abi_ui_node_state_f64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_state_i64",
-      "name": "kain_native_ui_node_state_i64",
+      "id": "function:abi_ui_node_state_i64",
+      "name": "abi_ui_node_state_i64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_state_string",
-      "name": "kain_native_ui_node_state_string",
+      "id": "function:abi_ui_node_state_string",
+      "name": "abi_ui_node_state_string",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_style_f64",
-      "name": "kain_native_ui_node_style_f64",
+      "id": "function:abi_ui_node_style_f64",
+      "name": "abi_ui_node_style_f64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_style_i64",
-      "name": "kain_native_ui_node_style_i64",
+      "id": "function:abi_ui_node_style_i64",
+      "name": "abi_ui_node_style_i64",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_style_string",
-      "name": "kain_native_ui_node_style_string",
+      "id": "function:abi_ui_node_style_string",
+      "name": "abi_ui_node_style_string",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_text",
-      "name": "kain_native_ui_node_text",
+      "id": "function:abi_ui_node_text",
+      "name": "abi_ui_node_text",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_width",
-      "name": "kain_native_ui_node_width",
+      "id": "function:abi_ui_node_width",
+      "name": "abi_ui_node_width",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_x",
-      "name": "kain_native_ui_node_x",
+      "id": "function:abi_ui_node_x",
+      "name": "abi_ui_node_x",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_node_y",
-      "name": "kain_native_ui_node_y",
+      "id": "function:abi_ui_node_y",
+      "name": "abi_ui_node_y",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_poll_event",
-      "name": "kain_native_ui_poll_event",
+      "id": "function:abi_ui_poll_event",
+      "name": "abi_ui_poll_event",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_present",
-      "name": "kain_native_ui_present",
+      "id": "function:abi_ui_present",
+      "name": "abi_ui_present",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_push_event",
-      "name": "kain_native_ui_push_event",
+      "id": "function:abi_ui_push_event",
+      "name": "abi_ui_push_event",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_reset",
-      "name": "kain_native_ui_reset",
+      "id": "function:abi_ui_reset",
+      "name": "abi_ui_reset",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_byte_length",
-      "name": "kain_native_ui_resource_byte_length",
+      "id": "function:abi_ui_resource_byte_length",
+      "name": "abi_ui_resource_byte_length",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_count",
-      "name": "kain_native_ui_resource_count",
+      "id": "function:abi_ui_resource_count",
+      "name": "abi_ui_resource_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_create",
-      "name": "kain_native_ui_resource_create",
+      "id": "function:abi_ui_resource_create",
+      "name": "abi_ui_resource_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_exists",
-      "name": "kain_native_ui_resource_exists",
+      "id": "function:abi_ui_resource_exists",
+      "name": "abi_ui_resource_exists",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_height",
-      "name": "kain_native_ui_resource_height",
+      "id": "function:abi_ui_resource_height",
+      "name": "abi_ui_resource_height",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_key",
-      "name": "kain_native_ui_resource_key",
+      "id": "function:abi_ui_resource_key",
+      "name": "abi_ui_resource_key",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_set_bytes_hex",
-      "name": "kain_native_ui_resource_set_bytes_hex",
+      "id": "function:abi_ui_resource_set_bytes_hex",
+      "name": "abi_ui_resource_set_bytes_hex",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_type",
-      "name": "kain_native_ui_resource_type",
+      "id": "function:abi_ui_resource_type",
+      "name": "abi_ui_resource_type",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_resource_width",
-      "name": "kain_native_ui_resource_width",
+      "id": "function:abi_ui_resource_width",
+      "name": "abi_ui_resource_width",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_session_count",
-      "name": "kain_native_ui_session_count",
+      "id": "function:abi_ui_session_count",
+      "name": "abi_ui_session_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_session_create",
-      "name": "kain_native_ui_session_create",
+      "id": "function:abi_ui_session_create",
+      "name": "abi_ui_session_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_session_destroy",
-      "name": "kain_native_ui_session_destroy",
+      "id": "function:abi_ui_session_destroy",
+      "name": "abi_ui_session_destroy",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_shader_create",
-      "name": "kain_native_ui_shader_create",
+      "id": "function:abi_ui_shader_create",
+      "name": "abi_ui_shader_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_state_count",
-      "name": "kain_native_ui_state_count",
+      "id": "function:abi_ui_state_count",
+      "name": "abi_ui_state_count",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_text_measure_height",
-      "name": "kain_native_ui_text_measure_height",
+      "id": "function:abi_ui_text_measure_height",
+      "name": "abi_ui_text_measure_height",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_text_measure_width",
-      "name": "kain_native_ui_text_measure_width",
+      "id": "function:abi_ui_text_measure_width",
+      "name": "abi_ui_text_measure_width",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_texture_create",
-      "name": "kain_native_ui_texture_create",
+      "id": "function:abi_ui_texture_create",
+      "name": "abi_ui_texture_create",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_window_close",
-      "name": "kain_native_ui_window_close",
+      "id": "function:abi_ui_window_close",
+      "name": "abi_ui_window_close",
       "kind": "function"
     },
     {
-      "id": "function:kain_native_ui_window_open",
-      "name": "kain_native_ui_window_open",
+      "id": "function:abi_ui_window_open",
+      "name": "abi_ui_window_open",
       "kind": "function"
     },
     {
@@ -4837,231 +4837,231 @@
     "items": [
       {
         "item_id": 1,
-        "name": "kain_native_actor_abi_version",
+        "name": "abi_actor_abi_version",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 2,
-        "name": "kain_native_actor_invalid_id",
+        "name": "abi_actor_invalid_id",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 3,
-        "name": "kain_native_actor_default_mailbox_capacity",
+        "name": "abi_actor_default_mailbox_capacity",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 4,
-        "name": "kain_native_actor_unbounded_mailbox_capacity",
+        "name": "abi_actor_unbounded_mailbox_capacity",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 5,
-        "name": "kain_native_actor_default_ask_timeout_ms",
+        "name": "abi_actor_default_ask_timeout_ms",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 6,
-        "name": "kain_native_actor_default_shutdown_grace_ms",
+        "name": "abi_actor_default_shutdown_grace_ms",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 7,
-        "name": "kain_native_actor_supervision_max_restarts",
+        "name": "abi_actor_supervision_max_restarts",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 8,
-        "name": "kain_native_actor_supervision_restart_window_millis",
+        "name": "abi_actor_supervision_restart_window_millis",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 9,
-        "name": "kain_native_actor_spawn",
+        "name": "abi_actor_spawn",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 10,
-        "name": "kain_native_actor_send",
+        "name": "abi_actor_send",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 11,
-        "name": "kain_native_actor_state_invalid",
+        "name": "abi_actor_state_invalid",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 12,
-        "name": "kain_native_actor_get_state",
+        "name": "abi_actor_get_state",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 13,
-        "name": "kain_native_actor_shutdown",
+        "name": "abi_actor_shutdown",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 14,
-        "name": "kain_native_actor_kill",
+        "name": "abi_actor_kill",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 15,
-        "name": "kain_native_actor_registry_lookup",
+        "name": "abi_actor_registry_lookup",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 16,
-        "name": "kain_native_actor_registry_register",
+        "name": "abi_actor_registry_register",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 17,
-        "name": "kain_native_actor_registry_unregister",
+        "name": "abi_actor_registry_unregister",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 18,
-        "name": "kain_native_actor_monitor",
+        "name": "abi_actor_monitor",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 19,
-        "name": "kain_native_actor_demonitor",
+        "name": "abi_actor_demonitor",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 20,
-        "name": "kain_native_actor_link",
+        "name": "abi_actor_link",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 21,
-        "name": "kain_native_actor_unlink",
+        "name": "abi_actor_unlink",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 22,
-        "name": "kain_native_actor_supervision_observed_child_exit_count",
+        "name": "abi_actor_supervision_observed_child_exit_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 23,
-        "name": "kain_native_actor_supervision_restart_attempt_count",
+        "name": "abi_actor_supervision_restart_attempt_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 24,
-        "name": "kain_native_actor_supervision_escalation_count",
+        "name": "abi_actor_supervision_escalation_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 25,
-        "name": "kain_native_actor_supervision_limit_hit",
+        "name": "abi_actor_supervision_limit_hit",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 26,
-        "name": "kain_native_actor_scheduler_queue_depth",
+        "name": "abi_actor_scheduler_queue_depth",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 27,
-        "name": "kain_native_actor_scheduler_max_queue_depth",
+        "name": "abi_actor_scheduler_max_queue_depth",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 28,
-        "name": "kain_native_actor_scheduler_total_enqueued",
+        "name": "abi_actor_scheduler_total_enqueued",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 29,
-        "name": "kain_native_actor_scheduler_total_dequeued",
+        "name": "abi_actor_scheduler_total_dequeued",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 30,
-        "name": "kain_native_actor_scheduler_worker_count",
+        "name": "abi_actor_scheduler_worker_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 31,
-        "name": "kain_native_actor_scheduler_active_workers",
+        "name": "abi_actor_scheduler_active_workers",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 32,
-        "name": "kain_native_actor_scheduler_busy_workers",
+        "name": "abi_actor_scheduler_busy_workers",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 33,
-        "name": "kain_native_actor_scheduler_overflow_thread_spawns",
+        "name": "abi_actor_scheduler_overflow_thread_spawns",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -5460,189 +5460,189 @@
       },
       {
         "item_id": 90,
-        "name": "kain_native_fs_read_text",
+        "name": "abi_fs_read_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 91,
-        "name": "kain_native_fs_read_text_range",
+        "name": "abi_fs_read_text_range",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 92,
-        "name": "kain_native_fs_write_text",
+        "name": "abi_fs_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 93,
-        "name": "kain_native_fs_append_text",
+        "name": "abi_fs_append_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 94,
-        "name": "kain_native_fs_atomic_write_text",
+        "name": "abi_fs_atomic_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 95,
-        "name": "kain_native_fs_read_bytes_hex",
+        "name": "abi_fs_read_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 96,
-        "name": "kain_native_fs_read_byte_range_hex",
+        "name": "abi_fs_read_byte_range_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 97,
-        "name": "kain_native_fs_write_bytes_hex",
+        "name": "abi_fs_write_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 98,
-        "name": "kain_native_fs_exists",
+        "name": "abi_fs_exists",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 99,
-        "name": "kain_native_fs_is_file",
+        "name": "abi_fs_is_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 100,
-        "name": "kain_native_fs_is_dir",
+        "name": "abi_fs_is_dir",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 101,
-        "name": "kain_native_fs_metadata_text",
+        "name": "abi_fs_metadata_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 102,
-        "name": "kain_native_fs_read_dir_paths_text",
+        "name": "abi_fs_read_dir_paths_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 103,
-        "name": "kain_native_fs_walk_paths_text",
+        "name": "abi_fs_walk_paths_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 104,
-        "name": "kain_native_fs_create_dir_all",
+        "name": "abi_fs_create_dir_all",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 105,
-        "name": "kain_native_fs_copy_file",
+        "name": "abi_fs_copy_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 106,
-        "name": "kain_native_fs_copy_file_streaming",
+        "name": "abi_fs_copy_file_streaming",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 107,
-        "name": "kain_native_fs_move_path",
+        "name": "abi_fs_move_path",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 108,
-        "name": "kain_native_fs_remove_file",
+        "name": "abi_fs_remove_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 109,
-        "name": "kain_native_fs_remove_dir_all",
+        "name": "abi_fs_remove_dir_all",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 110,
-        "name": "kain_native_fs_temp_file",
+        "name": "abi_fs_temp_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 111,
-        "name": "kain_native_fs_temp_dir",
+        "name": "abi_fs_temp_dir",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 112,
-        "name": "kain_native_fs_hash_file",
+        "name": "abi_fs_hash_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 113,
-        "name": "kain_native_fs_path_join",
+        "name": "abi_fs_path_join",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 114,
-        "name": "kain_native_fs_last_status",
+        "name": "abi_fs_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 115,
-        "name": "kain_native_fs_last_error_kind",
+        "name": "abi_fs_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 116,
-        "name": "kain_native_fs_last_error_message",
+        "name": "abi_fs_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -5838,294 +5838,294 @@
       },
       {
         "item_id": 144,
-        "name": "kain_native_graphics_reset",
+        "name": "abi_graphics_reset",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 145,
-        "name": "kain_native_graphics_session_create",
+        "name": "abi_graphics_session_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 146,
-        "name": "kain_native_graphics_session_destroy",
+        "name": "abi_graphics_session_destroy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 147,
-        "name": "kain_native_graphics_session_count",
+        "name": "abi_graphics_session_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 148,
-        "name": "kain_native_graphics_backend_supported",
+        "name": "abi_graphics_backend_supported",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 149,
-        "name": "kain_native_graphics_backend_available",
+        "name": "abi_graphics_backend_available",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 150,
-        "name": "kain_native_graphics_backend_status",
+        "name": "abi_graphics_backend_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 151,
-        "name": "kain_native_graphics_backend_select",
+        "name": "abi_graphics_backend_select",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 152,
-        "name": "kain_native_graphics_active_backend",
+        "name": "abi_graphics_active_backend",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 153,
-        "name": "kain_native_graphics_begin_frame",
+        "name": "abi_graphics_begin_frame",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 154,
-        "name": "kain_native_graphics_end_frame",
+        "name": "abi_graphics_end_frame",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 155,
-        "name": "kain_native_graphics_present",
+        "name": "abi_graphics_present",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 156,
-        "name": "kain_native_graphics_frame_index",
+        "name": "abi_graphics_frame_index",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 157,
-        "name": "kain_native_graphics_last_presented_frame",
+        "name": "abi_graphics_last_presented_frame",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 158,
-        "name": "kain_native_graphics_buffer_create",
+        "name": "abi_graphics_buffer_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 159,
-        "name": "kain_native_graphics_buffer_create_from_hex",
+        "name": "abi_graphics_buffer_create_from_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 160,
-        "name": "kain_native_graphics_buffer_byte_length",
+        "name": "abi_graphics_buffer_byte_length",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 161,
-        "name": "kain_native_graphics_buffer_byte_at",
+        "name": "abi_graphics_buffer_byte_at",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 162,
-        "name": "kain_native_graphics_buffer_kind",
+        "name": "abi_graphics_buffer_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 163,
-        "name": "kain_native_graphics_buffer_label",
+        "name": "abi_graphics_buffer_label",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 164,
-        "name": "kain_native_graphics_shader_spirv_from_hex",
+        "name": "abi_graphics_shader_spirv_from_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 165,
-        "name": "kain_native_graphics_shader_spirv_from_file",
+        "name": "abi_graphics_shader_spirv_from_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 166,
-        "name": "kain_native_graphics_shader_byte_length",
+        "name": "abi_graphics_shader_byte_length",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 167,
-        "name": "kain_native_graphics_shader_byte_at",
+        "name": "abi_graphics_shader_byte_at",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 168,
-        "name": "kain_native_graphics_shader_key",
+        "name": "abi_graphics_shader_key",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 169,
-        "name": "kain_native_graphics_shader_stage",
+        "name": "abi_graphics_shader_stage",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 170,
-        "name": "kain_native_graphics_mesh_create",
+        "name": "abi_graphics_mesh_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 171,
-        "name": "kain_native_graphics_mesh_vertex_count",
+        "name": "abi_graphics_mesh_vertex_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 172,
-        "name": "kain_native_graphics_mesh_index_count",
+        "name": "abi_graphics_mesh_index_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 173,
-        "name": "kain_native_graphics_mesh_label",
+        "name": "abi_graphics_mesh_label",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 174,
-        "name": "kain_native_graphics_pipeline_create",
+        "name": "abi_graphics_pipeline_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 175,
-        "name": "kain_native_graphics_pipeline_label",
+        "name": "abi_graphics_pipeline_label",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 176,
-        "name": "kain_native_graphics_pipeline_backend",
+        "name": "abi_graphics_pipeline_backend",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 177,
-        "name": "kain_native_graphics_draw_mesh",
+        "name": "abi_graphics_draw_mesh",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 178,
-        "name": "kain_native_graphics_draw_command_count",
+        "name": "abi_graphics_draw_command_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 179,
-        "name": "kain_native_graphics_draw_command_kind",
+        "name": "abi_graphics_draw_command_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 180,
-        "name": "kain_native_graphics_draw_command_mesh",
+        "name": "abi_graphics_draw_command_mesh",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 181,
-        "name": "kain_native_graphics_draw_command_pipeline",
+        "name": "abi_graphics_draw_command_pipeline",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 182,
-        "name": "kain_native_graphics_draw_command_instances",
+        "name": "abi_graphics_draw_command_instances",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 183,
-        "name": "kain_native_graphics_last_status",
+        "name": "abi_graphics_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 184,
-        "name": "kain_native_graphics_last_error_kind",
+        "name": "abi_graphics_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 185,
-        "name": "kain_native_graphics_last_error_message",
+        "name": "abi_graphics_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -6741,189 +6741,189 @@
       },
       {
         "item_id": 273,
-        "name": "kain_native_input_reset",
+        "name": "abi_input_reset",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 274,
-        "name": "kain_native_input_session_create",
+        "name": "abi_input_session_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 275,
-        "name": "kain_native_input_session_destroy",
+        "name": "abi_input_session_destroy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 276,
-        "name": "kain_native_input_session_count",
+        "name": "abi_input_session_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 277,
-        "name": "kain_native_input_bind_action",
+        "name": "abi_input_bind_action",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 278,
-        "name": "kain_native_input_bind_axis",
+        "name": "abi_input_bind_axis",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 279,
-        "name": "kain_native_input_push_event",
+        "name": "abi_input_push_event",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 280,
-        "name": "kain_native_input_push_agent_intent",
+        "name": "abi_input_push_agent_intent",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 281,
-        "name": "kain_native_input_begin_frame",
+        "name": "abi_input_begin_frame",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 282,
-        "name": "kain_native_input_frame_index",
+        "name": "abi_input_frame_index",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 283,
-        "name": "kain_native_input_event_count",
+        "name": "abi_input_event_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 284,
-        "name": "kain_native_input_event_kind",
+        "name": "abi_input_event_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 285,
-        "name": "kain_native_input_event_source_kind",
+        "name": "abi_input_event_source_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 286,
-        "name": "kain_native_input_event_code",
+        "name": "abi_input_event_code",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 287,
-        "name": "kain_native_input_event_action",
+        "name": "abi_input_event_action",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 288,
-        "name": "kain_native_input_event_text",
+        "name": "abi_input_event_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 289,
-        "name": "kain_native_input_action_pressed",
+        "name": "abi_input_action_pressed",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 290,
-        "name": "kain_native_input_action_down",
+        "name": "abi_input_action_down",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 291,
-        "name": "kain_native_input_action_released",
+        "name": "abi_input_action_released",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 292,
-        "name": "kain_native_input_axis_value",
+        "name": "abi_input_axis_value",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 293,
-        "name": "kain_native_input_text_commit_count",
+        "name": "abi_input_text_commit_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 294,
-        "name": "kain_native_input_text_commit",
+        "name": "abi_input_text_commit",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 295,
-        "name": "kain_native_input_trace_text",
+        "name": "abi_input_trace_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 296,
-        "name": "kain_native_input_replay_trace",
+        "name": "abi_input_replay_trace",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 297,
-        "name": "kain_native_input_last_status",
+        "name": "abi_input_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 298,
-        "name": "kain_native_input_last_error_kind",
+        "name": "abi_input_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 299,
-        "name": "kain_native_input_last_error_message",
+        "name": "abi_input_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -7196,98 +7196,98 @@
       },
       {
         "item_id": 338,
-        "name": "kain_native_entangle_reset",
+        "name": "abi_entangle_reset",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 339,
-        "name": "kain_native_entangle_registered_count",
+        "name": "abi_entangle_registered_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 340,
-        "name": "kain_native_entangle_register",
+        "name": "abi_entangle_register",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 341,
-        "name": "kain_native_entangle_get_authority",
+        "name": "abi_entangle_get_authority",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 342,
-        "name": "kain_native_entangle_get_mirror",
+        "name": "abi_entangle_get_mirror",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 343,
-        "name": "kain_native_entangle_get_policy",
+        "name": "abi_entangle_get_policy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 344,
-        "name": "kain_native_entangle_get_type_name",
+        "name": "abi_entangle_get_type_name",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 345,
-        "name": "kain_native_patch_journal_count",
+        "name": "abi_patch_journal_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 346,
-        "name": "kain_native_patch_last_path",
+        "name": "abi_patch_last_path",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 347,
-        "name": "kain_native_entangle_propagation_count",
+        "name": "abi_entangle_propagation_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 348,
-        "name": "kain_native_entangle_last_authority",
+        "name": "abi_entangle_last_authority",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 349,
-        "name": "kain_native_entangle_last_mirror",
+        "name": "abi_entangle_last_mirror",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 350,
-        "name": "kain_native_converge_mismatch_count",
+        "name": "abi_converge_mismatch_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 351,
-        "name": "kain_native_orchestrate_stage_count",
+        "name": "abi_orchestrate_stage_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -7469,350 +7469,350 @@
       },
       {
         "item_id": 377,
-        "name": "kain_native_net_reset",
+        "name": "abi_net_reset",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 378,
-        "name": "kain_native_net_platform_available",
+        "name": "abi_net_platform_available",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 379,
-        "name": "kain_native_net_platform_name",
+        "name": "abi_net_platform_name",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 380,
-        "name": "kain_native_net_capability_state",
+        "name": "abi_net_capability_state",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 381,
-        "name": "kain_native_tcp_connect",
+        "name": "abi_tcp_connect",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 382,
-        "name": "kain_native_tcp_listen",
+        "name": "abi_tcp_listen",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 383,
-        "name": "kain_native_tcp_listener_local_port",
+        "name": "abi_tcp_listener_local_port",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 384,
-        "name": "kain_native_tcp_accept",
+        "name": "abi_tcp_accept",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 385,
-        "name": "kain_native_tcp_read_text",
+        "name": "abi_tcp_read_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 386,
-        "name": "kain_native_tcp_read_hex",
+        "name": "abi_tcp_read_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 387,
-        "name": "kain_native_tcp_write_text",
+        "name": "abi_tcp_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 388,
-        "name": "kain_native_tcp_write_hex",
+        "name": "abi_tcp_write_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 389,
-        "name": "kain_native_tcp_close",
+        "name": "abi_tcp_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 390,
-        "name": "kain_native_tcp_listener_close",
+        "name": "abi_tcp_listener_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 391,
-        "name": "kain_native_http_request_create",
+        "name": "abi_http_request_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 392,
-        "name": "kain_native_http_request_set_header",
+        "name": "abi_http_request_set_header",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 393,
-        "name": "kain_native_http_request_set_body_text",
+        "name": "abi_http_request_set_body_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 394,
-        "name": "kain_native_http_request_set_body_hex",
+        "name": "abi_http_request_set_body_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 395,
-        "name": "kain_native_http_request_set_timeout",
+        "name": "abi_http_request_set_timeout",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 396,
-        "name": "kain_native_http_request_set_protocol",
+        "name": "abi_http_request_set_protocol",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 397,
-        "name": "kain_native_http_request_protocol",
+        "name": "abi_http_request_protocol",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 398,
-        "name": "kain_native_http_client_send",
+        "name": "abi_http_client_send",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 399,
-        "name": "kain_native_http_response_status",
+        "name": "abi_http_response_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 400,
-        "name": "kain_native_http_response_protocol",
+        "name": "abi_http_response_protocol",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 401,
-        "name": "kain_native_http_response_header",
+        "name": "abi_http_response_header",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 402,
-        "name": "kain_native_http_response_body_text",
+        "name": "abi_http_response_body_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 403,
-        "name": "kain_native_http_response_body_hex",
+        "name": "abi_http_response_body_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 404,
-        "name": "kain_native_http_request_destroy",
+        "name": "abi_http_request_destroy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 405,
-        "name": "kain_native_http_response_destroy",
+        "name": "abi_http_response_destroy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 406,
-        "name": "kain_native_http_server_create",
+        "name": "abi_http_server_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 407,
-        "name": "kain_native_http_server_listen",
+        "name": "abi_http_server_listen",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 408,
-        "name": "kain_native_http_server_local_port",
+        "name": "abi_http_server_local_port",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 409,
-        "name": "kain_native_http_server_route_actor",
+        "name": "abi_http_server_route_actor",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 410,
-        "name": "kain_native_http_server_pump",
+        "name": "abi_http_server_pump",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 411,
-        "name": "kain_native_http_server_pending_request_count",
+        "name": "abi_http_server_pending_request_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 412,
-        "name": "kain_native_http_server_next_request",
+        "name": "abi_http_server_next_request",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 413,
-        "name": "kain_native_http_request_method",
+        "name": "abi_http_request_method",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 414,
-        "name": "kain_native_http_request_path",
+        "name": "abi_http_request_path",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 415,
-        "name": "kain_native_http_request_query",
+        "name": "abi_http_request_query",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 416,
-        "name": "kain_native_http_request_header",
+        "name": "abi_http_request_header",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 417,
-        "name": "kain_native_http_request_body_text",
+        "name": "abi_http_request_body_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 418,
-        "name": "kain_native_http_request_body_hex",
+        "name": "abi_http_request_body_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 419,
-        "name": "kain_native_http_respond_text",
+        "name": "abi_http_respond_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 420,
-        "name": "kain_native_http_respond_hex",
+        "name": "abi_http_respond_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 421,
-        "name": "kain_native_http_response_set_header_for_request",
+        "name": "abi_http_response_set_header_for_request",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 422,
-        "name": "kain_native_http_server_close",
+        "name": "abi_http_server_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 423,
-        "name": "kain_native_http_local_url",
+        "name": "abi_http_local_url",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 424,
-        "name": "kain_native_net_last_status",
+        "name": "abi_net_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 425,
-        "name": "kain_native_net_last_error_kind",
+        "name": "abi_net_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 426,
-        "name": "kain_native_net_last_error_message",
+        "name": "abi_net_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -8204,308 +8204,308 @@
       },
       {
         "item_id": 482,
-        "name": "kain_native_process_reset",
+        "name": "abi_process_reset",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 483,
-        "name": "kain_native_process_platform_available",
+        "name": "abi_process_platform_available",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 484,
-        "name": "kain_native_process_spec_create",
+        "name": "abi_process_spec_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 485,
-        "name": "kain_native_process_spec_destroy",
+        "name": "abi_process_spec_destroy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 486,
-        "name": "kain_native_process_spec_count",
+        "name": "abi_process_spec_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 487,
-        "name": "kain_native_process_spec_add_arg",
+        "name": "abi_process_spec_add_arg",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 488,
-        "name": "kain_native_process_spec_set_cwd",
+        "name": "abi_process_spec_set_cwd",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 489,
-        "name": "kain_native_process_spec_set_env",
+        "name": "abi_process_spec_set_env",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 490,
-        "name": "kain_native_process_spec_set_inherit_environment",
+        "name": "abi_process_spec_set_inherit_environment",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 491,
-        "name": "kain_native_process_spec_set_stdin_mode",
+        "name": "abi_process_spec_set_stdin_mode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 492,
-        "name": "kain_native_process_spec_set_stdout_mode",
+        "name": "abi_process_spec_set_stdout_mode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 493,
-        "name": "kain_native_process_spec_set_stderr_mode",
+        "name": "abi_process_spec_set_stderr_mode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 494,
-        "name": "kain_native_process_spawn",
+        "name": "abi_process_spawn",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 495,
-        "name": "kain_native_process_spawn_pty",
+        "name": "abi_process_spawn_pty",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 496,
-        "name": "kain_native_process_count",
+        "name": "abi_process_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 497,
-        "name": "kain_native_process_close",
+        "name": "abi_process_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 498,
-        "name": "kain_native_process_poll",
+        "name": "abi_process_poll",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 499,
-        "name": "kain_native_process_wait",
+        "name": "abi_process_wait",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 500,
-        "name": "kain_native_process_is_running",
+        "name": "abi_process_is_running",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 501,
-        "name": "kain_native_process_exit_code",
+        "name": "abi_process_exit_code",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 502,
-        "name": "kain_native_process_os_pid",
+        "name": "abi_process_os_pid",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 503,
-        "name": "kain_native_process_terminate",
+        "name": "abi_process_terminate",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 504,
-        "name": "kain_native_process_kill",
+        "name": "abi_process_kill",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 505,
-        "name": "kain_native_process_stdin_write_text",
+        "name": "abi_process_stdin_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 506,
-        "name": "kain_native_process_stdin_write_hex",
+        "name": "abi_process_stdin_write_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 507,
-        "name": "kain_native_process_stdin_close",
+        "name": "abi_process_stdin_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 508,
-        "name": "kain_native_process_stdout_read_text",
+        "name": "abi_process_stdout_read_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 509,
-        "name": "kain_native_process_stdout_read_hex",
+        "name": "abi_process_stdout_read_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 510,
-        "name": "kain_native_process_stderr_read_text",
+        "name": "abi_process_stderr_read_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 511,
-        "name": "kain_native_process_stderr_read_hex",
+        "name": "abi_process_stderr_read_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 512,
-        "name": "kain_native_process_stdout_capture_text",
+        "name": "abi_process_stdout_capture_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 513,
-        "name": "kain_native_process_stdout_capture_hex",
+        "name": "abi_process_stdout_capture_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 514,
-        "name": "kain_native_process_stderr_capture_text",
+        "name": "abi_process_stderr_capture_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 515,
-        "name": "kain_native_process_stderr_capture_hex",
+        "name": "abi_process_stderr_capture_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 516,
-        "name": "kain_native_process_pty_write_text",
+        "name": "abi_process_pty_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 517,
-        "name": "kain_native_process_pty_write_hex",
+        "name": "abi_process_pty_write_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 518,
-        "name": "kain_native_process_pty_resize",
+        "name": "abi_process_pty_resize",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 519,
-        "name": "kain_native_process_pty_read_text",
+        "name": "abi_process_pty_read_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 520,
-        "name": "kain_native_process_pty_read_hex",
+        "name": "abi_process_pty_read_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 521,
-        "name": "kain_native_process_pty_capture_text",
+        "name": "abi_process_pty_capture_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 522,
-        "name": "kain_native_process_pty_capture_hex",
+        "name": "abi_process_pty_capture_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 523,
-        "name": "kain_native_process_last_status",
+        "name": "abi_process_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 524,
-        "name": "kain_native_process_last_error_kind",
+        "name": "abi_process_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 525,
-        "name": "kain_native_process_last_error_message",
+        "name": "abi_process_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -8918,21 +8918,21 @@
       },
       {
         "item_id": 584,
-        "name": "kain_native_runtime_init",
+        "name": "abi_runtime_init",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 585,
-        "name": "kain_native_runtime_shutdown",
+        "name": "abi_runtime_shutdown",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 586,
-        "name": "kain_native_runtime_heap_validate",
+        "name": "abi_runtime_heap_validate",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -8974,14 +8974,14 @@
       },
       {
         "item_id": 592,
-        "name": "kain_native_now_millis",
+        "name": "abi_now_millis",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 593,
-        "name": "kain_native_sleep_millis",
+        "name": "abi_sleep_millis",
         "kind": "function",
         "module_path": "",
         "type_id": null
@@ -9093,917 +9093,917 @@
       },
       {
         "item_id": 609,
-        "name": "kain_native_ui_reset",
+        "name": "abi_ui_reset",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 610,
-        "name": "kain_native_ui_session_create",
+        "name": "abi_ui_session_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 611,
-        "name": "kain_native_ui_session_destroy",
+        "name": "abi_ui_session_destroy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 612,
-        "name": "kain_native_ui_session_count",
+        "name": "abi_ui_session_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 613,
-        "name": "kain_native_ui_window_open",
+        "name": "abi_ui_window_open",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 614,
-        "name": "kain_native_ui_window_close",
+        "name": "abi_ui_window_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 615,
-        "name": "kain_native_ui_begin_frame",
+        "name": "abi_ui_begin_frame",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 616,
-        "name": "kain_native_ui_end_frame",
+        "name": "abi_ui_end_frame",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 617,
-        "name": "kain_native_ui_present",
+        "name": "abi_ui_present",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 618,
-        "name": "kain_native_ui_frame_index",
+        "name": "abi_ui_frame_index",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 619,
-        "name": "kain_native_ui_last_presented_frame",
+        "name": "abi_ui_last_presented_frame",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 620,
-        "name": "kain_native_ui_node_create",
+        "name": "abi_ui_node_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 621,
-        "name": "kain_native_ui_node_destroy",
+        "name": "abi_ui_node_destroy",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 622,
-        "name": "kain_native_ui_node_count",
+        "name": "abi_ui_node_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 623,
-        "name": "kain_native_ui_node_exists",
+        "name": "abi_ui_node_exists",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 624,
-        "name": "kain_native_ui_node_set_parent",
+        "name": "abi_ui_node_set_parent",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 625,
-        "name": "kain_native_ui_node_parent",
+        "name": "abi_ui_node_parent",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 626,
-        "name": "kain_native_ui_node_child_count",
+        "name": "abi_ui_node_child_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 627,
-        "name": "kain_native_ui_node_set_rect",
+        "name": "abi_ui_node_set_rect",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 628,
-        "name": "kain_native_ui_node_x",
+        "name": "abi_ui_node_x",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 629,
-        "name": "kain_native_ui_node_y",
+        "name": "abi_ui_node_y",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 630,
-        "name": "kain_native_ui_node_width",
+        "name": "abi_ui_node_width",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 631,
-        "name": "kain_native_ui_node_height",
+        "name": "abi_ui_node_height",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 632,
-        "name": "kain_native_ui_node_set_text",
+        "name": "abi_ui_node_set_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 633,
-        "name": "kain_native_ui_node_text",
+        "name": "abi_ui_node_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 634,
-        "name": "kain_native_ui_node_kind",
+        "name": "abi_ui_node_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 635,
-        "name": "kain_native_ui_node_set_flag",
+        "name": "abi_ui_node_set_flag",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 636,
-        "name": "kain_native_ui_node_has_flag",
+        "name": "abi_ui_node_has_flag",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 637,
-        "name": "kain_native_ui_node_set_style_i64",
+        "name": "abi_ui_node_set_style_i64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 638,
-        "name": "kain_native_ui_node_set_style_f64",
+        "name": "abi_ui_node_set_style_f64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 639,
-        "name": "kain_native_ui_node_set_style_string",
+        "name": "abi_ui_node_set_style_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 640,
-        "name": "kain_native_ui_node_style_i64",
+        "name": "abi_ui_node_style_i64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 641,
-        "name": "kain_native_ui_node_style_f64",
+        "name": "abi_ui_node_style_f64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 642,
-        "name": "kain_native_ui_node_style_string",
+        "name": "abi_ui_node_style_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 643,
-        "name": "kain_native_ui_node_set_state_i64",
+        "name": "abi_ui_node_set_state_i64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 644,
-        "name": "kain_native_ui_node_set_state_f64",
+        "name": "abi_ui_node_set_state_f64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 645,
-        "name": "kain_native_ui_node_set_state_string",
+        "name": "abi_ui_node_set_state_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 646,
-        "name": "kain_native_ui_node_state_i64",
+        "name": "abi_ui_node_state_i64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 647,
-        "name": "kain_native_ui_node_state_f64",
+        "name": "abi_ui_node_state_f64",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 648,
-        "name": "kain_native_ui_node_state_string",
+        "name": "abi_ui_node_state_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 649,
-        "name": "kain_native_ui_state_count",
+        "name": "abi_ui_state_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 650,
-        "name": "kain_native_ui_focus",
+        "name": "abi_ui_focus",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 651,
-        "name": "kain_native_ui_focused_node",
+        "name": "abi_ui_focused_node",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 652,
-        "name": "kain_native_ui_hit_test",
+        "name": "abi_ui_hit_test",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 653,
-        "name": "kain_native_ui_mark_dirty",
+        "name": "abi_ui_mark_dirty",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 654,
-        "name": "kain_native_ui_dirty_count",
+        "name": "abi_ui_dirty_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 655,
-        "name": "kain_native_ui_push_event",
+        "name": "abi_ui_push_event",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 656,
-        "name": "kain_native_ui_poll_event",
+        "name": "abi_ui_poll_event",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 657,
-        "name": "kain_native_ui_event_kind",
+        "name": "abi_ui_event_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 658,
-        "name": "kain_native_ui_event_target",
+        "name": "abi_ui_event_target",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 659,
-        "name": "kain_native_ui_event_x",
+        "name": "abi_ui_event_x",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 660,
-        "name": "kain_native_ui_event_y",
+        "name": "abi_ui_event_y",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 661,
-        "name": "kain_native_ui_event_key_code",
+        "name": "abi_ui_event_key_code",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 662,
-        "name": "kain_native_ui_event_text",
+        "name": "abi_ui_event_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 663,
-        "name": "kain_native_ui_draw_rect",
+        "name": "abi_ui_draw_rect",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 664,
-        "name": "kain_native_ui_draw_text",
+        "name": "abi_ui_draw_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 665,
-        "name": "kain_native_ui_draw_command_count",
+        "name": "abi_ui_draw_command_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 666,
-        "name": "kain_native_ui_draw_command_kind",
+        "name": "abi_ui_draw_command_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 667,
-        "name": "kain_native_ui_draw_command_node",
+        "name": "abi_ui_draw_command_node",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 668,
-        "name": "kain_native_ui_host_attach",
+        "name": "abi_ui_host_attach",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 669,
-        "name": "kain_native_ui_host_pump",
+        "name": "abi_ui_host_pump",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 670,
-        "name": "kain_native_ui_host_present",
+        "name": "abi_ui_host_present",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 671,
-        "name": "kain_native_ui_host_presented_draw_count",
+        "name": "abi_ui_host_presented_draw_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 672,
-        "name": "kain_native_ui_host_frame_hash",
+        "name": "abi_ui_host_frame_hash",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 673,
-        "name": "kain_native_ui_host_should_close",
+        "name": "abi_ui_host_should_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 674,
-        "name": "kain_native_ui_host_backend",
+        "name": "abi_ui_host_backend",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 675,
-        "name": "kain_native_ui_node_set_stable_key",
+        "name": "abi_ui_node_set_stable_key",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 676,
-        "name": "kain_native_ui_node_stable_key",
+        "name": "abi_ui_node_stable_key",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 677,
-        "name": "kain_native_ui_node_find_by_stable_key",
+        "name": "abi_ui_node_find_by_stable_key",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 678,
-        "name": "kain_native_ui_accessibility_set_role",
+        "name": "abi_ui_accessibility_set_role",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 679,
-        "name": "kain_native_ui_accessibility_set_label",
+        "name": "abi_ui_accessibility_set_label",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 680,
-        "name": "kain_native_ui_accessibility_role",
+        "name": "abi_ui_accessibility_role",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 681,
-        "name": "kain_native_ui_accessibility_label",
+        "name": "abi_ui_accessibility_label",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 682,
-        "name": "kain_native_ui_draw_command_resource",
+        "name": "abi_ui_draw_command_resource",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 683,
-        "name": "kain_native_ui_draw_command_x",
+        "name": "abi_ui_draw_command_x",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 684,
-        "name": "kain_native_ui_draw_command_y",
+        "name": "abi_ui_draw_command_y",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 685,
-        "name": "kain_native_ui_draw_command_width",
+        "name": "abi_ui_draw_command_width",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 686,
-        "name": "kain_native_ui_draw_command_height",
+        "name": "abi_ui_draw_command_height",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 687,
-        "name": "kain_native_ui_draw_command_text",
+        "name": "abi_ui_draw_command_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 688,
-        "name": "kain_native_ui_draw_command_style",
+        "name": "abi_ui_draw_command_style",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 689,
-        "name": "kain_native_ui_draw_command_font",
+        "name": "abi_ui_draw_command_font",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 690,
-        "name": "kain_native_ui_resource_create",
+        "name": "abi_ui_resource_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 691,
-        "name": "kain_native_ui_font_create",
+        "name": "abi_ui_font_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 692,
-        "name": "kain_native_ui_texture_create",
+        "name": "abi_ui_texture_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 693,
-        "name": "kain_native_ui_canvas_create",
+        "name": "abi_ui_canvas_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 694,
-        "name": "kain_native_ui_shader_create",
+        "name": "abi_ui_shader_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 695,
-        "name": "kain_native_ui_resource_set_bytes_hex",
+        "name": "abi_ui_resource_set_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 696,
-        "name": "kain_native_ui_resource_count",
+        "name": "abi_ui_resource_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 697,
-        "name": "kain_native_ui_resource_exists",
+        "name": "abi_ui_resource_exists",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 698,
-        "name": "kain_native_ui_resource_type",
+        "name": "abi_ui_resource_type",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 699,
-        "name": "kain_native_ui_resource_key",
+        "name": "abi_ui_resource_key",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 700,
-        "name": "kain_native_ui_resource_width",
+        "name": "abi_ui_resource_width",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 701,
-        "name": "kain_native_ui_resource_height",
+        "name": "abi_ui_resource_height",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 702,
-        "name": "kain_native_ui_resource_byte_length",
+        "name": "abi_ui_resource_byte_length",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 703,
-        "name": "kain_native_ui_text_measure_width",
+        "name": "abi_ui_text_measure_width",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 704,
-        "name": "kain_native_ui_text_measure_height",
+        "name": "abi_ui_text_measure_height",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 705,
-        "name": "kain_native_ui_draw_resource",
+        "name": "abi_ui_draw_resource",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 706,
-        "name": "kain_native_ui_clipboard_set_text",
+        "name": "abi_ui_clipboard_set_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 707,
-        "name": "kain_native_ui_clipboard_text",
+        "name": "abi_ui_clipboard_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 708,
-        "name": "kain_native_ui_ime_begin",
+        "name": "abi_ui_ime_begin",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 709,
-        "name": "kain_native_ui_ime_commit_text",
+        "name": "abi_ui_ime_commit_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 710,
-        "name": "kain_native_ui_ime_end",
+        "name": "abi_ui_ime_end",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 711,
-        "name": "kain_native_ui_ime_active_node",
+        "name": "abi_ui_ime_active_node",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 712,
-        "name": "kain_native_ui_ime_text",
+        "name": "abi_ui_ime_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 713,
-        "name": "kain_native_ui_drag_begin",
+        "name": "abi_ui_drag_begin",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 714,
-        "name": "kain_native_ui_drag_update",
+        "name": "abi_ui_drag_update",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 715,
-        "name": "kain_native_ui_drag_drop",
+        "name": "abi_ui_drag_drop",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 716,
-        "name": "kain_native_ui_drag_active_node",
+        "name": "abi_ui_drag_active_node",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 717,
-        "name": "kain_native_ui_drag_drop_target",
+        "name": "abi_ui_drag_drop_target",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 718,
-        "name": "kain_native_ui_drag_x",
+        "name": "abi_ui_drag_x",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 719,
-        "name": "kain_native_ui_drag_y",
+        "name": "abi_ui_drag_y",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 720,
-        "name": "kain_native_ui_drag_payload",
+        "name": "abi_ui_drag_payload",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 721,
-        "name": "kain_native_ui_menu_create",
+        "name": "abi_ui_menu_create",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 722,
-        "name": "kain_native_ui_menu_add_item",
+        "name": "abi_ui_menu_add_item",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 723,
-        "name": "kain_native_ui_menu_open",
+        "name": "abi_ui_menu_open",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 724,
-        "name": "kain_native_ui_menu_active",
+        "name": "abi_ui_menu_active",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 725,
-        "name": "kain_native_ui_menu_item_count",
+        "name": "abi_ui_menu_item_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 726,
-        "name": "kain_native_ui_menu_item_label",
+        "name": "abi_ui_menu_item_label",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 727,
-        "name": "kain_native_ui_menu_item_command",
+        "name": "abi_ui_menu_item_command",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 728,
-        "name": "kain_native_ui_dialog_request",
+        "name": "abi_ui_dialog_request",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 729,
-        "name": "kain_native_ui_dialog_active",
+        "name": "abi_ui_dialog_active",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 730,
-        "name": "kain_native_ui_dialog_kind",
+        "name": "abi_ui_dialog_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 731,
-        "name": "kain_native_ui_dialog_title",
+        "name": "abi_ui_dialog_title",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 732,
-        "name": "kain_native_ui_dialog_message",
+        "name": "abi_ui_dialog_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 733,
-        "name": "kain_native_ui_dialog_respond",
+        "name": "abi_ui_dialog_respond",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 734,
-        "name": "kain_native_ui_dialog_poll_response",
+        "name": "abi_ui_dialog_poll_response",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 735,
-        "name": "kain_native_ui_dialog_response_text",
+        "name": "abi_ui_dialog_response_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 736,
-        "name": "kain_native_ui_hot_reload_begin",
+        "name": "abi_ui_hot_reload_begin",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 737,
-        "name": "kain_native_ui_hot_reload_commit",
+        "name": "abi_ui_hot_reload_commit",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 738,
-        "name": "kain_native_ui_hot_reload_generation",
+        "name": "abi_ui_hot_reload_generation",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
         "item_id": 739,
-        "name": "kain_native_ui_hot_reload_key",
+        "name": "abi_ui_hot_reload_key",
         "kind": "function",
         "module_path": "",
         "type_id": null

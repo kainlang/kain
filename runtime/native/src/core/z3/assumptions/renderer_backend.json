@@ -1,0 +1,235 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 49,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 49,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 49
+      },
+      "symbol": "if",
+      "text": "if (index >= kain_renderer_backend_count()) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "descriptor",
+      "expression": "descriptor",
+      "id": "kain-renderer-backend-active.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 93,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 93,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 93
+      },
+      "symbol": "kain_renderer_backend_active",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (descriptor) {",
+      "variables": [
+        "descriptor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "size_t"
+      },
+      "id": "kain-renderer-backend-at.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 48,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 78,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "kain_renderer_backend_at",
+      "text": "const KainRendererBackendDescriptor* kain_renderer_backend_at(size_t index) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "index",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-renderer-backend-at.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 48,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 78,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "kain_renderer_backend_at",
+      "text": "const KainRendererBackendDescriptor* kain_renderer_backend_at(size_t index) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "index >= kain_renderer_backend_count()",
+      "id": "kain-renderer-backend-at.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 49,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 49,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 49
+      },
+      "symbol": "kain_renderer_backend_at",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (index >= kain_renderer_backend_count()) {",
+      "variables": [
+        "index",
+        "kain_renderer_backend_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "descriptor->available",
+      "id": "kain-renderer-backend-default.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 79,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 79,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 79
+      },
+      "symbol": "kain_renderer_backend_default",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (descriptor->available) {",
+      "variables": [
+        "available",
+        "descriptor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!id || !id[0]",
+      "id": "kain-renderer-backend-lookup.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 58,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 21,
+        "end_line": 58,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 58
+      },
+      "symbol": "kain_renderer_backend_lookup",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!id || !id[0]) {",
+      "variables": [
+        "id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "KAIN_RENDERER_TEXT_EQUALS_CI(descriptor->id, id) == 0",
+      "id": "kain-renderer-backend-lookup.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 65,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+      "span": {
+        "end_col": 61,
+        "end_line": 65,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+        "start_col": 1,
+        "start_line": 65
+      },
+      "symbol": "kain_renderer_backend_lookup",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (KAIN_RENDERER_TEXT_EQUALS_CI(descriptor->id, id) == 0) {",
+      "variables": [
+        "KAIN_RENDERER_TEXT_EQUALS_CI",
+        "descriptor",
+        "id"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "330bed356e0f50da583c2df0482cb33eb277cf99ea551012e21f332020bebea6",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\renderer_backend.c",
+  "version": 1
+}

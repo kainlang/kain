@@ -23,47 +23,47 @@ fi
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
     -o "$OUTPUT_DIR/kain_runtime_core.o" \
-    "$RUNTIME_DIR/native/src/core/kain_runtime_core.c"
+    "$RUNTIME_DIR/native/src/core/core.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
-    -o "$OUTPUT_DIR/kain_runtime_version.o" \
-    "$RUNTIME_DIR/native/src/core/kain_runtime_version.c"
+    -o "$OUTPUT_DIR/runtime_version.o" \
+    "$RUNTIME_DIR/native/src/core/version.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
-    -o "$OUTPUT_DIR/kain_runtime_diagnostics.o" \
-    "$RUNTIME_DIR/native/src/core/kain_runtime_diagnostics.c"
+    -o "$OUTPUT_DIR/runtime_diagnostics.o" \
+    "$RUNTIME_DIR/native/src/core/diagnostics.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
-    -o "$OUTPUT_DIR/kain_runtime_services.o" \
-    "$RUNTIME_DIR/native/src/core/kain_runtime_services.c"
+    -o "$OUTPUT_DIR/runtime_services.o" \
+    "$RUNTIME_DIR/native/src/core/services.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
-    -o "$OUTPUT_DIR/kain_runtime_actor.o" \
-    "$RUNTIME_DIR/native/src/core/kain_runtime_actor.c"
+    -o "$OUTPUT_DIR/runtime_actor.o" \
+    "$RUNTIME_DIR/native/src/core/actor.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
-    -o "$OUTPUT_DIR/kain_native_net_system.o" \
-    "$RUNTIME_DIR/native/src/core/kain_native_net_system.c"
+    -o "$OUTPUT_DIR/abi_net_system.o" \
+    "$RUNTIME_DIR/native/src/core/net_system.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
-    -o "$OUTPUT_DIR/kain_native_process_system.o" \
-    "$RUNTIME_DIR/native/src/core/kain_native_process_system.c"
+    -o "$OUTPUT_DIR/abi_process_system.o" \
+    "$RUNTIME_DIR/native/src/core/process_system.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
-    -o "$OUTPUT_DIR/kain_runtime_contract.o" \
-    "$RUNTIME_DIR/native/src/core/kain_runtime_contract.c"
+    -o "$OUTPUT_DIR/runtime_contract.o" \
+    "$RUNTIME_DIR/native/src/core/contract.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
     -o "$OUTPUT_DIR/kain_runtime_win32_shared.o" \
-    "$RUNTIME_DIR/native/src/platform/win32/kain_runtime_win32_shared.c"
+    "$RUNTIME_DIR/native/src/platform/win32/win32_shared.c"
 
 # Compile test
 clang -c \
@@ -76,13 +76,13 @@ clang \
     -o "$OUTPUT_DIR/test_service_registry" \
     "$OUTPUT_DIR/test_service_registry.o" \
     "$OUTPUT_DIR/kain_runtime_core.o" \
-    "$OUTPUT_DIR/kain_runtime_version.o" \
-    "$OUTPUT_DIR/kain_runtime_diagnostics.o" \
-    "$OUTPUT_DIR/kain_runtime_services.o" \
-    "$OUTPUT_DIR/kain_runtime_actor.o" \
-    "$OUTPUT_DIR/kain_native_net_system.o" \
-    "$OUTPUT_DIR/kain_native_process_system.o" \
-    "$OUTPUT_DIR/kain_runtime_contract.o" \
+    "$OUTPUT_DIR/runtime_version.o" \
+    "$OUTPUT_DIR/runtime_diagnostics.o" \
+    "$OUTPUT_DIR/runtime_services.o" \
+    "$OUTPUT_DIR/runtime_actor.o" \
+    "$OUTPUT_DIR/abi_net_system.o" \
+    "$OUTPUT_DIR/abi_process_system.o" \
+    "$OUTPUT_DIR/runtime_contract.o" \
     "$OUTPUT_DIR/kain_runtime_win32_shared.o" \
     $LDFLAGS
 

@@ -9,7 +9,7 @@ tags:
 - queue-depth
 - monotonic
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_scheduler_enqueue
   start_line: 1810
   reason: queue_depth++ followed by max_queue_depth update

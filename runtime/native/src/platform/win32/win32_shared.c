@@ -1,0 +1,276 @@
+#include "../../../include/win32.h"
+
+#ifdef _WIN32
+char* kain_env_dup(const char* name) {
+    char* value = NULL;
+    if (!name || !name[0]) return NULL;
+#ifdef _WIN32
+    {
+        size_t length = 0;
+        if (_dupenv_s(&value, &length, name) != 0 || !value || !value[0]) {
+            free(value);
+            return NULL;
+        }
+        return value;
+    }
+#else
+    {
+        const char* source = getenv(name);
+        size_t length;
+        if (!source || !source[0]) return NULL;
+        length = strlen(source);
+        value = (char*)malloc(length + 1);
+        if (!value) return NULL;
+        memcpy(value, source, length + 1);
+        return value;
+    }
+#endif
+}
+
+void kain_env_free(char* value) {
+    if (value) {
+        free(value);
+    }
+}
+
+int kain_env_set_string(const char* name, const char* value) {
+    if (!name || !name[0]) {
+        return 0;
+    }
+#ifdef _WIN32
+    return SetEnvironmentVariableA(name, value ? value : "") ? 1 : 0;
+#else
+    return setenv(name, value ? value : "", 1) == 0 ? 1 : 0;
+#endif
+}
+
+int kain_env_set_int(const char* name, long long value) {
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%lld", value);
+    return kain_env_set_string(name, buffer);
+}
+
+int kain_env_set_double(const char* name, double value) {
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%.6f", value);
+    return kain_env_set_string(name, buffer);
+}
+
+int kain_env_set_flag(const char* name, int value) {
+    return kain_env_set_string(name, value ? "1" : "0");
+}
+
+int kain_win32_get_executable_path(char* out_path, size_t out_cap) {
+    DWORD length;
+    if (!out_path || out_cap == 0) {
+        return 0;
+    }
+    out_path[0] = '\0';
+    length = GetModuleFileNameA(NULL, out_path, (DWORD)out_cap);
+    if (length == 0 || length >= (DWORD)out_cap) {
+        out_path[0] = '\0';
+        return 0;
+    }
+    return 1;
+}
+
+int kain_win32_get_executable_sidecar_path(const char* suffix, char* out_path, size_t out_cap) {
+    char* last_dot;
+    char* last_backslash;
+    char* last_slash;
+    char* last_sep;
+    size_t base_len;
+    size_t suffix_len;
+
+    if (!kain_win32_get_executable_path(out_path, out_cap)) {
+        return 0;
+    }
+    if (!suffix || !suffix[0]) {
+        return 1;
+    }
+
+    last_backslash = strrchr(out_path, '\\');
+    last_slash = strrchr(out_path, '/');
+    last_sep = last_backslash;
+    if (!last_sep || (last_slash && last_slash > last_sep)) {
+        last_sep = last_slash;
+    }
+
+    last_dot = strrchr(out_path, '.');
+    if (last_dot && (!last_sep || last_dot > last_sep)) {
+        *last_dot = '\0';
+    }
+
+    base_len = strlen(out_path);
+    suffix_len = strlen(suffix);
+    if (base_len + suffix_len + 1 > out_cap) {
+        out_path[0] = '\0';
+        return 0;
+    }
+
+    memcpy(out_path + base_len, suffix, suffix_len + 1);
+    return 1;
+}
+
+int kain_env_flag(const char* name, int fallback) {
+    char* value = kain_env_dup(name);
+    int result = fallback;
+    if (!value || !value[0]) return fallback;
+    if (_stricmp(value, "1") == 0 || _stricmp(value, "true") == 0 ||
+        _stricmp(value, "yes") == 0 || _stricmp(value, "on") == 0) {
+        result = 1;
+    } else if (_stricmp(value, "0") == 0 || _stricmp(value, "false") == 0 ||
+               _stricmp(value, "no") == 0 || _stricmp(value, "off") == 0) {
+        result = 0;
+    }
+    kain_env_free(value);
+    return result;
+}
+
+int kain_env_int(const char* name, int fallback) {
+    char* value = kain_env_dup(name);
+    int result = fallback;
+    if (!value || !value[0]) return fallback;
+    result = atoi(value);
+    kain_env_free(value);
+    return result;
+}
+
+double kain_env_double(const char* name, double fallback) {
+    char* value = kain_env_dup(name);
+    double result = fallback;
+    if (!value || !value[0]) return fallback;
+    result = atof(value);
+    kain_env_free(value);
+    return result;
+}
+
+void kain_win32_frame_timer_begin(
+    LARGE_INTEGER* perf_freq,
+    LARGE_INTEGER* prev_counter,
+    double* fps_accumulator,
+    int* fps_frames,
+    double* frame_fps
+) {
+    if (fps_accumulator) {
+        *fps_accumulator = 0.0;
+    }
+    if (fps_frames) {
+        *fps_frames = 0;
+    }
+    if (frame_fps) {
+        *frame_fps = 0.0;
+    }
+    if (perf_freq) {
+        QueryPerformanceFrequency(perf_freq);
+    }
+    if (prev_counter) {
+        QueryPerformanceCounter(prev_counter);
+    }
+}
+
+double kain_win32_frame_timer_step(
+    LARGE_INTEGER* perf_freq,
+    LARGE_INTEGER* prev_counter,
+    double* fps_accumulator,
+    int* fps_frames,
+    double* frame_fps,
+    double min_dt,
+    double max_dt
+) {
+    LARGE_INTEGER current_counter;
+    double delta = min_dt;
+
+    if (!perf_freq || !prev_counter) {
+        return min_dt;
+    }
+    if (min_dt <= 0.0) {
+        min_dt = 0.001;
+    }
+    if (max_dt < min_dt) {
+        max_dt = min_dt;
+    }
+    if (perf_freq->QuadPart <= 0) {
+        QueryPerformanceFrequency(perf_freq);
+    }
+    QueryPerformanceCounter(&current_counter);
+    if (perf_freq->QuadPart > 0 && prev_counter->QuadPart > 0) {
+        delta = (double)(current_counter.QuadPart - prev_counter->QuadPart) /
+            (double)perf_freq->QuadPart;
+    }
+    prev_counter->QuadPart = current_counter.QuadPart;
+    if (delta < min_dt) {
+        delta = min_dt;
+    } else if (delta > max_dt) {
+        delta = max_dt;
+    }
+    if (fps_accumulator) {
+        *fps_accumulator += delta;
+    }
+    if (fps_frames) {
+        *fps_frames += 1;
+    }
+    if (frame_fps && fps_accumulator && fps_frames && *fps_accumulator >= 1.0) {
+        *frame_fps = (double)(*fps_frames) / *fps_accumulator;
+        *fps_accumulator = 0.0;
+        *fps_frames = 0;
+    }
+    return delta;
+}
+
+void native_config_string(char* key, char* value) {
+    kain_env_set_string(key, value);
+}
+
+void native_config_int(char* key, long long value) {
+    kain_env_set_int(key, value);
+}
+
+void native_config_float(char* key, double value) {
+    kain_env_set_double(key, value);
+}
+
+void native_config_flag(char* key, long long enabled) {
+    kain_env_set_flag(key, enabled != 0);
+}
+
+KainVec3 kain_vec3_make(double x, double y, double z) {
+    KainVec3 v;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    return v;
+}
+
+KainVec3 kain_vec3_add(KainVec3 a, KainVec3 b) {
+    return kain_vec3_make(a.x + b.x, a.y + b.y, a.z + b.z);
+}
+
+KainVec3 kain_vec3_sub(KainVec3 a, KainVec3 b) {
+    return kain_vec3_make(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+KainVec3 kain_vec3_scale(KainVec3 v, double scale) {
+    return kain_vec3_make(v.x * scale, v.y * scale, v.z * scale);
+}
+
+double kain_vec3_dot(KainVec3 a, KainVec3 b) {
+    return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
+KainVec3 kain_vec3_cross(KainVec3 a, KainVec3 b) {
+    return kain_vec3_make(
+        (a.y * b.z) - (a.z * b.y),
+        (a.z * b.x) - (a.x * b.z),
+        (a.x * b.y) - (a.y * b.x)
+    );
+}
+
+KainVec3 kain_vec3_normalize(KainVec3 v) {
+    double length = sqrt(kain_vec3_dot(v, v));
+    if (length <= 0.000001) {
+        return kain_vec3_make(0.0, 1.0, 0.0);
+    }
+    return kain_vec3_scale(v, 1.0 / length);
+}
+#endif

@@ -9,7 +9,7 @@ tags:
 - abi
 - sentinel
 source:
-  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
   symbol: kain_actor_table_insert
   start_line: 345
   reason: actor table slots start at 1 to reserve KAIN_ACTOR_ID_INVALID

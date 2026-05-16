@@ -5,8 +5,8 @@
  * heap allocations and imported/FFI pointers.
  */
 
-#include "../include/kain_runtime_memory.h"
-#include "../include/kain_runtime_ownership.h"
+#include "../include/memory.h"
+#include "../include/ownership.h"
 #include <stdio.h>
 
 static int expect_status(const char* label, int actual, int expected) {

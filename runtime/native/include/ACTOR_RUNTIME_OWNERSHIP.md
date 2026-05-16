@@ -1,6 +1,6 @@
 # KAIN Actor Runtime Ownership and Lifetime Rules
 
-This document defines the ownership, lifetime, and thread-safety rules for the KAIN native actor runtime structures defined in `kain_runtime_actor.h`.
+This document defines the ownership, lifetime, and thread-safety rules for the KAIN native actor runtime structures defined in `actor.h`.
 
 ## Core Principles
 
@@ -15,7 +15,7 @@ This document defines the ownership, lifetime, and thread-safety rules for the K
 
 **Owner**: Actor runtime system (global actor table)
 
-**Lifetime**: 
+**Lifetime**:
 - Created during `kain_actor_spawn()`
 - Lives through all actor state transitions
 - Destroyed during actor termination cleanup after TERMINATED/FAILED state
@@ -227,7 +227,7 @@ int result = kain_actor_receive(mailbox, &msg, &diag);
 if (result == 0) {
     // Receiver now owns msg.data
     process_message(&msg);
-    
+
     // Receiver MUST free msg.data when done
     free(msg.data);
 }
