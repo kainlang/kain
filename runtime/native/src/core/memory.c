@@ -5,10 +5,6 @@
  * native runtime. These helpers provide the bridge between compiler-emitted
  * code and native memory operations.
  *
- * Requirements Coverage:
- * - Requirement 3.2: Address-of, bind-local, load/store operations
- * - Requirement 3.3: Pointer and allocation helper behavior
- * - Requirement 3.6: Memory layout and ABI policy
  *
  * Source: runtime/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md
  * Headers: runtime/native/include/memory.h

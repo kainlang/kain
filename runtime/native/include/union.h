@@ -6,24 +6,6 @@
 
 /*
  * KAIN Native Runtime Union Operations
- *
- * This header defines the canonical union access helpers for the KAIN
- * native runtime. These helpers provide C-compatible union semantics
- * with type-safe field access and deterministic initialization.
- *
- * Requirements Coverage:
- * - Requirement 3.1: Canonical low-level helper surface
- * - Requirement 3.2: Union operations
- * - Requirement 3.6: Memory layout and ABI policy
- *
- * Source: runtime/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md
- * Compiler: crates/kain-core/src/low_level_memory.rs
- *
- * Union Semantics:
- * - Type punning: allowed (C-compatible)
- * - Padding bytes: undefined (do not rely on them)
- * - Active field tracking: NOT automatic (application responsibility)
- * - Initialization: entire union is zeroed before field write
  */
 
 #ifdef __cplusplus
