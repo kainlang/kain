@@ -1,0 +1,21 @@
+[package]
+name = "converge-autotune-probe"
+version = "0.1.0"
+description = "Dogfood blade for native CPU capability backed converge lane selection."
+
+[blade]
+name = "converge-autotune-probe"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"

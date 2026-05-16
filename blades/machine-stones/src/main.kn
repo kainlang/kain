@@ -42,6 +42,20 @@ fn machine_stone_score() -> Int:
     let mask_score = portable_mask_update(1, 2)
     if mask_score != 3:
         return 1
+    let particles = [
+        AgentParticle { x: 1.0, y: 2.0, vx: 0.5, vy: 0.25, alive: true },
+        AgentParticle { x: 3.0, y: 5.0, vx: 1.5, vy: 1.25, alive: false }
+    ]
+    let hot_x = particles[1].x
+    let hot_alive = particles[0].alive
+    if hot_x != 3.0:
+        return 2
+    if hot_alive == false:
+        return 3
+    if runtime_machine_teleport_count() < 1:
+        return 4
+    if runtime_machine_teleport_last_token() == 0:
+        return 5
     return 0
 
 fn main() -> Int:

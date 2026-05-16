@@ -1,5 +1,35 @@
 # Kain Memory
 
+# 2026-05-16 - Converge now has a native CPU capability/autotune substrate and LLVM carries multiple fast lanes
+
+This pass turned the stale benchmark note into a real phase-1 backend foundation. Kain still does not ship authored SIMD IR or real AVX-512 kernels yet, but compiled native LLVM converge declarations can now keep multiple fast lanes alive, query runtime CPU capabilities, and route dynamic CPU-gated lanes through a selector/cache instead of discarding every lane after the first.
+
+What changed:
+
+- Added the native CPU capability service in `runtime/native/include/kain_runtime_cpu.h` and `runtime/native/src/core/kain_runtime_cpu.c`. It publishes x86 feature bits such as AVX, AVX2, AVX-512F/DQ/BW/VL, FMA, and BMI2 through stable `cpu.x86.*` capability keys.
+- Added the native converge selector/autotune substrate in `runtime/native/include/kain_runtime_converge.h` and `runtime/native/src/core/kain_runtime_converge.c`. The current service provides lane selection, a tiny process-local tuning cache, telemetry-ring recording, winner commits, and probe/hit counters.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now emits one spec function plus up to eight fast-lane functions for each `converge`. Static lanes still collapse to the first eligible fast lane. CPU-gated lanes build an eligible bitmask from native capability calls and dispatch through `kain_native_converge_select_lane_for_key(...)`.
+- Benchmark-release LLVM builds now elide `orchestrate` stage begin/end telemetry wrappers unless `KAIN_LLVM_ORCHESTRATE_TRACE=1` is set. This keeps benchmark hot loops from paying bookkeeping costs while preserving explicit trace opt-in.
+- `stdlib/native/runtime.kn` and `stdlib/runtime.kn` expose the CPU/converge runtime calls, and `stdlib/native/README.md` documents the new native runtime surface.
+- Runtime manifests and Bazel manifest data include the new CPU/converge native sources. Re-run `py -3 tools/bazel/sync_native_runtime_builds.py --check` after touching this surface.
+- Added `blades/converge-autotune-probe`, a native LLVM dogfood blade that imports `std.runtime`, uses a scalar plus `cpu.x86.avx2` converge lane, calls the runtime selector/telemetry wrappers, and leaves `converge-autotune-probe.exe` in the blade root.
+- Updated the `evolutionary_loop` benchmark note: this benchmark now proves the durable harness slot for future real SIMD kernels, but its current Kain lanes are still scalar semantic proxies.
+
+Proof and validation:
+
+- Z3 MCP report `D:\Kain-Lang\z3\reports\20260516T092851Z-converge-autotune-selector-ring-stage-elision.json` returned `unsat` for telemetry ring bounds, eligible-lane selection, 64-slot odd-stride tuning-cache probing, and benchmark-release stage-result preservation.
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_generates_world_patch_converge_and_orchestrate_paths -- --nocapture`
+- `cargo build -p cli`
+- `clang -fsyntax-only` passed for the new native CPU and converge C files.
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- Direct compile and run of `blades/converge-autotune-probe/src/main.kn` under native LLVM returned exit code `0`.
+- Latest focused cross-language benchmark run for `evolutionary_loop` measured Kain `29.256 ms`, Rust `26.195 ms`, and C++ `2258.820 ms`. The important result is not final victory over Rust yet; it is that the old ~60 ms selector overhead path collapsed into a real low-30/high-20 ms native lane while preserving multi-lane dispatch.
+
+Durable design lesson:
+
+- The right next layer is FFI-backed native kernels or runtime C kernels for AVX2/AVX-512, not Kain-authored SIMD IR first. Keep converge as the validator/selector, use orchestrate/runtime telemetry for warmup state, and persist only solver-proven lane-table/cache arithmetic.
+- If the benchmark asks for silicon autotune, do not fake it with scalar lanes forever. Add real C/FFI kernels, prove spec/fast equivalence for bounded vector chunks, and benchmark with `KAIN_NATIVE_PROFILE=benchmark-release`.
+
 # 2026-05-16 - Universal-actor foundation slice landed: native actor refs are now generation-tagged runtime truth, and LLVM reply ports are synthetic refs instead of waiting actor threads
 
 This pass landed the first concrete slice of the universal-actor architecture thesis without pretending to solve the entire scheduler/world/network problem in one shot. The native runtime and LLVM lowering now agree that an actor handle is not just a raw slot id anymore.

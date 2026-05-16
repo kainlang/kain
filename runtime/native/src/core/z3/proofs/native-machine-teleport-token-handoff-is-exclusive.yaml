@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_machine_teleport_token_handoff_is_exclusive
+kind: check_smt2
+description: >
+  The compiler-level teleport move and native handoff token model have one
+  post-transfer owner state: destination. Source and destination liveness cannot
+  both hold after a destructive handoff.
+tags:
+- native-runtime
+- machine
+- teleport
+- ownership
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_machine_stones.c
+  symbol: kain_machine_teleport_ptr
+  reason: teleport is a destructive ownership handoff, not a copying send
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const owner_after (_ BitVec 2))
+    (define-fun SOURCE () (_ BitVec 2) #b00)
+    (define-fun DESTINATION () (_ BitVec 2) #b01)
+    (assert (= owner_after DESTINATION))
+    (define-fun source_live () Bool (= owner_after SOURCE))
+    (define-fun destination_live () Bool (= owner_after DESTINATION))
+    (assert (and source_live destination_live))
+    (check-sat)
+  include_model: false
+  include_stats: false

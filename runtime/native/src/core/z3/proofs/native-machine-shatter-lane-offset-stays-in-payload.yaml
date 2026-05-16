@@ -1,0 +1,39 @@
+version: 1
+id: kain.native.core.proofs.native_machine_shatter_lane_offset_stays_in_payload
+kind: check_smt2
+description: >
+  The one-allocation shatter SoA buffer computes byte offset as
+  ((lane * element_count) + element) * 8; guarded lane/index bounds and total
+  payload headroom imply every returned pointer stays inside payload bytes.
+tags:
+- native-runtime
+- machine
+- shatter
+- memory
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_machine_stones.c
+  symbol: kain_machine_shatter_lane_ptr
+  reason: lane pointer arithmetic must stay inside the contiguous SoA payload
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const lane Int)
+    (declare-const element Int)
+    (declare-const lane_count Int)
+    (declare-const element_count Int)
+    (define-fun u64_max () Int 18446744073709551615)
+    (assert (> lane_count 0))
+    (assert (> element_count 0))
+    (assert (>= lane 0))
+    (assert (>= element 0))
+    (assert (< lane lane_count))
+    (assert (< element element_count))
+    (define-fun slots () Int (* lane_count element_count))
+    (define-fun payload_bytes () Int (* slots 8))
+    (assert (<= payload_bytes u64_max))
+    (define-fun linear_index () Int (+ (* lane element_count) element))
+    (define-fun byte_offset () Int (* linear_index 8))
+    (assert (not (and (>= byte_offset 0) (< byte_offset payload_bytes))))
+    (check-sat)
+  include_model: false
+  include_stats: false

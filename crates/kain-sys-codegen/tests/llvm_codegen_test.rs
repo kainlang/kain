@@ -1292,6 +1292,72 @@ fn llvm_lowers_ownership_keywords_to_runtime_guards() {
 }
 
 #[test]
+fn llvm_lowers_machine_stones_to_native_runtime_abi() {
+    let typed = typed_program_from_source(
+        r#"
+axiom native_atomic_mask_truth:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("atomic.bitmask")
+    guarantee "atomic mask lane exists"
+    fallback portable_mask_update
+
+component MachinePanel():
+    render <panel title="Machine" />
+
+world NativeWorld:
+    state beat: Int = 0
+    surface native_ui => MachinePanel
+
+world GpuWorld:
+    state beat: Int = 0
+    surface viewport3d => "gpu"
+
+shatter struct AgentParticle:
+    x: Float
+    y: Float
+    alive: Bool
+
+fn portable_mask_update(value: Int, mask: Int) -> Int:
+    return value | mask
+
+pulse agent_sinus every 16ms jitter 1ms:
+    let particle = AgentParticle { x: 1.0, y: 2.0, alive: true }
+    let gpu_particle = teleport particle from NativeWorld to GpuWorld via gpu_upload
+    let _alive = gpu_particle.alive
+    let _tick = pulse_tick + pulse_dt_ms + pulse_missed
+
+fn main() -> Int:
+    let particles = [
+        AgentParticle { x: 1.0, y: 2.0, alive: true },
+        AgentParticle { x: 3.0, y: 5.0, alive: false }
+    ]
+    let hot_x = particles[1].x
+    if hot_x != 3.0:
+        return 1
+    return portable_mask_update(1, 2) - 3
+"#,
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare i64 @kain_machine_axiom_accept(i8*, i8*, i64)"));
+    assert!(llvm.contains("declare void @kain_machine_pulse_snapshot"));
+    assert!(llvm.contains("declare i8* @kain_machine_teleport_ptr"));
+    assert!(llvm.contains("declare i8* @kain_machine_shatter_alloc"));
+    assert!(llvm.contains("define i64 @__kain_axiom_accept_native_atomic_mask_truth()"));
+    assert!(llvm.contains("define void @__kain_pulse_body_agent_sinus"));
+    assert!(llvm.contains("define void @__kain_pulse_fire_agent_sinus()"));
+    assert!(llvm.contains("call void @__kain_pulse_fire_agent_sinus()"));
+    assert!(llvm.contains("call i8* @kain_machine_shatter_alloc(i64 3, i64 2)"));
+    assert!(llvm.contains("call i8* @kain_machine_shatter_lane_ptr"));
+    assert!(llvm.contains("call i8* @kain_machine_teleport_ptr"));
+    assert!(!llvm.contains("call i8* @array_new(i64 4)"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "machine-stones-native-runtime");
+}
+
+#[test]
 fn llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path() {
     let typed = typed_program_from_source(
         "fn own_local_pair() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(2, \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",

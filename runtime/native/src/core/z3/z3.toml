@@ -31,6 +31,7 @@ realtime = ["proofs/native-realtime-*.yaml"]
 services = ["proofs/native-services-*.yaml"]
 stdlib = ["proofs/native-stdlib-*.yaml"]
 entangle = ["proofs/native-entangle-*.yaml"]
+machine = ["proofs/native-machine-*.yaml"]
 
 [reports]
 path = "reports"

@@ -1,0 +1,15 @@
+; Experimental closed-domain proof for the compact machine-stones capability
+; token signature used before strcmp verification in kain_runtime_machine_stones.c.
+(set-logic QF_BV)
+(define-fun sig ((len (_ BitVec 32)) (first (_ BitVec 32)) (second (_ BitVec 32)) (last (_ BitVec 32))) (_ BitVec 32)
+  (bvxor (bvshl len #x00000018)
+         (bvxor (bvshl first #x00000010)
+                (bvxor (bvshl second #x00000008) last))))
+(define-fun atomic_bitmask () (_ BitVec 32) (sig #x0000000e #x00000061 #x00000074 #x0000006b))
+(define-fun time_hardware_timer () (_ BitVec 32) (sig #x00000013 #x00000074 #x00000069 #x00000072))
+(define-fun time_pulse () (_ BitVec 32) (sig #x0000000a #x00000074 #x00000069 #x00000065))
+(define-fun memory_shatter () (_ BitVec 32) (sig #x0000000e #x0000006d #x00000065 #x00000072))
+(define-fun world_teleport () (_ BitVec 32) (sig #x0000000e #x00000077 #x0000006f #x00000074))
+(define-fun interop_zero_copy_handoff () (_ BitVec 32) (sig #x0000001a #x00000069 #x0000006e #x00000066))
+(assert (not (distinct atomic_bitmask time_hardware_timer time_pulse memory_shatter world_teleport interop_zero_copy_handoff)))
+(check-sat)

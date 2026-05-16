@@ -4,6 +4,8 @@
 ; 2. A selected eligible lane bit must be both present and capable.
 ; 3. Odd-stride probing over 64 tuning-cache slots is injective, so the probe
 ;    sequence can cover the table without cycling early.
+; 4. Benchmark-release orchestrate telemetry elision preserves the stage result
+;    when the begin token is unused and end_i64 returns the staged value.
 (set-logic QF_BV)
 
 (declare-fun cursor () (_ BitVec 64))
@@ -42,5 +44,20 @@
 ; Negate injectivity of x -> x * odd_stride modulo 64.
 (push)
 (assert (= (bvmul a stride) (bvmul b stride)))
+(check-sat)
+(pop)
+
+; The LLVM benchmark-release fast path replaces:
+;   begin(); value = direct_call(); end_i64(value)
+; with:
+;   value = direct_call()
+; under the explicit no-telemetry profile. The only value-flow contract is that
+; end_i64 returns its status operand.
+(declare-fun stage_value () (_ BitVec 64))
+(define-fun stage_end_i64 ((status (_ BitVec 64))) (_ BitVec 64) status)
+
+; Negate value preservation.
+(push)
+(assert (not (= (stage_end_i64 stage_value) stage_value)))
 (check-sat)
 (pop)

@@ -12,6 +12,9 @@ sources = [
     "native/src/core/kain_runtime_services.c",
     "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_entangle.c",
+    "native/src/core/kain_runtime_cpu.c",
+    "native/src/core/kain_runtime_converge.c",
+    "native/src/core/kain_runtime_machine_stones.c",
     "native/src/core/kain_runtime_native_stdlib.c",
     "native/src/core/kain_native_input_system.c",
     "native/src/core/kain_native_net_system.c",
@@ -104,6 +107,30 @@ provider = "native-core"
 requirement = "required"
 status = "available"
 description = "Structured diagnostics and error reporting"
+
+[[services]]
+key = "cpu.capabilities"
+name = "Native CPU Capability Service"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-published CPU feature bits for compiled converge selectors, including x86 AVX/AVX2/AVX-512 gates"
+
+[[services]]
+key = "control.converge.autotune"
+name = "Converge Lane Selector And Telemetry"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Proof-bounded native converge lane selection, warm cache state, and fixed-ring telemetry for future silicon autotuning"
+
+[[services]]
+key = "machine.stones"
+name = "Machine Stones Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Native axiom predicates, pulse timing snapshots, shatter SoA buffers, and teleport zero-copy handoff telemetry"
 
 [[services]]
 key = "contract"

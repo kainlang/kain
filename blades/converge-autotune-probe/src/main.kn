@@ -1,0 +1,50 @@
+const PROBE_CONVERGE_KEY: Int = 74565
+const PROBE_SHAPE_KEY: Int = 144470
+const PROBE_MODULUS: Int = 1009
+
+converge accelerate_probe(value: Int) -> Int:
+    spec reference:
+        return ((value * 13) + 5) % PROBE_MODULUS
+    fast scalar_lane when target("llvm"):
+        return ((value * 13) + 5) % PROBE_MODULUS
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return ((value * 13) + 5) % PROBE_MODULUS
+    verify random(2)
+
+fn probe_mix(value: Int) -> Int:
+    return ((value * 17) + 11) % PROBE_MODULUS
+
+orchestrate silicon_probe(seed: Int) -> Int:
+    let chosen: Int = kain accelerate_probe(seed)
+    let mixed: Int = rust probe_mix(chosen)
+    return mixed
+
+fn selector_probe() -> Int:
+    let avx2_mask = runtime_cpu_capability_mask("cpu.x86.avx2")
+    let avx2_available = runtime_cpu_has_capability("cpu.x86.avx2")
+    let feature_fingerprint = runtime_cpu_feature_fingerprint()
+    let selected_lane = runtime_converge_select_lane(PROBE_CONVERGE_KEY, feature_fingerprint + PROBE_SHAPE_KEY, 3, 0)
+    let _telemetry = runtime_converge_record_telemetry(PROBE_CONVERGE_KEY, selected_lane, 1, 1, 0)
+    let _winner = runtime_converge_commit_winner(PROBE_CONVERGE_KEY, feature_fingerprint + PROBE_SHAPE_KEY, selected_lane)
+
+    if avx2_mask <= 0:
+        return 1
+    if avx2_available < 0:
+        return 2
+    if avx2_available > 1:
+        return 3
+    if selected_lane < 0:
+        return 4
+    if selected_lane > 1:
+        return 5
+    if runtime_converge_telemetry_count() < 1:
+        return 6
+    if runtime_converge_cache_probe_count() < 1:
+        return 7
+    return 0
+
+fn main() -> Int:
+    let pipeline_value = silicon_probe(33)
+    if pipeline_value != 326:
+        return 10
+    return selector_probe()

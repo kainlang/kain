@@ -1,0 +1,32 @@
+version: 1
+id: kain.native.core.proofs.native_machine_pulse_missed_beat_stays_bounded
+kind: check_smt2
+description: >
+  Pulse missed-beat arithmetic computes advanced = elapsed / interval and
+  missed = advanced - 1 only after at least two elapsed beats, so missed never
+  exceeds the number of elapsed beats and never goes negative.
+tags:
+- native-runtime
+- machine
+- pulse
+- timer
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_machine_stones.c
+  symbol: kain_machine_pulse_snapshot
+  reason: missed-beat accounting is the native temporal contract for pulse lowering
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const elapsed Int)
+    (declare-const interval Int)
+    (declare-const jitter Int)
+    (assert (>= elapsed 0))
+    (assert (> interval 0))
+    (assert (>= jitter 0))
+    (define-fun advanced () Int (div elapsed interval))
+    (define-fun tolerated () Int (+ interval jitter))
+    (define-fun missed () Int (ite (and (> advanced 1) (> elapsed tolerated)) (- advanced 1) 0))
+    (assert (or (< missed 0) (> missed advanced)))
+    (check-sat)
+  include_model: false
+  include_stats: false

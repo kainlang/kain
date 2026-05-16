@@ -8,6 +8,9 @@
 #include "kain_native_net_system.h"
 #include "kain_native_process_system.h"
 #include "kain_native_ui_system.h"
+#include "kain_runtime_converge.h"
+#include "kain_runtime_cpu.h"
+#include "kain_runtime_machine_stones.h"
 
 #ifdef __cplusplus
 extern "C" {

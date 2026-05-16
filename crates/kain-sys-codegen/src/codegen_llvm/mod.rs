@@ -6,8 +6,8 @@
 
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
-    BinaryOp, Block, ConvergeSelector, ElseBranch, Expr, JSXAttrValue, JSXNode, Pattern, Stmt,
-    Type, UnaryOp, VariantPatternFields,
+    AxiomPredicate, BinaryOp, Block, ConvergeSelector, ElseBranch, Expr, JSXAttrValue, JSXNode,
+    Pattern, PulseDuration, Stmt, Type, UnaryOp, VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{
@@ -58,6 +58,21 @@ struct NativeEntangleBinding {
     mirror: String,
     policy: String,
     type_name: String,
+}
+
+#[derive(Clone, Debug)]
+struct NativeMachineAxiomInfo {
+    name: String,
+}
+
+#[derive(Clone, Debug)]
+struct NativePulseInfo {
+    name: String,
+}
+
+#[derive(Clone, Debug)]
+struct ShatteredArrayLocal {
+    struct_name: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,6 +130,41 @@ fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
         "round" => "kain_round_i64",
         _ => name,
     }
+}
+
+fn llvm_runtime_declaration_is_preemitted(name: &str) -> bool {
+    matches!(
+        name,
+        "kain_native_cpu_feature_mask"
+            | "kain_native_cpu_capability_mask_for_key"
+            | "kain_native_converge_select_lane_for_key"
+            | "kain_native_converge_record_telemetry"
+    )
+}
+
+fn llvm_orchestrate_trace_enabled() -> bool {
+    if let Ok(value) = std::env::var("KAIN_LLVM_ORCHESTRATE_TRACE") {
+        let value = value.trim();
+        if value.eq_ignore_ascii_case("1")
+            || value.eq_ignore_ascii_case("true")
+            || value.eq_ignore_ascii_case("yes")
+            || value.eq_ignore_ascii_case("on")
+        {
+            return true;
+        }
+        if value.eq_ignore_ascii_case("0")
+            || value.eq_ignore_ascii_case("false")
+            || value.eq_ignore_ascii_case("no")
+            || value.eq_ignore_ascii_case("off")
+        {
+            return false;
+        }
+    }
+
+    !matches!(
+        std::env::var("KAIN_NATIVE_PROFILE").as_deref(),
+        Ok("benchmark-release")
+    )
 }
 
 fn resolve_host_llvm_target_descriptor() -> &'static LlvmTargetDescriptor {
@@ -196,6 +246,10 @@ struct LlvmGenerator {
     string_locals: HashSet<String>,
     string_length_values: HashMap<String, String>,
     native_entanglements: Vec<NativeEntangleBinding>,
+    native_machine_axioms: Vec<NativeMachineAxiomInfo>,
+    native_pulses: Vec<NativePulseInfo>,
+    shattered_structs: HashSet<String>,
+    shattered_array_locals: HashMap<String, ShatteredArrayLocal>,
     current_patch_name: Option<String>,
     const_init_blocks: HashMap<String, String>,
     /// Byte offset immediately after the current function's `entry:` label.
@@ -247,6 +301,10 @@ impl LlvmGenerator {
             string_locals: HashSet::new(),
             string_length_values: HashMap::new(),
             native_entanglements: Vec::new(),
+            native_machine_axioms: Vec::new(),
+            native_pulses: Vec::new(),
+            shattered_structs: HashSet::new(),
+            shattered_array_locals: HashMap::new(),
             current_patch_name: None,
             const_init_blocks: HashMap::new(),
             entry_alloca_insert_offset: None,
@@ -337,6 +395,47 @@ impl LlvmGenerator {
 
     fn llvm_i64_literal_for_u64(value: u64) -> String {
         (value as i64).to_string()
+    }
+
+    fn machine_pulse_body_symbol(name: &str) -> String {
+        format!("__kain_pulse_body_{}", Self::sanitize_symbol_fragment(name))
+    }
+
+    fn machine_pulse_fire_symbol(name: &str) -> String {
+        format!("__kain_pulse_fire_{}", Self::sanitize_symbol_fragment(name))
+    }
+
+    fn machine_axiom_symbol(name: &str) -> String {
+        format!(
+            "__kain_axiom_accept_{}",
+            Self::sanitize_symbol_fragment(name)
+        )
+    }
+
+    fn machine_pulse_duration_ns(duration: &PulseDuration) -> u64 {
+        let value = duration.value.max(0) as u64;
+        match duration.unit.as_str() {
+            "s" => value.saturating_mul(1_000_000_000),
+            "ms" => value.saturating_mul(1_000_000),
+            "us" => value.saturating_mul(1_000),
+            "ns" | "tick" | "ticks" => value,
+            _ => value,
+        }
+    }
+
+    fn machine_axiom_capability_bit(capability: &str) -> u64 {
+        match capability {
+            "atomic.bitmask" => 1u64 << 0,
+            "time.hardware-timer" | "time.pulse" => 1u64 << 1,
+            "memory.shatter" => 1u64 << 2,
+            "world.teleport" | "interop.zero-copy-handoff" => 1u64 << 3,
+            "cpu.x86.sse2" | "x86.sse2" | "sse2" => 1u64 << 8,
+            "cpu.x86.avx" | "x86.avx" | "avx" => 1u64 << 9,
+            "cpu.x86.avx2" | "x86.avx2" | "avx2" => 1u64 << 10,
+            "cpu.x86.avx512" | "cpu.x86.avx512f" | "x86.avx512" | "x86.avx512f" | "avx512"
+            | "avx512f" => 1u64 << 11,
+            _ => 0,
+        }
     }
 
     fn converge_capability_is_cpu_selector(capability: &str) -> bool {
@@ -3392,6 +3491,102 @@ impl LlvmGenerator {
             .cloned()
     }
 
+    fn direct_struct_literal_name<'a>(&self, expr: &'a Expr) -> Option<&'a str> {
+        match expr {
+            Expr::Struct { name, .. } if self.shattered_structs.contains(name) => Some(name),
+            Expr::Paren(inner, _) => self.direct_struct_literal_name(inner),
+            _ => None,
+        }
+    }
+
+    fn shattered_array_expr_struct_name(&self, expr: &Expr) -> Option<String> {
+        let Expr::Array(items, _) = expr else {
+            return None;
+        };
+        let first_name = self.direct_struct_literal_name(items.first()?)?;
+        if items
+            .iter()
+            .all(|item| self.direct_struct_literal_name(item) == Some(first_name))
+        {
+            Some(first_name.to_string())
+        } else {
+            None
+        }
+    }
+
+    fn compile_shattered_field_ptr(
+        &mut self,
+        object: &Expr,
+        field: &str,
+        span: Span,
+    ) -> Option<KainResult<(String, String)>> {
+        let Expr::Index {
+            object: indexed_object,
+            index,
+            ..
+        } = object
+        else {
+            return None;
+        };
+        let Expr::Ident(array_name, _) = indexed_object.as_ref() else {
+            return None;
+        };
+        let local = self.shattered_array_locals.get(array_name).cloned()?;
+        let field_index = match self.field_index(&local.struct_name, field) {
+            Some(index) => index,
+            None => {
+                return Some(Err(KainError::codegen(
+                    format!(
+                        "Unknown shattered field '{}' on {}",
+                        field, local.struct_name
+                    ),
+                    span,
+                )))
+            }
+        };
+        let field_ty = self
+            .struct_defs
+            .get(&local.struct_name)
+            .and_then(|fields| fields.get(field_index))
+            .map(|(_, ty)| ty.clone())
+            .unwrap_or_else(|| "i64".to_string());
+        let (handle_addr, handle_ty) = match self.locals.get(array_name).cloned() {
+            Some(local) => local,
+            None => {
+                return Some(Err(KainError::codegen(
+                    format!("Undefined shattered array local: {}", array_name),
+                    span,
+                )))
+            }
+        };
+        if handle_ty != "i8*" {
+            return Some(Err(KainError::codegen(
+                format!(
+                    "Shattered array '{}' lowered to unexpected LLVM type {}",
+                    array_name, handle_ty
+                ),
+                span,
+            )));
+        }
+        let handle = self.next_reg();
+        self.emit(&format!("  {} = load i8*, i8** {}", handle, handle_addr));
+        let (index_value, _) = match self.compile_expr(index) {
+            Ok(value) => value,
+            Err(error) => return Some(Err(error)),
+        };
+        let raw_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @kain_machine_shatter_lane_ptr(i8* {}, i64 {}, i64 {})",
+            raw_ptr, handle, field_index, index_value
+        ));
+        let typed_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to {}*",
+            typed_ptr, raw_ptr, field_ty
+        ));
+        Some(Ok((typed_ptr, field_ty)))
+    }
+
     fn emit_patch_record_i64(&mut self, path: &str, old_value: &str, new_value: &str) {
         if let Some(patch_name) = self.current_patch_name.clone() {
             let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
@@ -3483,6 +3678,116 @@ impl LlvmGenerator {
         }
     }
 
+    fn compile_shattered_array_literal(
+        &mut self,
+        struct_name: &str,
+        items: &[Expr],
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let fields = self.struct_defs.get(struct_name).cloned().ok_or_else(|| {
+            KainError::codegen(format!("Unknown shattered struct: {}", struct_name), span)
+        })?;
+        let handle = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @kain_machine_shatter_alloc(i64 {}, i64 {})",
+            handle,
+            fields.len(),
+            items.len()
+        ));
+
+        for (element_index, item) in items.iter().enumerate() {
+            let Expr::Struct {
+                name,
+                fields: authored_fields,
+                ..
+            } = item
+            else {
+                return Err(KainError::codegen(
+                    "shatter arrays require direct struct literals in LLVM lowering",
+                    item.span(),
+                ));
+            };
+            if name != struct_name {
+                return Err(KainError::codegen(
+                    format!("shatter array expected {}, found {}", struct_name, name),
+                    item.span(),
+                ));
+            }
+            for (lane_index, (field_name, field_ty)) in fields.iter().enumerate() {
+                let (value, value_ty) = if let Some((_, authored_value)) =
+                    authored_fields.iter().find(|(name, _)| name == field_name)
+                {
+                    self.compile_expr_for_target_type(authored_value, field_ty)?
+                } else {
+                    (self.zero_value_for_ty(field_ty), field_ty.clone())
+                };
+                let raw_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i8* @kain_machine_shatter_lane_ptr(i8* {}, i64 {}, i64 {})",
+                    raw_ptr, handle, lane_index, element_index
+                ));
+                let typed_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    typed_ptr, raw_ptr, field_ty
+                ));
+                self.emit(&format!(
+                    "  store {} {}, {}* {}",
+                    value_ty, value, field_ty, typed_ptr
+                ));
+            }
+        }
+
+        Ok((handle, "i8*".to_string()))
+    }
+
+    fn compile_teleport_expr(
+        &mut self,
+        value: &Expr,
+        source_world: &str,
+        target_world: &str,
+        channel: Option<&str>,
+    ) -> KainResult<(String, String)> {
+        let (value_reg, value_ty) = self.compile_expr(value)?;
+        let source_ptr = self.compile_static_c_string_literal(source_world);
+        let target_ptr = self.compile_static_c_string_literal(target_world);
+        let channel_ptr = self.compile_static_c_string_literal(channel.unwrap_or(""));
+
+        if value_ty.ends_with('*') {
+            let raw_ptr = if value_ty == "i8*" {
+                value_reg.clone()
+            } else {
+                let casted = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast {} {} to i8*",
+                    casted, value_ty, value_reg
+                ));
+                casted
+            };
+            let handed_off = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i8* @kain_machine_teleport_ptr(i8* {}, i8* {}, i8* {}, i8* {})",
+                handed_off, raw_ptr, source_ptr, target_ptr, channel_ptr
+            ));
+            if value_ty == "i8*" {
+                Ok((handed_off, value_ty))
+            } else {
+                let restored = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}",
+                    restored, handed_off, value_ty
+                ));
+                Ok((restored, value_ty))
+            }
+        } else {
+            self.emit(&format!(
+                "  call void @kain_machine_teleport_note(i8* {}, i8* {}, i8* {})",
+                source_ptr, target_ptr, channel_ptr
+            ));
+            Ok((value_reg, value_ty))
+        }
+    }
+
     fn compile_addressable_ptr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
         match expr {
             Expr::Ident(name, span) => {
@@ -3503,6 +3808,9 @@ impl LlvmGenerator {
                 field,
                 span,
             } => {
+                if let Some(result) = self.compile_shattered_field_ptr(object, field, *span) {
+                    return result;
+                }
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
                 let (struct_name, struct_ptr, field_index) =
                     if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {
@@ -4626,7 +4934,9 @@ impl LlvmGenerator {
                 TypedItem::Function(func) => self.compile_function(func)?,
                 TypedItem::Patch(patch) => self.compile_patch(patch)?,
                 TypedItem::Law(law) => self.compile_law(law)?,
+                TypedItem::Axiom(axiom) => self.compile_axiom(axiom)?,
                 TypedItem::Converge(converge) => self.compile_converge(converge)?,
+                TypedItem::Pulse(pulse) => self.compile_pulse(pulse)?,
                 TypedItem::World(world) => self.compile_world_initializer(world)?,
                 TypedItem::Orchestrate(orchestrate) => self.compile_orchestrate(orchestrate)?,
                 TypedItem::Component(component) => self.compile_component(component)?,
@@ -4652,6 +4962,26 @@ impl LlvmGenerator {
                     });
                 }
                 TypedItem::Mod(module) => self.collect_native_entanglements(&module.items),
+                _ => {}
+            }
+        }
+    }
+
+    fn collect_machine_stone_metadata(&mut self, items: &[TypedItem]) {
+        for item in items {
+            match item {
+                TypedItem::Axiom(axiom) => {
+                    self.native_machine_axioms.push(NativeMachineAxiomInfo {
+                        name: axiom.ast.name.clone(),
+                    });
+                }
+                TypedItem::Pulse(pulse) => self.native_pulses.push(NativePulseInfo {
+                    name: pulse.ast.name.clone(),
+                }),
+                TypedItem::Struct(struct_def) if struct_def.ast.is_shattered() => {
+                    self.shattered_structs.insert(struct_def.ast.name.clone());
+                }
+                TypedItem::Mod(module) => self.collect_machine_stone_metadata(&module.items),
                 _ => {}
             }
         }
@@ -4779,6 +5109,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -4876,6 +5207,7 @@ impl LlvmGenerator {
         self.emit("");
 
         self.collect_native_entanglements(&program.items);
+        self.collect_machine_stone_metadata(&program.items);
         self.collect_program_tuple_types(program);
         self.emit_runtime_abi_types();
         self.struct_defs.insert(
@@ -5056,6 +5388,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -5181,6 +5514,7 @@ impl LlvmGenerator {
             self.scopes.push(Vec::new());
             self.locals.clear();
             self.helper_owned_pointer_locals.clear();
+            self.shattered_array_locals.clear();
             self.locals
                 .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
 
@@ -5307,6 +5641,13 @@ impl LlvmGenerator {
         self.emit("declare i64 @kain_native_converge_record_telemetry(i64, i64, i64, i64, i64)");
         self.emit("declare i64 @kain_native_orchestrate_stage_begin(i8*, i8*)");
         self.emit("declare i64 @kain_native_orchestrate_stage_end_i64(i8*, i8*, i64)");
+        self.emit("declare i64 @kain_machine_axiom_accept(i8*, i8*, i64)");
+        self.emit("declare void @kain_machine_pulse_snapshot(i64, i64, i64, i64*, i64*, i64*)");
+        self.emit("declare i8* @kain_machine_teleport_ptr(i8*, i8*, i8*, i8*)");
+        self.emit("declare void @kain_machine_teleport_note(i8*, i8*, i8*)");
+        self.emit("declare i8* @kain_machine_shatter_alloc(i64, i64)");
+        self.emit("declare i8* @kain_machine_shatter_lane_ptr(i8*, i64, i64)");
+        self.emit("declare void @kain_machine_shatter_free(i8*)");
 
         // Canonical actor runtime ABI
         self.emit("declare void @kain_actor_spawn_config_init(%KainActorSpawnConfig*)");
@@ -5384,7 +5725,7 @@ impl LlvmGenerator {
         let skip_list = ["print", "println", "to_string"];
 
         for (name, func) in stdlib.functions {
-            if skip_list.contains(&name.as_str()) {
+            if skip_list.contains(&name.as_str()) || llvm_runtime_declaration_is_preemitted(&name) {
                 continue;
             }
             if self.defined_functions.contains(&name) {
@@ -5460,6 +5801,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -5546,6 +5888,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.scopes.clear();
@@ -5706,6 +6049,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -5760,6 +6104,9 @@ impl LlvmGenerator {
 
         if is_main && !self.native_entanglements.is_empty() {
             self.emit("  call void @__kain_register_entanglements()");
+        }
+        if is_main {
+            self.emit_machine_stones_entry_preamble();
         }
 
         if let Some(patch_name) = self.current_patch_name.clone() {
@@ -5863,6 +6210,157 @@ impl LlvmGenerator {
         )
     }
 
+    fn compile_axiom(&mut self, axiom: &kain_core::types::TypedAxiom) -> KainResult<()> {
+        self.reg_count = 0;
+        self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
+        self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
+        self.scopes.clear();
+        self.scopes.push(Vec::new());
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
+        self.current_return_type = Some("i64".to_string());
+
+        let mut target = String::new();
+        let mut arch = String::new();
+        let mut capability_mask = 0u64;
+        for predicate in &axiom.ast.predicates {
+            match predicate {
+                AxiomPredicate::Target(value) => target = value.clone(),
+                AxiomPredicate::Arch(value) => arch = value.clone(),
+                AxiomPredicate::Capability(value) => {
+                    capability_mask |= Self::machine_axiom_capability_bit(value);
+                }
+            }
+        }
+
+        self.emit(&format!(
+            "define i64 @{}() {{",
+            Self::machine_axiom_symbol(&axiom.ast.name)
+        ));
+        self.emit_label("entry");
+        let target_ptr = self.compile_static_c_string_literal(&target);
+        let arch_ptr = self.compile_static_c_string_literal(&arch);
+        let accepted = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @kain_machine_axiom_accept(i8* {}, i8* {}, i64 {})",
+            accepted,
+            target_ptr,
+            arch_ptr,
+            Self::llvm_i64_literal_for_u64(capability_mask)
+        ));
+        self.emit(&format!("  ret i64 {}", accepted));
+        self.emit("}");
+        self.emit("");
+        self.current_return_type = None;
+        Ok(())
+    }
+
+    fn compile_pulse(&mut self, pulse: &kain_core::types::TypedPulse) -> KainResult<()> {
+        self.reg_count = 0;
+        self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
+        self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
+        self.scopes.clear();
+        self.scopes.push(Vec::new());
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
+        self.current_return_type = Some("void".to_string());
+
+        let body_symbol = Self::machine_pulse_body_symbol(&pulse.ast.name);
+        self.emit(&format!(
+            "define void @{}(i64 %pulse_tick_arg, i64 %pulse_dt_ms_arg, i64 %pulse_missed_arg) {{",
+            body_symbol
+        ));
+        self.emit_label("entry");
+        for (name, arg) in [
+            ("pulse_tick", "%pulse_tick_arg"),
+            ("pulse_dt_ms", "%pulse_dt_ms_arg"),
+            ("pulse_missed", "%pulse_missed_arg"),
+        ] {
+            let addr = format!("%{}.addr", name);
+            self.emit_entry_alloca(&addr, "i64");
+            self.emit(&format!("  store i64 {}, i64* {}", arg, addr));
+            self.locals
+                .insert(name.to_string(), (addr, "i64".to_string()));
+            if let Some(scope) = self.scopes.last_mut() {
+                scope.push(name.to_string());
+            }
+        }
+        self.compile_block(&pulse.ast.body)?;
+        self.emit_scope_exit();
+        self.emit("  ret void");
+        self.emit("}");
+        self.emit("");
+
+        self.reg_count = 0;
+        self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
+        self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
+        self.scopes.clear();
+        self.scopes.push(Vec::new());
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
+        self.current_return_type = Some("void".to_string());
+
+        let fire_symbol = Self::machine_pulse_fire_symbol(&pulse.ast.name);
+        let token = Self::stable_runtime_hash64(&pulse.ast.name);
+        let interval_ns = Self::machine_pulse_duration_ns(&pulse.ast.interval);
+        let jitter_ns = pulse
+            .ast
+            .jitter
+            .as_ref()
+            .map(Self::machine_pulse_duration_ns)
+            .unwrap_or(0);
+        self.emit(&format!("define void @{}() {{", fire_symbol));
+        self.emit_label("entry");
+        let tick_ptr = "%pulse.tick.out";
+        let dt_ptr = "%pulse.dt.out";
+        let missed_ptr = "%pulse.missed.out";
+        self.emit_entry_alloca(tick_ptr, "i64");
+        self.emit_entry_alloca(dt_ptr, "i64");
+        self.emit_entry_alloca(missed_ptr, "i64");
+        self.emit(&format!(
+            "  call void @kain_machine_pulse_snapshot(i64 {}, i64 {}, i64 {}, i64* {}, i64* {}, i64* {})",
+            Self::llvm_i64_literal_for_u64(token),
+            interval_ns,
+            jitter_ns,
+            tick_ptr,
+            dt_ptr,
+            missed_ptr
+        ));
+        let tick = self.next_reg();
+        let dt = self.next_reg();
+        let missed = self.next_reg();
+        self.emit(&format!("  {} = load i64, i64* {}", tick, tick_ptr));
+        self.emit(&format!("  {} = load i64, i64* {}", dt, dt_ptr));
+        self.emit(&format!("  {} = load i64, i64* {}", missed, missed_ptr));
+        self.emit(&format!(
+            "  call void @{}(i64 {}, i64 {}, i64 {})",
+            body_symbol, tick, dt, missed
+        ));
+        self.emit("  ret void");
+        self.emit("}");
+        self.emit("");
+        self.current_return_type = None;
+        Ok(())
+    }
+
     fn compile_converge(&mut self, converge: &kain_core::types::TypedConverge) -> KainResult<()> {
         if converge.ast.fast_lanes.is_empty() {
             return self.compile_named_callable(
@@ -5928,6 +6426,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -5978,7 +6477,7 @@ impl LlvmGenerator {
         }
 
         self.emit(&format!(
-            "define {} @{}({}) {{",
+            "define {} @{}({}) #0 {{",
             ret_type, converge.ast.name, params
         ));
         self.emit_label("entry");
@@ -6170,6 +6669,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
+        self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -6247,6 +6747,26 @@ impl LlvmGenerator {
         )
     }
 
+    fn emit_machine_stones_entry_preamble(&mut self) {
+        let axioms = self.native_machine_axioms.clone();
+        for axiom in axioms {
+            let status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @{}()",
+                status,
+                Self::machine_axiom_symbol(&axiom.name)
+            ));
+        }
+
+        let pulses = self.native_pulses.clone();
+        for pulse in pulses {
+            self.emit(&format!(
+                "  call void @{}()",
+                Self::machine_pulse_fire_symbol(&pulse.name)
+            ));
+        }
+    }
+
     fn compile_function(&mut self, func: &TypedFunction) -> KainResult<()> {
         if Self::function_is_extern(func) {
             return self.compile_extern_function(func);
@@ -6281,6 +6801,10 @@ impl LlvmGenerator {
         self.extern_functions.insert(func.ast.name.clone());
         self.functions
             .insert(func.ast.name.clone(), ret_type.clone());
+
+        if llvm_runtime_declaration_is_preemitted(&func.ast.name) {
+            return Ok(());
+        }
 
         self.emit(&format!(
             "declare {} @{}({})",
@@ -6420,6 +6944,16 @@ impl LlvmGenerator {
                 if self.borrowed_locals.contains(var_name) {
                     continue;
                 }
+                if self.shattered_array_locals.contains_key(var_name) {
+                    let tmp = self.next_reg();
+                    self.emit(&format!("  {} = load i8*, i8** {}", tmp, addr));
+                    self.emit(&format!(
+                        "  call void @kain_machine_shatter_free(i8* {})",
+                        tmp
+                    ));
+                    self.shattered_array_locals.remove(var_name);
+                    continue;
+                }
                 // Release if it's a pointer or struct
                 if ty == "i8*" || ty.starts_with("%") {
                     let tmp = self.next_reg();
@@ -6447,6 +6981,16 @@ impl LlvmGenerator {
         for var_name in vars_to_release {
             if let Some((addr, ty)) = self.locals.get(&var_name).cloned() {
                 if self.borrowed_locals.contains(&var_name) {
+                    continue;
+                }
+                if self.shattered_array_locals.contains_key(&var_name) {
+                    let tmp = self.next_reg();
+                    self.emit(&format!("  {} = load i8*, i8** {}", tmp, addr));
+                    self.emit(&format!(
+                        "  call void @kain_machine_shatter_free(i8* {})",
+                        tmp
+                    ));
+                    self.shattered_array_locals.remove(&var_name);
                     continue;
                 }
                 if ty == "i8*" || ty.starts_with("%") {
@@ -6618,6 +7162,12 @@ impl LlvmGenerator {
                             self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
                         self.record_helper_owned_pointer_local(name, local_pointer_provenance);
+                        if let Some(struct_name) = self.shattered_array_expr_struct_name(val_expr) {
+                            self.shattered_array_locals
+                                .insert(name.clone(), ShatteredArrayLocal { struct_name });
+                        } else {
+                            self.shattered_array_locals.remove(name);
+                        }
                         if let Some(scope) = self.scopes.last_mut() {
                             scope.push(name.clone());
                         }
@@ -6996,6 +7546,10 @@ impl LlvmGenerator {
             runtime.as_str(),
             function
         ));
+        if !llvm_orchestrate_trace_enabled() {
+            self.emit("  ; benchmark-release elides orchestrate telemetry wrapper");
+            return self.compile_direct_call(function, args);
+        }
         let runtime_name = self.compile_static_c_string_literal(runtime.as_str());
         let function_name = self.compile_static_c_string_literal(function);
         let begin_status = self.next_reg();
@@ -7329,7 +7883,18 @@ impl LlvmGenerator {
                 "__kain_ownership_end_collapse_helper",
             ),
             Expr::Decay { target, .. } => self.compile_decay_expr(target),
-            Expr::Teleport { value, .. } => self.compile_expr(value),
+            Expr::Teleport {
+                value,
+                source_world,
+                target_world,
+                channel,
+                ..
+            } => self.compile_teleport_expr(
+                value,
+                source_world,
+                target_world,
+                channel.as_deref(),
+            ),
             Expr::Unary { op, operand, span } => {
                 let (val, ty) = self.compile_expr(operand)?;
                 match op {
@@ -7591,6 +8156,13 @@ impl LlvmGenerator {
                 )),
             },
             Expr::Array(items, _) => {
+                if let Some(struct_name) = self.shattered_array_expr_struct_name(expr) {
+                    return self.compile_shattered_array_literal(
+                        &struct_name,
+                        items,
+                        expr.span(),
+                    );
+                }
                 let arr = self.next_reg();
                 self.emit(&format!(
                     "  {} = call i8* @array_new(i64 {})",
