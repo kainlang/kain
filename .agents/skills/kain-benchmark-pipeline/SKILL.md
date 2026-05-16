@@ -34,6 +34,11 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - timestamped `benchmark/out/reports/<stamp>.llm.md`
   - timestamped `benchmark/out/reports/<stamp>.json`
 - HTML is no longer a report format. If `benchmark/out/reports/latest.html` exists after a run, treat that as stale-output cleanup debt.
+- Dedicated FFI boundary lane: `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
+  - This is a specialized benchmark outside `benchmarks.json`; it exists to compare `llvm_pure`, direct LLVM object/shared-library C FFI, `interpret_pure`, and the interpreter/live bridge path in one place.
+  - Reports land in `benchmark/out/reports/ffi_boundary_latest.llm.md`, `ffi_boundary_latest.json`, and timestamped `*.ffi_boundary.*` siblings.
+  - The runner writes its own `benchmark/ffi_boundary/KAIN.toml`, compiles `native/ffi_boundary.c` into both object and shared forms, and keeps runtime tuning pinned to the normal benchmark-release native profile.
+  - If `kain.exe <file>.kn -t llvm` starts failing with undefined `use c::...` symbols on this lane, inspect the direct CLI compile prep in `crates/cli/src/main.rs`: the LLVM/C path must generate `.kain/cache/c_ffi/.../*.kn` bindings before frontend import resolution, not after.
 
 ## Blade Console
 
@@ -79,6 +84,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - As of `2026-05-15`, the case intentionally removes dead `% MODULUS` math and uses a boolean branch toggle instead of `% 2` parity math, but keeps substring search on the general path. The specialized win we kept is in the LLVM lowering, not in benchmark-only hand-tuned substring kernels.
   - The LLVM fast path still depends on string-aware const metadata, entry-cached string lengths, direct bytewise `char_at(...) == char_at(...)` lowering, and borrowed internal string params that skip caller retain/callee release churn. If `string_ops` regresses, inspect `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` before blaming the C runtime.
 - `array_scan`: fixed-array indexing and weighted accumulation.
+- `ffi_boundary` is the dedicated ABI-tax probe, not a fairness-suite case. It is intentionally single-language/Kain-focused so we can answer questions like “how expensive is direct LLVM object linking vs the interpreter bridge?” without polluting the multi-language pressure suite.
 
 ## Validation
 
@@ -86,5 +92,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Syntax-check all JS/Python case files and compile the C++ lane.
 - `python benchmark/run.py --languages cpp --runs 1 --warmups 0 --timeout 300`
 - `python benchmark/run.py --case scalar_mix --languages kain,rust,cpp,javascript,python --runs 1 --warmups 0 --timeout 300`
+- `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
 - Build `benchmark/kain-benchmark.exe` with the blade compile helper and capture a non-empty native UI screenshot.
 - Inspect `benchmark/out/reports/latest.llm.md` and `latest.json` before summarizing results.
+- Inspect `benchmark/out/reports/ffi_boundary_latest.llm.md` and `ffi_boundary_latest.json` before summarizing FFI-boundary claims.

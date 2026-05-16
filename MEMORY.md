@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-15 - Dedicated FFI-boundary telemetry now proves the native LLVM lane is lean while the interpreter/live bridge path is still brutally expensive
+
+The repo needed one benchmark that answered the narrow ABI question directly instead of burying it inside the multi-language suite. That landed as `benchmark/ffi_boundary/`, and in the process it also exposed a real CLI dogfood bug in the direct LLVM/C compile path for `use c::...`.
+
+What changed:
+
+- Added the dedicated benchmark harness under `benchmark/ffi_boundary/`:
+  - `run.py` orchestrates the lane, compiles the native helper into both object and shared forms, writes a local `KAIN.toml`, builds/runs the variants, and emits `benchmark/out/reports/ffi_boundary_latest.llm.md` plus JSON and timestamped `*.ffi_boundary.*` reports.
+  - `native/ffi_boundary.h` and `native/ffi_boundary.c` define the tiny C helper used for object/shared boundary tests.
+  - `sources/llvm_pure.kn`, `llvm_object.kn`, `llvm_shared.kn`, `interpret_pure.kn`, and `interpret_shared.kn` keep the benchmarked work deterministic and checksum-guarded.
+- Fixed the direct `kain.exe <file>.kn -t llvm` / `-t c` CLI seam in `crates/cli/src/main.rs`. The first benchmark run proved the LLVM lane was compiling call sites before the generated C FFI modules existed, which produced undefined `@ffi_boundary_mix` calls. The correct fix was not to rewrite the source in place; it was to force `kain_c_ffi::import_libraries_for_source(..., Generate, ...)` before frontend compile so `.kain/cache/c_ffi/.../*.kn` bindings exist when import resolution runs.
+- Updated `ARCHITECTURE.md` and `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future agents know that `benchmark/ffi_boundary/` is the ABI-tax probe and that undefined `use c::...` symbols on direct LLVM/C compile point at the CLI pre-generation seam.
+
+Validation:
+
+- `python -m py_compile D:\Kain-Lang\benchmark\ffi_boundary\run.py`
+- `cargo build --release -p cli`
+- `python D:\Kain-Lang\benchmark\ffi_boundary\run.py --warmups 1 --runs 3 --timeout 300`
+- `python D:\Kain-Lang\benchmark\ffi_boundary\run.py --warmups 2 --runs 5 --timeout 300`
+
+Current benchmark reality from `benchmark/out/reports/ffi_boundary_latest.llm.md`:
+
+- `Kain LLVM Pure`: `96.481 ms` median over `10,000,000` calls, about `9.65 ns/call`
+- `Kain LLVM C Object`: `102.862 ms`, about `10.29 ns/call`
+- `Kain LLVM C Shared`: `100.170 ms`, about `10.02 ns/call`
+- `Kain Interpret Pure`: `114.597 ms` over `10,000` calls, about `11,459.71 ns/call`
+- `Kain Interpret C Shared`: `6267.941 ms`, about `626,794.14 ns/call`
+
+Durable conclusion:
+
+- The native LLVM lane is exactly the story we wanted: direct C boundary tax is tiny. On this host, the direct object path is only about `6.6%` slower than pure LLVM, and the shared-library path is only about `3.8%` slower.
+- The interpreter/live bridge path is not “a little slower”; it is orders of magnitude slower. Even the pure interpret variant is about `1188x` slower per call than pure LLVM on this benchmark, and the current shared-library bridge path is roughly `64,963x` slower per call than pure LLVM on the reported median.
+- The `interpret_shared` samples also descended sharply across warmups/runs (`~15.8 s` warmup down to `~3.46 s` best measured run) because the generated Rust bridge still pays repeated dynamic-library/symbol plumbing inside the call path. That means the cold-to-warm range matters, but the architectural takeaway does not change: the native LLVM FFI lane is lean; the interpreter/live bridge is the expensive Rust-hosted lane.
+
 # 2026-05-15 - Kaintana is now a real blade-owned UI framework package with desktop and Vulkan acceptance proofs
 
 The all-in-one UI framework idea is real now, and it landed in the right layer: not as new runtime-owned UI architecture, but as a blade-owned Kain package that sits above the passive raw UI ABI. The important design win is that `kaintana` owns the authored UI surface, themes, layout vocabulary, session helpers, and host routing, while `runtime/native` stays the generic substrate.

@@ -1,0 +1,16 @@
+[package]
+name = "ffi_boundary"
+version = "0.1.0"
+description = "Dedicated Kain FFI boundary benchmark."
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "ffi_boundary_object"
+header = "native/ffi_boundary.h"
+shared_lib = "native/ffi_boundary_object.obj"
+
+[[c_ffi.libraries]]
+name = "ffi_boundary_shared"
+header = "native/ffi_boundary.h"
+shared_lib = "native/ffi_boundary_shared.dll"

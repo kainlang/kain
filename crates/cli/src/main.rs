@@ -470,6 +470,24 @@ fn run_source(
     _analyze: bool,
     plugin_name: Option<&str>,
 ) -> bool {
+    let source = source.to_string();
+
+    if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+        let prepare = CPrepareContext {
+            current_dir: std::env::current_dir().ok(),
+            manifest_path: None,
+        };
+        let import_options = CImportCOptions {
+            mode: CArtifactMode::Generate,
+            ..CImportCOptions::default()
+        };
+        if let Err(err) = kain_c_ffi::import_libraries_for_source(&source, &import_options, &prepare)
+        {
+            eprintln!(" Failed to prepare C FFI source: {}", err);
+            return false;
+        }
+    }
+
     if verbose {
         println!(" Compiling: {}", source_name);
         println!(

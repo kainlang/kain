@@ -1,0 +1,18 @@
+fn ffi_boundary_mix_local(value: Int, salt: Int) -> Int:
+    let modulus: Int = 1000000007
+    let lane_a = ((value * 1103515245) + 12345 + (salt * 97)) % modulus
+    let lane_b = ((value / 7) + (salt * 31) + 17) % modulus
+    return (lane_a + lane_b + 19) % modulus
+
+fn main() -> Int:
+    let iterations: Int = 10000000
+    let expected: Int = 658273918
+    var acc: Int = 1
+    var i: Int = 0
+    while i < iterations:
+        acc = ffi_boundary_mix_local(acc + i, i)
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0
