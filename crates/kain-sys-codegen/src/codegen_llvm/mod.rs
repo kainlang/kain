@@ -7134,7 +7134,6 @@ impl LlvmGenerator {
                         "  call void @kain_machine_shatter_free(i8* {})",
                         tmp
                     ));
-                    self.shattered_array_locals.remove(&var_name);
                     continue;
                 }
                 if ty == "i8*" || ty.starts_with("%") {

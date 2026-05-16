@@ -1,0 +1,176 @@
+axiom quantumerlang_machine_truth:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("memory.shatter")
+    when capability("world.teleport")
+    guarantee "quantumerlang folds an Erlang-shaped worker swarm through shattered lane memory and ownership-proven local state"
+    fallback quantum_flux_scalar
+
+component QuantumErlangPanel():
+    render <panel title="Quantum Erlang" />
+
+world QuantumErlangAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    surface native_ui => QuantumErlangPanel
+
+world QuantumErlangMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    surface web => QuantumErlangPanel
+
+entangle QuantumErlangAuthority.signal <-> QuantumErlangMirror.signal_copy with single_writer
+entangle QuantumErlangAuthority.epoch <-> QuantumErlangMirror.epoch_copy with single_writer
+
+shatter struct QuantumLane:
+    bias: Int
+    phase: Int
+    salt: Int
+    alive: Bool
+
+fn quantum_flux_scalar(value: Int) -> Int:
+    return ((value * 31) + 7) % 1000000007
+
+converge quantum_flux(value: Int) -> Int:
+    spec reference:
+        return ((value * 31) + 7) % 1000000007
+    fast llvm_lane when target("llvm"):
+        return ((value * 31) + 7) % 1000000007
+    verify random(4)
+
+patch quantumerlang_boot(authority: QuantumErlangAuthority, value: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    return authority.signal
+
+fn quantum_reply(request: Int, bias: Int, phase: Int, salt: Int, alive: Bool, lane: Int) -> Int:
+    if alive:
+        return quantum_flux(((request * 17) + bias + phase + salt + lane) % 1000000007)
+    return quantum_flux(((request * 17) + bias + salt + lane + 1000000007 - phase) % 1000000007)
+
+fn fold_lane_cells(cells: ptr<Int>, cell_count: Int) -> Int:
+    let modulus: Int = 1000000007
+    var slot: Int = 0
+    var acc: Int = 0
+    while slot < cell_count:
+        acc = (acc + mem_load(ptr_offset(cells, slot, "Int"), "Int")) % modulus
+        slot = slot + 1
+    return acc
+
+fn main() -> Int:
+    let init_status = native_runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let rounds: Int = 300000
+    let worker_count: Int = 64
+    let modulus: Int = 1000000007
+    let expected_checksum: Int = 272862553
+    let authority = QuantumErlangAuthority
+    let seed = QuantumLane { bias: 4, phase: 6, salt: 18, alive: true }
+    let moved_seed = teleport seed from QuantumErlangAuthority to QuantumErlangMirror via quantumerlang_boot_bus
+    let boot_signal: Int = quantumerlang_boot(authority, moved_seed.bias + moved_seed.phase + moved_seed.salt)
+    let lanes = [
+        QuantumLane { bias: 4, phase: 6, salt: 18, alive: true },
+        QuantumLane { bias: 11, phase: 17, salt: 31, alive: false },
+        QuantumLane { bias: 18, phase: 28, salt: 44, alive: true },
+        QuantumLane { bias: 25, phase: 39, salt: 57, alive: true },
+        QuantumLane { bias: 32, phase: 50, salt: 70, alive: false },
+        QuantumLane { bias: 39, phase: 61, salt: 83, alive: true },
+        QuantumLane { bias: 46, phase: 72, salt: 96, alive: true },
+        QuantumLane { bias: 53, phase: 83, salt: 8, alive: false },
+        QuantumLane { bias: 60, phase: 5, salt: 21, alive: true },
+        QuantumLane { bias: 67, phase: 16, salt: 34, alive: true },
+        QuantumLane { bias: 74, phase: 27, salt: 47, alive: false },
+        QuantumLane { bias: 81, phase: 38, salt: 60, alive: true },
+        QuantumLane { bias: 88, phase: 49, salt: 73, alive: true },
+        QuantumLane { bias: 95, phase: 60, salt: 86, alive: false },
+        QuantumLane { bias: 5, phase: 71, salt: 99, alive: true },
+        QuantumLane { bias: 12, phase: 82, salt: 11, alive: true },
+        QuantumLane { bias: 19, phase: 4, salt: 24, alive: false },
+        QuantumLane { bias: 26, phase: 15, salt: 37, alive: true },
+        QuantumLane { bias: 33, phase: 26, salt: 50, alive: true },
+        QuantumLane { bias: 40, phase: 37, salt: 63, alive: false },
+        QuantumLane { bias: 47, phase: 48, salt: 76, alive: true },
+        QuantumLane { bias: 54, phase: 59, salt: 89, alive: true },
+        QuantumLane { bias: 61, phase: 70, salt: 1, alive: false },
+        QuantumLane { bias: 68, phase: 81, salt: 14, alive: true },
+        QuantumLane { bias: 75, phase: 3, salt: 27, alive: true },
+        QuantumLane { bias: 82, phase: 14, salt: 40, alive: false },
+        QuantumLane { bias: 89, phase: 25, salt: 53, alive: true },
+        QuantumLane { bias: 96, phase: 36, salt: 66, alive: true },
+        QuantumLane { bias: 6, phase: 47, salt: 79, alive: false },
+        QuantumLane { bias: 13, phase: 58, salt: 92, alive: true },
+        QuantumLane { bias: 20, phase: 69, salt: 4, alive: true },
+        QuantumLane { bias: 27, phase: 80, salt: 17, alive: false },
+        QuantumLane { bias: 34, phase: 2, salt: 30, alive: true },
+        QuantumLane { bias: 41, phase: 13, salt: 43, alive: true },
+        QuantumLane { bias: 48, phase: 24, salt: 56, alive: false },
+        QuantumLane { bias: 55, phase: 35, salt: 69, alive: true },
+        QuantumLane { bias: 62, phase: 46, salt: 82, alive: true },
+        QuantumLane { bias: 69, phase: 57, salt: 95, alive: false },
+        QuantumLane { bias: 76, phase: 68, salt: 7, alive: true },
+        QuantumLane { bias: 83, phase: 79, salt: 20, alive: true },
+        QuantumLane { bias: 90, phase: 1, salt: 33, alive: false },
+        QuantumLane { bias: 97, phase: 12, salt: 46, alive: true },
+        QuantumLane { bias: 7, phase: 23, salt: 59, alive: true },
+        QuantumLane { bias: 14, phase: 34, salt: 72, alive: false },
+        QuantumLane { bias: 21, phase: 45, salt: 85, alive: true },
+        QuantumLane { bias: 28, phase: 56, salt: 98, alive: true },
+        QuantumLane { bias: 35, phase: 67, salt: 10, alive: false },
+        QuantumLane { bias: 42, phase: 78, salt: 23, alive: true },
+        QuantumLane { bias: 49, phase: 89, salt: 36, alive: true },
+        QuantumLane { bias: 56, phase: 11, salt: 49, alive: false },
+        QuantumLane { bias: 63, phase: 22, salt: 62, alive: true },
+        QuantumLane { bias: 70, phase: 33, salt: 75, alive: true },
+        QuantumLane { bias: 77, phase: 44, salt: 88, alive: false },
+        QuantumLane { bias: 84, phase: 55, salt: 101, alive: true },
+        QuantumLane { bias: 91, phase: 66, salt: 13, alive: true },
+        QuantumLane { bias: 1, phase: 77, salt: 26, alive: false },
+        QuantumLane { bias: 8, phase: 88, salt: 39, alive: true },
+        QuantumLane { bias: 15, phase: 10, salt: 52, alive: true },
+        QuantumLane { bias: 22, phase: 21, salt: 65, alive: false },
+        QuantumLane { bias: 29, phase: 32, salt: 78, alive: true },
+        QuantumLane { bias: 36, phase: 43, salt: 91, alive: true },
+        QuantumLane { bias: 43, phase: 54, salt: 3, alive: false },
+        QuantumLane { bias: 50, phase: 65, salt: 16, alive: true },
+        QuantumLane { bias: 57, phase: 76, salt: 29, alive: true }
+    ]
+    let mut cells: ptr<Int> = alloc_zeroed(worker_count, "Int")
+
+    var index: Int = 0
+    var checksum: Int = 0
+    collapse cells:
+        while index < rounds:
+            let lane: Int = index % worker_count
+            let old_cell: Int = mem_load(ptr_offset(cells, lane, "Int"), "Int")
+            let request: Int = ((index * 13) + old_cell + lane) % modulus
+            let reply: Int = quantum_reply(
+                request,
+                lanes[lane].bias,
+                lanes[lane].phase,
+                lanes[lane].salt,
+                lanes[lane].alive,
+                lane
+            )
+            let next_cell: Int = (reply + old_cell + index + lane) % modulus
+            mem_store(ptr_offset(cells, lane, "Int"), next_cell, "Int")
+            checksum = (checksum + next_cell + reply + lane) % modulus
+            index = index + 1
+        0
+
+    let observed: Int = observe cells:
+        fold_lane_cells(cells, worker_count)
+
+    decay cells
+
+    let final_score: Int = (checksum + observed) % modulus
+    let runtime_shape_ok = boot_signal > 0 and native_patch_journal_count() >= 1 and native_entangle_propagation_count() >= 1 and runtime_machine_teleport_count() >= 1 and native_converge_mismatch_count() == 0
+    let shutdown_status = native_runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if runtime_shape_ok == false:
+        return 2
+    if final_score != expected_checksum:
+        return 1
+    return 0

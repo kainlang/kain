@@ -1,5 +1,28 @@
 # Kain Memory
 
+# 2026-05-16 - Quantumerlang flex row maps Erlang's swarm shape onto Kain semantics
+
+`benchmark/cases/quantumerlang` is the intentionally unfair Kain-vs-Erlang flex row requested after the actor-mailbox work. It keeps Erlang doing what Erlang is good at: 64 long-lived stateful processes, synchronous request/reply mailboxes, and a deterministic 300,000-round fold. Kain computes the same checksum through `shatter struct` lane metadata, one ownership-collapsed cell ring, `converge` lowering, and a boot-time `teleport` plus entangled world patch so the semantic substrate is live without paying per-round actor mailbox tax.
+
+What changed:
+
+- Added `quantumerlang` to `benchmark/benchmarks.json` with only Kain and Erlang rows, maturity `kain-semantic-flex`, and an explicit fairness note that this is not the honest actor-mailbox row.
+- Added `benchmark/cases/quantumerlang/main.kn`, `quantumerlang.erl`, and `z3/quantumerlang_bounds.smt2`.
+- The case checksum is `272862553`. Kain and Erlang both fail nonzero if the final fold changes.
+- `quantumerlang_bounds.smt2` proves the 64-lane modulo index and signed 64-bit arithmetic headroom; report `D:\Kain-Lang\z3\reports\20260516T132734Z-quantumerlang-bounds-final.json` returned `unsat`.
+
+Compiler/runtime seam found while dogfooding:
+
+- The first Kain executable crashed with `0xC0000005` because return-path cleanup emitted `kain_machine_shatter_free(...)` on one branch, then removed the compile-time shatter metadata and emitted generic `rc_release(i8* ...)` for the same shatter handle on a sibling return branch.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs::emit_all_scopes_cleanup` must preserve `shattered_array_locals` while emitting sibling return branches. Normal lexical scope cleanup can still remove the metadata when the scope actually exits.
+- Regression test: `llvm_cleans_shattered_array_locals_on_each_return_path`.
+- Durable proof: `crates/kain-sys-codegen/z3/proofs/memory-shatter-return-cleanup-preserves-shatter-kind.yaml`; report `D:\Kain-Lang\crates\kain-sys-codegen\z3\reports\20260516T132655Z-quantumerlang-shatter-cleanup-final.json` returned `unsat`.
+
+Latest benchmark proof:
+
+- `py -3 benchmark/run.py --case quantumerlang --languages kain,erlang --runs 3 --warmups 1 --timeout 900 --kain-exe target\debug\kain.exe`
+- Kain median `45.005 ms`, Erlang median `549.337 ms`; Kain wins and Erlang is `12.21x slower` on this semantic-flex workload.
+
 # 2026-05-16 - Semantic Singularity gained its ablation/isolate benchmark matrix
 
 The fused `semantic_singularity` benchmark is now the all-in-one Kain weird-semantics boss fight, and six sibling Kain-only rows let the harness attribute its cost instead of treating the fused number as a black box.

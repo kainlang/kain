@@ -416,6 +416,21 @@
       }
     },
     {
+      "id": "quantumerlang",
+      "title": "Quantum Erlang Swarm",
+      "description": "Erlang runs a 64-process stateful request/reply swarm. Kain solves the same deterministic lane-state checksum through shattered lane metadata, one ownership-collapsed cell ring, converge lowering, and a boot-time teleport/entangle proof hook instead of per-round mailboxes.",
+      "maturity": "kain-semantic-flex",
+      "fairness_note": "This is intentionally not the fair actor-mailbox row. Erlang uses the actor/process abstraction it is famous for: stateful workers receiving synchronous fold requests. Kain is allowed to use its native semantic model to collapse the same logical worker state into local ownership-proven memory and compiler-owned layout semantics.",
+      "language_notes": {
+        "kain": "Uses `shatter struct` lane state, raw helper memory under `collapse`/`observe`/`decay`, a converge fast lane, and a boot-time teleport plus entangled world patch to prove the semantic substrate is active while avoiding per-round actor mailbox traffic.",
+        "erlang": "Uses 64 long-lived Erlang processes, each owning its lane cell state and replying through ordinary process mailboxes for 300,000 synchronous requests."
+      },
+      "languages": {
+        "kain": "cases/quantumerlang/main.kn",
+        "erlang": "cases/quantumerlang/quantumerlang.erl"
+      }
+    },
+    {
       "id": "unicode_string_heavy",
       "title": "Unicode String Heavy",
       "description": "Repeated substring search over mixed UTF-8 payloads with multilingual text and emoji. This catches string traversal and byte/character handling under non-ASCII inputs.",

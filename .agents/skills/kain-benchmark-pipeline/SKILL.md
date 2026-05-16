@@ -30,6 +30,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Run a language subset: `python benchmark/run.py --languages js,py --runs 1 --warmups 0`
 - Run a Kain/Rust-only dependency case: `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 5 --warmups 2`
 - Run the Kain/Erlang mailbox case: `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 5 --warmups 2`
+- Run the semantic-flex Kain/Erlang swarm case: `python benchmark/run.py --case quantumerlang --languages kain,erlang --runs 3 --warmups 1`
 - Run the shared-library FFI stress row: `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 5 --warmups 2`
 - Run several cases in one comparable report with comma-separated ids: `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
 - Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe`
@@ -72,6 +73,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - If Kain does not yet expose the exact runtime primitive needed, keep the case but mark `maturity` as `proxy`, `semantic-proxy`, or `dispatch-skeleton` in `benchmarks.json`.
 - For Kain/Rust-only comparisons such as Tokio/Rayon, declare only those two languages in the case `languages` map; do not add empty C++/JS/Python placeholders.
 - For Kain/Erlang actor comparisons, declare only those two languages in the case `languages` map; do not fake C++/Rust/JS/Python actor rows.
+- For Kain/Erlang semantic-flex rows, keep the paired checksum identical but label the case honestly with `maturity = "kain-semantic-flex"` and a fairness note that Erlang is staying inside its process/mailbox model while Kain may use compiler-owned semantics such as `shatter`, `collapse`, `converge`, `teleport`, and `entangle`.
 - Never claim a proxy is a completed win. Use `fairness_note` and `language_notes` to explain semantic gaps.
 - JavaScript and Python lanes should mirror algorithmic shape where possible, but avoid importing npm/pip dependencies or measuring unrelated framework overhead.
 - For Kain low-level memory cases, `alloc(count, "T")` and `realloc_mem(ptr, count, "T", ...)` use element counts, not byte counts. Do not pass `sizeof_type("T")` for a single-cell allocation unless you intentionally want `sizeof(T)` elements.
@@ -89,6 +91,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `http_server_concurrency`: Kain native local HTTP route handling versus Tokio request batches. The request-slot exhaustion bug is fixed, so this row should stay green while still carrying the fairness note that Kain is measuring the synchronous semantic surface against Tokio async request batching.
 - `actor_mailbox_erlang`: Kain native LLVM actor ask/reply fanout versus Erlang process mailbox request/reply. Both rows intentionally perform one unmeasured warmup ask per worker so the report reflects steady-state mailbox traffic rather than startup effects.
   The Kain reply leg now uses the dedicated native fast path `kain_actor_reply_port_send(...)` rather than generic mailbox enqueue/dequeue; if performance regresses again, inspect the actor runtime/codegen seam before changing the case.
+- `quantumerlang`: intentionally unfair Kain/Erlang semantic-flex row. Erlang runs 64 stateful processes and 300,000 synchronous mailbox roundtrips; Kain computes the same checksum through `shatter struct` lane metadata, `collapse`/`observe`/`decay` cell memory, `converge`, and boot-time `teleport`/`entangle`. Latest 3-run checkpoint: Kain `45.005 ms` vs Erlang `549.337 ms`, so Erlang is `12.21x slower`.
 - `rayon_parallel_reduce`: Rayon parallel iterators versus Kain scalar proxy. Keep `maturity` as `parallel-proxy` until Kain LLVM has proven user-level data-parallel fanout.
 
 ## Current Basic Edge Cases
@@ -130,6 +133,8 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `python benchmark/run.py --case rayon_parallel_reduce --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 1 --warmups 0 --timeout 900`
   If this row fails with a Kain build error mentioning `generated/native_runtime/cache/.../*.obj.tmp` and `Access is denied`, rerun once after the cache quiesces before treating it as a semantic actor regression.
+- `python benchmark/run.py --case quantumerlang --languages kain,erlang --runs 1 --warmups 0 --timeout 900`
+- Prove `benchmark/cases/quantumerlang/z3/quantumerlang_bounds.smt2` stays `unsat` after changing the lane count, round count, or arithmetic formula.
 - `python benchmark/run.py --case semantic_singularity --languages kain --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 1 --warmups 0 --timeout 900`

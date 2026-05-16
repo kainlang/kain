@@ -1368,6 +1368,43 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_cleans_shattered_array_locals_on_each_return_path() {
+    let typed = typed_program_from_source(
+        r#"
+shatter struct PairShard:
+    x: Int
+    y: Int
+    alive: Bool
+
+fn main() -> Int:
+    let pairs = [
+        PairShard { x: 1, y: 2, alive: true },
+        PairShard { x: 3, y: 4, alive: false }
+    ]
+    if pairs[0].x == 1:
+        return 0
+    if pairs[1].y == 4:
+        return 1
+    return 2
+"#,
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    let shatter_free_count = llvm.matches("call void @kain_machine_shatter_free").count();
+    assert!(
+        shatter_free_count >= 3,
+        "each return path should free the shatter handle, saw {shatter_free_count}\n{llvm}"
+    );
+    assert!(
+        !llvm.contains("call void @rc_release(i8*"),
+        "shatter handles are not RC allocations and must not be released with rc_release\n{llvm}"
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "machine-stones-shatter-return-cleanup");
+}
+
+#[test]
 fn llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path() {
     let typed = typed_program_from_source(
         "fn own_local_pair() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(2, \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
