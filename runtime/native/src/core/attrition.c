@@ -29,23 +29,40 @@ typedef struct KainAttritionState {
     KainAttritionEvent events[KAIN_ATTRITION_EVENT_RING_CAPACITY];
 
     uint64_t live_rc_objects;
+    uint64_t peak_live_rc_objects;
     uint64_t live_runtime_bytes;
     uint64_t peak_runtime_bytes;
     uint64_t allocation_count;
     uint64_t free_count;
+    uint64_t total_allocated_bytes;
+    uint64_t total_freed_bytes;
+    uint64_t allocation_fail_count;
     uint64_t retain_count;
     uint64_t release_count;
     uint64_t rc_underflow_count;
     uint64_t rc_overflow_count;
     uint64_t poison_free_count;
+    uint64_t quarantine_live_bytes;
+    uint64_t quarantine_peak_entries;
+    uint64_t quarantine_peak_bytes;
+    uint64_t fragmentation_noise_live_bytes;
+    uint64_t fragmentation_noise_peak_bytes;
+    uint64_t fragmentation_noise_total_bytes;
+    uint64_t fragmentation_injection_count;
 
+    uint64_t checkpoint_count;
+    uint64_t last_checkpoint_label_hash;
+    uint64_t last_checkpoint_subject_id;
     uint64_t progress_heartbeat_count;
     uint64_t last_progress_iteration;
     uint64_t last_progress_checksum;
 
     uint64_t virtual_time_now_ms;
+    uint64_t virtual_time_advance_count;
+    uint64_t virtual_time_advance_total_ms;
     uint64_t raw_clock_fallback_count;
     uint64_t raw_sleep_fallback_count;
+    uint64_t raw_sleep_fallback_millis_total;
 
     KainAttritionQuarantineEntry quarantine[KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX];
     size_t quarantine_head;
@@ -80,6 +97,28 @@ static void kain_attrition_unlock(void) {
 #endif
 }
 
+static uint64_t kain_attrition_u64_saturating_add(uint64_t left, uint64_t right) {
+    /*
+     * Proof:
+     * - runtime/native/src/core/z3/proofs-experimental/attrition-saturating-u64-add-monotonic.smt2
+     *
+     * The telemetry accumulators clamp to UINT64_MAX instead of wrapping
+     * backward, and they stay identical to plain unsigned addition whenever
+     * the add does not overflow.
+     */
+    uint64_t sum = left + right;
+    if (sum < left) {
+        return UINT64_MAX;
+    }
+    return sum;
+}
+
+static void kain_attrition_update_peak_u64(uint64_t* peak, uint64_t candidate) {
+    if (peak != NULL && candidate > *peak) {
+        *peak = candidate;
+    }
+}
+
 static void kain_attrition_state_reset_locked(void) {
     size_t index;
     for (index = 0u; index < KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX; ++index) {
@@ -100,15 +139,29 @@ static void kain_attrition_state_reset_locked(void) {
     g_kain_attrition_state.event_write_count = 0u;
     g_kain_attrition_state.event_next_index = 0u;
     g_kain_attrition_state.live_rc_objects = 0u;
+    g_kain_attrition_state.peak_live_rc_objects = 0u;
     g_kain_attrition_state.live_runtime_bytes = 0u;
     g_kain_attrition_state.peak_runtime_bytes = 0u;
     g_kain_attrition_state.allocation_count = 0u;
     g_kain_attrition_state.free_count = 0u;
+    g_kain_attrition_state.total_allocated_bytes = 0u;
+    g_kain_attrition_state.total_freed_bytes = 0u;
+    g_kain_attrition_state.allocation_fail_count = 0u;
     g_kain_attrition_state.retain_count = 0u;
     g_kain_attrition_state.release_count = 0u;
     g_kain_attrition_state.rc_underflow_count = 0u;
     g_kain_attrition_state.rc_overflow_count = 0u;
     g_kain_attrition_state.poison_free_count = 0u;
+    g_kain_attrition_state.quarantine_live_bytes = 0u;
+    g_kain_attrition_state.quarantine_peak_entries = 0u;
+    g_kain_attrition_state.quarantine_peak_bytes = 0u;
+    g_kain_attrition_state.fragmentation_noise_live_bytes = 0u;
+    g_kain_attrition_state.fragmentation_noise_peak_bytes = 0u;
+    g_kain_attrition_state.fragmentation_noise_total_bytes = 0u;
+    g_kain_attrition_state.fragmentation_injection_count = 0u;
+    g_kain_attrition_state.checkpoint_count = 0u;
+    g_kain_attrition_state.last_checkpoint_label_hash = 0u;
+    g_kain_attrition_state.last_checkpoint_subject_id = 0u;
     g_kain_attrition_state.progress_heartbeat_count = 0u;
     g_kain_attrition_state.last_progress_iteration = 0u;
     g_kain_attrition_state.last_progress_checksum = 0u;
@@ -117,8 +170,11 @@ static void kain_attrition_state_reset_locked(void) {
     g_kain_attrition_state.fragmentation_head = 0u;
     g_kain_attrition_state.fragmentation_count = 0u;
     g_kain_attrition_state.virtual_time_now_ms = g_kain_attrition_state.config.virtual_time_initial_ms;
+    g_kain_attrition_state.virtual_time_advance_count = 0u;
+    g_kain_attrition_state.virtual_time_advance_total_ms = 0u;
     g_kain_attrition_state.raw_clock_fallback_count = 0u;
     g_kain_attrition_state.raw_sleep_fallback_count = 0u;
+    g_kain_attrition_state.raw_sleep_fallback_millis_total = 0u;
 }
 
 static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint64_t arg0, uint64_t arg1, uint64_t arg2) {
@@ -150,12 +206,28 @@ static void kain_attrition_fragmentation_noise_locked(void) {
     memset(noise_block, 0x3Cu, noise_bytes);
     slot = g_kain_attrition_state.fragmentation_head;
     if (g_kain_attrition_state.fragmentation_ring[slot].ptr != NULL) {
+        if (g_kain_attrition_state.fragmentation_noise_live_bytes >=
+            g_kain_attrition_state.fragmentation_ring[slot].bytes) {
+            g_kain_attrition_state.fragmentation_noise_live_bytes -=
+                g_kain_attrition_state.fragmentation_ring[slot].bytes;
+        } else {
+            g_kain_attrition_state.fragmentation_noise_live_bytes = 0u;
+        }
         free(g_kain_attrition_state.fragmentation_ring[slot].ptr);
     } else if (g_kain_attrition_state.fragmentation_count < KAIN_ATTRITION_FRAGMENTATION_RING_CAPACITY) {
         g_kain_attrition_state.fragmentation_count += 1u;
     }
     g_kain_attrition_state.fragmentation_ring[slot].ptr = noise_block;
     g_kain_attrition_state.fragmentation_ring[slot].bytes = noise_bytes;
+    g_kain_attrition_state.fragmentation_injection_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.fragmentation_injection_count, 1u);
+    g_kain_attrition_state.fragmentation_noise_live_bytes =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.fragmentation_noise_live_bytes, (uint64_t)noise_bytes);
+    g_kain_attrition_state.fragmentation_noise_total_bytes =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.fragmentation_noise_total_bytes, (uint64_t)noise_bytes);
+    kain_attrition_update_peak_u64(
+        &g_kain_attrition_state.fragmentation_noise_peak_bytes,
+        g_kain_attrition_state.fragmentation_noise_live_bytes);
     g_kain_attrition_state.fragmentation_head =
         (g_kain_attrition_state.fragmentation_head + 1u) % KAIN_ATTRITION_FRAGMENTATION_RING_CAPACITY;
 }
@@ -244,16 +316,30 @@ void kain_attrition_runtime_snapshot(KainAttritionSnapshot* out_snapshot) {
     out_snapshot->seed = g_kain_attrition_state.config.seed;
     out_snapshot->determinism_tier = g_kain_attrition_state.config.determinism_tier;
     out_snapshot->live_rc_objects = g_kain_attrition_state.live_rc_objects;
+    out_snapshot->peak_live_rc_objects = g_kain_attrition_state.peak_live_rc_objects;
     out_snapshot->live_runtime_bytes = g_kain_attrition_state.live_runtime_bytes;
     out_snapshot->peak_runtime_bytes = g_kain_attrition_state.peak_runtime_bytes;
     out_snapshot->allocation_count = g_kain_attrition_state.allocation_count;
     out_snapshot->free_count = g_kain_attrition_state.free_count;
+    out_snapshot->total_allocated_bytes = g_kain_attrition_state.total_allocated_bytes;
+    out_snapshot->total_freed_bytes = g_kain_attrition_state.total_freed_bytes;
+    out_snapshot->allocation_fail_count = g_kain_attrition_state.allocation_fail_count;
     out_snapshot->retain_count = g_kain_attrition_state.retain_count;
     out_snapshot->release_count = g_kain_attrition_state.release_count;
     out_snapshot->rc_underflow_count = g_kain_attrition_state.rc_underflow_count;
     out_snapshot->rc_overflow_count = g_kain_attrition_state.rc_overflow_count;
     out_snapshot->poison_free_count = g_kain_attrition_state.poison_free_count;
     out_snapshot->quarantine_live_entries = g_kain_attrition_state.quarantine_count;
+    out_snapshot->quarantine_live_bytes = g_kain_attrition_state.quarantine_live_bytes;
+    out_snapshot->quarantine_peak_entries = g_kain_attrition_state.quarantine_peak_entries;
+    out_snapshot->quarantine_peak_bytes = g_kain_attrition_state.quarantine_peak_bytes;
+    out_snapshot->fragmentation_noise_live_bytes = g_kain_attrition_state.fragmentation_noise_live_bytes;
+    out_snapshot->fragmentation_noise_peak_bytes = g_kain_attrition_state.fragmentation_noise_peak_bytes;
+    out_snapshot->fragmentation_noise_total_bytes = g_kain_attrition_state.fragmentation_noise_total_bytes;
+    out_snapshot->fragmentation_injection_count = g_kain_attrition_state.fragmentation_injection_count;
+    out_snapshot->checkpoint_count = g_kain_attrition_state.checkpoint_count;
+    out_snapshot->last_checkpoint_label_hash = g_kain_attrition_state.last_checkpoint_label_hash;
+    out_snapshot->last_checkpoint_subject_id = g_kain_attrition_state.last_checkpoint_subject_id;
     out_snapshot->progress_heartbeat_count = g_kain_attrition_state.progress_heartbeat_count;
     out_snapshot->last_progress_iteration = g_kain_attrition_state.last_progress_iteration;
     out_snapshot->last_progress_checksum = g_kain_attrition_state.last_progress_checksum;
@@ -261,8 +347,11 @@ void kain_attrition_runtime_snapshot(KainAttritionSnapshot* out_snapshot) {
     out_snapshot->virtual_time_enabled = g_kain_attrition_state.config.virtual_time_enabled;
     out_snapshot->virtual_time_now_ms = g_kain_attrition_state.virtual_time_now_ms;
     out_snapshot->virtual_time_step_ms = g_kain_attrition_state.config.virtual_time_step_ms;
+    out_snapshot->virtual_time_advance_count = g_kain_attrition_state.virtual_time_advance_count;
+    out_snapshot->virtual_time_advance_total_ms = g_kain_attrition_state.virtual_time_advance_total_ms;
     out_snapshot->raw_clock_fallback_count = g_kain_attrition_state.raw_clock_fallback_count;
     out_snapshot->raw_sleep_fallback_count = g_kain_attrition_state.raw_sleep_fallback_count;
+    out_snapshot->raw_sleep_fallback_millis_total = g_kain_attrition_state.raw_sleep_fallback_millis_total;
     kain_attrition_unlock();
     kain_attrition_actor_fill_snapshot(out_snapshot);
     kain_attrition_process_fill_snapshot(out_snapshot);
@@ -307,6 +396,13 @@ size_t kain_attrition_runtime_copy_events(KainAttritionEvent* out_events, size_t
 size_t kain_attrition_runtime_write_audit_json(char* out_text, size_t capacity) {
     KainAttritionSnapshot snapshot;
     int written;
+    /*
+     * Proof:
+     * - runtime/native/src/core/z3/proofs-experimental/attrition-audit-json-length-range.smt2
+     *
+     * For every capacity > 0, the returned length is always strictly less than
+     * capacity across the error, truncation, and exact-fit branches.
+     */
     if (out_text == NULL || capacity == 0u) {
         return 0u;
     }
@@ -317,31 +413,61 @@ size_t kain_attrition_runtime_write_audit_json(char* out_text, size_t capacity) 
         "{"
         "\"schema_version\":%llu,"
         "\"live_rc_objects\":%llu,"
+        "\"peak_live_rc_objects\":%llu,"
         "\"live_runtime_bytes\":%llu,"
+        "\"peak_runtime_bytes\":%llu,"
+        "\"total_allocated_bytes\":%llu,"
+        "\"total_freed_bytes\":%llu,"
+        "\"allocation_fail_count\":%llu,"
         "\"actor_live_count\":%llu,"
         "\"reply_port_live_count\":%llu,"
         "\"pending_mailbox_message_count\":%llu,"
+        "\"actor_registry_live_entries\":%llu,"
+        "\"actor_scheduler_max_queue_depth\":%llu,"
         "\"process_live_count\":%llu,"
+        "\"process_spec_live_count\":%llu,"
+        "\"process_pipe_handle_live_count\":%llu,"
         "\"async_task_live_count\":%llu,"
+        "\"async_task_sleeping_count\":%llu,"
         "\"async_timer_live_count\":%llu,"
+        "\"async_timer_started_count\":%llu,"
+        "\"checkpoint_count\":%llu,"
+        "\"virtual_time_advance_count\":%llu,"
+        "\"virtual_time_advance_total_ms\":%llu,"
         "\"actor_occupancy_low_word\":%llu,"
         "\"process_occupancy_bits\":%llu,"
         "\"async_task_occupancy_low_word\":%llu,"
-        "\"async_timer_occupancy_low_word\":%llu"
+        "\"async_timer_occupancy_low_word\":%llu,"
+        "\"raw_sleep_fallback_millis_total\":%llu"
         "}",
         (unsigned long long)snapshot.schema_version,
         (unsigned long long)snapshot.live_rc_objects,
+        (unsigned long long)snapshot.peak_live_rc_objects,
         (unsigned long long)snapshot.live_runtime_bytes,
+        (unsigned long long)snapshot.peak_runtime_bytes,
+        (unsigned long long)snapshot.total_allocated_bytes,
+        (unsigned long long)snapshot.total_freed_bytes,
+        (unsigned long long)snapshot.allocation_fail_count,
         (unsigned long long)snapshot.actor_live_count,
         (unsigned long long)snapshot.reply_port_live_count,
         (unsigned long long)snapshot.pending_mailbox_message_count,
+        (unsigned long long)snapshot.actor_registry_live_entries,
+        (unsigned long long)snapshot.actor_scheduler_max_queue_depth,
         (unsigned long long)snapshot.process_live_count,
+        (unsigned long long)snapshot.process_spec_live_count,
+        (unsigned long long)snapshot.process_pipe_handle_live_count,
         (unsigned long long)snapshot.async_task_live_count,
+        (unsigned long long)snapshot.async_task_sleeping_count,
         (unsigned long long)snapshot.async_timer_live_count,
+        (unsigned long long)snapshot.async_timer_started_count,
+        (unsigned long long)snapshot.checkpoint_count,
+        (unsigned long long)snapshot.virtual_time_advance_count,
+        (unsigned long long)snapshot.virtual_time_advance_total_ms,
         (unsigned long long)snapshot.actor_occupancy_low_word,
         (unsigned long long)snapshot.process_occupancy_bits,
         (unsigned long long)snapshot.async_task_occupancy_low_word,
-        (unsigned long long)snapshot.async_timer_occupancy_low_word
+        (unsigned long long)snapshot.async_timer_occupancy_low_word,
+        (unsigned long long)snapshot.raw_sleep_fallback_millis_total
     );
     if (written < 0) {
         out_text[0] = '\0';
@@ -363,6 +489,10 @@ void kain_attrition_runtime_checkpoint(const char* label, uint64_t subject_id) {
         label_hash *= 1099511628211ULL;
     }
     kain_attrition_lock();
+    g_kain_attrition_state.checkpoint_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.checkpoint_count, 1u);
+    g_kain_attrition_state.last_checkpoint_label_hash = label_hash;
+    g_kain_attrition_state.last_checkpoint_subject_id = subject_id;
     kain_attrition_record_event_locked(
         KAIN_ATTRITION_EVENT_CHECKPOINT,
         0u,
@@ -376,7 +506,8 @@ void kain_attrition_runtime_checkpoint(const char* label, uint64_t subject_id) {
 void kain_attrition_runtime_note_progress(uint64_t iteration, uint64_t checksum) {
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
-    g_kain_attrition_state.progress_heartbeat_count += 1u;
+    g_kain_attrition_state.progress_heartbeat_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.progress_heartbeat_count, 1u);
     g_kain_attrition_state.last_progress_iteration = iteration;
     g_kain_attrition_state.last_progress_checksum = checksum;
     kain_attrition_record_event_locked(
@@ -395,12 +526,20 @@ void* kain_attrition_heap_alloc(size_t total_bytes) {
     kain_attrition_lock();
     if (g_kain_attrition_state.config.allocation_fail_after != 0u &&
         g_kain_attrition_state.allocation_count >= g_kain_attrition_state.config.allocation_fail_after) {
+        g_kain_attrition_state.allocation_fail_count =
+            kain_attrition_u64_saturating_add(g_kain_attrition_state.allocation_fail_count, 1u);
         kain_attrition_unlock();
         return NULL;
     }
     kain_attrition_fragmentation_noise_locked();
     kain_attrition_unlock();
     allocation = malloc(total_bytes);
+    if (allocation == NULL) {
+        kain_attrition_lock();
+        g_kain_attrition_state.allocation_fail_count =
+            kain_attrition_u64_saturating_add(g_kain_attrition_state.allocation_fail_count, 1u);
+        kain_attrition_unlock();
+    }
     return allocation;
 }
 
@@ -414,7 +553,8 @@ int kain_attrition_heap_release(void* raw_header, size_t total_bytes) {
     kain_attrition_lock();
     if (g_kain_attrition_state.config.poison_on_free != 0u) {
         memset(raw_header, 0xA5, total_bytes);
-        g_kain_attrition_state.poison_free_count += 1u;
+        g_kain_attrition_state.poison_free_count =
+            kain_attrition_u64_saturating_add(g_kain_attrition_state.poison_free_count, 1u);
     }
     if (g_kain_attrition_state.config.quarantine_capacity == 0u) {
         kain_attrition_unlock();
@@ -423,12 +563,25 @@ int kain_attrition_heap_release(void* raw_header, size_t total_bytes) {
     slot = g_kain_attrition_state.quarantine_head;
     entry = &g_kain_attrition_state.quarantine[slot];
     if (entry->ptr != NULL) {
+        if (g_kain_attrition_state.quarantine_live_bytes >= entry->bytes) {
+            g_kain_attrition_state.quarantine_live_bytes -= entry->bytes;
+        } else {
+            g_kain_attrition_state.quarantine_live_bytes = 0u;
+        }
         free(entry->ptr);
     } else if (g_kain_attrition_state.quarantine_count < g_kain_attrition_state.config.quarantine_capacity) {
         g_kain_attrition_state.quarantine_count += 1u;
     }
     entry->ptr = raw_header;
     entry->bytes = total_bytes;
+    g_kain_attrition_state.quarantine_live_bytes =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.quarantine_live_bytes, (uint64_t)total_bytes);
+    kain_attrition_update_peak_u64(
+        &g_kain_attrition_state.quarantine_peak_entries,
+        (uint64_t)g_kain_attrition_state.quarantine_count);
+    kain_attrition_update_peak_u64(
+        &g_kain_attrition_state.quarantine_peak_bytes,
+        g_kain_attrition_state.quarantine_live_bytes);
     g_kain_attrition_state.quarantine_head =
         (g_kain_attrition_state.quarantine_head + 1u) % g_kain_attrition_state.config.quarantine_capacity;
     kain_attrition_unlock();
@@ -444,7 +597,8 @@ unsigned long long kain_attrition_now_millis(void) {
         kain_attrition_unlock();
         return result;
     }
-    g_kain_attrition_state.raw_clock_fallback_count += 1u;
+    g_kain_attrition_state.raw_clock_fallback_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.raw_clock_fallback_count, 1u);
     kain_attrition_record_event_locked(
         KAIN_ATTRITION_EVENT_RAW_CLOCK_FALLBACK,
         0u,
@@ -465,7 +619,12 @@ void kain_attrition_sleep_for_millis(unsigned long long milliseconds) {
     kain_attrition_lock();
     if (g_kain_attrition_state.config.virtual_time_enabled != 0u) {
         uint64_t advance = milliseconds != 0u ? milliseconds : g_kain_attrition_state.config.virtual_time_step_ms;
-        g_kain_attrition_state.virtual_time_now_ms += advance;
+        g_kain_attrition_state.virtual_time_now_ms =
+            kain_attrition_u64_saturating_add(g_kain_attrition_state.virtual_time_now_ms, advance);
+        g_kain_attrition_state.virtual_time_advance_count =
+            kain_attrition_u64_saturating_add(g_kain_attrition_state.virtual_time_advance_count, 1u);
+        g_kain_attrition_state.virtual_time_advance_total_ms =
+            kain_attrition_u64_saturating_add(g_kain_attrition_state.virtual_time_advance_total_ms, advance);
         kain_attrition_record_event_locked(
             KAIN_ATTRITION_EVENT_VIRTUAL_TIME_ADVANCE,
             0u,
@@ -476,7 +635,10 @@ void kain_attrition_sleep_for_millis(unsigned long long milliseconds) {
         kain_attrition_unlock();
         return;
     }
-    g_kain_attrition_state.raw_sleep_fallback_count += 1u;
+    g_kain_attrition_state.raw_sleep_fallback_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.raw_sleep_fallback_count, 1u);
+    g_kain_attrition_state.raw_sleep_fallback_millis_total =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.raw_sleep_fallback_millis_total, milliseconds);
     kain_attrition_record_event_locked(
         KAIN_ATTRITION_EVENT_RAW_SLEEP_FALLBACK,
         0u,
@@ -509,20 +671,34 @@ void kain_attrition_note_raw_sleep_fallback(unsigned long long milliseconds) {
 void kain_attrition_note_rc_alloc(size_t total_bytes) {
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
-    g_kain_attrition_state.allocation_count += 1u;
-    g_kain_attrition_state.live_rc_objects += 1u;
-    g_kain_attrition_state.live_runtime_bytes += total_bytes;
-    if (g_kain_attrition_state.live_runtime_bytes > g_kain_attrition_state.peak_runtime_bytes) {
-        g_kain_attrition_state.peak_runtime_bytes = g_kain_attrition_state.live_runtime_bytes;
-    }
-    kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_RC_ALLOC, 0u, total_bytes, g_kain_attrition_state.live_runtime_bytes, 0u);
+    g_kain_attrition_state.allocation_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.allocation_count, 1u);
+    g_kain_attrition_state.live_rc_objects =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.live_rc_objects, 1u);
+    g_kain_attrition_state.total_allocated_bytes =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.total_allocated_bytes, (uint64_t)total_bytes);
+    g_kain_attrition_state.live_runtime_bytes =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.live_runtime_bytes, (uint64_t)total_bytes);
+    kain_attrition_update_peak_u64(
+        &g_kain_attrition_state.peak_live_rc_objects,
+        g_kain_attrition_state.live_rc_objects);
+    kain_attrition_update_peak_u64(
+        &g_kain_attrition_state.peak_runtime_bytes,
+        g_kain_attrition_state.live_runtime_bytes);
+    kain_attrition_record_event_locked(
+        KAIN_ATTRITION_EVENT_RC_ALLOC,
+        0u,
+        total_bytes,
+        g_kain_attrition_state.live_runtime_bytes,
+        g_kain_attrition_state.total_allocated_bytes);
     kain_attrition_unlock();
 }
 
 void kain_attrition_note_rc_free(size_t total_bytes) {
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
-    g_kain_attrition_state.free_count += 1u;
+    g_kain_attrition_state.free_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.free_count, 1u);
     if (g_kain_attrition_state.live_rc_objects > 0u) {
         g_kain_attrition_state.live_rc_objects -= 1u;
     }
@@ -531,14 +707,22 @@ void kain_attrition_note_rc_free(size_t total_bytes) {
     } else {
         g_kain_attrition_state.live_runtime_bytes = 0u;
     }
-    kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_RC_FREE, 0u, total_bytes, g_kain_attrition_state.live_runtime_bytes, 0u);
+    g_kain_attrition_state.total_freed_bytes =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.total_freed_bytes, (uint64_t)total_bytes);
+    kain_attrition_record_event_locked(
+        KAIN_ATTRITION_EVENT_RC_FREE,
+        0u,
+        total_bytes,
+        g_kain_attrition_state.live_runtime_bytes,
+        g_kain_attrition_state.total_freed_bytes);
     kain_attrition_unlock();
 }
 
 void kain_attrition_note_rc_retain(void) {
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
-    g_kain_attrition_state.retain_count += 1u;
+    g_kain_attrition_state.retain_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.retain_count, 1u);
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_RC_RETAIN, 0u, g_kain_attrition_state.retain_count, 0u, 0u);
     kain_attrition_unlock();
 }
@@ -546,7 +730,8 @@ void kain_attrition_note_rc_retain(void) {
 void kain_attrition_note_rc_release(void) {
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
-    g_kain_attrition_state.release_count += 1u;
+    g_kain_attrition_state.release_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.release_count, 1u);
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_RC_RELEASE, 0u, g_kain_attrition_state.release_count, 0u, 0u);
     kain_attrition_unlock();
 }
@@ -554,7 +739,8 @@ void kain_attrition_note_rc_release(void) {
 void kain_attrition_note_rc_underflow(void) {
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
-    g_kain_attrition_state.rc_underflow_count += 1u;
+    g_kain_attrition_state.rc_underflow_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.rc_underflow_count, 1u);
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_RC_UNDERFLOW, 0u, g_kain_attrition_state.rc_underflow_count, 0u, 0u);
     kain_attrition_unlock();
 }
@@ -562,7 +748,8 @@ void kain_attrition_note_rc_underflow(void) {
 void kain_attrition_note_rc_overflow(void) {
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
-    g_kain_attrition_state.rc_overflow_count += 1u;
+    g_kain_attrition_state.rc_overflow_count =
+        kain_attrition_u64_saturating_add(g_kain_attrition_state.rc_overflow_count, 1u);
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_RC_OVERFLOW, 0u, g_kain_attrition_state.rc_overflow_count, 0u, 0u);
     kain_attrition_unlock();
 }

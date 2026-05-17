@@ -427,16 +427,27 @@ static void attrition_json_write_snapshot(FILE* stream, const KainAttritionSnaps
         "\"seed\":%" PRIu64 ","
         "\"determinism_tier\":%" PRIu64 ","
         "\"live_rc_objects\":%" PRIu64 ","
+        "\"peak_live_rc_objects\":%" PRIu64 ","
         "\"live_runtime_bytes\":%" PRIu64 ","
         "\"peak_runtime_bytes\":%" PRIu64 ","
         "\"allocation_count\":%" PRIu64 ","
         "\"free_count\":%" PRIu64 ","
+        "\"total_allocated_bytes\":%" PRIu64 ","
+        "\"total_freed_bytes\":%" PRIu64 ","
+        "\"allocation_fail_count\":%" PRIu64 ","
         "\"retain_count\":%" PRIu64 ","
         "\"release_count\":%" PRIu64 ","
         "\"rc_underflow_count\":%" PRIu64 ","
         "\"rc_overflow_count\":%" PRIu64 ","
         "\"poison_free_count\":%" PRIu64 ","
         "\"quarantine_live_entries\":%" PRIu64 ","
+        "\"quarantine_live_bytes\":%" PRIu64 ","
+        "\"quarantine_peak_entries\":%" PRIu64 ","
+        "\"quarantine_peak_bytes\":%" PRIu64 ","
+        "\"fragmentation_noise_live_bytes\":%" PRIu64 ","
+        "\"fragmentation_noise_peak_bytes\":%" PRIu64 ","
+        "\"fragmentation_noise_total_bytes\":%" PRIu64 ","
+        "\"fragmentation_injection_count\":%" PRIu64 ","
         "\"actor_live_count\":%" PRIu64 ","
         "\"actor_peak_count\":%" PRIu64 ","
         "\"actor_spawn_count\":%" PRIu64 ","
@@ -447,18 +458,48 @@ static void attrition_json_write_snapshot(FILE* stream, const KainAttritionSnaps
         "\"pending_mailbox_message_count\":%" PRIu64 ","
         "\"pending_mailbox_cached_nodes\":%" PRIu64 ","
         "\"actor_occupancy_low_word\":%" PRIu64 ","
+        "\"actor_occupancy_popcount\":%" PRIu64 ","
+        "\"actor_registry_live_entries\":%" PRIu64 ","
+        "\"actor_monitor_edge_count\":%" PRIu64 ","
+        "\"actor_link_edge_count\":%" PRIu64 ","
+        "\"actor_supervised_count\":%" PRIu64 ","
+        "\"actor_in_scheduler_turn_count\":%" PRIu64 ","
+        "\"actor_restart_attempt_count_total\":%" PRIu64 ","
+        "\"actor_supervision_limit_hit_count\":%" PRIu64 ","
+        "\"actor_strategy_shutdown_count_total\":%" PRIu64 ","
+        "\"actor_escalation_count_total\":%" PRIu64 ","
+        "\"actor_scheduler_queue_depth\":%" PRIu64 ","
+        "\"actor_scheduler_max_queue_depth\":%" PRIu64 ","
+        "\"actor_scheduler_total_enqueued\":%" PRIu64 ","
+        "\"actor_scheduler_total_dequeued\":%" PRIu64 ","
+        "\"actor_scheduler_worker_count\":%" PRIu64 ","
+        "\"actor_scheduler_active_workers\":%" PRIu64 ","
+        "\"actor_scheduler_busy_workers\":%" PRIu64 ","
+        "\"actor_scheduler_max_busy_workers\":%" PRIu64 ","
+        "\"actor_scheduler_overflow_thread_spawns\":%" PRIu64 ","
+        "\"actor_scheduler_shutdown\":%" PRIu64 ","
         "\"process_live_count\":%" PRIu64 ","
         "\"process_peak_count\":%" PRIu64 ","
         "\"process_spawn_count\":%" PRIu64 ","
         "\"process_exit_count\":%" PRIu64 ","
         "\"process_stale_reject_count\":%" PRIu64 ","
+        "\"process_spec_live_count\":%" PRIu64 ","
+        "\"process_spec_occupancy_bits\":%" PRIu64 ","
         "\"process_occupancy_bits\":%" PRIu64 ","
+        "\"process_pipe_handle_live_count\":%" PRIu64 ","
+        "\"process_os_handle_live_count\":%" PRIu64 ","
+        "\"process_pty_live_count\":%" PRIu64 ","
+        "\"process_capture_live_bytes\":%" PRIu64 ","
         "\"async_task_live_count\":%" PRIu64 ","
         "\"async_task_peak_count\":%" PRIu64 ","
         "\"async_task_spawn_count\":%" PRIu64 ","
         "\"async_task_exit_count\":%" PRIu64 ","
         "\"async_task_stale_reject_count\":%" PRIu64 ","
         "\"async_task_occupancy_low_word\":%" PRIu64 ","
+        "\"async_task_occupancy_popcount\":%" PRIu64 ","
+        "\"async_task_cancel_requested_count\":%" PRIu64 ","
+        "\"async_task_sleeping_count\":%" PRIu64 ","
+        "\"async_task_ready_count\":%" PRIu64 ","
         "\"async_timer_live_count\":%" PRIu64 ","
         "\"async_timer_peak_count\":%" PRIu64 ","
         "\"async_timer_spawn_count\":%" PRIu64 ","
@@ -466,6 +507,13 @@ static void attrition_json_write_snapshot(FILE* stream, const KainAttritionSnaps
         "\"async_timer_cancel_count\":%" PRIu64 ","
         "\"async_timer_stale_reject_count\":%" PRIu64 ","
         "\"async_timer_occupancy_low_word\":%" PRIu64 ","
+        "\"async_timer_occupancy_popcount\":%" PRIu64 ","
+        "\"async_timer_cancelled_count\":%" PRIu64 ","
+        "\"async_timer_fired_count\":%" PRIu64 ","
+        "\"async_timer_started_count\":%" PRIu64 ","
+        "\"checkpoint_count\":%" PRIu64 ","
+        "\"last_checkpoint_label_hash\":%" PRIu64 ","
+        "\"last_checkpoint_subject_id\":%" PRIu64 ","
         "\"progress_heartbeat_count\":%" PRIu64 ","
         "\"last_progress_iteration\":%" PRIu64 ","
         "\"last_progress_checksum\":%" PRIu64 ","
@@ -473,23 +521,37 @@ static void attrition_json_write_snapshot(FILE* stream, const KainAttritionSnaps
         "\"virtual_time_enabled\":%" PRIu64 ","
         "\"virtual_time_now_ms\":%" PRIu64 ","
         "\"virtual_time_step_ms\":%" PRIu64 ","
+        "\"virtual_time_advance_count\":%" PRIu64 ","
+        "\"virtual_time_advance_total_ms\":%" PRIu64 ","
         "\"raw_clock_fallback_count\":%" PRIu64 ","
-        "\"raw_sleep_fallback_count\":%" PRIu64
+        "\"raw_sleep_fallback_count\":%" PRIu64 ","
+        "\"raw_sleep_fallback_millis_total\":%" PRIu64
         "}",
         snapshot->schema_version,
         snapshot->seed,
         snapshot->determinism_tier,
         snapshot->live_rc_objects,
+        snapshot->peak_live_rc_objects,
         snapshot->live_runtime_bytes,
         snapshot->peak_runtime_bytes,
         snapshot->allocation_count,
         snapshot->free_count,
+        snapshot->total_allocated_bytes,
+        snapshot->total_freed_bytes,
+        snapshot->allocation_fail_count,
         snapshot->retain_count,
         snapshot->release_count,
         snapshot->rc_underflow_count,
         snapshot->rc_overflow_count,
         snapshot->poison_free_count,
         snapshot->quarantine_live_entries,
+        snapshot->quarantine_live_bytes,
+        snapshot->quarantine_peak_entries,
+        snapshot->quarantine_peak_bytes,
+        snapshot->fragmentation_noise_live_bytes,
+        snapshot->fragmentation_noise_peak_bytes,
+        snapshot->fragmentation_noise_total_bytes,
+        snapshot->fragmentation_injection_count,
         snapshot->actor_live_count,
         snapshot->actor_peak_count,
         snapshot->actor_spawn_count,
@@ -500,18 +562,48 @@ static void attrition_json_write_snapshot(FILE* stream, const KainAttritionSnaps
         snapshot->pending_mailbox_message_count,
         snapshot->pending_mailbox_cached_nodes,
         snapshot->actor_occupancy_low_word,
+        snapshot->actor_occupancy_popcount,
+        snapshot->actor_registry_live_entries,
+        snapshot->actor_monitor_edge_count,
+        snapshot->actor_link_edge_count,
+        snapshot->actor_supervised_count,
+        snapshot->actor_in_scheduler_turn_count,
+        snapshot->actor_restart_attempt_count_total,
+        snapshot->actor_supervision_limit_hit_count,
+        snapshot->actor_strategy_shutdown_count_total,
+        snapshot->actor_escalation_count_total,
+        snapshot->actor_scheduler_queue_depth,
+        snapshot->actor_scheduler_max_queue_depth,
+        snapshot->actor_scheduler_total_enqueued,
+        snapshot->actor_scheduler_total_dequeued,
+        snapshot->actor_scheduler_worker_count,
+        snapshot->actor_scheduler_active_workers,
+        snapshot->actor_scheduler_busy_workers,
+        snapshot->actor_scheduler_max_busy_workers,
+        snapshot->actor_scheduler_overflow_thread_spawns,
+        snapshot->actor_scheduler_shutdown,
         snapshot->process_live_count,
         snapshot->process_peak_count,
         snapshot->process_spawn_count,
         snapshot->process_exit_count,
         snapshot->process_stale_reject_count,
+        snapshot->process_spec_live_count,
+        snapshot->process_spec_occupancy_bits,
         snapshot->process_occupancy_bits,
+        snapshot->process_pipe_handle_live_count,
+        snapshot->process_os_handle_live_count,
+        snapshot->process_pty_live_count,
+        snapshot->process_capture_live_bytes,
         snapshot->async_task_live_count,
         snapshot->async_task_peak_count,
         snapshot->async_task_spawn_count,
         snapshot->async_task_exit_count,
         snapshot->async_task_stale_reject_count,
         snapshot->async_task_occupancy_low_word,
+        snapshot->async_task_occupancy_popcount,
+        snapshot->async_task_cancel_requested_count,
+        snapshot->async_task_sleeping_count,
+        snapshot->async_task_ready_count,
         snapshot->async_timer_live_count,
         snapshot->async_timer_peak_count,
         snapshot->async_timer_spawn_count,
@@ -519,6 +611,13 @@ static void attrition_json_write_snapshot(FILE* stream, const KainAttritionSnaps
         snapshot->async_timer_cancel_count,
         snapshot->async_timer_stale_reject_count,
         snapshot->async_timer_occupancy_low_word,
+        snapshot->async_timer_occupancy_popcount,
+        snapshot->async_timer_cancelled_count,
+        snapshot->async_timer_fired_count,
+        snapshot->async_timer_started_count,
+        snapshot->checkpoint_count,
+        snapshot->last_checkpoint_label_hash,
+        snapshot->last_checkpoint_subject_id,
         snapshot->progress_heartbeat_count,
         snapshot->last_progress_iteration,
         snapshot->last_progress_checksum,
@@ -526,8 +625,11 @@ static void attrition_json_write_snapshot(FILE* stream, const KainAttritionSnaps
         snapshot->virtual_time_enabled,
         snapshot->virtual_time_now_ms,
         snapshot->virtual_time_step_ms,
+        snapshot->virtual_time_advance_count,
+        snapshot->virtual_time_advance_total_ms,
         snapshot->raw_clock_fallback_count,
-        snapshot->raw_sleep_fallback_count
+        snapshot->raw_sleep_fallback_count,
+        snapshot->raw_sleep_fallback_millis_total
     );
 }
 

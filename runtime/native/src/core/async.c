@@ -144,6 +144,13 @@ static void kain_async_attrition_update_peak(
     }
 }
 
+static uint64_t kain_async_popcount_u64(uint64_t value) {
+    value = value - ((value >> 1u) & UINT64_C(0x5555555555555555));
+    value = (value & UINT64_C(0x3333333333333333)) + ((value >> 2u) & UINT64_C(0x3333333333333333));
+    value = (value + (value >> 4u)) & UINT64_C(0x0f0f0f0f0f0f0f0f);
+    return (value * UINT64_C(0x0101010101010101)) >> 56u;
+}
+
 static void kain_async_mutex_init(KainAsyncMutex* mutex) {
 #ifdef _WIN32
     InitializeCriticalSection(mutex);
@@ -1364,6 +1371,16 @@ void kain_attrition_async_counters_reset(void) {
 }
 
 void kain_attrition_async_fill_snapshot(KainAttritionSnapshot* snapshot) {
+    size_t slot;
+    size_t word_index;
+    uint64_t async_task_occupancy_popcount = 0u;
+    uint64_t async_timer_occupancy_popcount = 0u;
+    uint64_t async_task_cancel_requested_count = 0u;
+    uint64_t async_task_sleeping_count = 0u;
+    uint64_t async_task_ready_count = 0u;
+    uint64_t async_timer_cancelled_count = 0u;
+    uint64_t async_timer_fired_count = 0u;
+    uint64_t async_timer_started_count = 0u;
     if (snapshot == NULL) {
         return;
     }
@@ -1382,8 +1399,55 @@ void kain_attrition_async_fill_snapshot(KainAttritionSnapshot* snapshot) {
     snapshot->async_timer_stale_reject_count = atomic_load_explicit(
         &g_attrition_async_timer_stale_reject_count,
         memory_order_relaxed);
+    kain_async_ensure_initialized();
+    kain_async_mutex_lock(&g_async_global_lock);
     snapshot->async_task_occupancy_low_word = g_async_task_occupancy_words[0];
     snapshot->async_timer_occupancy_low_word = g_async_timer_occupancy_words[0];
+    for (word_index = 0u; word_index < KAIN_ASYNC_TASK_WORD_COUNT; ++word_index) {
+        async_task_occupancy_popcount += kain_async_popcount_u64(g_async_task_occupancy_words[word_index]);
+    }
+    for (word_index = 0u; word_index < KAIN_ASYNC_TIMER_WORD_COUNT; ++word_index) {
+        async_timer_occupancy_popcount += kain_async_popcount_u64(g_async_timer_occupancy_words[word_index]);
+    }
+    for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {
+        KainAsyncTaskRecord* task = &g_async_tasks[slot];
+        if (!task->in_use) {
+            continue;
+        }
+        if (task->cancel_requested) {
+            async_task_cancel_requested_count += 1u;
+        }
+        if (task->sleep_state.armed) {
+            async_task_sleeping_count += 1u;
+        }
+        if (task->state == KAIN_TASK_STATE_READY) {
+            async_task_ready_count += 1u;
+        }
+    }
+    for (slot = 0u; slot < KAIN_ASYNC_MAX_TIMERS; ++slot) {
+        KainAsyncTimerRecord* timer = &g_async_timers[slot];
+        if (!timer->in_use) {
+            continue;
+        }
+        if (atomic_load_explicit(&timer->cancelled, memory_order_relaxed) != 0) {
+            async_timer_cancelled_count += 1u;
+        }
+        if (atomic_load_explicit(&timer->fired, memory_order_relaxed) != 0) {
+            async_timer_fired_count += 1u;
+        }
+        if (atomic_load_explicit(&timer->started, memory_order_relaxed) != 0) {
+            async_timer_started_count += 1u;
+        }
+    }
+    kain_async_mutex_unlock(&g_async_global_lock);
+    snapshot->async_task_occupancy_popcount = async_task_occupancy_popcount;
+    snapshot->async_timer_occupancy_popcount = async_timer_occupancy_popcount;
+    snapshot->async_task_cancel_requested_count = async_task_cancel_requested_count;
+    snapshot->async_task_sleeping_count = async_task_sleeping_count;
+    snapshot->async_task_ready_count = async_task_ready_count;
+    snapshot->async_timer_cancelled_count = async_timer_cancelled_count;
+    snapshot->async_timer_fired_count = async_timer_fired_count;
+    snapshot->async_timer_started_count = async_timer_started_count;
 }
 
 void kain_task_result_cleanup(void* result) {

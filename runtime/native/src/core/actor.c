@@ -135,6 +135,13 @@ static atomic_uint_least64_t g_attrition_actor_stale_reject_count = 0;
 static atomic_uint_least64_t g_attrition_reply_port_live_count = 0;
 static atomic_uint_least64_t g_attrition_reply_port_peak_count = 0;
 
+static uint64_t kain_attrition_actor_popcount_u64(uint64_t value) {
+    value = value - ((value >> 1u) & UINT64_C(0x5555555555555555));
+    value = (value & UINT64_C(0x3333333333333333)) + ((value >> 2u) & UINT64_C(0x3333333333333333));
+    value = (value + (value >> 4u)) & UINT64_C(0x0f0f0f0f0f0f0f0f);
+    return (value * UINT64_C(0x0101010101010101)) >> 56u;
+}
+
 static void kain_attrition_actor_update_peak(
     atomic_uint_least64_t* peak_counter,
     uint64_t candidate
@@ -2565,11 +2572,24 @@ void kain_attrition_actor_counters_reset(void) {
 
 void kain_attrition_actor_fill_snapshot(KainAttritionSnapshot* snapshot) {
     size_t actor_index;
+    size_t word_index;
     uint64_t pending_mailbox_message_count = 0u;
     uint64_t pending_mailbox_cached_nodes = 0u;
+    uint64_t actor_occupancy_popcount = 0u;
+    uint64_t actor_registry_live_entries = 0u;
+    uint64_t actor_monitor_edge_count = 0u;
+    uint64_t actor_link_edge_count = 0u;
+    uint64_t actor_supervised_count = 0u;
+    uint64_t actor_in_scheduler_turn_count = 0u;
+    uint64_t actor_restart_attempt_count_total = 0u;
+    uint64_t actor_supervision_limit_hit_count = 0u;
+    uint64_t actor_strategy_shutdown_count_total = 0u;
+    uint64_t actor_escalation_count_total = 0u;
+    KainActorSchedulerSnapshot scheduler_snapshot;
     if (snapshot == NULL) {
         return;
     }
+    memset(&scheduler_snapshot, 0, sizeof(scheduler_snapshot));
 
     snapshot->actor_live_count = atomic_load_explicit(&g_attrition_actor_live_count, memory_order_relaxed);
     snapshot->actor_peak_count = atomic_load_explicit(&g_attrition_actor_peak_count, memory_order_relaxed);
@@ -2595,13 +2615,40 @@ void kain_attrition_actor_fill_snapshot(KainAttritionSnapshot* snapshot) {
     pthread_mutex_lock(&g_actor_table.lock);
 #endif
     snapshot->actor_occupancy_low_word = g_actor_table.occupancy_words[0];
+    for (word_index = 0u; word_index < KAIN_ACTOR_TABLE_WORD_COUNT; ++word_index) {
+        actor_occupancy_popcount += kain_attrition_actor_popcount_u64(g_actor_table.occupancy_words[word_index]);
+    }
     for (actor_index = 0u; actor_index < KAIN_ACTOR_TABLE_SIZE; ++actor_index) {
         KainActorState_Internal* actor = g_actor_table.actors[actor_index];
+        KainActorMonitor* monitor;
+        KainActorLink* link;
         if (actor == NULL) {
             continue;
         }
         pending_mailbox_message_count += (uint64_t)actor->mailbox.count;
         pending_mailbox_cached_nodes += (uint64_t)actor->mailbox.free_node_count;
+        if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
+            actor_supervised_count += 1u;
+        }
+        if (actor->in_scheduler_turn) {
+            actor_in_scheduler_turn_count += 1u;
+        }
+        if (actor->supervision_limit_hits > 0) {
+            actor_supervision_limit_hit_count += 1u;
+        }
+        actor_restart_attempt_count_total += (uint64_t)actor->restart_attempt_count;
+        actor_strategy_shutdown_count_total += (uint64_t)actor->strategy_shutdown_count;
+        actor_escalation_count_total += (uint64_t)actor->escalation_count;
+        monitor = actor->monitors;
+        while (monitor != NULL) {
+            actor_monitor_edge_count += 1u;
+            monitor = monitor->next;
+        }
+        link = actor->links;
+        while (link != NULL) {
+            actor_link_edge_count += 1u;
+            link = link->next;
+        }
     }
 #ifdef _WIN32
     LeaveCriticalSection(&g_actor_table.lock);
@@ -2609,8 +2656,48 @@ void kain_attrition_actor_fill_snapshot(KainAttritionSnapshot* snapshot) {
     pthread_mutex_unlock(&g_actor_table.lock);
 #endif
 
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_registry.lock);
+#else
+    pthread_mutex_lock(&g_actor_registry.lock);
+#endif
+    for (actor_index = 0u; actor_index < KAIN_ACTOR_REGISTRY_SIZE; ++actor_index) {
+        KainActorRegistryEntry* entry = g_actor_registry.buckets[actor_index];
+        while (entry != NULL) {
+            actor_registry_live_entries += 1u;
+            entry = entry->next;
+        }
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_registry.lock);
+#else
+    pthread_mutex_unlock(&g_actor_registry.lock);
+#endif
+
+    kain_actor_scheduler_snapshot(&scheduler_snapshot);
+
     snapshot->pending_mailbox_message_count = pending_mailbox_message_count;
     snapshot->pending_mailbox_cached_nodes = pending_mailbox_cached_nodes;
+    snapshot->actor_occupancy_popcount = actor_occupancy_popcount;
+    snapshot->actor_registry_live_entries = actor_registry_live_entries;
+    snapshot->actor_monitor_edge_count = actor_monitor_edge_count;
+    snapshot->actor_link_edge_count = actor_link_edge_count;
+    snapshot->actor_supervised_count = actor_supervised_count;
+    snapshot->actor_in_scheduler_turn_count = actor_in_scheduler_turn_count;
+    snapshot->actor_restart_attempt_count_total = actor_restart_attempt_count_total;
+    snapshot->actor_supervision_limit_hit_count = actor_supervision_limit_hit_count;
+    snapshot->actor_strategy_shutdown_count_total = actor_strategy_shutdown_count_total;
+    snapshot->actor_escalation_count_total = actor_escalation_count_total;
+    snapshot->actor_scheduler_queue_depth = (uint64_t)scheduler_snapshot.queue_depth;
+    snapshot->actor_scheduler_max_queue_depth = (uint64_t)scheduler_snapshot.max_queue_depth;
+    snapshot->actor_scheduler_total_enqueued = (uint64_t)scheduler_snapshot.total_enqueued;
+    snapshot->actor_scheduler_total_dequeued = (uint64_t)scheduler_snapshot.total_dequeued;
+    snapshot->actor_scheduler_worker_count = (uint64_t)scheduler_snapshot.worker_count;
+    snapshot->actor_scheduler_active_workers = (uint64_t)scheduler_snapshot.active_workers;
+    snapshot->actor_scheduler_busy_workers = (uint64_t)scheduler_snapshot.busy_workers;
+    snapshot->actor_scheduler_max_busy_workers = (uint64_t)scheduler_snapshot.max_busy_workers;
+    snapshot->actor_scheduler_overflow_thread_spawns = (uint64_t)scheduler_snapshot.overflow_thread_spawns;
+    snapshot->actor_scheduler_shutdown = (uint64_t)(scheduler_snapshot.shutdown != 0);
 }
 
 /*

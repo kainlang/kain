@@ -181,16 +181,27 @@ static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionS
         "\"seed\":%llu,"
         "\"determinism_tier\":%llu,"
         "\"live_rc_objects\":%llu,"
+        "\"peak_live_rc_objects\":%llu,"
         "\"live_runtime_bytes\":%llu,"
         "\"peak_runtime_bytes\":%llu,"
         "\"allocation_count\":%llu,"
         "\"free_count\":%llu,"
+        "\"total_allocated_bytes\":%llu,"
+        "\"total_freed_bytes\":%llu,"
+        "\"allocation_fail_count\":%llu,"
         "\"retain_count\":%llu,"
         "\"release_count\":%llu,"
         "\"rc_underflow_count\":%llu,"
         "\"rc_overflow_count\":%llu,"
         "\"poison_free_count\":%llu,"
         "\"quarantine_live_entries\":%llu,"
+        "\"quarantine_live_bytes\":%llu,"
+        "\"quarantine_peak_entries\":%llu,"
+        "\"quarantine_peak_bytes\":%llu,"
+        "\"fragmentation_noise_live_bytes\":%llu,"
+        "\"fragmentation_noise_peak_bytes\":%llu,"
+        "\"fragmentation_noise_total_bytes\":%llu,"
+        "\"fragmentation_injection_count\":%llu,"
         "\"actor_live_count\":%llu,"
         "\"actor_peak_count\":%llu,"
         "\"actor_spawn_count\":%llu,"
@@ -201,18 +212,48 @@ static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionS
         "\"pending_mailbox_message_count\":%llu,"
         "\"pending_mailbox_cached_nodes\":%llu,"
         "\"actor_occupancy_low_word\":%llu,"
+        "\"actor_occupancy_popcount\":%llu,"
+        "\"actor_registry_live_entries\":%llu,"
+        "\"actor_monitor_edge_count\":%llu,"
+        "\"actor_link_edge_count\":%llu,"
+        "\"actor_supervised_count\":%llu,"
+        "\"actor_in_scheduler_turn_count\":%llu,"
+        "\"actor_restart_attempt_count_total\":%llu,"
+        "\"actor_supervision_limit_hit_count\":%llu,"
+        "\"actor_strategy_shutdown_count_total\":%llu,"
+        "\"actor_escalation_count_total\":%llu,"
+        "\"actor_scheduler_queue_depth\":%llu,"
+        "\"actor_scheduler_max_queue_depth\":%llu,"
+        "\"actor_scheduler_total_enqueued\":%llu,"
+        "\"actor_scheduler_total_dequeued\":%llu,"
+        "\"actor_scheduler_worker_count\":%llu,"
+        "\"actor_scheduler_active_workers\":%llu,"
+        "\"actor_scheduler_busy_workers\":%llu,"
+        "\"actor_scheduler_max_busy_workers\":%llu,"
+        "\"actor_scheduler_overflow_thread_spawns\":%llu,"
+        "\"actor_scheduler_shutdown\":%llu,"
         "\"process_live_count\":%llu,"
         "\"process_peak_count\":%llu,"
         "\"process_spawn_count\":%llu,"
         "\"process_exit_count\":%llu,"
         "\"process_stale_reject_count\":%llu,"
+        "\"process_spec_live_count\":%llu,"
+        "\"process_spec_occupancy_bits\":%llu,"
         "\"process_occupancy_bits\":%llu,"
+        "\"process_pipe_handle_live_count\":%llu,"
+        "\"process_os_handle_live_count\":%llu,"
+        "\"process_pty_live_count\":%llu,"
+        "\"process_capture_live_bytes\":%llu,"
         "\"async_task_live_count\":%llu,"
         "\"async_task_peak_count\":%llu,"
         "\"async_task_spawn_count\":%llu,"
         "\"async_task_exit_count\":%llu,"
         "\"async_task_stale_reject_count\":%llu,"
         "\"async_task_occupancy_low_word\":%llu,"
+        "\"async_task_occupancy_popcount\":%llu,"
+        "\"async_task_cancel_requested_count\":%llu,"
+        "\"async_task_sleeping_count\":%llu,"
+        "\"async_task_ready_count\":%llu,"
         "\"async_timer_live_count\":%llu,"
         "\"async_timer_peak_count\":%llu,"
         "\"async_timer_spawn_count\":%llu,"
@@ -220,6 +261,13 @@ static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionS
         "\"async_timer_cancel_count\":%llu,"
         "\"async_timer_stale_reject_count\":%llu,"
         "\"async_timer_occupancy_low_word\":%llu,"
+        "\"async_timer_occupancy_popcount\":%llu,"
+        "\"async_timer_cancelled_count\":%llu,"
+        "\"async_timer_fired_count\":%llu,"
+        "\"async_timer_started_count\":%llu,"
+        "\"checkpoint_count\":%llu,"
+        "\"last_checkpoint_label_hash\":%llu,"
+        "\"last_checkpoint_subject_id\":%llu,"
         "\"progress_heartbeat_count\":%llu,"
         "\"last_progress_iteration\":%llu,"
         "\"last_progress_checksum\":%llu,"
@@ -227,23 +275,37 @@ static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionS
         "\"virtual_time_enabled\":%llu,"
         "\"virtual_time_now_ms\":%llu,"
         "\"virtual_time_step_ms\":%llu,"
+        "\"virtual_time_advance_count\":%llu,"
+        "\"virtual_time_advance_total_ms\":%llu,"
         "\"raw_clock_fallback_count\":%llu,"
-        "\"raw_sleep_fallback_count\":%llu"
+        "\"raw_sleep_fallback_count\":%llu,"
+        "\"raw_sleep_fallback_millis_total\":%llu"
         "}",
         (unsigned long long)snapshot->schema_version,
         (unsigned long long)snapshot->seed,
         (unsigned long long)snapshot->determinism_tier,
         (unsigned long long)snapshot->live_rc_objects,
+        (unsigned long long)snapshot->peak_live_rc_objects,
         (unsigned long long)snapshot->live_runtime_bytes,
         (unsigned long long)snapshot->peak_runtime_bytes,
         (unsigned long long)snapshot->allocation_count,
         (unsigned long long)snapshot->free_count,
+        (unsigned long long)snapshot->total_allocated_bytes,
+        (unsigned long long)snapshot->total_freed_bytes,
+        (unsigned long long)snapshot->allocation_fail_count,
         (unsigned long long)snapshot->retain_count,
         (unsigned long long)snapshot->release_count,
         (unsigned long long)snapshot->rc_underflow_count,
         (unsigned long long)snapshot->rc_overflow_count,
         (unsigned long long)snapshot->poison_free_count,
         (unsigned long long)snapshot->quarantine_live_entries,
+        (unsigned long long)snapshot->quarantine_live_bytes,
+        (unsigned long long)snapshot->quarantine_peak_entries,
+        (unsigned long long)snapshot->quarantine_peak_bytes,
+        (unsigned long long)snapshot->fragmentation_noise_live_bytes,
+        (unsigned long long)snapshot->fragmentation_noise_peak_bytes,
+        (unsigned long long)snapshot->fragmentation_noise_total_bytes,
+        (unsigned long long)snapshot->fragmentation_injection_count,
         (unsigned long long)snapshot->actor_live_count,
         (unsigned long long)snapshot->actor_peak_count,
         (unsigned long long)snapshot->actor_spawn_count,
@@ -254,18 +316,48 @@ static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionS
         (unsigned long long)snapshot->pending_mailbox_message_count,
         (unsigned long long)snapshot->pending_mailbox_cached_nodes,
         (unsigned long long)snapshot->actor_occupancy_low_word,
+        (unsigned long long)snapshot->actor_occupancy_popcount,
+        (unsigned long long)snapshot->actor_registry_live_entries,
+        (unsigned long long)snapshot->actor_monitor_edge_count,
+        (unsigned long long)snapshot->actor_link_edge_count,
+        (unsigned long long)snapshot->actor_supervised_count,
+        (unsigned long long)snapshot->actor_in_scheduler_turn_count,
+        (unsigned long long)snapshot->actor_restart_attempt_count_total,
+        (unsigned long long)snapshot->actor_supervision_limit_hit_count,
+        (unsigned long long)snapshot->actor_strategy_shutdown_count_total,
+        (unsigned long long)snapshot->actor_escalation_count_total,
+        (unsigned long long)snapshot->actor_scheduler_queue_depth,
+        (unsigned long long)snapshot->actor_scheduler_max_queue_depth,
+        (unsigned long long)snapshot->actor_scheduler_total_enqueued,
+        (unsigned long long)snapshot->actor_scheduler_total_dequeued,
+        (unsigned long long)snapshot->actor_scheduler_worker_count,
+        (unsigned long long)snapshot->actor_scheduler_active_workers,
+        (unsigned long long)snapshot->actor_scheduler_busy_workers,
+        (unsigned long long)snapshot->actor_scheduler_max_busy_workers,
+        (unsigned long long)snapshot->actor_scheduler_overflow_thread_spawns,
+        (unsigned long long)snapshot->actor_scheduler_shutdown,
         (unsigned long long)snapshot->process_live_count,
         (unsigned long long)snapshot->process_peak_count,
         (unsigned long long)snapshot->process_spawn_count,
         (unsigned long long)snapshot->process_exit_count,
         (unsigned long long)snapshot->process_stale_reject_count,
+        (unsigned long long)snapshot->process_spec_live_count,
+        (unsigned long long)snapshot->process_spec_occupancy_bits,
         (unsigned long long)snapshot->process_occupancy_bits,
+        (unsigned long long)snapshot->process_pipe_handle_live_count,
+        (unsigned long long)snapshot->process_os_handle_live_count,
+        (unsigned long long)snapshot->process_pty_live_count,
+        (unsigned long long)snapshot->process_capture_live_bytes,
         (unsigned long long)snapshot->async_task_live_count,
         (unsigned long long)snapshot->async_task_peak_count,
         (unsigned long long)snapshot->async_task_spawn_count,
         (unsigned long long)snapshot->async_task_exit_count,
         (unsigned long long)snapshot->async_task_stale_reject_count,
         (unsigned long long)snapshot->async_task_occupancy_low_word,
+        (unsigned long long)snapshot->async_task_occupancy_popcount,
+        (unsigned long long)snapshot->async_task_cancel_requested_count,
+        (unsigned long long)snapshot->async_task_sleeping_count,
+        (unsigned long long)snapshot->async_task_ready_count,
         (unsigned long long)snapshot->async_timer_live_count,
         (unsigned long long)snapshot->async_timer_peak_count,
         (unsigned long long)snapshot->async_timer_spawn_count,
@@ -273,6 +365,13 @@ static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionS
         (unsigned long long)snapshot->async_timer_cancel_count,
         (unsigned long long)snapshot->async_timer_stale_reject_count,
         (unsigned long long)snapshot->async_timer_occupancy_low_word,
+        (unsigned long long)snapshot->async_timer_occupancy_popcount,
+        (unsigned long long)snapshot->async_timer_cancelled_count,
+        (unsigned long long)snapshot->async_timer_fired_count,
+        (unsigned long long)snapshot->async_timer_started_count,
+        (unsigned long long)snapshot->checkpoint_count,
+        (unsigned long long)snapshot->last_checkpoint_label_hash,
+        (unsigned long long)snapshot->last_checkpoint_subject_id,
         (unsigned long long)snapshot->progress_heartbeat_count,
         (unsigned long long)snapshot->last_progress_iteration,
         (unsigned long long)snapshot->last_progress_checksum,
@@ -280,8 +379,11 @@ static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionS
         (unsigned long long)snapshot->virtual_time_enabled,
         (unsigned long long)snapshot->virtual_time_now_ms,
         (unsigned long long)snapshot->virtual_time_step_ms,
+        (unsigned long long)snapshot->virtual_time_advance_count,
+        (unsigned long long)snapshot->virtual_time_advance_total_ms,
         (unsigned long long)snapshot->raw_clock_fallback_count,
-        (unsigned long long)snapshot->raw_sleep_fallback_count
+        (unsigned long long)snapshot->raw_sleep_fallback_count,
+        (unsigned long long)snapshot->raw_sleep_fallback_millis_total
     );
 }
 
@@ -1072,20 +1174,6 @@ static char g_kain_native_entangle_last_authority[256] = "";
 static char g_kain_native_entangle_last_mirror[256] = "";
 static int64_t g_kain_native_converge_mismatch_count = 0;
 static int64_t g_kain_native_orchestrate_stage_count = 0;
-
-static void abi_copy_text(char* destination, size_t destination_size, const char* source) {
-    size_t index = 0;
-    if (destination == 0 || destination_size == 0) {
-        return;
-    }
-    if (source != 0) {
-        while (source[index] != '\0' && index + 1 < destination_size) {
-            destination[index] = source[index];
-            index++;
-        }
-    }
-    destination[index] = '\0';
-}
 
 int64_t abi_patch_begin(const char* patch_name) {
     abi_copy_text(g_kain_native_active_patch, sizeof(g_kain_native_active_patch), patch_name);

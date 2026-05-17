@@ -1,8 +1,10 @@
 // Kain native LLVM crucible.
-//
+// 
 // This intentionally stacks language/runtime surfaces into one executable
 // checksum. The point is not fairness; the point is making native LLVM prove
 // that Kain's stranger semantics can coexist in one hostile file.
+
+use std::runtime
 
 const SEMANTIC_CRUCIBLE_VERSION: Int = 1
 const SEMANTIC_CRUCIBLE_MODULUS: Int = 1000000007
@@ -277,16 +279,63 @@ fn fold_shared_cells(cells: ptr<Int>) -> Int:
         slot = slot + 1
     return acc
 
-fn main() -> Int:
-    let init_status = native_runtime_init()
-    if init_status != 0:
-        return 100 + init_status
+fn digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
 
+fn parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let mut sign = 1
+    let mut index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let mut value = 0
+    while index < len(text):
+        value = value * 10 + digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn attrition_env_int(key: String, fallback: Int) -> Int:
+    let text = env(key)
+    if len(text) == 0:
+        return fallback
+    return parse_int_text(text)
+
+fn attrition_record(status: Int, checksum: Int, message: String) -> Int:
+    let _result = runtime_attrition_result_set(checksum, status, message)
+    return status
+
+fn semantic_pipeline_reference(value: Int) -> Int:
+    return stage_bias(((value * 31) + 7) % SEMANTIC_CRUCIBLE_MODULUS)
+
+fn semantic_relay_reference(request: Int, bias: Int) -> Int:
+    return ((request * 17) + bias + 23) % SEMANTIC_CRUCIBLE_MODULUS
+
+fn run_semantic_singularity_attrition_lane() -> Int:
     let crucible_checksum: Int = semantic_crucible_checksum()
     if crucible_checksum != 1094:
-        return 3
+        return attrition_record(3, crucible_checksum, "semantic crucible checksum mismatch")
 
-    let iterations: Int = 20000
+    let iterations: Int = attrition_env_int("KAIN_ATTRITION_OPS", 512)
     let cell_count: Int = 32
     let authority = SemanticAuthority
     let relay = spawn SemanticRelay(bias = 11)
@@ -300,6 +349,8 @@ fn main() -> Int:
     let mut cells: ptr<Int> = alloc_zeroed(cell_count, "Int")
 
     var checksum: Int = 0
+    var failure_status: Int = 0
+    var failure_checksum: Int = 0
     collapse cells:
         var i: Int = 0
         while i < iterations:
@@ -315,14 +366,41 @@ fn main() -> Int:
             let patched: Int = commit_signal(authority, (checksum + local_score + i) % SEMANTIC_CRUCIBLE_MODULUS)
             let law_status: Int = native_law_status(signal_in_bounds(patched))
             let staged: Int = semantic_pipeline(patched + local_score)
+            let staged_reference: Int = semantic_pipeline_reference(patched + local_score)
             let old_cell: Int = mem_load(ptr_offset(cells, slot, "Int"), "Int")
             let request: Int = (staged + old_cell + semantic_mask(lane, 4)) % SEMANTIC_CRUCIBLE_MODULUS
             let reply: Int = ask(relay, "Fold", request)
-            let next_cell: Int = (reply + local_score + law_status) % SEMANTIC_CRUCIBLE_MODULUS
-            mem_store(ptr_offset(cells, slot, "Int"), next_cell, "Int")
-            checksum = (checksum + next_cell + slot) % SEMANTIC_CRUCIBLE_MODULUS
-            i = i + 1
+            let reply_reference: Int = semantic_relay_reference(request, 11)
+            if law_status != 0:
+                failure_status = 4
+                failure_checksum = checksum
+                i = iterations
+            else if staged != staged_reference:
+                failure_status = 5
+                failure_checksum = checksum
+                i = iterations
+            else if reply != reply_reference:
+                failure_status = 6
+                failure_checksum = checksum
+                i = iterations
+            else:
+                let next_cell: Int = (reply + local_score + law_status) % SEMANTIC_CRUCIBLE_MODULUS
+                mem_store(ptr_offset(cells, slot, "Int"), next_cell, "Int")
+                checksum = (checksum + next_cell + slot) % SEMANTIC_CRUCIBLE_MODULUS
+                if i % 512 == 0:
+                    let _progress = runtime_attrition_note_progress(i, checksum)
+                i = i + 1
         0
+
+    if failure_status == 4:
+        decay cells
+        return attrition_record(4, failure_checksum, "law status mismatch")
+    if failure_status == 5:
+        decay cells
+        return attrition_record(5, failure_checksum, "semantic pipeline mismatch")
+    if failure_status == 6:
+        decay cells
+        return attrition_record(6, failure_checksum, "semantic relay mismatch")
 
     let observed: Int = observe cells:
         fold_shared_cells(cells)
@@ -335,11 +413,18 @@ fn main() -> Int:
     let teleport_count: Int = runtime_machine_teleport_count()
     let pulse_count: Int = runtime_machine_pulse_total_fire_count()
     let runtime_shape_ok = patch_count >= 1 and patch_count <= iterations and entangle_count >= iterations and native_converge_mismatch_count() == 0 and teleport_count >= iterations and pulse_count >= 1
-    let shutdown_status = native_runtime_shutdown()
-    if shutdown_status != 0:
-        return 200 + shutdown_status
     if runtime_shape_ok == false:
-        return 2
-    if final_score != SEMANTIC_CRUCIBLE_EXPECTED:
-        return 1
-    return 0
+        return attrition_record(2, final_score, "runtime shape mismatch")
+    return attrition_record(0, final_score, "")
+
+fn main() -> Int:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+    let status = run_semantic_singularity_attrition_lane()
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        if status != 0:
+            return status
+        return 200 + shutdown_status
+    return status

@@ -123,6 +123,13 @@ static void abi_process_attrition_update_peak(
     }
 }
 
+static uint64_t abi_process_popcount_u64(uint64_t value) {
+    value = value - ((value >> 1u) & UINT64_C(0x5555555555555555));
+    value = (value & UINT64_C(0x3333333333333333)) + ((value >> 2u) & UINT64_C(0x3333333333333333));
+    value = (value + (value >> 4u)) & UINT64_C(0x0f0f0f0f0f0f0f0f);
+    return (value * UINT64_C(0x0101010101010101)) >> 56u;
+}
+
 #ifdef _WIN32
 #ifndef PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
 #define PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE 0x00020016
@@ -1849,6 +1856,11 @@ void kain_attrition_process_counters_reset(void) {
 }
 
 void kain_attrition_process_fill_snapshot(KainAttritionSnapshot* snapshot) {
+    size_t slot;
+    uint64_t process_pipe_handle_live_count = 0u;
+    uint64_t process_os_handle_live_count = 0u;
+    uint64_t process_pty_live_count = 0u;
+    uint64_t process_capture_live_bytes = 0u;
     if (snapshot == NULL) {
         return;
     }
@@ -1859,7 +1871,56 @@ void kain_attrition_process_fill_snapshot(KainAttritionSnapshot* snapshot) {
     snapshot->process_stale_reject_count = atomic_load_explicit(
         &g_attrition_process_stale_reject_count,
         memory_order_relaxed);
+    snapshot->process_spec_live_count = abi_process_popcount_u64(g_spec_occupancy_bits);
+    snapshot->process_spec_occupancy_bits = g_spec_occupancy_bits;
     snapshot->process_occupancy_bits = g_process_occupancy_bits;
+    for (slot = 0u; slot < ABI_PROCESS_MAX_PROCESSES; ++slot) {
+        KainNativeProcessHandle* process = &g_processes[slot];
+        if (!process->in_use) {
+            continue;
+        }
+        process_capture_live_bytes += (uint64_t)process->stdout_capture.length;
+        process_capture_live_bytes += (uint64_t)process->stderr_capture.length;
+        process_capture_live_bytes += (uint64_t)process->pty_capture.length;
+        if (process->is_pty) {
+            process_pty_live_count += 1u;
+        }
+#ifdef _WIN32
+        if (process->process_handle != 0) {
+            process_os_handle_live_count += 1u;
+        }
+        if (process->thread_handle != 0) {
+            process_os_handle_live_count += 1u;
+        }
+        if (process->stdin_write_handle != 0) {
+            process_pipe_handle_live_count += 1u;
+            process_os_handle_live_count += 1u;
+        }
+        if (process->stdout_read_handle != 0) {
+            process_pipe_handle_live_count += 1u;
+            process_os_handle_live_count += 1u;
+        }
+        if (process->stderr_read_handle != 0) {
+            process_pipe_handle_live_count += 1u;
+            process_os_handle_live_count += 1u;
+        }
+        if (process->pty_console_handle != 0) {
+            process_os_handle_live_count += 1u;
+        }
+        if (process->pty_input_write_handle != 0) {
+            process_pipe_handle_live_count += 1u;
+            process_os_handle_live_count += 1u;
+        }
+        if (process->pty_output_read_handle != 0) {
+            process_pipe_handle_live_count += 1u;
+            process_os_handle_live_count += 1u;
+        }
+#endif
+    }
+    snapshot->process_pipe_handle_live_count = process_pipe_handle_live_count;
+    snapshot->process_os_handle_live_count = process_os_handle_live_count;
+    snapshot->process_pty_live_count = process_pty_live_count;
+    snapshot->process_capture_live_bytes = process_capture_live_bytes;
 }
 
 int64_t abi_process_platform_available(void) {

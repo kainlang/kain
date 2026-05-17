@@ -53,13 +53,8 @@ fn attrition_env_int(key: String, fallback: Int) -> Int:
         return fallback
     return parse_int_text(text)
 
-fn attrition_complete(status: Int, checksum: Int, message: String) -> Int:
+fn attrition_record(status: Int, checksum: Int, message: String) -> Int:
     let _result = runtime_attrition_result_set(checksum, status, message)
-    let shutdown_status = runtime_shutdown()
-    if shutdown_status != 0:
-        if status != 0:
-            return status
-        return 200 + shutdown_status
     return status
 
 fn actor_bool_score(flag: Bool, when_true: Int, when_false: Int) -> Int:
@@ -67,17 +62,13 @@ fn actor_bool_score(flag: Bool, when_true: Int, when_false: Int) -> Int:
         return when_true
     return when_false
 
-fn main() -> Int:
-    let boot = runtime_init()
-    if boot != 0:
-        return 100 + boot
-
+fn run_actor_attrition_lane() -> Int:
     let ops = attrition_env_int("KAIN_ATTRITION_OPS", 256)
     let echo = spawn Echo(bias = 1)
     let gate = spawn Gate()
     let warm = ask(echo, "Call", 9)
     if warm != 10:
-        return attrition_complete(1, 0, "warm ask mismatch")
+        return attrition_record(1, 0, "warm ask mismatch")
 
     var index = 0
     var checksum = 0
@@ -89,26 +80,30 @@ fn main() -> Int:
         let allowed: Bool = ask(gate, "Probe", 7)
         let denied: Bool = ask_timeout(gate, "Probe", 9, 1000)
         if first != base + 1:
-            return attrition_complete(2, checksum, "first ask mismatch")
+            return attrition_record(2, checksum, "first ask mismatch")
         if second != base + 32:
-            return attrition_complete(3, checksum, "ask_timeout mismatch")
+            return attrition_record(3, checksum, "ask_timeout mismatch")
         if third != base + 64:
-            return attrition_complete(4, checksum, "third ask mismatch")
+            return attrition_record(4, checksum, "third ask mismatch")
         if allowed == false:
-            return attrition_complete(5, checksum, "gate allowed probe mismatch")
+            return attrition_record(5, checksum, "gate allowed probe mismatch")
         if denied != false:
-            return attrition_complete(6, checksum, "gate denied probe mismatch")
-        checksum = (
-            checksum
-            + first
-            + second
-            + third
-            + actor_bool_score(allowed, 7, 3)
-            + actor_bool_score(denied, 11, 5)
-            + index
-        ) % ACTOR_ATTRITION_MODULUS
+            return attrition_record(6, checksum, "gate denied probe mismatch")
+        checksum = (checksum + first + second + third + actor_bool_score(allowed, 7, 3) + actor_bool_score(denied, 11, 5) + index) % ACTOR_ATTRITION_MODULUS
         if index % 256 == 0:
             let _progress = runtime_attrition_note_progress(index, checksum)
         index = index + 1
 
-    return attrition_complete(0, checksum, "")
+    return attrition_record(0, checksum, "")
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+    let status = run_actor_attrition_lane()
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        if status != 0:
+            return status
+        return 200 + shutdown_status
+    return status

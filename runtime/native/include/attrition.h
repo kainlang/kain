@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#define KAIN_ATTRITION_SCHEMA_VERSION 1u
+#define KAIN_ATTRITION_SCHEMA_VERSION 2u
 #define KAIN_ATTRITION_EVENT_RING_CAPACITY 1024u
 #define KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX 4096u
 #define KAIN_ATTRITION_FRAGMENTATION_RING_CAPACITY 256u
@@ -79,16 +79,27 @@ typedef struct KainAttritionSnapshot {
     uint64_t determinism_tier;
 
     uint64_t live_rc_objects;
+    uint64_t peak_live_rc_objects;
     uint64_t live_runtime_bytes;
     uint64_t peak_runtime_bytes;
     uint64_t allocation_count;
     uint64_t free_count;
+    uint64_t total_allocated_bytes;
+    uint64_t total_freed_bytes;
+    uint64_t allocation_fail_count;
     uint64_t retain_count;
     uint64_t release_count;
     uint64_t rc_underflow_count;
     uint64_t rc_overflow_count;
     uint64_t poison_free_count;
     uint64_t quarantine_live_entries;
+    uint64_t quarantine_live_bytes;
+    uint64_t quarantine_peak_entries;
+    uint64_t quarantine_peak_bytes;
+    uint64_t fragmentation_noise_live_bytes;
+    uint64_t fragmentation_noise_peak_bytes;
+    uint64_t fragmentation_noise_total_bytes;
+    uint64_t fragmentation_injection_count;
 
     uint64_t actor_live_count;
     uint64_t actor_peak_count;
@@ -100,13 +111,39 @@ typedef struct KainAttritionSnapshot {
     uint64_t pending_mailbox_message_count;
     uint64_t pending_mailbox_cached_nodes;
     uint64_t actor_occupancy_low_word;
+    uint64_t actor_occupancy_popcount;
+    uint64_t actor_registry_live_entries;
+    uint64_t actor_monitor_edge_count;
+    uint64_t actor_link_edge_count;
+    uint64_t actor_supervised_count;
+    uint64_t actor_in_scheduler_turn_count;
+    uint64_t actor_restart_attempt_count_total;
+    uint64_t actor_supervision_limit_hit_count;
+    uint64_t actor_strategy_shutdown_count_total;
+    uint64_t actor_escalation_count_total;
+    uint64_t actor_scheduler_queue_depth;
+    uint64_t actor_scheduler_max_queue_depth;
+    uint64_t actor_scheduler_total_enqueued;
+    uint64_t actor_scheduler_total_dequeued;
+    uint64_t actor_scheduler_worker_count;
+    uint64_t actor_scheduler_active_workers;
+    uint64_t actor_scheduler_busy_workers;
+    uint64_t actor_scheduler_max_busy_workers;
+    uint64_t actor_scheduler_overflow_thread_spawns;
+    uint64_t actor_scheduler_shutdown;
 
     uint64_t process_live_count;
     uint64_t process_peak_count;
     uint64_t process_spawn_count;
     uint64_t process_exit_count;
     uint64_t process_stale_reject_count;
+    uint64_t process_spec_live_count;
+    uint64_t process_spec_occupancy_bits;
     uint64_t process_occupancy_bits;
+    uint64_t process_pipe_handle_live_count;
+    uint64_t process_os_handle_live_count;
+    uint64_t process_pty_live_count;
+    uint64_t process_capture_live_bytes;
 
     uint64_t async_task_live_count;
     uint64_t async_task_peak_count;
@@ -114,6 +151,10 @@ typedef struct KainAttritionSnapshot {
     uint64_t async_task_exit_count;
     uint64_t async_task_stale_reject_count;
     uint64_t async_task_occupancy_low_word;
+    uint64_t async_task_occupancy_popcount;
+    uint64_t async_task_cancel_requested_count;
+    uint64_t async_task_sleeping_count;
+    uint64_t async_task_ready_count;
 
     uint64_t async_timer_live_count;
     uint64_t async_timer_peak_count;
@@ -122,7 +163,14 @@ typedef struct KainAttritionSnapshot {
     uint64_t async_timer_cancel_count;
     uint64_t async_timer_stale_reject_count;
     uint64_t async_timer_occupancy_low_word;
+    uint64_t async_timer_occupancy_popcount;
+    uint64_t async_timer_cancelled_count;
+    uint64_t async_timer_fired_count;
+    uint64_t async_timer_started_count;
 
+    uint64_t checkpoint_count;
+    uint64_t last_checkpoint_label_hash;
+    uint64_t last_checkpoint_subject_id;
     uint64_t progress_heartbeat_count;
     uint64_t last_progress_iteration;
     uint64_t last_progress_checksum;
@@ -131,8 +179,11 @@ typedef struct KainAttritionSnapshot {
     uint64_t virtual_time_enabled;
     uint64_t virtual_time_now_ms;
     uint64_t virtual_time_step_ms;
+    uint64_t virtual_time_advance_count;
+    uint64_t virtual_time_advance_total_ms;
     uint64_t raw_clock_fallback_count;
     uint64_t raw_sleep_fallback_count;
+    uint64_t raw_sleep_fallback_millis_total;
 } KainAttritionSnapshot;
 
 void kain_attrition_session_config_init(KainAttritionSessionConfig* config);

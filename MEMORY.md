@@ -1,5 +1,134 @@
 # Kain Memory
 
+# 2026-05-17 - Attrition telemetry grew into a real diagnostic surface, not just a pass/fail bit
+
+The attrition pipeline can now explain runtime failures with a lot more structure than “closure drifted.” The source of truth is still internal runtime counters, but the snapshots, Kain runtime-capture JSON, and runner-derived reports are now wide enough that a failing lane points at the shape of the leak instead of only saying red/green.
+
+What changed:
+
+- `runtime/native/include/attrition.h`
+  - Bumped `KAIN_ATTRITION_SCHEMA_VERSION` to `2`.
+  - `KainAttritionSnapshot` now carries richer RC/allocator, quarantine/fragmentation, actor/scheduler, process/handle, async/timer, checkpoint, and time-provenance counters.
+- `runtime/native/src/core/attrition.c`
+  - Runtime-side attrition bookkeeping now tracks:
+    - peak RC objects
+    - total allocated/freed bytes
+    - allocation failures
+    - quarantine live/peak bytes and entries
+    - fragmentation live/peak/total bytes plus injection count
+    - checkpoint counts and last checkpoint identity
+    - virtual-time advance totals
+    - raw-sleep fallback milliseconds
+  - Added a saturating-add helper for telemetry counters and used it in the hot bookkeeping paths so counter growth cannot silently wrap backward.
+- `runtime/native/src/core/actor.c`
+  - Attrition snapshot capture now exports actor occupancy popcount, registry entries, monitor/link/supervision counts, in-turn counts, restart/escalation counters, and pooled scheduler depth/worker telemetry.
+- `runtime/native/src/core/process_system.c`
+  - Attrition snapshot capture now exports process-spec occupancy, pipe/OS/PTY handle counts, and captured-output live bytes.
+- `runtime/native/src/core/async.c`
+  - Attrition snapshot capture now exports async task/timer occupancy popcounts, sleeping/ready/cancelled/fired/started counts.
+- `runtime/native/src/core/stdlib_abi.c` and `attrition/cases/common/attrition_harness.h`
+  - Both the Kain LLVM runtime-capture path and the native C harness JSON writer now emit the same widened schema-2 snapshot shape. This keeps `.kn` lanes and C lanes comparable.
+- `attrition/run.py`
+  - Each case now gets a derived `telemetry` block with:
+    - throughput
+    - peak metrics
+    - activity metrics
+    - balance gaps
+    - end-state resource closure
+    - nonzero end-state field lists
+    - time provenance metrics
+    - health flags
+    - event-ring tail/total/dropped counters
+  - The suite report now gets `suite_telemetry` with aggregate throughput, failed-case count, cases with closure drift, total dropped event-ring entries, and max-offender case ids for key peak/end-state metrics.
+  - The failure minimizer now tries to preserve the same failure family instead of minimizing to any random smaller failing op count.
+- `attrition/README.md` and `.agents/skills/kain-attrition-pipeline/SKILL.md`
+  - Updated to document the wider telemetry contract, the real Kain LLVM attrition lanes, and the event-ring tail-vs-total reading rule.
+
+Validation and proof:
+
+- `python -m py_compile attrition/run.py`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/attrition.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/actor.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/process_system.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/async.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/stdlib_abi.c`
+- `python attrition/run.py --case kain_semantic_singularity_crucible_attrition --scale small --profile release-instrumented --timeout 900`
+- `python attrition/run.py --case saturated_rc_hot_object --scale small --profile release-instrumented --timeout 300`
+- `runtime/native/src/core/z3/proofs-experimental/attrition-saturating-u64-add-monotonic.smt2`
+  - Saved proof report: `z3/reports/20260517T064426Z-attrition-saturating-u64-add-monotonic.json`
+  - Result was `unsat`
+
+Current truth:
+
+- The richer telemetry is already paying off on the Kain LLVM lanes.
+- `kain_quantumerlang_attrition` and `kain_semantic_singularity_crucible_attrition` both now fail with concrete closure shape instead of a generic red:
+  - `kain_quantumerlang_attrition` showed `live_rc_objects = 20`, `live_runtime_bytes = 1017`, `allocation_count = 47`, `free_count = 27`.
+  - `kain_semantic_singularity_crucible_attrition` showed `live_rc_objects = 45`, `live_runtime_bytes = 2412`, `actor_live_count = 1`, and `actor_spawn_count - actor_exit_count = 1`.
+- Durable reading rule: `event_ring_kind_histogram` is only the copied tail window. Use it together with `event_count_total` and `event_ring_dropped_count` before treating it as a whole-run histogram.
+
+# 2026-05-17 - Benchmark cases now carry domain telemetry, not just raw milliseconds
+
+The benchmark pipeline no longer has to explain everything through wall-clock `ms` alone. `benchmark/benchmarks.json` cases can now declare domain telemetry directly in the manifest, and the root snapshots plus LLM reports render those metrics automatically.
+
+What changed:
+
+- `benchmark/run.py`
+  - The report telemetry section is now framed generically as `Telemetry`, not only `Throughput`, so future wrapper/case metrics are not constrained to one naming style.
+  - Case metrics remain data-driven: the runner computes primary metric tables and per-case telemetry lists from manifest metadata rather than from case-specific Python branches.
+- `benchmark/benchmarks.json`
+  - Added first-class telemetry to the key runtime-heavy rows:
+    - `contention_wall`: counter increments/s
+    - `ghost_mirror`: mirror updates/s, payload bytes/s, wire bytes/s, page touches/s
+    - `async_ready_chain`: ready awaits/s
+    - `tcp_loopback_tokio`: roundtrips/s, payload bytes/s
+    - `native_map_lookup`: lookups/s, queried key bytes/s
+    - `json_manual_roundtrip`: docs/s, fields/s, input bytes/s, roundtrip bytes/s
+    - `filesystem_stream`: rounds/s, file touches/s, copied bytes/s, total filesystem bytes/s
+    - `process_stdio_loop`: launches/s, captured stdout bytes/s
+    - `http_server_concurrency`: requests/s plus body/wire bytes/s
+    - `http_server_frameworks`: requests/s plus body/wire bytes/s
+    - `actor_mailbox_erlang`: asks/s, mailbox messages/s
+    - `quantumerlang`: fold roundtrips/s, mailbox messages/s
+    - `gpu_graphics_submit`: frames/s, draws/s, instances/s, submitted vertices/s, submitted indices/s
+    - the three `sim_*` rows now carry their solver-domain metrics directly in the main benchmark manifest instead of only in the sim wrapper manifest
+- `benchmark/simulations/simulations.json`
+  - The sim suite now composes the main benchmark catalog and only selects the sim case ids plus wrapper-owned suite defaults; the per-case telemetry truth moved back into `benchmark/benchmarks.json`.
+
+Durable lessons:
+
+- Put benchmark meaning in the manifest. The runner should not need to know what a mailbox ask, HTTP roundtrip, or CFD relaxation means.
+- Use one primary metric per case for the compact tables, but keep the richer supporting metrics in the same case telemetry block so LLMs and humans can inspect the under-the-hood work shape.
+- P95/P99 latency is still a separate phase; it requires per-operation timing emitted by the benchmark programs themselves rather than only total process runtime.
+
+# 2026-05-17 - Benchmark wrappers are now a data-driven plugin layer instead of hardcoded one-off Python shims
+
+The benchmark pipeline now has a proper wrapper/plugin surface so new suite categories can be added without splicing more control flow into `benchmark/run.py`. The core runner remains the one place that knows how to build, run, time, and report cases. Wrapper files now own the fire-and-forget suite ergonomics.
+
+What changed:
+
+- `benchmark/run_wrapper.py`
+  - Added a generic launcher that discovers `benchmark/wrappers/*.json`, lists them, and forwards wrapper-defined `before_args` / `after_args` into `benchmark/run.py`.
+  - The durable extension rule is now: add a new wrapper JSON file for a new suite category before considering any edit to `run.py`.
+- `benchmark/wrappers/`
+  - Added `fast.json` for the reduced Kain/Rust/C++/Erlang lane.
+  - Added `sim.json` for the extracted `sim_nbody_gravity`, `sim_uv_velocity_grid`, and `sim_cfd_pressure_projection` pack.
+  - Added `README.md` documenting the wrapper schema and launch commands.
+- `benchmark/run_fast.py` and `benchmark/run_sim.py`
+  - These are now compatibility shims over the wrapper launcher instead of hand-building their own command lines.
+- `benchmark/run.py`
+  - Added `--latest-stem` so wrapper-owned suites can keep dedicated `latest_*.llm.md` and `latest_*.json` files instead of clobbering the main latest report.
+  - Added manifest `include_manifest` + `case_ids` support so future suite-specific manifests can be composed from the main benchmark case catalog rather than duplicated by hand.
+  - Added optional per-case telemetry rendering in the JSON/Markdown pipeline; this is the substrate for future simulation-specific throughput metrics without more report-splicing debt.
+- `benchmark/.gitignore`
+  - Root snapshots now ignore `latest_*.md` generically so future wrapper plugins do not dirty `git status`.
+
+Durable lessons:
+
+- `benchmark/run.py` should stay the stable execution/report core.
+- New categories such as simulation packs, framework packs, or stress packs should usually land as `benchmark/wrappers/<name>.json`.
+- If a new wrapper needs distinct latest report files, use wrapper-owned `--minimal-name latest_<name>.md` plus `--latest-stem latest_<name>`.
+- If a future suite needs more than fixed CLI forwarding, prefer manifest composition (`include_manifest`, `case_ids`) and case telemetry metadata before adding new hardcoded runner branches.
+
 # 2026-05-17 - Benchmark pipeline gained a k-os-sim extraction pack with three real simulation kernels and no Go lane
 
 The benchmark suite now has a first simulation pack directly extracted from the imported `benchmark/cases/k-os-sim` reference crate rather than from toy math kernels. The new rows deliberately stay in the Kain/Rust/C++ category; Go is first-class in the general benchmark lane now, but the sim category is intentionally not carrying a Go column.

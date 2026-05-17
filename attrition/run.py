@@ -763,6 +763,293 @@ def failure_family(parsed: dict[str, Any] | None) -> str:
     return f"status:{parsed.get('overall_status', 'unknown')}"
 
 
+EVENT_KIND_NAMES = {
+    1: "checkpoint",
+    2: "progress",
+    10: "rc_alloc",
+    11: "rc_free",
+    12: "rc_retain",
+    13: "rc_release",
+    14: "rc_underflow",
+    15: "rc_overflow",
+    20: "actor_spawn",
+    21: "actor_exit",
+    22: "actor_stale_reject",
+    30: "process_spawn",
+    31: "process_exit",
+    32: "process_stale_reject",
+    40: "async_task_spawn",
+    41: "async_task_exit",
+    42: "async_task_stale_reject",
+    50: "async_timer_spawn",
+    51: "async_timer_exit",
+    52: "async_timer_cancel",
+    53: "async_timer_stale_reject",
+    60: "virtual_time_advance",
+    61: "raw_clock_fallback",
+    62: "raw_sleep_fallback",
+}
+
+
+def safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def safe_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def snapshot_delta(baseline: dict[str, Any], final_snapshot: dict[str, Any], field: str) -> int:
+    return safe_int(final_snapshot.get(field, 0)) - safe_int(baseline.get(field, 0))
+
+
+def event_name(kind: Any) -> str:
+    return EVENT_KIND_NAMES.get(safe_int(kind), f"kind_{safe_int(kind)}")
+
+
+def case_telemetry_summary(parsed: dict[str, Any], runtime_ms: float) -> dict[str, Any]:
+    baseline = dict(parsed.get("baseline_snapshot", {}))
+    final_snapshot = dict(parsed.get("final_snapshot", {}))
+    events = list(parsed.get("events", []))
+    ops = safe_int(parsed.get("ops", 0))
+    throughput_ops_per_sec = (ops * 1000.0 / runtime_ms) if runtime_ms > 0.0 else 0.0
+    closure_fields = [
+        "live_rc_objects",
+        "live_runtime_bytes",
+        "quarantine_live_entries",
+        "quarantine_live_bytes",
+        "fragmentation_noise_live_bytes",
+        "actor_live_count",
+        "reply_port_live_count",
+        "pending_mailbox_message_count",
+        "pending_mailbox_cached_nodes",
+        "actor_occupancy_low_word",
+        "process_live_count",
+        "process_spec_live_count",
+        "process_pipe_handle_live_count",
+        "process_os_handle_live_count",
+        "process_capture_live_bytes",
+        "process_occupancy_bits",
+        "async_task_live_count",
+        "async_task_cancel_requested_count",
+        "async_task_sleeping_count",
+        "async_task_occupancy_low_word",
+        "async_timer_live_count",
+        "async_timer_cancelled_count",
+        "async_timer_occupancy_low_word",
+    ]
+    closure_drifts = {
+        field: snapshot_delta(baseline, final_snapshot, field)
+        for field in closure_fields
+        if snapshot_delta(baseline, final_snapshot, field) != 0
+    }
+    event_histogram: dict[str, int] = {}
+    for event in events:
+        name = event_name(event.get("kind", 0))
+        event_histogram[name] = event_histogram.get(name, 0) + 1
+    pressure_metrics = {
+        "allocations_per_op": (safe_float(final_snapshot.get("allocation_count", 0)) / ops) if ops > 0 else 0.0,
+        "retains_per_op": (safe_float(final_snapshot.get("retain_count", 0)) / ops) if ops > 0 else 0.0,
+        "releases_per_op": (safe_float(final_snapshot.get("release_count", 0)) / ops) if ops > 0 else 0.0,
+        "actor_enqueues_per_op": (safe_float(final_snapshot.get("actor_scheduler_total_enqueued", 0)) / ops) if ops > 0 else 0.0,
+        "actor_dequeues_per_op": (safe_float(final_snapshot.get("actor_scheduler_total_dequeued", 0)) / ops) if ops > 0 else 0.0,
+        "task_spawns_per_op": (safe_float(final_snapshot.get("async_task_spawn_count", 0)) / ops) if ops > 0 else 0.0,
+        "timer_spawns_per_op": (safe_float(final_snapshot.get("async_timer_spawn_count", 0)) / ops) if ops > 0 else 0.0,
+    }
+    resource_end_state = {
+        "live_rc_objects": safe_int(final_snapshot.get("live_rc_objects", 0)),
+        "live_runtime_bytes": safe_int(final_snapshot.get("live_runtime_bytes", 0)),
+        "quarantine_live_entries": safe_int(final_snapshot.get("quarantine_live_entries", 0)),
+        "quarantine_live_bytes": safe_int(final_snapshot.get("quarantine_live_bytes", 0)),
+        "fragmentation_noise_live_bytes": safe_int(final_snapshot.get("fragmentation_noise_live_bytes", 0)),
+        "actor_live_count": safe_int(final_snapshot.get("actor_live_count", 0)),
+        "reply_port_live_count": safe_int(final_snapshot.get("reply_port_live_count", 0)),
+        "pending_mailbox_message_count": safe_int(final_snapshot.get("pending_mailbox_message_count", 0)),
+        "pending_mailbox_cached_nodes": safe_int(final_snapshot.get("pending_mailbox_cached_nodes", 0)),
+        "process_live_count": safe_int(final_snapshot.get("process_live_count", 0)),
+        "process_spec_live_count": safe_int(final_snapshot.get("process_spec_live_count", 0)),
+        "process_pipe_handle_live_count": safe_int(final_snapshot.get("process_pipe_handle_live_count", 0)),
+        "process_os_handle_live_count": safe_int(final_snapshot.get("process_os_handle_live_count", 0)),
+        "process_pty_live_count": safe_int(final_snapshot.get("process_pty_live_count", 0)),
+        "process_capture_live_bytes": safe_int(final_snapshot.get("process_capture_live_bytes", 0)),
+        "async_task_live_count": safe_int(final_snapshot.get("async_task_live_count", 0)),
+        "async_task_cancel_requested_count": safe_int(final_snapshot.get("async_task_cancel_requested_count", 0)),
+        "async_task_sleeping_count": safe_int(final_snapshot.get("async_task_sleeping_count", 0)),
+        "async_timer_live_count": safe_int(final_snapshot.get("async_timer_live_count", 0)),
+        "async_timer_cancelled_count": safe_int(final_snapshot.get("async_timer_cancelled_count", 0)),
+    }
+    nonzero_end_state_fields = sorted(field for field, value in resource_end_state.items() if value != 0)
+    event_count_total = safe_int(final_snapshot.get("event_count_total", len(events)))
+    event_ring_dropped_count = max(0, event_count_total - len(events))
+    resource_handle_total = (
+        resource_end_state["reply_port_live_count"]
+        + resource_end_state["process_pipe_handle_live_count"]
+        + resource_end_state["process_os_handle_live_count"]
+        + resource_end_state["process_pty_live_count"]
+    )
+    mailbox_pressure_total = (
+        resource_end_state["pending_mailbox_message_count"]
+        + resource_end_state["pending_mailbox_cached_nodes"]
+    )
+    balance_metrics = {
+        "allocation_free_gap": safe_int(final_snapshot.get("allocation_count", 0)) - safe_int(final_snapshot.get("free_count", 0)),
+        "allocated_freed_bytes_gap": safe_int(final_snapshot.get("total_allocated_bytes", 0)) - safe_int(final_snapshot.get("total_freed_bytes", 0)),
+        "retain_release_gap": safe_int(final_snapshot.get("retain_count", 0)) - safe_int(final_snapshot.get("release_count", 0)),
+        "actor_spawn_exit_gap": safe_int(final_snapshot.get("actor_spawn_count", 0)) - safe_int(final_snapshot.get("actor_exit_count", 0)),
+        "process_spawn_exit_gap": safe_int(final_snapshot.get("process_spawn_count", 0)) - safe_int(final_snapshot.get("process_exit_count", 0)),
+        "async_task_spawn_exit_gap": safe_int(final_snapshot.get("async_task_spawn_count", 0)) - safe_int(final_snapshot.get("async_task_exit_count", 0)),
+        "async_timer_spawn_exit_gap": safe_int(final_snapshot.get("async_timer_spawn_count", 0)) - safe_int(final_snapshot.get("async_timer_exit_count", 0)),
+        "resource_handle_total": resource_handle_total,
+        "mailbox_pressure_total": mailbox_pressure_total,
+        "event_count_total": event_count_total,
+        "event_ring_dropped_count": event_ring_dropped_count,
+        "closure_drift_field_count": len(closure_drifts),
+        "nonzero_end_state_field_count": len(nonzero_end_state_fields),
+    }
+    health_flags = {
+        "closure_clean": 0 if closure_drifts else 1,
+        "raw_time_provenance_clean": 1
+        if safe_int(final_snapshot.get("raw_clock_fallback_count", 0)) == 0
+        and safe_int(final_snapshot.get("raw_sleep_fallback_count", 0)) == 0
+        and safe_int(final_snapshot.get("raw_sleep_fallback_millis_total", 0)) == 0
+        else 0,
+        "event_ring_truncated": 1 if event_ring_dropped_count > 0 else 0,
+        "resource_handles_clean": 1 if resource_handle_total == 0 else 0,
+    }
+    return {
+        "throughput_ops_per_sec": throughput_ops_per_sec,
+        "ops_per_millisecond": (ops / runtime_ms) if runtime_ms > 0.0 else 0.0,
+        "event_ring_count": len(events),
+        "event_count_total": event_count_total,
+        "event_ring_dropped_count": event_ring_dropped_count,
+        "event_ring_kind_histogram": event_histogram,
+        "last_event_names": [event_name(event.get("kind", 0)) for event in events[-8:]],
+        "closure_drifts": closure_drifts,
+        "peak_metrics": {
+            "peak_live_rc_objects": safe_int(final_snapshot.get("peak_live_rc_objects", 0)),
+            "peak_runtime_bytes": safe_int(final_snapshot.get("peak_runtime_bytes", 0)),
+            "quarantine_peak_entries": safe_int(final_snapshot.get("quarantine_peak_entries", 0)),
+            "quarantine_peak_bytes": safe_int(final_snapshot.get("quarantine_peak_bytes", 0)),
+            "fragmentation_noise_peak_bytes": safe_int(final_snapshot.get("fragmentation_noise_peak_bytes", 0)),
+            "actor_peak_count": safe_int(final_snapshot.get("actor_peak_count", 0)),
+            "reply_port_peak_count": safe_int(final_snapshot.get("reply_port_peak_count", 0)),
+            "actor_scheduler_max_queue_depth": safe_int(final_snapshot.get("actor_scheduler_max_queue_depth", 0)),
+            "actor_scheduler_max_busy_workers": safe_int(final_snapshot.get("actor_scheduler_max_busy_workers", 0)),
+            "process_peak_count": safe_int(final_snapshot.get("process_peak_count", 0)),
+            "async_task_peak_count": safe_int(final_snapshot.get("async_task_peak_count", 0)),
+            "async_timer_peak_count": safe_int(final_snapshot.get("async_timer_peak_count", 0)),
+        },
+        "activity_metrics": {
+            "allocation_count": safe_int(final_snapshot.get("allocation_count", 0)),
+            "free_count": safe_int(final_snapshot.get("free_count", 0)),
+            "total_allocated_bytes": safe_int(final_snapshot.get("total_allocated_bytes", 0)),
+            "total_freed_bytes": safe_int(final_snapshot.get("total_freed_bytes", 0)),
+            "allocation_fail_count": safe_int(final_snapshot.get("allocation_fail_count", 0)),
+            "retain_count": safe_int(final_snapshot.get("retain_count", 0)),
+            "release_count": safe_int(final_snapshot.get("release_count", 0)),
+            "actor_spawn_count": safe_int(final_snapshot.get("actor_spawn_count", 0)),
+            "actor_exit_count": safe_int(final_snapshot.get("actor_exit_count", 0)),
+            "actor_stale_reject_count": safe_int(final_snapshot.get("actor_stale_reject_count", 0)),
+            "actor_monitor_edge_count": safe_int(final_snapshot.get("actor_monitor_edge_count", 0)),
+            "actor_link_edge_count": safe_int(final_snapshot.get("actor_link_edge_count", 0)),
+            "actor_scheduler_total_enqueued": safe_int(final_snapshot.get("actor_scheduler_total_enqueued", 0)),
+            "actor_scheduler_total_dequeued": safe_int(final_snapshot.get("actor_scheduler_total_dequeued", 0)),
+            "actor_scheduler_overflow_thread_spawns": safe_int(final_snapshot.get("actor_scheduler_overflow_thread_spawns", 0)),
+            "process_spawn_count": safe_int(final_snapshot.get("process_spawn_count", 0)),
+            "process_exit_count": safe_int(final_snapshot.get("process_exit_count", 0)),
+            "process_stale_reject_count": safe_int(final_snapshot.get("process_stale_reject_count", 0)),
+            "async_task_spawn_count": safe_int(final_snapshot.get("async_task_spawn_count", 0)),
+            "async_task_exit_count": safe_int(final_snapshot.get("async_task_exit_count", 0)),
+            "async_task_stale_reject_count": safe_int(final_snapshot.get("async_task_stale_reject_count", 0)),
+            "async_timer_spawn_count": safe_int(final_snapshot.get("async_timer_spawn_count", 0)),
+            "async_timer_exit_count": safe_int(final_snapshot.get("async_timer_exit_count", 0)),
+            "async_timer_cancel_count": safe_int(final_snapshot.get("async_timer_cancel_count", 0)),
+            "async_timer_stale_reject_count": safe_int(final_snapshot.get("async_timer_stale_reject_count", 0)),
+            "checkpoint_count": safe_int(final_snapshot.get("checkpoint_count", 0)),
+            "progress_heartbeat_count": safe_int(final_snapshot.get("progress_heartbeat_count", 0)),
+        },
+        "resource_end_state": resource_end_state,
+        "nonzero_end_state_fields": nonzero_end_state_fields,
+        "time_metrics": {
+            "virtual_time_enabled": safe_int(final_snapshot.get("virtual_time_enabled", 0)),
+            "virtual_time_now_ms": safe_int(final_snapshot.get("virtual_time_now_ms", 0)),
+            "virtual_time_step_ms": safe_int(final_snapshot.get("virtual_time_step_ms", 0)),
+            "virtual_time_advance_count": safe_int(final_snapshot.get("virtual_time_advance_count", 0)),
+            "virtual_time_advance_total_ms": safe_int(final_snapshot.get("virtual_time_advance_total_ms", 0)),
+            "raw_clock_fallback_count": safe_int(final_snapshot.get("raw_clock_fallback_count", 0)),
+            "raw_sleep_fallback_count": safe_int(final_snapshot.get("raw_sleep_fallback_count", 0)),
+            "raw_sleep_fallback_millis_total": safe_int(final_snapshot.get("raw_sleep_fallback_millis_total", 0)),
+            "last_checkpoint_label_hash": safe_int(final_snapshot.get("last_checkpoint_label_hash", 0)),
+            "last_checkpoint_subject_id": safe_int(final_snapshot.get("last_checkpoint_subject_id", 0)),
+            "last_progress_iteration": safe_int(final_snapshot.get("last_progress_iteration", 0)),
+            "last_progress_checksum": safe_int(final_snapshot.get("last_progress_checksum", 0)),
+        },
+        "balance_metrics": balance_metrics,
+        "health_flags": health_flags,
+        "pressure_metrics": pressure_metrics,
+    }
+
+
+def suite_telemetry_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    usable_results = [result for result in results if isinstance(result.get("telemetry"), dict)]
+    total_ops = sum(safe_int(result.get("options", {}).get("ops", 0)) for result in results)
+    total_runtime_ms = sum(safe_float(result.get("runtime_ms", 0.0)) for result in results)
+    total_allocations = sum(
+        safe_int(result.get("telemetry", {}).get("activity_metrics", {}).get("allocation_count", 0))
+        for result in usable_results
+    )
+    cases_with_closure_drift = [
+        str(result.get("case_id", ""))
+        for result in usable_results
+        if safe_int(result.get("telemetry", {}).get("balance_metrics", {}).get("closure_drift_field_count", 0)) > 0
+    ]
+    total_event_ring_dropped = sum(
+        safe_int(result.get("telemetry", {}).get("balance_metrics", {}).get("event_ring_dropped_count", 0))
+        for result in usable_results
+    )
+
+    def max_case(field: str, path: tuple[str, str] | tuple[str, str, str]) -> dict[str, Any]:
+        best_case = ""
+        best_value: int | None = None
+        for result in usable_results:
+            current: Any = result.get("telemetry", {})
+            for part in path:
+                if not isinstance(current, dict):
+                    current = 0
+                    break
+                current = current.get(part, 0)
+            numeric = safe_int(current)
+            if best_value is None or numeric > best_value:
+                best_value = numeric
+                best_case = str(result.get("case_id", ""))
+        return {"case_id": best_case, "value": 0 if best_value is None else best_value, "field": field}
+
+    return {
+        "total_ops": total_ops,
+        "total_runtime_ms": total_runtime_ms,
+        "throughput_ops_per_sec": (total_ops * 1000.0 / total_runtime_ms) if total_runtime_ms > 0.0 else 0.0,
+        "total_allocations": total_allocations,
+        "failed_case_count": sum(1 for result in results if result.get("status") not in {"passed", "expected-fail"}),
+        "cases_with_closure_drift": cases_with_closure_drift,
+        "total_event_ring_dropped_count": total_event_ring_dropped,
+        "max_peak_runtime_bytes": max_case("peak_runtime_bytes", ("peak_metrics", "peak_runtime_bytes")),
+        "max_actor_queue_depth": max_case("actor_scheduler_max_queue_depth", ("peak_metrics", "actor_scheduler_max_queue_depth")),
+        "max_process_capture_live_bytes": max_case("process_capture_live_bytes", ("resource_end_state", "process_capture_live_bytes")),
+        "max_async_timer_peak_count": max_case("async_timer_peak_count", ("peak_metrics", "async_timer_peak_count")),
+        "max_fragmentation_peak_bytes": max_case("fragmentation_noise_peak_bytes", ("peak_metrics", "fragmentation_noise_peak_bytes")),
+        "max_live_rc_objects_end_state": max_case("live_rc_objects", ("resource_end_state", "live_rc_objects")),
+        "max_live_runtime_bytes_end_state": max_case("live_runtime_bytes", ("resource_end_state", "live_runtime_bytes")),
+        "max_resource_handle_total": max_case("resource_handle_total", ("balance_metrics", "resource_handle_total")),
+        "max_closure_drift_field_count": max_case("closure_drift_field_count", ("balance_metrics", "closure_drift_field_count")),
+    }
+
+
 def minimize_failure(
     case: dict[str, Any],
     profile: BuildProfile,
@@ -779,6 +1066,7 @@ def minimize_failure(
     initial = run_case_executable(case, exe_path, build_dir, options, timeout, REPO_ROOT)
     if initial["parsed"] is None or int(initial["parsed"].get("overall_status", 1)) == 0:
         return None
+    target_failure_family = failure_family(initial["parsed"])
     lo = 1
     hi = int(options["ops"])
     best_result = initial
@@ -788,7 +1076,8 @@ def minimize_failure(
         candidate_options["ops"] = mid
         candidate_result = run_case_executable(case, exe_path, build_dir, candidate_options, timeout, REPO_ROOT)
         candidate_failed = candidate_result["parsed"] is not None and int(candidate_result["parsed"].get("overall_status", 1)) != 0
-        if candidate_failed:
+        candidate_matches_target = candidate_failed and failure_family(candidate_result["parsed"]) == target_failure_family
+        if candidate_matches_target:
             best_result = candidate_result
             hi = mid
         else:
@@ -796,6 +1085,8 @@ def minimize_failure(
     return {
         "ops": int(best_result["parsed"]["ops"]) if best_result["parsed"] is not None and "ops" in best_result["parsed"] else hi,
         "failure_family": failure_family(best_result["parsed"]),
+        "target_failure_family": target_failure_family,
+        "matched_target_family": failure_family(best_result["parsed"]) == target_failure_family,
         "stdout": best_result["stdout"],
         "stderr": best_result["stderr"],
     }
@@ -849,6 +1140,7 @@ def markdown_report(
     kain_exe: ResolvedExecutable | None,
     results: list[dict[str, Any]],
     suite_passed: bool,
+    suite_telemetry: dict[str, Any],
 ) -> str:
     passed_count = sum(1 for result in results if result["status"] == "passed")
     expected_fail_count = sum(1 for result in results if result["status"] == "expected-fail")
@@ -864,6 +1156,24 @@ def markdown_report(
         f"- suite_status: `{'passed' if suite_passed else 'failed'}`",
         f"- passed_cases: `{passed_count}/{len(results)}`",
         f"- expected_fail_cases: `{expected_fail_count}`",
+        f"- total_ops: `{suite_telemetry.get('total_ops', 0)}`",
+        f"- total_runtime_ms: `{suite_telemetry.get('total_runtime_ms', 0.0):.3f}`",
+        f"- suite_throughput_ops_per_sec: `{suite_telemetry.get('throughput_ops_per_sec', 0.0):.3f}`",
+        "",
+        "## Suite Telemetry",
+        "",
+        f"- failed_case_count: `{suite_telemetry.get('failed_case_count', 0)}`",
+        f"- cases_with_closure_drift: `{', '.join(suite_telemetry.get('cases_with_closure_drift', [])) or 'none'}`",
+        f"- total_event_ring_dropped_count: `{suite_telemetry.get('total_event_ring_dropped_count', 0)}`",
+        f"- peak_runtime_bytes: `{suite_telemetry.get('max_peak_runtime_bytes', {}).get('value', 0)}` in `{suite_telemetry.get('max_peak_runtime_bytes', {}).get('case_id', '')}`",
+        f"- live_rc_objects_end_state: `{suite_telemetry.get('max_live_rc_objects_end_state', {}).get('value', 0)}` in `{suite_telemetry.get('max_live_rc_objects_end_state', {}).get('case_id', '')}`",
+        f"- live_runtime_bytes_end_state: `{suite_telemetry.get('max_live_runtime_bytes_end_state', {}).get('value', 0)}` in `{suite_telemetry.get('max_live_runtime_bytes_end_state', {}).get('case_id', '')}`",
+        f"- actor_scheduler_max_queue_depth: `{suite_telemetry.get('max_actor_queue_depth', {}).get('value', 0)}` in `{suite_telemetry.get('max_actor_queue_depth', {}).get('case_id', '')}`",
+        f"- resource_handle_total: `{suite_telemetry.get('max_resource_handle_total', {}).get('value', 0)}` in `{suite_telemetry.get('max_resource_handle_total', {}).get('case_id', '')}`",
+        f"- closure_drift_field_count: `{suite_telemetry.get('max_closure_drift_field_count', {}).get('value', 0)}` in `{suite_telemetry.get('max_closure_drift_field_count', {}).get('case_id', '')}`",
+        f"- process_capture_live_bytes: `{suite_telemetry.get('max_process_capture_live_bytes', {}).get('value', 0)}` in `{suite_telemetry.get('max_process_capture_live_bytes', {}).get('case_id', '')}`",
+        f"- async_timer_peak_count: `{suite_telemetry.get('max_async_timer_peak_count', {}).get('value', 0)}` in `{suite_telemetry.get('max_async_timer_peak_count', {}).get('case_id', '')}`",
+        f"- fragmentation_noise_peak_bytes: `{suite_telemetry.get('max_fragmentation_peak_bytes', {}).get('value', 0)}` in `{suite_telemetry.get('max_fragmentation_peak_bytes', {}).get('case_id', '')}`",
         "",
         "## Cases",
         "",
@@ -888,10 +1198,115 @@ def markdown_report(
                 f"`{result['minimized_failure']['failure_family']}`"
             )
     lines.append("")
+    lines.append("## Case Telemetry")
+    for result in results:
+        telemetry = result.get("telemetry") or {}
+        if not telemetry:
+            continue
+        peaks = telemetry.get("peak_metrics", {})
+        activity = telemetry.get("activity_metrics", {})
+        end_state = telemetry.get("resource_end_state", {})
+        time_metrics = telemetry.get("time_metrics", {})
+        drifts = telemetry.get("closure_drifts", {})
+        histogram = telemetry.get("event_ring_kind_histogram", {})
+        balances = telemetry.get("balance_metrics", {})
+        health = telemetry.get("health_flags", {})
+        lines.append("")
+        lines.append(f"### {result['case_id']}")
+        lines.append(
+            f"- throughput: `{telemetry.get('throughput_ops_per_sec', 0.0):.3f} ops/s` "
+            f"across `{result['options']['ops']}` ops in `{result['runtime_ms']:.3f} ms`"
+        )
+        lines.append(
+            f"- peaks: `rc_objects={peaks.get('peak_live_rc_objects', 0)}` "
+            f"`bytes={peaks.get('peak_runtime_bytes', 0)}` "
+            f"`queue={peaks.get('actor_scheduler_max_queue_depth', 0)}` "
+            f"`actors={peaks.get('actor_peak_count', 0)}` "
+            f"`reply_ports={peaks.get('reply_port_peak_count', 0)}` "
+            f"`processes={peaks.get('process_peak_count', 0)}` "
+            f"`tasks={peaks.get('async_task_peak_count', 0)}` "
+            f"`timers={peaks.get('async_timer_peak_count', 0)}`"
+        )
+        lines.append(
+            f"- activity: `alloc={activity.get('allocation_count', 0)}` "
+            f"`free={activity.get('free_count', 0)}` "
+            f"`alloc_bytes={activity.get('total_allocated_bytes', 0)}` "
+            f"`free_bytes={activity.get('total_freed_bytes', 0)}` "
+            f"`retain={activity.get('retain_count', 0)}` "
+            f"`release={activity.get('release_count', 0)}` "
+            f"`actor_enq={activity.get('actor_scheduler_total_enqueued', 0)}` "
+            f"`actor_deq={activity.get('actor_scheduler_total_dequeued', 0)}` "
+            f"`task_spawn={activity.get('async_task_spawn_count', 0)}` "
+            f"`timer_spawn={activity.get('async_timer_spawn_count', 0)}`"
+        )
+        lines.append(
+            f"- balances: `alloc_gap={balances.get('allocation_free_gap', 0)}` "
+            f"`byte_gap={balances.get('allocated_freed_bytes_gap', 0)}` "
+            f"`retain_release_gap={balances.get('retain_release_gap', 0)}` "
+            f"`actor_gap={balances.get('actor_spawn_exit_gap', 0)}` "
+            f"`process_gap={balances.get('process_spawn_exit_gap', 0)}` "
+            f"`task_gap={balances.get('async_task_spawn_exit_gap', 0)}` "
+            f"`timer_gap={balances.get('async_timer_spawn_exit_gap', 0)}` "
+            f"`handles={balances.get('resource_handle_total', 0)}` "
+            f"`mailbox={balances.get('mailbox_pressure_total', 0)}`"
+        )
+        lines.append(
+            f"- end_state: `rc={end_state.get('live_rc_objects', 0)}` "
+            f"`bytes={end_state.get('live_runtime_bytes', 0)}` "
+            f"`actors={end_state.get('actor_live_count', 0)}` "
+            f"`mailbox={end_state.get('pending_mailbox_message_count', 0)}` "
+            f"`processes={end_state.get('process_live_count', 0)}` "
+            f"`specs={end_state.get('process_spec_live_count', 0)}` "
+            f"`handles={end_state.get('process_os_handle_live_count', 0)}` "
+            f"`ptys={end_state.get('process_pty_live_count', 0)}` "
+            f"`tasks={end_state.get('async_task_live_count', 0)}` "
+            f"`timers={end_state.get('async_timer_live_count', 0)}`"
+        )
+        lines.append(
+            f"- time: `vt_now={time_metrics.get('virtual_time_now_ms', 0)}` "
+            f"`vt_advances={time_metrics.get('virtual_time_advance_count', 0)}` "
+            f"`vt_advance_ms={time_metrics.get('virtual_time_advance_total_ms', 0)}` "
+            f"`raw_clock={time_metrics.get('raw_clock_fallback_count', 0)}` "
+            f"`raw_sleep={time_metrics.get('raw_sleep_fallback_count', 0)}` "
+            f"`raw_sleep_ms={time_metrics.get('raw_sleep_fallback_millis_total', 0)}` "
+            f"`checkpoints={activity.get('checkpoint_count', 0)}` "
+            f"`heartbeats={activity.get('progress_heartbeat_count', 0)}`"
+        )
+        lines.append(
+            f"- health: `closure_clean={health.get('closure_clean', 0)}` "
+            f"`raw_time_clean={health.get('raw_time_provenance_clean', 0)}` "
+            f"`ring_truncated={health.get('event_ring_truncated', 0)}` "
+            f"`resource_handles_clean={health.get('resource_handles_clean', 0)}` "
+            f"`nonzero_end_fields={len(telemetry.get('nonzero_end_state_fields', []))}`"
+        )
+        lines.append(
+            f"- closure_drift: `{json.dumps(drifts, sort_keys=True) if drifts else 'clean'}`"
+        )
+        lines.append(
+            f"- nonzero_end_state_fields: `{', '.join(telemetry.get('nonzero_end_state_fields', [])) or 'clean'}`"
+        )
+        lines.append(
+            f"- event_ring: `tail={telemetry.get('event_ring_count', 0)}` "
+            f"`total={telemetry.get('event_count_total', 0)}` "
+            f"`dropped={telemetry.get('event_ring_dropped_count', 0)}` "
+            f"`histogram={json.dumps(histogram, sort_keys=True)}`"
+        )
+        if telemetry.get("last_event_names"):
+            lines.append(
+                f"- last_events: `{', '.join(str(name) for name in telemetry['last_event_names'])}`"
+            )
+    lines.append("")
     return "\n".join(lines)
 
 
-def root_snapshot_markdown(generated_at: str, profile_name: str, scale: str, suite_passed: bool, report_name: str) -> str:
+def root_snapshot_markdown(
+    generated_at: str,
+    profile_name: str,
+    scale: str,
+    suite_passed: bool,
+    report_name: str,
+    suite_telemetry: dict[str, Any],
+) -> str:
     return textwrap.dedent(
         f"""\
         # Attrition Latest
@@ -900,6 +1315,9 @@ def root_snapshot_markdown(generated_at: str, profile_name: str, scale: str, sui
         - profile: `{profile_name}`
         - scale: `{scale}`
         - suite_status: `{'passed' if suite_passed else 'failed'}`
+        - total_ops: `{suite_telemetry.get('total_ops', 0)}`
+        - total_runtime_ms: `{suite_telemetry.get('total_runtime_ms', 0.0):.3f}`
+        - suite_throughput_ops_per_sec: `{suite_telemetry.get('throughput_ops_per_sec', 0.0):.3f}`
         - detailed_report: `attrition/out/reports/{report_name}`
         """
     )
@@ -974,6 +1392,10 @@ def main() -> int:
         case_entry["run"] = run_result
         case_entry["runtime_ms"] = float(run_result["elapsed_ms"])
         case_entry["parsed"] = run_result["parsed"]
+        if run_result["parsed"] is not None:
+            telemetry = case_telemetry_summary(run_result["parsed"], case_entry["runtime_ms"])
+            run_result["parsed"]["telemetry"] = telemetry
+            case_entry["telemetry"] = telemetry
         case_entry["status"] = case_status(run_result["parsed"])
         case_entry["failure_family"] = failure_family(run_result["parsed"])
         if not args.no_minimize and case_entry["status"] == "failed":
@@ -984,6 +1406,7 @@ def main() -> int:
             write_json(raw_result_path, run_result["parsed"])
         case_results.append(case_entry)
 
+    suite_telemetry = suite_telemetry_summary(case_results)
     report_json = {
         "schema_version": 1,
         "report_kind": "attrition_suite_report",
@@ -994,6 +1417,7 @@ def main() -> int:
         "clang": clang,
         "kain_exe": str(kain_exe.path) if kain_exe is not None else "",
         "suite_passed": suite_passed,
+        "suite_telemetry": suite_telemetry,
         "cases": case_results,
     }
     report_name = f"{generated_at}.json"
@@ -1006,12 +1430,22 @@ def main() -> int:
     latest_md_path = REPORT_ROOT / latest_llm_name
     write_json(report_json_path, report_json)
     write_json(latest_json_path, report_json)
-    markdown = markdown_report(generated_at, manifest_path, profile, args.scale, clang, kain_exe, case_results, suite_passed)
+    markdown = markdown_report(
+        generated_at,
+        manifest_path,
+        profile,
+        args.scale,
+        clang,
+        kain_exe,
+        case_results,
+        suite_passed,
+        suite_telemetry,
+    )
     write_text(report_md_path, markdown)
     write_text(latest_md_path, markdown)
     write_text(
         DEFAULT_ROOT_REPORT,
-        root_snapshot_markdown(generated_at, profile.name, args.scale, suite_passed, llm_name),
+        root_snapshot_markdown(generated_at, profile.name, args.scale, suite_passed, llm_name, suite_telemetry),
     )
 
     return 0 if suite_passed else 1

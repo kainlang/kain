@@ -1,3 +1,5 @@
+use std::runtime
+
 axiom quantumerlang_machine_truth:
     when target("llvm")
     when arch("x86_64")
@@ -57,15 +59,60 @@ fn fold_lane_cells(cells: ptr<Int>, cell_count: Int) -> Int:
         slot = slot + 1
     return acc
 
-fn main() -> Int:
-    let init_status = native_runtime_init()
-    if init_status != 0:
-        return 100 + init_status
+fn digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
 
-    let rounds: Int = 300000
+fn parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let mut sign = 1
+    let mut index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let mut value = 0
+    while index < len(text):
+        value = value * 10 + digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn attrition_env_int(key: String, fallback: Int) -> Int:
+    let text = env(key)
+    if len(text) == 0:
+        return fallback
+    return parse_int_text(text)
+
+fn attrition_record(status: Int, checksum: Int, message: String) -> Int:
+    let _result = runtime_attrition_result_set(checksum, status, message)
+    return status
+
+fn quantum_reply_reference(request: Int, bias: Int, phase: Int, salt: Int, alive: Bool, lane: Int) -> Int:
+    if alive:
+        return quantum_flux_scalar(((request * 17) + bias + phase + salt + lane) % 1000000007)
+    return quantum_flux_scalar(((request * 17) + bias + salt + lane + 1000000007 - phase) % 1000000007)
+
+fn run_quantumerlang_attrition_lane() -> Int:
+    let rounds: Int = attrition_env_int("KAIN_ATTRITION_OPS", 4096)
     let worker_count: Int = 64
     let modulus: Int = 1000000007
-    let expected_checksum: Int = 272862553
     let authority = QuantumErlangAuthority
     let seed = QuantumLane { bias: 4, phase: 6, salt: 18, alive: true }
     let moved_seed = teleport seed from QuantumErlangAuthority to QuantumErlangMirror via quantumerlang_boot_bus
@@ -140,6 +187,8 @@ fn main() -> Int:
 
     var index: Int = 0
     var checksum: Int = 0
+    var mismatch_status: Int = 0
+    var mismatch_checksum: Int = 0
     collapse cells:
         while index < rounds:
             let lane: Int = index % worker_count
@@ -153,11 +202,30 @@ fn main() -> Int:
                 lanes[lane].alive,
                 lane
             )
-            let next_cell: Int = (reply + old_cell + index + lane) % modulus
-            mem_store(ptr_offset(cells, lane, "Int"), next_cell, "Int")
-            checksum = (checksum + next_cell + reply + lane) % modulus
-            index = index + 1
+            let reference_reply: Int = quantum_reply_reference(
+                request,
+                lanes[lane].bias,
+                lanes[lane].phase,
+                lanes[lane].salt,
+                lanes[lane].alive,
+                lane
+            )
+            if reply != reference_reply:
+                mismatch_status = 1
+                mismatch_checksum = checksum
+                index = rounds
+            else:
+                let next_cell: Int = (reply + old_cell + index + lane) % modulus
+                mem_store(ptr_offset(cells, lane, "Int"), next_cell, "Int")
+                checksum = (checksum + next_cell + reply + lane) % modulus
+                if index % 1024 == 0:
+                    let _progress = runtime_attrition_note_progress(index, checksum)
+                index = index + 1
         0
+
+    if mismatch_status != 0:
+        decay cells
+        return attrition_record(mismatch_status, mismatch_checksum, "quantum reply reference mismatch")
 
     let observed: Int = observe cells:
         fold_lane_cells(cells, worker_count)
@@ -166,11 +234,18 @@ fn main() -> Int:
 
     let final_score: Int = (checksum + observed) % modulus
     let runtime_shape_ok = boot_signal > 0 and native_patch_journal_count() >= 1 and native_entangle_propagation_count() >= 1 and runtime_machine_teleport_count() >= 1 and native_converge_mismatch_count() == 0
-    let shutdown_status = native_runtime_shutdown()
-    if shutdown_status != 0:
-        return 200 + shutdown_status
     if runtime_shape_ok == false:
-        return 2
-    if final_score != expected_checksum:
-        return 1
-    return 0
+        return attrition_record(2, final_score, "runtime shape mismatch")
+    return attrition_record(0, final_score, "")
+
+fn main() -> Int:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+    let status = run_quantumerlang_attrition_lane()
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        if status != 0:
+            return status
+        return 200 + shutdown_status
+    return status

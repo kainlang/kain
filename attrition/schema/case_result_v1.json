@@ -15,7 +15,8 @@
     "passed",
     "baseline_snapshot",
     "final_snapshot",
-    "events"
+    "events",
+    "telemetry"
   ],
   "properties": {
     "schema_version": { "const": 1 },
@@ -25,6 +26,7 @@
     "seed": { "type": "integer", "minimum": 0 },
     "checksum": { "type": "integer", "minimum": 0 },
     "passed": { "type": "boolean" },
+    "telemetry": { "type": "object" },
     "events": {
       "type": "array",
       "items": {
