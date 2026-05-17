@@ -1,5 +1,46 @@
 # Kain Memory
 
+# 2026-05-17 - Process stdio loop collapsed to one-shot native output
+
+`process_stdio_loop` is no longer paying the old Kain process-object lifecycle and post-exit sleep tax on every iteration. The benchmark now uses a native `process_output_text(...)` ABI that matches Rust's `Command::output()` shape for this row: create/spawn/wait/drain/close happens inside one runtime call.
+
+What changed:
+
+- `runtime/native/src/core/process_system.c`
+  - Removed post-exit sleep flushing for normal non-PTY anonymous pipe capture. Exited non-PTY processes now drain deterministically with the existing pipe pump; the sleepy multi-attempt flush remains only for PTY.
+  - Added `abi_process_output_text(executable, arg0, arg1, arg2, timeout_ms)` as a one-shot stdout capture lane.
+  - Added local direct-arg construction and OS-resource cleanup helpers for the one-shot path.
+- `runtime/native/include/process_system.h` and `stdlib/process.kn`
+  - Exposed the native function-table entry and public `process_output_text(...)` wrapper.
+- `benchmark/cases/process_stdio_loop/main.kn`
+  - Replaced per-iteration spec/create/arg/spawn/wait/capture/close/destroy calls with the one-shot output call while preserving the checksum contract.
+
+Proof and validation:
+
+- `runtime/native/src/core/z3/proofs-experimental/process-exited-nonpty-flush-zero-sleeps.smt2`
+- Report: `z3/reports/20260517T224412Z-process-exited-nonpty-flush-zero-sleeps-final.json`
+- Result: `unsat`; an exited non-PTY flush cannot retain a positive sleep count.
+- Process proof lane: `uv run --project C:/Dev/polytools/z3-mcp --no-sync z3-mcp-batch --pack-path D:/Kain-Lang/runtime/native/src/core --lane process`
+- Result: 6 proved, 0 counterexamples, 0 unknown, 0 errors.
+- `toolchain/llvm/bin/clang.exe -fsyntax-only -Iruntime/native/include runtime/native/src/core/process_system.c`
+- `target/debug/kain.exe check benchmark/cases/process_stdio_loop/main.kn --target llvm`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_native_process_and_pty_primitives -- --exact`
+- `cargo test -p kain-sys-codegen --test c_codegen_test c_backend_keeps_native_process_symbols_as_declarations -- --exact`
+
+Measured result:
+
+- Focused compare report: `benchmark/out/reports/latest_process_stdio_fastpath_compare2.json`
+- Snapshot: `benchmark/latest_process_stdio_fastpath_compare2.md`
+- Previous Kain from `latest_fast`: `15781.2901 ms`.
+- New Kain median: `4423.8337 ms`.
+- Rust median: `4385.2509 ms`.
+- C++ median: `7082.8018 ms`.
+- Kain is now about `3.57x` faster than its previous process-stdio row, `1.60x` faster than C++, and only about `0.88%` behind Rust.
+
+Next process target:
+
+- Beat Rust outright by shaving the remaining one-shot overhead: command-line/UTF-16 construction, direct command/env template caching, and tighter pipe setup/close paths. Real async should not use current anonymous `CreatePipe` as an overlapped lane; Windows ignores overlapped parameters there, so the future async version needs named-pipe-backed handles or a different creation path.
+
 # 2026-05-17 - Native LLVM JSON builtins now link through json.c
 
 The native LLVM JSON builtin gap is closed for the core builtin surface: `json_parse`, `json_string`, `json_get`, `json_get_string`, `json_get_int`, `json_get_bool`, `json_has`, `json_object_new`, `json_object_set`, `json_array_new`, `json_array_push`, `json_array_len`, and `json_array_get`.

@@ -74,6 +74,13 @@ typedef struct KainNativeProcessFunctionTable {
     const char* (*pty_read_hex)(int64_t process_id);
     const char* (*pty_capture_text)(int64_t process_id);
     const char* (*pty_capture_hex)(int64_t process_id);
+    const char* (*output_text)(
+        const char* executable,
+        const char* arg0,
+        const char* arg1,
+        const char* arg2,
+        int64_t timeout_ms
+    );
     int64_t (*last_status)(void);
     const char* (*last_error_kind)(void);
     const char* (*last_error_message)(void);
@@ -126,6 +133,13 @@ const char* abi_process_pty_read_text(int64_t process_id);
 const char* abi_process_pty_read_hex(int64_t process_id);
 const char* abi_process_pty_capture_text(int64_t process_id);
 const char* abi_process_pty_capture_hex(int64_t process_id);
+const char* abi_process_output_text(
+    const char* executable,
+    const char* arg0,
+    const char* arg1,
+    const char* arg2,
+    int64_t timeout_ms
+);
 
 int64_t abi_process_last_status(void);
 const char* abi_process_last_error_kind(void);

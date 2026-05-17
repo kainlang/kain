@@ -124,6 +124,9 @@ fn abi_process_pty_capture_text(process_id: Int) -> String
 fn abi_process_pty_capture_hex(process_id: Int) -> String
 
 @extern
+fn abi_process_output_text(executable: String, arg0: String, arg1: String, arg2: String, timeout_ms: Int) -> String
+
+@extern
 fn abi_process_last_status() -> Int
 
 @extern
@@ -271,6 +274,9 @@ pub fn process_pty_capture_text(process_id: Int) -> String:
 
 pub fn process_pty_capture_hex(process_id: Int) -> String:
     return abi_process_pty_capture_hex(process_id)
+
+pub fn process_output_text(executable: String, arg0: String, arg1: String, arg2: String, timeout_ms: Int) -> String:
+    return abi_process_output_text(executable, arg0, arg1, arg2, timeout_ms)
 
 pub fn process_collect_output_until_exit(process_id: Int, timeout_ms: Int, poll_sleep_ms: Int) -> Int:
     let waited = 0

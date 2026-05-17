@@ -1388,15 +1388,18 @@ static int abi_process_wait_internal(
 
 static void abi_process_flush_exited_output(KainNativeProcessHandle* process) {
     int attempt;
+    if (process == 0 || !process->in_use) {
+        return;
+    }
+    if (!process->is_pty) {
+        return;
+    }
     for (attempt = 0; attempt < 8; attempt++) {
         unsigned char* primary_chunk = 0;
         unsigned char* secondary_chunk = 0;
         size_t primary_length = 0u;
         size_t secondary_length = 0u;
         int had_data = 0;
-        if (process == 0 || !process->in_use) {
-            return;
-        }
         if (!abi_process_pump_output(
                 process,
                 &primary_chunk,
@@ -1416,6 +1419,81 @@ static void abi_process_flush_exited_output(KainNativeProcessHandle* process) {
         }
         Sleep(15u);
     }
+}
+
+static int abi_process_spec_append_direct_arg(
+    KainNativeProcessSpec* spec,
+    const char* argument
+) {
+    if (spec == 0 || argument == 0) {
+        return 0;
+    }
+    if (spec->argument_count >= ABI_PROCESS_MAX_ARGUMENTS) {
+        return 0;
+    }
+    abi_process_copy(
+        spec->arguments[spec->argument_count],
+        sizeof(spec->arguments[spec->argument_count]),
+        argument
+    );
+    spec->argument_count += 1;
+    return 1;
+}
+
+static void abi_process_close_os_resources(KainNativeProcessHandle* process, int terminate_running_process) {
+#ifdef _WIN32
+    if (process == 0) {
+        return;
+    }
+    if (terminate_running_process && process->process_handle != 0 && !process->exited) {
+        TerminateProcess(process->process_handle, 1u);
+        WaitForSingleObject(process->process_handle, 250u);
+    }
+    if (process->stdin_write_handle != 0) {
+        CloseHandle(process->stdin_write_handle);
+        process->stdin_write_handle = 0;
+    }
+    if (process->stdout_read_handle != 0) {
+        CloseHandle(process->stdout_read_handle);
+        process->stdout_read_handle = 0;
+    }
+    if (process->stderr_read_handle != 0) {
+        CloseHandle(process->stderr_read_handle);
+        process->stderr_read_handle = 0;
+    }
+    if (process->pty_input_write_handle != 0) {
+        CloseHandle(process->pty_input_write_handle);
+        process->pty_input_write_handle = 0;
+    }
+    if (process->pty_output_read_handle != 0) {
+        CloseHandle(process->pty_output_read_handle);
+        process->pty_output_read_handle = 0;
+    }
+    if (process->pty_console_handle != 0) {
+        HMODULE kernel_module = GetModuleHandleW(L"kernel32.dll");
+        KainClosePseudoConsoleFn close_pseudo_console = 0;
+        if (kernel_module != 0) {
+            close_pseudo_console = (KainClosePseudoConsoleFn)GetProcAddress(kernel_module, "ClosePseudoConsole");
+        }
+        if (close_pseudo_console != 0) {
+            close_pseudo_console(process->pty_console_handle);
+        } else {
+            CloseHandle(process->pty_console_handle);
+        }
+        process->pty_console_handle = 0;
+    }
+    if (process->thread_handle != 0) {
+        CloseHandle(process->thread_handle);
+        process->thread_handle = 0;
+    }
+    if (process->process_handle != 0) {
+        CloseHandle(process->process_handle);
+        process->process_handle = 0;
+    }
+#else
+    (void)process;
+    (void)terminate_running_process;
+#endif
 }
 
 static int64_t abi_process_write_handle_bytes(
@@ -3077,6 +3155,157 @@ const char* abi_process_pty_capture_hex(int64_t process_id) {
     return abi_process_capture_hex_internal(process_id, 0);
 }
 
+const char* abi_process_output_text(
+    const char* executable,
+    const char* arg0,
+    const char* arg1,
+    const char* arg2,
+    int64_t timeout_ms
+) {
+    KainNativeProcessSpec spec;
+    KainNativeProcessHandle process;
+    unsigned char* stdout_chunk = 0;
+    unsigned char* stderr_chunk = 0;
+    size_t stdout_chunk_length = 0u;
+    size_t stderr_chunk_length = 0u;
+    const char* output = 0;
+    int exited = 0;
+    int attrition_live = 0;
+
+    if (abi_process_text_empty(executable)) {
+        abi_process_fail(
+            ABI_PROCESS_INVALID_ARGUMENT,
+            "invalid-argument",
+            "process output requires an executable"
+        );
+        return string_new("");
+    }
+
+    memset(&spec, 0, sizeof(spec));
+    memset(&process, 0, sizeof(process));
+    spec.in_use = 1;
+    spec.inherit_environment = 1;
+    spec.stdin_mode = ABI_PROCESS_STDIO_NULL;
+    spec.stdout_mode = ABI_PROCESS_STDIO_PIPE;
+    spec.stderr_mode = ABI_PROCESS_STDIO_PIPE;
+    abi_process_copy(spec.executable, sizeof(spec.executable), executable);
+    if (!abi_process_spec_append_direct_arg(&spec, arg0) ||
+        !abi_process_spec_append_direct_arg(&spec, arg1) ||
+        !abi_process_spec_append_direct_arg(&spec, arg2)) {
+        abi_process_fail(
+            ABI_PROCESS_INVALID_ARGUMENT,
+            "invalid-argument",
+            "process output currently requires three direct arguments"
+        );
+        return string_new("");
+    }
+
+    process.in_use = 1;
+    process.id = g_next_process_id++;
+    {
+        uint64_t live_count = atomic_fetch_add_explicit(
+                                  &g_attrition_process_live_count,
+                                  1u,
+                                  memory_order_relaxed) + 1u;
+        atomic_fetch_add_explicit(&g_attrition_process_spawn_count, 1u, memory_order_relaxed);
+        abi_process_attrition_update_peak(&g_attrition_process_peak_count, live_count);
+        attrition_live = 1;
+    }
+    kain_attrition_note_process_spawn((uint64_t)process.id);
+
+#ifdef _WIN32
+    if (abi_process_launch_standard_process(&spec, &process) != ABI_PROCESS_OK) {
+        output = string_new("");
+        goto cleanup;
+    }
+    if (!abi_process_wait_internal(&process, timeout_ms, &exited)) {
+        abi_process_fail(
+            ABI_PROCESS_IO_ERROR,
+            "wait",
+            "failed to wait for process output"
+        );
+        output = string_new("");
+        goto cleanup;
+    }
+    if (!exited) {
+        abi_process_fail(
+            ABI_PROCESS_TIMEOUT,
+            "timeout",
+            "process output timed out"
+        );
+        output = string_new("");
+        goto cleanup;
+    }
+    if (!abi_process_pump_output(
+            &process,
+            &stdout_chunk,
+            &stdout_chunk_length,
+            &stderr_chunk,
+            &stderr_chunk_length
+        )) {
+        abi_process_fail(
+            ABI_PROCESS_IO_ERROR,
+            "read",
+            "failed to drain process output"
+        );
+        output = string_new("");
+        goto cleanup;
+    }
+    free(stdout_chunk);
+    free(stderr_chunk);
+    stdout_chunk = 0;
+    stderr_chunk = 0;
+    abi_process_refresh_exit_state(&process);
+    if (!process.exited) {
+        abi_process_fail(
+            ABI_PROCESS_STILL_RUNNING,
+            "still-running",
+            "process output child did not report an exit code"
+        );
+        output = string_new("");
+        goto cleanup;
+    }
+    if (process.exit_code != 0) {
+        abi_process_fail(
+            ABI_PROCESS_SPAWN_FAILED,
+            "exit-code",
+            "process output child exited with a nonzero status"
+        );
+        output = string_new("");
+        goto cleanup;
+    }
+    output = abi_process_string_from_bytes(
+        process.stdout_capture.bytes,
+        process.stdout_capture.length
+    );
+    abi_process_ok();
+#else
+    (void)timeout_ms;
+    (void)stdout_chunk_length;
+    (void)stderr_chunk_length;
+    abi_process_fail(
+        ABI_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "process output is not implemented for this host yet"
+    );
+    output = string_new("");
+#endif
+
+cleanup:
+    free(stdout_chunk);
+    free(stderr_chunk);
+    abi_process_close_os_resources(&process, 0);
+    abi_process_capture_free(&process.stdout_capture);
+    abi_process_capture_free(&process.stderr_capture);
+    abi_process_capture_free(&process.pty_capture);
+    if (attrition_live) {
+        atomic_fetch_sub_explicit(&g_attrition_process_live_count, 1u, memory_order_relaxed);
+        atomic_fetch_add_explicit(&g_attrition_process_exit_count, 1u, memory_order_relaxed);
+        kain_attrition_note_process_exit((uint64_t)process.id);
+    }
+    return output ? output : string_new("");
+}
+
 int64_t abi_process_last_status(void) {
     return g_last_status;
 }
@@ -3131,6 +3360,7 @@ const KainNativeProcessFunctionTable g_kain_native_process_function_table = {
     abi_process_pty_read_hex,
     abi_process_pty_capture_text,
     abi_process_pty_capture_hex,
+    abi_process_output_text,
     abi_process_last_status,
     abi_process_last_error_kind,
     abi_process_last_error_message
