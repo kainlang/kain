@@ -1,5 +1,19 @@
 # Kain Memory
 
+# 2026-05-17 - SIMD lane mix 2x research found the algebraic win path
+
+Research note: `research/2026-05-17-simd-lane-mix-2x-cpp-research.md`.
+
+The next honest `simd_lane_mix` win should not fight C++ at the same repeated-dot operation count. The row has an affine-bias shape: `sum_i((left_i + b) * right_i) = sum_i(left_i * right_i) + b * sum_i(right_i)`. Because `left` and `right` are invariant across the 256 phases and only `b = phase % 13` changes, a native converge fast lane can compute one SIMD reduction for `base_dot` plus one SIMD reduction for `sum_right`, then fold all phases in scalar integer math.
+
+Proof artifact:
+
+- `runtime/native/src/core/z3/proofs-experimental/simd-affine-bias-dot-factorization.smt2`
+  - Report: `z3/reports/20260517T131833Z-simd-affine-bias-dot-factorization-saved.json`
+  - Result: `unsat`
+
+Measured baseline from `benchmark/out/reports/latest_simd_after.json`: Kain median `10.2215 ms`, C++ median `9.3086 ms`, Kain `1.098x` behind fastest. The factored path deletes `8,355,840` of the current `8,388,608` lane products, a work-shape reduction of about `254x` before AVX width. The practical implementation target is a generic ABI such as `runtime_simd_i32_domain_affine_bias_accumulate(...)` behind `converge`, not a benchmark-only constant return.
+
 # 2026-05-17 - Root stdlib gained a proof-backed hash domain and `kain run` path handling was hardened
 
 The stdlib assessment found a high-leverage missing pure data-integrity domain: deterministic target-neutral hashing/fingerprinting. The first new off-the-charts stdlib slice is now `std::hash`, backed by a proof blade and focused SMT checks.
