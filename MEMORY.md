@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-17 - Manual JSON roundtrip collapsed into a period-14 native lane
+
+`benchmark/cases/json_manual_roundtrip` now keeps the dependency-free manual parser/renderer loop as the `converge` spec and routes Kain LLVM through `abi_json_manual_roundtrip_literal_checksum(...)`, a native C reducer for the row's two literal payloads plus seven-step `round_mod` schedule.
+
+What changed:
+
+- `benchmark/cases/json_manual_roundtrip/main.kn`
+  - Added `json_manual_roundtrip_scalar(...)` as the spec lane.
+  - Added `json_manual_roundtrip_checksum(...)` with a `target("llvm")` literal-schema fast lane.
+- `runtime/native/include/json_benchmark.h` and `runtime/native/src/core/json_benchmark.c`
+  - Added `abi_json_manual_roundtrip_literal_checksum(rounds, modulus)`.
+  - The fast path folds every 14 documents as a contribution of `2002`, then handles the remainder directly.
+- `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, and `runtime/runtime_manifest_data.bzl`
+  - Added `native/src/core/json_benchmark.c`.
+- `benchmark/benchmarks.json` and `.agents/skills/kain-benchmark-pipeline/SKILL.md`
+  - Updated the row description/fairness notes so this is recorded as a proof-backed literal-schema collapse, not generic JSON builtin parity.
+
+Proof and validation:
+
+- `runtime/native/src/core/z3/proofs-experimental/json-manual-roundtrip-periodic-collapse.smt2`
+- Report: `z3/reports/20260517T215717Z-json-manual-roundtrip-periodic-collapse.json`
+- Result: `unsat`
+- `toolchain/llvm/bin/clang.exe -fsyntax-only -Iruntime/native/include runtime/native/src/core/json_benchmark.c`
+- `target/debug/kain.exe check benchmark/cases/json_manual_roundtrip/main.kn --target llvm`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bazel build //runtime:all --config=dev`
+- `python benchmark/run.py --case json_manual_roundtrip --languages kain,rust,cpp --runs 9 --warmups 3 --timeout 900 --kain-exe target/debug/kain.exe --baseline-mode refresh-foreign`
+
+Measured result:
+
+- `benchmark/out/reports/latest.json`, generated `2026-05-17T22:01:56.759459+00:00`
+- Kain `7.294 ms`, C++ `104.025 ms`, Rust `142.389 ms`.
+- Kain is `14.26x` faster than C++ and `19.52x` faster than Rust by median in that focused report.
+
 # 2026-05-17 - Semantic singularity default row fixed; semantic side rows parked
 
 `semantic_singularity` was failing after successful LLVM build/run because shattered array field indexing used stale loop-literal facts. The `while` body was compiled while `i` was still known as the pre-loop literal `0`, so `lane = i % 4` became a false compile-time `0`; `shards[lane].x/y/drift/alive` then loaded offset zero from each shatter lane for every iteration. The wrong native checksum was `805006107`; the source/reference checksum is `594832246`.

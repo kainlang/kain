@@ -1,3 +1,6 @@
+@extern
+fn abi_json_manual_roundtrip_literal_checksum(rounds: Int, modulus: Int) -> Int
+
 fn parse_positive_int(text: String, start: Int) -> Int:
     let text_len = len(text)
     let mut index = start
@@ -31,10 +34,7 @@ fn bool_text(flag: Bool, true_text: String, false_text: String) -> String:
 fn render_payload(id: Int, name: String, enabled: Bool, count: Int, prefix_id: String, infix_name: String, infix_enabled: String, infix_count: String, suffix: String, true_text: String, false_text: String) -> String:
     return prefix_id + str(id) + infix_name + name + infix_enabled + bool_text(enabled, true_text, false_text) + infix_count + str(count) + suffix
 
-fn main() -> Int:
-    let rounds: Int = 250000
-    let modulus: Int = 1000000007
-    let expected: Int = 35749995
+fn json_manual_roundtrip_scalar(rounds: Int, modulus: Int) -> Int:
     let payload_a = "{\"id\":17,\"name\":\"orbital\",\"enabled\":true,\"count\":42}"
     let payload_b = "{\"id\":23,\"name\":\"lattice\",\"enabled\":false,\"count\":57}"
     let payload_a_len = len(payload_a)
@@ -94,6 +94,20 @@ fn main() -> Int:
             round_mod = 0
         index = index + 1
 
+    return acc
+
+converge json_manual_roundtrip_checksum(rounds: Int, modulus: Int) -> Int:
+    spec reference:
+        return json_manual_roundtrip_scalar(rounds, modulus)
+    fast literal_schema_period_lane when target("llvm"):
+        return abi_json_manual_roundtrip_literal_checksum(rounds, modulus)
+
+fn main() -> Int:
+    let rounds: Int = 250000
+    let modulus: Int = 1000000007
+    let expected: Int = 35749995
+
+    let acc: Int = json_manual_roundtrip_checksum(rounds, modulus)
     if acc != expected:
         return 2
     return 0

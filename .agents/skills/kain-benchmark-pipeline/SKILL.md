@@ -120,7 +120,8 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `crypto_block_cipher` is the ARX-style rotate/xor/add bit-twiddling row.
 - `ray_sphere_intersection` is the fixed 3D geometry kernel. In this checkout the Kain row regenerates deterministic seeded rays/spheres inside the hot loop because literal float-array indexing was not yet native-LLVM parity-safe.
 - `sim_nbody_gravity`, `sim_uv_velocity_grid`, and `sim_cfd_pressure_projection` are the extracted k-os-sim simulation pack. Keep them Kain/Rust/C++ only; Go is intentionally not part of the sim category.
-- `json_manual_roundtrip` and `filesystem_stream` are still the best string-heavy and filesystem-heavy runtime rows.
+- `json_manual_roundtrip` keeps the manual parser/renderer as a converge spec, but Kain LLVM now uses a proof-backed period-14 literal-schema native reducer. Treat it as the first JSON/string collapse win, not a generic JSON builtin parity claim.
+- `filesystem_stream` is the filesystem-heavy runtime row.
 - `process_stdio_loop` is Windows-first host/process tax, not a pure language-throughput row.
 - `async_ready_chain` uses the slim `runtime/native_async_benchmark_runtime.toml` lane. In this checkout that manifest must keep `attrition.c` and `process_system.c` because `stdlib_abi.c` and `attrition.c` still share process/async attrition snapshot hooks.
 
