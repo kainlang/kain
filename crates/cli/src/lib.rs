@@ -7,6 +7,7 @@
 pub use kain_core::*;
 
 // CLI-specific modules
+pub mod amalgamate;
 pub mod blades;
 pub mod bridge;
 pub mod codebase;

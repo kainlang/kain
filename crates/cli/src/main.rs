@@ -1,6 +1,7 @@
 // KAIN Compiler CLI
 
 use clap::{CommandFactory, FromArgMatches};
+use cli::amalgamate;
 use cli::blades;
 use cli::codebase;
 use cli::fabric;
@@ -242,6 +243,11 @@ struct NativeRuntimeArchiver {
     command: String,
     flavor: NativeRuntimeArchiverFlavor,
     archive_ext: &'static str,
+}
+
+enum ResolvedBuildInput {
+    File(PathBuf),
+    Project(PathBuf),
 }
 
 fn parse_native_ui_host_kind(value: &str) -> Result<native_ui_build::NativeUiHostKind, String> {
@@ -1355,7 +1361,14 @@ fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&
             },
         }
     } else {
-        kain_check::check_path(input, &options)
+        let resolved_input = match resolve_check_input(input) {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!(" Check failed: {}", error);
+                return false;
+            }
+        };
+        kain_check::check_path(&resolved_input, &options)
     };
     if let Some(path) = json {
         if !write_structured_report(path, &report, "check") {
@@ -1379,6 +1392,36 @@ fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&
         }
     }
     report.is_success()
+}
+
+fn resolve_check_input(input: &Path) -> Result<PathBuf, String> {
+    match amalgamate::maybe_materialize_input(input)? {
+        Some(materialized) => {
+            if materialized.manifest_path.is_some() {
+                Ok(materialized.workspace_root)
+            } else if let Some(entry_path) = materialized.entry_path {
+                Ok(entry_path)
+            } else {
+                Err("capsule does not expose an entry file or KAIN.toml anchor".to_string())
+            }
+        }
+        None => Ok(input.to_path_buf()),
+    }
+}
+
+fn resolve_build_input(input: &Path) -> Result<ResolvedBuildInput, String> {
+    match amalgamate::maybe_materialize_input(input)? {
+        Some(materialized) => {
+            if materialized.manifest_path.is_some() {
+                Ok(ResolvedBuildInput::Project(materialized.workspace_root))
+            } else if let Some(entry_path) = materialized.entry_path {
+                Ok(ResolvedBuildInput::File(entry_path))
+            } else {
+                Err("capsule does not expose an entry file or KAIN.toml anchor".to_string())
+            }
+        }
+        None => Ok(ResolvedBuildInput::File(input.to_path_buf())),
+    }
 }
 
 fn run_test_command(
@@ -1952,6 +1995,44 @@ fn main() {
                         }
                     }
                 },
+                Some(Commands::Amalgamate {
+                    command,
+                    input,
+                    output,
+                    name,
+                    version,
+                    author,
+                    notes,
+                    tag,
+                    meta,
+                    archive,
+                    header,
+                    preview_symbols,
+                    compression,
+                    api_index,
+                    module_index,
+                }) => {
+                    if let Err(err) = amalgamate::run(
+                        command,
+                        input,
+                        output,
+                        name,
+                        version,
+                        author,
+                        notes,
+                        tag,
+                        meta,
+                        archive,
+                        header,
+                        preview_symbols,
+                        compression,
+                        api_index,
+                        module_index,
+                    ) {
+                        eprintln!(" Amalgamate failed: {}", err);
+                        std::process::exit(1);
+                    }
+                }
                 Some(Commands::Blades { command }) => {
                     if let Err(e) = blades::run(command) {
                         eprintln!(" Blades command failed: {}", e);
@@ -2046,13 +2127,39 @@ fn main() {
                     } else if r#rust {
                         match input {
                             Some(file) => {
-                                let mut options = kain_build::KainRustBuildOptions::new(file);
-                                options.output = output.clone();
-                                options.lane = lane;
-                                match kain_build::build_kain_rust_file(&options) {
-                                    Ok(report) => print_kain_build_report(&report),
-                                    Err(e) => {
-                                        eprintln!(" Rust build failed: {}", e);
+                                match resolve_build_input(&file) {
+                                    Ok(ResolvedBuildInput::File(file)) => {
+                                        let mut options = kain_build::KainRustBuildOptions::new(file);
+                                        options.output = output.clone();
+                                        options.lane = lane;
+                                        match kain_build::build_kain_rust_file(&options) {
+                                            Ok(report) => print_kain_build_report(&report),
+                                            Err(e) => {
+                                                eprintln!(" Rust build failed: {}", e);
+                                                std::process::exit(1);
+                                            }
+                                        }
+                                    }
+                                    Ok(ResolvedBuildInput::Project(project_root)) => {
+                                        if output.is_some() {
+                                            eprintln!(
+                                                " Rust build failed: -o/--output is not supported when building a project capsule"
+                                            );
+                                            std::process::exit(1);
+                                        }
+                                        let mut options =
+                                            kain_build::KainProjectBuildOptions::new(project_root);
+                                        options.rust_only = true;
+                                        options.lane = lane;
+                                        if let Err(e) = kain_build::build_kain_project(&options)
+                                            .map(|report| print_kain_build_report(&report))
+                                        {
+                                            eprintln!(" Build failed: {}", e);
+                                            std::process::exit(1);
+                                        }
+                                    }
+                                    Err(error) => {
+                                        eprintln!(" Rust build failed: {}", error);
                                         std::process::exit(1);
                                     }
                                 }
@@ -2074,25 +2181,58 @@ fn main() {
                     } else {
                         match input {
                             Some(file) => {
-                                let target_alias =
-                                    target.as_deref().unwrap_or(args.target.as_str());
-                                let Some(resolved_target) = parse_compile_target(target_alias)
-                                else {
-                                    eprintln!(
-                                        " Unknown target: {}. Use: {}",
-                                        target_alias,
-                                        supported_targets_csv()
-                                    );
-                                    std::process::exit(1);
-                                };
-                                let mut options =
-                                    kain_build::KainFileBuildOptions::new(file, resolved_target);
-                                options.output = output.clone();
-                                options.lane = lane;
-                                match kain_build::build_kain_file(&options) {
-                                    Ok(report) => print_kain_build_report(&report),
-                                    Err(e) => {
-                                        eprintln!(" Build failed: {}", e);
+                                match resolve_build_input(&file) {
+                                    Ok(ResolvedBuildInput::File(file)) => {
+                                        let target_alias =
+                                            target.as_deref().unwrap_or(args.target.as_str());
+                                        let Some(resolved_target) =
+                                            parse_compile_target(target_alias)
+                                        else {
+                                            eprintln!(
+                                                " Unknown target: {}. Use: {}",
+                                                target_alias,
+                                                supported_targets_csv()
+                                            );
+                                            std::process::exit(1);
+                                        };
+                                        let mut options =
+                                            kain_build::KainFileBuildOptions::new(file, resolved_target);
+                                        options.output = output.clone();
+                                        options.lane = lane;
+                                        match kain_build::build_kain_file(&options) {
+                                            Ok(report) => print_kain_build_report(&report),
+                                            Err(e) => {
+                                                eprintln!(" Build failed: {}", e);
+                                                std::process::exit(1);
+                                            }
+                                        }
+                                    }
+                                    Ok(ResolvedBuildInput::Project(project_root)) => {
+                                        if output.is_some() {
+                                            eprintln!(
+                                                " Build failed: -o/--output is not supported when building a project capsule"
+                                            );
+                                            std::process::exit(1);
+                                        }
+                                        let target_overrides = if let Some(single_target) = target {
+                                            Some(vec![single_target])
+                                        } else {
+                                            targets.clone()
+                                        };
+                                        let mut options =
+                                            kain_build::KainProjectBuildOptions::new(project_root);
+                                        options.target_overrides = target_overrides;
+                                        options.lane = lane;
+                                        match kain_build::build_kain_project(&options) {
+                                            Ok(report) => print_kain_build_report(&report),
+                                            Err(e) => {
+                                                eprintln!(" Build failed: {}", e);
+                                                std::process::exit(1);
+                                            }
+                                        }
+                                    }
+                                    Err(error) => {
+                                        eprintln!(" Build failed: {}", error);
                                         std::process::exit(1);
                                     }
                                 }

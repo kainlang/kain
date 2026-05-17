@@ -1,0 +1,8 @@
+const CAPSULE_ALPHA: Int = 11
+
+struct CapsuleStamp:
+    digest: String
+    files: Int
+
+fn capsule_index_bias() -> Int:
+    return CAPSULE_ALPHA

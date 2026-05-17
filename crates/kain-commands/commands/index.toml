@@ -23,6 +23,10 @@ id = "import"
 path = "import.toml"
 
 [[packs]]
+id = "amalgamate"
+path = "amalgamate.toml"
+
+[[packs]]
 id = "unreal"
 path = "unreal.toml"
 

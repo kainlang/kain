@@ -1,0 +1,33 @@
+[package]
+name = "amalgamate-capsule-probe"
+version = "0.1.0"
+description = "Portable Kain capsule dogfood blade for pack, inspect, unpack, and transparent run/build/check routing."
+
+[blade]
+name = "amalgamate-capsule-probe"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "kain"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/archive_index.kn",
+  "config/capsule_note.txt",
+  "native/capsule_probe.h",
+]

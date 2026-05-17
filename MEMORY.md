@@ -1,5 +1,301 @@
 # Kain Memory
 
+# 2026-05-17 - Capsules now default to editable inline file blocks while archive mode is explicit
+
+The portable capsule lane moved from archive-first to editable-first. `kain amalgamate <path> -o artifact.kn` now emits an inline editable capsule by default, while `--archive` preserves the earlier sealed compressed payload form.
+
+What changed:
+
+- `crates/kain-amalgamate`
+  - Added `storage = "editable" | "archive"` capsule metadata.
+  - Editable capsules now render one `//!kain-file` block per preserved file, keeping UTF-8 text inline and only base64-wrapping binary payloads.
+  - Archive capsules keep the compressed `//!kain-capsule-payload` path and remain strict about payload/hash validation.
+  - Editable capsule reads now refresh digest, directory inventory, file count, and module count from the actual inline file blocks so hand edits do not brick the artifact.
+- `crates/kain-commands` and `crates/cli`
+  - Added `--archive` to the `kain amalgamate` typed command surface.
+  - `amalgamate inspect` now reports `storage` and only prints `compression` for archive capsules.
+- Docs and the repo-local capsule skill
+  - Updated the operator story to describe editable-by-default capsules and archive as an explicit transport mode.
+
+Validation:
+
+- `cargo check -p kain-amalgamate -p kain-commands -p cli --target-dir target\\codex-kain-capsules-editable`
+- `cargo test -p kain-commands --target-dir target\\codex-kain-capsules-editable`
+- `cargo build -p cli --target-dir target\\codex-kain-capsules-editable`
+- `target\\codex-kain-capsules-editable\\debug\\kain.exe amalgamate blades\\amalgamate-capsule-probe -o D:\\Kain-Lang\\target\\capsule-editable-rel.kn --preview-symbols 8`
+- `target\\codex-kain-capsules-editable\\debug\\kain.exe run D:\\Kain-Lang\\target\\capsule-editable-rel.kn`
+- Hand-edited the generated editable capsule inline without refreshing its embedded hashes, then re-ran:
+  - `target\\codex-kain-capsules-editable\\debug\\kain.exe amalgamate inspect D:\\Kain-Lang\\target\\capsule-editable-rel.kn`
+  - `target\\codex-kain-capsules-editable\\debug\\kain.exe run D:\\Kain-Lang\\target\\capsule-editable-rel.kn`
+- `target\\codex-kain-capsules-editable\\debug\\kain.exe amalgamate D:\\Kain-Lang\\blades\\amalgamate-capsule-probe -o D:\\Kain-Lang\\target\\capsule-archive-abs.kn --archive --preview-symbols 6`
+- `target\\codex-kain-capsules-editable\\debug\\kain.exe amalgamate inspect D:\\Kain-Lang\\target\\capsule-archive-abs.kn`
+
+Durable lessons:
+
+- The default artifact should optimize for human and LLM editing, not sealed transport.
+- Editable capsules can keep integrity metadata in the file, but that metadata must be treated as advisory and content-derived on read.
+- Archive capsules are the right place for strict hash enforcement, compression, signing, and future encryption.
+- Relative input plus absolute output pathing already works cleanly through the typed `PathBuf` CLI surface for `kain amalgamate`.
+
+# 2026-05-17 - Benchmark stdlib drift was repaired after the root stdlib consolidation
+
+The benchmark lane had a real post-`stdlib/native` cleanup drift window: several Kain benchmark rows still relied on ambient legacy names or on slim runtime manifests that no longer matched the current native runtime dependency graph. The focused Kain-only repair pass brought the affected rows back to green without changing benchmark algorithms or checksums.
+
+What changed:
+
+- Kain benchmark source rows now explicitly import the root stdlib domains they use instead of assuming deleted `stdlib/native/*` ambient surfaces:
+  - `use std::runtime`
+  - `use std::intent`
+  - `use std::actor`
+  - `use std::net`
+  - `use std::process`
+  - `use std::fs`
+  - `use std::graphics`
+- The following benchmark rows were updated to the canonical public root aliases and verified again:
+  - `actor_mailbox_erlang`
+  - `async_ready_chain`
+  - `filesystem_stream`
+  - `gpu_graphics_submit`
+  - `http_server_concurrency`
+  - `http_server_frameworks`
+  - `process_stdio_loop`
+  - `quantumerlang`
+  - `semantic_singularity`
+  - `semantic_singularity_actor_only`
+  - `semantic_singularity_converge_only`
+  - `semantic_singularity_crucible`
+  - `semantic_singularity_no_actor`
+  - `semantic_singularity_no_entangle`
+  - `semantic_singularity_no_patch`
+  - `semantic_singularity_shatter_only`
+  - `tcp_loopback_tokio`
+- `stdlib/process.kn`
+  - Now imports `std::time` and uses `sleep_millis(...)` in the polling wait helper instead of relying on the old ambient `native_sleep_millis` name.
+- `runtime/native_async_benchmark_runtime.toml`
+  - Now includes `native/src/core/attrition.c` and `native/src/core/process_system.c`.
+  - This is required because `stdlib_abi.c` still routes runtime init/shutdown and async bookkeeping through attrition capture, and `attrition.c` now expects the process attrition snapshot/reset hooks provided by `process_system.c`.
+
+Validation:
+
+- `python benchmark/run.py --case actor_mailbox_erlang,async_ready_chain,filesystem_stream,gpu_graphics_submit,http_server_concurrency,http_server_frameworks,process_stdio_loop,quantumerlang,semantic_singularity,semantic_singularity_actor_only,semantic_singularity_converge_only,semantic_singularity_crucible,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,tcp_loopback_tokio --languages kain --runs 1 --warmups 0 --timeout 900`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `benchmark/latest.md` reached `status: PASS` at `2026-05-17T10:17:51.082462+00:00` for that focused repaired set.
+
+Durable lessons:
+
+- Kain benchmark `.kn` files should use explicit root-domain imports. Do not rely on ambient `native_*` names surviving stdlib cleanup.
+- Prefer the public root aliases (`runtime_init`, `runtime_shutdown`, `law_status`, `patch_journal_count`, `entangle_propagation_count`, `converge_mismatch_count`, `actor_spawn`, `graphics_*`) in benchmark source unless the row is intentionally exercising a lower-level surface.
+- If a slim benchmark runtime manifest keeps `stdlib_abi.c` and `async.c`, inspect attrition transitive dependencies before trimming sources. In the current checkout the async benchmark lane is not self-contained without `attrition.c` plus `process_system.c`.
+
+# 2026-05-17 - Benchmark runner now reuses cached foreign baselines so Kain inner-loop runs stay fast
+
+The benchmark pipeline no longer assumes every optimization pass needs a full cross-language rerun. `benchmark/run.py` now has an explicit foreign-baseline cache so the common inner loop can rerun Kain fresh while reusing Rust/C++/Zig/Go/Erlang/JavaScript/Python results when their cache key still matches.
+
+What changed:
+
+- `benchmark/run.py`
+  - Added `--baseline-mode` with:
+    - `auto` (default): if Kain is in the selected language set, rerun Kain and reuse matching foreign baselines
+    - `reuse-foreign`: reuse matching foreign baselines even on foreign-only runs
+    - `refresh-foreign`: force a true foreign rerun and rewrite the baseline cache
+    - `off`: disable the foreign baseline cache entirely
+  - Added baseline cache artifacts under `benchmark/out/baselines/<case>/<language>.json`.
+  - Cache keys now fingerprint:
+    - machine identity
+    - tool binary identity
+    - workload/source tree
+    - build flags and manifest-driven build shape
+    - warmup/run counts
+  - Reports and root snapshots now surface `baseline_mode` plus hit/refresh/miss counts, and case details say whether each foreign lane was a cache hit or a fresh refresh.
+- `benchmark/.gitignore`
+  - Now ignores `out/baselines/` so the cache does not dirty the worktree.
+- `benchmark/README.md`, `.agents/skills/kain-benchmark-pipeline/SKILL.md`, and `ARCHITECTURE.md`
+  - Updated the operator guidance so future agents know the dev-loop default is cached foreign baselines and the audit-loop escape hatch is `--baseline-mode refresh-foreign`.
+
+Validation:
+
+- `python -m py_compile benchmark/run.py benchmark/run_fast.py benchmark/run_sim.py benchmark/run_wrapper.py`
+- `python benchmark/run.py --case scalar_mix,branch_dispatch,native_map_lookup --runs 1 --warmups 0 --timeout 900 --latest-stem latest_cache_probe --minimal-name latest_cache_probe.md`
+- Re-ran the same cache probe immediately:
+  - first pass wall time: about `6.9s`
+  - second pass wall time: about `2.7s`
+  - second report showed `baseline_cache_hits = 12`
+- `python benchmark/run.py --case scalar_mix --runs 1 --warmups 0 --timeout 900 --baseline-mode refresh-foreign --latest-stem latest_cache_refresh_probe --minimal-name latest_cache_refresh_probe.md`
+  - report showed `baseline_cache_refreshed = 4`
+
+Durable lessons:
+
+- Benchmarking has two valid modes now:
+  - dev loop: `auto`
+  - audit/publication loop: `refresh-foreign`
+- If a benchmark run suddenly becomes slow again, inspect the root snapshot first. If `baseline_cache_hits` dropped to `0`, the run either changed workload/tool/machine shape or bypassed the cache mode on purpose.
+- This baseline cache is for non-Kain lanes only. If Kain is under active LLVM/runtime work, the suite should keep recompiling and rerunning Kain so regressions are not hidden behind stale local binaries.
+
+# 2026-05-17 - Canonical root stdlib math now validates on the Bazel-backed native LLVM lane
+
+The new root `stdlib/math.kn` is now proven through the live Bazel-backed `kain` binary, not just by source inspection. The key blockers were not inside the math library itself so much as in the frontend stdlib import bundle and LLVM builtin lowering.
+
+What changed:
+
+- `crates/kain-driver/src/lib.rs`
+  - Stopped prepending the entire root stdlib source blob into frontend bundles for native builds.
+  - Frontend bundling now materializes only the imported stdlib modules plus a tiny ambient native prelude (`runtime` and `actor`) so `use std::math` no longer drags unrelated root modules like `stdlib/gen_server.kn` into every native compile.
+  - Added focused driver tests proving imported stdlib modules materialize without whole-root slurp and that typed frontend programs see imported `std::math` items.
+- `stdlib/math.kn`
+  - Added the canonical root math surface for vectors, quaternions, matrices, affine transforms, GPU layout wrappers, bounds/intersections, curves, color math, packing, and procedural noise.
+  - Replaced root builtin `min` / `max` / `clamp` dependencies with math-local helpers and direct tuple constructors so the canonical math surface no longer depends on stale builtin numeric metadata.
+  - Flattened `frustum_vs_aabb` away from array-of-struct plane iteration because the current LLVM lane mis-lowered `Plane` array element field access.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Native LLVM now lowers numeric `abs`, `min`, `max`, and `clamp` by the actual compiled operand types instead of trusting the one-entry stdlib function map.
+  - Float `abs` no longer becomes `call i64 @abs(double ...)` plus `sitofp`; it is now emitted as native float compare/select math.
+  - Added a focused LLVM regression test proving float builtins do not route through integer `abs/min/max/clamp` signatures.
+- `blades/math-domains`
+  - The blade now checks, compiles, links, and runs successfully on the Bazel-backed native LLVM lane.
+
+Validation:
+
+- `cargo test -p kain-driver frontend_source_bundle_materializes_imported_stdlib_modules_without_whole_root_slurp --target-dir target\codex-stdlib-driver -- --nocapture`
+- `cargo test -p kain-driver frontend_to_typed_program_includes_imported_stdlib_module_items --target-dir target\codex-stdlib-driver -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_registers_nested_module_const_values --target-dir target\codex-float-builtins -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_named_vec_fields_and_tuple_alias_access --target-dir target\codex-float-builtins -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_numeric_builtins_with_float_operands_without_int_abs_calls --target-dir target\codex-float-builtins -- --nocapture`
+- `powershell -ExecutionPolicy Bypass -File .\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry blades\math-domains\src\main.kn -OutputName math-domains.exe -VerifyLlvm -Run`
+- `bazel build //:kain --config=dev`
+
+Durable lessons:
+
+- When `stdlib/` is the canonical authored surface, native frontend bundling must import only requested modules. Whole-root stdlib concatenation turns unrelated legacy modules into compile blockers.
+- The current LLVM function table stores one signature per stdlib name. Any numeric builtin that is semantically polymorphic at runtime (`abs`, `min`, `max`, `clamp`) must be lowered from operand types, not from the stale single-signature metadata entry.
+- If a canonical stdlib module seems broken only in the full blade but not in tiny probes, inspect ambient builtins and import bundling before rewriting the library math.
+
+# 2026-05-17 - Amalgamate should be a capsule workspace lane, not an import lane
+
+Frontier design work around "portable codebases luggable in one `.kn` file" converged on a strong boundary: this should live in `crates/kain-amalgamate`, not inside `kain-import`.
+
+Durable decision:
+
+- `kain-import` owns semantic translation from foreign languages into Kain IR.
+- `kain-amalgamate` should own transport, schema, compression, integrity, and materialization of whole blades/workspaces into a single `.kn` carrier artifact.
+
+Why this survived:
+
+- Real blades such as `blades/pong` and `blades/kain-labs` are not just source files. They depend on `KAIN.toml`, `native/` headers/C files/shaders, config manifests, build tasks, and `c_ffi` metadata.
+- `crates/kain-blades` and `crates/kain-build` already know how to discover and build that tree. The cheapest truthful design is to materialize a capsule back into a normal workspace and reuse those systems.
+- `crates/cli/src/import_rust.rs` already proves the operator model can distinguish bundle mode from mirrored-blades mode. An amalgamate CLI should borrow that shape rather than inventing a one-off.
+
+Current thesis:
+
+- `kain amalgamate <path> -o artifact.kn` should pack a blade/workspace into a `.kn` capsule.
+- `kain run/build/check artifact.kn` should detect the capsule, materialize it under `.kain/cache/amalgamate/<digest>/`, and then hand off to normal workspace discovery.
+- Optional adapter generation belongs behind flags such as `--generate-adapters`; preservation of original sources is the default.
+
+Proof artifact:
+
+- `z3/reports/20260517T081310Z-amalgamate-capsule-layout-three-file-nonoverlap.json` proved a representative payload-table non-overlap invariant with `unsat`. This is the seed proof for the capsule blob layout math.
+
+Research artifact:
+
+- `research/2026-05-17-kain-amalgamate-capsule.md` carries the hypothesis lattice, evidence, and next experiment list.
+
+Recommended next step:
+
+- Build a proof spike that packs/unpacks `blades/network-domains`, then `blades/pong`, before touching direct compiler syntax. If those survive via materialize-and-delegate, the feature has the right seam.
+
+# 2026-05-17 - KAIN capsule v1 is now a live CLI, cache, and dogfood lane
+
+The capsule plan is no longer only a design note. `kain amalgamate` now exists as a first-class operator surface and the normal `run` / `build` / `check` commands can transparently consume capsule `.kn` artifacts.
+
+What changed:
+
+- `crates/kain-amalgamate`
+  - Added the v1 capsule format, metadata parsing, preview/header generation, payload digests, pack/inspect/unpack helpers, and digest-scoped materialization under `.kain/cache/amalgamate/<digest>/workspace`.
+  - Kept the artifact comment-safe and text-first: generated header comments, `//!kain-capsule` metadata, and `//!kain-capsule-payload` base64 payload.
+- `crates/kain-commands` and `crates/cli`
+  - Added `kain amalgamate`, `kain amalgamate inspect`, and `kain amalgamate unpack`.
+  - Wired `kain run`, `kain build`, and `kain check` through capsule detection plus materialize-and-delegate behavior.
+  - Preserved the boundary where `kain-run`, `kain-build`, and blade/workspace discovery remain the execution truth after materialization.
+- `blades/amalgamate-capsule-probe`
+  - Added a real dogfood blade with `KAIN.toml`, `src/`, `config/`, and `native/` payloads so the capsule lane proves whole-workspace preservation rather than only single-file pack/unpack.
+- Repo operator docs and skills
+  - Updated architecture/CLI docs and added a repo-local capsule skill for future agents.
+
+Validation:
+
+- `cargo check -p kain-amalgamate -p kain-commands -p cli`
+- `cargo test -p kain-commands`
+- `target\debug\kain.exe amalgamate blades\amalgamate-capsule-probe -o blades\amalgamate-capsule-probe\.kain\capsules\amalgamate-capsule-probe.kn --author "Taylor Kipp" --meta license=MIT --note "portable archive dogfood" --preview-symbols 8`
+- `target\debug\kain.exe amalgamate inspect blades\amalgamate-capsule-probe\.kain\capsules\amalgamate-capsule-probe.kn`
+- `target\debug\kain.exe amalgamate unpack blades\amalgamate-capsule-probe\.kain\capsules\amalgamate-capsule-probe.kn -o blades\amalgamate-capsule-probe\.kain\unpacked`
+- `target\debug\kain.exe check blades\amalgamate-capsule-probe\.kain\capsules\amalgamate-capsule-probe.kn --target llvm`
+- `target\debug\kain.exe run blades\amalgamate-capsule-probe\.kain\capsules\amalgamate-capsule-probe.kn`
+- `target\debug\kain.exe build blades\amalgamate-capsule-probe\.kain\capsules\amalgamate-capsule-probe.kn`
+
+Proof artifacts:
+
+- `z3/reports/20260517T081310Z-amalgamate-capsule-layout-three-file-nonoverlap.json`
+- `z3/reports/20260517T093524Z-amalgamate-path-depth-nonnegative.json`
+
+Durable lessons:
+
+- Treat capsules as transport and preservation, not as an import lane. Foreign/native files should survive verbatim.
+- Keep the machine-truth metadata in the sentinel block and generate the human header from it. Hand-maintained preview headers will drift.
+- Root-level `kain check <blade-root>` can still see local `.kain` `.kn` copies, so unpacked capsule probes inside a blade root are validation noise unless removed or isolated.
+- `kain-run` still only accepts manifest `[run].target` values `auto|kain|c|cargo|fabric|node|bun`. The capsule probe uses `target = "kain"` for `run` validation even though `check` and `build` smoke the LLVM lane separately.
+
+Recommended next step:
+
+- Dogfood the same pack/materialize/delegate flow on `blades/network-domains`, then `blades/pong`, and decide whether manifest `run.target = "llvm"` should become a real `kain-run` target or stay outside the immediate-execution lane.
+
+# 2026-05-17 - Benchmark pipeline gained a first-class optional Zig lane in the main suite
+
+The main benchmark runner is no longer limited to Kain/Rust/C++/Go/Erlang/JavaScript/Python. Zig is now a first-class optional language in `benchmark/run.py`, so future comparisons do not need to live only in the dedicated FFI boundary lane.
+
+What changed:
+
+- `benchmark/run.py`
+  - Added `zig` to the main `LANGUAGE_ORDER`, labels, source-key resolution, CLI parsing, toolchain report, and build dispatch.
+  - Added `--zig` / `ZIG` support and a direct `zig build-exe -O ReleaseFast` build path for dependency-free `main.zig` rows.
+- `benchmark/benchmarks.json`
+  - Added the first Zig-backed comparison pack to:
+    - `contention_wall`
+    - `branch_dispatch`
+    - `call_chain`
+    - `native_map_lookup`
+    - `zero_copy_binary_wire`
+- `benchmark/cases/*/main.zig`
+  - Added dependency-free Zig implementations aligned to the existing benchmark checksums for those four rows.
+- `benchmark/README.md`, `.agents/skills/kain-benchmark-pipeline/SKILL.md`, `benchmark/blades/kain-benchmark/src/catalog.kn`, and `ARCHITECTURE.md`
+  - Updated the operator and durable architecture surfaces so the new language lane is visible in docs and the benchmark blade language inventory.
+
+Durable lessons:
+
+- Keep Zig in the same manifest-driven extension model as every other language. New Zig rows should usually be just `main.zig` plus a manifest path entry, not new runner branches.
+- The dedicated `benchmark/ffi_boundary/` Zig rows are still the boundary-overhead truth lane; the main suite Zig pack is for language-to-language workload comparisons.
+
+# 2026-05-17 - Root stdlib is now the single canonical stdlib for authored and native Kain
+
+The repo no longer keeps two live copies of the native-facing stdlib domains. `stdlib/` is now the single canonical on-disk stdlib surface for both public `std.*` imports and LLVM/direct-C native target loading.
+
+What changed:
+
+- `stdlib/fs.kn` and `stdlib/runtime.kn`
+  - Promoted the newer native implementations into the root canonical files so root `std::fs` and `std::runtime` carry the current ABI-backed surface, including the attrition/runtime helpers and len-aware filesystem writes.
+- `crates/kain-core/src/stdlib.rs`
+  - Native target profile order now loads the root stdlib directly for `CompileTarget::Llvm` and root plus `stdlib/c` for `CompileTarget::C`.
+  - Kept `KAIN_STDLIB_PROFILE=native` working as a compatibility alias that resolves to the root stdlib path instead of requiring a second `stdlib/native` directory on disk.
+- `crates/kain-core/src/module_resolution.rs`
+  - `use std::native::foo` now resolves to the same root `stdlib/foo.kn` file instead of a second native folder, so old imports can still parse while the repo carries only one real stdlib tree.
+- `blades/kain-actor-kit`, `blades/kain-http`, and `blades/kain-process-kit`
+  - Moved repo-authored library blades off `std::native::*` and onto canonical root imports.
+- `stdlib/native/`
+  - Deleted the old duplicate tree after promoting the drifted files and rewiring native target loading.
+
+Durable lessons:
+
+- If `use std::foo` and native target prelude loading point at different files, stdlib drift is guaranteed. Keep authored imports and target loading on the same root modules.
+- Compatibility aliases are acceptable for old `std::native::*` imports, but the compatibility path must never reintroduce a second live stdlib copy on disk.
+- When native stdlib behavior changes, update the root `stdlib/*.kn` files first. `stdlib/c` is now the only target-specific overlay that should remain beside the canonical root.
+
 # 2026-05-17 - Attrition telemetry grew into a real diagnostic surface, not just a pass/fail bit
 
 The attrition pipeline can now explain runtime failures with a lot more structure than “closure drifted.” The source of truth is still internal runtime counters, but the snapshots, Kain runtime-capture JSON, and runner-derived reports are now wide enough that a failing lane points at the shape of the leak instead of only saying red/green.

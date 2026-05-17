@@ -14,6 +14,13 @@ pub fn make_request(
     keep_artifacts: bool,
     dry_run: bool,
 ) -> Result<RunRequest, String> {
+    let input = match input {
+        Some(path) => match crate::amalgamate::maybe_materialize_input(&path)? {
+            Some(materialized) => Some(materialized.runnable_input().map_err(|err| err.to_string())?),
+            None => Some(path),
+        },
+        None => None,
+    };
     let target = RunTarget::parse(&target).map_err(|err| err.to_string())?;
     Ok(RunRequest::new(input)
         .with_mode(mode)

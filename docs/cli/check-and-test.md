@@ -11,6 +11,7 @@ They are backed by reusable crates instead of CLI-only code:
 
 ```powershell
 kain check path\to\file.kn
+kain check path\to\portable_capsule.kn --target llvm
 kain check path\to\suite --target rust --fail-fast --json target\check-report.json
 Get-Content path\to\file.kn | kain check -
 
@@ -28,7 +29,11 @@ kn test smoketest\kain-test
 
 ## Check Pipeline
 
-`kain check` discovers `.kn` and `.ks` files, skips generated/build folders, and runs the normal Kain frontend for the selected target without emitting backend artifacts.
+`kain check` discovers `.kn` and `.ks` files and runs the normal Kain frontend
+for the selected target without emitting backend artifacts. If the input is a
+capsule `.kn` file created by `kain amalgamate`, the CLI materializes it under
+`.kain/cache/amalgamate/<digest>/workspace` first and then checks the extracted
+entry or workspace tree.
 
 The check report records:
 
@@ -41,6 +46,10 @@ The check report records:
 - frontend error text when checking fails
 
 Use `--target` when the same source needs to be checked against a specific backend profile. The default is `run`, matching the interpreter-oriented local authoring loop.
+
+The current tree walk can still see local `.kn` files under `.kain` if they sit
+beneath the chosen root. Keep unpacked capsule probes or other generated Kain
+source out of the checked blade root when you want a clean directory-wide pass.
 
 ## Test Modes
 

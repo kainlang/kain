@@ -19,6 +19,7 @@ path = "src/bin/blade.rs"
 [dependencies]
 kain-core = { path = "../kain-core" }
 blade = { path = "../kain-blades" }
+kain-amalgamate = { path = "../kain-amalgamate" }
 kain-build = { path = "../kain-build" }
 kain-check = { path = "../kain-check" }
 kain-test = { path = "../kain-test" }

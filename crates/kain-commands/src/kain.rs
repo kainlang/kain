@@ -9,6 +9,29 @@ use crate::repair::DoctorRepairArgs;
 use crate::selfhost::SelfHostCommand;
 
 #[derive(Subcommand, Debug)]
+pub enum AmalgamateCommand {
+    /// Inspect a Kain capsule and print its metadata, file inventory, and symbol index
+    Inspect {
+        /// Capsule artifact path
+        input: PathBuf,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Unpack a Kain capsule into a directory tree
+    Unpack {
+        /// Capsule artifact path
+        input: PathBuf,
+
+        /// Output directory (defaults to <capsule>.unpacked)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 pub enum RunCommand {
     /// Launch a run plan and keep re-running when inputs change
     Dev {
@@ -474,6 +497,67 @@ pub enum KainCommand {
     Import {
         #[command(subcommand)]
         command: ImportCommand,
+    },
+
+    /// Pack, inspect, and unpack portable Kain source capsules
+    Amalgamate {
+        #[command(subcommand)]
+        command: Option<AmalgamateCommand>,
+
+        /// Input file or directory when packing a capsule
+        input: Option<PathBuf>,
+
+        /// Output capsule path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Override the capsule display name
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Override the capsule version label
+        #[arg(long)]
+        version: Option<String>,
+
+        /// Repeatable author field
+        #[arg(long)]
+        author: Vec<String>,
+
+        /// Repeatable free-form note
+        #[arg(long = "note")]
+        notes: Vec<String>,
+
+        /// Repeatable tag
+        #[arg(long)]
+        tag: Vec<String>,
+
+        /// Repeatable arbitrary metadata key=value
+        #[arg(long = "meta")]
+        meta: Vec<String>,
+
+        /// Store a compressed archive payload instead of inline editable file blocks
+        #[arg(long)]
+        archive: bool,
+
+        /// Header rendering mode: minimal, rich, or off
+        #[arg(long, default_value = "rich")]
+        header: String,
+
+        /// Maximum number of preview symbols rendered in the header
+        #[arg(long = "preview-symbols", default_value_t = 40)]
+        preview_symbols: usize,
+
+        /// Payload compression mode: zstd or none
+        #[arg(long, default_value = "zstd")]
+        compression: String,
+
+        /// Public API preview index mode: auto or off
+        #[arg(long = "api-index", default_value = "auto")]
+        api_index: String,
+
+        /// Module preview index mode: auto or off
+        #[arg(long = "module-index", default_value = "auto")]
+        module_index: String,
     },
 
     /// Resolve and inspect local Kain blade workspaces
@@ -991,6 +1075,76 @@ mod tests {
                 assert!(dry_run);
             }
             other => panic!("expected watch command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_amalgamate_pack_command() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "amalgamate",
+            "./capsule-probe",
+            "-o",
+            "capsule.kn",
+            "--header",
+            "rich",
+            "--preview-symbols",
+            "16",
+        ]);
+        match cli.command {
+            Some(KainCommand::Amalgamate {
+                command: None,
+                input,
+                output,
+                archive,
+                header,
+                preview_symbols,
+                ..
+            }) => {
+                assert_eq!(input, Some(PathBuf::from("./capsule-probe")));
+                assert_eq!(output, Some(PathBuf::from("capsule.kn")));
+                assert!(!archive);
+                assert_eq!(header, "rich");
+                assert_eq!(preview_symbols, 16);
+            }
+            other => panic!("expected amalgamate pack command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_amalgamate_archive_flag() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "amalgamate",
+            "./capsule-probe",
+            "-o",
+            "capsule.kn",
+            "--archive",
+        ]);
+        match cli.command {
+            Some(KainCommand::Amalgamate {
+                command: None,
+                archive,
+                ..
+            }) => {
+                assert!(archive);
+            }
+            other => panic!("expected amalgamate pack command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_amalgamate_inspect_command() {
+        let cli = KainCli::parse_from(["kain", "amalgamate", "inspect", "capsule.kn", "--json"]);
+        match cli.command {
+            Some(KainCommand::Amalgamate {
+                command: Some(AmalgamateCommand::Inspect { input, json }),
+                ..
+            }) => {
+                assert_eq!(input, PathBuf::from("capsule.kn"));
+                assert!(json);
+            }
+            other => panic!("expected amalgamate inspect command, got {other:?}"),
         }
     }
 

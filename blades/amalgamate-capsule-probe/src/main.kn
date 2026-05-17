@@ -1,0 +1,14 @@
+fn capsule_probe_boot(delta: Int) -> Int:
+    return 7 + delta
+
+fn capsule_probe_fold(value: Int) -> Int:
+    return (value * 3) + 1
+
+fn main() -> Int:
+    let warmed: Int = capsule_probe_boot(5)
+    let folded: Int = capsule_probe_fold(warmed)
+    if warmed != 12:
+        return 1
+    if folded != 37:
+        return 2
+    return 0

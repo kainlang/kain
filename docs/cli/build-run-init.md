@@ -42,6 +42,11 @@ route through the `kain-build` planner/executor and write canonical artifacts
 under `.kain/out/<host>/<lane>/<target>/<unit>/<task>/...`; explicit `-o`
 copies are materialization conveniences, not the source of artifact identity.
 
+Capsule `.kn` inputs created by `kain amalgamate` also work here. The CLI
+materializes them under `.kain/cache/amalgamate/<digest>/workspace` first, then
+reuses the normal file or manifest build path. Single-file capsules behave like
+file builds; blade/workspace capsules behave like manifest/project builds.
+
 ### `build --ue5`
 
 `kain build --ue5`
@@ -108,10 +113,58 @@ to print the resolved plan without entering the resident loop.
 the quickest way to debug target inference, blade selection, and manifest run
 metadata.
 
+Capsule `.kn` inputs are auto-detected before target inference. The CLI
+materializes the capsule to `.kain/cache/amalgamate/<digest>/workspace` and
+passes the extracted entry, blade root, or manifest root back into `kain-run`.
+
 Run artifacts are intentionally isolated from build artifacts:
 
 - `.kain/cache/run` stores cached executables and Cargo run target dirs
 - `.kain/reports/run` stores JSON session reports plus JSONL event streams
+
+## `amalgamate`
+
+`kain amalgamate <path> -o <artifact>.kn`
+
+Use this command when you want a portable single-file source capsule that still
+preserves the full workspace tree instead of flattening it into one module.
+
+Useful flags:
+
+- `--name`
+- `--version`
+- `--author`
+- `--note`
+- `--tag`
+- `--meta key=value`
+- `--archive`
+- `--header minimal|rich|off`
+- `--preview-symbols <n>`
+- `--compression zstd|none`
+- `--api-index auto|off`
+- `--module-index auto|off`
+
+Related subcommands:
+
+- `kain amalgamate inspect <artifact>.kn`
+- `kain amalgamate unpack <artifact>.kn [-o <dir>]`
+
+By default, `kain amalgamate` writes an editable capsule: a comment-safe `.kn`
+artifact with a generated header, a structured `//!kain-capsule` metadata
+block, and one `//!kain-file` section per preserved source or asset file. Text
+files stay inline and searchable inside the capsule; binary files are still
+base64-wrapped per file.
+
+Use `--archive` when you want the sealed transport form instead. Archive
+capsules keep the same header and metadata block but store the workspace as one
+compressed `//!kain-capsule-payload` blob. `--compression` only matters on this
+archive path.
+
+Editable capsules intentionally refresh their content-derived digest and file
+inventory from the inline file blocks when read, so hand-editing the capsule
+does not invalidate `kain inspect`, `kain run`, `kain build`, or `kain check`.
+Archive capsules remain strict and immutable. `inspect` is the authoritative
+operator view; the rich header is only a generated preview.
 
 The top-level `-r/--run` flag on the root parser is not the same thing as this
 subcommand. One is compile-then-run behavior, the other is the explicit

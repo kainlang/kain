@@ -54,6 +54,7 @@ These flags live at the top level of `kain` / `kn`:
 | `omni` | build mixed-language omni manifests | `cli/selfhost-omni-fabric-lsp.md` |
 | `fabric` | init, validate, and run Fabric manifests | `cli/selfhost-omni-fabric-lsp.md` |
 | `commands` | list/export registry metadata, list manifest packs, or render dynamic registry help | `cli/cli-overview.md` |
+| `amalgamate` | pack, inspect, and unpack portable Kain source capsules | `cli/build-run-init.md` |
 | `build` | build a file or a `KAIN.toml` project | `cli/build-run-init.md` |
 | `runtime` | build or validate the manifest-driven native runtime bundle as a first-class operator workflow | `runtime/NATIVE_RUNTIME_VALIDATION.md` |
 | `run` | resolve and execute a Kain source, C file, blade, manifest, Cargo crate, Node/Bun entry, or workspace | `cli/build-run-init.md` |
@@ -104,6 +105,9 @@ File, manifest, Rust-output, and native-ui build paths are planned through
 `crates/kain-build` and use `.kain/out/<host>/<lane>/<target>/<unit>/<task>/...`
 as the canonical artifact schema. Explicit `-o` or `--out` paths are copied or
 materialized views of that canonical graph, not separate artifact identities.
+Capsule `.kn` inputs are materialized under
+`.kain/cache/amalgamate/<digest>/workspace` first, then routed back into the
+normal file or manifest build path.
 
 ### `build native-ui`
 
@@ -120,6 +124,54 @@ materialized views of that canonical graph, not separate artifact identities.
 | `--runtime-crate` | native UI runtime crate name, default `kain-ui-native` |
 | `--runtime-path` | explicit path dependency for the runtime crate |
 | `--runtime-version` | published version dependency for the runtime crate |
+
+## Amalgamate
+
+`amalgamate` is the portable source-capsule lane. It preserves whole files and
+directories instead of translating them through an importer.
+
+### `amalgamate`
+
+| Flag | Meaning |
+| --- | --- |
+| `input` | file or directory to pack |
+| `-o`, `--output` | output capsule path |
+| `--name` | override the display name stored in metadata |
+| `--version` | override the version label stored in metadata |
+| `--author` | repeatable author field |
+| `--note` | repeatable free-form note |
+| `--tag` | repeatable tag |
+| `--meta key=value` | repeatable arbitrary metadata |
+| `--archive` | store a compressed archive payload instead of inline editable file blocks |
+| `--header minimal|rich|off` | generated header rendering mode |
+| `--preview-symbols <n>` | maximum number of preview symbols in the header |
+| `--compression zstd|none` | archive payload compression mode |
+| `--api-index auto|off` | public API preview generation mode |
+| `--module-index auto|off` | module preview generation mode |
+
+The default capsule format is editable comment-safe text: an optional generated
+preview header, a `//!kain-capsule` metadata block, and one `//!kain-file`
+section per preserved file. Text files remain inline and searchable; binary
+files are base64-wrapped inside their file blocks.
+
+`--archive` switches to the sealed transport form, where the preserved tree is
+stored as one compressed `//!kain-capsule-payload` block instead of inline file
+sections. `kain inspect` is the authoritative metadata and file inventory path;
+the header preview is generated and best-effort.
+
+### `amalgamate inspect`
+
+| Flag | Meaning |
+| --- | --- |
+| `input` | capsule artifact path |
+| `--json` | emit JSON instead of text |
+
+### `amalgamate unpack`
+
+| Flag | Meaning |
+| --- | --- |
+| `input` | capsule artifact path |
+| `-o`, `--output` | destination directory, default `<capsule>.unpacked` |
 
 ## Runtime Commands
 
@@ -176,6 +228,10 @@ The `[run]` manifest section can provide `entry`, `blade`, `target`, `args`,
 under `.kain/cache/run`; JSON reports and JSONL event streams live under
 `.kain/reports/run`.
 
+Capsule `.kn` inputs are materialized under
+`.kain/cache/amalgamate/<digest>/workspace` before `kain-run` resolves the final
+entry, blade root, or manifest path.
+
 ## Check And Test
 
 ### `check`
@@ -186,6 +242,10 @@ under `.kain/cache/run`; JSON reports and JSONL event streams live under
 | `-t`, `--target` | target profile to validate against, default `run` |
 | `--fail-fast` | stop after the first failed file |
 | `--json` | write a structured check report |
+
+`check` can also accept a capsule `.kn` artifact. The CLI materializes the
+capsule first, then runs the normal source-discovery and frontend validation
+path against the extracted tree.
 
 ### `test`
 

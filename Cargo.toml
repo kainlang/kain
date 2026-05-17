@@ -32,6 +32,7 @@ members = [
     "crates/kain-host-derive",
     "crates/kain-reflect",
     "crates/kain-build",
+    "crates/kain-amalgamate",
     "crates/kain-commands",
     "crates/kain-run",
     "crates/kain-repair",
