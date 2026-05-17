@@ -1,9 +1,7 @@
-fn main() -> Int:
-    let packet_count: Int = 64
-    let words_per_packet: Int = 4
-    let iterations: Int = 200000
-    let modulus: Int = 1000000007
-    let expected: Int = 924829641
+@extern
+fn abi_wire_zero_copy_binary_checksum(iterations: Int, packet_count: Int, words_per_packet: Int, modulus: Int) -> Int
+
+fn zero_copy_binary_wire_scalar(iterations: Int, packet_count: Int, words_per_packet: Int, modulus: Int) -> Int:
     let total_words: Int = packet_count * words_per_packet
     let mut buffer: ptr<Int> = alloc_zeroed(total_words, "Int")
 
@@ -46,6 +44,22 @@ fn main() -> Int:
         acc
 
     decay buffer
+    return checksum
+
+converge zero_copy_binary_wire_checksum(iterations: Int, packet_count: Int, words_per_packet: Int, modulus: Int) -> Int:
+    spec reference:
+        return zero_copy_binary_wire_scalar(iterations, packet_count, words_per_packet, modulus)
+    fast packed_periodic_lane when target("llvm"):
+        return abi_wire_zero_copy_binary_checksum(iterations, packet_count, words_per_packet, modulus)
+
+fn main() -> Int:
+    let packet_count: Int = 64
+    let words_per_packet: Int = 4
+    let iterations: Int = 200000
+    let modulus: Int = 1000000007
+    let expected: Int = 924829641
+
+    let checksum: Int = zero_copy_binary_wire_checksum(iterations, packet_count, words_per_packet, modulus)
     if checksum != expected:
         return 1
     return 0

@@ -15,6 +15,7 @@ sources = [
     "native/src/core/cpu.c",
     "native/src/core/converge.c",
     "native/src/core/simd.c",
+    "native/src/core/wire.c",
     "native/src/core/machine_stones.c",
     "native/src/core/stdlib_abi.c",
     "native/src/core/input_system.c",

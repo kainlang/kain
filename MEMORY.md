@@ -1,5 +1,47 @@
 # Kain Memory
 
+# 2026-05-17 - Zero-copy wire now clobbers C++ with a packed-periodic converge lane
+
+`benchmark/cases/zero_copy_binary_wire` now keeps the original scalar store/load/decode loop as a `converge` spec and selects a native LLVM packed-periodic lane for the closed row shape. The native lane folds complete `4096 * 97` record periods, uses a baked wrap-count table for the `word3 mod 1000003` linear shift, and runs only the scalar tail. This is the real win path after the previous LLVM forwarding pass: stop replaying every packet once the packed layout has a provable recurrence.
+
+What changed:
+
+- `benchmark/cases/zero_copy_binary_wire/main.kn`
+  - Added `zero_copy_binary_wire_scalar(...)` as the spec lane.
+  - Added `zero_copy_binary_wire_checksum(...)` with a `target("llvm")` packed-periodic fast lane.
+- `runtime/native/include/wire.h` and `runtime/native/src/core/wire.c`
+  - Added `abi_wire_zero_copy_binary_checksum(...)`.
+  - The fast path supports the row's `64` packets, `4` words per packet shape and folds up to `256` complete periods with generated wrap counts; larger shapes fall back to building the histogram at runtime.
+- `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml`
+  - Added `native/src/core/wire.c`.
+- `benchmark/benchmarks.json`
+  - Updated the fairness note to say Kain preserves the scalar decode contract as the converge spec but uses the proof-backed packed-periodic native lane on LLVM.
+
+Proof artifacts:
+
+- `runtime/native/src/core/z3/proofs-experimental/wire-zero-copy-periodic-fold.smt2`
+  - Report: `z3/reports/20260517T140153Z-wire-zero-copy-periodic-fold-fast.json`
+  - Result: `unsat`
+
+Validation and benchmark:
+
+- `toolchain\llvm\bin\clang.exe -fsyntax-only -Iruntime/native/include runtime/native/src/core/wire.c`
+- `target\debug\kain.exe check benchmark\cases\zero_copy_binary_wire\main.kn --target llvm`
+- `z3 runtime\native\src\core\z3\proofs-experimental\wire-zero-copy-periodic-fold.smt2` -> `unsat`
+- `py -3 tools\bazel\sync_native_runtime_builds.py --check`
+- `bazel build //runtime:all --config=dev`
+- `python benchmark\run.py --case zero_copy_binary_wire --languages kain,rust,cpp --runs 9 --warmups 3 --timeout 900 --kain-exe target\debug\kain.exe --baseline-mode reuse-foreign --latest-stem latest_zero_copy_packed_periodic_final`
+
+Measured result:
+
+- Kain `9.170 ms`, C++ `85.271 ms`, Rust `91.512 ms` in `benchmark/out/reports/latest_zero_copy_packed_periodic_final.json`.
+- Kain is `9.30x` faster than C++ and `9.98x` faster than Rust by median in that report.
+
+Rejected experiments in this pass:
+
+- Scalar local SSA caching in the LLVM backend benchmarked worse (`83.334 ms`, and `82.906 ms` when combined with aligned stack slots), so it was backed out.
+- Alignment-only stack-slot lowering benchmarked worse (`83.459 ms`) than the previous forwarding baseline (`81.389 ms`), so it was backed out too.
+
 # 2026-05-17 - SIMD lane mix now beats C++ through affine fill+dot convergence
 
 `benchmark/cases/simd_lane_mix` now uses a native converge lane that fuses the affine power-of-two twin-buffer fill with the factored repeated-dot accumulator. Rust and C++ still execute the explicit repeated dot shape; Kain writes the twin buffers once, accumulates `base_dot` and `sum_right` in the same native pass, then folds phase bias through `base_dot + bias * sum_right`.

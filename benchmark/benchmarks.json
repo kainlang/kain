@@ -224,7 +224,7 @@
       "title": "Zero-Copy Binary Wire",
       "description": "Encode and decode fixed packed wire records directly out of one contiguous buffer. This probes low-level layout math and decode-without-object-allocation behavior.",
       "maturity": "implemented",
-      "fairness_note": "All rows use the same four-word record layout and decode fields directly from the backing buffer instead of materializing per-packet heap objects.",
+      "fairness_note": "All rows preserve the same four-word record layout and scalar decode contract. Kain keeps that loop as the converge spec and, on LLVM, uses a proof-backed packed-periodic native lane that folds full record periods instead of replaying every store/load.",
       "languages": {
         "kain": "cases/zero_copy_binary_wire/main.kn",
         "rust": "cases/zero_copy_binary_wire/main.rs",
