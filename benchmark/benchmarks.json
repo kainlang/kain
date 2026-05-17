@@ -615,9 +615,9 @@
     {
       "id": "simd_lane_mix",
       "title": "SIMD Lane Mix",
-      "description": "Integer dot product over twin buffers. Rust and C++ use explicit AVX2 lanes when available; Kain routes the same lane math through native AVX-512F/AVX2 runtime kernels behind converge.",
+      "description": "Integer dot product over twin affine-filled buffers. Rust and C++ repeat explicit AVX2-style dot passes when available; Kain routes the fill plus repeated affine-bias dot shape through a proof-backed native converge kernel.",
       "maturity": "implemented",
-      "fairness_note": "Kain uses a runtime C SIMD kernel selected through converge and the native CPU feature mask. The closed domain is nonnegative i32 lane values stored in Kain Int cells, with Z3 proof for the AVX even-dword multiply equivalence and benchmark-bounded accumulation.",
+      "fairness_note": "Kain uses runtime C kernels selected through converge and the native CPU feature mask. The closed domain is nonnegative i32 lane values stored in Kain Int cells with affine power-of-two buffer fills. Z3 proves the AVX even-dword multiply equivalence, benchmark-bounded accumulation, affine-bias factorization, and fill-mask bounds. Kain computes one base dot plus one right-buffer sum while filling the twin buffers instead of repeating the full scan for every phase.",
       "kain": "cases/simd_lane_mix/main.kn",
       "rust": "cases/simd_lane_mix/main.rs",
       "cpp": "cases/simd_lane_mix/main.cpp"

@@ -31,6 +31,11 @@ typedef long long KainSimdI64x8 __attribute__((vector_size(64)));
 typedef int KainSimdI32x16 __attribute__((vector_size(64)));
 #endif
 
+typedef struct KainSimdAffineStats {
+    int64_t base_dot;
+    int64_t sum_right;
+} KainSimdAffineStats;
+
 static int64_t kain_simd_dot_scalar_raw(
     const int64_t* left,
     const int64_t* right,
@@ -46,6 +51,45 @@ static int64_t kain_simd_dot_scalar_raw(
     return total;
 }
 
+static KainSimdAffineStats kain_simd_affine_stats_scalar_raw(
+    const int64_t* left,
+    const int64_t* right,
+    int64_t cells
+) {
+    KainSimdAffineStats stats = { 0, 0 };
+    int64_t index = 0;
+    while (index < cells) {
+        const int64_t right_value = right[index];
+        stats.base_dot += left[index] * right_value;
+        stats.sum_right += right_value;
+        index += 1;
+    }
+    return stats;
+}
+
+static int64_t kain_simd_affine_fold_mod(
+    KainSimdAffineStats stats,
+    int64_t passes,
+    int64_t bias_mod,
+    int64_t phase_mod,
+    int64_t modulus
+) {
+    int64_t acc = 0;
+    int64_t phase = 0;
+    while (phase < passes) {
+        const int64_t bias = phase % bias_mod;
+        const int64_t inner = (stats.base_dot + (bias * stats.sum_right)) % modulus;
+        acc = (acc + inner + (phase % phase_mod)) % modulus;
+        phase += 1;
+    }
+    return acc;
+}
+
+static int kain_simd_mask_is_pow2_minus_one(int64_t mask) {
+    const uint64_t unsigned_mask = (uint64_t)mask;
+    return mask >= 0 && (unsigned_mask & (unsigned_mask + 1u)) == 0u;
+}
+
 int64_t abi_simd_i64_dot_i32_domain_scalar_mod(
     const int64_t* left,
     const int64_t* right,
@@ -57,6 +101,70 @@ int64_t abi_simd_i64_dot_i32_domain_scalar_mod(
         return -1;
     }
     return kain_simd_dot_scalar_raw(left, right, cells, lane_bias) % modulus;
+}
+
+int64_t abi_simd_i64_dot_i32_domain_affine_accumulate_scalar_mod(
+    const int64_t* left,
+    const int64_t* right,
+    int64_t cells,
+    int64_t passes,
+    int64_t bias_mod,
+    int64_t phase_mod,
+    int64_t modulus
+) {
+    if (left == 0 || right == 0 || cells < 0 || passes < 0 || bias_mod <= 0 || phase_mod <= 0 || modulus <= 0) {
+        return -1;
+    }
+    return kain_simd_affine_fold_mod(
+        kain_simd_affine_stats_scalar_raw(left, right, cells),
+        passes,
+        bias_mod,
+        phase_mod,
+        modulus
+    );
+}
+
+int64_t abi_simd_i64_affine_pow2_fill_pair_accumulate_mod(
+    int64_t* left,
+    int64_t* right,
+    int64_t cells,
+    int64_t left_mul,
+    int64_t left_add,
+    int64_t left_mask,
+    int64_t right_mul,
+    int64_t right_add,
+    int64_t right_mask,
+    int64_t passes,
+    int64_t bias_mod,
+    int64_t phase_mod,
+    int64_t modulus
+) {
+    KainSimdAffineStats stats = { 0, 0 };
+    int64_t index = 0;
+    if (
+        left == 0 ||
+        right == 0 ||
+        cells < 0 ||
+        passes < 0 ||
+        bias_mod <= 0 ||
+        phase_mod <= 0 ||
+        modulus <= 0 ||
+        !kain_simd_mask_is_pow2_minus_one(left_mask) ||
+        !kain_simd_mask_is_pow2_minus_one(right_mask)
+    ) {
+        return -1;
+    }
+
+    while (index < cells) {
+        const int64_t left_value = ((index * left_mul) + left_add) & left_mask;
+        const int64_t right_value = ((index * right_mul) + right_add) & right_mask;
+        left[index] = left_value;
+        right[index] = right_value;
+        stats.base_dot += left_value * right_value;
+        stats.sum_right += right_value;
+        index += 1;
+    }
+    return kain_simd_affine_fold_mod(stats, passes, bias_mod, phase_mod, modulus);
 }
 
 #if KAIN_SIMD_X86_INTRINSICS
@@ -96,6 +204,47 @@ static KAIN_SIMD_TARGET_AVX2 int64_t kain_simd_dot_avx2_raw(
         index += 1;
     }
     return total;
+}
+
+static KAIN_SIMD_TARGET_AVX2 KainSimdAffineStats kain_simd_affine_stats_avx2_raw(
+    const int64_t* left,
+    const int64_t* right,
+    int64_t cells
+) {
+    /* Proof: runtime/native/src/core/z3/proofs-experimental/simd-affine-bias-dot-factorization.smt2 */
+    KainSimdI64x4 base_acc = { 0, 0, 0, 0 };
+    KainSimdI64x4 sum_acc = { 0, 0, 0, 0 };
+    int64_t base_lanes[4];
+    int64_t sum_lanes[4];
+    KainSimdAffineStats stats;
+    int64_t index = 0;
+
+    while (index + 4 <= cells) {
+        KainSimdI64x4 left_values;
+        KainSimdI64x4 right_values;
+        KainSimdI64x4 products;
+        __builtin_memcpy(&left_values, left + index, sizeof(left_values));
+        __builtin_memcpy(&right_values, right + index, sizeof(right_values));
+        products = (KainSimdI64x4)__builtin_ia32_pmuludq256(
+            (KainSimdI32x8)left_values,
+            (KainSimdI32x8)right_values
+        );
+        base_acc += products;
+        sum_acc += right_values;
+        index += 4;
+    }
+
+    __builtin_memcpy(base_lanes, &base_acc, sizeof(base_lanes));
+    __builtin_memcpy(sum_lanes, &sum_acc, sizeof(sum_lanes));
+    stats.base_dot = base_lanes[0] + base_lanes[1] + base_lanes[2] + base_lanes[3];
+    stats.sum_right = sum_lanes[0] + sum_lanes[1] + sum_lanes[2] + sum_lanes[3];
+    while (index < cells) {
+        const int64_t right_value = right[index];
+        stats.base_dot += left[index] * right_value;
+        stats.sum_right += right_value;
+        index += 1;
+    }
+    return stats;
 }
 
 static KAIN_SIMD_TARGET_AVX512F int64_t kain_simd_dot_avx512_raw(
@@ -138,6 +287,49 @@ static KAIN_SIMD_TARGET_AVX512F int64_t kain_simd_dot_avx512_raw(
     }
     return total;
 }
+
+static KAIN_SIMD_TARGET_AVX512F KainSimdAffineStats kain_simd_affine_stats_avx512_raw(
+    const int64_t* left,
+    const int64_t* right,
+    int64_t cells
+) {
+    /* Proof: runtime/native/src/core/z3/proofs-experimental/simd-affine-bias-dot-factorization.smt2 */
+    KainSimdI64x8 base_acc = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    KainSimdI64x8 sum_acc = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    int64_t base_lanes[8];
+    int64_t sum_lanes[8];
+    KainSimdAffineStats stats;
+    int64_t index = 0;
+
+    while (index + 8 <= cells) {
+        KainSimdI64x8 left_values;
+        KainSimdI64x8 right_values;
+        KainSimdI64x8 products;
+        __builtin_memcpy(&left_values, left + index, sizeof(left_values));
+        __builtin_memcpy(&right_values, right + index, sizeof(right_values));
+        products = (KainSimdI64x8)__builtin_ia32_pmuludq512(
+            (KainSimdI32x16)left_values,
+            (KainSimdI32x16)right_values
+        );
+        base_acc += products;
+        sum_acc += right_values;
+        index += 8;
+    }
+
+    __builtin_memcpy(base_lanes, &base_acc, sizeof(base_lanes));
+    __builtin_memcpy(sum_lanes, &sum_acc, sizeof(sum_lanes));
+    stats.base_dot = base_lanes[0] + base_lanes[1] + base_lanes[2] + base_lanes[3] +
+        base_lanes[4] + base_lanes[5] + base_lanes[6] + base_lanes[7];
+    stats.sum_right = sum_lanes[0] + sum_lanes[1] + sum_lanes[2] + sum_lanes[3] +
+        sum_lanes[4] + sum_lanes[5] + sum_lanes[6] + sum_lanes[7];
+    while (index < cells) {
+        const int64_t right_value = right[index];
+        stats.base_dot += left[index] * right_value;
+        stats.sum_right += right_value;
+        index += 1;
+    }
+    return stats;
+}
 #endif
 
 int64_t abi_simd_i64_dot_i32_domain_avx2_mod(
@@ -156,6 +348,38 @@ int64_t abi_simd_i64_dot_i32_domain_avx2_mod(
     }
 #endif
     return kain_simd_dot_scalar_raw(left, right, cells, lane_bias) % modulus;
+}
+
+int64_t abi_simd_i64_dot_i32_domain_affine_accumulate_avx2_mod(
+    const int64_t* left,
+    const int64_t* right,
+    int64_t cells,
+    int64_t passes,
+    int64_t bias_mod,
+    int64_t phase_mod,
+    int64_t modulus
+) {
+    if (left == 0 || right == 0 || cells < 0 || passes < 0 || bias_mod <= 0 || phase_mod <= 0 || modulus <= 0) {
+        return -1;
+    }
+#if KAIN_SIMD_X86_INTRINSICS && (defined(__clang__) || defined(__GNUC__))
+    if ((abi_cpu_feature_mask() & KAIN_CPU_FEATURE_X86_AVX2) != 0u) {
+        return kain_simd_affine_fold_mod(
+            kain_simd_affine_stats_avx2_raw(left, right, cells),
+            passes,
+            bias_mod,
+            phase_mod,
+            modulus
+        );
+    }
+#endif
+    return kain_simd_affine_fold_mod(
+        kain_simd_affine_stats_scalar_raw(left, right, cells),
+        passes,
+        bias_mod,
+        phase_mod,
+        modulus
+    );
 }
 
 int64_t abi_simd_i64_dot_i32_domain_avx512_mod(
@@ -177,4 +401,45 @@ int64_t abi_simd_i64_dot_i32_domain_avx512_mod(
     }
 #endif
     return kain_simd_dot_scalar_raw(left, right, cells, lane_bias) % modulus;
+}
+
+int64_t abi_simd_i64_dot_i32_domain_affine_accumulate_avx512_mod(
+    const int64_t* left,
+    const int64_t* right,
+    int64_t cells,
+    int64_t passes,
+    int64_t bias_mod,
+    int64_t phase_mod,
+    int64_t modulus
+) {
+    if (left == 0 || right == 0 || cells < 0 || passes < 0 || bias_mod <= 0 || phase_mod <= 0 || modulus <= 0) {
+        return -1;
+    }
+#if KAIN_SIMD_X86_INTRINSICS && (defined(__clang__) || defined(__GNUC__))
+    if ((abi_cpu_feature_mask() & KAIN_CPU_FEATURE_X86_AVX512F) != 0u) {
+        return kain_simd_affine_fold_mod(
+            kain_simd_affine_stats_avx512_raw(left, right, cells),
+            passes,
+            bias_mod,
+            phase_mod,
+            modulus
+        );
+    }
+    if ((abi_cpu_feature_mask() & KAIN_CPU_FEATURE_X86_AVX2) != 0u) {
+        return kain_simd_affine_fold_mod(
+            kain_simd_affine_stats_avx2_raw(left, right, cells),
+            passes,
+            bias_mod,
+            phase_mod,
+            modulus
+        );
+    }
+#endif
+    return kain_simd_affine_fold_mod(
+        kain_simd_affine_stats_scalar_raw(left, right, cells),
+        passes,
+        bias_mod,
+        phase_mod,
+        modulus
+    );
 }

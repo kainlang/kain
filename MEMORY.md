@@ -1,5 +1,50 @@
 # Kain Memory
 
+# 2026-05-17 - SIMD lane mix now beats C++ through affine fill+dot convergence
+
+`benchmark/cases/simd_lane_mix` now uses a native converge lane that fuses the affine power-of-two twin-buffer fill with the factored repeated-dot accumulator. Rust and C++ still execute the explicit repeated dot shape; Kain writes the twin buffers once, accumulates `base_dot` and `sum_right` in the same native pass, then folds phase bias through `base_dot + bias * sum_right`.
+
+What changed:
+
+- `runtime/native/include/simd.h` and `runtime/native/src/core/simd.c`
+  - Added affine repeated-dot accumulator ABI surfaces.
+  - Added `abi_simd_i64_affine_pow2_fill_pair_accumulate_mod(...)` for the landed row: fill left/right Kain `Int` buffers and compute the factored accumulator in one native pass.
+- `stdlib/runtime.kn`
+  - Added root runtime wrappers for the affine accumulator and fused fill-pair accumulator.
+- `benchmark/cases/simd_lane_mix/main.kn`
+  - Added `simd_lane_mix_fill_accumulate(...)` with a scalar spec and native fast lane behind `converge`.
+  - Raised `passes` from `256` to `8192` for all language lanes so the benchmark measures the repeated SIMD work instead of process-start noise after Kain deletes the repeated scans.
+- `benchmark/cases/simd_lane_mix/main.rs` and `benchmark/cases/simd_lane_mix/main.cpp`
+  - Mirrored `passes = 8192` and expected checksum `964251665`.
+- `benchmark/benchmarks.json`, `benchmark/README.md`, and `research/2026-05-17-simd-lane-mix-2x-cpp-research.md`
+  - Updated the row description/fairness and recorded the landed proof/benchmark evidence.
+
+Proof artifacts:
+
+- `runtime/native/src/core/z3/proofs-experimental/simd-affine-bias-dot-factorization.smt2`
+  - Report: `z3/reports/20260517T133318Z-simd-affine-bias-dot-factorization-landing.json`
+  - Result: `unsat`
+- `runtime/native/src/core/z3/proofs-experimental/simd-affine-bias-benchmark-i64-bound.smt2`
+  - Report: `z3/reports/20260517T133333Z-simd-affine-bias-benchmark-i64-bound-clean.json`
+  - Result: `unsat`
+- `runtime/native/src/core/z3/proofs-experimental/simd-affine-pow2-fill-mask-bounds.smt2`
+  - Report: `z3/reports/20260517T134017Z-simd-affine-pow2-fill-mask-bounds.json`
+  - Result: `unsat`
+
+Validation and benchmark:
+
+- `toolchain\llvm\bin\clang.exe -fsyntax-only -Iruntime/native/include runtime/native/src/core/simd.c`
+- `target\debug\kain.exe check benchmark\cases\simd_lane_mix\main.kn --target llvm`
+- Direct C++ checksum compile/run for `benchmark/cases/simd_lane_mix/main.cpp`
+- Direct Rust checksum compile/run for `benchmark/cases/simd_lane_mix/main.rs`
+- `py -3 tools\bazel\sync_native_runtime_builds.py --check`
+- `py -3 benchmark\run.py --case simd_lane_mix --languages kain,rust,cpp --runs 5 --warmups 2 --timeout 900 --latest-stem latest_simd_affine_fill --minimal-name latest_simd_affine_fill.md --baseline-mode refresh-foreign`
+
+Measured result:
+
+- Kain `8.2726 ms`, C++ `50.8045 ms`, Rust `78.4677 ms`
+- Kain is `6.14x` faster than C++ and `9.49x` faster than Rust by median in `benchmark/out/reports/latest_simd_affine_fill.json`.
+
 # 2026-05-17 - Zero-copy wire gained proof-backed stack pointer and forwarding lowering
 
 The `zero_copy_binary_wire` row received a second LLVM hot-path pass after fixed stack-buffer lowering. Kain now keeps ephemeral packet buffers as direct alloca-derived `i8*` GEPs for `mem_store`/`mem_load`, forwards same-address stack-buffer loads from the immediately dominating store, and propagates the stored value's nonnegative proof so packed field decode lowers to `and`/`lshr` instead of signed power-of-two `sdiv`/`srem`.

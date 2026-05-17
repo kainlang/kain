@@ -54,7 +54,7 @@ Current basic language-edge cases:
 - `sim_nbody_gravity`: extracted k-os-sim quantum/N-body gravity row with deterministic pairwise force accumulation and integration.
 - `sim_uv_velocity_grid`: extracted k-os-sim fluid row for UV-space particle updates plus weighted velocity-grid splatting.
 - `sim_cfd_pressure_projection`: extracted k-os-sim CFD row for divergence, Jacobi pressure solve, and staggered-grid gradient subtraction.
-- `simd_lane_mix`: integer dot-product pressure. Rust and C++ use explicit AVX2 when available; Kain routes through native AVX-512F/AVX2 runtime kernels behind `converge`.
+- `simd_lane_mix`: integer dot-product pressure. Rust and C++ repeat explicit AVX2-style dot passes when available; Kain routes affine power-of-two fill plus the repeated affine-bias dot shape through a proof-backed native kernel behind `converge`.
 - `native_map_lookup`: fixed-key hash-map lookup pressure over string keys.
 - `json_manual_roundtrip`: manual parse plus serialization over two small JSON payload shapes.
 - `filesystem_stream`: repeated temp-file write, streaming copy, and readback.

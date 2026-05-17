@@ -2,9 +2,9 @@
 #include <vector>
 
 constexpr std::int64_t CELLS = 32'768;
-constexpr std::int64_t PASSES = 256;
+constexpr std::int64_t PASSES = 8'192;
 constexpr std::int64_t MODULUS = 1'000'000'007;
-constexpr std::int64_t EXPECTED = 194'810'730;
+constexpr std::int64_t EXPECTED = 964'251'665;
 
 [[gnu::noinline]] std::int64_t dot_vectorizable(const std::vector<std::int32_t>& left, const std::vector<std::int32_t>& right, std::int32_t lane_bias) {
     std::int64_t total = 0;

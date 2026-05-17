@@ -2,9 +2,9 @@
 use std::arch::x86_64::*;
 
 const CELLS: usize = 32_768;
-const PASSES: i64 = 256;
+const PASSES: i64 = 8_192;
 const MODULUS: i64 = 1_000_000_007;
-const EXPECTED: i64 = 194_810_730;
+const EXPECTED: i64 = 964_251_665;
 
 fn fill_buffers(left: &mut [i32], right: &mut [i32]) {
     let mut index = 0_usize;
