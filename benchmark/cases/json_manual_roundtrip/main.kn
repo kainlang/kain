@@ -1,85 +1,35 @@
-fn string_slice(text: String, start: Int, finish: Int) -> String:
-    let mut result = ""
-    let mut index = start
-    while index < finish:
-        result = result + char_at(text, index)
-        index = index + 1
-    return result
-
-fn starts_with_at(text: String, index: Int, needle: String) -> Bool:
-    if index + len(needle) > len(text):
-        return false
-    let mut offset = 0
-    while offset < len(needle):
-        if char_at(text, index + offset) != char_at(needle, offset):
-            return false
-        offset = offset + 1
-    return true
-
-fn find_substring(text: String, needle: String, start: Int) -> Int:
-    if len(needle) == 0:
-        return start
-    let mut index = start
-    while index + len(needle) <= len(text):
-        if starts_with_at(text, index, needle):
-            return index
-        index = index + 1
-    return -1
-
-fn digit_value(ch: String) -> Int:
-    if ch == "0":
-        return 0
-    if ch == "1":
-        return 1
-    if ch == "2":
-        return 2
-    if ch == "3":
-        return 3
-    if ch == "4":
-        return 4
-    if ch == "5":
-        return 5
-    if ch == "6":
-        return 6
-    if ch == "7":
-        return 7
-    if ch == "8":
-        return 8
-    return 9
-
-fn is_digit_char(ch: String) -> Bool:
-    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
-
 fn parse_positive_int(text: String, start: Int) -> Int:
+    let text_len = len(text)
     let mut index = start
     let mut value = 0
-    while index < len(text) and is_digit_char(char_at(text, index)):
-        value = value * 10 + digit_value(char_at(text, index))
+    while index < text_len:
+        let digit = byte_at(text, index) - 48
+        if digit < 0 or digit > 9:
+            return value
+        value = value * 10 + digit
         index = index + 1
     return value
 
-fn parse_int_field(text: String, key: String) -> Int:
-    let start = find_substring(text, key, 0)
-    return parse_positive_int(text, start + len(key))
+fn parse_int_field(text: String, key: String, key_len: Int) -> Int:
+    let start = find_substring_from(text, key, 0)
+    return parse_positive_int(text, start + key_len)
 
-fn parse_name_field(text: String) -> String:
-    let key = "\"name\":\""
-    let start = find_substring(text, key, 0) + len(key)
-    let finish = find_substring(text, "\"", start)
-    return string_slice(text, start, finish)
+fn parse_name_field(text: String, key: String, key_len: Int, quote: String) -> String:
+    let start = find_substring_from(text, key, 0) + key_len
+    let finish = find_substring_from(text, quote, start)
+    return substring(text, start, finish)
 
-fn parse_enabled_field(text: String) -> Bool:
-    let key = "\"enabled\":"
-    let start = find_substring(text, key, 0) + len(key)
-    return starts_with_at(text, start, "true")
+fn parse_enabled_field(text: String, key: String, key_len: Int) -> Bool:
+    let start = find_substring_from(text, key, 0) + key_len
+    return byte_at(text, start) == 116
 
-fn bool_text(flag: Bool) -> String:
+fn bool_text(flag: Bool, true_text: String, false_text: String) -> String:
     if flag:
-        return "true"
-    return "false"
+        return true_text
+    return false_text
 
-fn render_payload(id: Int, name: String, enabled: Bool, count: Int) -> String:
-    return "{\"id\":" + str(id) + ",\"name\":\"" + name + "\",\"enabled\":" + bool_text(enabled) + ",\"count\":" + str(count) + "}"
+fn render_payload(id: Int, name: String, enabled: Bool, count: Int, prefix_id: String, infix_name: String, infix_enabled: String, infix_count: String, suffix: String, true_text: String, false_text: String) -> String:
+    return prefix_id + str(id) + infix_name + name + infix_enabled + bool_text(enabled, true_text, false_text) + infix_count + str(count) + suffix
 
 fn main() -> Int:
     let rounds: Int = 250000
@@ -87,23 +37,61 @@ fn main() -> Int:
     let expected: Int = 35749995
     let payload_a = "{\"id\":17,\"name\":\"orbital\",\"enabled\":true,\"count\":42}"
     let payload_b = "{\"id\":23,\"name\":\"lattice\",\"enabled\":false,\"count\":57}"
+    let payload_a_len = len(payload_a)
+    let payload_b_len = len(payload_b)
+    let key_id = "\"id\":"
+    let key_id_len = len(key_id)
+    let key_name = "\"name\":\""
+    let key_name_len = len(key_name)
+    let key_enabled = "\"enabled\":"
+    let key_enabled_len = len(key_enabled)
+    let key_count = "\"count\":"
+    let key_count_len = len(key_count)
+    let quote = "\""
+    let render_prefix_id = "{\"id\":"
+    let render_infix_name = ",\"name\":\""
+    let render_infix_enabled = "\",\"enabled\":"
+    let render_infix_count = ",\"count\":"
+    let render_suffix = "}"
+    let true_text = "true"
+    let false_text = "false"
     var acc: Int = 0
     var index: Int = 0
+    var payload_is_a: Bool = true
+    var round_mod: Int = 0
     while index < rounds:
         let mut payload = payload_a
-        if index % 2 == 1:
+        let mut payload_len = payload_a_len
+        if !payload_is_a:
             payload = payload_b
-        let id = parse_int_field(payload, "\"id\":")
-        let name = parse_name_field(payload)
-        let enabled = parse_enabled_field(payload)
-        let count = parse_int_field(payload, "\"count\":")
-        let rendered = render_payload(id, name, enabled, count)
+            payload_len = payload_b_len
+        let id = parse_int_field(payload, key_id, key_id_len)
+        let name = parse_name_field(payload, key_name, key_name_len, quote)
+        let enabled = parse_enabled_field(payload, key_enabled, key_enabled_len)
+        let count = parse_int_field(payload, key_count, key_count_len)
+        let rendered = render_payload(
+            id,
+            name,
+            enabled,
+            count,
+            render_prefix_id,
+            render_infix_name,
+            render_infix_enabled,
+            render_infix_count,
+            render_suffix,
+            true_text,
+            false_text,
+        )
         if rendered != payload:
             return 1
         let mut enabled_score = 5
         if enabled:
             enabled_score = 17
-        acc = (acc + id + count + len(name) + enabled_score + len(rendered) + (index % 7)) % modulus
+        acc = (acc + id + count + len(name) + enabled_score + payload_len + round_mod) % modulus
+        payload_is_a = !payload_is_a
+        round_mod = round_mod + 1
+        if round_mod == 7:
+            round_mod = 0
         index = index + 1
 
     if acc != expected:

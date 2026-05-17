@@ -1,5 +1,121 @@
 # Kain Memory
 
+# 2026-05-17 - Filesystem stream recovered from cached-length poison and dropped again via len-aware FS writes while JSON proved byte_at was not the last dragon
+
+The cached string-length work initially broke `filesystem_stream` because the filesystem text read path allocates first and fills later. `abi_fs_string_with_len(0, size)` was zeroing the new logical-length field, so `abi_fs_read_text(...)` and `abi_fs_read_text_range(...)` returned buffers whose bytes were correct but whose logical length stayed zero until compared. The repair was to keep the default header length for allocate-then-fill shells and explicitly stamp the final read length after `fread(...)`. That restored semantic correctness without backing out the broader RC string-length work.
+
+After the repair, the next honest filesystem win came from deleting repeated `strlen(...)` scans on Kain-authored writes. `runtime/native/include/stdlib_abi.h` and `runtime/native/src/core/stdlib_abi.c` now expose `abi_fs_write_text_len(...)`, `abi_fs_append_text_len(...)`, and `abi_fs_atomic_write_text_len(...)` beside the compatibility entrypoints. `stdlib/native/fs.kn` routes authored `fs_write_text`, `fs_append_text`, and `fs_atomic_write_text` through those length-aware entrypoints with `len(content)`, so hot rows write the cached logical string length instead of rescanning the same payload every round.
+
+What changed:
+
+- `runtime/native/src/core/stdlib_abi.c`
+  - `abi_fs_string_with_len(...)` no longer zeroes logical length when used as an allocate-then-fill shell.
+  - `abi_fs_read_text(...)` and `abi_fs_read_text_range(...)` now stamp the final logical length after file reads.
+  - Added shared `abi_fs_write_mode_len(...)` plus `abi_fs_write_text_len(...)`, `abi_fs_append_text_len(...)`, and `abi_fs_atomic_write_text_len(...)`.
+  - Compatibility entrypoints still exist and fall back to `strlen(...)` only for legacy callers that do not know the length.
+- `runtime/native/include/stdlib_abi.h` declares the new length-aware FS entrypoints.
+- `stdlib/native/fs.kn` now uses the length-aware FS write/append/atomic-write ABI from authored Kain code.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now lowers `byte_at(...)` on known strings inline with a guarded direct byte load, and string-length fallback uses native `len(...)` rather than `strlen(...)`.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now asserts the inline `byte_at(...)` lowering. Exploratory proof `crates/kain-sys-codegen/z3/proofs-experimental/byte-at-fast-path-index-guard.smt2` and report `z3/reports/20260517T030441Z-byte_at_fast_path_index_guard.json` prove the signed guard implies the in-range unsigned load fact.
+
+Benchmark results:
+
+- Durable release report `benchmark/out/reports/20260517T030846Z.llm.md` now shows `filesystem_stream`: Kain `117.605 ms`, Rust `97.923 ms`, C++ `84.600 ms`.
+  - Earlier same-session checkpoints were roughly Kain `138.186 ms`, then `123.854 ms`, then `117.605 ms`, so both the correctness repair and the length-aware write path were real.
+- Durable release report `benchmark/out/reports/20260517T030644Z.llm.md` shows `json_manual_roundtrip`: Kain `118.244 ms`, Rust `112.832 ms`, C++ `94.763 ms`.
+  - The inline `byte_at(...)` path was correct and solver-backed, but it did not materially close the JSON gap.
+
+Durable lesson:
+
+- For `filesystem_stream`, inspect two seams first if the row regresses: allocate-then-fill FS strings must stamp logical length after readback, and Kain-authored FS writes should stay on the length-aware ABI entrypoints rather than `strlen(...)`.
+- For `json_manual_roundtrip`, do not keep chasing `byte_at(...)` next. The row still points more strongly at repeated `find_substring_from(...)`, `substring(...)`, and small-string allocation churn than at raw byte extraction.
+
+# 2026-05-17 - Struct/value aggregates plus heap-only RC guards finished the Option/Result campaign and flipped both rows into Kain wins
+
+The `struct_method` and `option_result` pressure rows ended up exposing two different costs. `struct_method` was mostly a representation bug: tiny POD structs such as `BenchPair` were still flowing through heap/object-style lowering instead of as plain values. `option_result` was subtler. After immediate tagged handles landed, the optimized native executable was already down to integer math, a few branches, and two stubborn external `rc_retain(...)` / `rc_release(...)` calls on `null` or low-bit-tagged `i8*` values that could never be heap RC objects.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now tracks POD structs/tuples in `value_aggregate_structs` and lowers them by value when every field is scalar POD. `Expr::Struct`, tuple lowering, type mapping, local field access, and call signatures all respect that path, which is why `struct_method` no longer allocates `BenchPair` at all.
+- Native `Option` / `Result` fast paths now stay on immediate tagged handles for small integer payloads and borrowed static string payloads, with `None` as `null`.
+- LLVM no longer emits unconditional external RC calls on raw `i8*` values. `emit_heap_owned_i8_guard(...)` now checks `ptr != null && ((ptr & 7) == 0)` before emitting `rc_retain(...)` or `rc_release(...)`. That deletes RC-call overhead for immediate tagged handles while preserving the heap RC path for real aligned objects.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now treats immediate tagged lowering plus heap-only RC guarding as the regression surface instead of expecting lots of tagged-temp release calls.
+- Exploratory proof `runtime/native/src/core/z3/proofs-experimental/tagged-immediate-lowbits-defeat-heap-rc-guard.smt2` plus Z3 report `z3/reports/20260517T030722Z-tagged-immediate-lowbits-defeat-heap-rc-guard.json` prove the core bit trick: if a carrier already had low 3 bits zero and a nonzero tag is OR-ed in, the result can never satisfy the heap-aligned RC guard.
+
+Validation and benchmark:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_option_result_future_to_native_tagged_runtime -- --nocapture`
+- `cargo build -p cli`
+- `python benchmark/run.py --case struct_method,option_result --languages kain,rust,cpp --runs 5 --warmups 1 --timeout 900 --kain-exe D:\\Kain-Lang\\target\\debug\\kain.exe --minimal-name latest_struct_option.md`
+- `clang -O3 -march=native -S benchmark/out/build/option_result/kain/option_result.ll -o benchmark/out/build/option_result/kain/option_result.s`
+- Latest report `benchmark/out/reports/latest.llm.md` at `2026-05-17T03:05:22.980546+00:00` now shows:
+  - `struct_method`: Kain `10.279 ms`, Rust `11.696 ms`, C++ `10.683 ms`
+  - `option_result`: Kain `7.881 ms`, Rust `8.705 ms`, C++ `8.056 ms`
+- The optimized `option_result.s` no longer contains any `rc_retain` or `rc_release` call in `main`; the loop stays entirely in registers, shifts, and branchless modulo strength reductions.
+
+Durable lesson:
+
+- Once native semantic handles are low-bit tagged, the honest win is to stop crossing the external RC ABI boundary for values that are already proved non-heap by construction. If `option_result` regresses, inspect `emit_heap_owned_i8_guard(...)`, the tagged-handle encode/decode helpers, and the final optimized assembly before rewriting the runtime C functions again.
+
+# 2026-05-17 - Manual JSON roundtrip dropped from 2.36x slower than C++ to near-Rust by deleting concat-chain and libc formatter waste
+
+`json_manual_roundtrip` was no longer mainly losing on parser correctness once the earlier `byte_at` / `find_substring_from` / RC fixes landed. The remaining gap was mostly renderer tax in the native string lane. The hot `render_payload(...)` path still emitted two heap `to_string(...)` calls, a left-growing ladder of seven `str_concat(...)` calls, and eager entry `strlen(...)` calls for every string parameter even when the function body never read those cached lengths. That meant allocator churn, repeated rescans of growing prefixes, and a surprising amount of dead work before the benchmark even reached the real JSON logic.
+
+What changed:
+
+- `runtime/native/src/core/core.c` now has an exact-allocation integer formatter instead of `sprintf(...)`. `to_string(...)` computes the decimal digit count, allocates exactly `digits + sign + 1`, and writes digits backwards into the final RC string buffer.
+- `runtime/native/src/core/core.c` also gained fixed-arity `str_concat3(...)` through `str_concat10(...)` helpers backed by a shared checked-length concat routine. The shared helper computes each part length once, proves the total allocation size through checked `size_t` additions, then copies all segments into one RC string buffer instead of building a growing chain of intermediate strings.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now flattens known string-add trees before lowering. When a chain has between 3 and 10 terms, LLVM emits one `@str_concatN(...)` call instead of nested binary `@str_concat(...)` calls.
+- The same LLVM pass now caches string lengths lazily instead of eagerly. Authored string parameters are still tracked as string locals, but `compile_string_length_value(...)` computes and memoizes `strlen(...)` only on first use. That removed dead entry `strlen(...)` calls from functions like `render_payload(...)` that never read string lengths directly.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now has a regression asserting that a benchmark-shaped JSON render chain lowers to `@str_concat9(...)` and does not emit eager parameter `strlen(...)` calls at function entry.
+
+Validation and benchmark:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_flattens_long_string_concat_chains_into_fixed_arity_runtime_calls -- --nocapture`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/core.c`
+- Proof file `runtime/native/src/core/z3/proofs-experimental/json-string-concat-total-length-overflow.smt2` plus Z3 MCP report `z3/reports/20260517T003313Z-json-string-concat-total-length-overflow.json` returned `unsat` for the sequential checked-add proof behind the fixed-arity concat allocation path.
+- `python benchmark/run.py --case json_manual_roundtrip --languages kain,rust,cpp --runs 5 --warmups 1 --timeout 900 --kain-exe D:\Kain-Lang\target\codex-json-cli\debug\kain.exe`
+- Latest report `benchmark/out/reports/latest.llm.md` at `2026-05-17T00:47:25+00:00` now shows Kain median `120.658 ms`, Rust `116.169 ms`, and C++ `96.221 ms`. Earlier same-night checkpoints were Kain `429.156 ms`, then `277.131 ms`, then `124.415 ms`, so the final string-lowering/runtime pass is what closed most of the remaining gap.
+
+Durable lesson:
+
+- For manual JSON rows, the honest win comes from deleting generic string-runtime waste, not from inventing a benchmark-only parser trick. If this row regresses, inspect `render_payload(...)` lowering first: nested `@str_concat(...)`, eager parameter `strlen(...)`, or a fallback to `sprintf(...)`-style integer formatting are all real dragons. The next likely fair win is teaching concat lowering to release more fresh string temporaries, or finally fixing the native LLVM JSON builtin linker gap so the row can stop being manual at all.
+
+# 2026-05-17 - Native map lookup flipped from 7.34x slower than Rust to a Kain win by deleting full-table probe waste
+
+`native_map_lookup` was not mainly losing because Kain lacked a better hash; it was losing because the row paid three stacked taxes. First, LLVM lowered literal `map_get(metrics, "alpha")` calls by allocating heap strings. Second, generic `map_get` recomputed key metadata on every lookup. Third, and biggest, `map_get_prehashed(...)` still scanned the entire open-addressed table in 8-slot windows even after a miss became logically decided. The current pipeline now fixes all three.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` lowers literal `map_get` keys as borrowed static byte pointers and emits `map_get_prehashed(map, ptr, len, hash, prefix)` directly, so the hot loop no longer calls `string_new(...)` or recomputes hash/prefix for closed literal keys.
+- `runtime/native/src/core/core.c` keeps insertion on the existing generalized search path, but `map_get_prehashed(...)` now uses a sequential linear-probe walk over the real probe chain and returns immediately on the first empty slot or exact metadata+memcmp match.
+- Exploratory proof `runtime/native/src/core/z3/proofs-experimental/map-linear-probe-empty-blocks-later-match.smt2` and durable proof `runtime/native/src/core/z3/proofs/native-map-linear-probe-empty-slot-precludes-later-match.yaml` both prove the key invariant: with linear probing and no tombstones, an empty slot in the probe order precludes any later match for the same key. The durable proof report is `runtime/native/src/core/z3/reports/20260517T001004Z-native_map_lookup_linear_probe_fast_path.json`.
+
+Validation and benchmark:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_map_get_string_literals_as_borrowed_static_byte_views -- --nocapture`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/core.c`
+- `py -3 benchmark/run.py --case native_map_lookup --languages kain,rust,cpp --runs 5 --warmups 2 --timeout 300 --kain-exe target\\debug\\kain.exe`
+- Latest report `benchmark/out/reports/latest.llm.md` at `2026-05-17T00:07:31.715616+00:00` now shows Kain median `19.518 ms`, Rust `30.711 ms`, and C++ `31.732 ms`. Earlier same-night checkpoints were Kain `211.746 ms` and then `116.198 ms`, so the final sequential early-exit pass was the dragon.
+
+Durable lesson:
+
+- For Kain native maps, the honest win came from respecting the probe-order invariant, not from more branchless algebra. Literal-key lowering should stay prehashed and borrowed when the compiler can close the domain, but the runtime lookup path must still walk the real probe chain and stop as soon as the table semantics say the answer is known.
+
+# 2026-05-16 - Benchmark runner now emits root snapshots and has a reduced fast wrapper
+
+The benchmark lane now writes a compact root snapshot on every run so agents do not have to open the long report first. `benchmark/run.py` still writes the timestamped and latest full reports under `benchmark/out/reports/`, but it now also writes `benchmark/latest.md` with just status, run counts, selected languages, and the median summary table. `benchmark/run_fast.py` is a thin wrapper over `benchmark/run.py` that forces `--languages kain,rust,cpp,erlang` and writes `benchmark/latest_fast.md`.
+
+What changed:
+
+- `benchmark/run.py` gained a minimal renderer plus `--minimal-name`, defaulting to `latest.md`.
+- `benchmark/run_fast.py` forwards normal runner flags but appends the fixed fast language subset and the `latest_fast.md` root snapshot name.
+- `benchmark/README.md` and `.agents/skills/kain-benchmark-pipeline/SKILL.md` now document the new root snapshots and the fast wrapper command.
+
+Durable lesson:
+
+- Keep the root snapshot brutally compact. The detailed LLM report still belongs under `benchmark/out/reports/latest.llm.md`, but agents doing quick triage should be able to read `benchmark/latest.md` or `benchmark/latest_fast.md` first and decide whether a deeper dive is necessary.
+
 # 2026-05-16 - Ready-future async stopped being catastrophic and now edges Rust in the honest benchmark lane
 
 `async_ready_chain` was not losing because `await` work inside the loop was inherently expensive; it was losing because Kain paid several fixed costs at once. The runtime now has an inline-ready future payload path in `runtime/native/src/core/stdlib_abi.c`: immediately-ready futures store the copied scalar payload inside the future RC object, mark `task_id = KAIN_TASK_ID_INVALID`, and let `abi_future_state(...)` / `abi_future_await_payload_copy(...)` complete without task allocation or scheduler traffic. LLVM lowering in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` then goes one step further for obvious immediate-ready cases (`await async ...` and zero-arg functions that immediately `return async ...`) by folding the payload directly into the caller, so the hot benchmark loop no longer calls the future ABI at all.

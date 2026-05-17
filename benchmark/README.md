@@ -11,7 +11,8 @@ The contract is intentionally simple:
 - Some cases build support artifacts beside the executables. `ffi_shared_call_stress` is the current example: the runner compiles the shared C helper under `benchmark/out/build/...`, copies the DLL beside each built executable, and compiles the Kain row from the case directory so the case-local `KAIN.toml` for `use c::...` resolves correctly.
 - Build time is recorded separately; timed samples run the already-built executables.
 - The runner prefers a release-built `kain.exe`, pins Kain benchmark links to `runtime/native_core_runtime.toml`, and passes a benchmark-native tuning profile into the Kain compiler unless you override it.
-- Every run writes `out/reports/latest.llm.md`, a timestamped `.llm.md` report, and `out/reports/latest.json`. Stale `latest.html` is removed.
+- Every normal run writes `benchmark/latest.md` as the compact root snapshot, plus `out/reports/latest.llm.md`, a timestamped `.llm.md` report, and `out/reports/latest.json`. Stale `latest.html` is removed.
+- `python benchmark/run_fast.py` locks the suite to `kain,rust,cpp,erlang` and writes `benchmark/latest_fast.md` as the compact root snapshot for the reduced lane.
 - The report includes a maturity/fairness note per case. Some pressure tests are honest proxies until Kain exposes the matching runtime primitive directly in LLVM.
 - Subprocess output is decoded as UTF-8 with replacement so the Unicode-heavy cases can report cleanly on Windows.
 
@@ -63,6 +64,12 @@ Run the suite from the repo root:
 python benchmark/run.py
 ```
 
+Fast reduced-language pass:
+
+```powershell
+python benchmark/run_fast.py
+```
+
 Useful variants:
 
 ```powershell
@@ -77,6 +84,7 @@ python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --ru
 python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 5 --warmups 2
 python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe
 python benchmark/run.py --languages cpp --cxx D:\Kain-Lang\toolchain\llvm\bin\clang++.exe
+python benchmark/run_fast.py --case actor_mailbox_erlang --runs 3 --warmups 1
 ```
 
 Native benchmark blade:
@@ -91,4 +99,4 @@ The blade source lives in `benchmark/blades/kain-benchmark`. It renders a compac
 .\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName D:\Kain-Lang\benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm
 ```
 
-The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe`; use `--cxx` or `CXX` only when you intentionally want a different `clang++`/`g++`-style driver. Erlang auto-detects from the official OTP `bin` directory first; use `--erl` and `--erlc` only when you intentionally want a different `erl`/`erlc` pair. Kain benchmark builds set `KAIN_RUNTIME_MANIFEST_PATH` to the lean core runtime manifest; use the broad runtime manifest only for app/vendor/UI lanes. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning.
+The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe`; use `--cxx` or `CXX` only when you intentionally want a different `clang++`/`g++`-style driver. Erlang auto-detects from the official OTP `bin` directory first; use `--erl` and `--erlc` only when you intentionally want a different `erl`/`erlc` pair. Kain benchmark builds set `KAIN_RUNTIME_MANIFEST_PATH` to the lean core runtime manifest; use the broad runtime manifest only for app/vendor/UI lanes. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning. `run_fast.py` forwards the same flags but forcibly appends `--languages kain,rust,cpp,erlang` and `--minimal-name latest_fast.md`.

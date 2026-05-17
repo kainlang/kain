@@ -7,15 +7,15 @@
       "id": "if.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 199,
+      "line": 242,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 23,
-        "end_line": 199,
+        "end_line": 242,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 199
+        "start_line": 242
       },
       "symbol": "if",
       "tags": [
@@ -32,24 +32,146 @@
       "confidence": "high",
       "dsl_expression": {
         "args": [
+          "job_count",
+          "KAIN_MACHINE_PULSE_SLOT_COUNT"
+        ],
+        "op": "lt"
+      },
+      "expression": "job_count < KAIN_MACHINE_PULSE_SLOT_COUNT",
+      "id": "if.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 291,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 291,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 291
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (job_count < KAIN_MACHINE_PULSE_SLOT_COUNT) {",
+      "variables": [
+        "KAIN_MACHINE_PULSE_SLOT_COUNT",
+        "job_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "KAIN_MACHINE_PULSE_SLOT_COUNT",
+        "role": "count-like",
+        "type": "job_count <"
+      },
+      "id": "if.parameter-role.4",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 291,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 291,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 291
+      },
+      "symbol": "if",
+      "text": "if (job_count < KAIN_MACHINE_PULSE_SLOT_COUNT) {",
+      "variables": [
+        "KAIN_MACHINE_PULSE_SLOT_COUNT"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "until_due",
+          "sleep_ns"
+        ],
+        "op": "lt"
+      },
+      "expression": "until_due < sleep_ns",
+      "id": "if.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 299,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 299,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 299
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (until_due < sleep_ns) {",
+      "variables": [
+        "sleep_ns",
+        "until_due"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "job_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.5",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 310,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 310,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 310
+      },
+      "symbol": "if",
+      "text": "if (job_count == 0u) {",
+      "variables": [
+        "job_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
           "advanced",
           0
         ],
         "op": "gt"
       },
       "expression": "advanced > 0u",
-      "id": "if.guard-condition.2",
+      "id": "if.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 237,
+      "line": 377,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 21,
-        "end_line": 237,
+        "end_line": 377,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 237
+        "start_line": 377
       },
       "symbol": "if",
       "tags": [
@@ -69,18 +191,18 @@
         "role": "count-like",
         "type": null
       },
-      "id": "if.parameter-role.3",
+      "id": "if.parameter-role.7",
       "kind": "parameter-role",
       "language": "c",
-      "line": 311,
+      "line": 520,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 47,
-        "end_line": 311,
+        "end_line": 520,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 311
+        "start_line": 520
       },
       "symbol": "if",
       "text": "if (lane_count == 0u || element_count == 0u) {",
@@ -99,15 +221,15 @@
       "id": "kain-machine-add-overflow-u64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 298,
+      "line": 507,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 298,
+        "end_line": 507,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 298
+        "start_line": 507
       },
       "symbol": "kain_machine_add_overflow_u64",
       "text": "static int kain_machine_add_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {",
@@ -126,15 +248,15 @@
       "id": "kain-machine-add-overflow-u64.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 298,
+      "line": 507,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 298,
+        "end_line": 507,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 298
+        "start_line": 507
       },
       "symbol": "kain_machine_add_overflow_u64",
       "text": "static int kain_machine_add_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {",
@@ -153,15 +275,15 @@
       "id": "kain-machine-add-overflow-u64.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 298,
+      "line": 507,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 298,
+        "end_line": 507,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 298
+        "start_line": 507
       },
       "symbol": "kain_machine_add_overflow_u64",
       "text": "static int kain_machine_add_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {",
@@ -201,15 +323,15 @@
       "id": "kain-machine-add-overflow-u64.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 299,
+      "line": 508,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 41,
-        "end_line": 299,
+        "end_line": 508,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 299
+        "start_line": 508
       },
       "symbol": "kain_machine_add_overflow_u64",
       "tags": [
@@ -229,19 +351,102 @@
     {
       "active": true,
       "confidence": "high",
+      "fact": {
+        "parameter": "a",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-machine-add-saturating-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 110,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 110,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 110
+      },
+      "symbol": "kain_machine_add_saturating_u64",
+      "text": "static uint64_t kain_machine_add_saturating_u64(uint64_t a, uint64_t b) {",
+      "variables": [
+        "a"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "b",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-machine-add-saturating-u64.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 110,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 110,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 110
+      },
+      "symbol": "kain_machine_add_saturating_u64",
+      "text": "static uint64_t kain_machine_add_saturating_u64(uint64_t a, uint64_t b) {",
+      "variables": [
+        "b"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "b > UINT64_MAX - a ? UINT64_MAX : a + b",
+      "id": "kain-machine-add-saturating-u64.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 111,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 48,
+        "end_line": 111,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 111
+      },
+      "symbol": "kain_machine_add_saturating_u64",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "return b > UINT64_MAX - a ? UINT64_MAX : a + b;",
+      "variables": [
+        "UINT64_MAX",
+        "a",
+        "b"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "expression": "arch == NULL || arch[0] == '\\0'",
       "id": "kain-machine-arch-matches.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 166,
+      "line": 209,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 39,
-        "end_line": 166,
+        "end_line": 209,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 166
+        "start_line": 209
       },
       "symbol": "kain_machine_arch_matches",
       "tags": [
@@ -261,15 +466,15 @@
       "id": "kain-machine-arch-matches.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 170,
+      "line": 213,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 66,
-        "end_line": 170,
+        "end_line": 213,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 170
+        "start_line": 213
       },
       "symbol": "kain_machine_arch_matches",
       "tags": [
@@ -291,15 +496,15 @@
       "id": "kain-machine-arch-matches.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 172,
+      "line": 215,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 67,
-        "end_line": 172,
+        "end_line": 215,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 172
+        "start_line": 215
       },
       "symbol": "kain_machine_arch_matches",
       "tags": [
@@ -325,15 +530,15 @@
       "id": "kain-machine-axiom-accept.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 178,
+      "line": 221,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 98,
-        "end_line": 178,
+        "end_line": 221,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 178
+        "start_line": 221
       },
       "symbol": "kain_machine_axiom_accept",
       "text": "int64_t kain_machine_axiom_accept(const char* target, const char* arch, uint64_t required_caps) {",
@@ -348,15 +553,15 @@
       "id": "kain-machine-axiom-accept.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 181,
+      "line": 224,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 80,
-        "end_line": 181,
+        "end_line": 224,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 181
+        "start_line": 224
       },
       "symbol": "kain_machine_axiom_accept",
       "tags": [
@@ -378,15 +583,15 @@
       "id": "kain-machine-axiom-accept.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 185,
+      "line": 228,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 61,
-        "end_line": 185,
+        "end_line": 228,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 185
+        "start_line": 228
       },
       "symbol": "kain_machine_axiom_accept",
       "tags": [
@@ -406,15 +611,15 @@
       "id": "kain-machine-capability-mask-for-key.return-condition.1",
       "kind": "return-condition",
       "language": "c",
-      "line": 123,
+      "line": 166,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 123,
+        "end_line": 166,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 123
+        "start_line": 166
       },
       "symbol": "kain_machine_capability_mask_for_key",
       "tags": [
@@ -439,15 +644,15 @@
       "id": "kain-machine-capability-mask-for-key.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 125,
+      "line": 168,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 92,
-        "end_line": 125,
+        "end_line": 168,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 125
+        "start_line": 168
       },
       "symbol": "kain_machine_capability_mask_for_key",
       "tags": [
@@ -473,15 +678,15 @@
       "id": "kain-machine-capability-mask-for-key.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 127,
+      "line": 170,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 83,
-        "end_line": 127,
+        "end_line": 170,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 127
+        "start_line": 170
       },
       "symbol": "kain_machine_capability_mask_for_key",
       "tags": [
@@ -506,15 +711,15 @@
       "id": "kain-machine-capability-mask-for-key.return-condition.4",
       "kind": "return-condition",
       "language": "c",
-      "line": 129,
+      "line": 172,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 129,
+        "end_line": 172,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 129
+        "start_line": 172
       },
       "symbol": "kain_machine_capability_mask_for_key",
       "tags": [
@@ -539,15 +744,15 @@
       "id": "kain-machine-capability-mask-for-key.return-condition.5",
       "kind": "return-condition",
       "language": "c",
-      "line": 131,
+      "line": 174,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 131,
+        "end_line": 174,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 131
+        "start_line": 174
       },
       "symbol": "kain_machine_capability_mask_for_key",
       "tags": [
@@ -572,15 +777,15 @@
       "id": "kain-machine-capability-mask-for-key.return-condition.6",
       "kind": "return-condition",
       "language": "c",
-      "line": 133,
+      "line": 176,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 93,
-        "end_line": 133,
+        "end_line": 176,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 133
+        "start_line": 176
       },
       "symbol": "kain_machine_capability_mask_for_key",
       "tags": [
@@ -607,15 +812,15 @@
       "id": "kain-machine-current-capabilities.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 145,
+      "line": 188,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 47,
-        "end_line": 145,
+        "end_line": 188,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 145
+        "start_line": 188
       },
       "symbol": "kain_machine_current_capabilities",
       "tags": [
@@ -636,15 +841,15 @@
       "id": "kain-machine-current-capabilities.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 148,
+      "line": 191,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 46,
-        "end_line": 148,
+        "end_line": 191,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 148
+        "start_line": 191
       },
       "symbol": "kain_machine_current_capabilities",
       "tags": [
@@ -665,15 +870,15 @@
       "id": "kain-machine-current-capabilities.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 151,
+      "line": 194,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 47,
-        "end_line": 151,
+        "end_line": 194,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 151
+        "start_line": 194
       },
       "symbol": "kain_machine_current_capabilities",
       "tags": [
@@ -694,15 +899,15 @@
       "id": "kain-machine-current-capabilities.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 154,
+      "line": 197,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 50,
-        "end_line": 154,
+        "end_line": 197,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 154
+        "start_line": 197
       },
       "symbol": "kain_machine_current_capabilities",
       "tags": [
@@ -727,15 +932,15 @@
       "id": "kain-machine-hash-text.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 75,
+      "line": 98,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 74,
-        "end_line": 75,
+        "end_line": 98,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 75
+        "start_line": 98
       },
       "symbol": "kain_machine_hash_text",
       "text": "static uint64_t kain_machine_hash_text(uint64_t seed, const char* text) {",
@@ -757,15 +962,15 @@
       "id": "kain-machine-hash-text.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 77,
+      "line": 100,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 20,
-        "end_line": 77,
+        "end_line": 100,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 77
+        "start_line": 100
       },
       "symbol": "kain_machine_hash_text",
       "tags": [
@@ -786,15 +991,15 @@
       "id": "kain-machine-hash-text.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 80,
+      "line": 103,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 24,
-        "end_line": 80,
+        "end_line": 103,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 80
+        "start_line": 103
       },
       "symbol": "kain_machine_hash_text",
       "tags": [
@@ -814,15 +1019,15 @@
       "id": "kain-machine-lock.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 58,
+      "line": 81,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 72,
-        "end_line": 58,
+        "end_line": 81,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 58
+        "start_line": 81
       },
       "symbol": "kain_machine_lock",
       "tags": [
@@ -847,15 +1052,15 @@
       "id": "kain-machine-mix64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 66,
+      "line": 89,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 53,
-        "end_line": 66,
+        "end_line": 89,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 66
+        "start_line": 89
       },
       "symbol": "kain_machine_mix64",
       "text": "static uint64_t kain_machine_mix64(uint64_t value) {",
@@ -874,15 +1079,15 @@
       "id": "kain-machine-mul-overflow-u64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 287,
+      "line": 496,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 287,
+        "end_line": 496,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 287
+        "start_line": 496
       },
       "symbol": "kain_machine_mul_overflow_u64",
       "text": "static int kain_machine_mul_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {",
@@ -901,15 +1106,15 @@
       "id": "kain-machine-mul-overflow-u64.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 287,
+      "line": 496,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 287,
+        "end_line": 496,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 287
+        "start_line": 496
       },
       "symbol": "kain_machine_mul_overflow_u64",
       "text": "static int kain_machine_mul_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {",
@@ -928,15 +1133,15 @@
       "id": "kain-machine-mul-overflow-u64.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 287,
+      "line": 496,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 287,
+        "end_line": 496,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 287
+        "start_line": 496
       },
       "symbol": "kain_machine_mul_overflow_u64",
       "text": "static int kain_machine_mul_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {",
@@ -958,15 +1163,15 @@
       "id": "kain-machine-mul-overflow-u64.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 288,
+      "line": 497,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 19,
-        "end_line": 288,
+        "end_line": 497,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 288
+        "start_line": 497
       },
       "symbol": "kain_machine_mul_overflow_u64",
       "tags": [
@@ -1012,15 +1217,15 @@
       "id": "kain-machine-mul-overflow-u64.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 291,
+      "line": 500,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 37,
-        "end_line": 291,
+        "end_line": 500,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 291
+        "start_line": 500
       },
       "symbol": "kain_machine_mul_overflow_u64",
       "tags": [
@@ -1043,15 +1248,15 @@
       "id": "kain-machine-now-ns.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 93,
+      "line": 136,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 31,
-        "end_line": 93,
+        "end_line": 136,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 93
+        "start_line": 136
       },
       "symbol": "kain_machine_now_ns",
       "tags": [
@@ -1072,15 +1277,15 @@
       "id": "kain-machine-now-ns.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 99,
+      "line": 142,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 49,
-        "end_line": 99,
+        "end_line": 142,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 99
+        "start_line": 142
       },
       "symbol": "kain_machine_now_ns",
       "tags": [
@@ -1098,6 +1303,539 @@
     {
       "active": true,
       "confidence": "high",
+      "expression": "(!atomic_compare_exchange_strong_explicit(",
+      "id": "kain-machine-pulse-ensure-scheduler-started.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 324,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 324,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 324
+      },
+      "symbol": "kain_machine_pulse_ensure_scheduler_started",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!atomic_compare_exchange_strong_explicit(",
+      "variables": [
+        "atomic_compare_exchange_strong_explicit"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "g_machine_pulse_thread",
+          "NULL"
+        ],
+        "op": "eq"
+      },
+      "expression": "g_machine_pulse_thread == NULL",
+      "id": "kain-machine-pulse-ensure-scheduler-started.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 337,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 337,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 337
+      },
+      "symbol": "kain_machine_pulse_ensure_scheduler_started",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (g_machine_pulse_thread == NULL) {",
+      "variables": [
+        "NULL",
+        "g_machine_pulse_thread"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "pthread_create(&g_machine_pulse_thread, NULL, kain_machine_pulse_scheduler_proc, NULL) != 0",
+      "id": "kain-machine-pulse-ensure-scheduler-started.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 342,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 99,
+        "end_line": 342,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 342
+      },
+      "symbol": "kain_machine_pulse_ensure_scheduler_started",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (pthread_create(&g_machine_pulse_thread, NULL, kain_machine_pulse_scheduler_proc, NULL) != 0) {",
+      "variables": [
+        "NULL",
+        "g_machine_pulse_thread",
+        "kain_machine_pulse_scheduler_proc",
+        "pthread_create"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "atomic_exchange_explicit(&g_machine_pulse_atexit_registered, 1, memory_order_acq_rel) == 0",
+      "id": "kain-machine-pulse-register-atexit-once.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 265,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 98,
+        "end_line": 265,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 265
+      },
+      "symbol": "kain_machine_pulse_register_atexit_once",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (atomic_exchange_explicit(&g_machine_pulse_atexit_registered, 1, memory_order_acq_rel) == 0) {",
+      "variables": [
+        "atomic_exchange_explicit",
+        "g_machine_pulse_atexit_registered",
+        "memory_order_acq_rel"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "atomic_load_explicit(&g_machine_pulse_stop_requested, memory_order_acquire) == 0",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 277,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 91,
+        "end_line": 277,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 277
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while (atomic_load_explicit(&g_machine_pulse_stop_requested, memory_order_acquire) == 0) {",
+      "variables": [
+        "atomic_load_explicit",
+        "g_machine_pulse_stop_requested",
+        "memory_order_acquire"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "atomic_load_explicit(&g_machine_pulse_stop_requested, memory_order_acquire) == 0",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 277,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 91,
+        "end_line": 277,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 277
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while (atomic_load_explicit(&g_machine_pulse_stop_requested, memory_order_acquire) == 0) {",
+      "variables": [
+        "atomic_load_explicit",
+        "g_machine_pulse_stop_requested",
+        "memory_order_acquire"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!slot->occupied || !slot->scheduled || slot->fire == NULL",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 287,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 287,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 287
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!slot->occupied || !slot->scheduled || slot->fire == NULL) {",
+      "variables": [
+        "NULL",
+        "fire",
+        "occupied",
+        "scheduled",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!slot->occupied || !slot->scheduled || slot->fire == NULL",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 287,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 287,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 287
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!slot->occupied || !slot->scheduled || slot->fire == NULL) {",
+      "variables": [
+        "NULL",
+        "fire",
+        "occupied",
+        "scheduled",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "slot->next_due_ns <= now_ns",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 290,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 290,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 290
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (slot->next_due_ns <= now_ns) {",
+      "variables": [
+        "next_due_ns",
+        "now_ns",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "slot->next_due_ns <= now_ns",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 290,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 290,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 290
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (slot->next_due_ns <= now_ns) {",
+      "variables": [
+        "next_due_ns",
+        "now_ns",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "job_count",
+          "KAIN_MACHINE_PULSE_SLOT_COUNT"
+        ],
+        "op": "lt"
+      },
+      "expression": "job_count < KAIN_MACHINE_PULSE_SLOT_COUNT",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 291,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 291,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 291
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (job_count < KAIN_MACHINE_PULSE_SLOT_COUNT) {",
+      "variables": [
+        "KAIN_MACHINE_PULSE_SLOT_COUNT",
+        "job_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "job_count",
+          "KAIN_MACHINE_PULSE_SLOT_COUNT"
+        ],
+        "op": "lt"
+      },
+      "expression": "job_count < KAIN_MACHINE_PULSE_SLOT_COUNT",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 291,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 291,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 291
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (job_count < KAIN_MACHINE_PULSE_SLOT_COUNT) {",
+      "variables": [
+        "KAIN_MACHINE_PULSE_SLOT_COUNT",
+        "job_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "until_due",
+          "sleep_ns"
+        ],
+        "op": "lt"
+      },
+      "expression": "until_due < sleep_ns",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 299,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 299,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 299
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (until_due < sleep_ns) {",
+      "variables": [
+        "sleep_ns",
+        "until_due"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "until_due",
+          "sleep_ns"
+        ],
+        "op": "lt"
+      },
+      "expression": "until_due < sleep_ns",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 299,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 299,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 299
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (until_due < sleep_ns) {",
+      "variables": [
+        "sleep_ns",
+        "until_due"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "job_count",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "job_count == 0u",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 310,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 310,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 310
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (job_count == 0u) {",
+      "variables": [
+        "job_count",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "job_count",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "job_count == 0u",
+      "id": "kain-machine-pulse-scheduler-proc.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 310,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 310,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 310
+      },
+      "symbol": "kain_machine_pulse_scheduler_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (job_count == 0u) {",
+      "variables": [
+        "job_count",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "fact": {
         "parameter": "token",
         "role": "unsigned-int",
@@ -1106,15 +1844,15 @@
       "id": "kain-machine-pulse-slot.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 192,
+      "line": 235,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 71,
-        "end_line": 192,
+        "end_line": 235,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 192
+        "start_line": 235
       },
       "symbol": "kain_machine_pulse_slot",
       "text": "static KainMachinePulseSlot* kain_machine_pulse_slot(uint64_t token) {",
@@ -1129,15 +1867,15 @@
       "id": "kain-machine-pulse-slot.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 198,
+      "line": 241,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 47,
-        "end_line": 198,
+        "end_line": 241,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 198
+        "start_line": 241
       },
       "symbol": "kain_machine_pulse_slot",
       "tags": [
@@ -1160,15 +1898,15 @@
       "id": "kain-machine-pulse-slot.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 199,
+      "line": 242,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 23,
-        "end_line": 199,
+        "end_line": 242,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 199
+        "start_line": 242
       },
       "symbol": "kain_machine_pulse_slot",
       "tags": [
@@ -1194,20 +1932,86 @@
       "id": "kain-machine-pulse-slot-start.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 188,
+      "line": 231,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 64,
-        "end_line": 188,
+        "end_line": 231,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 188
+        "start_line": 231
       },
       "symbol": "kain_machine_pulse_slot_start",
       "text": "static uint32_t kain_machine_pulse_slot_start(uint64_t token) {",
       "variables": [
         "token"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "g_machine_pulse_thread",
+          "NULL"
+        ],
+        "op": "neq"
+      },
+      "expression": "g_machine_pulse_thread != NULL",
+      "id": "kain-machine-pulse-stop-all.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 443,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 443,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 443
+      },
+      "symbol": "kain_machine_pulse_stop_all",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_machine_pulse_thread != NULL) {",
+      "variables": [
+        "NULL",
+        "g_machine_pulse_thread"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "atomic_exchange_explicit(&g_machine_pulse_thread_joinable, 0, memory_order_acq_rel) != 0",
+      "id": "kain-machine-pulse-stop-all.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 449,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 96,
+        "end_line": 449,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 449
+      },
+      "symbol": "kain_machine_pulse_stop_all",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (atomic_exchange_explicit(&g_machine_pulse_thread_joinable, 0, memory_order_acq_rel) != 0) {",
+      "variables": [
+        "atomic_exchange_explicit",
+        "g_machine_pulse_thread_joinable",
+        "memory_order_acq_rel"
       ]
     },
     {
@@ -1221,15 +2025,15 @@
       "id": "kain-machine-shatter-alloc.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 306,
+      "line": 515,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 80,
-        "end_line": 306,
+        "end_line": 515,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 306
+        "start_line": 515
       },
       "symbol": "kain_machine_shatter_alloc",
       "text": "void* kain_machine_shatter_alloc(uint64_t lane_count, uint64_t element_count) {",
@@ -1248,15 +2052,15 @@
       "id": "kain-machine-shatter-alloc.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 306,
+      "line": 515,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 80,
-        "end_line": 306,
+        "end_line": 515,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 306
+        "start_line": 515
       },
       "symbol": "kain_machine_shatter_alloc",
       "text": "void* kain_machine_shatter_alloc(uint64_t lane_count, uint64_t element_count) {",
@@ -1275,15 +2079,15 @@
       "id": "kain-machine-shatter-alloc.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 306,
+      "line": 515,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 80,
-        "end_line": 306,
+        "end_line": 515,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 306
+        "start_line": 515
       },
       "symbol": "kain_machine_shatter_alloc",
       "text": "void* kain_machine_shatter_alloc(uint64_t lane_count, uint64_t element_count) {",
@@ -1302,15 +2106,15 @@
       "id": "kain-machine-shatter-alloc.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 306,
+      "line": 515,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 80,
-        "end_line": 306,
+        "end_line": 515,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 306
+        "start_line": 515
       },
       "symbol": "kain_machine_shatter_alloc",
       "text": "void* kain_machine_shatter_alloc(uint64_t lane_count, uint64_t element_count) {",
@@ -1344,15 +2148,15 @@
       "id": "kain-machine-shatter-alloc.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 311,
+      "line": 520,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 47,
-        "end_line": 311,
+        "end_line": 520,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 311
+        "start_line": 520
       },
       "symbol": "kain_machine_shatter_alloc",
       "tags": [
@@ -1375,15 +2179,15 @@
       "id": "kain-machine-shatter-alloc.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 315,
+      "line": 524,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 72,
-        "end_line": 315,
+        "end_line": 524,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 315
+        "start_line": 524
       },
       "symbol": "kain_machine_shatter_alloc",
       "tags": [
@@ -1414,15 +2218,15 @@
       "id": "kain-machine-shatter-alloc.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 323,
+      "line": 532,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 22,
-        "end_line": 323,
+        "end_line": 532,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 323
+        "start_line": 532
       },
       "symbol": "kain_machine_shatter_alloc",
       "tags": [
@@ -1445,18 +2249,169 @@
         "role": "index-like",
         "type": "uint64_t"
       },
+      "id": "kain-machine-shatter-lane-base.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 561,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 561,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 561
+      },
+      "symbol": "kain_machine_shatter_lane_base",
+      "text": "void* kain_machine_shatter_lane_base(void* handle, uint64_t lane_index) {",
+      "variables": [
+        "lane_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "lane_index",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-machine-shatter-lane-base.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 561,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 561,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 561
+      },
+      "symbol": "kain_machine_shatter_lane_base",
+      "text": "void* kain_machine_shatter_lane_base(void* handle, uint64_t lane_index) {",
+      "variables": [
+        "lane_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "buffer == NULL || lane_index >= buffer->lane_count",
+      "id": "kain-machine-shatter-lane-base.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 565,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 58,
+        "end_line": 565,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 565
+      },
+      "symbol": "kain_machine_shatter_lane_base",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (buffer == NULL || lane_index >= buffer->lane_count) {",
+      "variables": [
+        "NULL",
+        "buffer",
+        "lane_count",
+        "lane_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(kain_machine_mul_overflow_u64(lane_index, buffer->element_count, &lane_slots) ||",
+      "id": "kain-machine-shatter-lane-base.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 569,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 85,
+        "end_line": 569,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 569
+      },
+      "symbol": "kain_machine_shatter_lane_base",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_machine_mul_overflow_u64(lane_index, buffer->element_count, &lane_slots) ||",
+      "variables": [
+        "buffer",
+        "element_count",
+        "kain_machine_mul_overflow_u64",
+        "lane_index",
+        "lane_slots"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(void*)(buffer->data + byte_offset)",
+      "id": "kain-machine-shatter-lane-base.return-condition.5",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 575,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 575,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 575
+      },
+      "symbol": "kain_machine_shatter_lane_base",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return (void*)(buffer->data + byte_offset);",
+      "variables": [
+        "buffer",
+        "byte_offset",
+        "data",
+        "void"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "lane_index",
+        "role": "index-like",
+        "type": "uint64_t"
+      },
       "id": "kain-machine-shatter-lane-ptr.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 333,
+      "line": 542,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 97,
-        "end_line": 333,
+        "end_line": 542,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 333
+        "start_line": 542
       },
       "symbol": "kain_machine_shatter_lane_ptr",
       "text": "void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t element_index) {",
@@ -1475,15 +2430,15 @@
       "id": "kain-machine-shatter-lane-ptr.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 333,
+      "line": 542,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 97,
-        "end_line": 333,
+        "end_line": 542,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 333
+        "start_line": 542
       },
       "symbol": "kain_machine_shatter_lane_ptr",
       "text": "void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t element_index) {",
@@ -1502,15 +2457,15 @@
       "id": "kain-machine-shatter-lane-ptr.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 333,
+      "line": 542,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 97,
-        "end_line": 333,
+        "end_line": 542,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 333
+        "start_line": 542
       },
       "symbol": "kain_machine_shatter_lane_ptr",
       "text": "void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t element_index) {",
@@ -1529,15 +2484,15 @@
       "id": "kain-machine-shatter-lane-ptr.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 333,
+      "line": 542,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 97,
-        "end_line": 333,
+        "end_line": 542,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 333
+        "start_line": 542
       },
       "symbol": "kain_machine_shatter_lane_ptr",
       "text": "void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t element_index) {",
@@ -1552,15 +2507,15 @@
       "id": "kain-machine-shatter-lane-ptr.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 337,
+      "line": 546,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 58,
-        "end_line": 337,
+        "end_line": 546,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 337
+        "start_line": 546
       },
       "symbol": "kain_machine_shatter_lane_ptr",
       "tags": [
@@ -1584,15 +2539,15 @@
       "id": "kain-machine-shatter-lane-ptr.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 342,
+      "line": 551,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 87,
-        "end_line": 342,
+        "end_line": 551,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 342
+        "start_line": 551
       },
       "symbol": "kain_machine_shatter_lane_ptr",
       "tags": [
@@ -1617,15 +2572,15 @@
       "id": "kain-machine-shatter-lane-ptr.return-condition.7",
       "kind": "return-condition",
       "language": "c",
-      "line": 349,
+      "line": 558,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 44,
-        "end_line": 349,
+        "end_line": 558,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 349
+        "start_line": 558
       },
       "symbol": "kain_machine_shatter_lane_ptr",
       "tags": [
@@ -1644,20 +2599,114 @@
     },
     {
       "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "ns",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-machine-sleep-ns.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 114,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 114,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 114
+      },
+      "symbol": "kain_machine_sleep_ns",
+      "text": "static void kain_machine_sleep_ns(uint64_t ns) {",
+      "variables": [
+        "ns"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "ms",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "ms == 0u",
+      "id": "kain-machine-sleep-ns.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 116,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 116,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 116
+      },
+      "symbol": "kain_machine_sleep_ns",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (ms == 0u) {",
+      "variables": [
+        "ms",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "nanosleep(&delay, &delay) != 0 && errno == EINTR",
+      "id": "kain-machine-sleep-ns.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 125,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 125,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 125
+      },
+      "symbol": "kain_machine_sleep_ns",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {",
+      "variables": [
+        "EINTR",
+        "delay",
+        "errno",
+        "nanosleep"
+      ]
+    },
+    {
+      "active": true,
       "confidence": "medium",
       "expression": "target == NULL || target[0] == '\\0' || strcmp(target, \"llvm\") == 0 ||",
       "id": "kain-machine-target-matches.return-condition.1",
       "kind": "return-condition",
       "language": "c",
-      "line": 161,
+      "line": 204,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 77,
-        "end_line": 161,
+        "end_line": 204,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 161
+        "start_line": 204
       },
       "symbol": "kain_machine_target_matches",
       "tags": [
@@ -1686,15 +2735,15 @@
       "id": "kain-machine-token-signature.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 108,
+      "line": 151,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 19,
-        "end_line": 108,
+        "end_line": 151,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 108
+        "start_line": 151
       },
       "symbol": "kain_machine_token_signature",
       "tags": [
@@ -1714,15 +2763,15 @@
       "id": "switch.return-condition.1",
       "kind": "return-condition",
       "language": "c",
-      "line": 123,
+      "line": 166,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 123,
+        "end_line": 166,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 123
+        "start_line": 166
       },
       "symbol": "switch",
       "tags": [
@@ -1747,15 +2796,15 @@
       "id": "switch.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 125,
+      "line": 168,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 92,
-        "end_line": 125,
+        "end_line": 168,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 125
+        "start_line": 168
       },
       "symbol": "switch",
       "tags": [
@@ -1781,15 +2830,15 @@
       "id": "switch.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 127,
+      "line": 170,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 83,
-        "end_line": 127,
+        "end_line": 170,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 127
+        "start_line": 170
       },
       "symbol": "switch",
       "tags": [
@@ -1814,15 +2863,15 @@
       "id": "switch.return-condition.4",
       "kind": "return-condition",
       "language": "c",
-      "line": 129,
+      "line": 172,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 129,
+        "end_line": 172,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 129
+        "start_line": 172
       },
       "symbol": "switch",
       "tags": [
@@ -1847,15 +2896,15 @@
       "id": "switch.return-condition.5",
       "kind": "return-condition",
       "language": "c",
-      "line": 131,
+      "line": 174,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 82,
-        "end_line": 131,
+        "end_line": 174,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 131
+        "start_line": 174
       },
       "symbol": "switch",
       "tags": [
@@ -1880,15 +2929,15 @@
       "id": "switch.return-condition.6",
       "kind": "return-condition",
       "language": "c",
-      "line": 133,
+      "line": 176,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
       "span": {
         "end_col": 93,
-        "end_line": 133,
+        "end_line": 176,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
         "start_col": 1,
-        "start_line": 133
+        "start_line": 176
       },
       "symbol": "switch",
       "tags": [
@@ -1907,10 +2956,170 @@
         "u",
         "zero"
       ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!slot->occupied || !slot->scheduled || slot->fire == NULL",
+      "id": "while.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 287,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 287,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 287
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!slot->occupied || !slot->scheduled || slot->fire == NULL) {",
+      "variables": [
+        "NULL",
+        "fire",
+        "occupied",
+        "scheduled",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "slot->next_due_ns <= now_ns",
+      "id": "while.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 290,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 290,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 290
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (slot->next_due_ns <= now_ns) {",
+      "variables": [
+        "next_due_ns",
+        "now_ns",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "job_count",
+          "KAIN_MACHINE_PULSE_SLOT_COUNT"
+        ],
+        "op": "lt"
+      },
+      "expression": "job_count < KAIN_MACHINE_PULSE_SLOT_COUNT",
+      "id": "while.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 291,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 291,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 291
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (job_count < KAIN_MACHINE_PULSE_SLOT_COUNT) {",
+      "variables": [
+        "KAIN_MACHINE_PULSE_SLOT_COUNT",
+        "job_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "until_due",
+          "sleep_ns"
+        ],
+        "op": "lt"
+      },
+      "expression": "until_due < sleep_ns",
+      "id": "while.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 299,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 299,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 299
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (until_due < sleep_ns) {",
+      "variables": [
+        "sleep_ns",
+        "until_due"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "job_count",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "job_count == 0u",
+      "id": "while.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 310,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 310,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
+        "start_col": 1,
+        "start_line": 310
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (job_count == 0u) {",
+      "variables": [
+        "job_count",
+        "u"
+      ]
     }
   ],
   "language": "c",
-  "source_hash": "91f73faafebf3df9d7b3a034320fb04e3080be17fa73250b529f7d31dc452055",
+  "source_hash": "cfbeffc158b9f7369d86e2dcdb1586991ceaeb0b281c9d88b464336efee978cb",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\machine_stones.c",
   "version": 1
 }

@@ -1143,10 +1143,22 @@ impl StdLib {
             "Extract a substring using start and end character offsets",
         );
         lib.add_fn(
+            "find_substring_from",
+            &[("s", "String"), ("needle", "String"), ("start", "Int")],
+            "Int",
+            "Find the first substring occurrence at or after a byte offset",
+        );
+        lib.add_fn(
             "char_at",
             &[("s", "String"), ("index", "Int")],
             "String",
             "Read a single character at an index as a string",
+        );
+        lib.add_fn(
+            "byte_at",
+            &[("s", "String"), ("index", "Int")],
+            "Int",
+            "Read a raw byte value at a string index, or -1 when out of range",
         );
         lib.add_fn(
             "ord",

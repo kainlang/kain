@@ -27,6 +27,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 ## Runner
 
 - Main command: `python benchmark/run.py`
+- Fast reduced-language command: `python benchmark/run_fast.py`
 - Focus one case: `python benchmark/run.py --case contention_wall --runs 3 --warmups 1`
 - Run a language subset: `python benchmark/run.py --languages js,py --runs 1 --warmups 0`
 - Run a Kain/Rust-only dependency case: `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 5 --warmups 2`
@@ -42,10 +43,13 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release` with `opt-level=3`, `target-cpu=native`, no debug info, and `KAIN_RUNTIME_MANIFEST_PATH=runtime/native_core_runtime.toml` unless a case overrides it with `kain_runtime_manifest`.
 - Subprocess stdout/stderr is decoded as UTF-8 with replacement so Unicode-heavy case output does not crash report generation on Windows.
 - Reports are written to:
+  - `benchmark/latest.md`
+  - `benchmark/latest_fast.md` when `run_fast.py` is used
   - `benchmark/out/reports/latest.llm.md`
   - `benchmark/out/reports/latest.json`
   - timestamped `benchmark/out/reports/<stamp>.llm.md`
   - timestamped `benchmark/out/reports/<stamp>.json`
+- `benchmark/latest.md` and `benchmark/latest_fast.md` are intentionally minimal LLM-facing snapshots: status, run counts, selected languages, and the compact median summary table only.
 - HTML is no longer a report format. If `benchmark/out/reports/latest.html` exists after a run, treat that as stale-output cleanup debt.
 - Dedicated FFI boundary lane: `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
   - This is a specialized benchmark outside `benchmarks.json`; it exists to compare `llvm_pure`, direct LLVM object/shared-library C FFI, `interpret_pure`, the interpreter/live bridge path, `zig_pure`, and `zig_c_object` in one place.
@@ -108,8 +112,13 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `async_ready_chain`: ready-future async/await overhead versus Tokio current-thread ready futures. Keep the Kain source on the known-good `return async 2` style until dynamic async value capture lowering is repaired; a dynamic-capture version compiled but failed checksum in the benchmark spike. This row now points Kain at `runtime/native_async_benchmark_runtime.toml`, and its win depends on benchmark-release native section GC in `crates/cli/src/main.rs`; if the Kain exe balloons again, inspect the case manifest override and the native link flags before blaming async lowering.
 - `simd_lane_mix`: integer dot product. Rust and C++ use explicit AVX2 when available; Kain remains the scalar SIMD proxy lane until first-class SIMD intrinsics land in the benchmark surface.
 - `native_map_lookup`: fixed-key string-hash lookup pressure over a small native map.
+  - The honest Kain win on this row depends on two real fast paths rather than case-only trickery: LLVM lowers literal `map_get(...)` keys as borrowed static prehashed byte views, and `runtime/native/src/core/core.c::map_get_prehashed(...)` now walks the actual linear probe chain and stops on the first empty slot or exact match instead of scanning the whole table. If this row regresses, inspect both seams before changing the benchmark case.
 - `json_manual_roundtrip`: manual parse plus serialization over two small JSON payload shapes. Keep the case manual until the native LLVM JSON builtins stop failing to link in this checkout.
+  - Latest durable release checkpoint: Kain `118.244 ms`, Rust `112.832 ms`, C++ `94.763 ms` in `benchmark/out/reports/20260517T030644Z.llm.md`.
+  - The current honest speedup came from compiler/runtime string work, not a benchmark-only rewrite: LLVM flattens long string-add trees into fixed-arity `@str_concatN(...)` calls, `core.c::to_string(...)` no longer uses `sprintf(...)`, and string-param length fallback now uses native `len(...)` instead of `strlen(...)`. Inline `byte_at(...)` on known strings is now lowered as a guarded direct byte load, but that was not the final JSON dragon. If this row regresses, inspect `render_payload(...)` IR first; if that stays clean, the next likely hotspot is `find_substring_from(...)` / `substring(...)` churn rather than raw byte extraction.
 - `filesystem_stream`: temp-file write, streaming copy, readback, and cleanup over a generated text payload.
+  - Latest durable release checkpoint: Kain `117.605 ms`, Rust `97.923 ms`, C++ `84.600 ms` in `benchmark/out/reports/20260517T030846Z.llm.md`.
+  - The current honest speedup depends on two runtime seams rather than benchmark-only shape changes: allocate-then-fill FS strings must stamp logical length after `fread(...)`, and Kain-authored `fs_write_text` / `fs_append_text` / `fs_atomic_write_text` now route through length-aware ABI entrypoints so the runtime does not rescan payload text with `strlen(...)` every round. If this row regresses, inspect `stdlib/native/fs.kn` plus `runtime/native/src/core/stdlib_abi.c` before touching the case.
 - `process_stdio_loop`: repeated `cmd.exe` launch plus stdout capture. Treat it as a Windows-first host-substrate case, not a pure language throughput case.
 - `unicode_string_heavy`: UTF-8 substring search over multilingual text and emoji.
 - `allocator_large_object_churn`: variable-size large-buffer allocation/touch/readback/release cycles.

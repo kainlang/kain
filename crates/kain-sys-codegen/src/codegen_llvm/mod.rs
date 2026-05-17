@@ -128,6 +128,9 @@ const ABI_TAG_OPTION_NONE_LLVM: i64 = 0;
 const ABI_TAG_OPTION_SOME_LLVM: i64 = 1;
 const ABI_TAG_RESULT_OK_LLVM: i64 = 2;
 const ABI_TAG_RESULT_ERR_LLVM: i64 = 3;
+const ABI_TAGGED_IMMEDIATE_MASK_LLVM: i64 = 7;
+const ABI_TAGGED_IMMEDIATE_INT_MIN_LLVM: i64 = -(1i64 << 60);
+const ABI_TAGGED_IMMEDIATE_INT_MAX_LLVM: i64 = (1i64 << 60) - 1;
 const ABI_DEFAULT_ASK_TIMEOUT_MS_LLVM: i64 = 30_000;
 const ACTOR_REF_LLVM_TYPE: &str = "%KainActorRef";
 const REPLY_PORT_ACTOR_NAME: &str = "KainReplyPort";
@@ -141,6 +144,98 @@ fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
         "round" => "kain_round_i64",
         _ => name,
     }
+}
+
+fn stdlib_function_uses_borrowed_string_param(name: &str, index: usize) -> bool {
+    matches!(
+        (name, index),
+        ("map_get", 1)
+            | ("len", 0)
+            | ("trim", 0)
+            | ("to_upper", 0)
+            | ("to_lower", 0)
+            | ("contains", 0 | 1)
+            | ("replace", 0 | 1 | 2)
+            | ("starts_with", 0 | 1)
+            | ("ends_with", 0 | 1)
+            | ("substring", 0)
+            | ("find_substring_from", 0 | 1)
+            | ("char_at", 0)
+            | ("byte_at", 0)
+            | ("ord", 0)
+    )
+}
+
+fn kain_map_codegen_mix_u64(mut value: u64) -> u64 {
+    value ^= value >> 33;
+    value = value.wrapping_mul(0xff51_afd7_ed55_8ccd);
+    value ^= value >> 33;
+    value = value.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+    value ^= value >> 33;
+    value
+}
+
+fn kain_map_codegen_hash_bytes(bytes: &[u8]) -> u64 {
+    const SEED: u64 = 0x9e37_79b9_7f4a_7c15;
+    const STEP: u64 = 0x94d0_49bb_1331_11eb;
+    let mut hash = SEED ^ ((bytes.len() as u64).wrapping_mul(STEP));
+    let mut offset = 0usize;
+
+    while offset + 8 <= bytes.len() {
+        let mut chunk_bytes = [0u8; 8];
+        chunk_bytes.copy_from_slice(&bytes[offset..offset + 8]);
+        let chunk = u64::from_le_bytes(chunk_bytes);
+        hash ^= kain_map_codegen_mix_u64(chunk.wrapping_add(SEED));
+        hash = hash.rotate_left(27).wrapping_mul(STEP).wrapping_add(SEED);
+        offset += 8;
+    }
+
+    let remaining = bytes.len() - offset;
+    if remaining > 0 {
+        let mut tail_bytes = [0u8; 8];
+        tail_bytes[..remaining].copy_from_slice(&bytes[offset..]);
+        let tail = u64::from_le_bytes(tail_bytes);
+        hash ^= kain_map_codegen_mix_u64(tail ^ ((remaining as u64) << 56));
+        hash = hash.rotate_left(27).wrapping_mul(STEP).wrapping_add(SEED);
+    }
+
+    kain_map_codegen_mix_u64(hash)
+}
+
+fn kain_map_codegen_magic_prefix_state(
+    word0: u64,
+    word1: u64,
+    word2: u64,
+    word3: u64,
+    length: u64,
+) -> u64 {
+    const MAGIC: u64 = 0x6417_0d35_8aa1_15a1;
+    const LANE1: u64 = 0x9e37_79b9_7f4a_7c15;
+    const LANE2: u64 = 0xbf58_476d_1ce4_e5b9;
+    const LANE3: u64 = 0x94d0_49bb_1331_11eb;
+    const LANE4: u64 = 0xd6e8_feb8_6659_fd93;
+    let folded0 = (word0 ^ length).wrapping_mul(MAGIC);
+    let folded1 = (word1 ^ MAGIC.rotate_left(13)).wrapping_mul(LANE1);
+    let folded2 = (word2 ^ MAGIC.rotate_left(27)).wrapping_mul(LANE2);
+    let folded3 = (word3 ^ (MAGIC ^ LANE3)).wrapping_mul(LANE4);
+    let state = folded0 ^ folded1 ^ folded2 ^ folded3;
+    ((state ^ (state >> 33)).wrapping_mul(0xff51_afd7_ed55_8ccd)) ^ (state >> 29)
+}
+
+fn kain_map_codegen_static_key_metadata(key: &str) -> (u64, u64, u64) {
+    let bytes = key.as_bytes();
+    let key_length = bytes.len() as u64;
+    let prefix_length = bytes.len().min(32);
+    let mut prefix_bytes = [0u8; 32];
+    prefix_bytes[..prefix_length].copy_from_slice(&bytes[..prefix_length]);
+    let word0 = u64::from_le_bytes(prefix_bytes[0..8].try_into().expect("slice length is exact"));
+    let word1 = u64::from_le_bytes(prefix_bytes[8..16].try_into().expect("slice length is exact"));
+    let word2 = u64::from_le_bytes(prefix_bytes[16..24].try_into().expect("slice length is exact"));
+    let word3 = u64::from_le_bytes(prefix_bytes[24..32].try_into().expect("slice length is exact"));
+    let key_hash = kain_map_codegen_hash_bytes(bytes);
+    let key_prefix =
+        kain_map_codegen_magic_prefix_state(word0, word1, word2, word3, key_length);
+    (key_length, key_hash, key_prefix)
 }
 
 fn llvm_runtime_declaration_is_preemitted(name: &str) -> bool {
@@ -250,6 +345,8 @@ struct LlvmGenerator {
     scopes: Vec<Vec<String>>,
     /// Struct definitions: Name -> Vec<(FieldName, Type)>
     struct_defs: HashMap<String, Vec<(String, String)>>,
+    /// Ordinary POD structs and POD tuples that can safely travel by value.
+    value_aggregate_structs: HashSet<String>,
     component_defs: HashMap<String, Vec<(String, String)>>,
     /// Current basic block label (for Phi nodes)
     current_block: String,
@@ -261,6 +358,7 @@ struct LlvmGenerator {
     const_globals: HashMap<String, ConstGlobalInfo>,
     string_locals: HashSet<String>,
     string_length_values: HashMap<String, String>,
+    pooled_string_literal_slots: HashMap<String, String>,
     native_entanglements: Vec<NativeEntangleBinding>,
     native_machine_axioms: Vec<NativeMachineAxiomInfo>,
     native_pulses: Vec<NativePulseInfo>,
@@ -308,6 +406,7 @@ impl LlvmGenerator {
             loop_stack: Vec::new(),
             scopes: Vec::new(),
             struct_defs: HashMap::new(),
+            value_aggregate_structs: HashSet::new(),
             component_defs: HashMap::new(),
             current_block: "entry".to_string(),
             current_return_type: None,
@@ -318,6 +417,7 @@ impl LlvmGenerator {
             const_globals: HashMap::new(),
             string_locals: HashSet::new(),
             string_length_values: HashMap::new(),
+            pooled_string_literal_slots: HashMap::new(),
             native_entanglements: Vec::new(),
             native_machine_axioms: Vec::new(),
             native_pulses: Vec::new(),
@@ -505,6 +605,45 @@ impl LlvmGenerator {
         format!("%{}*", Self::tuple_struct_name_from_types(field_tys))
     }
 
+    fn tuple_struct_storage_type_from_types(&self, field_tys: &[String]) -> String {
+        let tuple_name = Self::tuple_struct_name_from_types(field_tys);
+        if self.value_aggregate_structs.contains(&tuple_name) {
+            format!("%{}", tuple_name)
+        } else {
+            format!("%{}*", tuple_name)
+        }
+    }
+
+    fn llvm_type_is_scalar_value_aggregate_pod(&self, ty: &str) -> bool {
+        match ty {
+            "i1" | "i8" | "i32" | "i64" | "double" => true,
+            _ if ty.starts_with('%') && !ty.ends_with('*') => {
+                let struct_name = ty.trim_start_matches('%');
+                self.value_aggregate_structs.contains(struct_name)
+            }
+            _ => false,
+        }
+    }
+
+    fn resolved_type_is_scalar_value_aggregate_pod(&self, ty: &ResolvedType) -> bool {
+        match ty {
+            ResolvedType::Int(_) | ResolvedType::Float(_) | ResolvedType::Bool | ResolvedType::Char => true,
+            ResolvedType::Tuple(items) => items
+                .iter()
+                .all(|item| self.resolved_type_is_scalar_value_aggregate_pod(item)),
+            ResolvedType::Struct(name, _) => self.value_aggregate_structs.contains(name),
+            _ => false,
+        }
+    }
+
+    fn struct_storage_type(&self, name: &str) -> String {
+        if self.value_aggregate_structs.contains(name) {
+            format!("%{}", name)
+        } else {
+            format!("%{}*", name)
+        }
+    }
+
     fn register_tuple_struct(&mut self, field_tys: Vec<String>) -> String {
         let name = Self::tuple_struct_name_from_types(&field_tys);
         if !self.struct_defs.contains_key(&name) {
@@ -514,6 +653,12 @@ impl LlvmGenerator {
                 .map(|(index, ty)| (format!("_{}", index), ty.clone()))
                 .collect::<Vec<_>>();
             self.struct_defs.insert(name.clone(), fields);
+            if field_tys
+                .iter()
+                .all(|field_ty| self.llvm_type_is_scalar_value_aggregate_pod(field_ty))
+            {
+                self.value_aggregate_structs.insert(name.clone());
+            }
             self.emit(&format!("%{} = type {{ {} }}", name, field_tys.join(", ")));
         }
         name
@@ -698,7 +843,7 @@ impl LlvmGenerator {
                     .iter()
                     .map(|item| self.map_type_from_ast(item))
                     .collect::<Vec<_>>();
-                Self::tuple_struct_ptr_type_from_types(&field_tys)
+                self.tuple_struct_storage_type_from_types(&field_tys)
             }
             kain_core::ast::Type::Array(_, _, _) => "i8*".into(),
             kain_core::ast::Type::Slice(_, _) => "i8*".into(),
@@ -739,7 +884,7 @@ impl LlvmGenerator {
             _ => {
                 // Check if it's a known struct/enum
                 if self.struct_defs.contains_key(name) {
-                    format!("%{}*", name)
+                    self.struct_storage_type(name)
                 } else {
                     "i64".into()
                 }
@@ -1580,6 +1725,18 @@ impl LlvmGenerator {
         }
     }
 
+    fn extract_static_string_literal(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::String(value, _) => Some(value.clone()),
+            Expr::Paren(inner, _) => self.extract_static_string_literal(inner),
+            Expr::Ident(name, _) => self
+                .const_globals
+                .get(name)
+                .and_then(|info| info.string_literal.clone()),
+            _ => None,
+        }
+    }
+
     fn is_known_string_ident(&self, name: &str) -> bool {
         self.string_locals.contains(name)
             || self
@@ -1602,6 +1759,87 @@ impl LlvmGenerator {
             }
             _ => false,
         }
+    }
+
+    fn collect_string_concat_terms<'a>(&self, expr: &'a Expr, terms: &mut Vec<&'a Expr>) {
+        match expr {
+            Expr::Paren(inner, _) => self.collect_string_concat_terms(inner, terms),
+            Expr::Binary {
+                left, op, right, ..
+            } if *op == BinaryOp::Add && self.expr_is_known_string(expr) => {
+                if self.expr_is_known_string(left) {
+                    self.collect_string_concat_terms(left, terms);
+                } else {
+                    terms.push(left);
+                }
+                if self.expr_is_known_string(right) {
+                    self.collect_string_concat_terms(right, terms);
+                } else {
+                    terms.push(right);
+                }
+            }
+            _ => terms.push(expr),
+        }
+    }
+
+    fn emit_fixed_arity_string_concat_call(&mut self, values: &[String]) -> Option<String> {
+        if !(3..=10).contains(&values.len()) {
+            return None;
+        }
+        let res = self.next_reg();
+        let args = values
+            .iter()
+            .map(|value| format!("i8* {}", value))
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.emit(&format!(
+            "  {} = call i8* @str_concat{}({})",
+            res,
+            values.len(),
+            args
+        ));
+        Some(res)
+    }
+
+    fn compile_string_concat_expression(&mut self, expr: &Expr) -> KainResult<Option<(String, String)>> {
+        if !self.expr_is_known_string(expr) {
+            return Ok(None);
+        }
+        let mut term_exprs = Vec::new();
+        self.collect_string_concat_terms(expr, &mut term_exprs);
+        if term_exprs.len() < 3 {
+            return Ok(None);
+        }
+
+        let mut term_values = Vec::with_capacity(term_exprs.len());
+        let mut releasable_temp_values = Vec::new();
+        for term in term_exprs {
+            let (value, ty) = self.compile_expr(term)?;
+            if ty == "i8*" {
+                term_values.push(value);
+            } else {
+                let (string_value, string_ty) = self.stringify_value(&value, &ty)?;
+                debug_assert_eq!(string_ty, "i8*");
+                releasable_temp_values.push(string_value.clone());
+                term_values.push(string_value);
+            }
+        }
+
+        let result = if let Some(flattened) = self.emit_fixed_arity_string_concat_call(&term_values) {
+            flattened
+        } else {
+            let mut acc = term_values[0].clone();
+            for value in &term_values[1..] {
+                acc = self.concat_strings(&acc, value);
+            }
+            acc
+        };
+
+        for temp_value in releasable_temp_values {
+            self.emit_rc_release_if_heap_i8(&temp_value);
+        }
+
+        Ok(Some((result, "i8*".to_string())))
     }
 
     fn compile_string_data_pointer_for_byte_view(&mut self, expr: &Expr) -> KainResult<String> {
@@ -1661,7 +1899,12 @@ impl LlvmGenerator {
 
         let ptr = self.compile_string_data_pointer_for_byte_view(expr)?;
         let len = self.next_reg();
-        self.emit(&format!("  {} = call i64 @strlen(i8* {})", len, ptr));
+        self.emit(&format!("  {} = call i64 @len(i8* {})", len, ptr));
+        if let Expr::Ident(name, _) = expr {
+            if self.string_locals.contains(name) {
+                self.string_length_values.insert(name.clone(), len.clone());
+            }
+        }
         Ok(Some(len))
     }
 
@@ -1805,6 +2048,77 @@ impl LlvmGenerator {
         Ok(Some(result))
     }
 
+    fn compile_byte_at_fast_path(
+        &mut self,
+        text: &Expr,
+        index_expr: &Expr,
+    ) -> KainResult<Option<String>> {
+        if !self.expr_is_known_string(text) {
+            return Ok(None);
+        }
+
+        let text_ptr = self.compile_string_data_pointer_for_byte_view(text)?;
+        let Some(text_len) = self.compile_string_length_value(text)? else {
+            return Ok(None);
+        };
+        let index = self.compile_expr_as_i64(index_expr)?;
+
+        let text_non_null = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i8* {}, null",
+            text_non_null, text_ptr
+        ));
+        let index_non_negative = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, 0",
+            index_non_negative, index
+        ));
+        let index_below_len = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp slt i64 {}, {}",
+            index_below_len, index, text_len
+        ));
+        let index_in_bounds = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            index_in_bounds, index_non_negative, index_below_len
+        ));
+        let valid = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            valid, text_non_null, index_in_bounds
+        ));
+
+        let start_block = self.current_block.clone();
+        let load_block = self.next_label();
+        let merge_block = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            valid, load_block, merge_block
+        ));
+
+        self.emit_label(&load_block);
+        let byte_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+            byte_ptr, text_ptr, index
+        ));
+        let byte_value = self.next_reg();
+        self.emit(&format!("  {} = load i8, i8* {}, align 1", byte_value, byte_ptr));
+        let byte_i64 = self.next_reg();
+        self.emit(&format!("  {} = zext i8 {} to i64", byte_i64, byte_value));
+        let load_end_block = self.current_block.clone();
+        self.emit(&format!("  br label %{}", merge_block));
+
+        self.emit_label(&merge_block);
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i64 [ -1, %{} ], [ {}, %{} ]",
+            result, start_block, byte_i64, load_end_block
+        ));
+        Ok(Some(result))
+    }
+
     fn map_type(&self, ty: &kain_core::types::ResolvedType) -> String {
         use kain_core::types::ResolvedType;
         match ty {
@@ -1816,7 +2130,7 @@ impl LlvmGenerator {
             ResolvedType::Char => "i8".into(),
             ResolvedType::Struct(name, _) => {
                 if self.struct_defs.contains_key(name) {
-                    format!("%{}*", name)
+                    self.struct_storage_type(name)
                 } else {
                     self.map_type_from_str(name)
                 }
@@ -1834,7 +2148,7 @@ impl LlvmGenerator {
                     .iter()
                     .map(|item| self.map_type(item))
                     .collect::<Vec<_>>();
-                Self::tuple_struct_ptr_type_from_types(&field_tys)
+                self.tuple_struct_storage_type_from_types(&field_tys)
             }
             ResolvedType::Ref { inner, .. } => self.map_type(inner),
             ResolvedType::Ptr { inner, .. } => format!("{}*", self.map_type(inner)),
@@ -1843,16 +2157,56 @@ impl LlvmGenerator {
         }
     }
 
-    fn compile_string_literal(&mut self, s: &str) -> (String, String) {
-        let global_name = if let Some(name) = self.strings.get(s) {
+    fn intern_string_global_name(&mut self, s: &str) -> String {
+        if let Some(name) = self.strings.get(s) {
             name.clone()
         } else {
             let name = format!("@.str.{}", self.string_counter);
             self.string_counter += 1;
             self.strings.insert(s.to_string(), name.clone());
             name
-        };
+        }
+    }
 
+    fn compile_string_literal(&mut self, s: &str) -> (String, String) {
+        if self.entry_preamble_insert_offset.is_some() && !self.scopes.is_empty() {
+            let slot = if let Some(slot) = self.pooled_string_literal_slots.get(s) {
+                slot.clone()
+            } else {
+                let global_name = self.intern_string_global_name(s);
+                let slot_index = self.pooled_string_literal_slots.len();
+                let local_name = format!("__kain_pooled_literal_{}", slot_index);
+                let slot = format!("%{}.addr", local_name);
+                let len = s.len() + 1;
+                let reg_static = self.next_reg();
+                let reg_rc = self.next_reg();
+                self.emit_entry_alloca(&slot, "i8*");
+                self.emit_entry_preamble_line(&format!(
+                    "{} = getelementptr inbounds [{} x i8], [{} x i8]* {}, i64 0, i64 0",
+                    reg_static, len, len, global_name
+                ));
+                self.emit_entry_preamble_line(&format!(
+                    "{} = call i8* @string_new(i8* {})",
+                    reg_rc, reg_static
+                ));
+                self.emit_entry_preamble_line(&format!("store i8* {}, i8** {}", reg_rc, slot));
+                self.locals
+                    .insert(local_name.clone(), (slot.clone(), "i8*".to_string()));
+                self.string_locals.insert(local_name.clone());
+                if let Some(root_scope) = self.scopes.first_mut() {
+                    root_scope.push(local_name);
+                }
+                self.pooled_string_literal_slots
+                    .insert(s.to_string(), slot.clone());
+                slot
+            };
+
+            let reg = self.next_reg();
+            self.emit(&format!("  {} = load i8*, i8** {}", reg, slot));
+            return (reg, "i8*".to_string());
+        }
+
+        let global_name = self.intern_string_global_name(s);
         let reg_static = self.next_reg();
         let len = s.len() + 1;
         self.emit(&format!(
@@ -1869,14 +2223,7 @@ impl LlvmGenerator {
     }
 
     fn compile_static_c_string_literal(&mut self, s: &str) -> String {
-        let global_name = if let Some(name) = self.strings.get(s) {
-            name.clone()
-        } else {
-            let name = format!("@.str.{}", self.string_counter);
-            self.string_counter += 1;
-            self.strings.insert(s.to_string(), name.clone());
-            name
-        };
+        let global_name = self.intern_string_global_name(s);
 
         let reg_static = self.next_reg();
         let len = s.len() + 1;
@@ -2055,9 +2402,7 @@ impl LlvmGenerator {
 
         if matches!(expr, Expr::None(_)) {
             if target_ty == "i8*" {
-                let value =
-                    self.compile_tagged_box_from_payload(ABI_TAG_OPTION_NONE_LLVM, None, None, 0);
-                return Ok(value);
+                return Ok(("null".to_string(), "i8*".to_string()));
             }
             return Ok((self.zero_value_for_ty(target_ty), target_ty.to_string()));
         }
@@ -2168,6 +2513,88 @@ impl LlvmGenerator {
         }
     }
 
+    fn emit_tagged_value_handle_bits(&mut self, boxed_value: &str) -> String {
+        let handle_bits = self.next_reg();
+        self.emit(&format!(
+            "  {} = ptrtoint i8* {} to i64",
+            handle_bits, boxed_value
+        ));
+        handle_bits
+    }
+
+    fn emit_tagged_immediate_tag_bits_from_handle_bits(&mut self, handle_bits: &str) -> String {
+        let immediate_tag = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i64 {}, {}",
+            immediate_tag, handle_bits, ABI_TAGGED_IMMEDIATE_MASK_LLVM
+        ));
+        immediate_tag
+    }
+
+    fn compile_tagged_immediate_integer_handle_from_i64(
+        &mut self,
+        tag: i64,
+        value_i64: &str,
+    ) -> (String, String) {
+        let shifted_payload = self.next_reg();
+        self.emit(&format!(
+            "  {} = shl i64 {}, 3",
+            shifted_payload, value_i64
+        ));
+        let tagged_bits = self.next_reg();
+        self.emit(&format!(
+            "  {} = or i64 {}, {}",
+            tagged_bits, shifted_payload, tag
+        ));
+        let handle = self.next_reg();
+        self.emit(&format!(
+            "  {} = inttoptr i64 {} to i8*",
+            handle, tagged_bits
+        ));
+        (handle, "i8*".to_string())
+    }
+
+    fn compile_tagged_immediate_integer_payload_from_i64_bits(
+        &mut self,
+        handle_bits: &str,
+        target_ty: &str,
+    ) -> KainResult<(String, String)> {
+        let payload_i64 = self.next_reg();
+        self.emit(&format!(
+            "  {} = ashr i64 {}, 3",
+            payload_i64, handle_bits
+        ));
+        if target_ty == "i64" {
+            Ok((payload_i64, "i64".to_string()))
+        } else {
+            let coerced = self.cast_numeric_value(payload_i64, "i64", target_ty)?;
+            Ok((coerced, target_ty.to_string()))
+        }
+    }
+
+    fn compile_tagged_immediate_borrowed_pointer_handle(
+        &mut self,
+        tag: i64,
+        pointer: &str,
+    ) -> (String, String) {
+        let pointer_bits = self.next_reg();
+        self.emit(&format!(
+            "  {} = ptrtoint i8* {} to i64",
+            pointer_bits, pointer
+        ));
+        let tagged_bits = self.next_reg();
+        self.emit(&format!(
+            "  {} = or i64 {}, {}",
+            tagged_bits, pointer_bits, tag
+        ));
+        let handle = self.next_reg();
+        self.emit(&format!(
+            "  {} = inttoptr i64 {} to i8*",
+            handle, tagged_bits
+        ));
+        (handle, "i8*".to_string())
+    }
+
     fn emit_tagged_value_tag_load(&mut self, boxed_value: &str) -> String {
         let tag_ptr = self.next_reg();
         self.emit(&format!(
@@ -2212,12 +2639,29 @@ impl LlvmGenerator {
         self.emit(&format!("  br label %{}", merge_label));
 
         self.emit_label(&tagged_label);
-        let tag = self.emit_tagged_value_tag_load(boxed_value);
-        let mut tagged_result: Option<String> = None;
+        let handle_bits = self.emit_tagged_value_handle_bits(boxed_value);
+        let immediate_tag = self.emit_tagged_immediate_tag_bits_from_handle_bits(&handle_bits);
+        let is_immediate = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i64 {}, 0",
+            is_immediate, immediate_tag
+        ));
+        let immediate_label = self.next_label();
+        let boxed_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            is_immediate, immediate_label, boxed_label
+        ));
+
+        self.emit_label(&immediate_label);
+        let mut immediate_result: Option<String> = None;
         for expected in match_tags {
             let cmp = self.next_reg();
-            self.emit(&format!("  {} = icmp eq i64 {}, {}", cmp, tag, expected));
-            tagged_result = Some(match tagged_result {
+            self.emit(&format!(
+                "  {} = icmp eq i64 {}, {}",
+                cmp, immediate_tag, expected
+            ));
+            immediate_result = Some(match immediate_result {
                 Some(previous) => {
                     let combined = self.next_reg();
                     self.emit(&format!("  {} = or i1 {}, {}", combined, previous, cmp));
@@ -2226,18 +2670,40 @@ impl LlvmGenerator {
                 None => cmp,
             });
         }
-        let tagged_result = tagged_result.unwrap_or_else(|| "0".to_string());
+        let immediate_result = immediate_result.unwrap_or_else(|| "0".to_string());
+        let immediate_block = self.current_block.clone();
+        self.emit(&format!("  br label %{}", merge_label));
+
+        self.emit_label(&boxed_label);
+        let tag = self.emit_tagged_value_tag_load(boxed_value);
+        let mut boxed_result: Option<String> = None;
+        for expected in match_tags {
+            let cmp = self.next_reg();
+            self.emit(&format!("  {} = icmp eq i64 {}, {}", cmp, tag, expected));
+            boxed_result = Some(match boxed_result {
+                Some(previous) => {
+                    let combined = self.next_reg();
+                    self.emit(&format!("  {} = or i1 {}, {}", combined, previous, cmp));
+                    combined
+                }
+                None => cmp,
+            });
+        }
+        let boxed_result = boxed_result.unwrap_or_else(|| "0".to_string());
+        let boxed_block = self.current_block.clone();
         self.emit(&format!("  br label %{}", merge_label));
 
         self.emit_label(&merge_label);
         let result = self.next_reg();
         self.emit(&format!(
-            "  {} = phi i1 [ {}, %{} ], [ {}, %{} ]",
+            "  {} = phi i1 [ {}, %{} ], [ {}, %{} ], [ {}, %{} ]",
             result,
             if null_value { "1" } else { "0" },
             null_label,
-            tagged_result,
-            tagged_label
+            immediate_result,
+            immediate_block,
+            boxed_result,
+            boxed_block
         ));
         result
     }
@@ -2251,6 +2717,44 @@ impl LlvmGenerator {
             return ("0".to_string(), "i64".to_string());
         }
 
+        let handle_bits = self.emit_tagged_value_handle_bits(boxed_value);
+        let immediate_tag = self.emit_tagged_immediate_tag_bits_from_handle_bits(&handle_bits);
+        let is_immediate = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i64 {}, 0",
+            is_immediate, immediate_tag
+        ));
+        let immediate_label = self.next_label();
+        let boxed_label = self.next_label();
+        let merge_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            is_immediate, immediate_label, boxed_label
+        ));
+
+        self.emit_label(&immediate_label);
+        let (immediate_value, immediate_ty) = if matches!(target_ty, "i64" | "i32" | "i8" | "i1") {
+            self.compile_tagged_immediate_integer_payload_from_i64_bits(&handle_bits, target_ty)
+                .expect("tagged immediate integer decode should be representable")
+        } else if target_ty == "i8*" {
+            let untagged_bits = self.next_reg();
+            self.emit(&format!(
+                "  {} = and i64 {}, -8",
+                untagged_bits, handle_bits
+            ));
+            let pointer_value = self.next_reg();
+            self.emit(&format!(
+                "  {} = inttoptr i64 {} to i8*",
+                pointer_value, untagged_bits
+            ));
+            (pointer_value, "i8*".to_string())
+        } else {
+            (self.zero_value_for_ty(target_ty), target_ty.to_string())
+        };
+        let immediate_block = self.current_block.clone();
+        self.emit(&format!("  br label %{}", merge_label));
+
+        self.emit_label(&boxed_label);
         let payload_ptr = self.emit_tagged_value_payload_ptr(boxed_value);
         let typed_ptr = self.next_reg();
         self.emit(&format!(
@@ -2262,7 +2766,100 @@ impl LlvmGenerator {
             "  {} = load {}, {}* {}, align 1",
             loaded, target_ty, target_ty, typed_ptr
         ));
-        (loaded, target_ty.to_string())
+        let boxed_block = self.current_block.clone();
+        self.emit(&format!("  br label %{}", merge_label));
+
+        self.emit_label(&merge_label);
+        let merged = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi {} [ {}, %{} ], [ {}, %{} ]",
+            merged, target_ty, immediate_value, immediate_block, loaded, boxed_block
+        ));
+        debug_assert_eq!(immediate_ty, target_ty);
+        (merged, target_ty.to_string())
+    }
+
+    fn compile_tagged_value_from_compiled_payload(
+        &mut self,
+        tag: i64,
+        payload_value: &str,
+        payload_ty: &str,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        match payload_ty {
+            "i1" | "i8" | "i32" => {
+                let payload_i64 = self.cast_numeric_value(
+                    payload_value.to_string(),
+                    payload_ty,
+                    "i64",
+                )?;
+                return Ok(self.compile_tagged_immediate_integer_handle_from_i64(tag, &payload_i64));
+            }
+            "i64" => {
+                let within_min = self.next_reg();
+                self.emit(&format!(
+                    "  {} = icmp sge i64 {}, {}",
+                    within_min, payload_value, ABI_TAGGED_IMMEDIATE_INT_MIN_LLVM
+                ));
+                let within_max = self.next_reg();
+                self.emit(&format!(
+                    "  {} = icmp sle i64 {}, {}",
+                    within_max, payload_value, ABI_TAGGED_IMMEDIATE_INT_MAX_LLVM
+                ));
+                let in_range = self.next_reg();
+                self.emit(&format!(
+                    "  {} = and i1 {}, {}",
+                    in_range, within_min, within_max
+                ));
+                let immediate_label = self.next_label();
+                let boxed_label = self.next_label();
+                let merge_label = self.next_label();
+                self.emit(&format!(
+                    "  br i1 {}, label %{}, label %{}",
+                    in_range, immediate_label, boxed_label
+                ));
+
+                self.emit_label(&immediate_label);
+                let immediate_value =
+                    self.compile_tagged_immediate_integer_handle_from_i64(tag, payload_value);
+                let immediate_block = self.current_block.clone();
+                self.emit(&format!("  br label %{}", merge_label));
+
+                self.emit_label(&boxed_label);
+                let (payload_ptr, payload_size) =
+                    self.compile_payload_pointer_from_value(payload_value, payload_ty, span)?;
+                let boxed_value = self.compile_tagged_box_from_payload(
+                    tag,
+                    Some(&payload_ptr),
+                    Some(payload_ty),
+                    payload_size,
+                );
+                let boxed_block = self.current_block.clone();
+                self.emit(&format!("  br label %{}", merge_label));
+
+                self.emit_label(&merge_label);
+                let merged = self.next_reg();
+                self.emit(&format!(
+                    "  {} = phi i8* [ {}, %{} ], [ {}, %{} ]",
+                    merged,
+                    immediate_value.0,
+                    immediate_block,
+                    boxed_value.0,
+                    boxed_block
+                ));
+                return Ok((merged, "i8*".to_string()));
+            }
+            _ => {}
+        }
+
+        let (payload_ptr, payload_size) =
+            self.compile_payload_pointer_from_value(payload_value, payload_ty, span)?;
+        Ok(self.compile_tagged_box_from_payload(
+            tag,
+            Some(&payload_ptr),
+            Some(payload_ty),
+            payload_size,
+        ))
     }
 
     fn compile_tagged_box_from_payload(
@@ -2339,7 +2936,15 @@ impl LlvmGenerator {
         payload_value: &str,
         payload_ty: &str,
         payload_size: usize,
-    ) -> (String, String) {
+    ) -> KainResult<(String, String)> {
+        if payload_size > 0 {
+            return self.compile_tagged_value_from_compiled_payload(
+                tag,
+                payload_value,
+                payload_ty,
+                Span::default(),
+            );
+        }
         let allocation_size = ABI_TAGGED_HEADER_BYTES as usize + payload_size;
         let boxed_value = self.next_reg();
         self.emit(&format!(
@@ -2382,7 +2987,7 @@ impl LlvmGenerator {
             ));
         }
 
-        (boxed_value, "i8*".to_string())
+        Ok((boxed_value, "i8*".to_string()))
     }
 
     fn compile_runtime_mem_load(
@@ -2598,14 +3203,14 @@ impl LlvmGenerator {
 
         let (payload_size, _) = self.abi_layout_for_ty(value_ty, span)?;
         if value_ty == "i8*" {
-            self.emit(&format!("  call void @rc_retain(i8* {})", value));
+            self.emit_rc_retain_if_heap_i8(value);
         } else if value_ty.starts_with('%') && value_ty.ends_with('*') {
             let retained = self.next_reg();
             self.emit(&format!(
                 "  {} = bitcast {} {} to i8*",
                 retained, value_ty, value
             ));
-            self.emit(&format!("  call void @rc_retain(i8* {})", retained));
+            self.emit_rc_retain_if_heap_i8(&retained);
         }
         let stack_slot = self.next_reg();
         self.emit_entry_alloca(&stack_slot, value_ty);
@@ -2662,12 +3267,7 @@ impl LlvmGenerator {
     ) -> KainResult<Option<(String, String)>> {
         match (enum_name, variant) {
             ("Option", "None") => {
-                return Ok(Some(self.compile_tagged_box_from_payload(
-                    ABI_TAG_OPTION_NONE_LLVM,
-                    None,
-                    None,
-                    0,
-                )));
+                return Ok(Some(("null".to_string(), "i8*".to_string())));
             }
             ("Option", "Some") | ("Result", "Ok") | ("Result", "Err") => {}
             _ => return Ok(None),
@@ -2683,21 +3283,25 @@ impl LlvmGenerator {
             }
         };
 
-        let (payload_value, payload_ty) = self.compile_expr(&values[0])?;
-        let (payload_ptr, payload_size) =
-            self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
         let tag = match (enum_name, variant) {
             ("Option", "Some") => ABI_TAG_OPTION_SOME_LLVM,
             ("Result", "Ok") => ABI_TAG_RESULT_OK_LLVM,
             ("Result", "Err") => ABI_TAG_RESULT_ERR_LLVM,
             _ => unreachable!(),
         };
-        Ok(Some(self.compile_tagged_box_from_payload(
+        if let Some(literal) = self.extract_static_string_literal(&values[0]) {
+            let literal_ptr = self.compile_static_c_string_literal(&literal);
+            return Ok(Some(
+                self.compile_tagged_immediate_borrowed_pointer_handle(tag, &literal_ptr),
+            ));
+        }
+        let (payload_value, payload_ty) = self.compile_expr(&values[0])?;
+        Ok(Some(self.compile_tagged_value_from_compiled_payload(
             tag,
-            Some(&payload_ptr),
-            Some(&payload_ty),
-            payload_size,
-        )))
+            &payload_value,
+            &payload_ty,
+            span,
+        )?))
     }
 
     fn compile_native_variant_function_call(
@@ -2714,15 +3318,20 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
+                if let Some(literal) = self.extract_static_string_literal(&args[0].value) {
+                    let literal_ptr = self.compile_static_c_string_literal(&literal);
+                    return Ok(Some(self.compile_tagged_immediate_borrowed_pointer_handle(
+                        ABI_TAG_OPTION_SOME_LLVM,
+                        &literal_ptr,
+                    )));
+                }
                 let (payload_value, payload_ty) = self.compile_expr(&args[0].value)?;
-                let (payload_ptr, payload_size) =
-                    self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
-                Ok(Some(self.compile_tagged_box_from_payload(
+                Ok(Some(self.compile_tagged_value_from_compiled_payload(
                     ABI_TAG_OPTION_SOME_LLVM,
-                    Some(&payload_ptr),
-                    Some(&payload_ty),
-                    payload_size,
-                )))
+                    &payload_value,
+                    &payload_ty,
+                    span,
+                )?))
             }
             "Ok" | "Err" => {
                 if args.len() != 1 {
@@ -2731,20 +3340,25 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                let (payload_value, payload_ty) = self.compile_expr(&args[0].value)?;
-                let (payload_ptr, payload_size) =
-                    self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
                 let tag = if func_name == "Ok" {
                     ABI_TAG_RESULT_OK_LLVM
                 } else {
                     ABI_TAG_RESULT_ERR_LLVM
                 };
-                Ok(Some(self.compile_tagged_box_from_payload(
+                if let Some(literal) = self.extract_static_string_literal(&args[0].value) {
+                    let literal_ptr = self.compile_static_c_string_literal(&literal);
+                    return Ok(Some(self.compile_tagged_immediate_borrowed_pointer_handle(
+                        tag,
+                        &literal_ptr,
+                    )));
+                }
+                let (payload_value, payload_ty) = self.compile_expr(&args[0].value)?;
+                Ok(Some(self.compile_tagged_value_from_compiled_payload(
                     tag,
-                    Some(&payload_ptr),
-                    Some(&payload_ty),
-                    payload_size,
-                )))
+                    &payload_value,
+                    &payload_ty,
+                    span,
+                )?))
             }
             _ => Ok(None),
         }
@@ -3222,14 +3836,11 @@ impl LlvmGenerator {
                         _ => None,
                     };
                     if let Some(tag) = native_tag {
-                        let status = self.next_reg();
-                        self.emit(&format!(
-                            "  {} = call i64 @abi_tagged_matches(i8* {}, i64 {})",
-                            status, scrutinee_val, tag
+                        return Ok(self.compile_tagged_value_is_tag(
+                            scrutinee_val,
+                            &[tag],
+                            tag == ABI_TAG_OPTION_NONE_LLVM,
                         ));
-                        let cmp = self.next_reg();
-                        self.emit(&format!("  {} = icmp ne i64 {}, 0", cmp, status));
-                        return Ok(cmp);
                     }
                 }
 
@@ -3311,7 +3922,7 @@ impl LlvmGenerator {
                     let field_val = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
                     if field_ty == "i8*" {
-                        self.emit(&format!("  call void @rc_retain(i8* {})", field_val));
+                        self.emit_rc_retain_if_heap_i8(&field_val);
                     }
                     self.bind_local_pattern_value(sub_pattern, field_val, field_ty)?;
                 }
@@ -3364,7 +3975,7 @@ impl LlvmGenerator {
                     let field_val = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
                     if field_ty == "i8*" {
-                        self.emit(&format!("  call void @rc_retain(i8* {})", field_val));
+                        self.emit_rc_retain_if_heap_i8(&field_val);
                     }
                     self.bind_local_pattern_value(sub_pattern, field_val, field_ty)?;
                 }
@@ -3965,6 +4576,31 @@ impl LlvmGenerator {
             } => {
                 if let Some(result) = self.compile_shattered_field_ptr(object, field, *span) {
                     return result;
+                }
+                if let Expr::Ident(name, _) = object.as_ref() {
+                    if let Some((addr, obj_ty)) = self.locals.get(name).cloned() {
+                        if obj_ty.starts_with('%') && !obj_ty.ends_with('*') {
+                            let struct_name = obj_ty[1..].to_string();
+                            let field_index = self.field_index(&struct_name, field).ok_or_else(|| {
+                                KainError::codegen(
+                                    format!("Unknown field '{}' on {}", field, struct_name),
+                                    *span,
+                                )
+                            })?;
+                            let field_ty = self
+                                .struct_defs
+                                .get(&struct_name)
+                                .and_then(|fields| fields.get(field_index))
+                                .map(|(_, ty)| ty.clone())
+                                .unwrap_or_else(|| "i64".to_string());
+                            let field_ptr = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+                                field_ptr, struct_name, struct_name, addr, field_index
+                            ));
+                            return Ok((field_ptr, field_ty));
+                        }
+                    }
                 }
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
                 let (struct_name, struct_ptr, field_index) =
@@ -5282,6 +5918,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
         self.scopes.clear();
         self.const_init_blocks.clear();
         self.entry_alloca_insert_offset = None;
@@ -5309,7 +5946,7 @@ impl LlvmGenerator {
         let (initial_value, initial_ty) =
             self.compile_expr_for_target_type(&constant.ast.value, &info.ty)?;
         if initial_ty == "i8*" && !self.is_new_object(&constant.ast.value) {
-            self.emit(&format!("  call void @rc_retain(i8* {})", initial_value));
+            self.emit_rc_retain_if_heap_i8(&initial_value);
         }
         self.emit(&format!(
             "  store {} {}, {}* {}",
@@ -5387,6 +6024,10 @@ impl LlvmGenerator {
         // 2a. Pre-scan Structs to register and emit definitions
         for item in &program.items {
             if let TypedItem::Struct(s) = item {
+                let struct_is_value_aggregate = s
+                    .field_types
+                    .values()
+                    .all(|ty| self.resolved_type_is_scalar_value_aggregate_pod(ty));
                 let mut fields = Vec::new();
                 for field in &s.ast.fields {
                     // We need to resolve type from field_types map
@@ -5398,6 +6039,9 @@ impl LlvmGenerator {
                     }
                 }
                 self.struct_defs.insert(s.ast.name.clone(), fields.clone());
+                if struct_is_value_aggregate {
+                    self.value_aggregate_structs.insert(s.ast.name.clone());
+                }
 
                 // Emit type definition
                 let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
@@ -5536,7 +6180,7 @@ impl LlvmGenerator {
             escaped.push_str("\\00"); // Null terminator
 
             self.emit(&format!(
-                "{} = private unnamed_addr constant [{} x i8] c\"{}\", align 1",
+                "{} = private unnamed_addr constant [{} x i8] c\"{}\", align 8",
                 name, len, escaped
             ));
         }
@@ -5558,6 +6202,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
         self.scopes.clear();
         self.const_init_blocks.clear();
         self.entry_alloca_insert_offset = None;
@@ -5816,12 +6461,21 @@ impl LlvmGenerator {
         self.emit("declare void @print_str(i8*, i64)");
         self.emit("declare i8* @to_string(i64)");
         self.emit("declare i8* @str_concat(i8*, i8*)");
+        self.emit("declare i8* @str_concat3(i8*, i8*, i8*)");
+        self.emit("declare i8* @str_concat4(i8*, i8*, i8*, i8*)");
+        self.emit("declare i8* @str_concat5(i8*, i8*, i8*, i8*, i8*)");
+        self.emit("declare i8* @str_concat6(i8*, i8*, i8*, i8*, i8*, i8*)");
+        self.emit("declare i8* @str_concat7(i8*, i8*, i8*, i8*, i8*, i8*, i8*)");
+        self.emit("declare i8* @str_concat8(i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*)");
+        self.emit("declare i8* @str_concat9(i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*)");
+        self.emit("declare i8* @str_concat10(i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*)");
         self.emit("declare i64 @clock_wrapper()");
         self.emit("declare i64 @strlen(i8*)");
         self.emit("declare i8* @KAIN_alloc(i64)");
         self.emit("declare void @rc_retain(i8*)");
         self.emit("declare void @rc_release(i8*)");
         self.emit("declare i8* @string_new(i8*)");
+        self.emit("declare i64 @map_get_prehashed(i64, i8*, i64, i64, i64)");
         self.emit("declare i8* @array_new(i64)");
         self.emit("declare void @array_push(i8*, i64)");
         self.emit("declare i64 @array_get(i8*, i64)");
@@ -6025,6 +6679,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
         self.const_init_blocks.clear();
@@ -6111,6 +6766,8 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
+        self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
         self.const_init_blocks.clear();
@@ -6181,14 +6838,6 @@ impl LlvmGenerator {
             self.locals.insert(param.name.clone(), (addr_reg, p_ty));
             if Self::ast_type_is_string(&param.ty) {
                 self.string_locals.insert(param.name.clone());
-                let length_reg = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @strlen(i8* %arg{})",
-                    length_reg,
-                    i + 1
-                ));
-                self.string_length_values
-                    .insert(param.name.clone(), length_reg);
             }
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
@@ -6273,6 +6922,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
         self.const_init_blocks.clear();
@@ -6356,13 +7006,6 @@ impl LlvmGenerator {
                         .unwrap_or(false))
             {
                 self.string_locals.insert(param.name.clone());
-                let length_reg = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @strlen(i8* %arg{})",
-                    length_reg, index
-                ));
-                self.string_length_values
-                    .insert(param.name.clone(), length_reg);
                 if borrowed_string_params.get(index).copied().unwrap_or(false) {
                     self.borrowed_locals.insert(param.name.clone());
                 }
@@ -6461,6 +7104,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
         self.const_init_blocks.clear();
@@ -6512,6 +7156,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
         self.const_init_blocks.clear();
@@ -7148,7 +7793,7 @@ impl LlvmGenerator {
         // because no local variable owns it yet, so scope exit won't destroy it.
         if let Some((val, ty)) = &last_res {
             if ty == "i8*" && !last_is_new {
-                self.emit(&format!("  call void @rc_retain(i8* {})", val));
+                self.emit_rc_retain_if_heap_i8(&val);
             }
         }
 
@@ -7159,9 +7804,64 @@ impl LlvmGenerator {
         Ok(last_res)
     }
 
+    fn emit_heap_owned_i8_guard(&mut self, val: &str) -> Option<String> {
+        if val == "null" {
+            return None;
+        }
+        let is_non_null = self.next_reg();
+        self.emit(&format!("  {} = icmp ne i8* {}, null", is_non_null, val));
+        let handle_bits = self.next_reg();
+        self.emit(&format!("  {} = ptrtoint i8* {} to i64", handle_bits, val));
+        let low_bits = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i64 {}, {}",
+            low_bits, handle_bits, ABI_TAGGED_IMMEDIATE_MASK_LLVM
+        ));
+        let low_bits_clear = self.next_reg();
+        self.emit(&format!("  {} = icmp eq i64 {}, 0", low_bits_clear, low_bits));
+        let should_call = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            should_call, is_non_null, low_bits_clear
+        ));
+        Some(should_call)
+    }
+
+    fn emit_rc_retain_if_heap_i8(&mut self, val: &str) {
+        let Some(should_call) = self.emit_heap_owned_i8_guard(val) else {
+            return;
+        };
+        let retain_label = self.next_label();
+        let merge_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            should_call, retain_label, merge_label
+        ));
+        self.emit_label(&retain_label);
+        self.emit(&format!("  call void @rc_retain(i8* {})", val));
+        self.emit(&format!("  br label %{}", merge_label));
+        self.emit_label(&merge_label);
+    }
+
+    fn emit_rc_release_if_heap_i8(&mut self, val: &str) {
+        let Some(should_call) = self.emit_heap_owned_i8_guard(val) else {
+            return;
+        };
+        let release_label = self.next_label();
+        let merge_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            should_call, release_label, merge_label
+        ));
+        self.emit_label(&release_label);
+        self.emit(&format!("  call void @rc_release(i8* {})", val));
+        self.emit(&format!("  br label %{}", merge_label));
+        self.emit_label(&merge_label);
+    }
+
     fn emit_release(&mut self, val: &str, ty: &str) {
         if ty == "i8*" {
-            self.emit(&format!("  call void @rc_release(i8* {})", val));
+            self.emit_rc_release_if_heap_i8(val);
         } else if ty.starts_with("%") {
             let struct_name = &ty[1..];
             // Clone fields to avoid borrowing self while emitting
@@ -7265,8 +7965,9 @@ impl LlvmGenerator {
 
     fn is_new_object(&self, expr: &Expr) -> bool {
         match expr {
-            Expr::String(..) => true,
+            Expr::String(..) => self.entry_preamble_insert_offset.is_none(),
             Expr::None(..) => true,
+            Expr::Ident(name, _) if name == "None" => true,
             Expr::Array(..) => true,
             Expr::Tuple(..) => true,
             Expr::Struct { .. } => true,
@@ -7401,7 +8102,7 @@ impl LlvmGenerator {
                         // Retain if RC type AND it's not a new object (which already has RC=1)
                         if val_ty == "i8*" {
                             if !self.is_new_object(val_expr) {
-                                self.emit(&format!("  call void @rc_retain(i8* {})", val_reg));
+                                self.emit_rc_retain_if_heap_i8(&val_reg);
                             }
                         }
 
@@ -7470,7 +8171,7 @@ impl LlvmGenerator {
                     };
 
                     if ty == "i8*" && !self.is_new_object(e) {
-                        self.emit(&format!("  call void @rc_retain(i8* {})", val));
+                        self.emit_rc_retain_if_heap_i8(&val);
                     }
 
                     self.emit_all_scopes_cleanup();
@@ -7771,6 +8472,33 @@ impl LlvmGenerator {
             }
         }
 
+        if func_name == "map_get" && args.len() == 2 {
+            if let Some(literal) = self.extract_static_string_literal(&args[1].value) {
+                let (map_value, map_ty) = self.compile_expr(&args[0].value)?;
+                if map_ty != "i64" {
+                    return Err(KainError::codegen(
+                        format!("map_get expects native map handle as i64, found {}", map_ty),
+                        args[0].value.span(),
+                    ));
+                }
+                let key_ptr = self.compile_static_c_string_literal(&literal);
+                let (key_length, key_hash, key_prefix) =
+                    kain_map_codegen_static_key_metadata(&literal);
+                let result = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @map_get_prehashed(i64 {}, i8* {}, i64 {}, i64 {}, i64 {})",
+                    result, map_value, key_ptr, key_length, key_hash, key_prefix
+                ));
+                return Ok((result, "i64".to_string()));
+            }
+        }
+
+        if func_name == "byte_at" && args.len() == 2 {
+            if let Some(result) = self.compile_byte_at_fast_path(&args[0].value, &args[1].value)? {
+                return Ok((result, "i64".to_string()));
+            }
+        }
+
         let mut compiled_args = Vec::new();
         let mut arg_types = Vec::new();
         let is_extern = self.extern_functions.contains(func_name);
@@ -7783,17 +8511,30 @@ impl LlvmGenerator {
                 .and_then(|types| types.get(index))
                 .cloned()
                 .unwrap_or_default();
-            let passes_borrowed_string = borrowed_string_params
+            let inferred_borrowed_string = borrowed_string_params
                 .as_ref()
                 .and_then(|flags| flags.get(index))
                 .copied()
                 .unwrap_or(false);
+            let runtime_borrowed_string =
+                stdlib_function_uses_borrowed_string_param(func_name, index);
+            let passes_borrowed_string = inferred_borrowed_string || runtime_borrowed_string;
+            let can_lower_static_literal_as_borrowed =
+                runtime_borrowed_string || (is_extern && inferred_borrowed_string);
 
             if is_extern && param_ty == "void" {
                 continue;
             }
 
-            let (mut val, mut ty) = self.compile_expr(&arg.value)?;
+            let (mut val, mut ty) = if can_lower_static_literal_as_borrowed {
+                if let Some(literal) = self.extract_static_string_literal(&arg.value) {
+                    (self.compile_static_c_string_literal(&literal), "i8*".to_string())
+                } else {
+                    self.compile_expr(&arg.value)?
+                }
+            } else {
+                self.compile_expr(&arg.value)?
+            };
 
             if matches!(param_ty.as_str(), "i64" | "i32" | "i8" | "i1" | "double")
                 && matches!(ty.as_str(), "i64" | "i32" | "i8" | "i1" | "double")
@@ -7808,7 +8549,7 @@ impl LlvmGenerator {
                 && !self.is_new_object(&arg.value)
                 && !passes_borrowed_string
             {
-                self.emit(&format!("  call void @rc_retain(i8* {})", val));
+                self.emit_rc_retain_if_heap_i8(&val);
             }
 
             let needs_cast_to_i64 = (ty == "i8*" || ty.starts_with('%'))
@@ -8021,12 +8762,7 @@ impl LlvmGenerator {
             }
             Expr::MacroCall { name, args, span } => self.compile_macro_call(name, args, *span),
             Expr::None(_) => {
-                Ok(self.compile_tagged_box_from_payload(
-                    ABI_TAG_OPTION_NONE_LLVM,
-                    None,
-                    None,
-                    0,
-                ))
+                Ok(("null".to_string(), "i8*".to_string()))
             }
             Expr::Try(value, span) => self.compile_try_for_target_type(value, "i64", *span),
             Expr::Await(value, span) => self.compile_await_for_target_type(value, "i64", *span),
@@ -8272,6 +9008,20 @@ impl LlvmGenerator {
                     if let Some((addr, ty)) = self.locals.get(name).cloned() {
                         let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &ty)?;
                         self.string_length_values.remove(name);
+                        let was_borrowed_local = self.borrowed_locals.remove(name);
+                        if ty == "i8*" {
+                            if !self.is_new_object(value) {
+                                self.emit_rc_retain_if_heap_i8(&rhs);
+                            }
+                            if !was_borrowed_local {
+                                let previous_value = self.next_reg();
+                                self.emit(&format!(
+                                    "  {} = load i8*, i8** {}",
+                                    previous_value, addr
+                                ));
+                                self.emit_rc_release_if_heap_i8(&previous_value);
+                            }
+                        }
                         self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, ty, addr));
                         self.record_helper_owned_pointer_local(
                             name,
@@ -8406,6 +9156,29 @@ impl LlvmGenerator {
                     KainError::codegen(format!("Unknown struct: {}", name), *span)
                 })?;
                 let struct_ty = format!("%{}", name);
+                if self.value_aggregate_structs.contains(name) {
+                    let mut aggregate_value = "zeroinitializer".to_string();
+                    let mut provided: HashMap<String, Expr> = fields.iter().cloned().collect();
+                    for (index, (field_name, field_ty)) in def.iter().enumerate() {
+                        let (field_value, _) = if let Some(expr) = provided.remove(field_name) {
+                            self.compile_expr_for_target_type(&expr, field_ty)?
+                        } else {
+                            (self.zero_value_for_ty(field_ty), field_ty.clone())
+                        };
+                        let next_aggregate = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = insertvalue {} {}, {} {}, {}",
+                            next_aggregate,
+                            struct_ty,
+                            aggregate_value,
+                            field_ty,
+                            field_value,
+                            index
+                        ));
+                        aggregate_value = next_aggregate;
+                    }
+                    return Ok((aggregate_value, struct_ty));
+                }
                 let ptr_ty = format!("{}*", struct_ty);
                 let null_ptr = format!("{} null", ptr_ty);
                 let size_ptr_reg = self.next_reg();
@@ -8509,7 +9282,8 @@ impl LlvmGenerator {
                 }
 
                 let tuple_name = Self::tuple_struct_name_from_types(&field_tys);
-                let tuple_ptr_ty = format!("%{}*", tuple_name);
+                let tuple_ty = format!("%{}", tuple_name);
+                let tuple_ptr_ty = format!("{}*", tuple_ty);
                 if !self.struct_defs.contains_key(&tuple_name) {
                     return Err(KainError::codegen(
                         format!(
@@ -8518,6 +9292,24 @@ impl LlvmGenerator {
                         ),
                         *span,
                     ));
+                }
+
+                if self.value_aggregate_structs.contains(&tuple_name) {
+                    let mut aggregate_value = "zeroinitializer".to_string();
+                    for (index, (field_val, field_ty)) in compiled_fields.iter().enumerate() {
+                        let next_aggregate = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = insertvalue {} {}, {} {}, {}",
+                            next_aggregate,
+                            tuple_ty,
+                            aggregate_value,
+                            field_ty,
+                            field_val,
+                            index
+                        ));
+                        aggregate_value = next_aggregate;
+                    }
+                    return Ok((aggregate_value, tuple_ty));
                 }
 
                 let null_ptr = format!("{} null", tuple_ptr_ty);
@@ -8999,12 +9791,7 @@ impl LlvmGenerator {
             }
             Expr::Ident(name, span) => {
                 if name == "None" {
-                    Ok(self.compile_tagged_box_from_payload(
-                        ABI_TAG_OPTION_NONE_LLVM,
-                        None,
-                        None,
-                        0,
-                    ))
+                    Ok(("null".to_string(), "i8*".to_string()))
                 } else if let Some((ptr, ty)) = self.locals.get(name).cloned() {
                     let reg = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", reg, ty, ty, ptr));
@@ -9021,7 +9808,7 @@ impl LlvmGenerator {
                     ))
                 }
             }
-            Expr::Binary {
+            expr @ Expr::Binary {
                 left, op, right, ..
             } => {
                 if *op == BinaryOp::Eq || *op == BinaryOp::Ne {
@@ -9034,6 +9821,12 @@ impl LlvmGenerator {
                             return Ok((inverted, "i1".to_string()));
                         }
                         return Ok((result, "i1".to_string()));
+                    }
+                }
+
+                if *op == BinaryOp::Add && self.expr_is_known_string(expr) {
+                    if let Some(result) = self.compile_string_concat_expression(expr)? {
+                        return Ok(result);
                     }
                 }
 
@@ -9298,12 +10091,7 @@ impl LlvmGenerator {
                             ));
 
                             self.emit_label(&none_label);
-                            let none_value = self.compile_tagged_box_from_payload(
-                                ABI_TAG_OPTION_NONE_LLVM,
-                                None,
-                                None,
-                                0,
-                            );
+                            let none_value = ("null".to_string(), "i8*".to_string());
                             let none_block = self.current_block.clone();
                             self.emit(&format!("  br label %{}", merge_label));
 
@@ -9315,7 +10103,7 @@ impl LlvmGenerator {
                                 &payload,
                                 &payload_ty,
                                 8,
-                            );
+                            )?;
                             let some_block = self.current_block.clone();
                             self.emit(&format!("  br label %{}", merge_label));
 

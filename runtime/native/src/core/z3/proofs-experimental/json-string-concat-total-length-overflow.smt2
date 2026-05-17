@@ -1,0 +1,46 @@
+(set-logic QF_BV)
+
+(define-fun max64 () (_ BitVec 64) #xffffffffffffffff)
+(define-fun one () (_ BitVec 64) #x0000000000000001)
+(define-fun zero () (_ BitVec 64) #x0000000000000000)
+(define-fun uadd_ok ((a (_ BitVec 64)) (b (_ BitVec 64))) Bool
+  (bvule a (bvsub max64 b)))
+
+(declare-fun len0 () (_ BitVec 64))
+(declare-fun len1 () (_ BitVec 64))
+(declare-fun len2 () (_ BitVec 64))
+(declare-fun len3 () (_ BitVec 64))
+(declare-fun len4 () (_ BitVec 64))
+(declare-fun len5 () (_ BitVec 64))
+(declare-fun len6 () (_ BitVec 64))
+(declare-fun len7 () (_ BitVec 64))
+(declare-fun len8 () (_ BitVec 64))
+(declare-fun len9 () (_ BitVec 64))
+
+(assert (uadd_ok zero len0))
+(define-fun sum0 () (_ BitVec 64) (bvadd zero len0))
+(assert (uadd_ok sum0 len1))
+(define-fun sum1 () (_ BitVec 64) (bvadd sum0 len1))
+(assert (uadd_ok sum1 len2))
+(define-fun sum2 () (_ BitVec 64) (bvadd sum1 len2))
+(assert (uadd_ok sum2 len3))
+(define-fun sum3 () (_ BitVec 64) (bvadd sum2 len3))
+(assert (uadd_ok sum3 len4))
+(define-fun sum4 () (_ BitVec 64) (bvadd sum3 len4))
+(assert (uadd_ok sum4 len5))
+(define-fun sum5 () (_ BitVec 64) (bvadd sum4 len5))
+(assert (uadd_ok sum5 len6))
+(define-fun sum6 () (_ BitVec 64) (bvadd sum5 len6))
+(assert (uadd_ok sum6 len7))
+(define-fun sum7 () (_ BitVec 64) (bvadd sum6 len7))
+(assert (uadd_ok sum7 len8))
+(define-fun sum8 () (_ BitVec 64) (bvadd sum7 len8))
+(assert (uadd_ok sum8 len9))
+(define-fun sum9 () (_ BitVec 64) (bvadd sum8 len9))
+(assert (uadd_ok sum9 one))
+
+; If every checked addition in the concat helper succeeds, the final
+; allocation size including the trailing NUL byte cannot overflow.
+(assert (not (bvule (bvadd sum9 one) max64)))
+
+(check-sat)

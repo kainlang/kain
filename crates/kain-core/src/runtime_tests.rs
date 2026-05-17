@@ -97,11 +97,33 @@ fn main() -> String:
 }
 
 #[test]
+fn string_byte_and_find_helpers_follow_byte_offsets() {
+    let value = interpret_test_source(
+        r#"
+fn main() -> Int:
+    let text = "{\"id\":17,\"name\":\"orbital\"}"
+    let marker = find_substring_from(text, "\"name\":\"", 0)
+    let label = substring(text, marker + 8, marker + 11)
+    if marker == 9 and byte_at(text, marker + 8) == 111 and byte_at(text, 999) == -1 and label == "orb":
+        return 1
+    return 0
+"#,
+    );
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 1),
+        other => panic!("expected Int(1), got {:?}", other),
+    }
+}
+
+#[test]
 fn stdlib_registry_exposes_ord_and_chr() {
     let stdlib = StdLib::new();
 
     assert!(stdlib.functions.contains_key("ord"));
     assert!(stdlib.functions.contains_key("chr"));
+    assert!(stdlib.functions.contains_key("byte_at"));
+    assert!(stdlib.functions.contains_key("find_substring_from"));
     assert!(stdlib.functions.contains_key("ask"));
     assert!(stdlib.functions.contains_key("ask_timeout"));
     assert!(stdlib.functions.contains_key("command_run"));

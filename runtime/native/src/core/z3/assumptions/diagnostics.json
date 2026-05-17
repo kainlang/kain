@@ -1496,7 +1496,7 @@
     }
   ],
   "language": "c",
-  "source_hash": "4bed8bdd912411cae3dd83dd8a3772edac01eb2f489927dcb2ec7a234e841131",
+  "source_hash": "a289e0a3dbdd5ce19fea55dd3571f00b6f8b9656a85761d9ea776bdb47c11eb0",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\diagnostics.c",
   "version": 1
 }

@@ -31,6 +31,7 @@ REPORT_ROOT = OUT_ROOT / "reports"
 NATIVE_CORE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
+DEFAULT_MINIMAL_REPORT_NAME = "latest.md"
 
 LANGUAGE_ORDER = ["kain", "rust", "cpp", "erlang", "javascript", "python"]
 LANGUAGE_LABELS = {
@@ -1126,6 +1127,13 @@ def markdown_table_row(cells: list[str]) -> str:
     return "| " + " | ".join(escaped) + " |"
 
 
+def root_snapshot_path(name: str) -> Path:
+    candidate = Path(name)
+    if candidate.is_absolute() or len(candidate.parts) != 1 or candidate.name != name:
+        raise ValueError(f"minimal report name must stay in benchmark root: {name}")
+    return BENCHMARK_ROOT / candidate.name
+
+
 def render_summary_table(report: dict[str, Any]) -> str:
     languages = report["languages"]
     header = ["case", "maturity", "winner"] + [f"{language} median ms" for language in languages]
@@ -1240,34 +1248,64 @@ def render_llm_report(report: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_reports(report: dict[str, Any]) -> Path:
+def render_minimal_report(report: dict[str, Any], minimal_name: str) -> str:
+    languages = report.get("languages", [])
+    lines = [
+        "# Kain Benchmark Snapshot",
+        "",
+        f"- status: `{status_text(report.get('ok', False))}`",
+        f"- generated_at: `{report.get('generated_at', 'n/a')}`",
+        f"- warmups: `{report.get('warmups', 'n/a')}`",
+        f"- timed_runs: `{report.get('runs', 'n/a')}`",
+        f"- languages: `{', '.join(languages)}`",
+        f"- root_snapshot: `benchmark/{minimal_name}`",
+        "- full_report: `benchmark/out/reports/latest.llm.md`",
+        "- json_report: `benchmark/out/reports/latest.json`",
+        "",
+    ]
+    if report.get("fatal_error"):
+        lines.extend(["## Fatal Error", "", report["fatal_error"], ""])
+    lines.extend(["## Summary", "", render_summary_table(report)])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_reports(report: dict[str, Any], minimal_name: str = DEFAULT_MINIMAL_REPORT_NAME) -> dict[str, Path]:
     REPORT_ROOT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     json_text = json.dumps(report, indent=2)
     llm_text = render_llm_report(report)
+    minimal_text = render_minimal_report(report, minimal_name)
 
     json_path = REPORT_ROOT / f"{stamp}.json"
     llm_path = REPORT_ROOT / f"{stamp}.llm.md"
     latest_json = REPORT_ROOT / "latest.json"
     latest_llm = REPORT_ROOT / "latest.llm.md"
+    latest_minimal = root_snapshot_path(minimal_name)
 
     json_path.write_text(json_text, encoding="utf-8")
     latest_json.write_text(json_text, encoding="utf-8")
     llm_path.write_text(llm_text, encoding="utf-8")
     latest_llm.write_text(llm_text, encoding="utf-8")
+    latest_minimal.write_text(minimal_text, encoding="utf-8")
 
     stale_latest_html = REPORT_ROOT / "latest.html"
     if stale_latest_html.exists():
         stale_latest_html.unlink()
 
-    return latest_llm
+    return {
+        "timestamped_json": json_path,
+        "latest_json": latest_json,
+        "timestamped_llm": llm_path,
+        "latest_llm": latest_llm,
+        "latest_minimal": latest_minimal,
+    }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=str(BENCHMARK_ROOT / "benchmarks.json"))
     parser.add_argument("--case", dest="only_case", help="Single case id or comma-separated case ids")
-    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,javascript,python")
+    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,erlang,javascript,python")
     parser.add_argument("--runs", type=int)
     parser.add_argument("--warmups", type=int)
     parser.add_argument("--timeout", type=int, default=180)
@@ -1287,6 +1325,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kain-native-opt-level")
     parser.add_argument("--kain-native-target-cpu")
     parser.add_argument("--kain-native-debug-info")
+    parser.add_argument("--minimal-name", default=DEFAULT_MINIMAL_REPORT_NAME)
     parser.add_argument("--no-build", action="store_true")
     return parser.parse_args()
 
@@ -1372,8 +1411,9 @@ def main() -> int:
         report["ok"] = False
         print(f"[bench] fatal: {exc}", file=sys.stderr)
     finally:
-        latest = write_reports(report)
-        print(f"[bench] report: {latest}")
+        outputs = write_reports(report, minimal_name=args.minimal_name)
+        print(f"[bench] report: {outputs['latest_llm']}")
+        print(f"[bench] snapshot: {outputs['latest_minimal']}")
 
     return 0 if report["ok"] else 1
 

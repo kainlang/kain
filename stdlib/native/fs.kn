@@ -8,10 +8,19 @@ fn abi_fs_read_text_range(path: String, offset: Int, length: Int) -> String
 fn abi_fs_write_text(path: String, content: String) -> Int
 
 @extern
+fn abi_fs_write_text_len(path: String, content: String, content_len: Int) -> Int
+
+@extern
 fn abi_fs_append_text(path: String, content: String) -> Int
 
 @extern
+fn abi_fs_append_text_len(path: String, content: String, content_len: Int) -> Int
+
+@extern
 fn abi_fs_atomic_write_text(path: String, content: String) -> Int
+
+@extern
+fn abi_fs_atomic_write_text_len(path: String, content: String, content_len: Int) -> Int
 
 @extern
 fn abi_fs_read_bytes_hex(path: String) -> String
@@ -95,13 +104,13 @@ pub fn fs_read_text_range(path: String, offset: Int, length: Int) -> String:
     return abi_fs_read_text_range(path, offset, length)
 
 pub fn fs_write_text(path: String, content: String) -> Unit:
-    let _status = abi_fs_write_text(path, content)
+    let _status = abi_fs_write_text_len(path, content, len(content))
 
 pub fn fs_append_text(path: String, content: String) -> Unit:
-    let _status = abi_fs_append_text(path, content)
+    let _status = abi_fs_append_text_len(path, content, len(content))
 
 pub fn fs_atomic_write_text(path: String, content: String) -> Unit:
-    let _status = abi_fs_atomic_write_text(path, content)
+    let _status = abi_fs_atomic_write_text_len(path, content, len(content))
 
 pub fn fs_read_bytes_hex(path: String) -> String:
     return abi_fs_read_bytes_hex(path)

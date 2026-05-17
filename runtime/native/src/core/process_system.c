@@ -163,6 +163,7 @@ static const char* abi_process_string_from_bytes(const unsigned char* bytes, siz
     }
     memcpy(output, bytes, length);
     output[length] = '\0';
+    kain_rc_set_string_length(output, kain_bounded_text_length((const char*)bytes, length));
     return output;
 }
 

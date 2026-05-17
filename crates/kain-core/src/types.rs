@@ -829,6 +829,17 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         ),
     );
     env.define_global(
+        "find_substring_from".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::Int(IntSize::I64),
+            ],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
+    env.define_global(
         "dbg".into(),
         builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
     );
@@ -1294,6 +1305,13 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(
             vec![ResolvedType::String, ResolvedType::Int(IntSize::I64)],
             ResolvedType::String,
+        ),
+    );
+    env.define_global(
+        "byte_at".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::Int(IntSize::I64)],
+            ResolvedType::Int(IntSize::I64),
         ),
     );
     env.define_global(

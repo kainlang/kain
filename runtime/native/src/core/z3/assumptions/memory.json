@@ -11,15 +11,15 @@
       "id": "kain-addr-of.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 126,
+      "line": 122,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 47,
-        "end_line": 126,
+        "end_line": 122,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 126
+        "start_line": 122
       },
       "symbol": "__kain_addr_of",
       "text": "void* __kain_addr_of(void* ptr, size_t size) {",
@@ -38,15 +38,15 @@
       "id": "kain-addr-of.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 126,
+      "line": 122,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 47,
-        "end_line": 126,
+        "end_line": 122,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 126
+        "start_line": 122
       },
       "symbol": "__kain_addr_of",
       "text": "void* __kain_addr_of(void* ptr, size_t size) {",
@@ -65,15 +65,15 @@
       "id": "kain-alloc.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 227,
+      "line": 223,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 61,
-        "end_line": 227,
+        "end_line": 223,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 227
+        "start_line": 223
       },
       "symbol": "__kain_alloc",
       "text": "void* __kain_alloc(size_t size, size_t stride, int zeroed) {",
@@ -92,15 +92,15 @@
       "id": "kain-alloc.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 227,
+      "line": 223,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 61,
-        "end_line": 227,
+        "end_line": 223,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 227
+        "start_line": 223
       },
       "symbol": "__kain_alloc",
       "text": "void* __kain_alloc(size_t size, size_t stride, int zeroed) {",
@@ -119,15 +119,15 @@
       "id": "kain-alloc.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 227,
+      "line": 223,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 61,
-        "end_line": 227,
+        "end_line": 223,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 227
+        "start_line": 223
       },
       "symbol": "__kain_alloc",
       "text": "void* __kain_alloc(size_t size, size_t stride, int zeroed) {",
@@ -146,15 +146,15 @@
       "id": "kain-alloc.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 227,
+      "line": 223,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 61,
-        "end_line": 227,
+        "end_line": 223,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 227
+        "start_line": 223
       },
       "symbol": "__kain_alloc",
       "text": "void* __kain_alloc(size_t size, size_t stride, int zeroed) {",
@@ -169,15 +169,15 @@
       "id": "kain-alloc.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 233,
+      "line": 229,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 56,
-        "end_line": 233,
+        "end_line": 229,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 233
+        "start_line": 229
       },
       "symbol": "__kain_alloc",
       "tags": [
@@ -202,15 +202,15 @@
       "id": "kain-alloc.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 239,
+      "line": 235,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 14,
-        "end_line": 239,
+        "end_line": 235,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 239
+        "start_line": 235
       },
       "symbol": "__kain_alloc",
       "tags": [
@@ -238,15 +238,15 @@
       "id": "kain-alloc.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 244,
+      "line": 240,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 22,
-        "end_line": 244,
+        "end_line": 240,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 244
+        "start_line": 240
       },
       "symbol": "__kain_alloc",
       "tags": [
@@ -268,15 +268,15 @@
       "id": "kain-alloc.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 250,
+      "line": 246,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 49,
-        "end_line": 250,
+        "end_line": 246,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 250
+        "start_line": 246
       },
       "symbol": "__kain_alloc",
       "tags": [
@@ -301,15 +301,15 @@
       "id": "kain-field-ptr.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 159,
+      "line": 155,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 70,
-        "end_line": 159,
+        "end_line": 155,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 159
+        "start_line": 155
       },
       "symbol": "__kain_field_ptr",
       "text": "void* __kain_field_ptr(void* ptr, const char* field, size_t offset) {",
@@ -328,15 +328,15 @@
       "id": "kain-field-ptr.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 159,
+      "line": 155,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 70,
-        "end_line": 159,
+        "end_line": 155,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 159
+        "start_line": 155
       },
       "symbol": "__kain_field_ptr",
       "text": "void* __kain_field_ptr(void* ptr, const char* field, size_t offset) {",
@@ -351,15 +351,15 @@
       "id": "kain-field-ptr.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 164,
+      "line": 160,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 59,
-        "end_line": 164,
+        "end_line": 160,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 164
+        "start_line": 160
       },
       "symbol": "__kain_field_ptr",
       "tags": [
@@ -390,15 +390,15 @@
       "id": "kain-free.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 330,
+      "line": 326,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 19,
-        "end_line": 330,
+        "end_line": 326,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 330
+        "start_line": 326
       },
       "symbol": "__kain_free",
       "tags": [
@@ -419,15 +419,15 @@
       "id": "kain-free.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 335,
+      "line": 331,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 45,
-        "end_line": 335,
+        "end_line": 331,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 335
+        "start_line": 331
       },
       "symbol": "__kain_free",
       "tags": [
@@ -452,15 +452,15 @@
       "id": "kain-index-ptr.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 178,
+      "line": 174,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 67,
-        "end_line": 178,
+        "end_line": 174,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 178
+        "start_line": 174
       },
       "symbol": "__kain_index_ptr",
       "text": "void* __kain_index_ptr(void* ptr, int64_t index, int64_t stride) {",
@@ -479,15 +479,15 @@
       "id": "kain-index-ptr.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 178,
+      "line": 174,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 67,
-        "end_line": 178,
+        "end_line": 174,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 178
+        "start_line": 174
       },
       "symbol": "__kain_index_ptr",
       "text": "void* __kain_index_ptr(void* ptr, int64_t index, int64_t stride) {",
@@ -506,15 +506,15 @@
       "id": "kain-index-ptr.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 178,
+      "line": 174,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 67,
-        "end_line": 178,
+        "end_line": 174,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 178
+        "start_line": 174
       },
       "symbol": "__kain_index_ptr",
       "text": "void* __kain_index_ptr(void* ptr, int64_t index, int64_t stride) {",
@@ -533,15 +533,15 @@
       "id": "kain-index-ptr.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 178,
+      "line": 174,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 67,
-        "end_line": 178,
+        "end_line": 174,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 178
+        "start_line": 174
       },
       "symbol": "__kain_index_ptr",
       "text": "void* __kain_index_ptr(void* ptr, int64_t index, int64_t stride) {",
@@ -556,15 +556,15 @@
       "id": "kain-index-ptr.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 182,
+      "line": 178,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 55,
-        "end_line": 182,
+        "end_line": 178,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 182
+        "start_line": 178
       },
       "symbol": "__kain_index_ptr",
       "tags": [
@@ -592,15 +592,15 @@
       "id": "kain-mem-load.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 201,
+      "line": 197,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 64,
-        "end_line": 201,
+        "end_line": 197,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 201
+        "start_line": 197
       },
       "symbol": "__kain_mem_load",
       "text": "void __kain_mem_load(const void* ptr, void* out, size_t size) {",
@@ -619,15 +619,15 @@
       "id": "kain-mem-load.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 201,
+      "line": 197,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 64,
-        "end_line": 201,
+        "end_line": 197,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 201
+        "start_line": 197
       },
       "symbol": "__kain_mem_load",
       "text": "void __kain_mem_load(const void* ptr, void* out, size_t size) {",
@@ -646,15 +646,15 @@
       "id": "kain-mem-store.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 212,
+      "line": 208,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 67,
-        "end_line": 212,
+        "end_line": 208,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 212
+        "start_line": 208
       },
       "symbol": "__kain_mem_store",
       "text": "void __kain_mem_store(void* ptr, const void* value, size_t size) {",
@@ -673,15 +673,15 @@
       "id": "kain-mem-store.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 212,
+      "line": 208,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 67,
-        "end_line": 212,
+        "end_line": 208,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 212
+        "start_line": 208
       },
       "symbol": "__kain_mem_store",
       "text": "void __kain_mem_store(void* ptr, const void* value, size_t size) {",
@@ -700,15 +700,15 @@
       "id": "kain-ptr-offset.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 140,
+      "line": 136,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 69,
-        "end_line": 140,
+        "end_line": 136,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 140
+        "start_line": 136
       },
       "symbol": "__kain_ptr_offset",
       "text": "void* __kain_ptr_offset(void* ptr, int64_t offset, int64_t stride) {",
@@ -727,15 +727,15 @@
       "id": "kain-ptr-offset.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 140,
+      "line": 136,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 69,
-        "end_line": 140,
+        "end_line": 136,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 140
+        "start_line": 136
       },
       "symbol": "__kain_ptr_offset",
       "text": "void* __kain_ptr_offset(void* ptr, int64_t offset, int64_t stride) {",
@@ -754,15 +754,15 @@
       "id": "kain-ptr-offset.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 140,
+      "line": 136,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 69,
-        "end_line": 140,
+        "end_line": 136,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 140
+        "start_line": 136
       },
       "symbol": "__kain_ptr_offset",
       "text": "void* __kain_ptr_offset(void* ptr, int64_t offset, int64_t stride) {",
@@ -781,15 +781,15 @@
       "id": "kain-ptr-offset.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 140,
+      "line": 136,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 69,
-        "end_line": 140,
+        "end_line": 136,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 140
+        "start_line": 136
       },
       "symbol": "__kain_ptr_offset",
       "text": "void* __kain_ptr_offset(void* ptr, int64_t offset, int64_t stride) {",
@@ -804,15 +804,15 @@
       "id": "kain-ptr-offset.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 144,
+      "line": 140,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 56,
-        "end_line": 144,
+        "end_line": 140,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 144
+        "start_line": 140
       },
       "symbol": "__kain_ptr_offset",
       "tags": [
@@ -840,15 +840,15 @@
       "id": "kain-realloc.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 269,
+      "line": 265,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 78,
-        "end_line": 269,
+        "end_line": 265,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 269
+        "start_line": 265
       },
       "symbol": "__kain_realloc",
       "text": "void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {",
@@ -867,15 +867,15 @@
       "id": "kain-realloc.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 269,
+      "line": 265,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 78,
-        "end_line": 269,
+        "end_line": 265,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 269
+        "start_line": 265
       },
       "symbol": "__kain_realloc",
       "text": "void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {",
@@ -894,15 +894,15 @@
       "id": "kain-realloc.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 269,
+      "line": 265,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 78,
-        "end_line": 269,
+        "end_line": 265,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 269
+        "start_line": 265
       },
       "symbol": "__kain_realloc",
       "text": "void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {",
@@ -921,15 +921,15 @@
       "id": "kain-realloc.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 269,
+      "line": 265,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 78,
-        "end_line": 269,
+        "end_line": 265,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 269
+        "start_line": 265
       },
       "symbol": "__kain_realloc",
       "text": "void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {",
@@ -951,15 +951,15 @@
       "id": "kain-realloc.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 270,
+      "line": 266,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 19,
-        "end_line": 270,
+        "end_line": 266,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 270
+        "start_line": 266
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -981,15 +981,15 @@
       "id": "kain-realloc.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 281,
+      "line": 277,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 49,
-        "end_line": 281,
+        "end_line": 277,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 281
+        "start_line": 277
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -1018,15 +1018,15 @@
       "id": "kain-realloc.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 288,
+      "line": 284,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 24,
-        "end_line": 288,
+        "end_line": 284,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 288
+        "start_line": 284
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -1055,15 +1055,15 @@
       "id": "kain-realloc.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 293,
+      "line": 289,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 52,
-        "end_line": 293,
+        "end_line": 289,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 293
+        "start_line": 289
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -1085,15 +1085,15 @@
       "id": "kain-realloc.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 298,
+      "line": 294,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 60,
-        "end_line": 298,
+        "end_line": 294,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 298
+        "start_line": 294
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -1124,15 +1124,15 @@
       "id": "kain-realloc.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 305,
+      "line": 301,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 26,
-        "end_line": 305,
+        "end_line": 301,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 305
+        "start_line": 301
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -1167,15 +1167,15 @@
       "id": "kain-realloc.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 312,
+      "line": 308,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 57,
-        "end_line": 312,
+        "end_line": 308,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 312
+        "start_line": 308
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -1198,15 +1198,15 @@
       "id": "kain-realloc.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 321,
+      "line": 317,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 92,
-        "end_line": 321,
+        "end_line": 317,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 321
+        "start_line": 317
       },
       "symbol": "__kain_realloc",
       "tags": [
@@ -1235,15 +1235,15 @@
       "id": "if.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 77,
+      "line": 73,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 24,
-        "end_line": 77,
+        "end_line": 73,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 77
+        "start_line": 73
       },
       "symbol": "if",
       "text": "if (byte_offset >= 0) {",
@@ -1258,15 +1258,15 @@
       "id": "if.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 78,
+      "line": 74,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 88,
-        "end_line": 78,
+        "end_line": 74,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 78
+        "start_line": 74
       },
       "symbol": "if",
       "tags": [
@@ -1288,15 +1288,15 @@
       "id": "if.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 83,
+      "line": 79,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 38,
-        "end_line": 83,
+        "end_line": 79,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 83
+        "start_line": 79
       },
       "symbol": "if",
       "tags": [
@@ -1320,15 +1320,15 @@
       "id": "if.parameter-role.4",
       "kind": "parameter-role",
       "language": "c",
-      "line": 144,
+      "line": 140,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 56,
-        "end_line": 144,
+        "end_line": 140,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 144
+        "start_line": 140
       },
       "symbol": "if",
       "text": "if (kain_mul_overflow_i64(offset, stride, &byte_offset)",
@@ -1347,15 +1347,15 @@
       "id": "if.parameter-role.5",
       "kind": "parameter-role",
       "language": "c",
-      "line": 182,
+      "line": 178,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 55,
-        "end_line": 182,
+        "end_line": 178,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 182
+        "start_line": 178
       },
       "symbol": "if",
       "text": "if (kain_mul_overflow_i64(index, stride, &byte_offset)",
@@ -1374,15 +1374,15 @@
       "id": "if.parameter-role.6",
       "kind": "parameter-role",
       "language": "c",
-      "line": 233,
+      "line": 229,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 56,
-        "end_line": 233,
+        "end_line": 229,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 233
+        "start_line": 229
       },
       "symbol": "if",
       "text": "if (kain_mul_overflow_size(size, stride, &payload_size)",
@@ -1401,15 +1401,15 @@
       "id": "if.parameter-role.7",
       "kind": "parameter-role",
       "language": "c",
-      "line": 298,
+      "line": 294,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 60,
-        "end_line": 298,
+        "end_line": 294,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 298
+        "start_line": 294
       },
       "symbol": "if",
       "text": "if (kain_mul_overflow_size(size, stride, &new_payload_size)",
@@ -1428,15 +1428,15 @@
       "id": "if.parameter-role.8",
       "kind": "parameter-role",
       "language": "c",
-      "line": 312,
+      "line": 308,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 57,
-        "end_line": 312,
+        "end_line": 308,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 312
+        "start_line": 308
       },
       "symbol": "if",
       "text": "if (zeroed_new && new_payload_size > old_payload_size) {",
@@ -1455,15 +1455,15 @@
       "id": "kain-add-overflow-size.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 32,
+      "line": 28,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 76,
-        "end_line": 32,
+        "end_line": 28,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 32
+        "start_line": 28
       },
       "symbol": "kain_add_overflow_size",
       "text": "static int kain_add_overflow_size(size_t left, size_t right, size_t* out) {",
@@ -1482,15 +1482,15 @@
       "id": "kain-add-overflow-size.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 32,
+      "line": 28,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 76,
-        "end_line": 32,
+        "end_line": 28,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 32
+        "start_line": 28
       },
       "symbol": "kain_add_overflow_size",
       "text": "static int kain_add_overflow_size(size_t left, size_t right, size_t* out) {",
@@ -1509,15 +1509,15 @@
       "id": "kain-add-overflow-size.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 32,
+      "line": 28,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 76,
-        "end_line": 32,
+        "end_line": 28,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 32
+        "start_line": 28
       },
       "symbol": "kain_add_overflow_size",
       "text": "static int kain_add_overflow_size(size_t left, size_t right, size_t* out) {",
@@ -1545,15 +1545,15 @@
       "id": "kain-add-overflow-size.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 33,
+      "line": 29,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 33,
-        "end_line": 33,
+        "end_line": 29,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 33
+        "start_line": 29
       },
       "symbol": "kain_add_overflow_size",
       "tags": [
@@ -1587,15 +1587,15 @@
       "id": "kain-add-overflow-uintptr.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 58,
+      "line": 54,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 36,
-        "end_line": 58,
+        "end_line": 54,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 58
+        "start_line": 54
       },
       "symbol": "kain_add_overflow_uintptr",
       "tags": [
@@ -1620,15 +1620,15 @@
       "id": "kain-mul-overflow-i64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 40,
+      "line": 36,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 78,
-        "end_line": 40,
+        "end_line": 36,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 40
+        "start_line": 36
       },
       "symbol": "kain_mul_overflow_i64",
       "text": "static int kain_mul_overflow_i64(int64_t left, int64_t right, int64_t* out) {",
@@ -1647,15 +1647,15 @@
       "id": "kain-mul-overflow-i64.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 40,
+      "line": 36,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 78,
-        "end_line": 40,
+        "end_line": 36,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 40
+        "start_line": 36
       },
       "symbol": "kain_mul_overflow_i64",
       "text": "static int kain_mul_overflow_i64(int64_t left, int64_t right, int64_t* out) {",
@@ -1674,15 +1674,15 @@
       "id": "kain-mul-overflow-i64.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 40,
+      "line": 36,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 78,
-        "end_line": 40,
+        "end_line": 36,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 40
+        "start_line": 36
       },
       "symbol": "kain_mul_overflow_i64",
       "text": "static int kain_mul_overflow_i64(int64_t left, int64_t right, int64_t* out) {",
@@ -1716,15 +1716,15 @@
       "id": "kain-mul-overflow-i64.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 41,
+      "line": 37,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 31,
-        "end_line": 41,
+        "end_line": 37,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 41
+        "start_line": 37
       },
       "symbol": "kain_mul_overflow_i64",
       "tags": [
@@ -1745,15 +1745,15 @@
       "id": "kain-mul-overflow-i64.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 46,
+      "line": 42,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 58,
-        "end_line": 46,
+        "end_line": 42,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 46
+        "start_line": 42
       },
       "symbol": "kain_mul_overflow_i64",
       "tags": [
@@ -1779,15 +1779,15 @@
       "id": "kain-mul-overflow-size.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 24,
+      "line": 20,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 76,
-        "end_line": 24,
+        "end_line": 20,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 24
+        "start_line": 20
       },
       "symbol": "kain_mul_overflow_size",
       "text": "static int kain_mul_overflow_size(size_t left, size_t right, size_t* out) {",
@@ -1806,15 +1806,15 @@
       "id": "kain-mul-overflow-size.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 24,
+      "line": 20,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 76,
-        "end_line": 24,
+        "end_line": 20,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 24
+        "start_line": 20
       },
       "symbol": "kain_mul_overflow_size",
       "text": "static int kain_mul_overflow_size(size_t left, size_t right, size_t* out) {",
@@ -1833,15 +1833,15 @@
       "id": "kain-mul-overflow-size.parameter-role.3",
       "kind": "parameter-role",
       "language": "c",
-      "line": 24,
+      "line": 20,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 76,
-        "end_line": 24,
+        "end_line": 20,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 24
+        "start_line": 20
       },
       "symbol": "kain_mul_overflow_size",
       "text": "static int kain_mul_overflow_size(size_t left, size_t right, size_t* out) {",
@@ -1881,15 +1881,15 @@
       "id": "kain-mul-overflow-size.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 25,
+      "line": 21,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 46,
-        "end_line": 25,
+        "end_line": 21,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 25
+        "start_line": 21
       },
       "symbol": "kain_mul_overflow_size",
       "tags": [
@@ -1915,15 +1915,15 @@
       "id": "kain-pointer-with-signed-byte-offset.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 73,
+      "line": 69,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 94,
-        "end_line": 73,
+        "end_line": 69,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 73
+        "start_line": 69
       },
       "symbol": "kain_pointer_with_signed_byte_offset",
       "text": "static int kain_pointer_with_signed_byte_offset(void* ptr, int64_t byte_offset, void** out) {",
@@ -1942,15 +1942,15 @@
       "id": "kain-pointer-with-signed-byte-offset.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 73,
+      "line": 69,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 94,
-        "end_line": 73,
+        "end_line": 69,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 73
+        "start_line": 69
       },
       "symbol": "kain_pointer_with_signed_byte_offset",
       "text": "static int kain_pointer_with_signed_byte_offset(void* ptr, int64_t byte_offset, void** out) {",
@@ -1972,15 +1972,15 @@
       "id": "kain-pointer-with-signed-byte-offset.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 77,
+      "line": 73,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 24,
-        "end_line": 77,
+        "end_line": 73,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 77
+        "start_line": 73
       },
       "symbol": "kain_pointer_with_signed_byte_offset",
       "tags": [
@@ -2001,15 +2001,15 @@
       "id": "kain-pointer-with-signed-byte-offset.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 78,
+      "line": 74,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 88,
-        "end_line": 78,
+        "end_line": 74,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 78
+        "start_line": 74
       },
       "symbol": "kain_pointer_with_signed_byte_offset",
       "tags": [
@@ -2034,15 +2034,15 @@
       "id": "kain-pointer-with-signed-byte-offset.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 83,
+      "line": 79,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 38,
-        "end_line": 83,
+        "end_line": 79,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 83
+        "start_line": 79
       },
       "symbol": "kain_pointer_with_signed_byte_offset",
       "tags": [
@@ -2069,15 +2069,15 @@
       "id": "kain-pointer-with-size-offset.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 93,
+      "line": 89,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 86,
-        "end_line": 93,
+        "end_line": 89,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 93
+        "start_line": 89
       },
       "symbol": "kain_pointer_with_size_offset",
       "text": "static int kain_pointer_with_size_offset(void* ptr, size_t byte_offset, void** out) {",
@@ -2096,15 +2096,15 @@
       "id": "kain-pointer-with-size-offset.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 93,
+      "line": 89,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 86,
-        "end_line": 93,
+        "end_line": 89,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 93
+        "start_line": 89
       },
       "symbol": "kain_pointer_with_size_offset",
       "text": "static int kain_pointer_with_size_offset(void* ptr, size_t byte_offset, void** out) {",
@@ -2119,15 +2119,15 @@
       "id": "kain-pointer-with-size-offset.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 95,
+      "line": 91,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 90,
-        "end_line": 95,
+        "end_line": 91,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 95
+        "start_line": 91
       },
       "symbol": "kain_pointer_with_size_offset",
       "tags": [
@@ -2158,15 +2158,15 @@
       "id": "kain-sub-underflow-uintptr.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 66,
+      "line": 62,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
       "span": {
         "end_col": 20,
-        "end_line": 66,
+        "end_line": 62,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
         "start_col": 1,
-        "start_line": 66
+        "start_line": 62
       },
       "symbol": "kain_sub_underflow_uintptr",
       "tags": [
@@ -2180,7 +2180,7 @@
     }
   ],
   "language": "c",
-  "source_hash": "10f85c48936f22ad58fe1e5810464ed1e81ee00dbe3da9fd967bb04b2e59cf3a",
+  "source_hash": "7b5df0f6e1e074ada481f88a9ddfabb3b53c7323b80a8e6aa6a5cf8f0eadc1f5",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\memory.c",
   "version": 1
 }

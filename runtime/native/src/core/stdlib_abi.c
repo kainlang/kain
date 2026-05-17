@@ -844,6 +844,9 @@ static char* abi_fs_string_with_len(const char* source, size_t length) {
         memcpy(result, source, length);
     }
     result[length] = '\0';
+    if (source != 0) {
+        kain_rc_set_string_length(result, kain_bounded_text_length(source, length));
+    }
     return result;
 }
 
@@ -1119,9 +1122,8 @@ static int64_t abi_fs_create_parent_dirs(const char* path) {
     return 0;
 }
 
-static int64_t abi_fs_write_mode(const char* path, const char* content, const char* mode) {
+static int64_t abi_fs_write_mode_len(const char* path, const char* content, size_t length, const char* mode) {
     FILE* file = 0;
-    size_t length;
     if (path == 0 || path[0] == '\0') {
         errno = EINVAL;
         return abi_fs_fail("write_text", path);
@@ -1141,14 +1143,21 @@ static int64_t abi_fs_write_mode(const char* path, const char* content, const ch
     }
     if (content == 0) {
         content = "";
+        length = 0;
     }
-    length = strlen(content);
     if (length > 0 && fwrite(content, 1, length, file) != length) {
         fclose(file);
         return abi_fs_fail("write_text", path);
     }
     fclose(file);
     return abi_fs_ok();
+}
+
+static int64_t abi_fs_write_mode(const char* path, const char* content, const char* mode) {
+    if (content == 0) {
+        return abi_fs_write_mode_len(path, "", 0u, mode);
+    }
+    return abi_fs_write_mode_len(path, content, strlen(content), mode);
 }
 
 const char* abi_fs_read_text(const char* path) {
@@ -1195,6 +1204,7 @@ const char* abi_fs_read_text(const char* path) {
         abi_fs_fail("read_text", path);
         return string_new("");
     }
+    kain_rc_set_string_length(buffer, (size_t)size);
     fclose(file);
     abi_fs_ok();
     return buffer;
@@ -1232,6 +1242,7 @@ const char* abi_fs_read_text_range(const char* path, int64_t offset, int64_t len
     }
     read_count = fread(buffer, 1, (size_t)length, file);
     buffer[read_count] = '\0';
+    kain_rc_set_string_length(buffer, read_count);
     fclose(file);
     abi_fs_ok();
     return buffer;
@@ -1241,8 +1252,24 @@ int64_t abi_fs_write_text(const char* path, const char* content) {
     return abi_fs_write_mode(path, content, "wb");
 }
 
+int64_t abi_fs_write_text_len(const char* path, const char* content, int64_t content_length) {
+    if (content_length < 0) {
+        errno = EINVAL;
+        return abi_fs_fail("write_text", path);
+    }
+    return abi_fs_write_mode_len(path, content, (size_t)content_length, "wb");
+}
+
 int64_t abi_fs_append_text(const char* path, const char* content) {
     return abi_fs_write_mode(path, content, "ab");
+}
+
+int64_t abi_fs_append_text_len(const char* path, const char* content, int64_t content_length) {
+    if (content_length < 0) {
+        errno = EINVAL;
+        return abi_fs_fail("append_text", path);
+    }
+    return abi_fs_write_mode_len(path, content, (size_t)content_length, "ab");
 }
 
 static int abi_fs_hex_value(char ch) {
@@ -1730,7 +1757,9 @@ int64_t abi_fs_copy_file(const char* src, const char* dest) {
 int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size) {
     FILE* input = 0;
     FILE* output = 0;
-    char* buffer;
+    char stack_buffer[4096];
+    char* buffer = stack_buffer;
+    char* heap_buffer = 0;
     size_t buffer_size;
     size_t read_count;
     int64_t copied = 0;
@@ -1742,10 +1771,13 @@ int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t ch
     if (buffer_size > 1024 * 1024) {
         buffer_size = 1024 * 1024;
     }
-    buffer = (char*)malloc(buffer_size);
-    if (buffer == 0) {
-        errno = ENOMEM;
-        return abi_fs_fail("copy_file_streaming", dest);
+    if (buffer_size > sizeof(stack_buffer)) {
+        heap_buffer = (char*)malloc(buffer_size);
+        if (heap_buffer == 0) {
+            errno = ENOMEM;
+            return abi_fs_fail("copy_file_streaming", dest);
+        }
+        buffer = heap_buffer;
     }
 #ifdef _WIN32
     if (fopen_s(&input, src, "rb") != 0) input = 0;
@@ -1753,12 +1785,12 @@ int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t ch
     input = fopen(src, "rb");
 #endif
     if (input == 0) {
-        free(buffer);
+        free(heap_buffer);
         return abi_fs_fail("copy_file_streaming", src);
     }
     if (abi_fs_create_parent_dirs(dest) != 0) {
         fclose(input);
-        free(buffer);
+        free(heap_buffer);
         return abi_fs_fail("copy_file_streaming", dest);
     }
 #ifdef _WIN32
@@ -1768,21 +1800,21 @@ int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t ch
 #endif
     if (output == 0) {
         fclose(input);
-        free(buffer);
+        free(heap_buffer);
         return abi_fs_fail("copy_file_streaming", dest);
     }
     while ((read_count = fread(buffer, 1, buffer_size, input)) > 0) {
         if (fwrite(buffer, 1, read_count, output) != read_count) {
             fclose(input);
             fclose(output);
-            free(buffer);
+            free(heap_buffer);
             return abi_fs_fail("copy_file_streaming", dest);
         }
         copied += (int64_t)read_count;
     }
     fclose(input);
     fclose(output);
-    free(buffer);
+    free(heap_buffer);
     abi_fs_ok();
     return copied;
 }
@@ -1955,8 +1987,19 @@ const char* abi_fs_temp_dir(const char* prefix) {
 }
 
 int64_t abi_fs_atomic_write_text(const char* path, const char* content) {
+    if (content == 0) {
+        return abi_fs_atomic_write_text_len(path, "", 0);
+    }
+    return abi_fs_atomic_write_text_len(path, content, (int64_t)strlen(content));
+}
+
+int64_t abi_fs_atomic_write_text_len(const char* path, const char* content, int64_t content_length) {
     char temp_path[4096];
     if (path == 0 || path[0] == '\0') {
+        errno = EINVAL;
+        return abi_fs_fail("atomic_write_text", path);
+    }
+    if (content_length < 0) {
         errno = EINVAL;
         return abi_fs_fail("atomic_write_text", path);
     }
@@ -1965,7 +2008,7 @@ int64_t abi_fs_atomic_write_text(const char* path, const char* content) {
 #else
     snprintf(temp_path, sizeof(temp_path), "%s.%lld.tmp", path, (long long)time(NULL));
 #endif
-    if (abi_fs_write_text(temp_path, content) != 0) {
+    if (abi_fs_write_text_len(temp_path, content, content_length) != 0) {
         return g_kain_native_fs_last_status;
     }
 #ifdef _WIN32

@@ -1973,6 +1973,74 @@ impl Env {
             let chars: String = s.chars().skip(start).take(end - start).collect();
             Ok(Value::String(chars))
         });
+        self.define_native("find_substring_from", |_env, args| {
+            if args.len() != 3 {
+                return Err(KainError::runtime(
+                    "find_substring_from: expected 3 arguments (string, needle, start)",
+                ));
+            }
+            let s = match &args[0] {
+                Value::String(s) => s,
+                _ => {
+                    return Err(KainError::runtime(
+                        "find_substring_from: first argument must be a string",
+                    ))
+                }
+            };
+            let needle = match &args[1] {
+                Value::String(s) => s,
+                _ => {
+                    return Err(KainError::runtime(
+                        "find_substring_from: second argument must be a string",
+                    ))
+                }
+            };
+            let start = match &args[2] {
+                Value::Int(n) => (*n).max(0) as usize,
+                _ => {
+                    return Err(KainError::runtime(
+                        "find_substring_from: third argument must be an integer",
+                    ))
+                }
+            };
+            if start > s.len() {
+                return Ok(Value::Int(-1));
+            }
+            if needle.is_empty() {
+                return Ok(Value::Int(start as i64));
+            }
+            let haystack = s.as_bytes();
+            let needle_bytes = needle.as_bytes();
+            if haystack.len().saturating_sub(start) < needle_bytes.len() {
+                return Ok(Value::Int(-1));
+            }
+            for offset in start..=(haystack.len() - needle_bytes.len()) {
+                if &haystack[offset..offset + needle_bytes.len()] == needle_bytes {
+                    return Ok(Value::Int(offset as i64));
+                }
+            }
+            Ok(Value::Int(-1))
+        });
+        self.define_native("byte_at", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime("byte_at: expected 2 arguments"));
+            }
+            let s = match &args[0] {
+                Value::String(s) => s,
+                _ => return Err(KainError::runtime("byte_at: first argument must be a string")),
+            };
+            let idx = match &args[1] {
+                Value::Int(n) => *n,
+                _ => return Err(KainError::runtime("byte_at: second argument must be an integer")),
+            };
+            if idx < 0 {
+                return Ok(Value::Int(-1));
+            }
+            match s.as_bytes().get(idx as usize) {
+                Some(byte) => Ok(Value::Int(i64::from(*byte))),
+                None => Ok(Value::Int(-1)),
+            }
+        });
 
         // === Actor System ===
 

@@ -181,8 +181,36 @@ typedef struct {
     long long ref_count;
     long long weak_count;
     long long type_tag;
+    size_t payload_size;
+    size_t string_length;
     void (*destructor)(void*);
 } RcHeader;
+
+static inline size_t kain_bounded_text_length(const char* text, size_t max_length) {
+    const void* terminator;
+    if (!text) {
+        return 0u;
+    }
+    terminator = memchr(text, '\0', max_length);
+    if (!terminator) {
+        return max_length;
+    }
+    return (size_t)((const char*)terminator - text);
+}
+
+static inline void kain_rc_set_string_length(void* ptr, size_t length) {
+    if (ptr) {
+        RcHeader* header = ((RcHeader*)ptr) - 1;
+        header->string_length = length;
+    }
+}
+
+static inline size_t kain_rc_string_length(const void* ptr) {
+    if (!ptr) {
+        return 0u;
+    }
+    return (((const RcHeader*)ptr) - 1)->string_length;
+}
 
 typedef struct {
     void (*func)(void*);
@@ -234,6 +262,7 @@ long long kain_floor_i64(double value);
 long long kain_ceil_i64(double value);
 long long kain_round_i64(double value);
 char* string_new(char* src);
+long long map_get_prehashed(KainMap* map, char* key, uint64_t key_length, uint64_t key_hash, uint64_t key_prefix);
 int deep_eq(void* a, void* b);
 void rc_retain(void* ptr);
 void rc_weak_retain(void* ptr);

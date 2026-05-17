@@ -218,6 +218,32 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_map_get_string_literals_as_borrowed_static_byte_views() {
+    let source = r#"
+fn lookup_value(metrics: Int) -> Int:
+    return map_get(metrics, "alpha")
+
+fn main() -> Int:
+    let metrics = map_new()
+    map_set(metrics, "alpha", 7)
+    return lookup_value(metrics)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+    let lookup_ir = llvm_function_ir(&llvm, "define internal i64 @lookup_value(i64 %arg0)");
+
+    assert!(lookup_ir.contains("call i64 @map_get_prehashed"));
+    assert!(
+        !lookup_ir.contains("call i8* @string_new"),
+        "map_get literal path should use a borrowed static byte pointer instead of heap string allocation:\n{}",
+        lookup_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "map-get-borrowed-static-string");
+}
+
+#[test]
 fn llvm_lowers_native_input_action_primitives() {
     let source = r#"
 @extern
@@ -818,17 +844,11 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("define i8* @maybe(i1 %arg0)"));
-    assert!(llvm.contains("define i8* @parse(i1 %arg0)"));
-    assert!(llvm.contains("define i8* @ready()"));
-    assert!(llvm.contains("define i8* @maybe(i1 %arg0) #0"));
-    assert!(llvm.contains("call i8* @KAIN_alloc(i64 16)"));
+    assert!(llvm.contains("define internal i8* @maybe(i1 %arg0)"));
+    assert!(llvm.contains("define internal i8* @parse(i1 %arg0)"));
     assert!(llvm.contains("call i8* @KAIN_alloc(i64 24)"));
-    assert!(llvm.contains("store i64 0, i64*"));
-    assert!(llvm.contains("store i64 1, i64*"));
-    assert!(llvm.contains("store i64 2, i64*"));
-    assert!(llvm.contains("store i64 3, i64*"));
-    assert!(llvm.contains("getelementptr inbounds i8, i8*"));
+    assert!(llvm.contains("inttoptr i64"));
+    assert!(llvm.contains("ptrtoint i8*"));
     assert!(!llvm.contains("call i8* @abi_option_none()"));
     assert!(!llvm.contains("call i8* @abi_option_some"));
     assert!(!llvm.contains("call i8* @abi_result_ok"));
@@ -840,7 +860,7 @@ fn main() -> Int:
     assert!(llvm.contains("call i8* @abi_future_ready_from_value"));
 
     let maybe_start = llvm
-        .find("define i8* @maybe(i1 %arg0)")
+        .find("define internal i8* @maybe(i1 %arg0)")
         .expect("maybe function should be emitted");
     let maybe_rest = &llvm[maybe_start..];
     let maybe_end = maybe_rest
@@ -850,6 +870,11 @@ fn main() -> Int:
     assert!(
         !maybe_ir.contains("call void @rc_retain(i8*"),
         "fresh tagged return should not retain in maybe():\n{}",
+        maybe_ir
+    );
+    assert!(
+        !maybe_ir.contains("call void @rc_retain(i8* null)"),
+        "None should not retain the null sentinel in maybe():\n{}",
         maybe_ir
     );
 
@@ -871,11 +896,9 @@ fn main() -> Int:
         "await on immediate ready future should not hit the runtime await ABI in main():\n{}",
         main_ir
     );
-    let tagged_temp_release_count = main_ir.matches("call void @rc_release(i8*").count();
     assert!(
-        tagged_temp_release_count >= 5,
-        "expected tagged temporary releases in main, found {}:\n{}",
-        tagged_temp_release_count,
+        main_ir.contains("ptrtoint i8*"),
+        "tagged cleanup should guard heap-only RC operations in main():\n{}",
         main_ir
     );
 }
@@ -2278,6 +2301,137 @@ fn main() -> Int:
     assert!(llvm.contains("call i8* @array_new(i64 4)"));
     assert!(llvm.contains("call void @array_push(i8*"));
     assert!(llvm.contains("call i8* @str_concat(i8*"));
+}
+
+#[test]
+fn llvm_flattens_long_string_concat_chains_into_fixed_arity_runtime_calls() {
+    let source = r#"
+fn bool_text(flag: Bool) -> String:
+    if flag:
+        return "true"
+    return "false"
+
+fn render_payload(id: Int, name: String, enabled: Bool, count: Int) -> String:
+    return "{\"id\":" + str(id) + ",\"name\":\"" + name + "\",\"enabled\":" + bool_text(enabled) + ",\"count\":" + str(count) + "}"
+
+fn main() -> Int:
+    let rendered = render_payload(17, "orbital", true, 42)
+    if rendered == "{\"id\":17,\"name\":\"orbital\",\"enabled\":true,\"count\":42}":
+        return 0
+    return 1
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let render_ir =
+        llvm_function_ir(&llvm, "define internal i8* @render_payload(i64 %arg0, i8* %arg1, i1 %arg2, i64 %arg3)");
+
+    assert!(render_ir.contains("call i8* @str_concat9("));
+    assert!(
+        !render_ir.contains("call i8* @str_concat(i8*"),
+        "long render chain should collapse into the fixed-arity helper instead of nested binary concat:\n{}",
+        render_ir
+    );
+    assert!(
+        !render_ir.contains("call i64 @strlen(i8* %arg"),
+        "string param lengths should be computed lazily instead of at function entry when the body never reads them:\n{}",
+        render_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "long-string-concat-fixed-arity");
+}
+
+#[test]
+fn llvm_hoists_repeated_string_literals_out_of_loop_bodies() {
+    let source = r#"
+fn build_payload(line_count: Int) -> String:
+    let mut text = ""
+    let mut index = 0
+    while index < line_count:
+        text = text + "line-" + str(index % 97) + "-orbital-flux\n"
+        index = index + 1
+    return text
+
+fn main() -> Int:
+    let payload = build_payload(8)
+    if len(payload) > 0:
+        return 0
+    return 1
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let build_ir = llvm_function_ir(&llvm, "define internal i8* @build_payload(i64 %arg0)");
+    let loop_start = build_ir
+        .find("\n  br label %L")
+        .expect("build_payload should branch into a loop");
+    let entry_region = &build_ir[..loop_start];
+    let loop_region = &build_ir[loop_start..];
+
+    assert!(
+        entry_region.matches("call i8* @string_new").count() >= 3,
+        "entry preamble should allocate each distinct literal once before the loop:\n{}",
+        build_ir
+    );
+    assert!(
+        !loop_region.contains("call i8* @string_new"),
+        "loop body should reuse pooled literals instead of allocating them each iteration:\n{}",
+        build_ir
+    );
+    assert!(
+        loop_region.contains("load i8*, i8** %__kain_pooled_literal_"),
+        "loop body should load from pooled literal slots:\n{}",
+        build_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-string-literal-pooling");
+}
+
+#[test]
+fn llvm_lowers_byte_at_on_known_strings_without_runtime_helper_calls() {
+    let source = r#"
+fn parse_positive_int(text: String, start: Int) -> Int:
+    let text_len = len(text)
+    let mut index = start
+    let mut value = 0
+    while index < text_len:
+        let digit = byte_at(text, index) - 48
+        if digit < 0 or digit > 9:
+            return value
+        value = value * 10 + digit
+        index = index + 1
+    return value
+
+fn main() -> Int:
+    return parse_positive_int("42", 0)
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let parse_ir = llvm_function_ir(&llvm, "define internal i64 @parse_positive_int(i8* %arg0, i64 %arg1)");
+
+    assert!(
+        !parse_ir.contains("call i64 @byte_at("),
+        "byte_at on known strings should lower inline instead of calling the runtime helper:\n{}",
+        parse_ir
+    );
+    assert!(
+        parse_ir.contains("call i64 @len(i8*"),
+        "string length fallback should use the native len helper rather than rescanning with strlen:\n{}",
+        parse_ir
+    );
+    assert!(
+        parse_ir.contains("load i8, i8*"),
+        "inline byte_at lowering should load bytes directly from the string buffer:\n{}",
+        parse_ir
+    );
+    assert!(
+        !parse_ir.contains("call i64 @strlen("),
+        "known-string byte_at lowering should not fall back to strlen:\n{}",
+        parse_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "inline-byte-at-known-string");
 }
 
 #[test]

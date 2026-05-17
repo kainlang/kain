@@ -1,9 +1,60 @@
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
 #include <ctype.h>
+#include <limits.h>
 
 static RcHeader* get_header(void* ptr) {
     return ((RcHeader*)ptr) - 1;
+}
+
+static int kain_rc_is_immediate_handle(const void* ptr) {
+    return ptr != NULL && ((((uintptr_t)ptr) & 7u) != 0u);
+}
+
+static size_t kain_string_len_rc(const char* value) {
+    if (!value) {
+        return 0u;
+    }
+    return get_header((void*)value)->string_length;
+}
+
+static const char* kain_find_substring_bytes(
+    const char* haystack,
+    size_t haystack_len,
+    const char* needle,
+    size_t needle_len,
+    size_t start
+) {
+    const char* cursor;
+    size_t remaining;
+    unsigned char first;
+    if (!haystack || !needle || start > haystack_len) {
+        return NULL;
+    }
+    if (needle_len == 0u) {
+        return haystack + start;
+    }
+    remaining = haystack_len - start;
+    if (needle_len > remaining) {
+        return NULL;
+    }
+    cursor = haystack + start;
+    first = (unsigned char)needle[0];
+    if (needle_len == 1u) {
+        return (const char*)memchr(cursor, (int)first, remaining);
+    }
+    while (remaining >= needle_len) {
+        const char* found = (const char*)memchr(cursor, (int)first, remaining - needle_len + 1u);
+        if (!found) {
+            return NULL;
+        }
+        if (memcmp(found + 1, needle + 1, needle_len - 1u) == 0) {
+            return found;
+        }
+        cursor = found + 1;
+        remaining = haystack_len - (size_t)(cursor - haystack);
+    }
+    return NULL;
 }
 
 void* kain_alloc_rc(size_t size, long long type_tag);
@@ -35,6 +86,7 @@ static char* kain_string_new_with_len(const char* src, size_t len) {
         memcpy(buf, src, len);
     }
     buf[len] = '\0';
+    kain_rc_set_string_length(buf, kain_bounded_text_length(src, len));
     return buf;
 }
 
@@ -78,6 +130,8 @@ void* kain_alloc_rc(size_t size, long long type_tag) {
     header->ref_count = 1;
     header->weak_count = 0;
     header->type_tag = type_tag;
+    header->payload_size = size;
+    header->string_length = (type_tag == 1 && size > 0u) ? (size - 1u) : 0u;
     header->destructor = NULL;
     return (void*)(header + 1);
 }
@@ -91,18 +145,18 @@ void* KAIN_alloc(long long size) {
 }
 
 void rc_retain(void* ptr) {
-    if (!ptr) return;
+    if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     get_header(ptr)->ref_count++;
 }
 
 void rc_weak_retain(void* ptr) {
-    if (!ptr) return;
+    if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     get_header(ptr)->weak_count++;
 }
 
 void rc_release(void* ptr) {
     RcHeader* header;
-    if (!ptr) return;
+    if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     header = get_header(ptr);
     header->ref_count--;
 
@@ -125,7 +179,7 @@ void rc_release(void* ptr) {
 
 void rc_weak_release(void* ptr) {
     RcHeader* header;
-    if (!ptr) return;
+    if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     header = get_header(ptr);
     header->weak_count--;
 
@@ -137,6 +191,7 @@ void rc_weak_release(void* ptr) {
 void* weak_upgrade(void* ptr) {
     RcHeader* header;
     if (!ptr) return NULL;
+    if (kain_rc_is_immediate_handle(ptr)) return ptr;
     header = get_header(ptr);
     if (header->ref_count > 0) {
         header->ref_count++;
@@ -146,7 +201,7 @@ void* weak_upgrade(void* ptr) {
 }
 
 void kain_set_destructor(void* ptr, void (*dtor)(void*)) {
-    if (!ptr) return;
+    if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     get_header(ptr)->destructor = dtor;
 }
 
@@ -298,30 +353,148 @@ void print_bool(int n) {
     printf("%s\n", n ? "true" : "false");
 }
 
+static size_t kain_u64_decimal_digit_count(unsigned long long value) {
+    if (value < 10ULL) return 1u;
+    if (value < 100ULL) return 2u;
+    if (value < 1000ULL) return 3u;
+    if (value < 10000ULL) return 4u;
+    if (value < 100000ULL) return 5u;
+    if (value < 1000000ULL) return 6u;
+    if (value < 10000000ULL) return 7u;
+    if (value < 100000000ULL) return 8u;
+    if (value < 1000000000ULL) return 9u;
+    if (value < 10000000000ULL) return 10u;
+    if (value < 100000000000ULL) return 11u;
+    if (value < 1000000000000ULL) return 12u;
+    if (value < 10000000000000ULL) return 13u;
+    if (value < 100000000000000ULL) return 14u;
+    if (value < 1000000000000000ULL) return 15u;
+    if (value < 10000000000000000ULL) return 16u;
+    if (value < 100000000000000000ULL) return 17u;
+    if (value < 1000000000000000000ULL) return 18u;
+    if (value < 10000000000000000000ULL) return 19u;
+    return 20u;
+}
+
+static int kain_size_add_checked(size_t left, size_t right, size_t* out) {
+    if (left > SIZE_MAX - right) {
+        return 0;
+    }
+    *out = left + right;
+    return 1;
+}
+
+static char* kain_string_concat_parts(const char* const* parts, size_t count) {
+    size_t lengths[10];
+    size_t total_length = 0u;
+    size_t alloc_size = 0u;
+    size_t index;
+    char* out;
+    char* cursor;
+    for (index = 0u; index < count; ++index) {
+        size_t part_length = parts[index] ? kain_string_len_rc(parts[index]) : 0u;
+        lengths[index] = part_length;
+        if (!kain_size_add_checked(total_length, part_length, &total_length)) {
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+                "String concat overflow",
+                "Concatenated string length overflowed size_t"
+            );
+            return NULL;
+        }
+    }
+    if (!kain_size_add_checked(total_length, 1u, &alloc_size)) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "String concat overflow",
+            "Concatenated string terminator overflowed size_t"
+        );
+        return NULL;
+    }
+    out = (char*)kain_alloc_rc(alloc_size, 1);
+    if (!out) return NULL;
+    cursor = out;
+    for (index = 0u; index < count; ++index) {
+        if (lengths[index] > 0u) {
+            memcpy(cursor, parts[index], lengths[index]);
+            cursor += lengths[index];
+        }
+    }
+    *cursor = '\0';
+    return out;
+}
+
 char* to_string(long long n) {
-    char* buf = (char*)kain_alloc_rc(32, 1);
+    unsigned long long magnitude = n < 0 ? (0ULL - (unsigned long long)n) : (unsigned long long)n;
+    size_t digit_count = kain_u64_decimal_digit_count(magnitude);
+    size_t text_length = digit_count + (n < 0 ? 1u : 0u);
+    char* buf = (char*)kain_alloc_rc(text_length + 1u, 1);
+    char* cursor;
     if (!buf) return NULL;
-    sprintf(buf, "%lld", n);
+    cursor = buf + text_length;
+    *cursor = '\0';
+    do {
+        unsigned long long next = magnitude / 10ULL;
+        unsigned long long digit = magnitude - (next * 10ULL);
+        *--cursor = (char)('0' + (char)digit);
+        magnitude = next;
+    } while (magnitude != 0ULL);
+    if (n < 0) {
+        *--cursor = '-';
+    }
     return buf;
 }
 
 char* str_concat(char* s1, char* s2) {
-    size_t l1 = s1 ? strlen(s1) : 0;
-    size_t l2 = s2 ? strlen(s2) : 0;
-    char* res;
     if (!s1 && !s2) return NULL;
-    res = (char*)kain_alloc_rc(l1 + l2 + 1, 1);
-    if (!res) return NULL;
-    if (s1) {
-        memcpy(res, s1, l1);
-    } else {
-        l1 = 0;
+    {
+        const char* parts[2] = {s1, s2};
+        return kain_string_concat_parts(parts, 2u);
     }
-    if (s2) {
-        memcpy(res + l1, s2, l2);
-    }
-    res[l1 + l2] = 0;
-    return res;
+}
+
+char* str_concat3(char* s1, char* s2, char* s3) {
+    const char* parts[3] = {s1, s2, s3};
+    return kain_string_concat_parts(parts, 3u);
+}
+
+char* str_concat4(char* s1, char* s2, char* s3, char* s4) {
+    const char* parts[4] = {s1, s2, s3, s4};
+    return kain_string_concat_parts(parts, 4u);
+}
+
+char* str_concat5(char* s1, char* s2, char* s3, char* s4, char* s5) {
+    const char* parts[5] = {s1, s2, s3, s4, s5};
+    return kain_string_concat_parts(parts, 5u);
+}
+
+char* str_concat6(char* s1, char* s2, char* s3, char* s4, char* s5, char* s6) {
+    const char* parts[6] = {s1, s2, s3, s4, s5, s6};
+    return kain_string_concat_parts(parts, 6u);
+}
+
+char* str_concat7(char* s1, char* s2, char* s3, char* s4, char* s5, char* s6, char* s7) {
+    const char* parts[7] = {s1, s2, s3, s4, s5, s6, s7};
+    return kain_string_concat_parts(parts, 7u);
+}
+
+char* str_concat8(char* s1, char* s2, char* s3, char* s4, char* s5, char* s6, char* s7, char* s8) {
+    const char* parts[8] = {s1, s2, s3, s4, s5, s6, s7, s8};
+    return kain_string_concat_parts(parts, 8u);
+}
+
+char* str_concat9(char* s1, char* s2, char* s3, char* s4, char* s5, char* s6, char* s7, char* s8, char* s9) {
+    const char* parts[9] = {s1, s2, s3, s4, s5, s6, s7, s8, s9};
+    return kain_string_concat_parts(parts, 9u);
+}
+
+char* str_concat10(char* s1, char* s2, char* s3, char* s4, char* s5, char* s6, char* s7, char* s8, char* s9, char* s10) {
+    const char* parts[10] = {s1, s2, s3, s4, s5, s6, s7, s8, s9, s10};
+    return kain_string_concat_parts(parts, 10u);
 }
 
 long long clock_wrapper() {
@@ -453,6 +626,7 @@ char* file_read(char* path) {
     }
     fread(buf, 1, (size_t)size, f);
     buf[size] = 0;
+    kain_rc_set_string_length(buf, kain_bounded_text_length(buf, (size_t)size));
 
     fclose(f);
     return buf;
@@ -543,6 +717,7 @@ char* stdin_read_exact(long long length) {
         remaining -= read_count;
     }
     buffer[offset] = '\0';
+    kain_rc_set_string_length(buffer, kain_bounded_text_length(buffer, offset));
     return buffer;
 }
 
@@ -615,7 +790,7 @@ char* to_upper(char* s) {
     if (!s) {
         return string_new("");
     }
-    len = strlen(s);
+    len = kain_string_len_rc(s);
     out = (char*)kain_alloc_rc(len + 1, 1);
     if (!out) return NULL;
     for (i = 0; i < len; ++i) {
@@ -632,7 +807,7 @@ char* to_lower(char* s) {
     if (!s) {
         return string_new("");
     }
-    len = strlen(s);
+    len = kain_string_len_rc(s);
     out = (char*)kain_alloc_rc(len + 1, 1);
     if (!out) return NULL;
     for (i = 0; i < len; ++i) {
@@ -643,25 +818,31 @@ char* to_lower(char* s) {
 }
 
 int contains(char* s, char* sub) {
+    size_t s_len;
+    size_t sub_len;
     if (!s || !sub) return 0;
-    return strstr(s, sub) != NULL;
+    s_len = kain_string_len_rc(s);
+    sub_len = kain_string_len_rc(sub);
+    return kain_find_substring_bytes(s, s_len, sub, sub_len, 0u) != NULL;
 }
 
 int starts_with(char* s, char* prefix) {
+    size_t s_len;
     size_t prefix_len;
     if (!s || !prefix) return 0;
-    prefix_len = strlen(prefix);
-    return strncmp(s, prefix, prefix_len) == 0;
+    s_len = kain_string_len_rc(s);
+    prefix_len = kain_string_len_rc(prefix);
+    return prefix_len <= s_len && memcmp(s, prefix, prefix_len) == 0;
 }
 
 int ends_with(char* s, char* suffix) {
     size_t s_len;
     size_t suffix_len;
     if (!s || !suffix) return 0;
-    s_len = strlen(s);
-    suffix_len = strlen(suffix);
+    s_len = kain_string_len_rc(s);
+    suffix_len = kain_string_len_rc(suffix);
     if (suffix_len > s_len) return 0;
-    return strncmp(s + (s_len - suffix_len), suffix, suffix_len) == 0;
+    return memcmp(s + (s_len - suffix_len), suffix, suffix_len) == 0;
 }
 
 char* char_at(char* s, long long index) {
@@ -670,7 +851,7 @@ char* char_at(char* s, long long index) {
     if (!s || index < 0) {
         return string_new("");
     }
-    s_len = strlen(s);
+    s_len = kain_string_len_rc(s);
     if ((size_t)index >= s_len) {
         return string_new("");
     }
@@ -685,7 +866,7 @@ char* substring(char* s, long long start, long long end) {
     if (!s) {
         return string_new("");
     }
-    s_len = strlen(s);
+    s_len = kain_string_len_rc(s);
     if (start < 0) start = 0;
     if (end < 0 || (size_t)end > s_len) end = (long long)s_len;
     if ((size_t)start > s_len) start = (long long)s_len;
@@ -693,6 +874,32 @@ char* substring(char* s, long long start, long long end) {
     slice_start = (size_t)start;
     slice_end = (size_t)end;
     return kain_string_new_with_len(s + slice_start, slice_end - slice_start);
+}
+
+long long find_substring_from(char* s, char* needle, long long start) {
+    const char* match;
+    size_t s_len;
+    size_t needle_len;
+    size_t offset;
+    if (!s || !needle) return -1;
+    if (start < 0) start = 0;
+    s_len = kain_string_len_rc(s);
+    if ((size_t)start > s_len) return -1;
+    needle_len = kain_string_len_rc(needle);
+    if (needle_len == 0u) return start;
+    match = kain_find_substring_bytes(s, s_len, needle, needle_len, (size_t)start);
+    if (!match) return -1;
+    offset = (size_t)(match - s);
+    if (offset > (size_t)LLONG_MAX) return -1;
+    return (long long)offset;
+}
+
+long long byte_at(char* s, long long index) {
+    size_t s_len;
+    if (!s || index < 0) return -1;
+    s_len = kain_string_len_rc(s);
+    if ((size_t)index >= s_len) return -1;
+    return (long long)((unsigned char)s[index]);
 }
 
 char* replace(char* s, char* from, char* to) {
@@ -754,7 +961,7 @@ long long len(void* value) {
     if (!value) return 0;
     header = get_header(value);
     if (header->type_tag == 1) {
-        return (long long)strlen((char*)value);
+        return (long long)header->string_length;
     }
     if (header->type_tag == 2) {
         return ((KainArray*)value)->len;
@@ -900,6 +1107,20 @@ static uint64_t kain_map_entry_match_bit(
     uint64_t metadata_match = occupied & hash_match & prefix_match & length_match;
     uint64_t exact_match = metadata_match ? (uint64_t)(memcmp(entry->key, key, key_length) == 0) : 0u;
     return metadata_match & exact_match;
+}
+
+static int kain_map_entry_matches_prehashed(
+    const MapEntry* entry,
+    const char* key,
+    size_t key_length,
+    uint64_t key_hash,
+    uint64_t key_prefix
+) {
+    return entry->occupied &&
+        entry->hash == key_hash &&
+        entry->key_prefix == key_prefix &&
+        entry->key_length == key_length &&
+        memcmp(entry->key, key, key_length) == 0;
 }
 
 static KainMapProbeWindow kain_map_probe_window(
@@ -1218,31 +1439,39 @@ long long map_get(KainMap* map, char* key) {
     size_t key_length;
     uint64_t key_hash;
     uint64_t key_prefix;
-    uint64_t start_index;
-    uint64_t probe_offset;
-    uint64_t found = 0u;
-    uint64_t selected_value = 0u;
-
+    
     if (!map || !key) return 0;
 
     kain_map_key_metadata(key, &key_length, &key_hash, &key_prefix);
+    return map_get_prehashed(map, key, (uint64_t)key_length, key_hash, key_prefix);
+}
+
+long long map_get_prehashed(
+    KainMap* map,
+    char* key,
+    uint64_t key_length,
+    uint64_t key_hash,
+    uint64_t key_prefix
+) {
+    uint64_t start_index;
+    uint64_t probe_offset;
+    size_t exact_key_length;
+
+    if (!map || !key) return 0;
+    if (key_length > (uint64_t)SIZE_MAX) return 0;
+    exact_key_length = (size_t)key_length;
     start_index = key_hash & map->mask;
 
-    for (probe_offset = 0u; probe_offset < (uint64_t)map->capacity; probe_offset += 8u) {
-        uint64_t base_index = (start_index + probe_offset) & map->mask;
-        KainMapProbeWindow window = kain_map_probe_window(
-            map,
-            key,
-            key_length,
-            key_hash,
-            key_prefix,
-            base_index
-        );
-        uint64_t take_value = kain_map_zero_bit(found) & window.any_match;
-        selected_value = kain_map_select_u64(selected_value, window.selected_value, take_value);
-        found |= window.any_match;
+    for (probe_offset = 0u; probe_offset < (uint64_t)map->capacity; ++probe_offset) {
+        MapEntry* entry = &map->entries[(start_index + probe_offset) & map->mask];
+        if (!entry->occupied) {
+            return 0;
+        }
+        if (kain_map_entry_matches_prehashed(entry, key, exact_key_length, key_hash, key_prefix)) {
+            return entry->value;
+        }
     }
-    return (long long)(selected_value * found);
+    return 0;
 }
 
 void* mq_new() {
@@ -1453,7 +1682,9 @@ int deep_eq(void* a, void* b) {
     if (ha->type_tag != hb->type_tag) return 0;
 
     if (ha->type_tag == 1) {
-        return strcmp((char*)a, (char*)b) == 0;
+        size_t len_a = ha->string_length;
+        size_t len_b = hb->string_length;
+        return len_a == len_b && (len_a == 0u || memcmp((char*)a, (char*)b, len_a) == 0);
     }
 
     if (ha->type_tag == 2) {
