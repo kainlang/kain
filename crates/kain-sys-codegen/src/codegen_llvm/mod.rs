@@ -108,6 +108,13 @@ struct EphemeralOwnershipLocalWitness {
     storage_byte_len: i64,
 }
 
+#[derive(Clone, Debug)]
+struct ForwardedMemSlot {
+    value_reg: String,
+    value_ty: String,
+    nonnegative_i64: bool,
+}
+
 const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
     id: LlvmTargetId::WindowsX64Msvc,
     triple: "x86_64-pc-windows-msvc",
@@ -347,6 +354,10 @@ struct LlvmGenerator {
     /// This lets hot benchmark-style loops strength-reduce signed power-of-two
     /// div/rem into shift/mask without changing negative-number semantics.
     known_nonnegative_i64_scopes: Vec<HashSet<String>>,
+    /// Block-scoped stack-buffer store/load forwarding for compiler-owned
+    /// ephemeral memory. The SMT proof is in
+    /// `crates/kain-sys-codegen/z3/proofs-experimental/packed_wire_store_load_forwarding.smt2`.
+    forwarded_mem_slot_scopes: Vec<HashMap<String, ForwardedMemSlot>>,
     /// Locals whose array literal can stay as an LLVM fixed array because every
     /// remaining use is a len() query or an index load.
     fixed_array_candidate_scopes: Vec<HashSet<String>>,
@@ -426,6 +437,7 @@ impl LlvmGenerator {
             ephemeral_zero_init_elision_scopes: Vec::new(),
             known_i64_literal_scopes: Vec::new(),
             known_nonnegative_i64_scopes: Vec::new(),
+            forwarded_mem_slot_scopes: Vec::new(),
             fixed_array_candidate_scopes: Vec::new(),
             borrowed_locals: HashSet::new(),
             functions: HashMap::new(),
@@ -1016,15 +1028,254 @@ impl LlvmGenerator {
         }
     }
 
-    fn ephemeral_local_witness_for_pointer_expr(
-        &self,
-        expr: &Expr,
-    ) -> Option<EphemeralOwnershipLocalWitness> {
+    fn obvious_ast_type_byte_width(&self, ty: &Type) -> i64 {
+        let mapped = self.map_type_from_ast(ty);
+        Self::obvious_llvm_type_byte_width(&mapped).unwrap_or(8)
+    }
+
+    fn compile_ephemeral_storage_i8_pointer(
+        &mut self,
+        pointer: &Expr,
+    ) -> KainResult<Option<(String, EphemeralOwnershipLocalWitness)>> {
+        match pointer {
+            Expr::Ident(name, _) => {
+                let Some(witness) = self.ephemeral_owned_pointer_locals.get(name).cloned() else {
+                    return Ok(None);
+                };
+                let storage_i8 = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
+                    storage_i8,
+                    witness.storage_array_ty,
+                    witness.storage_array_ty,
+                    witness.storage_reg
+                ));
+                Ok(Some((storage_i8, witness)))
+            }
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                self.compile_ephemeral_storage_i8_pointer(inner)
+            }
+            Expr::PtrOffset {
+                pointer: base,
+                offset,
+                element_ty,
+                ..
+            } => {
+                let Some((base_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(base)?
+                else {
+                    return Ok(None);
+                };
+                let stride_literal = element_ty
+                    .as_ref()
+                    .map(|ty| self.obvious_ast_type_byte_width(ty))
+                    .unwrap_or(8);
+                let (offset_value, _) = self.compile_expr(offset)?;
+                let shift_safe_stride_literal =
+                    Some(stride_literal).filter(|_| self.expr_is_proven_nonnegative_i64(offset));
+                let byte_offset = self.emit_scaled_byte_offset(
+                    &offset_value,
+                    &stride_literal.to_string(),
+                    shift_safe_stride_literal,
+                );
+                let derived_i8 = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr i8, i8* {}, i64 {}",
+                    derived_i8, base_i8, byte_offset
+                ));
+                Ok(Some((derived_i8, witness)))
+            }
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_ptr_offset" || name == "__kain_index_ptr")
+                    && args.len() == 3 =>
+            {
+                let Some((base_i8, witness)) =
+                    self.compile_ephemeral_storage_i8_pointer(&args[0].value)?
+                else {
+                    return Ok(None);
+                };
+                let known_i64_bindings = self.current_known_i64_literals();
+                let stride_literal = Self::resolve_i64_literal(&args[2].value, &known_i64_bindings);
+                let (offset_value, _) = self.compile_expr(&args[1].value)?;
+                let (stride_value, _) = if let Some(stride_literal) = stride_literal {
+                    (stride_literal.to_string(), "i64".to_string())
+                } else {
+                    self.compile_expr(&args[2].value)?
+                };
+                let shift_safe_stride_literal =
+                    stride_literal.filter(|_| self.expr_is_proven_nonnegative_i64(&args[1].value));
+                let byte_offset = self.emit_scaled_byte_offset(
+                    &offset_value,
+                    &stride_value,
+                    shift_safe_stride_literal,
+                );
+                let derived_i8 = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr i8, i8* {}, i64 {}",
+                    derived_i8, base_i8, byte_offset
+                ));
+                Ok(Some((derived_i8, witness)))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn scalar_forward_key(&self, expr: &Expr) -> Option<String> {
         match expr {
-            Expr::Ident(name, _) => self.ephemeral_owned_pointer_locals.get(name).cloned(),
-            Expr::Paren(inner, _) => self.ephemeral_local_witness_for_pointer_expr(inner),
-            Expr::Cast { value, .. } => self.ephemeral_local_witness_for_pointer_expr(value),
+            Expr::Int(value, _) => Some(format!("i:{value}")),
+            Expr::Bool(value, _) => Some(format!("b:{value}")),
+            Expr::Ident(name, _) => Some(format!("v:{name}")),
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                self.scalar_forward_key(inner)
+            }
+            Expr::Unary { op, operand, .. } => {
+                Some(format!("u:{:?}({})", op, self.scalar_forward_key(operand)?))
+            }
+            Expr::Binary {
+                left, op, right, ..
+            } => Some(format!(
+                "b:{:?}({},{})",
+                op,
+                self.scalar_forward_key(left)?,
+                self.scalar_forward_key(right)?
+            )),
+            Expr::Call { callee, args, .. } => {
+                let Expr::Ident(name, _) = callee.as_ref() else {
+                    return None;
+                };
+                if name != "__kain_ptr_offset" && name != "__kain_index_ptr" {
+                    return None;
+                }
+                let rendered_args = args
+                    .iter()
+                    .map(|arg| self.scalar_forward_key(&arg.value))
+                    .collect::<Option<Vec<_>>>()?
+                    .join(",");
+                Some(format!("call:{name}({rendered_args})"))
+            }
             _ => None,
+        }
+    }
+
+    fn forwardable_mem_pointer_key(&self, pointer: &Expr) -> Option<String> {
+        match pointer {
+            Expr::Ident(name, _) if self.ephemeral_owned_pointer_locals.contains_key(name) => {
+                Some(format!("ephemeral:{name}"))
+            }
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                self.forwardable_mem_pointer_key(inner)
+            }
+            Expr::PtrOffset {
+                pointer: base,
+                offset,
+                element_ty,
+                ..
+            } => {
+                let base_key = self.forwardable_mem_pointer_key(base)?;
+                let offset_key = self.scalar_forward_key(offset)?;
+                let stride = element_ty
+                    .as_ref()
+                    .map(|ty| self.obvious_ast_type_byte_width(ty))
+                    .unwrap_or(8);
+                Some(format!("offset:{base_key}:{offset_key}:stride:{stride}"))
+            }
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_ptr_offset" || name == "__kain_index_ptr")
+                    && args.len() == 3 =>
+            {
+                let base_key = self.forwardable_mem_pointer_key(&args[0].value)?;
+                let offset_key = self.scalar_forward_key(&args[1].value)?;
+                let known_i64_bindings = self.current_known_i64_literals();
+                let stride_key = Self::resolve_i64_literal(&args[2].value, &known_i64_bindings)
+                    .map(|literal| format!("stride:{literal}"))
+                    .or_else(|| {
+                        self.scalar_forward_key(&args[2].value)
+                            .map(|key| format!("stride_expr:{key}"))
+                    })?;
+                Some(format!("offset:{base_key}:{offset_key}:{stride_key}"))
+            }
+            _ => None,
+        }
+    }
+
+    fn forwarded_mem_load_slot(&self, expr: &Expr) -> Option<&ForwardedMemSlot> {
+        let key = match expr {
+            Expr::MemLoad { pointer, .. } => self.forwardable_mem_pointer_key(pointer)?,
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_load")
+                    && args.len() == 1 =>
+            {
+                self.forwardable_mem_pointer_key(&args[0].value)?
+            }
+            Expr::Cast { value, .. } | Expr::Paren(value, _) => {
+                return self.forwarded_mem_load_slot(value)
+            }
+            _ => return None,
+        };
+        self.forwarded_mem_slot_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&key))
+    }
+
+    fn current_forwarded_mem_load_slot(&self, pointer: &Expr) -> Option<&ForwardedMemSlot> {
+        let key = self.forwardable_mem_pointer_key(pointer)?;
+        self.forwarded_mem_slot_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&key))
+    }
+
+    fn record_forwarded_mem_store(
+        &mut self,
+        pointer: &Expr,
+        value_reg: &str,
+        value_ty: &str,
+        nonnegative_i64: bool,
+    ) {
+        let Some(key) = self.forwardable_mem_pointer_key(pointer) else {
+            return;
+        };
+        if let Some(scope) = self.forwarded_mem_slot_scopes.last_mut() {
+            scope.insert(
+                key,
+                ForwardedMemSlot {
+                    value_reg: value_reg.to_string(),
+                    value_ty: value_ty.to_string(),
+                    nonnegative_i64,
+                },
+            );
+        }
+    }
+
+    fn clear_current_forwarded_mem_slots(&mut self) {
+        if let Some(scope) = self.forwarded_mem_slot_scopes.last_mut() {
+            scope.clear();
+        }
+    }
+
+    fn expr_is_mem_load_surface(expr: &Expr) -> bool {
+        match expr {
+            Expr::MemLoad { .. } => true,
+            Expr::Call { callee, .. } if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_load") => {
+                true
+            }
+            Expr::Cast { value, .. } | Expr::Paren(value, _) => {
+                Self::expr_is_mem_load_surface(value)
+            }
+            _ => false,
+        }
+    }
+
+    fn stmt_preserves_forwarded_mem_slots(stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Expr(Expr::MemStore { .. }) => true,
+            Stmt::Expr(Expr::Call { callee, .. }) if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_store") => {
+                true
+            }
+            Stmt::Let {
+                value: Some(value), ..
+            } => Self::expr_is_mem_load_surface(value),
+            _ => false,
         }
     }
 
@@ -1347,7 +1598,11 @@ impl LlvmGenerator {
         let Some((name, value)) = binding else {
             return;
         };
-        let is_nonnegative = self.expr_is_proven_nonnegative_i64(value);
+        let is_nonnegative = self.expr_is_proven_nonnegative_i64(value)
+            || self
+                .forwarded_mem_load_slot(value)
+                .map(|slot| slot.nonnegative_i64)
+                .unwrap_or(false);
         for scope in self.known_nonnegative_i64_scopes.iter_mut().rev() {
             scope.remove(name);
         }
@@ -3476,21 +3731,18 @@ impl LlvmGenerator {
         load_ty: &str,
         span: Span,
     ) -> KainResult<(String, String)> {
-        if let Some(witness) = self.ephemeral_local_witness_for_pointer_expr(pointer) {
+        if let Some(slot) = self.current_forwarded_mem_load_slot(pointer).cloned() {
+            if slot.value_ty == load_ty {
+                return Ok((slot.value_reg, slot.value_ty));
+            }
+        }
+        if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
             let (load_size, _) = self.abi_layout_for_ty(load_ty, span)?;
             if load_size as i64 <= witness.storage_byte_len {
-                let storage_i8 = self.next_reg();
-                self.emit(&format!(
-                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
-                    storage_i8,
-                    witness.storage_array_ty,
-                    witness.storage_array_ty,
-                    witness.storage_reg
-                ));
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = bitcast i8* {} to {}*",
-                    typed_ptr, storage_i8, load_ty
+                    typed_ptr, ptr_i8, load_ty
                 ));
                 let loaded = self.next_reg();
                 self.emit(&format!(
@@ -3523,27 +3775,26 @@ impl LlvmGenerator {
         value: &Expr,
         span: Span,
     ) -> KainResult<(String, String)> {
-        if let Some(witness) = self.ephemeral_local_witness_for_pointer_expr(pointer) {
+        let stored_value_nonnegative = self.expr_is_proven_nonnegative_i64(value);
+        if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
             let (stored_value, stored_ty) = self.compile_expr(value)?;
             let (store_size, _) = self.abi_layout_for_ty(&stored_ty, span)?;
             if store_size as i64 <= witness.storage_byte_len {
-                let storage_i8 = self.next_reg();
-                self.emit(&format!(
-                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
-                    storage_i8,
-                    witness.storage_array_ty,
-                    witness.storage_array_ty,
-                    witness.storage_reg
-                ));
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = bitcast i8* {} to {}*",
-                    typed_ptr, storage_i8, stored_ty
+                    typed_ptr, ptr_i8, stored_ty
                 ));
                 self.emit(&format!(
                     "  store {} {}, {}* {}, align 1",
                     stored_ty, stored_value, stored_ty, typed_ptr
                 ));
+                self.record_forwarded_mem_store(
+                    pointer,
+                    &stored_value,
+                    &stored_ty,
+                    stored_value_nonnegative,
+                );
                 return Ok((stored_value, stored_ty));
             }
         }
@@ -8269,8 +8520,10 @@ impl LlvmGenerator {
             .push(Self::collect_block_fixed_array_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
         self.known_nonnegative_i64_scopes.push(HashSet::new());
+        self.forwarded_mem_slot_scopes.push(HashMap::new());
         for stmt in &block.stmts {
             if let Err(err) = self.compile_stmt(stmt) {
+                self.forwarded_mem_slot_scopes.pop();
                 self.known_nonnegative_i64_scopes.pop();
                 self.known_i64_literal_scopes.pop();
                 self.fixed_array_candidate_scopes.pop();
@@ -8280,8 +8533,12 @@ impl LlvmGenerator {
             }
             self.record_stmt_i64_literal_effects(stmt);
             self.record_stmt_nonnegative_i64_effects(stmt);
+            if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
+                self.clear_current_forwarded_mem_slots();
+            }
         }
         self.emit_scope_exit();
+        self.forwarded_mem_slot_scopes.pop();
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
         self.fixed_array_candidate_scopes.pop();
@@ -8310,6 +8567,7 @@ impl LlvmGenerator {
             .push(Self::collect_block_fixed_array_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
         self.known_nonnegative_i64_scopes.push(HashSet::new());
+        self.forwarded_mem_slot_scopes.push(HashMap::new());
         let mut last_res = None;
         let mut last_is_new = false;
 
@@ -8321,8 +8579,12 @@ impl LlvmGenerator {
                     last_is_new = self.is_new_object(expr);
                     self.record_stmt_i64_literal_effects(stmt);
                     self.record_stmt_nonnegative_i64_effects(stmt);
+                    if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
+                        self.clear_current_forwarded_mem_slots();
+                    }
                 } else {
                     if let Err(err) = self.compile_stmt(stmt) {
+                        self.forwarded_mem_slot_scopes.pop();
                         self.known_nonnegative_i64_scopes.pop();
                         self.known_i64_literal_scopes.pop();
                         self.fixed_array_candidate_scopes.pop();
@@ -8332,9 +8594,13 @@ impl LlvmGenerator {
                     }
                     self.record_stmt_i64_literal_effects(stmt);
                     self.record_stmt_nonnegative_i64_effects(stmt);
+                    if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
+                        self.clear_current_forwarded_mem_slots();
+                    }
                 }
             } else {
                 if let Err(err) = self.compile_stmt(stmt) {
+                    self.forwarded_mem_slot_scopes.pop();
                     self.known_nonnegative_i64_scopes.pop();
                     self.known_i64_literal_scopes.pop();
                     self.fixed_array_candidate_scopes.pop();
@@ -8344,6 +8610,9 @@ impl LlvmGenerator {
                 }
                 self.record_stmt_i64_literal_effects(stmt);
                 self.record_stmt_nonnegative_i64_effects(stmt);
+                if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
+                    self.clear_current_forwarded_mem_slots();
+                }
             }
         }
 
@@ -8358,6 +8627,7 @@ impl LlvmGenerator {
         }
 
         self.emit_scope_exit();
+        self.forwarded_mem_slot_scopes.pop();
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
         self.fixed_array_candidate_scopes.pop();
@@ -9706,9 +9976,12 @@ impl LlvmGenerator {
                     .unwrap_or_else(|| "i64".to_string());
                 self.compile_runtime_mem_load(pointer, &target_ty, *span)
             }
-            Expr::MemStore { pointer, value, .. } => {
-                self.compile_runtime_mem_store(pointer, value, value.span())
-            }
+            Expr::MemStore {
+                pointer,
+                value,
+                span,
+                ..
+            } => self.compile_runtime_mem_store(pointer, value, *span),
             Expr::SizeOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
                 let size = if mapped == "double" {

@@ -1,5 +1,40 @@
 # Kain Memory
 
+# 2026-05-17 - Zero-copy wire gained proof-backed stack pointer and forwarding lowering
+
+The `zero_copy_binary_wire` row received a second LLVM hot-path pass after fixed stack-buffer lowering. Kain now keeps ephemeral packet buffers as direct alloca-derived `i8*` GEPs for `mem_store`/`mem_load`, forwards same-address stack-buffer loads from the immediately dominating store, and propagates the stored value's nonnegative proof so packed field decode lowers to `and`/`lshr` instead of signed power-of-two `sdiv`/`srem`.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Added scoped `ForwardedMemSlot` tracking for compiler-owned ephemeral memory.
+  - Added stable pointer-expression keys for `ptr_offset`/`__kain_ptr_offset` rooted in ephemeral locals.
+  - `compile_runtime_mem_load` now returns the forwarded SSA value when the exact ephemeral address was just stored.
+  - `record_stmt_nonnegative_i64_effects` now treats forwarded mem-load bindings as nonnegative when the stored value was proven nonnegative.
+  - Direct alloca-to-`i8*` GEP lowering avoids the previous hot-loop `ptrtoint`/`inttoptr` soup around stack packet memory.
+- `crates/kain-sys-codegen/z3/proofs-experimental/packed_wire_store_load_forwarding.smt2`
+  - New QF_AUFBV proof that packet lanes `base+0..3` are distinct, inside the 2048-byte stack buffer, and load-after-store forwarding returns the same word values.
+
+Validation and benchmark:
+
+- `cargo fmt -p kain-sys-codegen`
+- `cargo check -p kain-sys-codegen`
+- `cargo build -p cli --bin kain`
+- `cargo test -p kain-sys-codegen llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_lowers_safe_fixed_array_literal_to_stack_gep -- --nocapture`
+- `z3 crates\kain-sys-codegen\z3\proofs-experimental\packed_wire_store_load_forwarding.smt2` -> `unsat`
+- `z3 crates\kain-sys-codegen\z3\proofs-experimental\packed_wire_fixed_array_hotpath.smt2` -> `unsat`
+- `python benchmark\run.py --case zero_copy_binary_wire --languages kain,rust,cpp --runs 9 --warmups 3 --timeout 900 --kain-exe target\debug\kain.exe --baseline-mode reuse-foreign --latest-stem latest_zero_copy_forwarding_final`
+
+Measured result:
+
+- Latest final pass: Kain `81.389 ms`, Rust `82.010 ms`, C++ `79.450 ms`; Kain now edges Rust but remains about `1.02x` behind C++ in this report.
+- Earlier same-pass noisy report hit Kain `79.188 ms` against C++ `78.562 ms`, so the row is in measurement-noise striking distance, not yet clobbered.
+
+Rejected experiment:
+
+- A more aggressive physical stack-store elision was implemented and proved locally but benchmarked worse (`82.296 ms` median in `latest_zero_copy_deadstore`), so it was backed out. The next real path is not more dead-store shaving; it is scalar local SSA/mem2reg before text LLVM or a stronger loop/recurrence optimizer that removes the remaining alloca/load churn and constant-mod recurrence cost before LLVM sees the IR.
+
 # 2026-05-17 - SIMD lane mix 2x research found the algebraic win path
 
 Research note: `research/2026-05-17-simd-lane-mix-2x-cpp-research.md`.
