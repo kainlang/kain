@@ -1,28 +1,28 @@
 ---
 name: kain-benchmark-pipeline
-description: Use when adding, changing, running, or reviewing the multi-language benchmark lane under benchmark/, including Kain/Rust/C++/Erlang/JavaScript/Python cases, benchmark/benchmarks.json, benchmark/run.py, LLM-readable reports, the benchmark blade console, and fairness/maturity notes for Kain pressure tests.
+description: Use when adding, changing, running, or reviewing the multi-language benchmark lane under benchmark/, including Kain/Rust/C++/Go/Erlang/JavaScript/Python cases, benchmark/benchmarks.json, benchmark/run.py, LLM-readable reports, the benchmark blade console, and fairness/maturity notes for Kain pressure tests.
 ---
 
 # Kain Benchmark Pipeline
 
 ## Contract
 
-- `benchmark/benchmarks.json` is the source of truth for the suite, cases, source paths, maturity labels, language notes, and fairness notes.
-- Every normal benchmark case should have dependency-free paired source files:
+- `benchmark/benchmarks.json` is the source of truth for case ids, source paths, language subsets, maturity labels, fairness notes, and per-language caveats.
+- Normal dependency-free cases should use:
   - `benchmark/cases/<case>/main.kn`
   - `benchmark/cases/<case>/main.rs`
   - `benchmark/cases/<case>/main.cpp`
+  - `benchmark/cases/<case>/main.go`
   - `benchmark/cases/<case>/main.js`
   - `benchmark/cases/<case>/main.py`
-- Case programs should not use external language dependencies unless the benchmark is explicitly about an ecosystem runtime such as Tokio or Rayon.
-- Case-specific language subsets are declared with a `languages` map in `benchmark/benchmarks.json`. The runner intersects the requested languages with the case's declared languages and renders unselected/missing global columns as `n/a`.
-- Kain cases may set `"kain_runtime_manifest": "runtime/<manifest>.toml"` in `benchmark/benchmarks.json` when the honest lane needs a narrower native runtime bundle than `runtime/native_core_runtime.toml`.
-- Rust normally uses direct `rustc`. Rust dependency cases opt into Cargo by adding `rust_manifest`, and may set `rust_package` / `rust_binary`. Per-case Cargo manifests inside this repo need an empty `[workspace]` table so Cargo does not treat them as orphan members of the root workspace.
-- Erlang dependency-free actor/runtime cases compile through `erlc` and run through `erl -noshell`. On Windows, prefer the official OTP `bin` directory over PATH wrapper shims so `erlc.exe` can find `erlexec.dll`.
-- Some cases require runner-built support artifacts. `ffi_shared_call_stress` compiles `benchmark/ffi_boundary/native/ffi_boundary.c` into a DLL plus import library under `benchmark/out/build/...`, copies the DLL beside each executable, and must compile the Kain row from the case directory so the case-local `KAIN.toml` for `use c::...` resolves.
-- The Python runner may use the standard library for orchestration, timing, JSON, and Markdown report output.
-- Generated outputs belong under `benchmark/out/` and should stay ignored except `benchmark/out/.gitignore`.
-- The native benchmark console lives under `benchmark/blades/kain-benchmark`, and the user-facing executable is `benchmark/kain-benchmark.exe`.
+- Case-specific language subsets belong in a `languages` map inside `benchmark/benchmarks.json`. The runner intersects requested languages with that map and renders missing columns as `n/a`.
+- Kain cases may set `\"kain_runtime_manifest\": \"runtime/<manifest>.toml\"` when they need a narrower native runtime bundle than `runtime/native_core_runtime.toml`.
+- Rust normally builds with direct `rustc`. Dependency rows opt into Cargo with `rust_manifest`, and may also set `rust_package` / `rust_binary`. Per-case Cargo manifests inside this repo need an empty `[workspace]` table.
+- Go normally builds with direct `go build` over `main.go`. A case can opt into a module/package-aware build with `go_manifest`, `go_package`, and `go_binary`.
+- Erlang dependency-free actor/runtime rows compile with `erlc` and run with `erl -noshell`. On Windows, prefer the official OTP `bin` directory over PATH wrapper shims so `erlc.exe` can find `erlexec.dll`.
+- Dependency-free cases should stay dependency-free unless the whole point of the row is an ecosystem runtime or framework such as Tokio, Rayon, Actix, or Go `net/http`.
+- Generated outputs belong under `benchmark/out/`.
+- The native benchmark console lives under `benchmark/blades/kain-benchmark`, and the operator-facing executable is `benchmark/kain-benchmark.exe`.
 
 ## Runner
 
@@ -30,18 +30,25 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Fast reduced-language command: `python benchmark/run_fast.py`
 - Focus one case: `python benchmark/run.py --case contention_wall --runs 3 --warmups 1`
 - Run a language subset: `python benchmark/run.py --languages js,py --runs 1 --warmups 0`
-- Run a Kain/Rust-only dependency case: `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 5 --warmups 2`
-- Run the Kain/Erlang mailbox case: `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 5 --warmups 2`
-- Run the semantic-flex Kain/Erlang swarm case: `python benchmark/run.py --case quantumerlang --languages kain,erlang --runs 3 --warmups 1`
-- Run the single-file native LLVM crucible: `python benchmark/run.py --case semantic_singularity_crucible --languages kain --runs 1 --warmups 0 --timeout 900`
-- Run the shared-library FFI stress row: `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 5 --warmups 2`
-- Run several cases in one comparable report with comma-separated ids: `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
-- Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe`
-- Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx D:\Kain-Lang\toolchain\llvm\bin\clang++.exe`
-- Pin Erlang tools: `python benchmark/run.py --case actor_mailbox_erlang --languages erlang --erl "C:\Program Files\Erlang OTP\bin\erl.exe" --erlc "C:\Program Files\Erlang OTP\bin\erlc.exe"`
-- The runner prefers a direct Bazel-built release `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe` and expects a `clang++`/`g++`-style CLI when you override it. Erlang auto-detects from the official OTP `bin` directory first; override `--erl` / `--erlc` only when you intentionally want a different pair.
-- Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release` with `opt-level=3`, `target-cpu=native`, no debug info, and `KAIN_RUNTIME_MANIFEST_PATH=runtime/native_core_runtime.toml` unless a case overrides it with `kain_runtime_manifest`.
-- Subprocess stdout/stderr is decoded as UTF-8 with replacement so Unicode-heavy case output does not crash report generation on Windows.
+- Run the Go-backed compute pack: `python benchmark/run.py --case ecs_archetype_query,zero_copy_binary_wire,dynamic_vtable_thrashing,crypto_block_cipher,ray_sphere_intersection --languages kain,rust,cpp,go --runs 3 --warmups 1`
+- Run the k-os-sim extraction pack: `python benchmark/run.py --case sim_nbody_gravity,sim_uv_velocity_grid,sim_cfd_pressure_projection --languages kain,rust,cpp --runs 3 --warmups 1`
+- Run the framework HTTP row: `python benchmark/run.py --case http_server_frameworks --languages kain,rust,go --runs 5 --warmups 2`
+- Run a Kain/Rust-only dependency row: `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 5 --warmups 2`
+- Run the Kain/Erlang mailbox row: `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 5 --warmups 2`
+- Run the Kain/Erlang semantic-flex row: `python benchmark/run.py --case quantumerlang --languages kain,erlang --runs 3 --warmups 1`
+- Run the Kain-only crucible: `python benchmark/run.py --case semantic_singularity_crucible --languages kain --runs 1 --warmups 0 --timeout 900`
+- Run the FFI stress row inside the main suite: `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 5 --warmups 2`
+- Run several Kain-only ablations in one report: `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
+- Pin Kain compiler: `python benchmark/run.py --kain-exe D:\\Kain-Lang\\target\\release\\kain.exe`
+- Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx D:\\Kain-Lang\\toolchain\\llvm\\bin\\clang++.exe`
+- Pin Go compiler: `python benchmark/run.py --case http_server_frameworks --languages go --go C:\\Program Files\\Go\\bin\\go.exe`
+- Pin Erlang tools: `python benchmark/run.py --case actor_mailbox_erlang --languages erlang --erl "C:\\Program Files\\Erlang OTP\\bin\\erl.exe" --erlc "C:\\Program Files\\Erlang OTP\\bin\\erlc.exe"`
+- The runner prefers a direct Bazel-built release `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`.
+- The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe`.
+- The Go lane defaults to `go` from PATH.
+- Erlang auto-detects from the official OTP `bin` directory first.
+- Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release`, `opt-level=3`, `target-cpu=native`, no debug info, and `KAIN_RUNTIME_MANIFEST_PATH=runtime/native_core_runtime.toml` unless a case overrides it.
+- If repeated Windows native builds keep printing `Native runtime cache: 0 reused, 36 compiled` or `0 reused, 37 compiled`, inspect `crates/cli/src/main.rs::parse_native_runtime_depfile(...)` before blaming the compiler or linker. The healthy steady-state line is full object reuse for the active native runtime manifest.
 - Reports are written to:
   - `benchmark/latest.md`
   - `benchmark/latest_fast.md` when `run_fast.py` is used
@@ -50,13 +57,14 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - timestamped `benchmark/out/reports/<stamp>.llm.md`
   - timestamped `benchmark/out/reports/<stamp>.json`
 - `benchmark/latest.md` and `benchmark/latest_fast.md` are intentionally minimal LLM-facing snapshots: status, run counts, selected languages, and the compact median summary table only.
-- HTML is no longer a report format. If `benchmark/out/reports/latest.html` exists after a run, treat that as stale-output cleanup debt.
-- Dedicated FFI boundary lane: `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
-  - This is a specialized benchmark outside `benchmarks.json`; it exists to compare `llvm_pure`, direct LLVM object/shared-library C FFI, `interpret_pure`, the interpreter/live bridge path, `zig_pure`, and `zig_c_object` in one place.
-  - Reports land in `benchmark/out/reports/ffi_boundary_latest.llm.md`, `ffi_boundary_latest.json`, and timestamped `*.ffi_boundary.*` siblings.
-  - The runner writes its own `benchmark/ffi_boundary/KAIN.toml`, compiles `native/ffi_boundary.c` into both object and shared forms under `benchmark/out/build/ffi_boundary/native/`, and keeps runtime tuning pinned to the normal benchmark-release native profile.
-  - Pass `--zig` or set `ZIG` to pin a Zig toolchain. On the current Windows Zig 0.17 dev build, `-femit-bin=path` produces a runnable PE without a `.exe` suffix; the runner handles that.
-  - If `kain.exe <file>.kn -t llvm` starts failing with undefined `use c::...` symbols on this lane, inspect the direct CLI compile prep in `crates/cli/src/main.rs`: the LLVM/C path must generate `.kain/cache/c_ffi/.../*.kn` bindings before frontend import resolution, not after.
+- HTML is no longer a report format. If `benchmark/out/reports/latest.html` appears, treat it as stale-output cleanup debt.
+
+## Dedicated FFI Boundary Lane
+
+- Command: `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
+- This specialized lane sits outside `benchmarks.json`.
+- It compares `llvm_pure`, direct LLVM object/shared-library C FFI, `interpret_pure`, the interpreter/live bridge path, `zig_pure`, and `zig_c_object`.
+- Reports land in `benchmark/out/reports/ffi_boundary_latest.llm.md`, `ffi_boundary_latest.json`, and timestamped siblings.
 
 ## Blade Console
 
@@ -68,91 +76,51 @@ description: Use when adding, changing, running, or reviewing the multi-language
 .\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName D:\Kain-Lang\benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm
 ```
 
-- Validate UI with `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH` under `benchmark/blades/kain-benchmark/.kain/run/` and `KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES`.
-- The Win32/GL BMP readback may appear flipped/mirrored in viewers; still assert non-empty screenshot size and inspect enough to prove the UI surface rendered.
-- `KAIN_BENCH_AUTORUN=quick` runs the scalar multi-language smoke at startup. Buttons use the same process runner path.
+- Validate the blade with `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH` and `KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES`.
+- `KAIN_BENCH_AUTORUN=quick` runs the scalar smoke at startup.
+- The catalog is intentionally curated now: it shows featured case families and the real total case count, not the full manifest dump.
 
 ## Case Design
 
 - Keep benchmark constants local inside `main` or helper functions unless the case is explicitly exercising top-level const behavior.
-- Include deterministic checksum/exit-code validation so benchmarked work cannot disappear silently.
-- If Kain does not yet expose the exact runtime primitive needed, keep the case but mark `maturity` as `proxy`, `semantic-proxy`, or `dispatch-skeleton` in `benchmarks.json`.
-- For Kain/Rust-only comparisons such as Tokio/Rayon, declare only those two languages in the case `languages` map; do not add empty C++/JS/Python placeholders.
-- For Kain/Erlang actor comparisons, declare only those two languages in the case `languages` map; do not fake C++/Rust/JS/Python actor rows.
-- For Kain/Erlang semantic-flex rows, keep the paired checksum identical but label the case honestly with `maturity = "kain-semantic-flex"` and a fairness note that Erlang is staying inside its process/mailbox model while Kain may use compiler-owned semantics such as `shatter`, `collapse`, `converge`, `teleport`, and `entangle`.
-- Never claim a proxy is a completed win. Use `fairness_note` and `language_notes` to explain semantic gaps.
-- JavaScript and Python lanes should mirror algorithmic shape where possible, but avoid importing npm/pip dependencies or measuring unrelated framework overhead.
-- For Kain low-level memory cases, `alloc(count, "T")` and `realloc_mem(ptr, count, "T", ...)` use element counts, not byte counts. Do not pass `sizeof_type("T")` for a single-cell allocation unless you intentionally want `sizeof(T)` elements.
-- If a Kain case uses a case-local `KAIN.toml` plus `use c::...`, make the runner compile that row from the case directory or you will get false import-resolution failures from nearest-manifest lookup.
+- Every row needs a deterministic checksum/exit-code guard so benchmarked work cannot disappear silently.
+- If Kain does not yet expose the exact runtime primitive needed, keep the row but mark `maturity` honestly as `proxy`, `semantic-proxy`, `dispatch-proxy`, `parallel-proxy`, or `simd-proxy`.
+- Never claim a proxy is a completed win. Put the caveat in `fairness_note` and `language_notes`.
+- Kain/Rust-only and Kain/Erlang-only comparisons should declare only those languages in the case `languages` map.
+- JavaScript and Python lanes should mirror the algorithmic shape where possible without dragging in package-manager dependency noise.
+- For Kain low-level memory cases, `alloc(count, "T")` and `realloc_mem(ptr, count, "T", ...)` use element counts, not byte counts.
+- If a Kain case uses a case-local `KAIN.toml` plus `use c::...`, make the runner compile that row from the case directory or nearest-manifest lookup will lie.
 
-## Current Pressure Cases
+## Notable Rows
 
-- `contention_wall`: Rust and C++ use 100 OS threads and an atomic counter; Kain currently uses a zero-lock `collapse` proxy; JavaScript/Python use scalar proxies to avoid worker/GIL overhead dominating the comparison.
-- `ghost_mirror`: Rust/C++/JavaScript/Python use TCP loopback for a 1 MiB payload; Kain uses entangle-backed in-process world mirroring plus helper-owned payload mutation.
-- `evolutionary_loop`: Rust/C++/JavaScript/Python use runtime feature detection or equivalent branch dispatch; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
-- `semantic_singularity`: Kain-only fused semantics pressure vessel. It intentionally declares only Kain in `benchmarks.json` and combines `axiom`/`pulse`/`shatter`/`teleport`, `world`/`entangle`/`patch`/`law`, `converge`/`orchestrate`, `collapse`/`observe`/`decay`, and modern ABI v3 actor ask/reply in one checksum-guarded loop. Keep dynamic shatter access field-based (`shards[lane].field`) until whole-shatter-element value propagation is implemented.
-- `semantic_singularity_crucible`: Kain-only "ultimate single file" native LLVM torture lane. It extends the fused semantic singularity shape with top-level const/type alias, enum `match`, trait/impl syntax, `comptime`, shader declarations, `vec!`, `format!`, string indexing, Option/Result/Future/`await`, bitwise packet math, and raw `realloc_mem` plus `collapse`/`observe`/`decay` preflight checks. Keep it as a sibling of `semantic_singularity` so the ablation matrix stays comparable. Latest checkpoint: Kain `363.026 ms` over one benchmark-release timed run; local Z3 proofs under `benchmark/cases/semantic_singularity_crucible/z3` return `unsat`.
-- `semantic_singularity_*`: Kain-only ablation/isolate matrix around the fused boss fight. The sibling rows are `semantic_singularity_no_actor`, `semantic_singularity_no_entangle`, `semantic_singularity_no_patch`, `semantic_singularity_shatter_only`, `semantic_singularity_actor_only`, and `semantic_singularity_converge_only`. Keep them checksum-guarded and run them together when comparing subsystem costs so single-run noise is at least captured in one report.
-- `ownership_memory`: direct `collapse`/`observe`/`decay` smoke against ordinary boxed/object ownership lanes.
-- `tcp_loopback_tokio`: Kain native TCP loopback versus Rust Tokio TCP. This is an implemented networking comparison, but the fairness note must keep saying Kain's current native TCP facade is synchronous around readiness helpers while Rust uses Tokio async IO.
-- `http_server_concurrency`: Kain native local HTTP route handling versus Tokio request batches. The request-slot exhaustion bug is fixed, so this row should stay green while still carrying the fairness note that Kain is measuring the synchronous semantic surface against Tokio async request batching.
-- `actor_mailbox_erlang`: Kain native LLVM actor ask/reply fanout versus Erlang process mailbox request/reply. Both rows intentionally perform one unmeasured warmup ask per worker so the report reflects steady-state mailbox traffic rather than startup effects.
-  The Kain reply leg now uses the dedicated native fast path `kain_actor_reply_port_send(...)` rather than generic mailbox enqueue/dequeue; if performance regresses again, inspect the actor runtime/codegen seam before changing the case.
-- `quantumerlang`: intentionally unfair Kain/Erlang semantic-flex row. Erlang runs 64 stateful processes and 300,000 synchronous mailbox roundtrips; Kain computes the same checksum through `shatter struct` lane metadata, `collapse`/`observe`/`decay` cell memory, `converge`, and boot-time `teleport`/`entangle`. Latest 3-run checkpoint: Kain `45.005 ms` vs Erlang `549.337 ms`, so Erlang is `12.21x slower`.
-- `rayon_parallel_reduce`: Rayon parallel iterators versus Kain scalar proxy. Keep `maturity` as `parallel-proxy` until Kain LLVM has proven user-level data-parallel fanout.
-
-## Current Basic Edge Cases
-
-- `branch_dispatch`: scalar branch-heavy dispatch. It uses `if` today because scalar `match` in the standalone hot loop built but trapped at runtime.
-- `call_chain`: small function graph in a hot loop.
-- `memory_stream`: sequential buffer write/read through Kain helper-owned memory versus ordinary language arrays/vectors.
-- `alloc_churn`: many small allocation/write/read/lifetime-end cycles.
-- `struct_method`: aggregate construction plus explicit `score_pair(pair)` field access. Avoid receiver method field access until that native codegen gap is fixed.
-- `option_result`: Option/Result tagged value creation, branching, and unwrap paths.
-- `async_ready_chain`: ready-future async/await overhead versus Tokio current-thread ready futures. Keep the Kain source on the known-good `return async 2` style until dynamic async value capture lowering is repaired; a dynamic-capture version compiled but failed checksum in the benchmark spike. This row now points Kain at `runtime/native_async_benchmark_runtime.toml`, and its win depends on benchmark-release native section GC in `crates/cli/src/main.rs`; if the Kain exe balloons again, inspect the case manifest override and the native link flags before blaming async lowering.
-- `simd_lane_mix`: integer dot product. Rust and C++ use explicit AVX2 when available; Kain remains the scalar SIMD proxy lane until first-class SIMD intrinsics land in the benchmark surface.
-- `native_map_lookup`: fixed-key string-hash lookup pressure over a small native map.
-  - The honest Kain win on this row depends on two real fast paths rather than case-only trickery: LLVM lowers literal `map_get(...)` keys as borrowed static prehashed byte views, and `runtime/native/src/core/core.c::map_get_prehashed(...)` now walks the actual linear probe chain and stops on the first empty slot or exact match instead of scanning the whole table. If this row regresses, inspect both seams before changing the benchmark case.
-- `json_manual_roundtrip`: manual parse plus serialization over two small JSON payload shapes. Keep the case manual until the native LLVM JSON builtins stop failing to link in this checkout.
-  - Latest durable release checkpoint: Kain `118.244 ms`, Rust `112.832 ms`, C++ `94.763 ms` in `benchmark/out/reports/20260517T030644Z.llm.md`.
-  - The current honest speedup came from compiler/runtime string work, not a benchmark-only rewrite: LLVM flattens long string-add trees into fixed-arity `@str_concatN(...)` calls, `core.c::to_string(...)` no longer uses `sprintf(...)`, and string-param length fallback now uses native `len(...)` instead of `strlen(...)`. Inline `byte_at(...)` on known strings is now lowered as a guarded direct byte load, but that was not the final JSON dragon. If this row regresses, inspect `render_payload(...)` IR first; if that stays clean, the next likely hotspot is `find_substring_from(...)` / `substring(...)` churn rather than raw byte extraction.
-- `filesystem_stream`: temp-file write, streaming copy, readback, and cleanup over a generated text payload.
-  - Latest durable release checkpoint: Kain `117.605 ms`, Rust `97.923 ms`, C++ `84.600 ms` in `benchmark/out/reports/20260517T030846Z.llm.md`.
-  - The current honest speedup depends on two runtime seams rather than benchmark-only shape changes: allocate-then-fill FS strings must stamp logical length after `fread(...)`, and Kain-authored `fs_write_text` / `fs_append_text` / `fs_atomic_write_text` now route through length-aware ABI entrypoints so the runtime does not rescan payload text with `strlen(...)` every round. If this row regresses, inspect `stdlib/native/fs.kn` plus `runtime/native/src/core/stdlib_abi.c` before touching the case.
-- `process_stdio_loop`: repeated `cmd.exe` launch plus stdout capture. Treat it as a Windows-first host-substrate case, not a pure language throughput case.
-- `unicode_string_heavy`: UTF-8 substring search over multilingual text and emoji.
-- `allocator_large_object_churn`: variable-size large-buffer allocation/touch/readback/release cycles.
-- `gpu_graphics_submit`: Kain-only raw native graphics submission path. Keep it Kain-only until the suite grows a comparable bare-metal Rust/C++ graphics lane instead of a framework benchmark.
-- `actor_mailbox_erlang`: native LLVM actor ask/reply fanout versus Erlang processes. It is the truth row for Kain actor latency; after the 2026-05-16 reply-port/node-cache pass, the current honest checkpoint is Kain `2621.995 ms` vs Erlang `418.862 ms` (`6.26x slower`) over 3 timed runs with 1 warmup.
-- `ffi_shared_call_stress`: repeated tiny shared-library calls inside the main suite. Keep the dedicated `benchmark/ffi_boundary` lane for deeper ABI-tax and Zig-neighborhood questions.
-- `scalar_mix`: top-level const lowering and a checksum guard.
-- `recursive_sum`: recursion and call-stack lowering in a tight loop.
-- `string_ops`: ASCII substring search plus string length/indexing over fixed ASCII strings.
-  - As of `2026-05-15`, the case intentionally removes dead `% MODULUS` math and uses a boolean branch toggle instead of `% 2` parity math, but keeps substring search on the general path. The specialized win we kept is in the LLVM lowering, not in benchmark-only hand-tuned substring kernels.
-  - The LLVM fast path still depends on string-aware const metadata, entry-cached string lengths, direct bytewise `char_at(...) == char_at(...)` lowering, and borrowed internal string params that skip caller retain/callee release churn. If `string_ops` regresses, inspect `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` before blaming the C runtime.
-- `array_scan`: fixed-array indexing and weighted accumulation.
-- `machine_stones_shatter_loop`: Kain `shatter struct` hot field iteration versus hand-authored Rust/C++ SoA arrays. This case is only honest after LLVM emits cached `kain_machine_shatter_lane_base(...)` plus proven `(index << 3)` GEPs for loop-bounded shattered array reads; if it regresses to per-access `kain_machine_shatter_lane_ptr(...)`, treat the Kain row as a backend regression before interpreting benchmark numbers.
-- `ffi_boundary` is the dedicated ABI-tax probe, not a fairness-suite case. It is intentionally target-focused so we can answer questions like "how expensive is direct LLVM object linking vs the interpreter bridge?" or "is Kain LLVM in Zig/C territory?" without polluting the multi-language pressure suite.
+- `semantic_singularity` and its `semantic_singularity_*` siblings are the Kain-only fused semantics pressure vessel and ablation matrix.
+- `actor_mailbox_erlang` is the truth row for Kain actor latency against Erlang mailboxes.
+- `async_ready_chain` is the honest ready-future runtime tax row against Tokio.
+- `native_map_lookup` is the clean native map/data-structure pressure row.
+- `http_server_concurrency` is the synchronous native Kain HTTP surface against Tokio request batching.
+- `http_server_frameworks` is the synchronous native Kain HTTP surface against Actix Web and Go `net/http`.
+- `ecs_archetype_query` is the SoA/game-engine locality row.
+- `zero_copy_binary_wire` is the fixed packed-wire decode row.
+- `dynamic_vtable_thrashing` is real Rust/C++/Go dynamic dispatch against an honest Kain dispatch proxy.
+- `crypto_block_cipher` is the ARX-style rotate/xor/add bit-twiddling row.
+- `ray_sphere_intersection` is the fixed 3D geometry kernel. In this checkout the Kain row regenerates deterministic seeded rays/spheres inside the hot loop because literal float-array indexing was not yet native-LLVM parity-safe.
+- `sim_nbody_gravity`, `sim_uv_velocity_grid`, and `sim_cfd_pressure_projection` are the extracted k-os-sim simulation pack. Keep them Kain/Rust/C++ only; Go is intentionally not part of the sim category.
+- `json_manual_roundtrip` and `filesystem_stream` are still the best string-heavy and filesystem-heavy runtime rows.
+- `process_stdio_loop` is Windows-first host/process tax, not a pure language-throughput row.
 
 ## Validation
 
-- `python -m py_compile benchmark/run.py`
-- Syntax-check all JS/Python case files and compile the C++ lane.
-- `python benchmark/run.py --languages cpp --runs 1 --warmups 0 --timeout 300`
+- `python -m py_compile benchmark/run.py benchmark/run_fast.py`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check` if runtime manifests changed.
 - `python benchmark/run.py --case scalar_mix --languages kain,rust,cpp,javascript,python --runs 1 --warmups 0 --timeout 300`
 - `python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 1 --warmups 0 --timeout 600`
 - `python benchmark/run.py --case tcp_loopback_tokio --languages kain,rust --runs 1 --warmups 0 --timeout 900`
-- `python benchmark/run.py --case rayon_parallel_reduce --languages kain,rust --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --runs 1 --warmups 0 --timeout 900`
-  If this row fails with a Kain build error mentioning `generated/native_runtime/cache/.../*.obj.tmp` and `Access is denied`, rerun once after the cache quiesces before treating it as a semantic actor regression.
 - `python benchmark/run.py --case quantumerlang --languages kain,erlang --runs 1 --warmups 0 --timeout 900`
-- Prove `benchmark/cases/quantumerlang/z3/quantumerlang_bounds.smt2` stays `unsat` after changing the lane count, round count, or arithmetic formula.
-- `python benchmark/run.py --case semantic_singularity --languages kain --runs 1 --warmups 0 --timeout 900`
-- `python benchmark/run.py --case semantic_singularity_crucible --languages kain --runs 1 --warmups 0 --timeout 900`
-- `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
-- `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run.py --case http_server_concurrency --languages kain,rust --runs 1 --warmups 0 --timeout 900`
+- `python benchmark/run.py --case http_server_frameworks --languages kain,rust,go --runs 1 --warmups 0 --timeout 900`
+- `python benchmark/run.py --case ecs_archetype_query,zero_copy_binary_wire,dynamic_vtable_thrashing,crypto_block_cipher,ray_sphere_intersection --languages kain,rust,cpp,go --runs 1 --warmups 0 --timeout 900`
+- `python benchmark/run.py --case sim_nbody_gravity,sim_uv_velocity_grid,sim_cfd_pressure_projection --languages kain,rust,cpp --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
-- Build `benchmark/kain-benchmark.exe` with the blade compile helper and capture a non-empty native UI screenshot.
-- Inspect `benchmark/out/reports/latest.llm.md` and `latest.json` before summarizing results.
-- Inspect `benchmark/out/reports/ffi_boundary_latest.llm.md` and `ffi_boundary_latest.json` before summarizing FFI-boundary claims.
+- Build `benchmark/kain-benchmark.exe` with the blade compile helper and capture a non-empty native UI screenshot after UI edits.
+- Inspect `benchmark/out/reports/latest.llm.md` and `benchmark/latest.md` before summarizing results.

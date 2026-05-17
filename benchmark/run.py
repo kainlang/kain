@@ -33,11 +33,12 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
 DEFAULT_MINIMAL_REPORT_NAME = "latest.md"
 
-LANGUAGE_ORDER = ["kain", "rust", "cpp", "erlang", "javascript", "python"]
+LANGUAGE_ORDER = ["kain", "rust", "cpp", "go", "erlang", "javascript", "python"]
 LANGUAGE_LABELS = {
     "kain": "Kain LLVM",
     "rust": "Rust LLVM",
     "cpp": "C++ Clang",
+    "go": "Go gc",
     "erlang": "Erlang OTP",
     "javascript": "JavaScript Node",
     "python": "Python CPython",
@@ -46,6 +47,7 @@ LANGUAGE_SOURCE_KEYS = {
     "kain": "kain",
     "rust": "rust",
     "cpp": "cpp",
+    "go": "go",
     "erlang": "erlang",
     "javascript": "javascript",
     "python": "python",
@@ -86,6 +88,11 @@ CPP_RELEASE_FLAGS = [
     "-O3",
     "-march=native",
     "-DNDEBUG",
+]
+
+GO_RELEASE_FLAGS = [
+    "-trimpath",
+    "-ldflags=-s -w",
 ]
 
 KAIN_NATIVE_PROFILE_DEFAULTS: dict[str, dict[str, str]] = {
@@ -379,6 +386,7 @@ def parse_languages(raw_languages: str | None) -> list[str]:
         "c++": "cpp",
         "cxx": "cpp",
         "cplusplus": "cpp",
+        "golang": "go",
         "erl": "erlang",
         "beam": "erlang",
         "otp": "erlang",
@@ -785,6 +793,76 @@ def build_cpp_case(
     }
 
 
+def build_go_case(
+    case: dict[str, Any],
+    go_exe: str,
+    timeout: int,
+    no_build: bool,
+) -> dict[str, Any]:
+    case_id = case["id"]
+    source = case_source_path(case, "go")
+    build_dir = BUILD_ROOT / case_id / "go"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    go_manifest = case.get("go_manifest")
+    exe_stem = str(case.get("go_binary", case_id))
+    exe_path = build_dir / executable_name(exe_stem)
+
+    if go_manifest:
+        manifest_path = BENCHMARK_ROOT / str(go_manifest)
+        package_name = str(case.get("go_package", "."))
+        command = [
+            go_exe,
+            "build",
+            *GO_RELEASE_FLAGS,
+            "-o",
+            str(exe_path.resolve()),
+            package_name,
+        ]
+        command_cwd = manifest_path.parent
+    else:
+        command = [
+            go_exe,
+            "build",
+            *GO_RELEASE_FLAGS,
+            "-o",
+            str(exe_path.resolve()),
+            source.name,
+        ]
+        command_cwd = source.parent
+
+    if not shutil.which(go_exe) and not Path(go_exe).exists():
+        return missing_tool_build("go", command, f"Go executable not found: {go_exe}")
+
+    if no_build:
+        return {
+            "ok": exe_path.exists(),
+            "language": "go",
+            "exe": str(exe_path),
+            "run_command": [str(exe_path)],
+            "command": command,
+            "flags": GO_RELEASE_FLAGS,
+            "build_ms": 0.0,
+            "stdout": "",
+            "stderr": "",
+            "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
+        }
+
+    result = run_command(command, timeout=timeout, cwd=command_cwd)
+    ok = result.returncode == 0 and exe_path.exists()
+    return {
+        "ok": ok,
+        "language": "go",
+        "exe": str(exe_path),
+        "run_command": [str(exe_path)],
+        "command": command,
+        "flags": GO_RELEASE_FLAGS,
+        "build_ms": result.elapsed_ms,
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "error": "" if ok else "Go build failed or did not produce executable.",
+    }
+
+
 def build_javascript_case(
     case: dict[str, Any],
     node: str,
@@ -944,6 +1022,8 @@ def build_language_case(
         return build_rust_case(case, tools["rustc"], timeout, no_build, support_artifacts)
     if language == "cpp":
         return build_cpp_case(case, tools["cxx"], timeout, no_build, support_artifacts)
+    if language == "go":
+        return build_go_case(case, tools["go"], timeout, no_build)
     if language == "erlang":
         return build_erlang_case(case, tools["erl"], tools["erlc"], timeout, no_build)
     if language == "javascript":
@@ -1163,6 +1243,8 @@ def render_toolchain(report: dict[str, Any]) -> str:
         f"- cxx: `{toolchain.get('cxx', 'n/a')}`",
         f"- clang: `{toolchain.get('clang', 'n/a')}`",
         f"- cpp_flags: `{display_command(toolchain.get('cpp_flags', []))}`",
+        f"- go: `{toolchain.get('go', 'n/a')}`",
+        f"- go_flags: `{display_command(toolchain.get('go_flags', []))}`",
         f"- erl: `{toolchain.get('erl', 'n/a')}`",
         f"- erlc: `{toolchain.get('erlc', 'n/a')}`",
         f"- node: `{toolchain.get('node', 'n/a')}`",
@@ -1305,7 +1387,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=str(BENCHMARK_ROOT / "benchmarks.json"))
     parser.add_argument("--case", dest="only_case", help="Single case id or comma-separated case ids")
-    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,erlang,javascript,python")
+    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,go,erlang,javascript,python")
     parser.add_argument("--runs", type=int)
     parser.add_argument("--warmups", type=int)
     parser.add_argument("--timeout", type=int, default=180)
@@ -1313,6 +1395,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rustc", default=os.environ.get("RUSTC", "rustc"))
     parser.add_argument("--cxx")
     parser.add_argument("--clang")
+    parser.add_argument("--go", default=os.environ.get("GO", "go"))
     parser.add_argument("--erl", default=os.environ.get("ERL"))
     parser.add_argument("--erlc", default=os.environ.get("ERLC"))
     parser.add_argument("--node", default=os.environ.get("NODE", "node"))
@@ -1357,6 +1440,7 @@ def main() -> int:
         rustc_path = resolve_tool(args.rustc, "RUSTC", "rustc")
         cxx_path = resolve_cpp_compiler(args.cxx)
         clang_path = resolve_clang(args.clang)
+        go_path = resolve_tool(args.go, "GO", "go")
         erl_path = resolve_erlang_tool(args.erl, "ERL", "erl")
         erlc_path = resolve_erlang_tool(args.erlc, "ERLC", "erlc")
         node_path = resolve_tool(args.node, "NODE", "node")
@@ -1366,6 +1450,7 @@ def main() -> int:
             "rustc": rustc_path,
             "cxx": cxx_path,
             "clang": clang_path,
+            "go": go_path,
             "erl": erl_path,
             "erlc": erlc_path,
             "node": node_path,
@@ -1382,6 +1467,8 @@ def main() -> int:
             "cxx": cxx_path,
             "clang": clang_path,
             "cpp_flags": CPP_RELEASE_FLAGS,
+            "go": go_path,
+            "go_flags": GO_RELEASE_FLAGS,
             "erl": erl_path,
             "erlc": erlc_path,
             "node": node_path,

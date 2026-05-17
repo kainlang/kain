@@ -3,10 +3,12 @@
 #endif
 
 #include "../../include/process_system.h"
+#include "../../include/attrition.h"
 #include "../../include/base.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -100,6 +102,26 @@ static const char g_empty_string[] = "";
 static const char g_stdio_inherit[] = "inherit";
 static const char g_stdio_pipe[] = "pipe";
 static const char g_stdio_null[] = "null";
+static atomic_uint_least64_t g_attrition_process_live_count = 0;
+static atomic_uint_least64_t g_attrition_process_peak_count = 0;
+static atomic_uint_least64_t g_attrition_process_spawn_count = 0;
+static atomic_uint_least64_t g_attrition_process_exit_count = 0;
+static atomic_uint_least64_t g_attrition_process_stale_reject_count = 0;
+
+static void abi_process_attrition_update_peak(
+    atomic_uint_least64_t* peak_counter,
+    uint64_t candidate
+) {
+    uint64_t current_peak = atomic_load_explicit(peak_counter, memory_order_relaxed);
+    while (candidate > current_peak &&
+           !atomic_compare_exchange_weak_explicit(
+               peak_counter,
+               &current_peak,
+               candidate,
+               memory_order_relaxed,
+               memory_order_relaxed)) {
+    }
+}
 
 #ifdef _WIN32
 #ifndef PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
@@ -182,6 +204,10 @@ static int64_t abi_process_fail(int64_t status, const char* kind, const char* me
         sizeof(g_last_error_message),
         message ? message : ""
     );
+    if (status == ABI_PROCESS_INVALID_PROCESS || status == ABI_PROCESS_INVALID_SPEC) {
+        atomic_fetch_add_explicit(&g_attrition_process_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_process_stale_reject(0u, status);
+    }
     return status;
 }
 
@@ -538,10 +564,12 @@ static const char* abi_process_encode_hex(const unsigned char* bytes, size_t byt
 
 static void abi_process_release_handle(KainNativeProcessHandle* process, int terminate_running_process) {
     uint32_t slot;
+    int64_t process_id;
     if (process == 0 || !process->in_use) {
         return;
     }
     slot = (uint32_t)(process - g_processes);
+    process_id = process->id;
 #ifdef _WIN32
     if (terminate_running_process && process->process_handle != 0 && !process->exited) {
         TerminateProcess(process->process_handle, 1u);
@@ -597,6 +625,9 @@ static void abi_process_release_handle(KainNativeProcessHandle* process, int ter
     abi_process_capture_free(&process->pty_capture);
     memset(process, 0, sizeof(*process));
     abi_process_rebuild_process_index();
+    atomic_fetch_sub_explicit(&g_attrition_process_live_count, 1u, memory_order_relaxed);
+    atomic_fetch_add_explicit(&g_attrition_process_exit_count, 1u, memory_order_relaxed);
+    kain_attrition_note_process_exit((uint64_t)process_id);
 }
 
 #ifdef _WIN32
@@ -1809,6 +1840,28 @@ int64_t abi_process_reset(void) {
     return abi_process_ok();
 }
 
+void kain_attrition_process_counters_reset(void) {
+    atomic_store_explicit(&g_attrition_process_live_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_process_peak_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_process_spawn_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_process_exit_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_process_stale_reject_count, 0u, memory_order_relaxed);
+}
+
+void kain_attrition_process_fill_snapshot(KainAttritionSnapshot* snapshot) {
+    if (snapshot == NULL) {
+        return;
+    }
+    snapshot->process_live_count = atomic_load_explicit(&g_attrition_process_live_count, memory_order_relaxed);
+    snapshot->process_peak_count = atomic_load_explicit(&g_attrition_process_peak_count, memory_order_relaxed);
+    snapshot->process_spawn_count = atomic_load_explicit(&g_attrition_process_spawn_count, memory_order_relaxed);
+    snapshot->process_exit_count = atomic_load_explicit(&g_attrition_process_exit_count, memory_order_relaxed);
+    snapshot->process_stale_reject_count = atomic_load_explicit(
+        &g_attrition_process_stale_reject_count,
+        memory_order_relaxed);
+    snapshot->process_occupancy_bits = g_process_occupancy_bits;
+}
+
 int64_t abi_process_platform_available(void) {
 #ifdef _WIN32
     return 1;
@@ -2080,6 +2133,15 @@ static KainNativeProcessHandle* abi_process_allocate_slot(void) {
         memset(&g_processes[slot], 0, sizeof(g_processes[slot]));
         return 0;
     }
+    {
+        uint64_t live_count = atomic_fetch_add_explicit(
+                                  &g_attrition_process_live_count,
+                                  1u,
+                                  memory_order_relaxed) + 1u;
+        atomic_fetch_add_explicit(&g_attrition_process_spawn_count, 1u, memory_order_relaxed);
+        abi_process_attrition_update_peak(&g_attrition_process_peak_count, live_count);
+    }
+    kain_attrition_note_process_spawn((uint64_t)g_processes[slot].id);
     return &g_processes[slot];
 }
 

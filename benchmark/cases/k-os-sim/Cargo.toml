@@ -1,0 +1,27 @@
+[package]
+name = "k-os-sim"
+version = "0.1.0"
+edition = "2021"
+description = "K_OS simulation domain crate - ownership boundary for CFD, fluid, physics, and quantum workflows"
+
+[lib]
+name = "k_os_sim"
+path = "src/lib.rs"
+
+[features]
+default = ["tauri-commands"]
+tauri-commands = []
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+lazy_static = "1.4"
+log = "0.4"
+rayon = "1.10"
+rand = "0.8"
+glam = { version = "0.30", features = ["serde", "bytemuck"] }
+kiddo = "4.2"
+noise = "0.9"
+rapier3d = { version = "0.22", features = ["simd-stable", "parallel"] }
+salva3d = { version = "0.9", features = ["rapier"] }

@@ -1811,33 +1811,46 @@ impl LlvmGenerator {
             return Ok(None);
         }
 
-        let mut term_values = Vec::with_capacity(term_exprs.len());
-        let mut releasable_temp_values = Vec::new();
+        let mut compiled_terms = Vec::with_capacity(term_exprs.len());
         for term in term_exprs {
             let (value, ty) = self.compile_expr(term)?;
             if ty == "i8*" {
-                term_values.push(value);
+                compiled_terms.push((value, self.is_new_object(term)));
             } else {
                 let (string_value, string_ty) = self.stringify_value(&value, &ty)?;
                 debug_assert_eq!(string_ty, "i8*");
-                releasable_temp_values.push(string_value.clone());
-                term_values.push(string_value);
+                compiled_terms.push((string_value, true));
             }
         }
 
+        let term_values = compiled_terms
+            .iter()
+            .map(|(value, _)| value.clone())
+            .collect::<Vec<_>>();
+
         let result = if let Some(flattened) = self.emit_fixed_arity_string_concat_call(&term_values) {
+            for (value, release_after_use) in &compiled_terms {
+                if *release_after_use {
+                    self.emit_rc_release_if_heap_i8(value);
+                }
+            }
             flattened
         } else {
-            let mut acc = term_values[0].clone();
-            for value in &term_values[1..] {
-                acc = self.concat_strings(&acc, value);
+            let (mut acc, mut acc_release_after_use) = compiled_terms[0].clone();
+            for (value, value_release_after_use) in compiled_terms.iter().skip(1) {
+                let previous_acc = acc.clone();
+                let previous_acc_release_after_use = acc_release_after_use;
+                acc = self.concat_strings(&previous_acc, value);
+                if previous_acc_release_after_use {
+                    self.emit_rc_release_if_heap_i8(&previous_acc);
+                }
+                if *value_release_after_use {
+                    self.emit_rc_release_if_heap_i8(value);
+                }
+                acc_release_after_use = true;
             }
             acc
         };
-
-        for temp_value in releasable_temp_values {
-            self.emit_rc_release_if_heap_i8(&temp_value);
-        }
 
         Ok(Some((result, "i8*".to_string())))
     }
@@ -2115,6 +2128,33 @@ impl LlvmGenerator {
         self.emit(&format!(
             "  {} = phi i64 [ -1, %{} ], [ {}, %{} ]",
             result, start_block, byte_i64, load_end_block
+        ));
+        Ok(Some(result))
+    }
+
+    fn compile_find_substring_from_fast_path(
+        &mut self,
+        text: &Expr,
+        needle: &Expr,
+        start_expr: &Expr,
+    ) -> KainResult<Option<String>> {
+        if !self.expr_is_known_string(text) || !self.expr_is_known_string(needle) {
+            return Ok(None);
+        }
+
+        let text_ptr = self.compile_string_data_pointer_for_byte_view(text)?;
+        let Some(text_len) = self.compile_string_length_value(text)? else {
+            return Ok(None);
+        };
+        let needle_ptr = self.compile_string_data_pointer_for_byte_view(needle)?;
+        let Some(needle_len) = self.compile_string_length_value(needle)? else {
+            return Ok(None);
+        };
+        let start = self.compile_expr_as_i64(start_expr)?;
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @find_substring_from_known_lengths(i8* {}, i64 {}, i8* {}, i64 {}, i64 {})",
+            result, text_ptr, text_len, needle_ptr, needle_len, start
         ));
         Ok(Some(result))
     }
@@ -6476,6 +6516,7 @@ impl LlvmGenerator {
         self.emit("declare void @rc_release(i8*)");
         self.emit("declare i8* @string_new(i8*)");
         self.emit("declare i64 @map_get_prehashed(i64, i8*, i64, i64, i64)");
+        self.emit("declare i64 @find_substring_from_known_lengths(i8*, i64, i8*, i64, i64)");
         self.emit("declare i8* @array_new(i64)");
         self.emit("declare void @array_push(i8*, i64)");
         self.emit("declare i64 @array_get(i8*, i64)");
@@ -8499,6 +8540,16 @@ impl LlvmGenerator {
             }
         }
 
+        if func_name == "find_substring_from" && args.len() == 3 {
+            if let Some(result) = self.compile_find_substring_from_fast_path(
+                &args[0].value,
+                &args[1].value,
+                &args[2].value,
+            )? {
+                return Ok((result, "i64".to_string()));
+            }
+        }
+
         let mut compiled_args = Vec::new();
         let mut arg_types = Vec::new();
         let is_extern = self.extern_functions.contains(func_name);
@@ -9833,6 +9884,16 @@ impl LlvmGenerator {
                 let (lhs, lhs_ty) = self.compile_expr(left)?;
                 let (rhs, rhs_ty) = self.compile_expr(right)?;
                 if *op == BinaryOp::Add && (lhs_ty == "i8*" || rhs_ty == "i8*") {
+                    let lhs_release_after_use = if lhs_ty == "i8*" {
+                        self.is_new_object(left)
+                    } else {
+                        true
+                    };
+                    let rhs_release_after_use = if rhs_ty == "i8*" {
+                        self.is_new_object(right)
+                    } else {
+                        true
+                    };
                     let (lhs, _) = self.stringify_value(&lhs, &lhs_ty)?;
                     let (rhs, _) = self.stringify_value(&rhs, &rhs_ty)?;
                     let res = self.next_reg();
@@ -9840,6 +9901,12 @@ impl LlvmGenerator {
                         "  {} = call i8* @str_concat(i8* {}, i8* {})",
                         res, lhs, rhs
                     ));
+                    if lhs_release_after_use {
+                        self.emit_rc_release_if_heap_i8(&lhs);
+                    }
+                    if rhs_release_after_use {
+                        self.emit_rc_release_if_heap_i8(&rhs);
+                    }
                     return Ok((res, "i8*".into()));
                 }
 

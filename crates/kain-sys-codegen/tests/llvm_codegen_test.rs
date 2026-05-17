@@ -2338,6 +2338,13 @@ fn main() -> Int:
         "string param lengths should be computed lazily instead of at function entry when the body never reads them:\n{}",
         render_ir
     );
+    assert!(
+        render_ir.contains("call void @rc_release(i8* %r4)")
+            && render_ir.contains("call void @rc_release(i8* %r13)")
+            && render_ir.contains("call void @rc_release(i8* %r18)"),
+        "fixed-arity concat should release owned string temporaries after copying them:\n{}",
+        render_ir
+    );
     verify_llvm_ir_with_repo_llvm_as(&llvm, "long-string-concat-fixed-arity");
 }
 
@@ -2382,6 +2389,11 @@ fn main() -> Int:
     assert!(
         loop_region.contains("load i8*, i8** %__kain_pooled_literal_"),
         "loop body should load from pooled literal slots:\n{}",
+        build_ir
+    );
+    assert!(
+        loop_region.contains("call void @rc_release(i8* %r19)"),
+        "loop concat should release the owned numeric string temporary after copying it:\n{}",
         build_ir
     );
     verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-string-literal-pooling");
@@ -2432,6 +2444,39 @@ fn main() -> Int:
         parse_ir
     );
     verify_llvm_ir_with_repo_llvm_as(&llvm, "inline-byte-at-known-string");
+}
+
+#[test]
+fn llvm_lowers_find_substring_from_on_known_strings_with_precomputed_lengths() {
+    let source = r#"
+fn locate_field(text: String, key: String) -> Int:
+    return find_substring_from(text, key, 0)
+
+fn main() -> Int:
+    let payload = "{\"id\":17,\"name\":\"orbital\"}"
+    let key = "\"name\":\""
+    return locate_field(payload, key)
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let locate_ir = llvm_function_ir(
+        &llvm,
+        "define internal i64 @locate_field(i8* %arg0, i8* %arg1)",
+    );
+
+    assert!(
+        locate_ir.contains("call i64 @find_substring_from_known_lengths("),
+        "known-string search should lower to the length-aware fast helper:\n{}",
+        locate_ir
+    );
+    assert!(
+        !locate_ir.contains("call i64 @find_substring_from("),
+        "known-string search should bypass the generic helper that reloads lengths:\n{}",
+        locate_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "find-substring-known-lengths-fast-path");
 }
 
 #[test]

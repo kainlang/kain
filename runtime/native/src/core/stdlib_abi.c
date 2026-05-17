@@ -3,6 +3,7 @@
 #endif
 
 #include "../../include/stdlib_abi.h"
+#include "../../include/attrition.h"
 
 #include "../../include/actor.h"
 #include "../../include/async.h"
@@ -12,6 +13,7 @@
 
 #include <stddef.h>
 #include <errno.h>
+#include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +33,26 @@ static int abi_size_add_overflows(size_t left, size_t right) {
 }
 
 void* kain_alloc_rc(size_t size, long long type_tag);
+
+#define ABI_ATTRITION_TEXT_CAPACITY 256u
+#define ABI_ATTRITION_PATH_CAPACITY 1024u
+
+typedef struct KainAbiAttritionCaptureState {
+    int enabled;
+    int report_written;
+    int result_set_seen;
+    uint64_t ops;
+    uint64_t expect_failure;
+    int64_t checksum;
+    int64_t run_status;
+    char case_id[ABI_ATTRITION_TEXT_CAPACITY];
+    char sabotage_mode[ABI_ATTRITION_TEXT_CAPACITY];
+    char result_path[ABI_ATTRITION_PATH_CAPACITY];
+    char run_failure[ABI_ATTRITION_TEXT_CAPACITY];
+    KainAttritionSnapshot baseline_snapshot;
+} KainAbiAttritionCaptureState;
+
+static KainAbiAttritionCaptureState g_abi_attrition_capture_state;
 
 #define ABI_TAG_OPTION_NONE 0
 #define ABI_TAG_OPTION_SOME 1
@@ -70,6 +92,338 @@ static KainDiagnostic abi_diag(void) {
     return diag;
 }
 
+static void abi_copy_text(char* destination, size_t capacity, const char* source) {
+    size_t index = 0u;
+    if (destination == NULL || capacity == 0u) {
+        return;
+    }
+    if (source != NULL) {
+        while (source[index] != '\0' && index + 1u < capacity) {
+            destination[index] = source[index];
+            index += 1u;
+        }
+    }
+    destination[index] = '\0';
+}
+
+static int abi_parse_env_u64(const char* key, uint64_t default_value, uint64_t* out_value) {
+    const char* text;
+    char* end = NULL;
+    unsigned long long parsed;
+    if (out_value == NULL) {
+        return 0;
+    }
+    *out_value = default_value;
+    if (key == NULL) {
+        return 0;
+    }
+    text = getenv(key);
+    if (text == NULL || text[0] == '\0') {
+        return 0;
+    }
+    errno = 0;
+    parsed = strtoull(text, &end, 10);
+    if (errno != 0 || end == text || end == NULL || *end != '\0') {
+        return -1;
+    }
+    *out_value = (uint64_t)parsed;
+    return 1;
+}
+
+static int abi_attrition_capture_enabled(void) {
+    return g_abi_attrition_capture_state.enabled != 0 &&
+        g_abi_attrition_capture_state.result_path[0] != '\0';
+}
+
+static void abi_attrition_capture_reset_state(void) {
+    memset(&g_abi_attrition_capture_state, 0, sizeof(g_abi_attrition_capture_state));
+    abi_copy_text(g_abi_attrition_capture_state.case_id, sizeof(g_abi_attrition_capture_state.case_id), "unknown");
+}
+
+static void abi_attrition_json_write_escaped(FILE* stream, const char* text) {
+    const unsigned char* cursor = (const unsigned char*)(text != NULL ? text : "");
+    fputc('"', stream);
+    while (*cursor != '\0') {
+        unsigned char ch = *cursor++;
+        switch (ch) {
+            case '\\':
+                fputs("\\\\", stream);
+                break;
+            case '"':
+                fputs("\\\"", stream);
+                break;
+            case '\n':
+                fputs("\\n", stream);
+                break;
+            case '\r':
+                fputs("\\r", stream);
+                break;
+            case '\t':
+                fputs("\\t", stream);
+                break;
+            default:
+                if (ch < 0x20u) {
+                    fprintf(stream, "\\u%04x", ch);
+                } else {
+                    fputc((int)ch, stream);
+                }
+                break;
+        }
+    }
+    fputc('"', stream);
+}
+
+static void abi_attrition_json_write_snapshot(FILE* stream, const KainAttritionSnapshot* snapshot) {
+    fprintf(
+        stream,
+        "{"
+        "\"schema_version\":%llu,"
+        "\"seed\":%llu,"
+        "\"determinism_tier\":%llu,"
+        "\"live_rc_objects\":%llu,"
+        "\"live_runtime_bytes\":%llu,"
+        "\"peak_runtime_bytes\":%llu,"
+        "\"allocation_count\":%llu,"
+        "\"free_count\":%llu,"
+        "\"retain_count\":%llu,"
+        "\"release_count\":%llu,"
+        "\"rc_underflow_count\":%llu,"
+        "\"rc_overflow_count\":%llu,"
+        "\"poison_free_count\":%llu,"
+        "\"quarantine_live_entries\":%llu,"
+        "\"actor_live_count\":%llu,"
+        "\"actor_peak_count\":%llu,"
+        "\"actor_spawn_count\":%llu,"
+        "\"actor_exit_count\":%llu,"
+        "\"actor_stale_reject_count\":%llu,"
+        "\"reply_port_live_count\":%llu,"
+        "\"reply_port_peak_count\":%llu,"
+        "\"pending_mailbox_message_count\":%llu,"
+        "\"pending_mailbox_cached_nodes\":%llu,"
+        "\"actor_occupancy_low_word\":%llu,"
+        "\"process_live_count\":%llu,"
+        "\"process_peak_count\":%llu,"
+        "\"process_spawn_count\":%llu,"
+        "\"process_exit_count\":%llu,"
+        "\"process_stale_reject_count\":%llu,"
+        "\"process_occupancy_bits\":%llu,"
+        "\"async_task_live_count\":%llu,"
+        "\"async_task_peak_count\":%llu,"
+        "\"async_task_spawn_count\":%llu,"
+        "\"async_task_exit_count\":%llu,"
+        "\"async_task_stale_reject_count\":%llu,"
+        "\"async_task_occupancy_low_word\":%llu,"
+        "\"async_timer_live_count\":%llu,"
+        "\"async_timer_peak_count\":%llu,"
+        "\"async_timer_spawn_count\":%llu,"
+        "\"async_timer_exit_count\":%llu,"
+        "\"async_timer_cancel_count\":%llu,"
+        "\"async_timer_stale_reject_count\":%llu,"
+        "\"async_timer_occupancy_low_word\":%llu,"
+        "\"progress_heartbeat_count\":%llu,"
+        "\"last_progress_iteration\":%llu,"
+        "\"last_progress_checksum\":%llu,"
+        "\"event_count_total\":%llu,"
+        "\"virtual_time_enabled\":%llu,"
+        "\"virtual_time_now_ms\":%llu,"
+        "\"virtual_time_step_ms\":%llu,"
+        "\"raw_clock_fallback_count\":%llu,"
+        "\"raw_sleep_fallback_count\":%llu"
+        "}",
+        (unsigned long long)snapshot->schema_version,
+        (unsigned long long)snapshot->seed,
+        (unsigned long long)snapshot->determinism_tier,
+        (unsigned long long)snapshot->live_rc_objects,
+        (unsigned long long)snapshot->live_runtime_bytes,
+        (unsigned long long)snapshot->peak_runtime_bytes,
+        (unsigned long long)snapshot->allocation_count,
+        (unsigned long long)snapshot->free_count,
+        (unsigned long long)snapshot->retain_count,
+        (unsigned long long)snapshot->release_count,
+        (unsigned long long)snapshot->rc_underflow_count,
+        (unsigned long long)snapshot->rc_overflow_count,
+        (unsigned long long)snapshot->poison_free_count,
+        (unsigned long long)snapshot->quarantine_live_entries,
+        (unsigned long long)snapshot->actor_live_count,
+        (unsigned long long)snapshot->actor_peak_count,
+        (unsigned long long)snapshot->actor_spawn_count,
+        (unsigned long long)snapshot->actor_exit_count,
+        (unsigned long long)snapshot->actor_stale_reject_count,
+        (unsigned long long)snapshot->reply_port_live_count,
+        (unsigned long long)snapshot->reply_port_peak_count,
+        (unsigned long long)snapshot->pending_mailbox_message_count,
+        (unsigned long long)snapshot->pending_mailbox_cached_nodes,
+        (unsigned long long)snapshot->actor_occupancy_low_word,
+        (unsigned long long)snapshot->process_live_count,
+        (unsigned long long)snapshot->process_peak_count,
+        (unsigned long long)snapshot->process_spawn_count,
+        (unsigned long long)snapshot->process_exit_count,
+        (unsigned long long)snapshot->process_stale_reject_count,
+        (unsigned long long)snapshot->process_occupancy_bits,
+        (unsigned long long)snapshot->async_task_live_count,
+        (unsigned long long)snapshot->async_task_peak_count,
+        (unsigned long long)snapshot->async_task_spawn_count,
+        (unsigned long long)snapshot->async_task_exit_count,
+        (unsigned long long)snapshot->async_task_stale_reject_count,
+        (unsigned long long)snapshot->async_task_occupancy_low_word,
+        (unsigned long long)snapshot->async_timer_live_count,
+        (unsigned long long)snapshot->async_timer_peak_count,
+        (unsigned long long)snapshot->async_timer_spawn_count,
+        (unsigned long long)snapshot->async_timer_exit_count,
+        (unsigned long long)snapshot->async_timer_cancel_count,
+        (unsigned long long)snapshot->async_timer_stale_reject_count,
+        (unsigned long long)snapshot->async_timer_occupancy_low_word,
+        (unsigned long long)snapshot->progress_heartbeat_count,
+        (unsigned long long)snapshot->last_progress_iteration,
+        (unsigned long long)snapshot->last_progress_checksum,
+        (unsigned long long)snapshot->event_count_total,
+        (unsigned long long)snapshot->virtual_time_enabled,
+        (unsigned long long)snapshot->virtual_time_now_ms,
+        (unsigned long long)snapshot->virtual_time_step_ms,
+        (unsigned long long)snapshot->raw_clock_fallback_count,
+        (unsigned long long)snapshot->raw_sleep_fallback_count
+    );
+}
+
+static void abi_attrition_json_write_events(FILE* stream, const KainAttritionEvent* events, size_t count) {
+    size_t index;
+    fputc('[', stream);
+    for (index = 0u; index < count; ++index) {
+        if (index != 0u) {
+            fputc(',', stream);
+        }
+        fprintf(
+            stream,
+            "{"
+            "\"event_index\":%llu,"
+            "\"kind\":%u,"
+            "\"aux\":%u,"
+            "\"arg0\":%llu,"
+            "\"arg1\":%llu,"
+            "\"arg2\":%llu"
+            "}",
+            (unsigned long long)events[index].event_index,
+            events[index].kind,
+            events[index].aux,
+            (unsigned long long)events[index].arg0,
+            (unsigned long long)events[index].arg1,
+            (unsigned long long)events[index].arg2
+        );
+    }
+    fputc(']', stream);
+}
+
+static void abi_attrition_capture_write_report(void) {
+    KainAttritionSnapshot final_snapshot;
+    KainAttritionEvent events[KAIN_ATTRITION_EVENT_RING_CAPACITY];
+    char audit_json[8192];
+    size_t event_count;
+    size_t audit_length;
+    FILE* stream;
+    if (!abi_attrition_capture_enabled() || g_abi_attrition_capture_state.report_written != 0) {
+        return;
+    }
+    memset(&final_snapshot, 0, sizeof(final_snapshot));
+    memset(events, 0, sizeof(events));
+    memset(audit_json, 0, sizeof(audit_json));
+    kain_attrition_runtime_snapshot(&final_snapshot);
+    audit_length = kain_attrition_runtime_write_audit_json(audit_json, sizeof(audit_json));
+    if (audit_length == 0u) {
+        abi_copy_text(audit_json, sizeof(audit_json), "{}");
+    }
+    event_count = kain_attrition_runtime_copy_events(events, KAIN_ATTRITION_EVENT_RING_CAPACITY);
+    stream = fopen(g_abi_attrition_capture_state.result_path, "wb");
+    if (stream == NULL) {
+        return;
+    }
+    fprintf(stream, "{");
+    fprintf(stream, "\"schema_version\":1,");
+    fprintf(stream, "\"report_kind\":\"attrition_runtime_capture\",");
+    fprintf(stream, "\"case_id\":");
+    abi_attrition_json_write_escaped(stream, g_abi_attrition_capture_state.case_id);
+    fprintf(stream, ",\"sabotage_mode\":");
+    abi_attrition_json_write_escaped(stream, g_abi_attrition_capture_state.sabotage_mode);
+    fprintf(stream, ",\"ops\":%llu", (unsigned long long)g_abi_attrition_capture_state.ops);
+    fprintf(stream, ",\"seed\":%llu", (unsigned long long)g_abi_attrition_capture_state.baseline_snapshot.seed);
+    fprintf(stream, ",\"determinism_tier\":%llu", (unsigned long long)g_abi_attrition_capture_state.baseline_snapshot.determinism_tier);
+    fprintf(stream, ",\"virtual_time_enabled\":%llu", (unsigned long long)final_snapshot.virtual_time_enabled);
+    fprintf(stream, ",\"expect_failure\":%llu", (unsigned long long)g_abi_attrition_capture_state.expect_failure);
+    fprintf(stream, ",\"checksum\":%lld", (long long)g_abi_attrition_capture_state.checksum);
+    fprintf(stream, ",\"run_status\":%lld", (long long)g_abi_attrition_capture_state.run_status);
+    fprintf(stream, ",\"run_failure\":");
+    abi_attrition_json_write_escaped(stream, g_abi_attrition_capture_state.run_failure);
+    fprintf(stream, ",\"baseline_snapshot\":");
+    abi_attrition_json_write_snapshot(stream, &g_abi_attrition_capture_state.baseline_snapshot);
+    fprintf(stream, ",\"final_snapshot\":");
+    abi_attrition_json_write_snapshot(stream, &final_snapshot);
+    fprintf(stream, ",\"audit\":%s", audit_json);
+    fprintf(stream, ",\"events\":");
+    abi_attrition_json_write_events(stream, events, event_count);
+    fprintf(stream, "}\n");
+    fclose(stream);
+    g_abi_attrition_capture_state.report_written = 1;
+}
+
+static void abi_attrition_capture_configure_from_env(void) {
+    KainAttritionSessionConfig session_config;
+    const char* result_path = getenv("KAIN_ATTRITION_RESULT_PATH");
+    const char* case_id = getenv("KAIN_ATTRITION_CASE_ID");
+    const char* sabotage_mode = getenv("KAIN_ATTRITION_SABOTAGE");
+    uint64_t enabled = 1u;
+    abi_attrition_capture_reset_state();
+    if (result_path == NULL || result_path[0] == '\0') {
+        return;
+    }
+    if (abi_parse_env_u64("KAIN_ATTRITION_ENABLED", 1u, &enabled) < 0 || enabled == 0u) {
+        return;
+    }
+    kain_attrition_session_config_init(&session_config);
+    session_config.enabled = 1u;
+    (void)abi_parse_env_u64("KAIN_ATTRITION_SEED", 1u, &session_config.seed);
+    (void)abi_parse_env_u64("KAIN_ATTRITION_VIRTUAL_TIME_ENABLED", 0u, &session_config.virtual_time_enabled);
+    (void)abi_parse_env_u64("KAIN_ATTRITION_VIRTUAL_TIME_INITIAL_MS", 0u, &session_config.virtual_time_initial_ms);
+    (void)abi_parse_env_u64("KAIN_ATTRITION_VIRTUAL_TIME_STEP_MS", 1u, &session_config.virtual_time_step_ms);
+    (void)abi_parse_env_u64("KAIN_ATTRITION_POISON_ON_FREE", 0u, &session_config.poison_on_free);
+    (void)abi_parse_env_u64("KAIN_ATTRITION_QUARANTINE_CAPACITY", 0u, &session_config.quarantine_capacity);
+    (void)abi_parse_env_u64(
+        "KAIN_ATTRITION_FRAGMENTATION_NOISE_MAX_BYTES",
+        0u,
+        &session_config.fragmentation_noise_max_bytes
+    );
+    (void)abi_parse_env_u64("KAIN_ATTRITION_ALLOCATION_FAIL_AFTER", 0u, &session_config.allocation_fail_after);
+    (void)abi_parse_env_u64(
+        "KAIN_ATTRITION_DETERMINISM_TIER",
+        (uint64_t)KAIN_ATTRITION_DETERMINISM_TIER_1,
+        &session_config.determinism_tier
+    );
+    (void)abi_parse_env_u64("KAIN_ATTRITION_OPS", 1u, &g_abi_attrition_capture_state.ops);
+    (void)abi_parse_env_u64("KAIN_ATTRITION_EXPECT_FAILURE", 0u, &g_abi_attrition_capture_state.expect_failure);
+    if (case_id != NULL && case_id[0] != '\0') {
+        abi_copy_text(
+            g_abi_attrition_capture_state.case_id,
+            sizeof(g_abi_attrition_capture_state.case_id),
+            case_id
+        );
+    }
+    if (sabotage_mode != NULL && sabotage_mode[0] != '\0') {
+        abi_copy_text(
+            g_abi_attrition_capture_state.sabotage_mode,
+            sizeof(g_abi_attrition_capture_state.sabotage_mode),
+            sabotage_mode
+        );
+    }
+    abi_copy_text(
+        g_abi_attrition_capture_state.result_path,
+        sizeof(g_abi_attrition_capture_state.result_path),
+        result_path
+    );
+    g_abi_attrition_capture_state.enabled = 1;
+    kain_attrition_runtime_configure(&session_config);
+    kain_attrition_runtime_reset();
+    kain_attrition_runtime_snapshot(&g_abi_attrition_capture_state.baseline_snapshot);
+    kain_attrition_runtime_checkpoint("case-start", 0u);
+}
+
 int64_t abi_runtime_init(void) {
     /* Actors lazy-init on first spawn or registry touch so pure native
      * programs skip pooled scheduler startup during process bring-up. */
@@ -79,6 +433,7 @@ int64_t abi_runtime_init(void) {
 #if KAIN_RUNTIME_INIT_PROCESS_RESET
     abi_process_reset();
 #endif
+    abi_attrition_capture_configure_from_env();
     return 0;
 }
 
@@ -92,6 +447,49 @@ int64_t abi_runtime_shutdown(void) {
 #if KAIN_RUNTIME_INIT_ACTOR_SHUTDOWN
     kain_actor_runtime_shutdown();
 #endif
+    if (abi_attrition_capture_enabled()) {
+        kain_attrition_runtime_checkpoint(
+            "case-end",
+            g_abi_attrition_capture_state.checksum >= 0
+                ? (uint64_t)g_abi_attrition_capture_state.checksum
+                : 0u
+        );
+        abi_attrition_capture_write_report();
+    }
+    return 0;
+}
+
+int64_t abi_attrition_checkpoint(const char* label, int64_t subject_id) {
+    if (!abi_attrition_capture_enabled()) {
+        return 0;
+    }
+    kain_attrition_runtime_checkpoint(label, subject_id >= 0 ? (uint64_t)subject_id : 0u);
+    return 0;
+}
+
+int64_t abi_attrition_note_progress(int64_t iteration, int64_t checksum) {
+    if (!abi_attrition_capture_enabled()) {
+        return 0;
+    }
+    kain_attrition_runtime_note_progress(
+        iteration >= 0 ? (uint64_t)iteration : 0u,
+        checksum >= 0 ? (uint64_t)checksum : 0u
+    );
+    return 0;
+}
+
+int64_t abi_attrition_result_set(int64_t checksum, int64_t run_status, const char* run_failure) {
+    if (!abi_attrition_capture_enabled()) {
+        return 0;
+    }
+    g_abi_attrition_capture_state.result_set_seen = 1;
+    g_abi_attrition_capture_state.checksum = checksum;
+    g_abi_attrition_capture_state.run_status = run_status;
+    abi_copy_text(
+        g_abi_attrition_capture_state.run_failure,
+        sizeof(g_abi_attrition_capture_state.run_failure),
+        run_failure
+    );
     return 0;
 }
 
@@ -820,14 +1218,14 @@ int64_t abi_orchestrate_stage_count(void) {
 }
 
 int64_t abi_now_millis(void) {
-    return (int64_t)((clock() * 1000) / CLOCKS_PER_SEC);
+    return (int64_t)kain_attrition_now_millis();
 }
 
 int64_t abi_sleep_millis(int64_t milliseconds) {
     if (milliseconds < 0) {
         return -1;
     }
-    Sleep((unsigned int)milliseconds);
+    kain_attrition_sleep_for_millis((unsigned long long)milliseconds);
     return 0;
 }
 
@@ -1122,23 +1520,45 @@ static int64_t abi_fs_create_parent_dirs(const char* path) {
     return 0;
 }
 
+static int abi_fs_open_write_retry_parent_dirs(const char* path, const char* mode, FILE** out_file) {
+    if (out_file == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    *out_file = 0;
+#ifdef _WIN32
+    if (fopen_s(out_file, path, mode) == 0 && *out_file != 0) {
+        return 0;
+    }
+#else
+    *out_file = fopen(path, mode);
+    if (*out_file != 0) {
+        return 0;
+    }
+#endif
+    if (abi_fs_create_parent_dirs(path) != 0) {
+        return -1;
+    }
+#ifdef _WIN32
+    if (fopen_s(out_file, path, mode) == 0 && *out_file != 0) {
+        return 0;
+    }
+#else
+    *out_file = fopen(path, mode);
+    if (*out_file != 0) {
+        return 0;
+    }
+#endif
+    return -1;
+}
+
 static int64_t abi_fs_write_mode_len(const char* path, const char* content, size_t length, const char* mode) {
     FILE* file = 0;
     if (path == 0 || path[0] == '\0') {
         errno = EINVAL;
         return abi_fs_fail("write_text", path);
     }
-    if (abi_fs_create_parent_dirs(path) != 0) {
-        return abi_fs_fail("create_parent_dirs", path);
-    }
-#ifdef _WIN32
-    if (fopen_s(&file, path, mode) != 0) {
-        file = 0;
-    }
-#else
-    file = fopen(path, mode);
-#endif
-    if (file == 0) {
+    if (abi_fs_open_write_retry_parent_dirs(path, mode, &file) != 0 || file == 0) {
         return abi_fs_fail("write_text", path);
     }
     if (content == 0) {
@@ -1729,16 +2149,7 @@ int64_t abi_fs_copy_file(const char* src, const char* dest) {
     if (input == 0) {
         return abi_fs_fail("copy_file", src);
     }
-    if (abi_fs_create_parent_dirs(dest) != 0) {
-        fclose(input);
-        return abi_fs_fail("copy_file", dest);
-    }
-#ifdef _WIN32
-    if (fopen_s(&output, dest, "wb") != 0) output = 0;
-#else
-    output = fopen(dest, "wb");
-#endif
-    if (output == 0) {
+    if (abi_fs_open_write_retry_parent_dirs(dest, "wb", &output) != 0 || output == 0) {
         fclose(input);
         return abi_fs_fail("copy_file", dest);
     }
@@ -1788,17 +2199,7 @@ int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t ch
         free(heap_buffer);
         return abi_fs_fail("copy_file_streaming", src);
     }
-    if (abi_fs_create_parent_dirs(dest) != 0) {
-        fclose(input);
-        free(heap_buffer);
-        return abi_fs_fail("copy_file_streaming", dest);
-    }
-#ifdef _WIN32
-    if (fopen_s(&output, dest, "wb") != 0) output = 0;
-#else
-    output = fopen(dest, "wb");
-#endif
-    if (output == 0) {
+    if (abi_fs_open_write_retry_parent_dirs(dest, "wb", &output) != 0 || output == 0) {
         fclose(input);
         free(heap_buffer);
         return abi_fs_fail("copy_file_streaming", dest);

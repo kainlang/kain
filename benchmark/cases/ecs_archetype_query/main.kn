@@ -1,0 +1,68 @@
+shatter struct ECSBenchEntity:
+    position_x: Int
+    position_y: Int
+    velocity_x: Int
+    velocity_y: Int
+    health: Int
+    team: Int
+    active: Bool
+
+fn main() -> Int:
+    let iterations: Int = 350000
+    let modulus: Int = 1000000007
+    let expected: Int = 886666628
+    let entities = [
+        ECSBenchEntity { position_x: 3, position_y: 5, velocity_x: 1, velocity_y: 2, health: 9, team: 0, active: true },
+        ECSBenchEntity { position_x: 20, position_y: 34, velocity_x: 8, velocity_y: 7, health: 28, team: 1, active: false },
+        ECSBenchEntity { position_x: 37, position_y: 63, velocity_x: 4, velocity_y: 12, health: 47, team: 2, active: true },
+        ECSBenchEntity { position_x: 54, position_y: 92, velocity_x: 11, velocity_y: 4, health: 25, team: 3, active: true },
+        ECSBenchEntity { position_x: 71, position_y: 32, velocity_x: 7, velocity_y: 9, health: 44, team: 0, active: false },
+        ECSBenchEntity { position_x: 88, position_y: 61, velocity_x: 3, velocity_y: 14, health: 22, team: 1, active: true },
+        ECSBenchEntity { position_x: 8, position_y: 90, velocity_x: 10, velocity_y: 6, health: 41, team: 2, active: true },
+        ECSBenchEntity { position_x: 25, position_y: 30, velocity_x: 6, velocity_y: 11, health: 19, team: 3, active: false },
+        ECSBenchEntity { position_x: 42, position_y: 59, velocity_x: 2, velocity_y: 3, health: 38, team: 0, active: true },
+        ECSBenchEntity { position_x: 59, position_y: 88, velocity_x: 9, velocity_y: 8, health: 16, team: 1, active: true },
+        ECSBenchEntity { position_x: 76, position_y: 28, velocity_x: 5, velocity_y: 13, health: 35, team: 2, active: false },
+        ECSBenchEntity { position_x: 93, position_y: 57, velocity_x: 1, velocity_y: 5, health: 13, team: 3, active: true },
+        ECSBenchEntity { position_x: 13, position_y: 86, velocity_x: 8, velocity_y: 10, health: 32, team: 0, active: true },
+        ECSBenchEntity { position_x: 30, position_y: 26, velocity_x: 4, velocity_y: 2, health: 10, team: 1, active: false },
+        ECSBenchEntity { position_x: 47, position_y: 55, velocity_x: 11, velocity_y: 7, health: 29, team: 2, active: true },
+        ECSBenchEntity { position_x: 64, position_y: 84, velocity_x: 7, velocity_y: 12, health: 48, team: 3, active: true },
+        ECSBenchEntity { position_x: 81, position_y: 24, velocity_x: 3, velocity_y: 4, health: 26, team: 0, active: false },
+        ECSBenchEntity { position_x: 98, position_y: 53, velocity_x: 10, velocity_y: 9, health: 45, team: 1, active: true },
+        ECSBenchEntity { position_x: 18, position_y: 82, velocity_x: 6, velocity_y: 14, health: 23, team: 2, active: true },
+        ECSBenchEntity { position_x: 35, position_y: 22, velocity_x: 2, velocity_y: 6, health: 42, team: 3, active: false },
+        ECSBenchEntity { position_x: 52, position_y: 51, velocity_x: 9, velocity_y: 11, health: 20, team: 0, active: true },
+        ECSBenchEntity { position_x: 69, position_y: 80, velocity_x: 5, velocity_y: 3, health: 39, team: 1, active: true },
+        ECSBenchEntity { position_x: 86, position_y: 20, velocity_x: 1, velocity_y: 8, health: 17, team: 2, active: false },
+        ECSBenchEntity { position_x: 6, position_y: 49, velocity_x: 8, velocity_y: 13, health: 36, team: 3, active: true },
+        ECSBenchEntity { position_x: 23, position_y: 78, velocity_x: 4, velocity_y: 5, health: 14, team: 0, active: true },
+        ECSBenchEntity { position_x: 40, position_y: 18, velocity_x: 11, velocity_y: 10, health: 33, team: 1, active: false },
+        ECSBenchEntity { position_x: 57, position_y: 47, velocity_x: 7, velocity_y: 2, health: 11, team: 2, active: true },
+        ECSBenchEntity { position_x: 74, position_y: 76, velocity_x: 3, velocity_y: 7, health: 30, team: 3, active: true },
+        ECSBenchEntity { position_x: 91, position_y: 16, velocity_x: 10, velocity_y: 12, health: 49, team: 0, active: false },
+        ECSBenchEntity { position_x: 11, position_y: 45, velocity_x: 6, velocity_y: 4, health: 27, team: 1, active: true },
+        ECSBenchEntity { position_x: 28, position_y: 74, velocity_x: 2, velocity_y: 9, health: 46, team: 2, active: true },
+        ECSBenchEntity { position_x: 45, position_y: 14, velocity_x: 9, velocity_y: 14, health: 24, team: 3, active: false }
+    ]
+
+    var acc: Int = 0
+    var round: Int = 0
+    while round < iterations:
+        let round_phase: Int = round % 5
+        let round_bias: Int = round % 7
+        for lane in range(0, 32):
+            if entities[lane].active and entities[lane].health > ((round + lane) % 11):
+                let motion: Int = entities[lane].position_x + entities[lane].velocity_x * (round_phase + 1)
+                let support: Int = entities[lane].position_y + entities[lane].velocity_y * ((round_bias % 3) + 2)
+                if ((entities[lane].team + round + lane) % 3) == 0:
+                    acc = (acc + motion + support + entities[lane].health + lane) % modulus
+                else:
+                    acc = (acc + motion + (support * 2) + entities[lane].team + 17) % modulus
+            else:
+                acc = (acc + entities[lane].team + lane + 23) % modulus
+        round = round + 1
+
+    if acc != expected:
+        return 1
+    return 0

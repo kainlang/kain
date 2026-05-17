@@ -1,0 +1,117 @@
+fn snap(value: Float) -> Float:
+    return (floor((value + 32.0) * 4096.0) / 4096.0) - 32.0
+
+fn main() -> Int:
+    let particle_count: Int = 72
+    let resolution: Int = 16
+    let steps: Int = 220
+    let modulus: Int = 1000000007
+    let expected: Int = 16741515
+    let dt: Float = 0.021
+    let radius: Float = 0.24
+    let radius_sq: Float = radius * radius
+    let cell_size: Float = 1.0 / resolution as Float
+    let influence_radius: Float = cell_size * 3.0
+    let influence_radius_sq: Float = influence_radius * influence_radius
+    let inv_influence: Float = 1.0 / influence_radius
+
+    let mut px: ptr<Float> = alloc_zeroed(particle_count, "Float")
+    let mut py: ptr<Float> = alloc_zeroed(particle_count, "Float")
+    let mut vx: ptr<Float> = alloc_zeroed(particle_count, "Float")
+    let mut vy: ptr<Float> = alloc_zeroed(particle_count, "Float")
+
+    var index: Int = 0
+    while index < particle_count:
+        mem_store(ptr_offset(px, index, "Float"), 0.1 + ((((index * 37) % 71) as Float) / 71.0) * 0.8, "Float")
+        mem_store(ptr_offset(py, index, "Float"), 0.1 + ((((index * 19) % 67) as Float) / 67.0) * 0.8, "Float")
+        mem_store(ptr_offset(vx, index, "Float"), ((((index * 13) % 9) - 4) as Float) * 0.018, "Float")
+        mem_store(ptr_offset(vy, index, "Float"), ((((index * 11) % 11) - 5) as Float) * 0.016, "Float")
+        index = index + 1
+
+    var checksum: Int = 0
+    var step: Int = 0
+    while step < steps:
+        let center_x: Float = 0.5 + ((((step * 7) % 9) - 4) as Float) * 0.03
+        let center_y: Float = 0.5 + ((((step * 5) % 7) - 3) as Float) * 0.04
+        let spin: Float = 0.09 + (step % 5) as Float * 0.012
+        let strength: Float = 0.025 + (step % 7) as Float * 0.004
+
+        index = 0
+        while index < particle_count:
+            var px_i: Float = mem_load(ptr_offset(px, index, "Float"), "Float")
+            var py_i: Float = mem_load(ptr_offset(py, index, "Float"), "Float")
+            var vx_i: Float = mem_load(ptr_offset(vx, index, "Float"), "Float")
+            var vy_i: Float = mem_load(ptr_offset(vy, index, "Float"), "Float")
+            let dx: Float = center_x - px_i
+            let dy: Float = center_y - py_i
+            let dist_sq: Float = dx * dx + dy * dy
+            if dist_sq < radius_sq and dist_sq > 0.0001:
+                let dist: Float = sqrt(dist_sq)
+                let falloff: Float = 1.0 - (dist / radius)
+                let inv_dist: Float = 1.0 / dist
+                let grav: Float = strength / (dist_sq + 0.01)
+                let tx: Float = 0.0 - dy * inv_dist
+                let ty: Float = dx * inv_dist
+                let drag_force: Float = spin / (dist + 0.1)
+                vx_i = vx_i + (((dx * inv_dist) * grav) + (tx * drag_force)) * falloff
+                vy_i = vy_i + (((dy * inv_dist) * grav) + (ty * drag_force)) * falloff
+            px_i = px_i + vx_i * dt
+            py_i = py_i + vy_i * dt
+            if px_i < 0.02:
+                px_i = 0.02
+                vx_i = vx_i * -0.65
+            else if px_i > 0.98:
+                px_i = 0.98
+                vx_i = vx_i * -0.65
+            if py_i < 0.02:
+                py_i = 0.02
+                vy_i = vy_i * -0.65
+            else if py_i > 0.98:
+                py_i = 0.98
+                vy_i = vy_i * -0.65
+            px_i = snap(px_i)
+            py_i = snap(py_i)
+            vx_i = snap(vx_i)
+            vy_i = snap(vy_i)
+            mem_store(ptr_offset(px, index, "Float"), px_i, "Float")
+            mem_store(ptr_offset(py, index, "Float"), py_i, "Float")
+            mem_store(ptr_offset(vx, index, "Float"), vx_i, "Float")
+            mem_store(ptr_offset(vy, index, "Float"), vy_i, "Float")
+            index = index + 1
+
+        var gy: Int = 0
+        while gy < resolution:
+            let cell_y: Float = (gy as Float + 0.5) * cell_size
+            var gx: Int = 0
+            while gx < resolution:
+                let cell_x: Float = (gx as Float + 0.5) * cell_size
+                var grid_vx: Float = 0.0
+                var grid_vy: Float = 0.0
+                index = 0
+                while index < particle_count:
+                    let dx: Float = mem_load(ptr_offset(px, index, "Float"), "Float") - cell_x
+                    let dy: Float = mem_load(ptr_offset(py, index, "Float"), "Float") - cell_y
+                    let dist_sq: Float = dx * dx + dy * dy
+                    if dist_sq < influence_radius_sq:
+                        let dist: Float = sqrt(dist_sq)
+                        let weight: Float = 1.0 - dist * inv_influence
+                        let weight_sq: Float = weight * weight
+                        grid_vx = grid_vx + mem_load(ptr_offset(vx, index, "Float"), "Float") * weight_sq
+                        grid_vy = grid_vy + mem_load(ptr_offset(vy, index, "Float"), "Float") * weight_sq
+                    index = index + 1
+                if ((gx + gy + step) % 5) == 0:
+                    let bucket_x: Int = floor((grid_vx + 8.0) * 64.0) as Int
+                    let bucket_y: Int = floor((grid_vy + 8.0) * 64.0) as Int
+                    checksum = (checksum + bucket_x + bucket_y + gx * 7 + gy * 11 + step * 3) % modulus
+                gx = gx + 1
+            gy = gy + 1
+        step = step + 1
+
+    decay px
+    decay py
+    decay vx
+    decay vy
+
+    if checksum != expected:
+        return 1
+    return 0

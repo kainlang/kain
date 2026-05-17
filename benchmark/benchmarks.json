@@ -164,6 +164,122 @@
       "python": "cases/machine_stones_shatter_loop/main.py"
     },
     {
+      "id": "ecs_archetype_query",
+      "title": "ECS Archetype Query",
+      "description": "Hot component-query sweep over a fixed archetype chunk. Kain authors a `shatter struct` entity slab; Rust, C++, and Go use the equivalent structure-of-arrays layout.",
+      "maturity": "implemented",
+      "fairness_note": "This is an in-process memory-locality row over the same fixed entity data and query predicates. It measures layout and loop behavior, not engine task graphs or scheduler fanout.",
+      "languages": {
+        "kain": "cases/ecs_archetype_query/main.kn",
+        "rust": "cases/ecs_archetype_query/main.rs",
+        "cpp": "cases/ecs_archetype_query/main.cpp",
+        "go": "cases/ecs_archetype_query/main.go"
+      }
+    },
+    {
+      "id": "zero_copy_binary_wire",
+      "title": "Zero-Copy Binary Wire",
+      "description": "Encode and decode fixed packed wire records directly out of one contiguous buffer. This probes low-level layout math and decode-without-object-allocation behavior.",
+      "maturity": "implemented",
+      "fairness_note": "All rows use the same four-word record layout and decode fields directly from the backing buffer instead of materializing per-packet heap objects.",
+      "languages": {
+        "kain": "cases/zero_copy_binary_wire/main.kn",
+        "rust": "cases/zero_copy_binary_wire/main.rs",
+        "cpp": "cases/zero_copy_binary_wire/main.cpp",
+        "go": "cases/zero_copy_binary_wire/main.go"
+      }
+    },
+    {
+      "id": "dynamic_vtable_thrashing",
+      "title": "Dynamic Vtable Thrashing",
+      "description": "Unpredictable small-kernel dispatch across a long-lived polymorphic table. Rust uses `dyn Trait`, C++ uses virtual methods, Go uses interfaces, and Kain currently drives the same score formulas through a tagged dispatch proxy.",
+      "maturity": "dispatch-proxy",
+      "fairness_note": "Rust, C++, and Go are measuring real language-level dynamic dispatch. Kain keeps the category visible with an equivalent score-table proxy until native LLVM grows a comparable first-class boxed trait-object/vtable story.",
+      "language_notes": {
+        "kain": "Current Kain row computes the same per-kernel score formulas from a deterministic kind/bias table and should be read as the dispatch-shape proxy rather than a claimed vtable feature match."
+      },
+      "languages": {
+        "kain": "cases/dynamic_vtable_thrashing/main.kn",
+        "rust": "cases/dynamic_vtable_thrashing/main.rs",
+        "cpp": "cases/dynamic_vtable_thrashing/main.cpp",
+        "go": "cases/dynamic_vtable_thrashing/main.go"
+      }
+    },
+    {
+      "id": "crypto_block_cipher",
+      "title": "Crypto Block Cipher",
+      "description": "Dependency-free ARX-style block mixing with rotations, xor, and round keys. This is the bit-twiddling pressure row for integer-heavy crypto-shaped work.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally a toy deterministic block-mix benchmark, not a cryptographic security claim. The row exists to measure integer rotation/xor/add throughput under a cipher-like shape.",
+      "languages": {
+        "kain": "cases/crypto_block_cipher/main.kn",
+        "rust": "cases/crypto_block_cipher/main.rs",
+        "cpp": "cases/crypto_block_cipher/main.cpp",
+        "go": "cases/crypto_block_cipher/main.go"
+      }
+    },
+    {
+      "id": "ray_sphere_intersection",
+      "title": "Ray Sphere Intersection",
+      "description": "Fixed 3D ray/sphere hit testing over normalized directions and quantized hit buckets. This catches floating-point dot-product, sqrt, and branch-heavy geometry work.",
+      "maturity": "implemented",
+      "fairness_note": "All rows use the same authored rays, spheres, and hit-bucket quantization. This is a geometry-kernel row, not a full renderer or BVH benchmark.",
+      "language_notes": {
+        "kain": "Current Kain row regenerates the deterministic seeded rays/spheres directly inside the hot loop because literal float-array indexing was not yet parity-safe in this checkout's native LLVM lane."
+      },
+      "languages": {
+        "kain": "cases/ray_sphere_intersection/main.kn",
+        "rust": "cases/ray_sphere_intersection/main.rs",
+        "cpp": "cases/ray_sphere_intersection/main.cpp",
+        "go": "cases/ray_sphere_intersection/main.go"
+      }
+    },
+    {
+      "id": "sim_nbody_gravity",
+      "title": "Sim N-Body Gravity",
+      "description": "Deterministic small-body gravity integration derived from the k-os-sim quantum lane. This keeps the direct O(n^2) force accumulation, softening, drag, and position integration shape without dragging in the full engine crate.",
+      "maturity": "implemented",
+      "fairness_note": "All three rows run the same fixed particle count, softening term, and checksum quantization. This is the hot gravitational solve, not the wider particle-editor or attractor system.",
+      "language_notes": {
+        "kain": "Current Kain row uses raw Float buffers and explicit pairwise force accumulation so the benchmark measures native LLVM floating-point loops directly rather than hiding behind higher-level containers."
+      },
+      "languages": {
+        "kain": "cases/sim_nbody_gravity/main.kn",
+        "rust": "cases/sim_nbody_gravity/main.rs",
+        "cpp": "cases/sim_nbody_gravity/main.cpp"
+      }
+    },
+    {
+      "id": "sim_uv_velocity_grid",
+      "title": "Sim UV Velocity Grid",
+      "description": "UV-space particle velocity accumulation derived from the k-os-sim fluid lane. Particles orbit and drift under a moving vortex/black-hole style field, then splat into a fixed velocity grid each step.",
+      "maturity": "implemented",
+      "fairness_note": "This isolates the particle-to-grid accumulation and lightweight force/update loop from the larger SPH/editor stack. It is intentionally the hot velocity-field solve rather than the whole fluid authoring pipeline.",
+      "language_notes": {
+        "kain": "Current Kain row keeps particle state in raw Float buffers and recomputes the weighted velocity field directly for every cell so the case stays close to the original k-os-sim hot path."
+      },
+      "languages": {
+        "kain": "cases/sim_uv_velocity_grid/main.kn",
+        "rust": "cases/sim_uv_velocity_grid/main.rs",
+        "cpp": "cases/sim_uv_velocity_grid/main.cpp"
+      }
+    },
+    {
+      "id": "sim_cfd_pressure_projection",
+      "title": "Sim CFD Pressure Projection",
+      "description": "Focused incompressibility projection derived from the k-os-sim CFD lane. It applies buoyancy to the Y field, computes divergence, solves a Jacobi pressure field, and subtracts the pressure gradient from the staggered velocity grids.",
+      "maturity": "implemented",
+      "fairness_note": "This is the projection core, not a full Navier-Stokes application shell. The benchmark intentionally isolates the divergence/Jacobi/gradient-subtract loop on one fixed staggered grid.",
+      "language_notes": {
+        "kain": "Current Kain row uses raw Float buffers for the staggered X/Y/Z velocity fields plus pressure/divergence work arrays, matching the original solver shape closely enough to make the runtime/codegen story honest."
+      },
+      "languages": {
+        "kain": "cases/sim_cfd_pressure_projection/main.kn",
+        "rust": "cases/sim_cfd_pressure_projection/main.rs",
+        "cpp": "cases/sim_cfd_pressure_projection/main.cpp"
+      }
+    },
+    {
       "id": "semantic_singularity",
       "title": "Semantic Singularity",
       "description": "Kain-only fused semantics pressure case: axiom/pulse/shatter/teleport feed world/entangle/patch/law state, converge/orchestrate transform it, modern microcell actors answer requests, and collapse/observe/decay guards the shared memory cell ring.",
@@ -413,6 +529,26 @@
       "rust_manifest": "cases/http_server_concurrency/Cargo.toml",
       "rust_package": "http-server-concurrency",
       "rust_binary": "http-server-concurrency"
+    },
+    {
+      "id": "http_server_frameworks",
+      "title": "HTTP Server Frameworks",
+      "description": "Local HTTP POST roundtrips against framework-backed servers. Rust uses Actix Web, Go uses the stdlib `net/http` server, and Kain drives the same route shape through the current native HTTP substrate.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "Rust and Go are measuring higher-level HTTP server stacks. Kain still exposes a synchronous native route surface, so read this as an honest framework/category comparison rather than identical scheduler semantics.",
+      "language_notes": {
+        "kain": "The current Kain row uses the native localhost HTTP server plus route registration and manual response writeback on the same request body/path schedule.",
+        "rust": "Cargo release build with Actix Web; the client side stays raw TCP so the row emphasizes server-stack cost instead of stacking another HTTP client framework on top.",
+        "go": "Uses the standard `net/http` server with the same raw TCP client request shape and deterministic checksum."
+      },
+      "languages": {
+        "kain": "cases/http_server_frameworks/main.kn",
+        "rust": "cases/http_server_frameworks/src/main.rs",
+        "go": "cases/http_server_frameworks/main.go"
+      },
+      "rust_manifest": "cases/http_server_frameworks/Cargo.toml",
+      "rust_package": "http-server-frameworks",
+      "rust_binary": "http-server-frameworks"
     },
     {
       "id": "actor_mailbox_erlang",

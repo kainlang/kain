@@ -1,0 +1,70 @@
+fn main() -> Int:
+    let _runtime = native_runtime_init()
+    let _reset = net_reset()
+
+    if net_platform_available() != 1:
+        let _shutdown_unavailable = native_runtime_shutdown()
+        return 0
+
+    let rounds: Int = 320
+    let modulus: Int = 1000000007
+    let expected: Int = 7019
+    let request_body = "framework-ping"
+    let response_body = "stack-ok-2026"
+    let request_text = "POST /bench HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 14\r\n\r\nframework-ping"
+    let server = http_server_create_localhost(0)
+    if server <= 0:
+        return 1
+    if http_server_listen(server) != 0:
+        return 2
+    let port = http_server_local_port(server)
+    if port <= 0:
+        return 3
+    let handler = native_actor_spawn("FrameworkFixtureHandler", "requests=0")
+    if handler <= 0:
+        println("http_server_frameworks handler spawn failed")
+        return 4
+    let route_status = http_route_actor(server, "POST", "/bench", handler, "HttpRequest")
+    if route_status != 0:
+        println("http_server_frameworks route failed status=" + str(route_status))
+        return 5
+
+    var acc: Int = 0
+    var index: Int = 0
+    while index < rounds:
+        let client = tcp_connect("127.0.0.1", port, 5000)
+        if client <= 0:
+            return 6
+        let write_status = tcp_write_text(client, request_text)
+        if write_status != 0:
+            println("http_server_frameworks write failed status=" + str(write_status))
+            return 7
+        let incoming = http_server_pump(server, 5000)
+        if incoming <= 0:
+            println("http_server_frameworks pump status=" + str(net_last_status()))
+            println("http_server_frameworks pump kind=" + net_last_error_kind())
+            println("http_server_frameworks pump message=" + net_last_error_message())
+            return 8
+        let next = http_server_next_request(server)
+        if next != incoming:
+            return 9
+        if http_request_method(incoming) != "POST":
+            return 10
+        if http_request_path(incoming) != "/bench":
+            return 11
+        let body = http_request_body_text(incoming)
+        if body != request_body:
+            return 12
+        let _respond = http_respond_text(incoming, 200, response_body)
+        let response_text = tcp_read_text(client)
+        if find_substring_from(response_text, response_body, 0) < 0:
+            return 13
+        acc = (acc + len(body) + (index % 17)) % modulus
+        let _close = tcp_close(client)
+        index = index + 1
+
+    let _server_close = http_server_close(server)
+    let _shutdown = native_runtime_shutdown()
+    if acc != expected:
+        return 14
+    return 0

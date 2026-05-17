@@ -263,6 +263,13 @@ long long kain_ceil_i64(double value);
 long long kain_round_i64(double value);
 char* string_new(char* src);
 long long map_get_prehashed(KainMap* map, char* key, uint64_t key_length, uint64_t key_hash, uint64_t key_prefix);
+long long find_substring_from_known_lengths(
+    char* s,
+    long long s_len,
+    char* needle,
+    long long needle_len,
+    long long start
+);
 int deep_eq(void* a, void* b);
 void rc_retain(void* ptr);
 void rc_weak_retain(void* ptr);

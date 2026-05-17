@@ -25,6 +25,7 @@ sources = [
     "native/src/core/scene.c",
     "native/src/core/reflection.c",
     "native/src/core/realtime.c",
+    "native/src/core/attrition.c",
     "native/src/core/async.c",
     "native/src/core/compatibility.c",
     "native/src/core/host_bridge.c",

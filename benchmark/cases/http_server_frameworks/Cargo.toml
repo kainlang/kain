@@ -1,0 +1,10 @@
+[package]
+name = "http-server-frameworks"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+actix-web = { version = "4.11.0", default-features = true }
+
+[workspace]

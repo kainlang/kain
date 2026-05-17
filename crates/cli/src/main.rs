@@ -4173,15 +4173,21 @@ fn parse_native_runtime_depfile(depfile_path: &Path) -> Result<Vec<PathBuf>, Str
     let mut chars = dependency_section.chars().peekable();
     while let Some(ch) = chars.next() {
         if ch == '\\' {
-            match chars.next() {
-                Some('\n') => {}
+            match chars.peek().copied() {
+                Some('\n') => {
+                    chars.next();
+                }
                 Some('\r') => {
+                    chars.next();
                     if matches!(chars.peek(), Some('\n')) {
                         chars.next();
                     }
                 }
-                Some(escaped) => current_token.push(escaped),
-                None => current_token.push('\\'),
+                Some(escaped) if escaped.is_whitespace() => {
+                    current_token.push(escaped);
+                    chars.next();
+                }
+                _ => current_token.push('\\'),
             }
             continue;
         }
@@ -4539,15 +4545,40 @@ macos = ["Cocoa"]
 
         let dependencies =
             parse_native_runtime_depfile(&depfile_path).expect("parsed runtime depfile");
+        let cwd = std::env::current_dir().expect("cwd");
+        let expected = [
+            PathBuf::from("/tmp/runtime source.c"),
+            PathBuf::from("/tmp/include/header file.h"),
+            PathBuf::from("/tmp/include/next.h"),
+        ]
+        .into_iter()
+        .map(|path| if path.is_absolute() { path } else { cwd.join(path) })
+        .collect::<Vec<_>>();
 
-        assert_eq!(
-            dependencies,
-            vec![
-                PathBuf::from("/tmp/runtime source.c"),
-                PathBuf::from("/tmp/include/header file.h"),
-                PathBuf::from("/tmp/include/next.h"),
-            ]
-        );
+        assert_eq!(dependencies, expected);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn native_runtime_depfile_parser_preserves_windows_absolute_paths() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let source_path = temp_dir.path().join("runtime.c");
+        let header_path = temp_dir.path().join("runtime.h");
+        let depfile_path = temp_dir.path().join("runtime.obj.d");
+        fs::write(
+            &depfile_path,
+            format!(
+                "kain_runtime_target: {} {}\n",
+                source_path.display(),
+                header_path.display()
+            ),
+        )
+        .expect("depfile");
+
+        let dependencies =
+            parse_native_runtime_depfile(&depfile_path).expect("parsed runtime depfile");
+
+        assert_eq!(dependencies, vec![source_path, header_path]);
     }
 
     #[test]

@@ -4,15 +4,32 @@
   "profiles": {
     "release-instrumented": {
       "description": "Optimized native attrition build with telemetry enabled.",
-      "c_flags": ["-O2", "-DNDEBUG"]
+      "c_flags": ["-O2", "-DNDEBUG"],
+      "kain_env": {
+        "KAIN_NATIVE_PROFILE": "benchmark-release",
+        "KAIN_NATIVE_OPT_LEVEL": "3",
+        "KAIN_NATIVE_TARGET_CPU": "native",
+        "KAIN_NATIVE_DEBUG_INFO": "0"
+      }
     },
     "debug-assert": {
       "description": "Low-optimization debug build for replay and diagnosis.",
-      "c_flags": ["-O0", "-g"]
+      "c_flags": ["-O0", "-g"],
+      "kain_env": {
+        "KAIN_NATIVE_PROFILE": "debug",
+        "KAIN_NATIVE_OPT_LEVEL": "0",
+        "KAIN_NATIVE_DEBUG_INFO": "1"
+      }
     },
     "poison-allocator": {
       "description": "Release build with poison-on-free and quarantine pressure.",
       "c_flags": ["-O2", "-DNDEBUG"],
+      "kain_env": {
+        "KAIN_NATIVE_PROFILE": "benchmark-release",
+        "KAIN_NATIVE_OPT_LEVEL": "3",
+        "KAIN_NATIVE_TARGET_CPU": "native",
+        "KAIN_NATIVE_DEBUG_INFO": "0"
+      },
       "runtime": {
         "poison_on_free": 1,
         "quarantine_capacity": 256,
@@ -22,6 +39,12 @@
     "virtual-time": {
       "description": "Release build with virtual-time execution enabled.",
       "c_flags": ["-O2", "-DNDEBUG"],
+      "kain_env": {
+        "KAIN_NATIVE_PROFILE": "benchmark-release",
+        "KAIN_NATIVE_OPT_LEVEL": "3",
+        "KAIN_NATIVE_TARGET_CPU": "native",
+        "KAIN_NATIVE_DEBUG_INFO": "0"
+      },
       "runtime": {
         "virtual_time_enabled": 1,
         "virtual_time_step_ms": 1
@@ -30,6 +53,12 @@
     "mixed-poison-virtual-time": {
       "description": "Release build with both allocator poison and virtual time.",
       "c_flags": ["-O2", "-DNDEBUG"],
+      "kain_env": {
+        "KAIN_NATIVE_PROFILE": "benchmark-release",
+        "KAIN_NATIVE_OPT_LEVEL": "3",
+        "KAIN_NATIVE_TARGET_CPU": "native",
+        "KAIN_NATIVE_DEBUG_INFO": "0"
+      },
       "runtime": {
         "virtual_time_enabled": 1,
         "virtual_time_step_ms": 1,
@@ -161,6 +190,109 @@
       "expected_fail_sabotages": [
         "skip_mixed_cleanup"
       ]
+    },
+    {
+      "id": "kain_actor_ask_roundtrip",
+      "title": "Kain Actor Ask Roundtrip",
+      "description": "Real Kain LLVM actor ask/ask_timeout churn copied from the actor blade and widened into an attrition lane.",
+      "lane_kind": "isolated",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_actor_ask_roundtrip/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 256,
+        "medium": 2048,
+        "full": 16384
+      },
+      "validation": {
+        "closure_groups": ["rc", "actor"]
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "rc.bytes_return_to_floor",
+        "rc.alloc_free_reconciled",
+        "actor.live_zero",
+        "actor.reply_ports_zero",
+        "actor.occupancy_floor_only"
+      ],
+      "expected_fail_sabotages": []
+    },
+    {
+      "id": "kain_stdlib_domains",
+      "title": "Kain Stdlib Domains",
+      "description": "Real Kain LLVM stdlib-domain churn copied from the stdlib blade to pressure broad native wrappers under attrition.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_stdlib_domains/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 8,
+        "medium": 32,
+        "full": 128
+      },
+      "validation": {
+        "closure_groups": ["rc", "actor"]
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "rc.bytes_return_to_floor",
+        "rc.alloc_free_reconciled",
+        "actor.live_zero"
+      ],
+      "expected_fail_sabotages": []
+    },
+    {
+      "id": "kain_quantumerlang_attrition",
+      "title": "Kain Quantumerlang Attrition",
+      "description": "Real Kain LLVM quantumerlang semantics copied from the benchmark case and widened into a variable-op attrition lane.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_quantumerlang_attrition/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 4096,
+        "medium": 32768,
+        "full": 131072
+      },
+      "validation": {
+        "closure_groups": ["rc"]
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "rc.bytes_return_to_floor",
+        "rc.alloc_free_reconciled"
+      ],
+      "expected_fail_sabotages": []
+    },
+    {
+      "id": "kain_semantic_singularity_crucible_attrition",
+      "title": "Kain Semantic Singularity Crucible Attrition",
+      "description": "Real Kain LLVM semantic crucible copied from the benchmark case and widened into an attrition lane that certifies parser and codegen on hostile semantics.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_semantic_singularity_crucible_attrition/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 512,
+        "medium": 4096,
+        "full": 32768
+      },
+      "validation": {
+        "closure_groups": ["rc", "actor"]
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "rc.bytes_return_to_floor",
+        "rc.alloc_free_reconciled",
+        "actor.live_zero",
+        "actor.reply_ports_zero",
+        "actor.occupancy_floor_only"
+      ],
+      "expected_fail_sabotages": []
     }
   ]
 }

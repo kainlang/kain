@@ -1,5 +1,204 @@
 # Kain Memory
 
+# 2026-05-17 - Benchmark pipeline gained a k-os-sim extraction pack with three real simulation kernels and no Go lane
+
+The benchmark suite now has a first simulation pack directly extracted from the imported `benchmark/cases/k-os-sim` reference crate rather than from toy math kernels. The new rows deliberately stay in the Kain/Rust/C++ category; Go is first-class in the general benchmark lane now, but the sim category is intentionally not carrying a Go column.
+
+What changed:
+
+- `benchmark/benchmarks.json`
+  - Added three new implemented simulation rows:
+    - `sim_nbody_gravity`
+    - `sim_uv_velocity_grid`
+    - `sim_cfd_pressure_projection`
+  - Each row is explicitly described as an extracted hot kernel from `k-os-sim`, not the whole engine/editor crate.
+- `benchmark/cases/sim_nbody_gravity/`
+  - Added Kain, Rust, and C++ implementations of the small deterministic N-body gravity solve derived from the k-os-sim quantum lane.
+- `benchmark/cases/sim_uv_velocity_grid/`
+  - Added Kain, Rust, and C++ implementations of the UV-space particle update plus weighted velocity-grid splat derived from the k-os-sim fluid lane.
+  - Durable lesson: the raw floating-point row needed deterministic state snapping after particle updates to remove tiny cross-compiler drift in the checksum path. The workload is still the same; the snap is there to make the benchmark numerically stable across LLVM/C++/Rust lanes.
+- `benchmark/cases/sim_cfd_pressure_projection/`
+  - Added Kain, Rust, and C++ implementations of the focused divergence/Jacobi/pressure-gradient solve derived from the k-os-sim CFD lane.
+- `benchmark/README.md`, `.agents/skills/kain-benchmark-pipeline/SKILL.md`, and `benchmark/blades/kain-benchmark/src/catalog.kn`
+  - Updated the operator surfaces for the new sim pack.
+  - The benchmark blade’s curated case count is now `47`.
+
+Validation and benchmark:
+
+- `py -3 benchmark/run.py --case sim_nbody_gravity,sim_uv_velocity_grid,sim_cfd_pressure_projection --languages kain,rust,cpp --runs 1 --warmups 0 --timeout 900`
+- Latest report `benchmark/out/reports/latest.llm.md` at `2026-05-17T06:09:51.949090+00:00` now shows:
+  - `sim_nbody_gravity`: Kain `20.543 ms`, Rust `11.619 ms`, C++ `10.462 ms`
+  - `sim_uv_velocity_grid`: Kain `93.027 ms`, Rust `16.596 ms`, C++ `17.049 ms`
+  - `sim_cfd_pressure_projection`: Kain `27.687 ms`, Rust `11.072 ms`, C++ `9.359 ms`
+
+Durable lessons:
+
+- When porting real simulation kernels into the benchmark lane, extract the hot solver loop from the engine crate and keep the row dependency-free whenever possible. Do not benchmark editor/host/framework scaffolding by accident.
+- The sim pack is intentionally Kain/Rust/C++ only right now. If a future agent is tempted to add Go just because the general lane supports it, treat that as a conscious category change rather than a default extension.
+
+# 2026-05-17 - Attrition landed as a first-class runtime-certification pipeline with deterministic sabotage, replay, and teardown closure
+
+`attrition/` is now a real sibling pipeline to `benchmark/`, not a scratch soak folder. Benchmark is still the performance truth lane; attrition is now the runtime-stability truth lane for compressed long-horizon abuse, deterministic replay, sabotage-backed invariants, and final closure audits.
+
+What changed:
+
+- `attrition/`
+  - Added the pipeline root with `run.py`, `README.md`, `attritions.json`, `invariants.json`, `schema/`, `cases/`, `out/build/`, and `out/reports/`.
+  - `attritions.json` is the source of truth for implemented lanes, scales, determinism tiers, sabotage modes, runtime profiles, and runtime overrides.
+  - `invariants.json` is the explicit catalog for owner subsystem, exact formula, units, idle floors, allowed permanent floor entries, sabotage mappings, and isolate/mixed coverage.
+  - The current implemented deterministic foundation lanes are:
+    - `saturated_rc_hot_object`
+    - `virtual_time_async_timer`
+    - `actor_reply_port_recycle`
+    - `process_slot_recycle`
+    - `mixed_runtime_boss`
+  - Reports now follow the benchmark shape: compact root snapshot in `attrition/latest.md`, plus timestamped JSON and LLM-readable markdown under `attrition/out/reports/`.
+  - Deterministic failures emit replay commands and minimized repro op counts so failing seeds can be shrunk without losing the same seed/profile/sabotage context.
+- `runtime/native/include/attrition.h` and `runtime/native/src/core/attrition.c`
+  - Added the attrition-only runtime telemetry/control ABI: session config, deterministic tiering, virtual-time controls, allocator poison/quarantine knobs, event flight recorder, snapshots, and final audit capture.
+  - The attrition runtime now tracks RC/object counters, bytes, retain/release totals, async/actor/process telemetry, time-provenance counters, progress heartbeats, and the last-N event ring.
+- `runtime/native/src/core/async.c`
+  - Fixed a real attrition-only structural bug: disposing or cancelling a task now disarms its live sleep timer under the correct locks, so virtual-time task churn returns both task tables and timer tables to zero instead of leaking stale wakeups.
+  - Durable lesson: task disposal and timer cancellation are one lifecycle seam in this runtime; if attrition finds async table drift again, inspect the timer-disarm path first.
+- `runtime/native/src/core/actor.c`
+  - Attrition snapshot capture now tolerates actor runtime not being initialized yet instead of touching actor locks during baseline collection.
+- `attrition/cases/process_slot_recycle/main.c` and `attrition/cases/mixed_runtime_boss/main.c`
+  - Durable operator contract: `abi_process_wait(...)` returns `1` for exited, `0` for timeout, and `< 0` for error. Treating any nonzero as failure will create fake attrition reds on the process lanes.
+- `runtime/native/src/core/z3/proofs-experimental/attrition-event-ring-copy-window-bounds.smt2`
+  - Added a solver-backed proof for the attrition flight-recorder extraction window in `attrition.c`: once the ring cursor is valid, every copied slot stays within the 1024-entry event ring. The proof report `z3/reports/20260517T054056Z-attrition-event-ring-copy-window-bounds.json` returned `unsat`.
+
+Validation and current truth:
+
+- `python -m py_compile attrition/run.py`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/async.c`
+- `python attrition/run.py --scale small --profile release-instrumented --timeout 300`
+- `python attrition/run.py --case virtual_time_async_timer --scale small --profile release-instrumented --sabotage skip_task_dispose --timeout 240`
+- The small release-instrumented suite is currently green at `5/5`.
+- The sabotage proof point is also real: `virtual_time_async_timer` with `skip_task_dispose` produces an expected-fail report with leaked async-task occupancy instead of a false green.
+
+Durable lessons:
+
+- Internal runtime counters are the primary truth in attrition. RSS is secondary and should not be treated as the only leak detector.
+- The actor occupancy floor intentionally bottoms out at `1`, not `0`, because bit 0 is the reserved invalid actor slot. Keep that floor in the invariant catalog instead of special-casing it ad hoc in case code.
+- Every new attrition invariant should map to one isolate lane, one sabotage proof, and one mixed-lane membership. If that mapping is missing, the lane matrix is drifting into wishful thinking instead of certification.
+
+# 2026-05-17 - Benchmark pipeline now has first-class Go support plus a new compute/framework expansion pack
+
+The benchmark lane is no longer just Kain/Rust/C++ with optional scripting rows. `benchmark/run.py` now owns a first-class Go lane, and the suite grew a new set of deeper systems rows so future agents can answer more than scalar/allocator/actor questions from the same pipeline.
+
+What changed:
+
+- `benchmark/run.py`
+  - Added Go as a first-class language in `LANGUAGE_ORDER`, labels, manifest source resolution, CLI parsing, toolchain reporting, and build dispatch.
+  - Added direct Go builds with release defaults `-trimpath -ldflags=-s -w`.
+  - The main runner still writes the compact root snapshot (`benchmark/latest.md`) plus the timestamped/full JSON/LLM reports.
+- `benchmark/benchmarks.json`
+  - Added new Go-backed compute cases:
+    - `ecs_archetype_query`
+    - `zero_copy_binary_wire`
+    - `dynamic_vtable_thrashing`
+    - `crypto_block_cipher`
+    - `ray_sphere_intersection`
+  - Added `http_server_frameworks` as the new framework/category HTTP row:
+    - Kain native localhost HTTP route surface
+    - Rust Actix Web
+    - Go `net/http`
+  - `dynamic_vtable_thrashing` stays honest as `dispatch-proxy` for Kain.
+  - `http_server_frameworks` stays honest as `semantic-proxy` for Kain.
+  - `ray_sphere_intersection` now carries a Kain-specific language note: in this checkout the Kain row regenerates the seeded geometry directly in the loop because literal float-array indexing was not yet native-LLVM parity-safe.
+- New case source folders now exist under `benchmark/cases/` for all of the rows above, including Go implementations and the Actix/Go HTTP framework row.
+- `benchmark/blades/kain-benchmark/src/catalog.kn`
+  - The benchmark blade catalog now reports the real suite scale (`44` cases, `6` languages with Go included) and shows a curated featured inventory instead of the stale pre-Go/pre-framework list.
+- `benchmark/README.md` and `.agents/skills/kain-benchmark-pipeline/SKILL.md`
+  - Updated for Go support, the new case pack, the framework HTTP row, and the compact root snapshots.
+
+Validation and benchmark:
+
+- `py -3 -m py_compile benchmark/run.py benchmark/run_fast.py`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `py -3 benchmark/run.py --case ecs_archetype_query,zero_copy_binary_wire,dynamic_vtable_thrashing,crypto_block_cipher,ray_sphere_intersection --languages kain,rust,cpp,go --runs 1 --warmups 0 --timeout 900`
+- `py -3 benchmark/run.py --case http_server_frameworks --languages kain,rust,go --runs 1 --warmups 0 --timeout 900`
+
+Useful current smoke numbers:
+
+- `ecs_archetype_query`: Kain `50.751 ms`, Rust `51.481 ms`, C++ `45.992 ms`, Go `61.662 ms`
+- `zero_copy_binary_wire`: Kain `1140.522 ms`, Rust `88.133 ms`, C++ `108.769 ms`, Go `192.480 ms`
+- `dynamic_vtable_thrashing`: Kain `21.772 ms`, Rust `17.678 ms`, C++ `15.900 ms`, Go `19.368 ms`
+- `crypto_block_cipher`: Kain `16.230 ms`, Rust `12.273 ms`, C++ `12.197 ms`, Go `15.591 ms`
+- `ray_sphere_intersection`: Kain `141.077 ms`, Rust `87.060 ms`, C++ `78.825 ms`, Go `168.365 ms`
+- `http_server_frameworks`: Kain `146.413 ms`, Rust `191.400 ms`, Go `183.915 ms`
+
+Durable lessons:
+
+- The Go lane is worth keeping as a first-class peer, especially for networking/framework rows where the standard library gives a clean systems baseline without dragging in extra orchestration noise.
+- If `ray_sphere_intersection` regresses or starts failing checksum in Kain, inspect native float-array literal/indexing behavior before blaming the geometry math itself. The current stable Kain row computes the deterministic seeded rays/spheres directly from integer indexes.
+- `http_server_frameworks` should stay a category/framework story, not an “identical scheduler” story. Keep the fairness note explicit that Kain is racing its current synchronous native HTTP surface against Actix and Go `net/http`.
+
+# 2026-05-17 - Windows native runtime object caching was secretly dead in the benchmark lane because depfile parsing treated every backslash as an escape
+
+The long native benchmark build times were not mainly a linker problem or a missing cache directory. The real break was in `crates/cli/src/main.rs::parse_native_runtime_depfile(...)`: it consumed every `\` as an escape, which works for escaped spaces in Unix-like depfiles but corrupts ordinary Windows absolute paths like `D:\Kain-Lang\runtime\native\src\core\core.c`. That meant `native_runtime_object_cache_is_fresh(...)` could not `metadata(...)` the parsed dependencies, so identical benchmark-release native builds always reported `Native runtime cache: 0 reused, 36 compiled`.
+
+What changed:
+
+- `crates/cli/src/main.rs`
+  - `parse_native_runtime_depfile(...)` now treats backslash as special only for real depfile line continuations and escaped whitespace.
+  - Ordinary non-whitespace backslashes are preserved verbatim, so Windows dependency paths survive parsing unchanged.
+  - Added `native_runtime_depfile_parser_preserves_windows_absolute_paths` as a Windows regression test.
+  - The existing `native_runtime_object_cache_detects_stale_dependencies` test, which was already failing on this host before the fix, now passes again and proves cache freshness works across a real Windows absolute-path depfile.
+- `.agents/skills/kain-benchmark-pipeline/SKILL.md`
+  - Added the durable operator note for the `0 reused, 36 compiled` symptom so future benchmark work can identify this cache seam quickly.
+
+Validation and practical result:
+
+- `cargo test -p cli native_runtime_depfile -- --nocapture`
+- `cargo test -p cli native_runtime_object_cache_detects_stale_dependencies -- --nocapture`
+- `bazel build //:kain --config=release`
+- Rebuilt `benchmark/cases/scalar_mix/main.kn` twice in a row with the Bazel release `kain.exe` and benchmark-release native env:
+  - first rebuilt case after the fix: `Native runtime cache: 36 reused, 0 compiled, 0 archives reused, 0 archives rebuilt`, `ELAPSED_MS=797.3`
+  - second identical rebuild: `Native runtime cache: 36 reused, 0 compiled, 0 archives reused, 0 archives rebuilt`, `ELAPSED_MS=392.3`
+
+Durable lesson:
+
+- On Windows, native runtime depfiles are not escape-heavy strings; they are mostly plain absolute paths with backslashes. If benchmark/native build times suddenly jump back to ~10s per case and the cache line says `0 reused, 36 compiled`, inspect depfile parsing before chasing linker flags or archive-group tuning.
+
+# 2026-05-17 - JSON manual roundtrip and filesystem stream both flipped into Kain wins by treating concat calls and parent-dir creation as copy/retry boundaries instead of permanent tax
+
+The last honest JSON gap was not parser logic anymore. It was ownership churn around string assembly. LLVM already flattened long string-add chains into `str_concatN(...)`, but it still treated those concat calls like black holes and leaked the owned inputs they had already copied. In practice that meant every `to_string(...)`, `bool_text(...)`, and other fresh string term in hot concat trees kept an unnecessary live RC object after the concat result was built. `filesystem_stream` had a different remaining dragon: the runtime eagerly walked/created parent directories before every write and copy, even when the benchmark was hammering the same already-existing temp paths all run long.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - `compile_string_concat_expression(...)` now tracks whether each concat term is an owned temporary.
+  - After `str_concatN(...)` copies its inputs, LLVM emits `rc_release(...)` for owned string temporaries such as `to_string(...)`, `substring(...)`, and call-returned string helpers.
+  - The fallback nested concat path now also releases consumed owned inputs and intermediate concat accumulators as each step is copied into the next string.
+  - The plain 2-term string `+` lowering now does the same release-after-copy cleanup instead of only returning the new concat result.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - The fixed-arity concat regression now asserts that `render_payload(...)` emits `str_concat9(...)` and then releases the owned `to_string(...)` / `bool_text(...)` temporaries.
+  - The loop-literal pooling regression now also asserts that the owned numeric `to_string(...)` temporary inside the loop is released after `str_concat4(...)`.
+- `runtime/native/src/core/stdlib_abi.c`
+  - Added `abi_fs_open_write_retry_parent_dirs(...)`.
+  - `abi_fs_write_mode_len(...)`, `abi_fs_copy_file(...)`, and `abi_fs_copy_file_streaming(...)` now try the output open first and only create parent dirs plus retry once if the first open fails.
+  - This keeps semantics equivalent for the normal success path while deleting repeated `create_parent_dirs(...)` directory walks from hot steady-state write/copy loops.
+- Exploratory proof `runtime/native/src/core/z3/proofs-experimental/filesystem-open-first-parent-retry-equivalence.smt2` plus report `z3/reports/20260517T033748Z-filesystem_open_first_parent_retry_equivalence.json` returned `unsat` for the control-flow equivalence model: under the assumption that an immediate successful open implies the eager parent-dir path would also have succeeded, the open-first retry strategy is equivalent to the older eager-create strategy.
+
+Validation and benchmark:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_flattens_long_string_concat_chains_into_fixed_arity_runtime_calls -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_hoists_repeated_string_literals_out_of_loop_bodies -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_find_substring_from_on_known_strings_with_precomputed_lengths -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_byte_at_on_known_strings_without_runtime_helper_calls -- --nocapture`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/stdlib_abi.c`
+- `bazel build //:kain --config=release`
+- `py -3 benchmark/run.py --case json_manual_roundtrip --languages kain,rust,cpp --runs 7 --warmups 2 --timeout 900 --kain-exe D:\\Kain-Bazel\\output-user-root\\ccujd7ry\\execroot\\_main\\bazel-out\\x64_windows-opt\\bin\\crates\\cli\\kain.exe --minimal-name latest_json_manual_roundtrip_concat_cleanup.md`
+- `py -3 benchmark/run.py --case filesystem_stream --languages kain,rust,cpp --runs 7 --warmups 2 --timeout 900 --kain-exe D:\\Kain-Bazel\\output-user-root\\ccujd7ry\\execroot\\_main\\bazel-out\\x64_windows-opt\\bin\\crates\\cli\\kain.exe --minimal-name latest_filesystem_stream_parent_retry.md`
+- Durable release report `benchmark/out/reports/20260517T033457Z.llm.md` now shows `json_manual_roundtrip`: Kain `107.611 ms`, Rust `111.877 ms`, C++ `93.319 ms`. Kain now wins the honest row over Rust and is down to about `1.15x` behind C++.
+- Durable release report `benchmark/out/reports/20260517T033711Z.llm.md` now shows `filesystem_stream`: Kain `75.858 ms`, Rust `106.365 ms`, C++ `85.204 ms`. Kain now wins the honest row over both Rust and C++.
+
+Durable lesson:
+
+- For string-heavy native rows, treat `str_concat(...)` and `str_concatN(...)` as copy boundaries. If the concat already copied the bytes, any owned string input produced just for that concat should be released immediately afterward.
+- For filesystem write/copy hot paths, do not pay `create_parent_dirs(...)` eagerly on every steady-state operation. Open first, and only fall back to parent-dir creation when the open actually fails.
+
 # 2026-05-17 - Filesystem stream recovered from cached-length poison and dropped again via len-aware FS writes while JSON proved byte_at was not the last dragon
 
 The cached string-length work initially broke `filesystem_stream` because the filesystem text read path allocates first and fills later. `abi_fs_string_with_len(0, size)` was zeroing the new logical-length field, so `abi_fs_read_text(...)` and `abi_fs_read_text_range(...)` returned buffers whose bytes were correct but whose logical length stayed zero until compared. The repair was to keep the default header length for allocate-then-fill shells and explicitly stamp the final read length after `fread(...)`. That restored semantic correctness without backing out the broader RC string-length work.

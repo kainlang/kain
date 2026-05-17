@@ -1,12 +1,13 @@
 # Kain Multi-Language Benchmarks
 
-This folder is the native benchmark lane for Kain LLVM against Rust LLVM, C++ on Clang, Erlang/OTP, and optional JavaScript/Node plus Python/CPython rows when a case declares them.
+This folder is the native benchmark lane for Kain LLVM against Rust LLVM, C++ on Clang, Go `gc`, Erlang/OTP, and optional JavaScript/Node plus Python/CPython rows when a case declares them.
 
 The contract is intentionally simple:
 
-- Normal benchmarks in `cases/<case>/` should have dependency-free `main.kn`, `main.rs`, `main.cpp`, `main.js`, and `main.py` sources when those languages participate in the case.
+- Normal benchmarks in `cases/<case>/` should have dependency-free `main.kn`, `main.rs`, `main.cpp`, `main.go`, `main.js`, and `main.py` sources when those languages participate in the case.
 - A manifest case can explicitly declare a `languages` map to become Kain/Rust-only, Kain/Erlang-only, Kain-only, etc. Missing selected languages show as `n/a` in reports instead of failing the whole suite.
 - Rust normally builds through direct `rustc`; dependency benchmarks can opt into Cargo with `rust_manifest`, `rust_package`, and `rust_binary`. Put an empty `[workspace]` in those per-case Cargo manifests so Cargo does not accidentally attach them to the repo root workspace.
+- Go normally builds through direct `go build` over `main.go`. A case can opt into a module/package build by adding `go_manifest`, `go_package`, and `go_binary` in `benchmark/benchmarks.json`.
 - Erlang cases compile through `erlc` and run through `erl -noshell`; the runner resolves the official OTP `bin` directory on Windows so wrapper scripts do not fail to find `erlexec.dll`.
 - Some cases build support artifacts beside the executables. `ffi_shared_call_stress` is the current example: the runner compiles the shared C helper under `benchmark/out/build/...`, copies the DLL beside each built executable, and compiles the Kain row from the case directory so the case-local `KAIN.toml` for `use c::...` resolves correctly.
 - Build time is recorded separately; timed samples run the already-built executables.
@@ -22,6 +23,7 @@ Current pressure cases:
 - `ghost_mirror`: std/socket TCP loopback payload transfer for Rust/C++/JavaScript/Python versus Kain entangle-backed world mirroring plus payload mutation.
 - `evolutionary_loop`: runtime feature-detected lane choice versus Kain `converge` / `orchestrate` dispatch syntax.
 - `tcp_loopback_tokio`: Kain native TCP loopback versus Rust Tokio TCP accept/connect/read/write.
+- `http_server_frameworks`: Kain native localhost HTTP route handling versus Actix Web and Go `net/http`.
 - `http_server_concurrency`: Kain native local HTTP route handling versus Rust Tokio request batches. Kain is still the synchronous semantic proxy lane here, but the old request-slot exhaustion failure is fixed and the case now completes repeatedly.
 - `actor_mailbox_erlang`: Kain native LLVM actor ask/reply fanout versus direct Erlang mailbox request/reply over four long-lived workers.
 - `rayon_parallel_reduce`: Rayon parallel integer reduction versus Kain scalar proxy, reserved as the future Kain data-parallel fanout slot.
@@ -39,6 +41,14 @@ Current basic language-edge cases:
 - `struct_method`: aggregate construction plus explicit score function over fields.
 - `option_result`: tagged Option/Result creation, branching, and unwrap.
 - `async_ready_chain`: immediate ready-future async/await overhead versus Tokio current-thread ready futures.
+- `ecs_archetype_query`: shatter/SoA archetype sweep for game-engine locality pressure.
+- `zero_copy_binary_wire`: fixed packed wire encode/decode without per-record heap objects.
+- `dynamic_vtable_thrashing`: polymorphic dispatch churn; Kain keeps an honest tagged dispatch proxy while Rust/C++/Go use real dynamic dispatch.
+- `crypto_block_cipher`: dependency-free ARX-style block-mix row for integer/rotate/xor pressure.
+- `ray_sphere_intersection`: fixed ray/sphere geometry kernel for floating-point dot-product, sqrt, and branchy hit testing.
+- `sim_nbody_gravity`: extracted k-os-sim quantum/N-body gravity row with deterministic pairwise force accumulation and integration.
+- `sim_uv_velocity_grid`: extracted k-os-sim fluid row for UV-space particle updates plus weighted velocity-grid splatting.
+- `sim_cfd_pressure_projection`: extracted k-os-sim CFD row for divergence, Jacobi pressure solve, and staggered-grid gradient subtraction.
 - `simd_lane_mix`: integer dot-product pressure. Rust and C++ use explicit AVX2 when available; Kain is the scalar SIMD proxy lane today.
 - `native_map_lookup`: fixed-key hash-map lookup pressure over string keys.
 - `json_manual_roundtrip`: manual parse plus serialization over two small JSON payload shapes.
@@ -75,8 +85,11 @@ Useful variants:
 ```powershell
 python benchmark/run.py --runs 9 --warmups 2
 python benchmark/run.py --case ownership_memory
-python benchmark/run.py --languages kain,rust,cpp,javascript,python
+python benchmark/run.py --languages kain,rust,cpp,go,javascript,python
 python benchmark/run.py --languages js,py --runs 1 --warmups 0
+python benchmark/run.py --case ecs_archetype_query,zero_copy_binary_wire,dynamic_vtable_thrashing,crypto_block_cipher,ray_sphere_intersection --languages kain,rust,cpp,go --runs 3 --warmups 1
+python benchmark/run.py --case sim_nbody_gravity,sim_uv_velocity_grid,sim_cfd_pressure_projection --languages kain,rust,cpp --runs 3 --warmups 1
+python benchmark/run.py --case http_server_frameworks --languages kain,rust,go --runs 5 --warmups 2
 python benchmark/run.py --case async_ready_chain --languages kain,rust --runs 5 --warmups 2
 python benchmark/run.py --case tcp_loopback_tokio --languages kain,rust --runs 5 --warmups 2
 python benchmark/run.py --case rayon_parallel_reduce --languages kain,rust --runs 5 --warmups 2
@@ -99,4 +112,4 @@ The blade source lives in `benchmark/blades/kain-benchmark`. It renders a compac
 .\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName D:\Kain-Lang\benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm
 ```
 
-The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe`; use `--cxx` or `CXX` only when you intentionally want a different `clang++`/`g++`-style driver. Erlang auto-detects from the official OTP `bin` directory first; use `--erl` and `--erlc` only when you intentionally want a different `erl`/`erlc` pair. Kain benchmark builds set `KAIN_RUNTIME_MANIFEST_PATH` to the lean core runtime manifest; use the broad runtime manifest only for app/vendor/UI lanes. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning. `run_fast.py` forwards the same flags but forcibly appends `--languages kain,rust,cpp,erlang` and `--minimal-name latest_fast.md`.
+The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe`; use `--cxx` or `CXX` only when you intentionally want a different `clang++`/`g++`-style driver. The Go lane defaults to `go` from PATH; use `--go` or `GO` only when you intentionally want a different toolchain. Erlang auto-detects from the official OTP `bin` directory first; use `--erl` and `--erlc` only when you intentionally want a different `erl`/`erlc` pair. Kain benchmark builds set `KAIN_RUNTIME_MANIFEST_PATH` to the lean core runtime manifest; use the broad runtime manifest only for app/vendor/UI lanes. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning. `run_fast.py` forwards the same flags but forcibly appends `--languages kain,rust,cpp,erlang` and `--minimal-name latest_fast.md`.

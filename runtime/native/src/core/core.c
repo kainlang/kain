@@ -1,3 +1,4 @@
+#include "../../include/attrition.h"
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
 #include <ctype.h>
@@ -116,7 +117,8 @@ long long kain_round_i64(double value) {
 }
 
 void* kain_alloc_rc(size_t size, long long type_tag) {
-    RcHeader* header = malloc(sizeof(RcHeader) + size);
+    size_t total_size = sizeof(RcHeader) + size;
+    RcHeader* header = (RcHeader*)kain_attrition_heap_alloc(total_size);
     if (!header) {
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
@@ -133,6 +135,7 @@ void* kain_alloc_rc(size_t size, long long type_tag) {
     header->payload_size = size;
     header->string_length = (type_tag == 1 && size > 0u) ? (size - 1u) : 0u;
     header->destructor = NULL;
+    kain_attrition_note_rc_alloc(total_size);
     return (void*)(header + 1);
 }
 
@@ -145,8 +148,22 @@ void* KAIN_alloc(long long size) {
 }
 
 void rc_retain(void* ptr) {
+    RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    get_header(ptr)->ref_count++;
+    header = get_header(ptr);
+    if (header->ref_count == LLONG_MAX) {
+        kain_attrition_note_rc_overflow();
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+            "RC retain overflow",
+            "Retaining this object would overflow the signed ref_count."
+        );
+        return;
+    }
+    header->ref_count++;
+    kain_attrition_note_rc_retain();
 }
 
 void rc_weak_retain(void* ptr) {
@@ -156,9 +173,22 @@ void rc_weak_retain(void* ptr) {
 
 void rc_release(void* ptr) {
     RcHeader* header;
+    size_t total_size;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     header = get_header(ptr);
+    if (header->ref_count <= 0) {
+        kain_attrition_note_rc_underflow();
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+            "RC release underflow",
+            "Releasing this object would underflow the signed ref_count."
+        );
+        return;
+    }
     header->ref_count--;
+    kain_attrition_note_rc_release();
 
     if (header->ref_count == 0) {
         if (header->type_tag == 2) {
@@ -172,7 +202,11 @@ void rc_release(void* ptr) {
         }
 
         if (header->weak_count == 0) {
-            free(header);
+            total_size = sizeof(RcHeader) + header->payload_size;
+            kain_attrition_note_rc_free(total_size);
+            if (!kain_attrition_heap_release(header, total_size)) {
+                free(header);
+            }
         }
     }
 }
@@ -194,7 +228,19 @@ void* weak_upgrade(void* ptr) {
     if (kain_rc_is_immediate_handle(ptr)) return ptr;
     header = get_header(ptr);
     if (header->ref_count > 0) {
+        if (header->ref_count == LLONG_MAX) {
+            kain_attrition_note_rc_overflow();
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+                "Weak upgrade overflow",
+                "Upgrading this weak pointer would overflow the signed ref_count."
+            );
+            return NULL;
+        }
         header->ref_count++;
+        kain_attrition_note_rc_retain();
         return ptr;
     }
     return NULL;
@@ -294,27 +340,10 @@ void default_actor_run(void* arg) {
 }
 
 void kain_sleep(double seconds) {
-#ifdef _WIN32
-    Sleep((DWORD)(seconds * 1000.0));
-#else
-    struct timespec delay;
-
     if (seconds <= 0.0) {
         return;
     }
-
-    delay.tv_sec = (time_t)seconds;
-    delay.tv_nsec = (long)((seconds - (double)delay.tv_sec) * 1000000000.0);
-    if (delay.tv_nsec < 0) {
-        delay.tv_nsec = 0;
-    } else if (delay.tv_nsec >= 1000000000L) {
-        delay.tv_sec += 1;
-        delay.tv_nsec -= 1000000000L;
-    }
-
-    while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
-    }
-#endif
+    kain_attrition_sleep_for_millis((unsigned long long)(seconds * 1000.0));
 }
 
 void KAIN_sleep(double seconds) {
@@ -498,7 +527,7 @@ char* str_concat10(char* s1, char* s2, char* s3, char* s4, char* s5, char* s6, c
 }
 
 long long clock_wrapper() {
-    return (long long)clock();
+    return kain_attrition_clock_ticks();
 }
 
 void array_free_elems(void* ptr) {
@@ -888,6 +917,30 @@ long long find_substring_from(char* s, char* needle, long long start) {
     needle_len = kain_string_len_rc(needle);
     if (needle_len == 0u) return start;
     match = kain_find_substring_bytes(s, s_len, needle, needle_len, (size_t)start);
+    if (!match) return -1;
+    offset = (size_t)(match - s);
+    if (offset > (size_t)LLONG_MAX) return -1;
+    return (long long)offset;
+}
+
+long long find_substring_from_known_lengths(
+    char* s,
+    long long s_len,
+    char* needle,
+    long long needle_len,
+    long long start
+) {
+    const char* match;
+    size_t haystack_len;
+    size_t needle_len_size;
+    size_t offset;
+    if (!s || !needle || s_len < 0 || needle_len < 0) return -1;
+    if (start < 0) start = 0;
+    haystack_len = (size_t)s_len;
+    if ((size_t)start > haystack_len) return -1;
+    needle_len_size = (size_t)needle_len;
+    if (needle_len_size == 0u) return start;
+    match = kain_find_substring_bytes(s, haystack_len, needle, needle_len_size, (size_t)start);
     if (!match) return -1;
     offset = (size_t)(match - s);
     if (offset > (size_t)LLONG_MAX) return -1;

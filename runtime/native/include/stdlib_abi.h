@@ -19,6 +19,9 @@ extern "C" {
 int64_t abi_runtime_init(void);
 int64_t abi_runtime_shutdown(void);
 int64_t abi_runtime_heap_validate(void);
+int64_t abi_attrition_checkpoint(const char* label, int64_t subject_id);
+int64_t abi_attrition_note_progress(int64_t iteration, int64_t checksum);
+int64_t abi_attrition_result_set(int64_t checksum, int64_t run_status, const char* run_failure);
 
 void* abi_option_none(void);
 void* abi_option_some(const void* payload, int64_t payload_size);
