@@ -5725,3 +5725,34 @@ Durable interpretation:
 - If a future agent fixes one of these blockers, rerun the gate instead of trusting local intuition:
   - `python scripts/python/release_readiness_gate.py --profile quick --run`
   - `python scripts/python/release_readiness_gate.py --profile full --run`
+
+# 2026-05-17 - LLVM fixed-memory hot path closed most of the zero-copy/array benchmark wound
+
+The zero-copy binary wire and array-scan benchmark gaps were real compiler/runtime lowering overhead, not language semantics. The LLVM backend now has proof-backed fast paths for the two biggest local wounds:
+
+- Safe fixed integer array literals lower to stack `[N x i64]` storage when all remaining uses are `len(array)` or `array[index]`. `array_scan` no longer emits `array_new`, eight `array_push` calls, `len`, or `array_get` in the loop.
+- Bounded local `alloc_zeroed` helper allocations whose ownership lifetime stays local to `collapse`/`observe`/`decay` lower to stack byte arrays, including derived `ptr_offset` addresses. `zero_copy_binary_wire` now uses `[2048 x i8]` storage and no longer calls `__kain_alloc`, helper collapse/decay guards, or `__kain_ptr_offset` in the hot lane.
+- Non-negative signed i64 division/remainder by positive powers of two lowers to `lshr`/`and`; the guard deliberately refuses negative or unproved operands.
+
+Proof and validation:
+
+- Added `crates/kain-sys-codegen/z3/proofs-experimental/packed_wire_fixed_array_hotpath.smt2`.
+- Z3 MCP report `z3/reports/20260517T123050Z-sys_codegen_packed_wire_fixed_array_hotpath_file.json` returned `unsat`, proving no counterexample for the modeled power-of-two div/rem rewrite, packed header roundtrip, or 64-packet fixed-buffer bounds.
+- `cargo check -p kain-sys-codegen` passes.
+- `cargo build -p cli --bin kain` passes; repo-wide warnings are pre-existing/noisy.
+- Targeted tests pass:
+  - `llvm_lowers_safe_fixed_array_literal_to_stack_gep`
+  - `llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage`
+  - `llvm_erases_ephemeral_single_cell_ownership_to_local_storage`
+  - `llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage`
+- A broader `cargo test -p kain-sys-codegen llvm_ -- --nocapture` still has unrelated existing LLVM expectation failures, mostly around older string/signature/struct/tuple assertions; the new hot-path tests passed inside that run.
+
+Benchmark evidence:
+
+- `python benchmark/run.py --case zero_copy_binary_wire,array_scan --languages kain,rust,cpp --runs 9 --warmups 3 --timeout 900 --kain-exe target\debug\kain.exe --baseline-mode reuse-foreign --latest-stem latest_hotpath_confirm`
+- `array_scan`: Kain won the 9-run spot check at `9.146 ms` median vs Rust `9.501 ms` and C++ `9.502 ms`.
+- `zero_copy_binary_wire`: Kain collapsed from the previous ~`923 ms` latest-report wound to `80.842 ms` median, beating Rust `84.620 ms` but still trailing C++ `80.403 ms` by about half a millisecond.
+
+Next concrete move:
+
+- To flip zero-copy all the way past C++, attack the remaining load/unpack chain: store-load forwarding for same-address local stack-buffer slots, non-negative facts for forwarded loaded packed words, and header unpack lowering from signed `sdiv`/`srem` to shifts/masks once the loaded word provenance is proved. That should remove the remaining `observed0 / 16`, `observed0 % 16`, `observed1 / 128`, and related scalar signed divides in the generated IR.

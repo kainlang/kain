@@ -80,6 +80,14 @@ struct ShatteredArrayLocal {
     lane_base_values: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct FixedArrayLocal {
+    storage_reg: String,
+    array_ty: String,
+    element_ty: String,
+    element_count: usize,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct LoopIndexBounds {
     lower_inclusive: i64,
@@ -228,13 +236,28 @@ fn kain_map_codegen_static_key_metadata(key: &str) -> (u64, u64, u64) {
     let prefix_length = bytes.len().min(32);
     let mut prefix_bytes = [0u8; 32];
     prefix_bytes[..prefix_length].copy_from_slice(&bytes[..prefix_length]);
-    let word0 = u64::from_le_bytes(prefix_bytes[0..8].try_into().expect("slice length is exact"));
-    let word1 = u64::from_le_bytes(prefix_bytes[8..16].try_into().expect("slice length is exact"));
-    let word2 = u64::from_le_bytes(prefix_bytes[16..24].try_into().expect("slice length is exact"));
-    let word3 = u64::from_le_bytes(prefix_bytes[24..32].try_into().expect("slice length is exact"));
+    let word0 = u64::from_le_bytes(
+        prefix_bytes[0..8]
+            .try_into()
+            .expect("slice length is exact"),
+    );
+    let word1 = u64::from_le_bytes(
+        prefix_bytes[8..16]
+            .try_into()
+            .expect("slice length is exact"),
+    );
+    let word2 = u64::from_le_bytes(
+        prefix_bytes[16..24]
+            .try_into()
+            .expect("slice length is exact"),
+    );
+    let word3 = u64::from_le_bytes(
+        prefix_bytes[24..32]
+            .try_into()
+            .expect("slice length is exact"),
+    );
     let key_hash = kain_map_codegen_hash_bytes(bytes);
-    let key_prefix =
-        kain_map_codegen_magic_prefix_state(word0, word1, word2, word3, key_length);
+    let key_prefix = kain_map_codegen_magic_prefix_state(word0, word1, word2, word3, key_length);
     (key_length, key_hash, key_prefix)
 }
 
@@ -320,6 +343,13 @@ struct LlvmGenerator {
     /// Block-scoped i64 literals known to the compiler for nested ephemeral
     /// candidate nomination.
     known_i64_literal_scopes: Vec<HashMap<String, i64>>,
+    /// Block-scoped integer locals whose current value is proven non-negative.
+    /// This lets hot benchmark-style loops strength-reduce signed power-of-two
+    /// div/rem into shift/mask without changing negative-number semantics.
+    known_nonnegative_i64_scopes: Vec<HashSet<String>>,
+    /// Locals whose array literal can stay as an LLVM fixed array because every
+    /// remaining use is a len() query or an index load.
+    fixed_array_candidate_scopes: Vec<HashSet<String>>,
     /// Locals that are borrowed views and must not be released on scope exit.
     borrowed_locals: HashSet<String>,
     /// Maps function names to return type
@@ -364,6 +394,7 @@ struct LlvmGenerator {
     native_pulses: Vec<NativePulseInfo>,
     shattered_structs: HashSet<String>,
     shattered_array_locals: HashMap<String, ShatteredArrayLocal>,
+    fixed_array_locals: HashMap<String, FixedArrayLocal>,
     active_loop_index_bounds: Vec<HashMap<String, LoopIndexBounds>>,
     current_patch_name: Option<String>,
     const_init_blocks: HashMap<String, String>,
@@ -394,6 +425,8 @@ impl LlvmGenerator {
             ephemeral_candidate_scopes: Vec::new(),
             ephemeral_zero_init_elision_scopes: Vec::new(),
             known_i64_literal_scopes: Vec::new(),
+            known_nonnegative_i64_scopes: Vec::new(),
+            fixed_array_candidate_scopes: Vec::new(),
             borrowed_locals: HashSet::new(),
             functions: HashMap::new(),
             function_params: HashMap::new(),
@@ -423,6 +456,7 @@ impl LlvmGenerator {
             native_pulses: Vec::new(),
             shattered_structs: HashSet::new(),
             shattered_array_locals: HashMap::new(),
+            fixed_array_locals: HashMap::new(),
             active_loop_index_bounds: Vec::new(),
             current_patch_name: None,
             const_init_blocks: HashMap::new(),
@@ -647,7 +681,10 @@ impl LlvmGenerator {
 
     fn resolved_type_is_scalar_value_aggregate_pod(&self, ty: &ResolvedType) -> bool {
         match ty {
-            ResolvedType::Int(_) | ResolvedType::Float(_) | ResolvedType::Bool | ResolvedType::Char => true,
+            ResolvedType::Int(_)
+            | ResolvedType::Float(_)
+            | ResolvedType::Bool
+            | ResolvedType::Char => true,
             ResolvedType::Tuple(items) => items
                 .iter()
                 .all(|item| self.resolved_type_is_scalar_value_aggregate_pod(item)),
@@ -1015,12 +1052,29 @@ impl LlvmGenerator {
         merged
     }
 
+    fn current_known_nonnegative_i64s(&self) -> HashSet<String> {
+        let mut merged = HashSet::new();
+        for scope in &self.known_nonnegative_i64_scopes {
+            for name in scope {
+                merged.insert(name.clone());
+            }
+        }
+        merged
+    }
+
     fn current_known_llvm_types(&self) -> HashMap<String, String> {
         let mut merged = HashMap::new();
         for (name, (_, ty)) in &self.locals {
             merged.insert(name.clone(), ty.clone());
         }
         merged
+    }
+
+    fn current_scope_marks_fixed_array_candidate(&self, name: &str) -> bool {
+        self.fixed_array_candidate_scopes
+            .last()
+            .map(|candidates| candidates.contains(name))
+            .unwrap_or(false)
     }
 
     fn active_loop_bounds_for(&self, name: &str) -> Option<LoopIndexBounds> {
@@ -1030,15 +1084,23 @@ impl LlvmGenerator {
             .find_map(|scope| scope.get(name).copied())
     }
 
-    fn helper_alloc_storage_layout(expr: &Expr) -> Option<(i64, bool)> {
+    fn helper_alloc_storage_layout_with_bindings(
+        expr: &Expr,
+        known_i64_bindings: &HashMap<String, i64>,
+    ) -> Option<(i64, bool)> {
         match expr {
             Expr::Call { callee, args, .. }
                 if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_alloc")
                     && args.len() == 3 =>
             {
-                let stride = Self::resolve_i64_literal(&args[1].value, &HashMap::new())?;
-                let zeroed = Self::resolve_zeroed_literal(&args[2].value, &HashMap::new())?;
-                Some((stride, zeroed))
+                let size = Self::resolve_i64_literal(&args[0].value, known_i64_bindings)?;
+                let stride = Self::resolve_i64_literal(&args[1].value, known_i64_bindings)?;
+                let zeroed = Self::resolve_zeroed_literal(&args[2].value, known_i64_bindings)?;
+                if size <= 0 || stride <= 0 {
+                    return None;
+                }
+                let byte_len = size.checked_mul(stride)?;
+                (byte_len > 0 && byte_len <= 65536).then_some((byte_len, zeroed))
             }
             _ => None,
         }
@@ -1065,6 +1127,25 @@ impl LlvmGenerator {
             Expr::Ident(name, _) => known_i64_bindings.get(name).copied(),
             Expr::Paren(inner, _) => Self::resolve_i64_literal(inner, known_i64_bindings),
             Expr::Cast { value, .. } => Self::resolve_i64_literal(value, known_i64_bindings),
+            Expr::Binary {
+                left, op, right, ..
+            } => {
+                let lhs = Self::resolve_i64_literal(left, known_i64_bindings)?;
+                let rhs = Self::resolve_i64_literal(right, known_i64_bindings)?;
+                match op {
+                    BinaryOp::Add => lhs.checked_add(rhs),
+                    BinaryOp::Sub => lhs.checked_sub(rhs),
+                    BinaryOp::Mul => lhs.checked_mul(rhs),
+                    BinaryOp::Div if rhs != 0 => lhs.checked_div(rhs),
+                    BinaryOp::Mod if rhs != 0 => lhs.checked_rem(rhs),
+                    BinaryOp::BitAnd => Some(lhs & rhs),
+                    BinaryOp::BitOr => Some(lhs | rhs),
+                    BinaryOp::BitXor => Some(lhs ^ rhs),
+                    BinaryOp::Shl if (0..63).contains(&rhs) => lhs.checked_shl(rhs as u32),
+                    BinaryOp::Shr if (0..63).contains(&rhs) => lhs.checked_shr(rhs as u32),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -1085,6 +1166,91 @@ impl LlvmGenerator {
         }
     }
 
+    fn positive_power_of_two_shift(value: i64) -> Option<u32> {
+        (value > 0 && (value & (value - 1)) == 0).then_some(value.trailing_zeros())
+    }
+
+    fn positive_i64_literal(expr: &Expr, known_i64_bindings: &HashMap<String, i64>) -> Option<i64> {
+        let value = Self::resolve_i64_literal(expr, known_i64_bindings)?;
+        (value > 0).then_some(value)
+    }
+
+    fn expr_is_proven_nonnegative_i64(&self, expr: &Expr) -> bool {
+        let known_i64_bindings = self.current_known_i64_literals();
+        let known_nonnegative = self.current_known_nonnegative_i64s();
+        self.expr_is_proven_nonnegative_i64_with(expr, &known_i64_bindings, &known_nonnegative)
+    }
+
+    fn expr_is_proven_nonnegative_i64_with(
+        &self,
+        expr: &Expr,
+        known_i64_bindings: &HashMap<String, i64>,
+        known_nonnegative: &HashSet<String>,
+    ) -> bool {
+        match expr {
+            Expr::Int(value, _) => *value >= 0,
+            Expr::Bool(_, _) => true,
+            Expr::Ident(name, _) => {
+                known_i64_bindings
+                    .get(name)
+                    .map(|value| *value >= 0)
+                    .unwrap_or(false)
+                    || known_nonnegative.contains(name)
+                    || self
+                        .active_loop_bounds_for(name)
+                        .map(|bounds| bounds.lower_inclusive >= 0)
+                        .unwrap_or(false)
+            }
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => self
+                .expr_is_proven_nonnegative_i64_with(inner, known_i64_bindings, known_nonnegative),
+            Expr::Binary {
+                left, op, right, ..
+            } => match op {
+                BinaryOp::Add | BinaryOp::Mul | BinaryOp::BitOr | BinaryOp::BitXor => {
+                    self.expr_is_proven_nonnegative_i64_with(
+                        left,
+                        known_i64_bindings,
+                        known_nonnegative,
+                    ) && self.expr_is_proven_nonnegative_i64_with(
+                        right,
+                        known_i64_bindings,
+                        known_nonnegative,
+                    )
+                }
+                BinaryOp::BitAnd => Self::resolve_i64_literal(right, known_i64_bindings)
+                    .map(|mask| mask >= 0)
+                    .unwrap_or_else(|| {
+                        self.expr_is_proven_nonnegative_i64_with(
+                            left,
+                            known_i64_bindings,
+                            known_nonnegative,
+                        ) && self.expr_is_proven_nonnegative_i64_with(
+                            right,
+                            known_i64_bindings,
+                            known_nonnegative,
+                        )
+                    }),
+                BinaryOp::Div | BinaryOp::Mod => {
+                    self.expr_is_proven_nonnegative_i64_with(
+                        left,
+                        known_i64_bindings,
+                        known_nonnegative,
+                    ) && Self::positive_i64_literal(right, known_i64_bindings).is_some()
+                }
+                BinaryOp::Shr => {
+                    self.expr_is_proven_nonnegative_i64_with(
+                        left,
+                        known_i64_bindings,
+                        known_nonnegative,
+                    ) && Self::positive_i64_literal(right, known_i64_bindings).is_some()
+                }
+                BinaryOp::Shl => false,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     fn debug_mentions_identifier<T: std::fmt::Debug>(node: &T, target: &str) -> bool {
         format!("{:?}", node).contains(&format!("\"{}\"", target))
     }
@@ -1094,6 +1260,30 @@ impl LlvmGenerator {
             Expr::Ident(name, _) => name == target,
             Expr::Paren(inner, _) => Self::expr_is_exact_target_pointer(inner, target),
             Expr::Cast { value, .. } => Self::expr_is_exact_target_pointer(value, target),
+            _ => false,
+        }
+    }
+
+    fn expr_is_ephemeral_target_address(expr: &Expr, target: &str) -> bool {
+        match expr {
+            Expr::Ident(name, _) => name == target,
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                Self::expr_is_ephemeral_target_address(inner, target)
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                Self::expr_is_ephemeral_target_address(pointer, target)
+                    && Self::expr_is_safe_for_ephemeral_local(offset, target)
+            }
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_ptr_offset" || name == "__kain_index_ptr")
+                    && args.len() == 3 =>
+            {
+                Self::expr_is_ephemeral_target_address(&args[0].value, target)
+                    && Self::expr_is_safe_for_ephemeral_local(&args[1].value, target)
+                    && Self::expr_is_safe_for_ephemeral_local(&args[2].value, target)
+            }
             _ => false,
         }
     }
@@ -1136,6 +1326,34 @@ impl LlvmGenerator {
         if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {
             if let Some(scope) = self.known_i64_literal_scopes.last_mut() {
                 scope.insert(name, literal);
+            }
+        }
+    }
+
+    fn record_stmt_nonnegative_i64_effects(&mut self, stmt: &Stmt) {
+        let binding = match stmt {
+            Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(value),
+                ..
+            } => Some((name.as_str(), value)),
+            Stmt::Expr(Expr::Assign { target, value, .. }) => match target.as_ref() {
+                Expr::Ident(name, _) => Some((name.as_str(), value.as_ref())),
+                _ => None,
+            },
+            _ => None,
+        };
+
+        let Some((name, value)) = binding else {
+            return;
+        };
+        let is_nonnegative = self.expr_is_proven_nonnegative_i64(value);
+        for scope in self.known_nonnegative_i64_scopes.iter_mut().rev() {
+            scope.remove(name);
+        }
+        if is_nonnegative {
+            if let Some(scope) = self.known_nonnegative_i64_scopes.last_mut() {
+                scope.insert(name.to_string());
             }
         }
     }
@@ -1394,11 +1612,12 @@ impl LlvmGenerator {
             Expr::Return(None, _) | Expr::Break(None, _) => true,
             Expr::Call { callee, args, .. } => {
                 if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_load") {
-                    args.len() == 1 && Self::expr_is_exact_target_pointer(&args[0].value, target)
+                    args.len() == 1
+                        && Self::expr_is_ephemeral_target_address(&args[0].value, target)
                 } else if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_store")
                 {
                     args.len() == 2
-                        && Self::expr_is_exact_target_pointer(&args[0].value, target)
+                        && Self::expr_is_ephemeral_target_address(&args[0].value, target)
                         && Self::expr_is_safe_for_ephemeral_local(&args[1].value, target)
                 } else {
                     Self::expr_is_safe_for_ephemeral_local(callee, target)
@@ -1480,13 +1699,16 @@ impl LlvmGenerator {
             Expr::PtrOffset {
                 pointer, offset, ..
             } => {
-                !Self::expr_is_exact_target_pointer(pointer, target)
-                    && Self::expr_is_safe_for_ephemeral_local(pointer, target)
-                    && Self::expr_is_safe_for_ephemeral_local(offset, target)
+                Self::expr_is_ephemeral_target_address(expr, target)
+                    || (!Self::expr_is_exact_target_pointer(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(offset, target))
             }
-            Expr::MemLoad { pointer, .. } => Self::expr_is_exact_target_pointer(pointer, target),
+            Expr::MemLoad { pointer, .. } => {
+                Self::expr_is_ephemeral_target_address(pointer, target)
+            }
             Expr::MemStore { pointer, value, .. } => {
-                Self::expr_is_exact_target_pointer(pointer, target)
+                Self::expr_is_ephemeral_target_address(pointer, target)
                     && Self::expr_is_safe_for_ephemeral_local(value, target)
             }
             Expr::Alloc { size, .. } => Self::expr_is_safe_for_ephemeral_local(size, target),
@@ -1677,9 +1899,10 @@ impl LlvmGenerator {
                 ..
             } = stmt
             {
-                let is_single_cell_helper_alloc =
-                    Self::helper_alloc_is_single_cell(value, &known_i64_bindings);
-                if is_single_cell_helper_alloc
+                let is_bounded_helper_alloc =
+                    Self::helper_alloc_storage_layout_with_bindings(value, &known_i64_bindings)
+                        .is_some();
+                if is_bounded_helper_alloc
                     && Self::remaining_statements_preserve_ephemeral_contract(
                         &block.stmts[index + 1..],
                         name,
@@ -1715,7 +1938,9 @@ impl LlvmGenerator {
                 ..
             } = stmt
             {
-                if let Some((storage_byte_len, zeroed)) = Self::helper_alloc_storage_layout(value) {
+                if let Some((storage_byte_len, zeroed)) =
+                    Self::helper_alloc_storage_layout_with_bindings(value, &known_i64_bindings)
+                {
                     if zeroed
                         && Self::helper_alloc_is_single_cell(value, &known_i64_bindings)
                         && Self::remaining_statements_preserve_ephemeral_contract(
@@ -1743,6 +1968,198 @@ impl LlvmGenerator {
             }
         }
 
+        candidates
+    }
+
+    fn expr_is_fixed_i64_array_literal(expr: &Expr) -> bool {
+        let items = match expr {
+            Expr::Array(items, _) => items,
+            Expr::MacroCall { name, args, .. } if name == "vec" => args,
+            _ => return false,
+        };
+        !items.is_empty()
+            && items.iter().all(|item| {
+                matches!(
+                    item,
+                    Expr::Int(_, _)
+                        | Expr::Bool(_, _)
+                        | Expr::Paren(_, _)
+                        | Expr::Cast { .. }
+                        | Expr::Binary { .. }
+                )
+            })
+    }
+
+    fn expr_is_safe_fixed_array_use(expr: &Expr, target: &str) -> bool {
+        match expr {
+            Expr::Ident(name, _) => name != target,
+            Expr::Call { callee, args, .. } => {
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "len")
+                    && args.len() == 1
+                    && Self::expr_is_exact_target_pointer(&args[0].value, target)
+                {
+                    return true;
+                }
+                Self::expr_is_safe_fixed_array_use(callee, target)
+                    && args
+                        .iter()
+                        .all(|arg| Self::expr_is_safe_fixed_array_use(&arg.value, target))
+            }
+            Expr::Index { object, index, .. } => {
+                if Self::expr_is_exact_target_pointer(object, target) {
+                    !Self::debug_mentions_identifier(index, target)
+                } else {
+                    Self::expr_is_safe_fixed_array_use(object, target)
+                        && Self::expr_is_safe_fixed_array_use(index, target)
+                }
+            }
+            Expr::Assign {
+                target: assign_target,
+                value,
+                ..
+            } => {
+                !Self::debug_mentions_identifier(assign_target, target)
+                    && Self::expr_is_safe_fixed_array_use(assign_target, target)
+                    && Self::expr_is_safe_fixed_array_use(value, target)
+            }
+            Expr::Binary { left, right, .. } => {
+                Self::expr_is_safe_fixed_array_use(left, target)
+                    && Self::expr_is_safe_fixed_array_use(right, target)
+            }
+            Expr::Unary { operand, .. }
+            | Expr::Paren(operand, _)
+            | Expr::Deref(operand, _)
+            | Expr::Try(operand, _)
+            | Expr::Await(operand, _)
+            | Expr::AsyncBlock(operand, _)
+            | Expr::Comptime(operand, _)
+            | Expr::Return(Some(operand), _)
+            | Expr::Break(Some(operand), _) => Self::expr_is_safe_fixed_array_use(operand, target),
+            Expr::Return(None, _) | Expr::Break(None, _) => true,
+            Expr::FString(parts, _) | Expr::Array(parts, _) | Expr::Tuple(parts, _) => parts
+                .iter()
+                .all(|part| Self::expr_is_safe_fixed_array_use(part, target)),
+            Expr::MacroCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_fixed_array_use(arg, target)),
+            Expr::StageCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_fixed_array_use(&arg.value, target)),
+            Expr::MethodCall { receiver, args, .. } => {
+                Self::expr_is_safe_fixed_array_use(receiver, target)
+                    && args
+                        .iter()
+                        .all(|arg| Self::expr_is_safe_fixed_array_use(&arg.value, target))
+            }
+            Expr::Field { object, .. } => Self::expr_is_safe_fixed_array_use(object, target),
+            Expr::Struct { fields, rest, .. } => {
+                fields
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_fixed_array_use(value, target))
+                    && rest
+                        .as_ref()
+                        .map(|value| Self::expr_is_safe_fixed_array_use(value, target))
+                        .unwrap_or(true)
+            }
+            Expr::AggregateInit { fields, .. } => fields
+                .iter()
+                .all(|(_, value)| Self::expr_is_safe_fixed_array_use(value, target)),
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => true,
+                kain_core::ast::EnumVariantFields::Tuple(values) => values
+                    .iter()
+                    .all(|value| Self::expr_is_safe_fixed_array_use(value, target)),
+                kain_core::ast::EnumVariantFields::Struct(values) => values
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_fixed_array_use(value, target)),
+            },
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::expr_is_safe_fixed_array_use(condition, target)
+                    && Self::block_is_safe_fixed_array_use(then_branch, target)
+                    && else_branch
+                        .as_ref()
+                        .map(|branch| match branch.as_ref() {
+                            ElseBranch::Else(block) => {
+                                Self::block_is_safe_fixed_array_use(block, target)
+                            }
+                            ElseBranch::ElseIf(condition, block, next) => {
+                                Self::expr_is_safe_fixed_array_use(condition, target)
+                                    && Self::block_is_safe_fixed_array_use(block, target)
+                                    && next
+                                        .as_ref()
+                                        .map(|nested| match nested.as_ref() {
+                                            ElseBranch::Else(block) => {
+                                                Self::block_is_safe_fixed_array_use(block, target)
+                                            }
+                                            ElseBranch::ElseIf(..) => {
+                                                !Self::debug_mentions_identifier(nested, target)
+                                            }
+                                        })
+                                        .unwrap_or(true)
+                            }
+                        })
+                        .unwrap_or(true)
+            }
+            Expr::Block(block, _) => Self::block_is_safe_fixed_array_use(block, target),
+            other => !Self::debug_mentions_identifier(other, target),
+        }
+    }
+
+    fn stmt_is_safe_fixed_array_use(stmt: &Stmt, target: &str) -> bool {
+        match stmt {
+            Stmt::Let { value, .. } => value
+                .as_ref()
+                .map(|expr| Self::expr_is_safe_fixed_array_use(expr, target))
+                .unwrap_or(true),
+            Stmt::Expr(expr) => Self::expr_is_safe_fixed_array_use(expr, target),
+            Stmt::Return(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
+            Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
+            Stmt::Break(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
+            Stmt::For { iter, body, .. } => {
+                Self::expr_is_safe_fixed_array_use(iter, target)
+                    && Self::block_is_safe_fixed_array_use(body, target)
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                Self::expr_is_safe_fixed_array_use(condition, target)
+                    && Self::block_is_safe_fixed_array_use(body, target)
+            }
+            Stmt::Loop { body, .. } => Self::block_is_safe_fixed_array_use(body, target),
+            Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+        }
+    }
+
+    fn block_is_safe_fixed_array_use(block: &Block, target: &str) -> bool {
+        block
+            .stmts
+            .iter()
+            .all(|stmt| Self::stmt_is_safe_fixed_array_use(stmt, target))
+    }
+
+    fn collect_block_fixed_array_candidate_names(block: &Block) -> HashSet<String> {
+        let mut candidates = HashSet::new();
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            if let Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(value),
+                ..
+            } = stmt
+            {
+                if Self::expr_is_fixed_i64_array_literal(value)
+                    && block.stmts[index + 1..]
+                        .iter()
+                        .all(|stmt| Self::stmt_is_safe_fixed_array_use(stmt, name))
+                {
+                    candidates.insert(name.clone());
+                }
+            }
+        }
         candidates
     }
 
@@ -1830,7 +2247,10 @@ impl LlvmGenerator {
         Some(res)
     }
 
-    fn compile_string_concat_expression(&mut self, expr: &Expr) -> KainResult<Option<(String, String)>> {
+    fn compile_string_concat_expression(
+        &mut self,
+        expr: &Expr,
+    ) -> KainResult<Option<(String, String)>> {
         if !self.expr_is_known_string(expr) {
             return Ok(None);
         }
@@ -1857,7 +2277,8 @@ impl LlvmGenerator {
             .map(|(value, _)| value.clone())
             .collect::<Vec<_>>();
 
-        let result = if let Some(flattened) = self.emit_fixed_arity_string_concat_call(&term_values) {
+        let result = if let Some(flattened) = self.emit_fixed_arity_string_concat_call(&term_values)
+        {
             for (value, release_after_use) in &compiled_terms {
                 if *release_after_use {
                     self.emit_rc_release_if_heap_i8(value);
@@ -2146,7 +2567,10 @@ impl LlvmGenerator {
             byte_ptr, text_ptr, index
         ));
         let byte_value = self.next_reg();
-        self.emit(&format!("  {} = load i8, i8* {}, align 1", byte_value, byte_ptr));
+        self.emit(&format!(
+            "  {} = load i8, i8* {}, align 1",
+            byte_value, byte_ptr
+        ));
         let byte_i64 = self.next_reg();
         self.emit(&format!("  {} = zext i8 {} to i64", byte_i64, byte_value));
         let load_end_block = self.current_block.clone();
@@ -2606,10 +3030,7 @@ impl LlvmGenerator {
         value_i64: &str,
     ) -> (String, String) {
         let shifted_payload = self.next_reg();
-        self.emit(&format!(
-            "  {} = shl i64 {}, 3",
-            shifted_payload, value_i64
-        ));
+        self.emit(&format!("  {} = shl i64 {}, 3", shifted_payload, value_i64));
         let tagged_bits = self.next_reg();
         self.emit(&format!(
             "  {} = or i64 {}, {}",
@@ -2629,10 +3050,7 @@ impl LlvmGenerator {
         target_ty: &str,
     ) -> KainResult<(String, String)> {
         let payload_i64 = self.next_reg();
-        self.emit(&format!(
-            "  {} = ashr i64 {}, 3",
-            payload_i64, handle_bits
-        ));
+        self.emit(&format!("  {} = ashr i64 {}, 3", payload_i64, handle_bits));
         if target_ty == "i64" {
             Ok((payload_i64, "i64".to_string()))
         } else {
@@ -2857,11 +3275,8 @@ impl LlvmGenerator {
     ) -> KainResult<(String, String)> {
         match payload_ty {
             "i1" | "i8" | "i32" => {
-                let payload_i64 = self.cast_numeric_value(
-                    payload_value.to_string(),
-                    payload_ty,
-                    "i64",
-                )?;
+                let payload_i64 =
+                    self.cast_numeric_value(payload_value.to_string(), payload_ty, "i64")?;
                 return Ok(self.compile_tagged_immediate_integer_handle_from_i64(tag, &payload_i64));
             }
             "i64" => {
@@ -2910,11 +3325,7 @@ impl LlvmGenerator {
                 let merged = self.next_reg();
                 self.emit(&format!(
                     "  {} = phi i8* [ {}, %{} ], [ {}, %{} ]",
-                    merged,
-                    immediate_value.0,
-                    immediate_block,
-                    boxed_value.0,
-                    boxed_block
+                    merged, immediate_value.0, immediate_block, boxed_value.0, boxed_block
                 ));
                 return Ok((merged, "i8*".to_string()));
             }
@@ -3154,6 +3565,67 @@ impl LlvmGenerator {
         Ok((stored_value, stored_ty))
     }
 
+    fn emit_scaled_byte_offset(
+        &mut self,
+        offset: &str,
+        stride: &str,
+        stride_literal: Option<i64>,
+    ) -> String {
+        match stride_literal {
+            Some(1) => offset.to_string(),
+            Some(value) => {
+                if let Some(shift) = Self::positive_power_of_two_shift(value) {
+                    let scaled = self.next_reg();
+                    self.emit(&format!("  {} = shl i64 {}, {}", scaled, offset, shift));
+                    scaled
+                } else {
+                    let scaled = self.next_reg();
+                    self.emit(&format!("  {} = mul i64 {}, {}", scaled, offset, value));
+                    scaled
+                }
+            }
+            None => {
+                let scaled = self.next_reg();
+                self.emit(&format!("  {} = mul i64 {}, {}", scaled, offset, stride));
+                scaled
+            }
+        }
+    }
+
+    fn compile_raw_ptr_offset_i64(
+        &mut self,
+        base_expr: &Expr,
+        offset_expr: &Expr,
+        stride_expr: &Expr,
+    ) -> KainResult<(String, String)> {
+        let known_i64_bindings = self.current_known_i64_literals();
+        let stride_literal = Self::resolve_i64_literal(stride_expr, &known_i64_bindings);
+        let (base, base_ty) = self.compile_expr(base_expr)?;
+        let base_i64 = self.coerce_to_i64_storage(&base, &base_ty);
+        let (offset, _) = self.compile_expr(offset_expr)?;
+        let (stride, _) = if stride_literal.is_some() {
+            (stride_literal.unwrap().to_string(), "i64".to_string())
+        } else {
+            self.compile_expr(stride_expr)?
+        };
+        let shift_safe_stride_literal =
+            stride_literal.filter(|_| self.expr_is_proven_nonnegative_i64(offset_expr));
+        let byte_offset = self.emit_scaled_byte_offset(&offset, &stride, shift_safe_stride_literal);
+        let base_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = inttoptr i64 {} to i8*",
+            base_ptr, base_i64
+        ));
+        let raw_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr i8, i8* {}, i64 {}",
+            raw_ptr, base_ptr, byte_offset
+        ));
+        let res = self.next_reg();
+        self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, raw_ptr));
+        Ok((res, "i64".to_string()))
+    }
+
     fn compile_ownership_pointer(
         &mut self,
         target: &Expr,
@@ -3360,9 +3832,10 @@ impl LlvmGenerator {
         };
         if let Some(literal) = self.extract_static_string_literal(&values[0]) {
             let literal_ptr = self.compile_static_c_string_literal(&literal);
-            return Ok(Some(
-                self.compile_tagged_immediate_borrowed_pointer_handle(tag, &literal_ptr),
-            ));
+            return Ok(Some(self.compile_tagged_immediate_borrowed_pointer_handle(
+                tag,
+                &literal_ptr,
+            )));
         }
         let (payload_value, payload_ty) = self.compile_expr(&values[0])?;
         Ok(Some(self.compile_tagged_value_from_compiled_payload(
@@ -3449,7 +3922,9 @@ impl LlvmGenerator {
         match expr {
             Expr::AsyncBlock(payload, _) => Some(payload.as_ref()),
             Expr::Paren(inner, _) => Self::extract_immediate_ready_future_payload_expr(inner),
-            Expr::Return(Some(inner), _) => Self::extract_immediate_ready_future_payload_expr(inner),
+            Expr::Return(Some(inner), _) => {
+                Self::extract_immediate_ready_future_payload_expr(inner)
+            }
             _ => None,
         }
     }
@@ -3474,7 +3949,9 @@ impl LlvmGenerator {
         }
 
         match func.ast.body.stmts.as_slice() {
-            [Stmt::Return(Some(expr), _)] => Self::extract_immediate_ready_future_payload_expr(expr),
+            [Stmt::Return(Some(expr), _)] => {
+                Self::extract_immediate_ready_future_payload_expr(expr)
+            }
             [Stmt::Expr(expr)] => Self::extract_immediate_ready_future_payload_expr(expr),
             _ => None,
         }
@@ -3487,7 +3964,9 @@ impl LlvmGenerator {
         target_ty: &str,
     ) -> KainResult<Option<(String, String)>> {
         match future_expr {
-            Expr::AsyncBlock(body, _) => Ok(Some(self.compile_expr_for_target_type(body, target_ty)?)),
+            Expr::AsyncBlock(body, _) => {
+                Ok(Some(self.compile_expr_for_target_type(body, target_ty)?))
+            }
             Expr::Paren(inner, _) => {
                 self.compile_immediate_ready_future_for_target_type(inner, target_ty)
             }
@@ -3498,7 +3977,9 @@ impl LlvmGenerator {
                 let Some(payload) = self.immediate_ready_future_payloads.get(name).cloned() else {
                     return Ok(None);
                 };
-                Ok(Some(self.compile_expr_for_target_type(&payload, target_ty)?))
+                Ok(Some(
+                    self.compile_expr_for_target_type(&payload, target_ty)?,
+                ))
             }
             _ => Ok(None),
         }
@@ -4225,14 +4706,17 @@ impl LlvmGenerator {
 
     fn field_index(&self, struct_name: &str, field: &str) -> Option<usize> {
         let fields = self.struct_defs.get(struct_name)?;
-        fields.iter().position(|(name, _)| name == field).or_else(|| {
-            if struct_name.starts_with("__kain_tuple") {
-                let index = Self::tuple_field_alias_index(field)?;
-                (index < fields.len()).then_some(index)
-            } else {
-                None
-            }
-        })
+        fields
+            .iter()
+            .position(|(name, _)| name == field)
+            .or_else(|| {
+                if struct_name.starts_with("__kain_tuple") {
+                    let index = Self::tuple_field_alias_index(field)?;
+                    (index < fields.len()).then_some(index)
+                } else {
+                    None
+                }
+            })
     }
 
     fn native_world_field_path(&self, struct_name: &str, field: &str) -> Option<String> {
@@ -4655,12 +5139,13 @@ impl LlvmGenerator {
                     if let Some((addr, obj_ty)) = self.locals.get(name).cloned() {
                         if obj_ty.starts_with('%') && !obj_ty.ends_with('*') {
                             let struct_name = obj_ty[1..].to_string();
-                            let field_index = self.field_index(&struct_name, field).ok_or_else(|| {
-                                KainError::codegen(
-                                    format!("Unknown field '{}' on {}", field, struct_name),
-                                    *span,
-                                )
-                            })?;
+                            let field_index =
+                                self.field_index(&struct_name, field).ok_or_else(|| {
+                                    KainError::codegen(
+                                        format!("Unknown field '{}' on {}", field, struct_name),
+                                        *span,
+                                    )
+                                })?;
                             let field_ty = self
                                 .struct_defs
                                 .get(&struct_name)
@@ -4677,39 +5162,40 @@ impl LlvmGenerator {
                     }
                 }
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
-                let (struct_name, struct_ptr, field_index) =
-                    if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {
-                        let index = self.field_index(struct_name, field).ok_or_else(|| {
-                            KainError::codegen(
-                                format!("Unknown field '{}' on {}", field, struct_name),
-                                *span,
-                            )
-                        })?;
-                        (struct_name.to_string(), obj_val, index)
-                    } else if obj_ty.starts_with('%') {
-                        let struct_name = obj_ty[1..].to_string();
-                        let index = self.field_index(&struct_name, field).ok_or_else(|| {
-                            KainError::codegen(
-                                format!("Unknown field '{}' on {}", field, struct_name),
-                                *span,
-                            )
-                        })?;
-                        let tmp_addr = self.next_reg();
-                        self.emit_entry_alloca(&tmp_addr, &obj_ty);
-                        self.emit(&format!(
-                            "  store {} {}, {}* {}",
-                            obj_ty, obj_val, obj_ty, tmp_addr
-                        ));
-                        (struct_name, tmp_addr, index)
-                    } else {
-                        return Err(KainError::codegen(
+                let (struct_name, struct_ptr, field_index) = if let Some(struct_name) =
+                    self.ptr_struct_name(&obj_ty)
+                {
+                    let index = self.field_index(struct_name, field).ok_or_else(|| {
+                        KainError::codegen(
+                            format!("Unknown field '{}' on {}", field, struct_name),
+                            *span,
+                        )
+                    })?;
+                    (struct_name.to_string(), obj_val, index)
+                } else if obj_ty.starts_with('%') {
+                    let struct_name = obj_ty[1..].to_string();
+                    let index = self.field_index(&struct_name, field).ok_or_else(|| {
+                        KainError::codegen(
+                            format!("Unknown field '{}' on {}", field, struct_name),
+                            *span,
+                        )
+                    })?;
+                    let tmp_addr = self.next_reg();
+                    self.emit_entry_alloca(&tmp_addr, &obj_ty);
+                    self.emit(&format!(
+                        "  store {} {}, {}* {}",
+                        obj_ty, obj_val, obj_ty, tmp_addr
+                    ));
+                    (struct_name, tmp_addr, index)
+                } else {
+                    return Err(KainError::codegen(
                             format!(
                                 "Field address for .{} requires a struct or struct pointer, but LLVM lowered {:?} to {}",
                                 field, object, obj_ty
                             ),
                             *span,
                         ));
-                    };
+                };
                 let field_ty = self
                     .struct_defs
                     .get(&struct_name)
@@ -4901,38 +5387,11 @@ impl LlvmGenerator {
                         span,
                     )));
                 }
-                let compiled_base = match self.compile_expr(&args[0].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-                let base_i64 = self.coerce_to_i64_storage(&compiled_base.0, &compiled_base.1);
-                let (index, _) = match self.compile_expr(&args[1].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-                let (stride, _) = match self.compile_expr(&args[2].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-
-                // Cast base to i8*
-                let base_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = inttoptr i64 {} to i8*",
-                    base_ptr, base_i64
-                ));
-
-                // Call canonical helper
-                let result = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @__kain_index_ptr(i8* {}, i64 {}, i64 {})",
-                    result, base_ptr, index, stride
-                ));
-
-                // Convert to i64
-                let res = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
-                Some(Ok((res, "i64".to_string())))
+                Some(self.compile_raw_ptr_offset_i64(
+                    &args[0].value,
+                    &args[1].value,
+                    &args[2].value,
+                ))
             }
             "__kain_ptr_offset" => {
                 // Canonical ABI: i8* __kain_ptr_offset(i8* ptr, i64 offset, i64 stride)
@@ -4943,38 +5402,11 @@ impl LlvmGenerator {
                         span,
                     )));
                 }
-                let compiled_base = match self.compile_expr(&args[0].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-                let base_i64 = self.coerce_to_i64_storage(&compiled_base.0, &compiled_base.1);
-                let (offset, _) = match self.compile_expr(&args[1].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-                let (stride, _) = match self.compile_expr(&args[2].value) {
-                    Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
-                };
-
-                // Cast base to i8*
-                let base_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = inttoptr i64 {} to i8*",
-                    base_ptr, base_i64
-                ));
-
-                // Call canonical helper
-                let result = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @__kain_ptr_offset(i8* {}, i64 {}, i64 {})",
-                    result, base_ptr, offset, stride
-                ));
-
-                // Convert to i64
-                let res = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
-                Some(Ok((res, "i64".to_string())))
+                Some(self.compile_raw_ptr_offset_i64(
+                    &args[0].value,
+                    &args[1].value,
+                    &args[2].value,
+                ))
             }
             "__kain_alloc" => {
                 // Canonical ABI: i8* __kain_alloc(i64 size, i64 stride, i32 zeroed)
@@ -6126,6 +6558,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -6297,6 +6730,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -6460,6 +6894,7 @@ impl LlvmGenerator {
             self.locals.clear();
             self.helper_owned_pointer_locals.clear();
             self.shattered_array_locals.clear();
+            self.fixed_array_locals.clear();
             self.locals
                 .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
 
@@ -6775,6 +7210,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -6863,6 +7299,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -7018,6 +7455,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -7200,6 +7638,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -7252,6 +7691,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -7294,6 +7734,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -7414,6 +7855,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -7657,6 +8099,7 @@ impl LlvmGenerator {
         self.locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
@@ -7822,18 +8265,26 @@ impl LlvmGenerator {
                 &inherited_known_llvm_types,
             ),
         );
+        self.fixed_array_candidate_scopes
+            .push(Self::collect_block_fixed_array_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
+        self.known_nonnegative_i64_scopes.push(HashSet::new());
         for stmt in &block.stmts {
             if let Err(err) = self.compile_stmt(stmt) {
+                self.known_nonnegative_i64_scopes.pop();
                 self.known_i64_literal_scopes.pop();
+                self.fixed_array_candidate_scopes.pop();
                 self.ephemeral_zero_init_elision_scopes.pop();
                 self.ephemeral_candidate_scopes.pop();
                 return Err(err);
             }
             self.record_stmt_i64_literal_effects(stmt);
+            self.record_stmt_nonnegative_i64_effects(stmt);
         }
         self.emit_scope_exit();
+        self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
+        self.fixed_array_candidate_scopes.pop();
         self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
         Ok(())
@@ -7855,7 +8306,10 @@ impl LlvmGenerator {
                 &inherited_known_llvm_types,
             ),
         );
+        self.fixed_array_candidate_scopes
+            .push(Self::collect_block_fixed_array_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
+        self.known_nonnegative_i64_scopes.push(HashSet::new());
         let mut last_res = None;
         let mut last_is_new = false;
 
@@ -7866,23 +8320,30 @@ impl LlvmGenerator {
                     last_res = Some((val, ty));
                     last_is_new = self.is_new_object(expr);
                     self.record_stmt_i64_literal_effects(stmt);
+                    self.record_stmt_nonnegative_i64_effects(stmt);
                 } else {
                     if let Err(err) = self.compile_stmt(stmt) {
+                        self.known_nonnegative_i64_scopes.pop();
                         self.known_i64_literal_scopes.pop();
+                        self.fixed_array_candidate_scopes.pop();
                         self.ephemeral_zero_init_elision_scopes.pop();
                         self.ephemeral_candidate_scopes.pop();
                         return Err(err);
                     }
                     self.record_stmt_i64_literal_effects(stmt);
+                    self.record_stmt_nonnegative_i64_effects(stmt);
                 }
             } else {
                 if let Err(err) = self.compile_stmt(stmt) {
+                    self.known_nonnegative_i64_scopes.pop();
                     self.known_i64_literal_scopes.pop();
+                    self.fixed_array_candidate_scopes.pop();
                     self.ephemeral_zero_init_elision_scopes.pop();
                     self.ephemeral_candidate_scopes.pop();
                     return Err(err);
                 }
                 self.record_stmt_i64_literal_effects(stmt);
+                self.record_stmt_nonnegative_i64_effects(stmt);
             }
         }
 
@@ -7897,7 +8358,9 @@ impl LlvmGenerator {
         }
 
         self.emit_scope_exit();
+        self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
+        self.fixed_array_candidate_scopes.pop();
         self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
         Ok(last_res)
@@ -7917,7 +8380,10 @@ impl LlvmGenerator {
             low_bits, handle_bits, ABI_TAGGED_IMMEDIATE_MASK_LLVM
         ));
         let low_bits_clear = self.next_reg();
-        self.emit(&format!("  {} = icmp eq i64 {}, 0", low_bits_clear, low_bits));
+        self.emit(&format!(
+            "  {} = icmp eq i64 {}, 0",
+            low_bits_clear, low_bits
+        ));
         let should_call = self.next_reg();
         self.emit(&format!(
             "  {} = and i1 {}, {}",
@@ -8001,6 +8467,9 @@ impl LlvmGenerator {
                     self.shattered_array_locals.remove(var_name);
                     continue;
                 }
+                if self.fixed_array_locals.remove(var_name).is_some() {
+                    continue;
+                }
                 // Release if it's a pointer or struct
                 if ty == "i8*" || ty.starts_with("%") {
                     let tmp = self.next_reg();
@@ -8037,6 +8506,9 @@ impl LlvmGenerator {
                         "  call void @kain_machine_shatter_free(i8* {})",
                         tmp
                     ));
+                    continue;
+                }
+                if self.fixed_array_locals.contains_key(&var_name) {
                     continue;
                 }
                 if ty == "i8*" || ty.starts_with("%") {
@@ -8129,9 +8601,65 @@ impl LlvmGenerator {
                 if let Some(val_expr) = value {
                     // Allocate and Store
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
+                        if self.current_scope_marks_fixed_array_candidate(name) {
+                            let fixed_items = match val_expr {
+                                Expr::Array(items, _) => Some(items),
+                                Expr::MacroCall {
+                                    name: macro_name,
+                                    args,
+                                    ..
+                                } if macro_name == "vec" => Some(args),
+                                _ => None,
+                            };
+                            if let Some(items) = fixed_items {
+                                let element_ty = "i64".to_string();
+                                let array_ty = format!("[{} x {}]", items.len(), element_ty);
+                                let storage_reg =
+                                    format!("%{}.fixed_array_{}", name, self.reg_count);
+                                self.reg_count += 1;
+                                self.emit_entry_alloca(&storage_reg, &array_ty);
+                                for (index, item) in items.iter().enumerate() {
+                                    let (item_value, item_ty) =
+                                        self.compile_expr_for_target_type(item, &element_ty)?;
+                                    let element_ptr = self.next_reg();
+                                    self.emit(&format!(
+                                        "  {} = getelementptr inbounds {}, {}* {}, i32 0, i64 {}",
+                                        element_ptr, array_ty, array_ty, storage_reg, index
+                                    ));
+                                    self.emit(&format!(
+                                        "  store {} {}, {}* {}",
+                                        item_ty, item_value, element_ty, element_ptr
+                                    ));
+                                }
+                                self.string_length_values.remove(name);
+                                self.locals
+                                    .insert(name.clone(), (storage_reg.clone(), array_ty.clone()));
+                                self.helper_owned_pointer_locals.remove(name);
+                                self.ephemeral_owned_pointer_locals.remove(name);
+                                self.shattered_array_locals.remove(name);
+                                self.fixed_array_locals.insert(
+                                    name.clone(),
+                                    FixedArrayLocal {
+                                        storage_reg,
+                                        array_ty,
+                                        element_ty,
+                                        element_count: items.len(),
+                                    },
+                                );
+                                if let Some(scope) = self.scopes.last_mut() {
+                                    scope.push(name.clone());
+                                }
+                                return Ok(());
+                            }
+                        }
+
                         if self.current_scope_marks_ephemeral_candidate(name) {
+                            let known_i64_bindings = self.current_known_i64_literals();
                             if let Some((storage_byte_len, zeroed)) =
-                                Self::helper_alloc_storage_layout(val_expr)
+                                Self::helper_alloc_storage_layout_with_bindings(
+                                    val_expr,
+                                    &known_i64_bindings,
+                                )
                             {
                                 let emit_initial_zero =
                                     zeroed && !self.current_scope_elides_ephemeral_zero_init(name);
@@ -8209,6 +8737,7 @@ impl LlvmGenerator {
                             self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
                         self.record_helper_owned_pointer_local(name, local_pointer_provenance);
+                        self.fixed_array_locals.remove(name);
                         if let Some(struct_name) = self.shattered_array_expr_struct_name(val_expr) {
                             let field_count = self
                                 .struct_defs
@@ -8731,6 +9260,11 @@ impl LlvmGenerator {
         }
 
         if func_name == "len" && args.len() == 1 {
+            if let Expr::Ident(name, _) = &args[0].value {
+                if let Some(local) = self.fixed_array_locals.get(name) {
+                    return Ok((local.element_count.to_string(), "i64".to_string()));
+                }
+            }
             if let Some(length_value) = self.compile_string_length_value(&args[0].value)? {
                 return Ok((length_value, "i64".to_string()));
             }
@@ -8822,7 +9356,10 @@ impl LlvmGenerator {
 
             let (mut val, mut ty) = if can_lower_static_literal_as_borrowed {
                 if let Some(literal) = self.extract_static_string_literal(&arg.value) {
-                    (self.compile_static_c_string_literal(&literal), "i8*".to_string())
+                    (
+                        self.compile_static_c_string_literal(&literal),
+                        "i8*".to_string(),
+                    )
                 } else {
                     self.compile_expr(&arg.value)?
                 }
@@ -9647,6 +10184,22 @@ impl LlvmGenerator {
                 index,
                 span: _,
             } => {
+                if let Expr::Ident(name, _) = object.as_ref() {
+                    if let Some(local) = self.fixed_array_locals.get(name).cloned() {
+                        let (idx_val, _) = self.compile_expr(index)?;
+                        let element_ptr = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = getelementptr inbounds {}, {}* {}, i32 0, i64 {}",
+                            element_ptr, local.array_ty, local.array_ty, local.storage_reg, idx_val
+                        ));
+                        let loaded = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = load {}, {}* {}",
+                            loaded, local.element_ty, local.element_ty, element_ptr
+                        ));
+                        return Ok((loaded, local.element_ty));
+                    }
+                }
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
                 let (idx_val, _) = self.compile_expr(index)?;
                 if obj_ty == "i8*" {
@@ -10177,6 +10730,8 @@ impl LlvmGenerator {
 
                 let is_float = ty == "double" && rhs_ty == "double";
                 let res = self.next_reg();
+                let rhs_literal = Self::resolve_i64_literal(right, &self.current_known_i64_literals());
+                let lhs_nonnegative = self.expr_is_proven_nonnegative_i64(left);
 
                 match op {
                     BinaryOp::Add => {
@@ -10206,6 +10761,14 @@ impl LlvmGenerator {
                     BinaryOp::Div => {
                         if is_float {
                             self.emit(&format!("  {} = fdiv double {}, {}", res, lhs, rhs));
+                        } else if ty == "i64" && rhs_ty == "i64" && lhs_nonnegative {
+                            if let Some(shift) =
+                                rhs_literal.and_then(Self::positive_power_of_two_shift)
+                            {
+                                self.emit(&format!("  {} = lshr i64 {}, {}", res, lhs, shift));
+                            } else {
+                                self.emit(&format!("  {} = sdiv {} {}, {}", res, ty, lhs, rhs));
+                            }
                         } else {
                             self.emit(&format!("  {} = sdiv {} {}, {}", res, ty, lhs, rhs));
                         }
@@ -10214,6 +10777,15 @@ impl LlvmGenerator {
                     BinaryOp::Mod => {
                         if is_float {
                             self.emit(&format!("  {} = frem double {}, {}", res, lhs, rhs));
+                        } else if ty == "i64" && rhs_ty == "i64" && lhs_nonnegative {
+                            if let Some(mask) = rhs_literal
+                                .and_then(Self::positive_power_of_two_shift)
+                                .map(|shift| (1i64 << shift) - 1)
+                            {
+                                self.emit(&format!("  {} = and i64 {}, {}", res, lhs, mask));
+                            } else {
+                                self.emit(&format!("  {} = srem {} {}, {}", res, ty, lhs, rhs));
+                            }
                         } else {
                             self.emit(&format!("  {} = srem {} {}, {}", res, ty, lhs, rhs));
                         }

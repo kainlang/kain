@@ -241,7 +241,9 @@ fn main() -> Int:
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%__kain_tuple_double_double_double = type { double, double, double }"));
-    assert!(llvm.contains("%Bounds = type { %__kain_tuple_double_double_double, %__kain_tuple_double_double_double }"));
+    assert!(llvm.contains(
+        "%Bounds = type { %__kain_tuple_double_double_double, %__kain_tuple_double_double_double }"
+    ));
     assert!(llvm.contains("@x_component(%__kain_tuple_double_double_double %arg0)"));
     assert!(llvm.contains("@bounds_mix(%Bounds %arg0)"));
     assert!(llvm.contains("getelementptr inbounds %__kain_tuple_double_double_double"));
@@ -1506,7 +1508,7 @@ fn main() -> Int:
 #[test]
 fn llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path() {
     let typed = typed_program_from_source(
-        "fn own_local_pair() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(2, \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
+        "fn own_local_pair(count: Int) -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(count, \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
     );
 
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
@@ -1568,6 +1570,43 @@ fn llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage() {
     assert!(!llvm.contains("store [8 x i8] zeroinitializer"));
     assert!(llvm.contains("alloca [8 x i8]"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-ephemeral-ownership-erasure");
+}
+
+#[test]
+fn llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage() {
+    let typed = typed_program_from_source(
+        "fn own_small_buffer() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(4, \"Int\")\n    collapse cell:\n        mem_store(ptr_offset(cell, 3, \"Int\"), 11, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(ptr_offset(cell, 3, \"Int\"), \"Int\")\n    decay cell\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_observe_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(!llvm.contains("call i8* @__kain_ptr_offset"));
+    assert!(llvm.contains("alloca [32 x i8]"));
+    assert!(llvm.contains("getelementptr i8"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "bounded-ephemeral-ptr-offset-buffer-erasure");
+}
+
+#[test]
+fn llvm_lowers_safe_fixed_array_literal_to_stack_gep() {
+    let typed = typed_program_from_source(
+        "fn scan() -> Int:\n    let values = [1, 2, 3]\n    var acc: Int = 0\n    var index: Int = 0\n    while index < len(values):\n        acc = acc + values[index]\n        index = index + 1\n    return acc\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(!llvm.contains("call i8* @array_new"));
+    assert!(!llvm.contains("call void @array_push"));
+    assert!(!llvm.contains("call i64 @len"));
+    assert!(!llvm.contains("call i64 @array_get"));
+    assert!(llvm.contains("alloca [3 x i64]"));
+    assert!(llvm.contains("getelementptr inbounds [3 x i64]"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "fixed-array-literal-stack-gep");
 }
 
 #[test]
@@ -1644,9 +1683,8 @@ fn drive() -> Int:
     assert!(llvm.contains("%KainReplyPort = type { %KainActorRef }"));
     assert!(llvm.contains("call i8* @kain_actor_reply_port_new()"));
     assert!(llvm.contains("call void @kain_actor_reply_port_actor_ref(i8*"));
-    assert!(llvm.contains(
-        "declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)"
-    ));
+    assert!(llvm
+        .contains("declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)"));
     assert!(llvm.contains("call i32 @kain_actor_ask_send_ref(%KainActorRef* "));
     assert!(llvm.contains("declare i32 @kain_actor_reply_port_send_ref(%KainActorRef*, i8*, i64)"));
     assert!(llvm.contains("call i32 @kain_actor_reply_port_send_ref(%KainActorRef* "));
@@ -2407,8 +2445,10 @@ fn main() -> Int:
     let typed = typed_program_from_source(source);
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
-    let render_ir =
-        llvm_function_ir(&llvm, "define internal i8* @render_payload(i64 %arg0, i8* %arg1, i1 %arg2, i64 %arg3)");
+    let render_ir = llvm_function_ir(
+        &llvm,
+        "define internal i8* @render_payload(i64 %arg0, i8* %arg1, i1 %arg2, i64 %arg3)",
+    );
 
     assert!(render_ir.contains("call i8* @str_concat9("));
     assert!(
@@ -2504,7 +2544,10 @@ fn main() -> Int:
     let typed = typed_program_from_source(source);
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
-    let parse_ir = llvm_function_ir(&llvm, "define internal i64 @parse_positive_int(i8* %arg0, i64 %arg1)");
+    let parse_ir = llvm_function_ir(
+        &llvm,
+        "define internal i64 @parse_positive_int(i8* %arg0, i64 %arg1)",
+    );
 
     assert!(
         !parse_ir.contains("call i64 @byte_at("),
