@@ -139,6 +139,10 @@ zender
 *.obj.fingerprint
 *.obj.d
 
+# Attrition generated artifacts
+/attrition/out/
+/attrition/latest.md
+
 # Bazel local state
 /bazel-*
 /.bazel-cache/

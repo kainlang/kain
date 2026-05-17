@@ -1,0 +1,48 @@
+name = "kain-native-attrition-runtime"
+
+sources = [
+    "native/src/core/core.c",
+    "native/src/core/version.c",
+    "native/src/core/diagnostics.c",
+    "native/src/core/actor.c",
+    "native/src/core/async.c",
+    "native/src/core/process_system.c",
+    "native/src/core/attrition.c",
+]
+
+windows_sources = []
+linux_sources = []
+macos_sources = []
+
+include_dirs = [
+    "native/include",
+]
+
+windows_defines = [
+    "WIN32_LEAN_AND_MEAN",
+    "_WIN32_WINNT=0x0A00",
+    "_CRT_DECLARE_NONSTDC_NAMES=0",
+]
+
+linux_defines = [
+    "_GNU_SOURCE",
+    "_POSIX_C_SOURCE=200112",
+    "_FILE_OFFSET_BITS=64",
+]
+
+windows_link_libraries = [
+    "legacy_stdio_definitions",
+    "ws2_32",
+]
+
+linux_link_libraries = [
+    "pthread",
+    "m",
+]
+
+macos_link_libraries = []
+
+[metadata]
+description = "Lean native runtime manifest for attrition/stress lanes with attrition telemetry enabled"
+runtime_lane = "attrition-native"
+compatibility_class = "experimental"

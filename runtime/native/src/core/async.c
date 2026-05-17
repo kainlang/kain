@@ -8,6 +8,7 @@
  */
 
 #include "../../include/async.h"
+#include "../../include/attrition.h"
 #include "../../include/base.h"
 #include <errno.h>
 #include <stdint.h>
@@ -110,12 +111,38 @@ static KainAsyncMutex g_async_global_lock;
 static KainTaskId g_async_next_task_id = 1;
 static KainTimerId g_async_next_timer_id = 1;
 static KAIN_THREAD_LOCAL KainTaskId g_async_current_task_id = KAIN_TASK_ID_INVALID;
+static atomic_uint_least64_t g_attrition_async_task_live_count = 0;
+static atomic_uint_least64_t g_attrition_async_task_peak_count = 0;
+static atomic_uint_least64_t g_attrition_async_task_spawn_count = 0;
+static atomic_uint_least64_t g_attrition_async_task_exit_count = 0;
+static atomic_uint_least64_t g_attrition_async_task_stale_reject_count = 0;
+static atomic_uint_least64_t g_attrition_async_timer_live_count = 0;
+static atomic_uint_least64_t g_attrition_async_timer_peak_count = 0;
+static atomic_uint_least64_t g_attrition_async_timer_spawn_count = 0;
+static atomic_uint_least64_t g_attrition_async_timer_exit_count = 0;
+static atomic_uint_least64_t g_attrition_async_timer_cancel_count = 0;
+static atomic_uint_least64_t g_attrition_async_timer_stale_reject_count = 0;
 
 #ifdef _WIN32
 static INIT_ONCE g_async_init_once = INIT_ONCE_STATIC_INIT;
 #else
 static pthread_once_t g_async_init_once = PTHREAD_ONCE_INIT;
 #endif
+
+static void kain_async_attrition_update_peak(
+    atomic_uint_least64_t* peak_counter,
+    uint64_t candidate
+) {
+    uint64_t current_peak = atomic_load_explicit(peak_counter, memory_order_relaxed);
+    while (candidate > current_peak &&
+           !atomic_compare_exchange_weak_explicit(
+               peak_counter,
+               &current_peak,
+               candidate,
+               memory_order_relaxed,
+               memory_order_relaxed)) {
+    }
+}
 
 static void kain_async_mutex_init(KainAsyncMutex* mutex) {
 #ifdef _WIN32
@@ -166,23 +193,7 @@ static void kain_async_cond_wait(KainAsyncCondVar* cond, KainAsyncMutex* mutex) 
 }
 
 static void kain_async_sleep_for_ms(unsigned long long delay_ms) {
-#ifdef _WIN32
-    while (delay_ms > 0) {
-        DWORD chunk = delay_ms > 0xFFFFFFFFULL ? 0xFFFFFFFFUL : (DWORD)delay_ms;
-        Sleep(chunk);
-        delay_ms -= chunk;
-    }
-#else
-    while (delay_ms > 0) {
-        struct timespec req;
-        req.tv_sec = (time_t)(delay_ms / 1000ULL);
-        req.tv_nsec = (long)((delay_ms % 1000ULL) * 1000000ULL);
-        while (nanosleep(&req, &req) != 0 && errno == EINTR) {
-            /* retry until the full delay elapses */
-        }
-        break;
-    }
-#endif
+    kain_attrition_sleep_for_millis(delay_ms);
 }
 
 static void kain_async_set_diag(
@@ -369,17 +380,14 @@ static void kain_async_rebuild_timer_index(void) {
     }
 }
 
-static KainAsyncTaskRecord* kain_async_find_task(KainTaskId task_id) {
+static KainAsyncTaskRecord* kain_async_find_task_locked(KainTaskId task_id) {
     uint32_t start_index;
     uint32_t probe;
-    KainAsyncTaskRecord* record = NULL;
 
     if (task_id == KAIN_TASK_ID_INVALID) {
         return NULL;
     }
 
-    kain_async_ensure_initialized();
-    kain_async_mutex_lock(&g_async_global_lock);
     start_index = kain_async_index_start_slot((uint64_t)task_id, KAIN_ASYNC_TASK_INDEX_MASK);
     for (probe = 0u; probe < KAIN_ASYNC_TASK_INDEX_CAPACITY; ++probe) {
         uint32_t candidate_index = (start_index + probe) & KAIN_ASYNC_TASK_INDEX_MASK;
@@ -392,10 +400,119 @@ static KainAsyncTaskRecord* kain_async_find_task(KainTaskId task_id) {
         if (slot < KAIN_ASYNC_MAX_TASKS &&
             g_async_tasks[slot].in_use &&
             g_async_tasks[slot].id == task_id) {
-            record = &g_async_tasks[slot];
-            break;
+            return &g_async_tasks[slot];
         }
     }
+
+    return NULL;
+}
+
+static KainAsyncTimerRecord* kain_async_find_timer_locked(KainTimerId timer_id) {
+    uint32_t start_index;
+    uint32_t probe;
+
+    if (timer_id == KAIN_TIMER_ID_INVALID) {
+        return NULL;
+    }
+
+    start_index = kain_async_index_start_slot((uint64_t)timer_id, KAIN_ASYNC_TIMER_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_ASYNC_TIMER_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_ASYNC_TIMER_INDEX_MASK;
+        uint32_t encoded_slot = g_async_timer_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            break;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_ASYNC_MAX_TIMERS &&
+            g_async_timers[slot].in_use &&
+            g_async_timers[slot].id == timer_id) {
+            return &g_async_timers[slot];
+        }
+    }
+
+    return NULL;
+}
+
+static void kain_async_destroy_task_sync_primitives(KainAsyncTaskRecord* task) {
+    if (task == NULL) {
+        return;
+    }
+#ifdef _WIN32
+    DeleteCriticalSection(&task->lock);
+#else
+    pthread_cond_destroy(&task->cond);
+    pthread_mutex_destroy(&task->lock);
+#endif
+}
+
+static void kain_async_release_task_record_locked(KainAsyncTaskRecord* task) {
+    uint32_t slot;
+    uint64_t bit;
+    if (task == NULL || !task->in_use) {
+        return;
+    }
+    slot = (uint32_t)(task - g_async_tasks);
+    bit = UINT64_C(1) << (slot & 63u);
+    if (task->sleep_state.timer_id != KAIN_TIMER_ID_INVALID) {
+        KainAsyncTimerRecord* timer = kain_async_find_timer_locked(task->sleep_state.timer_id);
+        if (timer != NULL && timer->wake_handle == &task->handle) {
+            atomic_store_explicit(&timer->cancelled, 1, memory_order_release);
+        }
+        task->sleep_state.timer_id = KAIN_TIMER_ID_INVALID;
+        task->sleep_state.armed = 0;
+    }
+    task->handle.owner = NULL;
+    task->handle.id = KAIN_TASK_ID_INVALID;
+    if (task->result != NULL) {
+        kain_task_result_cleanup(task->result);
+        task->result = NULL;
+    }
+    g_async_task_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~bit;
+    kain_async_destroy_task_sync_primitives(task);
+    memset(task, 0, sizeof(*task));
+    kain_async_rebuild_task_index();
+}
+
+static void kain_async_release_timer_record_locked(KainAsyncTimerRecord* timer) {
+    uint32_t slot;
+    uint64_t bit;
+    if (timer == NULL || !timer->in_use) {
+        return;
+    }
+    slot = (uint32_t)(timer - g_async_timers);
+    bit = UINT64_C(1) << (slot & 63u);
+    g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~bit;
+    memset(timer, 0, sizeof(*timer));
+    kain_async_rebuild_timer_index();
+}
+
+static void kain_async_release_timer_record(KainAsyncTimerRecord* timer) {
+    KainTimerId timer_id;
+    if (timer == NULL || !timer->in_use) {
+        return;
+    }
+    timer_id = timer->id;
+    kain_async_mutex_lock(&g_async_global_lock);
+    if (timer->in_use && timer->id == timer_id) {
+        kain_async_release_timer_record_locked(timer);
+    }
+    kain_async_mutex_unlock(&g_async_global_lock);
+    atomic_fetch_sub_explicit(&g_attrition_async_timer_live_count, 1u, memory_order_relaxed);
+    atomic_fetch_add_explicit(&g_attrition_async_timer_exit_count, 1u, memory_order_relaxed);
+    kain_attrition_note_async_timer_exit((uint64_t)timer_id);
+}
+
+static KainAsyncTaskRecord* kain_async_find_task(KainTaskId task_id) {
+    KainAsyncTaskRecord* record = NULL;
+
+    if (task_id == KAIN_TASK_ID_INVALID) {
+        return NULL;
+    }
+
+    kain_async_ensure_initialized();
+    kain_async_mutex_lock(&g_async_global_lock);
+    record = kain_async_find_task_locked(task_id);
     kain_async_mutex_unlock(&g_async_global_lock);
     return record;
 }
@@ -438,11 +555,22 @@ static KainAsyncTaskRecord* kain_async_allocate_task_record(void) {
                 (uint64_t)record->id,
                 slot)) {
             g_async_task_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~bit;
+            kain_async_destroy_task_sync_primitives(record);
             memset(record, 0, sizeof(*record));
             record = NULL;
+        } else {
+            uint64_t live_count = atomic_fetch_add_explicit(
+                                      &g_attrition_async_task_live_count,
+                                      1u,
+                                      memory_order_relaxed) + 1u;
+            atomic_fetch_add_explicit(&g_attrition_async_task_spawn_count, 1u, memory_order_relaxed);
+            kain_async_attrition_update_peak(&g_attrition_async_task_peak_count, live_count);
         }
     }
     kain_async_mutex_unlock(&g_async_global_lock);
+    if (record != NULL) {
+        kain_attrition_note_async_task_spawn((uint64_t)record->id);
+    }
     return record;
 }
 
@@ -463,14 +591,23 @@ static KainAsyncTimerRecord* kain_async_allocate_timer_record(void) {
         atomic_init(&record->started, 0);
         bit = UINT64_C(1) << (slot & 63u);
         g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] |= bit;
+        {
+            uint64_t live_count = atomic_fetch_add_explicit(
+                                      &g_attrition_async_timer_live_count,
+                                      1u,
+                                      memory_order_relaxed) + 1u;
+            atomic_fetch_add_explicit(&g_attrition_async_timer_spawn_count, 1u, memory_order_relaxed);
+            kain_async_attrition_update_peak(&g_attrition_async_timer_peak_count, live_count);
+        }
     }
     kain_async_mutex_unlock(&g_async_global_lock);
+    if (record != NULL) {
+        kain_attrition_note_async_timer_spawn((uint64_t)record->id);
+    }
     return record;
 }
 
 static KainAsyncTimerRecord* kain_async_find_timer(KainTimerId timer_id) {
-    uint32_t start_index;
-    uint32_t probe;
     KainAsyncTimerRecord* record = NULL;
 
     if (timer_id == KAIN_TIMER_ID_INVALID) {
@@ -479,22 +616,7 @@ static KainAsyncTimerRecord* kain_async_find_timer(KainTimerId timer_id) {
 
     kain_async_ensure_initialized();
     kain_async_mutex_lock(&g_async_global_lock);
-    start_index = kain_async_index_start_slot((uint64_t)timer_id, KAIN_ASYNC_TIMER_INDEX_MASK);
-    for (probe = 0u; probe < KAIN_ASYNC_TIMER_INDEX_CAPACITY; ++probe) {
-        uint32_t candidate_index = (start_index + probe) & KAIN_ASYNC_TIMER_INDEX_MASK;
-        uint32_t encoded_slot = g_async_timer_index[candidate_index];
-        uint32_t slot;
-        if (encoded_slot == 0u) {
-            break;
-        }
-        slot = encoded_slot - 1u;
-        if (slot < KAIN_ASYNC_MAX_TIMERS &&
-            g_async_timers[slot].in_use &&
-            g_async_timers[slot].id == timer_id) {
-            record = &g_async_timers[slot];
-            break;
-        }
-    }
+    record = kain_async_find_timer_locked(timer_id);
     kain_async_mutex_unlock(&g_async_global_lock);
     return record;
 }
@@ -679,6 +801,9 @@ static int kain_async_task_signal_handle(void* wake_handle, KainDiagnostic* diag
     KainAsyncTaskRecord* task = NULL;
 
     if (!handle || !handle->owner) {
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject(
+            (uint64_t)(handle != NULL ? handle->id : KAIN_TASK_ID_INVALID));
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -693,6 +818,8 @@ static int kain_async_task_signal_handle(void* wake_handle, KainDiagnostic* diag
     kain_async_mutex_lock(&task->lock);
     if (task->id != handle->id || !task->in_use) {
         kain_async_mutex_unlock(&task->lock);
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject((uint64_t)handle->id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -738,6 +865,7 @@ static void* kain_async_timer_thread_proc(void* parameter) {
     kain_async_sleep_for_ms(timer->delay_ms);
 
     if (atomic_load_explicit(&timer->cancelled, memory_order_acquire) != 0) {
+        kain_async_release_timer_record(timer);
 #ifdef _WIN32
         return 0;
 #else
@@ -757,6 +885,7 @@ static void* kain_async_timer_thread_proc(void* parameter) {
         }
         kain_async_task_signal_handle(timer->wake_handle, NULL);
     }
+    kain_async_release_timer_record(timer);
 
 #ifdef _WIN32
     return 0;
@@ -822,6 +951,8 @@ KainPollResult kain_task_poll(
         if (result) {
             *result = NULL;
         }
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -846,6 +977,8 @@ int kain_task_await(
         if (result) {
             *result = NULL;
         }
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -914,8 +1047,11 @@ int kain_task_cancel(
     KainDiagnostic* diag
 ) {
     KainAsyncTaskRecord* task = kain_async_find_task(task_id);
+    KainTimerId timer_id_to_cancel = KAIN_TIMER_ID_INVALID;
 
     if (!task) {
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -932,11 +1068,29 @@ int kain_task_cancel(
         return 0;
     }
     task->cancel_requested = 1;
+    if (task->sleep_state.timer_id != KAIN_TIMER_ID_INVALID) {
+        timer_id_to_cancel = task->sleep_state.timer_id;
+        task->sleep_state.timer_id = KAIN_TIMER_ID_INVALID;
+        task->sleep_state.armed = 0;
+    }
     task->state = KAIN_TASK_STATE_CANCELLED;
     atomic_store_explicit(&task->runtime_state.cancelled, 1, memory_order_release);
     atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_CANCELLED, memory_order_release);
     kain_async_cond_signal(&task->cond);
     kain_async_mutex_unlock(&task->lock);
+
+    if (timer_id_to_cancel != KAIN_TIMER_ID_INVALID) {
+        kain_async_mutex_lock(&g_async_global_lock);
+        {
+            KainAsyncTimerRecord* timer = kain_async_find_timer_locked(timer_id_to_cancel);
+            if (timer != NULL && timer->id == timer_id_to_cancel) {
+                atomic_store_explicit(&timer->cancelled, 1, memory_order_release);
+                atomic_fetch_add_explicit(&g_attrition_async_timer_cancel_count, 1u, memory_order_relaxed);
+                kain_attrition_note_async_timer_cancel((uint64_t)timer_id_to_cancel);
+            }
+        }
+        kain_async_mutex_unlock(&g_async_global_lock);
+    }
 
     kain_async_set_diag(
         diag,
@@ -1008,9 +1162,13 @@ KainTimerId kain_timer_register(
             (uint64_t)timer->id,
             (uint32_t)(timer - g_async_timers))) {
         uint32_t slot = (uint32_t)(timer - g_async_timers);
+        KainTimerId timer_id = timer->id;
         g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));
         memset(timer, 0, sizeof(*timer));
         kain_async_rebuild_timer_index();
+        atomic_fetch_sub_explicit(&g_attrition_async_timer_live_count, 1u, memory_order_relaxed);
+        atomic_fetch_add_explicit(&g_attrition_async_timer_exit_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_timer_exit((uint64_t)timer_id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -1025,9 +1183,13 @@ KainTimerId kain_timer_register(
     timer->thread_handle = CreateThread(NULL, 0, kain_async_timer_thread_proc, timer, 0, NULL);
     if (!timer->thread_handle) {
         uint32_t slot = (uint32_t)(timer - g_async_timers);
+        KainTimerId timer_id = timer->id;
         g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));
         memset(timer, 0, sizeof(*timer));
         kain_async_rebuild_timer_index();
+        atomic_fetch_sub_explicit(&g_attrition_async_timer_live_count, 1u, memory_order_relaxed);
+        atomic_fetch_add_explicit(&g_attrition_async_timer_exit_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_timer_exit((uint64_t)timer_id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -1041,9 +1203,13 @@ KainTimerId kain_timer_register(
 #else
     if (pthread_create(&timer->thread_handle, NULL, kain_async_timer_thread_proc, timer) != 0) {
         uint32_t slot = (uint32_t)(timer - g_async_timers);
+        KainTimerId timer_id = timer->id;
         g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));
         memset(timer, 0, sizeof(*timer));
         kain_async_rebuild_timer_index();
+        atomic_fetch_sub_explicit(&g_attrition_async_timer_live_count, 1u, memory_order_relaxed);
+        atomic_fetch_add_explicit(&g_attrition_async_timer_exit_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_timer_exit((uint64_t)timer_id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -1063,9 +1229,15 @@ int kain_timer_cancel(
     KainTimerId timer_id,
     KainDiagnostic* diag
 ) {
-    KainAsyncTimerRecord* timer = kain_async_find_timer(timer_id);
+    KainAsyncTimerRecord* timer = NULL;
 
+    kain_async_ensure_initialized();
+    kain_async_mutex_lock(&g_async_global_lock);
+    timer = kain_async_find_timer_locked(timer_id);
     if (!timer) {
+        kain_async_mutex_unlock(&g_async_global_lock);
+        atomic_fetch_add_explicit(&g_attrition_async_timer_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_timer_stale_reject((uint64_t)timer_id);
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -1077,6 +1249,9 @@ int kain_timer_cancel(
     }
 
     atomic_store_explicit(&timer->cancelled, 1, memory_order_release);
+    atomic_fetch_add_explicit(&g_attrition_async_timer_cancel_count, 1u, memory_order_relaxed);
+    kain_attrition_note_async_timer_cancel((uint64_t)timer_id);
+    kain_async_mutex_unlock(&g_async_global_lock);
     kain_async_set_diag(
         diag,
         KAIN_DIAG_SEVERITY_INFO,
@@ -1137,6 +1312,78 @@ int kain_task_yield(KainDiagnostic* diag) {
 
 KainTaskId kain_task_current_id(void) {
     return g_async_current_task_id;
+}
+
+int kain_attrition_async_dispose_task(KainTaskId task_id) {
+    KainAsyncTaskRecord* task = NULL;
+    KainTaskState state;
+    if (task_id == KAIN_TASK_ID_INVALID) {
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
+        return -1;
+    }
+
+    kain_async_ensure_initialized();
+    kain_async_mutex_lock(&g_async_global_lock);
+    task = kain_async_find_task_locked(task_id);
+    if (task == NULL || !task->in_use || task->id != task_id) {
+        kain_async_mutex_unlock(&g_async_global_lock);
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
+        return -1;
+    }
+
+    kain_async_mutex_lock(&task->lock);
+    state = task->state;
+    kain_async_mutex_unlock(&task->lock);
+    if (!kain_async_task_is_terminal(state)) {
+        kain_async_mutex_unlock(&g_async_global_lock);
+        return -2;
+    }
+
+    kain_async_release_task_record_locked(task);
+    kain_async_mutex_unlock(&g_async_global_lock);
+    atomic_fetch_sub_explicit(&g_attrition_async_task_live_count, 1u, memory_order_relaxed);
+    atomic_fetch_add_explicit(&g_attrition_async_task_exit_count, 1u, memory_order_relaxed);
+    kain_attrition_note_async_task_exit((uint64_t)task_id);
+    return 0;
+}
+
+void kain_attrition_async_counters_reset(void) {
+    atomic_store_explicit(&g_attrition_async_task_live_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_task_peak_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_task_spawn_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_task_exit_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_task_stale_reject_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_timer_live_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_timer_peak_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_timer_spawn_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_timer_exit_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_timer_cancel_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_async_timer_stale_reject_count, 0u, memory_order_relaxed);
+}
+
+void kain_attrition_async_fill_snapshot(KainAttritionSnapshot* snapshot) {
+    if (snapshot == NULL) {
+        return;
+    }
+    snapshot->async_task_live_count = atomic_load_explicit(&g_attrition_async_task_live_count, memory_order_relaxed);
+    snapshot->async_task_peak_count = atomic_load_explicit(&g_attrition_async_task_peak_count, memory_order_relaxed);
+    snapshot->async_task_spawn_count = atomic_load_explicit(&g_attrition_async_task_spawn_count, memory_order_relaxed);
+    snapshot->async_task_exit_count = atomic_load_explicit(&g_attrition_async_task_exit_count, memory_order_relaxed);
+    snapshot->async_task_stale_reject_count = atomic_load_explicit(
+        &g_attrition_async_task_stale_reject_count,
+        memory_order_relaxed);
+    snapshot->async_timer_live_count = atomic_load_explicit(&g_attrition_async_timer_live_count, memory_order_relaxed);
+    snapshot->async_timer_peak_count = atomic_load_explicit(&g_attrition_async_timer_peak_count, memory_order_relaxed);
+    snapshot->async_timer_spawn_count = atomic_load_explicit(&g_attrition_async_timer_spawn_count, memory_order_relaxed);
+    snapshot->async_timer_exit_count = atomic_load_explicit(&g_attrition_async_timer_exit_count, memory_order_relaxed);
+    snapshot->async_timer_cancel_count = atomic_load_explicit(&g_attrition_async_timer_cancel_count, memory_order_relaxed);
+    snapshot->async_timer_stale_reject_count = atomic_load_explicit(
+        &g_attrition_async_timer_stale_reject_count,
+        memory_order_relaxed);
+    snapshot->async_task_occupancy_low_word = g_async_task_occupancy_words[0];
+    snapshot->async_timer_occupancy_low_word = g_async_timer_occupancy_words[0];
 }
 
 void kain_task_result_cleanup(void* result) {

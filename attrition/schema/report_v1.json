@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Kain Attrition Suite Report V1",
+  "type": "object",
+  "required": ["schema_version", "report_kind", "generated_at", "profile", "scale", "suite_passed", "cases"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "report_kind": { "const": "attrition_suite_report" },
+    "generated_at": { "type": "string" },
+    "manifest": { "type": "string" },
+    "profile": { "type": "string" },
+    "scale": { "type": "string" },
+    "clang": { "type": "string" },
+    "suite_passed": { "type": "boolean" },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["case_id", "options", "status", "replay_command"]
+      }
+    }
+  }
+}

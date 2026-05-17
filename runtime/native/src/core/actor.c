@@ -9,9 +9,11 @@
  */
 
 #include "../../include/actor.h"
+#include "../../include/attrition.h"
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <time.h>
 #ifndef _WIN32
@@ -125,6 +127,52 @@ typedef struct {
 } KainActorReplyPortState;
 
 static KAIN_THREAD_LOCAL KainActorReplyPortState* g_actor_reply_port_tls = NULL;
+static atomic_uint_least64_t g_attrition_actor_live_count = 0;
+static atomic_uint_least64_t g_attrition_actor_peak_count = 0;
+static atomic_uint_least64_t g_attrition_actor_spawn_count = 0;
+static atomic_uint_least64_t g_attrition_actor_exit_count = 0;
+static atomic_uint_least64_t g_attrition_actor_stale_reject_count = 0;
+static atomic_uint_least64_t g_attrition_reply_port_live_count = 0;
+static atomic_uint_least64_t g_attrition_reply_port_peak_count = 0;
+
+static void kain_attrition_actor_update_peak(
+    atomic_uint_least64_t* peak_counter,
+    uint64_t candidate
+) {
+    uint64_t current_peak = atomic_load_explicit(peak_counter, memory_order_relaxed);
+    while (candidate > current_peak &&
+           !atomic_compare_exchange_weak_explicit(
+               peak_counter,
+               &current_peak,
+               candidate,
+               memory_order_relaxed,
+               memory_order_relaxed)) {
+    }
+}
+
+static void kain_attrition_actor_note_spawn_internal(int synthetic_reply_port) {
+    uint64_t live_count = atomic_fetch_add_explicit(
+                              &g_attrition_actor_live_count,
+                              1u,
+                              memory_order_relaxed) + 1u;
+    atomic_fetch_add_explicit(&g_attrition_actor_spawn_count, 1u, memory_order_relaxed);
+    kain_attrition_actor_update_peak(&g_attrition_actor_peak_count, live_count);
+    if (synthetic_reply_port) {
+        uint64_t reply_port_live_count = atomic_fetch_add_explicit(
+                                             &g_attrition_reply_port_live_count,
+                                             1u,
+                                             memory_order_relaxed) + 1u;
+        kain_attrition_actor_update_peak(&g_attrition_reply_port_peak_count, reply_port_live_count);
+    }
+}
+
+static void kain_attrition_actor_note_exit_internal(int synthetic_reply_port) {
+    atomic_fetch_sub_explicit(&g_attrition_actor_live_count, 1u, memory_order_relaxed);
+    atomic_fetch_add_explicit(&g_attrition_actor_exit_count, 1u, memory_order_relaxed);
+    if (synthetic_reply_port) {
+        atomic_fetch_sub_explicit(&g_attrition_reply_port_live_count, 1u, memory_order_relaxed);
+    }
+}
 
 /* Forward declarations */
 static void kain_actor_cleanup(KainActorState_Internal* actor);
@@ -1381,6 +1429,7 @@ static int kain_actor_table_ref_matches_locked(
 
 static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
     size_t word_index;
+    int inserted_synthetic_reply_port = 0;
 #ifdef _WIN32
     EnterCriticalSection(&g_actor_table.lock);
 #else
@@ -1416,6 +1465,8 @@ static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
                 g_actor_table.actors[id] = actor;
                 g_actor_table.generations[id] = next_generation;
                 g_actor_table.occupancy_words[word_index] |= low_bit;
+                inserted_synthetic_reply_port =
+                    actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT;
             } else {
                 id = KAIN_ACTOR_ID_INVALID;
             }
@@ -1429,10 +1480,14 @@ static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
     pthread_mutex_unlock(&g_actor_table.lock);
 #endif
 
+    if (id != KAIN_ACTOR_ID_INVALID) {
+        kain_attrition_actor_note_spawn_internal(inserted_synthetic_reply_port);
+    }
     return id;
 }
 
 static void kain_actor_table_remove(KainActorId actor_id) {
+    KainActorState_Internal* actor;
     size_t word_index;
     uint64_t bit_mask;
     if (actor_id == KAIN_ACTOR_ID_INVALID || actor_id >= KAIN_ACTOR_TABLE_SIZE) {
@@ -1445,6 +1500,7 @@ static void kain_actor_table_remove(KainActorId actor_id) {
     pthread_mutex_lock(&g_actor_table.lock);
 #endif
 
+    actor = g_actor_table.actors[actor_id];
     g_actor_table.actors[actor_id] = NULL;
     word_index = (size_t)(actor_id / KAIN_ACTOR_TABLE_WORD_BITS);
     bit_mask = 1ULL << (unsigned int)(actor_id % KAIN_ACTOR_TABLE_WORD_BITS);
@@ -1455,6 +1511,11 @@ static void kain_actor_table_remove(KainActorId actor_id) {
 #else
     pthread_mutex_unlock(&g_actor_table.lock);
 #endif
+
+    if (actor != NULL) {
+        kain_attrition_actor_note_exit_internal(
+            actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT);
+    }
 }
 
 /*
@@ -1529,6 +1590,10 @@ static KainActorState_Internal* kain_actor_table_remove_ref(const KainActorRef* 
     pthread_mutex_unlock(&g_actor_table.lock);
 #endif
 
+    if (actor != NULL) {
+        kain_attrition_actor_note_exit_internal(
+            actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT);
+    }
     return actor;
 }
 
@@ -1719,6 +1784,8 @@ int kain_actor_reply_port_send_ref(
 #else
         pthread_mutex_unlock(&g_actor_table.lock);
 #endif
+        atomic_fetch_add_explicit(&g_attrition_actor_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_actor_stale_reject(reply_port_ref->actor_id, reply_port_ref->generation);
         return -1;
     }
 
@@ -2101,6 +2168,8 @@ int kain_actor_ask_send_ref(
 #else
         pthread_mutex_unlock(&g_actor_table.lock);
 #endif
+        atomic_fetch_add_explicit(&g_attrition_actor_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_actor_stale_reject(target_ref->actor_id, target_ref->generation);
         if (diag != NULL) {
             kain_diagnostic_init(diag);
             diag->subsystem = KAIN_DIAG_SUBSYSTEM_ACTOR;
@@ -2482,6 +2551,66 @@ static void kain_actor_cleanup(KainActorState_Internal* actor) {
         free(link);
         link = next;
     }
+}
+
+void kain_attrition_actor_counters_reset(void) {
+    atomic_store_explicit(&g_attrition_actor_live_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_actor_peak_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_actor_spawn_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_actor_exit_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_actor_stale_reject_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_reply_port_live_count, 0u, memory_order_relaxed);
+    atomic_store_explicit(&g_attrition_reply_port_peak_count, 0u, memory_order_relaxed);
+}
+
+void kain_attrition_actor_fill_snapshot(KainAttritionSnapshot* snapshot) {
+    size_t actor_index;
+    uint64_t pending_mailbox_message_count = 0u;
+    uint64_t pending_mailbox_cached_nodes = 0u;
+    if (snapshot == NULL) {
+        return;
+    }
+
+    snapshot->actor_live_count = atomic_load_explicit(&g_attrition_actor_live_count, memory_order_relaxed);
+    snapshot->actor_peak_count = atomic_load_explicit(&g_attrition_actor_peak_count, memory_order_relaxed);
+    snapshot->actor_spawn_count = atomic_load_explicit(&g_attrition_actor_spawn_count, memory_order_relaxed);
+    snapshot->actor_exit_count = atomic_load_explicit(&g_attrition_actor_exit_count, memory_order_relaxed);
+    snapshot->actor_stale_reject_count = atomic_load_explicit(
+        &g_attrition_actor_stale_reject_count,
+        memory_order_relaxed);
+    snapshot->reply_port_live_count = atomic_load_explicit(
+        &g_attrition_reply_port_live_count,
+        memory_order_relaxed);
+    snapshot->reply_port_peak_count = atomic_load_explicit(
+        &g_attrition_reply_port_peak_count,
+        memory_order_relaxed);
+
+    if (!g_actor_runtime_initialized) {
+        return;
+    }
+
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_lock(&g_actor_table.lock);
+#endif
+    snapshot->actor_occupancy_low_word = g_actor_table.occupancy_words[0];
+    for (actor_index = 0u; actor_index < KAIN_ACTOR_TABLE_SIZE; ++actor_index) {
+        KainActorState_Internal* actor = g_actor_table.actors[actor_index];
+        if (actor == NULL) {
+            continue;
+        }
+        pending_mailbox_message_count += (uint64_t)actor->mailbox.count;
+        pending_mailbox_cached_nodes += (uint64_t)actor->mailbox.free_node_count;
+    }
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_table.lock);
+#else
+    pthread_mutex_unlock(&g_actor_table.lock);
+#endif
+
+    snapshot->pending_mailbox_message_count = pending_mailbox_message_count;
+    snapshot->pending_mailbox_cached_nodes = pending_mailbox_cached_nodes;
 }
 
 /*

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Kain Attrition Case Result V1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_kind",
+    "case_id",
+    "ops",
+    "seed",
+    "checksum",
+    "run_status",
+    "validate_status",
+    "overall_status",
+    "passed",
+    "baseline_snapshot",
+    "final_snapshot",
+    "events"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "report_kind": { "const": "attrition_case_result" },
+    "case_id": { "type": "string" },
+    "ops": { "type": "integer", "minimum": 1 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "checksum": { "type": "integer", "minimum": 0 },
+    "passed": { "type": "boolean" },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["event_index", "kind", "aux", "arg0", "arg1", "arg2"]
+      }
+    }
+  }
+}

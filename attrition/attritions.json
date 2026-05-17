@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "runtime_manifest": "runtime/native_attrition_runtime.toml",
+  "profiles": {
+    "release-instrumented": {
+      "description": "Optimized native attrition build with telemetry enabled.",
+      "c_flags": ["-O2", "-DNDEBUG"]
+    },
+    "debug-assert": {
+      "description": "Low-optimization debug build for replay and diagnosis.",
+      "c_flags": ["-O0", "-g"]
+    },
+    "poison-allocator": {
+      "description": "Release build with poison-on-free and quarantine pressure.",
+      "c_flags": ["-O2", "-DNDEBUG"],
+      "runtime": {
+        "poison_on_free": 1,
+        "quarantine_capacity": 256,
+        "fragmentation_noise_max_bytes": 256
+      }
+    },
+    "virtual-time": {
+      "description": "Release build with virtual-time execution enabled.",
+      "c_flags": ["-O2", "-DNDEBUG"],
+      "runtime": {
+        "virtual_time_enabled": 1,
+        "virtual_time_step_ms": 1
+      }
+    },
+    "mixed-poison-virtual-time": {
+      "description": "Release build with both allocator poison and virtual time.",
+      "c_flags": ["-O2", "-DNDEBUG"],
+      "runtime": {
+        "virtual_time_enabled": 1,
+        "virtual_time_step_ms": 1,
+        "poison_on_free": 1,
+        "quarantine_capacity": 256,
+        "fragmentation_noise_max_bytes": 256
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "saturated_rc_hot_object",
+      "title": "Saturated RC Hot Object",
+      "description": "Single shared RC object churn with decimal/string allocation pressure and closure auditing.",
+      "lane_kind": "isolated",
+      "determinism_tier": 1,
+      "source": "cases/saturated_rc_hot_object/main.c",
+      "ops": {
+        "small": 10000,
+        "medium": 500000,
+        "full": 5000000
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "rc.bytes_return_to_floor",
+        "rc.alloc_free_reconciled",
+        "rc.no_underflow",
+        "rc.no_overflow"
+      ],
+      "expected_fail_sabotages": [
+        "skip_final_release",
+        "retain_without_release_every_1024"
+      ]
+    },
+    {
+      "id": "virtual_time_async_timer",
+      "title": "Virtual-Time Async Timer",
+      "description": "Async sleep/task cancellation churn under virtual time with strict raw-clock provenance checks.",
+      "lane_kind": "isolated",
+      "determinism_tier": 1,
+      "source": "cases/virtual_time_async_timer/main.c",
+      "ops": {
+        "small": 4096,
+        "medium": 32768,
+        "full": 262144
+      },
+      "runtime": {
+        "virtual_time_enabled": 1,
+        "virtual_time_step_ms": 1,
+        "time_provenance_required": 1
+      },
+      "invariants": [
+        "async.tasks_zero",
+        "async.timers_zero",
+        "time.virtual_no_raw_fallback"
+      ],
+      "expected_fail_sabotages": [
+        "skip_task_dispose"
+      ]
+    },
+    {
+      "id": "actor_reply_port_recycle",
+      "title": "Actor Reply-Port Recycle",
+      "description": "Synthetic actor reply-port generation invalidation under immediate slot reuse.",
+      "lane_kind": "isolated",
+      "determinism_tier": 1,
+      "source": "cases/actor_reply_port_recycle/main.c",
+      "ops": {
+        "small": 256,
+        "medium": 4096,
+        "full": 32768
+      },
+      "invariants": [
+        "actor.live_zero",
+        "actor.reply_ports_zero",
+        "actor.occupancy_floor_only",
+        "actor.stale_rejects_advance"
+      ],
+      "expected_fail_sabotages": [
+        "skip_destroy"
+      ]
+    },
+    {
+      "id": "process_slot_recycle",
+      "title": "Process Slot Recycle",
+      "description": "Child-process slot reuse with stale handle/spec rejection checks.",
+      "lane_kind": "isolated",
+      "determinism_tier": 1,
+      "source": "cases/process_slot_recycle/main.c",
+      "ops": {
+        "small": 8,
+        "medium": 128,
+        "full": 1024
+      },
+      "invariants": [
+        "process.live_zero",
+        "process.occupancy_zero",
+        "process.stale_rejects_advance"
+      ],
+      "expected_fail_sabotages": [
+        "skip_close"
+      ]
+    },
+    {
+      "id": "mixed_runtime_boss",
+      "title": "Mixed Runtime Boss",
+      "description": "RC, actor reply-port reuse, async virtual-time churn, and process slot reuse in one deterministic boss fight.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source": "cases/mixed_runtime_boss/main.c",
+      "ops": {
+        "small": 256,
+        "medium": 2048,
+        "full": 16384
+      },
+      "runtime": {
+        "virtual_time_enabled": 1,
+        "virtual_time_step_ms": 1,
+        "time_provenance_required": 1
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "async.tasks_zero",
+        "async.timers_zero",
+        "actor.reply_ports_zero",
+        "process.live_zero",
+        "time.virtual_no_raw_fallback"
+      ],
+      "expected_fail_sabotages": [
+        "skip_mixed_cleanup"
+      ]
+    }
+  ]
+}

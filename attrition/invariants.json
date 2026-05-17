@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "invariants": [
+    {
+      "id": "rc.live_objects_zero",
+      "owner_subsystem": "memory",
+      "formula": "final.live_rc_objects == idle_floor",
+      "units": "objects",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_final_release", "retain_without_release_every_1024", "skip_mixed_cleanup"],
+      "isolate_lane": "saturated_rc_hot_object",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "rc.bytes_return_to_floor",
+      "owner_subsystem": "memory",
+      "formula": "final.live_runtime_bytes == idle_floor",
+      "units": "bytes",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_final_release", "retain_without_release_every_1024", "skip_mixed_cleanup"],
+      "isolate_lane": "saturated_rc_hot_object",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "rc.alloc_free_reconciled",
+      "owner_subsystem": "memory",
+      "formula": "(final.allocation_count - final.free_count) == idle_floor",
+      "units": "objects",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_final_release", "retain_without_release_every_1024", "skip_mixed_cleanup"],
+      "isolate_lane": "saturated_rc_hot_object",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "rc.no_underflow",
+      "owner_subsystem": "memory",
+      "formula": "final.rc_underflow_count == idle_floor",
+      "units": "events",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": [],
+      "isolate_lane": "saturated_rc_hot_object",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "rc.no_overflow",
+      "owner_subsystem": "memory",
+      "formula": "final.rc_overflow_count == idle_floor",
+      "units": "events",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": [],
+      "isolate_lane": "saturated_rc_hot_object",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "async.tasks_zero",
+      "owner_subsystem": "async",
+      "formula": "final.async_task_live_count == idle_floor and final.async_task_occupancy_low_word == idle_floor",
+      "units": "tasks",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_task_dispose", "skip_mixed_cleanup"],
+      "isolate_lane": "virtual_time_async_timer",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "async.timers_zero",
+      "owner_subsystem": "async",
+      "formula": "final.async_timer_live_count == idle_floor and final.async_timer_occupancy_low_word == idle_floor",
+      "units": "timers",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_task_dispose", "skip_mixed_cleanup"],
+      "isolate_lane": "virtual_time_async_timer",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "time.virtual_no_raw_fallback",
+      "owner_subsystem": "time",
+      "formula": "final.raw_clock_fallback_count == idle_floor and final.raw_sleep_fallback_count == idle_floor",
+      "units": "events",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": [],
+      "isolate_lane": "virtual_time_async_timer",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "actor.live_zero",
+      "owner_subsystem": "actor",
+      "formula": "final.actor_live_count == idle_floor and final.pending_mailbox_message_count == idle_floor",
+      "units": "actors",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_destroy"],
+      "isolate_lane": "actor_reply_port_recycle",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "actor.reply_ports_zero",
+      "owner_subsystem": "actor",
+      "formula": "final.reply_port_live_count == idle_floor",
+      "units": "reply_ports",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_destroy"],
+      "isolate_lane": "actor_reply_port_recycle",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "actor.occupancy_floor_only",
+      "owner_subsystem": "actor",
+      "formula": "final.actor_occupancy_low_word == 1",
+      "units": "bitmask",
+      "idle_floor": 1,
+      "allowed_permanent_floor_entries": ["reserved_invalid_actor_slot_bit0"],
+      "sabotage_knobs_expected_to_trip_it": ["skip_destroy"],
+      "isolate_lane": "actor_reply_port_recycle",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "actor.stale_rejects_advance",
+      "owner_subsystem": "actor",
+      "formula": "final.actor_stale_reject_count > idle_floor",
+      "units": "events",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": [],
+      "isolate_lane": "actor_reply_port_recycle",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "process.live_zero",
+      "owner_subsystem": "process",
+      "formula": "final.process_live_count == idle_floor",
+      "units": "processes",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_close", "skip_mixed_cleanup"],
+      "isolate_lane": "process_slot_recycle",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "process.occupancy_zero",
+      "owner_subsystem": "process",
+      "formula": "final.process_occupancy_bits == idle_floor",
+      "units": "bitmask",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": ["skip_close", "skip_mixed_cleanup"],
+      "isolate_lane": "process_slot_recycle",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    },
+    {
+      "id": "process.stale_rejects_advance",
+      "owner_subsystem": "process",
+      "formula": "final.process_stale_reject_count > idle_floor",
+      "units": "events",
+      "idle_floor": 0,
+      "allowed_permanent_floor_entries": [],
+      "sabotage_knobs_expected_to_trip_it": [],
+      "isolate_lane": "process_slot_recycle",
+      "mixed_lane_membership": ["mixed_runtime_boss"]
+    }
+  ]
+}
