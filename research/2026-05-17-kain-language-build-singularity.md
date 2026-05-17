@@ -55,6 +55,9 @@ How can Kain's language and compiler architecture make program builds approach t
 - Local: `crates/kain-driver/src/lib.rs` currently builds a `FrontendSourceBundle` by collecting imported module sources and assembling `full_source`, then lexing/parsing/comptime/typechecking the combined program.
 - Local: `crates/kain-core/src/lib.rs` legacy `compile` also prepends target stdlib source and compiles as one source string.
 - Local: `ARCHITECTURE.md` identifies native LLVM/runtime priority, `crates/kain-run`, `crates/kain-build`, runtime contracts, realtime bundles, and proof packs as the relevant build surfaces.
+- Local: `crates/kain-blades/src/lib.rs` already owns Blade workspace discovery, `ResolvedBlade`, `BladeWorkspace::dependency_edges`, source roots, module roots, build targets, C/Rust FFI, GPU, Fabric, and synthetic Cargo blades.
+- Local: `crates/kain-build/src/workspace.rs` already owns the Blade build DAG, lane/profile/target-aware artifact roots, cacheable `BuildTask`s, stamp files, cache-hit reporting, and Kain/Cargo/C/GPU/Fabric/Node/Bun adapters.
+- Local: `crates/kain-core/src/module_resolution.rs` consumes `blade::discover_blade_module_roots_from`, so any language-level incremental system must preserve Blade-owned module discovery instead of adding a parallel scanner.
 - External: none checked yet in this note; local architecture is enough for the first hypothesis split.
 
 ## Dead Ends
@@ -69,9 +72,16 @@ How can Kain's language and compiler architecture make program builds approach t
 - Output a stable JSON report from `kain check/build/run` so every later slice has proof instead of vibes.
 - Risk: near zero if read-only telemetry is behind a flag or report field.
 
+### Slice 0B - Blade Workspace Fingerprint
+- Treat `BladeWorkspace` as the top-level package graph for multi-file/workspace builds: `workspace_digest -> blade_digest -> module_digest -> semantic_atom_digest -> target_fragment_digest`.
+- Compute a conservative blade fingerprint from manifest path/content, blade name/version/kind, entry, source roots, module roots, build targets, explicit dependencies, FFI/GPU/Fabric/Rust metadata, lane, profile, target, and compiler/runtime versions.
+- Record actual import edges discovered during frontend collection in addition to declared `[[blade.dependencies]]`; undeclared module-root coupling must be visible before it can be optimized.
+- Risk: low. The Blade crate already centralizes discovery and the Build crate already has task stamps; this slice mostly promotes that data into the language build cache key.
+
 ### Slice 1 - Module Bundle Without Behavior Change
 - Replace `FrontendSourceBundle { full_source }` with `FrontendModuleBundle { modules, entry }` in `crates/kain-driver`, but keep an adapter that assembles the old `full_source`.
 - Each module record should carry canonical path, source hash, target, imports, and prepared source.
+- Each module should also carry optional blade ownership: workspace root, blade name, blade root, source root, module root, and the build lane/profile/target that selected it.
 - Existing tests around imported stdlib/filesystem module materialization become the acceptance floor.
 - Risk: low. This is mostly data-shape extraction around existing import collection.
 
@@ -84,6 +94,7 @@ How can Kain's language and compiler architecture make program builds approach t
 ### Slice 3 - Semantic Atom Inventory
 - Introduce `SemanticAtomId`, `SemanticAtomKind`, `SemanticDigest`, and `SemanticAtomGraph` in or near `kain-core`.
 - Atom kinds should map directly to `TypedItem` variants: function, struct, enum, trait, impl, actor, world, entangle, converge, law, patch, shader, const, type alias, component, material graph, async task, editor/gameplay items, etc.
+- Scope stable atom IDs by workspace and blade identity, then module path and item path. Example shape: `workspace_root::blade_name::module_path::item_path::atom_kind`.
 - First pass only inventories atoms and dependencies without using the cache for reuse.
 - Risk: low. Read-only graph extraction is safe and immediately useful for diagnostics/build reports.
 
@@ -102,8 +113,8 @@ How can Kain's language and compiler architecture make program builds approach t
 - Risk: medium-high. `TypeEnv` has global maps for types, globals, methods, enum variants, and entangle endpoints; dependency recording must be honest.
 
 ### Slice 6 - Resident Compiler World
-- Add a daemon/session mode that holds module parse caches, atom graphs, typed atom caches, stdlib atoms, and latest build reports in memory.
-- `kain check`, `kain run`, and LSP can query the same resident world.
+- Add a daemon/session mode that holds the `BladeWorkspace`, per-blade module parse caches, atom graphs, typed atom caches, stdlib atoms, and latest build reports in memory.
+- `kain check`, `kain build`, `kain run`, Blade build tasks, and LSP can query the same resident world.
 - Risk: medium. Process lifecycle and cache invalidation are manageable; correctness depends on earlier digest discipline.
 
 ### Slice 7 - Backend Fragment Cache
@@ -114,6 +125,7 @@ How can Kain's language and compiler architecture make program builds approach t
 ## Risk Assessment
 
 - Architecture fit: supported. `kain-driver` owns frontend orchestration, `kain-core` owns typed semantics, and downstream codegen already consumes `TypedProgram`.
+- Blade architecture fit: strong. `crates/kain-blades` already owns workspace/package discovery and `crates/kain-build` already owns task planning, artifacts, and stamps, so blades should be the outer incremental boundary rather than an afterthought.
 - Refactor size: bounded but real. The first four slices are additive and can be hidden behind compatibility assembly; item-level typed reuse requires changing the typechecker phase boundaries.
 - Correctness risk: nonzero. The dangerous class is stale cache hits from missing semantic dependencies. Mitigation is conservative invalidation first, then proofs for narrower reuse.
 - Backend risk: avoidable early. Do not touch LLVM/codegen first; keep producing `TypedProgram`.
@@ -121,16 +133,20 @@ How can Kain's language and compiler architecture make program builds approach t
 - Comptime risk: medium. Comptime can create hidden dependencies and should initially force conservative invalidation of the module/atom region it touches.
 - Trait/impl/method risk: medium. Method tables and impl registrations are global in `TypeEnv`; atom dependencies must include method-resolution facts.
 - World/entangle/converge risk: medium. Their runtime-contract/realtime-bundle effects mean digest keys need more than ordinary type signatures.
+- Blade manifest risk: medium-low. Manifest edits to entry/source roots/module roots/build targets/lane/profile/target/FFI/GPU/Fabric metadata must invalidate the right tasks even when Kain source content is unchanged.
+- Cross-blade import risk: medium. Declared blade dependencies are not enough by themselves; module-root resolution can create actual import edges that must be captured during frontend collection.
+- Polyglot sidecar risk: bounded. Cargo, C shared libraries, GPU artifacts, Fabric, Node, and Bun tasks are not pure Kain semantic atoms; model them as external task atoms keyed by adapter inputs and outputs through `kain-build`.
 - Existential risk: low. Nothing in the repo shape blocks this; the path is incremental if compatibility `TypedProgram` remains the backend boundary.
 
 ## Recommended First Landing Sequence
 
 1. Land timing telemetry and a `kain check --build-profile-json` style report.
-2. Land `FrontendModuleBundle` while still assembling old `full_source`.
-3. Land parsed module cache and prove output parity on existing driver tests.
-4. Land atom inventory reports with no cache reuse.
-5. Land interface digests and conservative invalidation.
-6. Only then cache typed item bodies.
+2. Land Blade workspace fingerprints in `kain-build` reports and stamp inputs, using the existing `blade` resolver.
+3. Land `FrontendModuleBundle` while still assembling old `full_source`, with optional blade ownership attached to each module.
+4. Land parsed module cache and prove output parity on existing driver tests plus Blade module-root tests.
+5. Land atom inventory reports with no cache reuse.
+6. Land interface digests and conservative invalidation.
+7. Only then cache typed item bodies.
 
 ## Conclusion
 
