@@ -615,9 +615,9 @@
     {
       "id": "simd_lane_mix",
       "title": "SIMD Lane Mix",
-      "description": "Integer dot product over twin buffers. Rust and C++ use explicit AVX2 lanes when available; Kain currently runs the same data shape through scalar LLVM memory helpers.",
-      "maturity": "simd-proxy",
-      "fairness_note": "Kain LLVM does not yet expose first-class SIMD intrinsics in the benchmark lane, so the Kain row is the scalar proxy against explicit AVX2 in Rust/C++.",
+      "description": "Integer dot product over twin buffers. Rust and C++ use explicit AVX2 lanes when available; Kain routes the same lane math through native AVX-512F/AVX2 runtime kernels behind converge.",
+      "maturity": "implemented",
+      "fairness_note": "Kain uses a runtime C SIMD kernel selected through converge and the native CPU feature mask. The closed domain is nonnegative i32 lane values stored in Kain Int cells, with Z3 proof for the AVX even-dword multiply equivalence and benchmark-bounded accumulation.",
       "kain": "cases/simd_lane_mix/main.kn",
       "rust": "cases/simd_lane_mix/main.rs",
       "cpp": "cases/simd_lane_mix/main.cpp"

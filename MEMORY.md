@@ -1,5 +1,49 @@
 # Kain Memory
 
+# 2026-05-17 - SIMD lane mix graduated from scalar proxy to native AVX converge
+
+`benchmark/cases/simd_lane_mix` now uses a real native SIMD runtime kernel behind `converge` instead of running the hot dot product through scalar Kain memory helpers.
+
+What changed:
+
+- `runtime/native/include/simd.h` and `runtime/native/src/core/simd.c`
+  - Added scalar, AVX2, and AVX-512F ABI surfaces for the row's closed domain: nonnegative i32 lane values stored in Kain `Int` cells.
+  - The AVX lanes use Clang x86 builtins/vector types instead of MSVC-style `_mm*` intrinsic declarations, because this Windows Clang/MSVC-header combination linked `_mm256_*`/`_mm512_*` as unresolved externals even under `-march=native`.
+- `stdlib/runtime.kn`
+  - Added root runtime wrappers for the SIMD dot/mod ABI.
+- `benchmark/cases/simd_lane_mix/main.kn`
+  - Added `converge simd_lane_mix_dot(...)` with a scalar spec lane, AVX-512F fast lane, and AVX2 fast lane selected by native CPU capabilities.
+- `benchmark/benchmarks.json` and `benchmark/README.md`
+  - Moved `simd_lane_mix` from `simd-proxy` to `implemented` and replaced the stale scalar-proxy fairness note.
+- `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, and generated `runtime/runtime_manifest_data.bzl`
+  - Include `native/src/core/simd.c`.
+
+Proof artifacts:
+
+- `runtime/native/src/core/z3/proofs-experimental/simd-i32-domain-even-dword-mul-equivalence.smt2`
+  - Report: `z3/reports/20260517T121431Z-simd-i32-domain-even-dword-mul-equivalence.json`
+  - Result: `unsat`
+- `runtime/native/src/core/z3/proofs-experimental/simd-lane-mix-benchmark-accumulator-bound.smt2`
+  - Report: `z3/reports/20260517T121458Z-simd-lane-mix-benchmark-accumulator-bound.json`
+  - Result: `unsat`
+
+Validation and benchmark:
+
+- `toolchain\llvm\bin\clang.exe -fsyntax-only -Iruntime/native/include runtime/native/src/core/simd.c`
+- `toolchain\llvm\bin\clang.exe -fsyntax-only -Iruntime/native/include runtime/native/src/core/cpu.c`
+- `py -3 tools\bazel\sync_native_runtime_builds.py --check`
+- `target\debug\kain.exe check benchmark\cases\simd_lane_mix\main.kn --target llvm`
+- `py -3 benchmark\run.py --case simd_lane_mix --languages kain,rust,cpp --runs 3 --warmups 1 --timeout 900 --latest-stem latest_simd_after --minimal-name latest_simd_after.md`
+
+Measured result:
+
+- Before: Kain `172.504 ms`, Rust `10.480 ms`, C++ `9.161 ms` (`18.83x` behind fastest).
+- After: Kain `10.222 ms`, Rust `10.069 ms`, C++ `9.309 ms` (`1.10x` behind fastest).
+
+Residual note:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_generates_world_patch_converge_and_orchestrate_paths -- --nocapture` still fails on a stale expected IR assertion for `set_counter(%Studio* ...)`; the SIMD source check and executable benchmark are green.
+
 # 2026-05-17 - Capsules now default to editable inline file blocks while archive mode is explicit
 
 The portable capsule lane moved from archive-first to editable-first. `kain amalgamate <path> -o artifact.kn` now emits an inline editable capsule by default, while `--archive` preserves the earlier sealed compressed payload form.

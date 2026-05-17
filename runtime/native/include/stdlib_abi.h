@@ -10,6 +10,7 @@
 #include "ui_system.h"
 #include "converge.h"
 #include "cpu.h"
+#include "simd.h"
 #include "machine_stones.h"
 
 #ifdef __cplusplus

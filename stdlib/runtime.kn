@@ -29,6 +29,15 @@ fn abi_cpu_capability_mask_for_key(capability_key: String) -> Int
 fn abi_cpu_has_capability(capability_key: String) -> Int
 
 @extern
+fn abi_simd_i64_dot_i32_domain_scalar_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int
+
+@extern
+fn abi_simd_i64_dot_i32_domain_avx2_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int
+
+@extern
+fn abi_simd_i64_dot_i32_domain_avx512_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int
+
+@extern
 fn abi_converge_select_lane_for_key(converge_key: Int, shape_key: Int, eligible_mask: Int, fallback_lane: Int) -> Int
 
 @extern
@@ -84,6 +93,15 @@ pub fn native_cpu_capability_mask(capability_key: String) -> Int:
 
 pub fn native_cpu_has_capability(capability_key: String) -> Int:
     return abi_cpu_has_capability(capability_key)
+
+pub fn native_simd_i32_domain_dot_scalar_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    return abi_simd_i64_dot_i32_domain_scalar_mod(left, right, cells, lane_bias, modulus)
+
+pub fn native_simd_i32_domain_dot_avx2_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    return abi_simd_i64_dot_i32_domain_avx2_mod(left, right, cells, lane_bias, modulus)
+
+pub fn native_simd_i32_domain_dot_avx512_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    return abi_simd_i64_dot_i32_domain_avx512_mod(left, right, cells, lane_bias, modulus)
 
 pub fn native_converge_select_lane(converge_key: Int, shape_key: Int, eligible_mask: Int, fallback_lane: Int) -> Int:
     return abi_converge_select_lane_for_key(converge_key, shape_key, eligible_mask, fallback_lane)
@@ -153,6 +171,15 @@ pub fn runtime_cpu_capability_mask(capability_key: String) -> Int:
 
 pub fn runtime_cpu_has_capability(capability_key: String) -> Int:
     return native_cpu_has_capability(capability_key)
+
+pub fn runtime_simd_i32_domain_dot_scalar_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    return native_simd_i32_domain_dot_scalar_mod(left, right, cells, lane_bias, modulus)
+
+pub fn runtime_simd_i32_domain_dot_avx2_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    return native_simd_i32_domain_dot_avx2_mod(left, right, cells, lane_bias, modulus)
+
+pub fn runtime_simd_i32_domain_dot_avx512_mod(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    return native_simd_i32_domain_dot_avx512_mod(left, right, cells, lane_bias, modulus)
 
 pub fn runtime_converge_select_lane(converge_key: Int, shape_key: Int, eligible_mask: Int, fallback_lane: Int) -> Int:
     return native_converge_select_lane(converge_key, shape_key, eligible_mask, fallback_lane)

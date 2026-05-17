@@ -1,3 +1,23 @@
+use std::runtime
+
+fn simd_lane_mix_scalar_dot(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    var index: Int = 0
+    var total: Int = 0
+    while index < cells:
+        let left_value: Int = mem_load(ptr_offset(left, index, "Int"), "Int") + lane_bias
+        let right_value: Int = mem_load(ptr_offset(right, index, "Int"), "Int")
+        total = (total + (left_value * right_value)) % modulus
+        index = index + 1
+    return total
+
+converge simd_lane_mix_dot(left: ptr<Int>, right: ptr<Int>, cells: Int, lane_bias: Int, modulus: Int) -> Int:
+    spec reference:
+        return simd_lane_mix_scalar_dot(left, right, cells, lane_bias, modulus)
+    fast avx512_lane when capability("cpu.x86.avx512f"):
+        return runtime_simd_i32_domain_dot_avx512_mod(left, right, cells, lane_bias, modulus)
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return runtime_simd_i32_domain_dot_avx2_mod(left, right, cells, lane_bias, modulus)
+
 fn main() -> Int:
     let cells: Int = 32768
     let passes: Int = 256
@@ -25,14 +45,7 @@ fn main() -> Int:
     while phase < passes:
         let lane_bias: Int = phase % 13
         let inner: Int = observe left:
-            var index: Int = 0
-            var total: Int = 0
-            while index < cells:
-                let left_value: Int = mem_load(ptr_offset(left, index, "Int"), "Int") + lane_bias
-                let right_value: Int = mem_load(ptr_offset(right, index, "Int"), "Int")
-                total = (total + (left_value * right_value)) % modulus
-                index = index + 1
-            total
+            simd_lane_mix_dot(left, right, cells, lane_bias, modulus)
         acc = (acc + inner + (phase % 29)) % modulus
         phase = phase + 1
 
