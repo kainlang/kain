@@ -62,6 +62,76 @@ How can Kain's language and compiler architecture make program builds approach t
 - "Just use faster Bazel/Cargo settings" is not the language answer. It can help this repo, but it does not make Kain programs intrinsically fast to build.
 - Whole-file incremental is a baseline, not the record-breaking design, because Kain's semantic surface is richer than files: worlds, entangles, actors, converge lanes, runtime contracts, shader artifacts, and proofs all have finer dependency structure.
 
+## Implementation Slice Plan
+
+### Slice 0 - Measurement Harness
+- Add timing telemetry around frontend import collection, lex, parse, comptime, type registration, item checking, monomorphization, codegen, runtime-contract emission, realtime-bundle emission, and link/materialization.
+- Output a stable JSON report from `kain check/build/run` so every later slice has proof instead of vibes.
+- Risk: near zero if read-only telemetry is behind a flag or report field.
+
+### Slice 1 - Module Bundle Without Behavior Change
+- Replace `FrontendSourceBundle { full_source }` with `FrontendModuleBundle { modules, entry }` in `crates/kain-driver`, but keep an adapter that assembles the old `full_source`.
+- Each module record should carry canonical path, source hash, target, imports, and prepared source.
+- Existing tests around imported stdlib/filesystem module materialization become the acceptance floor.
+- Risk: low. This is mostly data-shape extraction around existing import collection.
+
+### Slice 2 - Parsed Module Cache
+- Cache token streams and parsed `Program` per `(canonical_path/source_hash/target/compiler_version)`.
+- Entry source can use a synthetic path and content hash.
+- Keep typechecking whole-program initially by assembling parsed module items in the current order.
+- Risk: low to medium. Parser diagnostics and span mapping need care because current code maps spans against one combined source.
+
+### Slice 3 - Semantic Atom Inventory
+- Introduce `SemanticAtomId`, `SemanticAtomKind`, `SemanticDigest`, and `SemanticAtomGraph` in or near `kain-core`.
+- Atom kinds should map directly to `TypedItem` variants: function, struct, enum, trait, impl, actor, world, entangle, converge, law, patch, shader, const, type alias, component, material graph, async task, editor/gameplay items, etc.
+- First pass only inventories atoms and dependencies without using the cache for reuse.
+- Risk: low. Read-only graph extraction is safe and immediately useful for diagnostics/build reports.
+
+### Slice 4 - Public Interface Digest
+- For each atom, compute an interface digest: name, kind, exported visibility, signature/type shape, effects, capability requirements, layout-sensitive fields, and target-relevant metadata.
+- Prove/cache only against interface digests first, not full implementation digests.
+- Risk: medium. Missing an interface fact causes over-reuse; this needs conservative digesting at first.
+
+### Slice 5 - TypeEnv Snapshot And Item-Level Type Reuse
+- Split the current `types::check_with_extra_globals` pipeline into reusable phases:
+  - predeclare item types
+  - register item types/globals/methods
+  - check item bodies
+- Cache checked item bodies when their implementation digest and dependency interface digests are unchanged.
+- Still return a normal `TypedProgram` to all existing codegen backends.
+- Risk: medium-high. `TypeEnv` has global maps for types, globals, methods, enum variants, and entangle endpoints; dependency recording must be honest.
+
+### Slice 6 - Resident Compiler World
+- Add a daemon/session mode that holds module parse caches, atom graphs, typed atom caches, stdlib atoms, and latest build reports in memory.
+- `kain check`, `kain run`, and LSP can query the same resident world.
+- Risk: medium. Process lifecycle and cache invalidation are manageable; correctness depends on earlier digest discipline.
+
+### Slice 7 - Backend Fragment Cache
+- Cache target fragments per typed atom: LLVM IR/bitcode/object where feasible, SPIR-V/PTX shader artifacts, runtime-contract fragments, realtime-bundle fragments, proof results.
+- Start with runtime contracts and shader artifacts before LLVM linking because their boundaries are cleaner.
+- Risk: medium-high for LLVM native due symbol/link/layout interactions; low-medium for contract/proof/shader fragments.
+
+## Risk Assessment
+
+- Architecture fit: supported. `kain-driver` owns frontend orchestration, `kain-core` owns typed semantics, and downstream codegen already consumes `TypedProgram`.
+- Refactor size: bounded but real. The first four slices are additive and can be hidden behind compatibility assembly; item-level typed reuse requires changing the typechecker phase boundaries.
+- Correctness risk: nonzero. The dangerous class is stale cache hits from missing semantic dependencies. Mitigation is conservative invalidation first, then proofs for narrower reuse.
+- Backend risk: avoidable early. Do not touch LLVM/codegen first; keep producing `TypedProgram`.
+- Diagnostic risk: real in Slice 2 because one combined `SpanMapper` currently makes span reporting simple. Module-local spans need source-map stitching.
+- Comptime risk: medium. Comptime can create hidden dependencies and should initially force conservative invalidation of the module/atom region it touches.
+- Trait/impl/method risk: medium. Method tables and impl registrations are global in `TypeEnv`; atom dependencies must include method-resolution facts.
+- World/entangle/converge risk: medium. Their runtime-contract/realtime-bundle effects mean digest keys need more than ordinary type signatures.
+- Existential risk: low. Nothing in the repo shape blocks this; the path is incremental if compatibility `TypedProgram` remains the backend boundary.
+
+## Recommended First Landing Sequence
+
+1. Land timing telemetry and a `kain check --build-profile-json` style report.
+2. Land `FrontendModuleBundle` while still assembling old `full_source`.
+3. Land parsed module cache and prove output parity on existing driver tests.
+4. Land atom inventory reports with no cache reuse.
+5. Land interface digests and conservative invalidation.
+6. Only then cache typed item bodies.
+
 ## Conclusion
 
 Pending.
