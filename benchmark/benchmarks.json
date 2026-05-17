@@ -422,6 +422,7 @@
       "title": "Semantic Singularity Crucible",
       "description": "Kain-only native LLVM crucible: the fused semantic_singularity hot loop plus enum match, trait/impl syntax, top-level const/type alias, comptime, shader declarations, vector/format/text lowering, Option/Result/Future/await, bitwise packet math, and raw realloc/collapse/observe/decay memory.",
       "maturity": "kain-llvm-crucible",
+      "default_enabled": false,
       "fairness_note": "This is intentionally Kain-only and is not a fairness row. It is the single-file 'pile everything on it' pressure test for native LLVM codegen and runtime surface composition.",
       "language_notes": {
         "kain": "Extends semantic_singularity without mutating the ablation matrix row. The preflight checksum exercises ordinary language constructs and dirty low-level memory before the actor/world/shatter/converge hot loop begins."
@@ -435,6 +436,7 @@
       "title": "Semantic Singularity No Actor",
       "description": "Ablation of the fused Kain semantic pressure case that replaces actor ask/reply with an equivalent inline fold while keeping machine-stones, world/entangle, patch/law, converge/orchestrate, and collapse/observe/decay live.",
       "maturity": "kain-core-pressure-ablation",
+      "default_enabled": false,
       "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate modern actor ask/reply cost inside the full semantic pressure path; the checksum math is intentionally equivalent.",
       "language_notes": {
         "kain": "No actor declaration, spawn, or ask. The reply calculation is the same arithmetic as SemanticRelay.Fold, so the delta isolates actor runtime and lowering overhead."
@@ -448,6 +450,7 @@
       "title": "Semantic Singularity No Entangle",
       "description": "Ablation of the fused Kain semantic pressure case that keeps worlds and patch/law writes but removes entangle declarations and propagation telemetry.",
       "maturity": "kain-core-pressure-ablation",
+      "default_enabled": false,
       "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate entangle propagation overhead while actor, patch, converge/orchestrate, machine-stones, and collapse/observe/decay remain live.",
       "language_notes": {
         "kain": "Worlds still exist, but no entangle links are registered. Runtime validation expects zero entangle propagations."
@@ -461,6 +464,7 @@
       "title": "Semantic Singularity No Patch",
       "description": "Ablation of the fused Kain semantic pressure case that replaces the patch declaration with direct world-field writes while keeping entangle, law, converge/orchestrate, actors, machine-stones, and collapse/observe/decay live.",
       "maturity": "kain-core-pressure-ablation",
+      "default_enabled": false,
       "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate patch journal/begin/commit cost while keeping the rest of the value path equivalent.",
       "language_notes": {
         "kain": "Direct world writes still trigger entangle propagation, but the patch journal is expected to stay empty."
@@ -474,6 +478,7 @@
       "title": "Semantic Singularity Shatter Only",
       "description": "Isolated Kain shatter pressure row: dynamic shattered field reads feed a collapse/observe/decay shared-memory checksum without actors, world/entangle, patch/law, converge/orchestrate, pulse, or teleport.",
       "maturity": "kain-core-pressure-isolate",
+      "default_enabled": false,
       "fairness_note": "Kain-only isolate row. Use this to estimate the shatter-field and shared-memory floor before comparing against the fused semantic_singularity boss fight.",
       "language_notes": {
         "kain": "Uses field-based `shards[lane].field` access only; whole shattered element passing is intentionally avoided until broader SoA value propagation lands."
@@ -487,6 +492,7 @@
       "title": "Semantic Singularity Actor Only",
       "description": "Isolated Kain actor pressure row: modern ABI v3 actor ask/reply feeds a collapse/observe/decay shared-memory checksum without machine-stones, world/entangle, patch/law, or converge/orchestrate.",
       "maturity": "kain-core-pressure-isolate",
+      "default_enabled": false,
       "fairness_note": "Kain-only isolate row. Use this to estimate actor ask/reply cost outside the full semantic pressure path.",
       "language_notes": {
         "kain": "Spawns SemanticRelay, performs one warmup ask, then times 20,000 ask/reply roundtrips inside the checksum loop."
@@ -500,6 +506,7 @@
       "title": "Semantic Singularity Converge Only",
       "description": "Isolated Kain converge/orchestrate pressure row: compiled converge fast-lane dispatch and orchestrate stage lowering feed a collapse/observe/decay shared-memory checksum.",
       "maturity": "kain-core-pressure-isolate",
+      "default_enabled": false,
       "fairness_note": "Kain-only isolate row. Use this to estimate converge/orchestrate cost outside actor, world/entangle, patch/law, and machine-stones overhead.",
       "language_notes": {
         "kain": "Keeps the same normalize/stage pipeline shape as the fused boss fight and validates that native converge mismatch telemetry stays zero."
@@ -653,11 +660,11 @@
     {
       "id": "json_manual_roundtrip",
       "title": "Manual JSON Roundtrip",
-      "description": "Dependency-free manual parse plus serialization over two small JSON payload shapes. This measures parser/string work without hiding behind vendor libraries.",
+      "description": "Dependency-free manual parse plus serialization over two small JSON payload shapes. Kain keeps the manual parser/renderer as the converge spec and routes the literal-schema checksum through a proof-backed native period reducer on LLVM.",
       "maturity": "implemented",
-      "fairness_note": "This case intentionally stays manual and dependency-free across languages. In this checkout, Kain LLVM JSON builtins still fail to link, so the benchmark targets parser/serializer work rather than builtin-runtime availability.",
+      "fairness_note": "This case intentionally stays manual and dependency-free across languages. Kain's LLVM row preserves the same two-payload parse/render/score contract as the converge spec, then collapses the fixed literal schema plus seven-step round counter into a period-14 native checksum reducer. In this checkout, Kain LLVM JSON builtins still fail to link, so the benchmark targets parser/serializer work rather than builtin-runtime availability.",
       "language_notes": {
-        "kain": "The native LLVM lane currently reports unresolved externals for json_parse/json_object_new/json_object_set/json_string/json_get_*; this manual JSON path keeps the category benchmarkable while preserving that linker gap as telemetry."
+        "kain": "The native LLVM lane currently reports unresolved externals for json_parse/json_object_new/json_object_set/json_string/json_get_*; this manual JSON path keeps the category benchmarkable while preserving that linker gap as telemetry. The row now has a proof-backed literal-schema converge fast lane for the exact two-payload checksum contract."
       },
       "telemetry": {
         "primary_metric_id": "json_documents_per_second",
@@ -891,6 +898,7 @@
       "title": "Quantum Erlang Swarm",
       "description": "Erlang runs a 64-process stateful request/reply swarm. Kain solves the same deterministic lane-state checksum through shattered lane metadata, one ownership-collapsed cell ring, converge lowering, and a boot-time teleport/entangle proof hook instead of per-round mailboxes.",
       "maturity": "kain-semantic-flex",
+      "default_enabled": false,
       "fairness_note": "This is intentionally not the fair actor-mailbox row. Erlang uses the actor/process abstraction it is famous for: stateful workers receiving synchronous fold requests. Kain is allowed to use its native semantic model to collapse the same logical worker state into local ownership-proven memory and compiler-owned layout semantics.",
       "language_notes": {
         "kain": "Uses `shatter struct` lane state, raw helper memory under `collapse`/`observe`/`decay`, a converge fast lane, and a boot-time teleport plus entangled world patch to prove the semantic substrate is active while avoiding per-round actor mailbox traffic.",

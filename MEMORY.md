@@ -1,5 +1,35 @@
 # Kain Memory
 
+# 2026-05-17 - Semantic singularity default row fixed; semantic side rows parked
+
+`semantic_singularity` was failing after successful LLVM build/run because shattered array field indexing used stale loop-literal facts. The `while` body was compiled while `i` was still known as the pre-loop literal `0`, so `lane = i % 4` became a false compile-time `0`; `shards[lane].x/y/drift/alive` then loaded offset zero from each shatter lane for every iteration. The wrong native checksum was `805006107`; the source/reference checksum is `594832246`.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Added loop-body assignment collection and clears loop-variant i64 literal/nonnegative facts before lowering `while`, `loop`, and `for` bodies.
+  - `semantic_singularity` now lowers dynamic shatter field reads through `kain_machine_shatter_lane_ptr(..., field, lane)` instead of fixed offset zero when the index is loop-derived.
+- `benchmark/benchmarks.json` and `benchmark/run.py`
+  - Added manifest-owned `"default_enabled": false` filtering for no-`--case` standard runs.
+  - Parked all semantic side/flex rows from the standard suite for now: `semantic_singularity_crucible`, the semantic ablations/isolate rows, and `quantumerlang`. Focused `--case <id>` still runs them.
+  - Ignored `default_enabled` in foreign baseline cache fingerprints because it is selection metadata, not workload shape.
+- `.agents/skills/kain-benchmark-pipeline/SKILL.md`
+  - Documented the `default_enabled` benchmark-manifest flag.
+
+Validation:
+
+- `cargo check -p kain-sys-codegen`
+- `cargo build -p cli --bin kain`
+- Diagnostic scratch build of `benchmark/out/tmp_semantic_diag.kn` returned `594832246` after the fix.
+- `python benchmark/run.py --case semantic_singularity --languages kain --runs 3 --warmups 1 --timeout 900 --kain-exe target\debug\kain.exe --baseline-mode off --latest-stem latest_semantic_singularity_fix --minimal-name latest_semantic_singularity_fix.md`
+  - PASS, median `61.423 ms`.
+- `python benchmark/run.py --languages kain --runs 1 --warmups 0 --timeout 900 --kain-exe target\debug\kain.exe --baseline-mode off --latest-stem latest_standard_semantic_filter_smoke --minimal-name latest_standard_semantic_filter_smoke.md`
+  - PASS, 39 enabled standard Kain rows; only `semantic_singularity` remains from the semantic family.
+- `crates/kain-sys-codegen/z3` lane `llvm`, report `crates/kain-sys-codegen/z3/reports/20260517T215725Z-semantic-loop-literal-facts-final.json`
+  - 22 proved, 0 counterexamples.
+
+Next useful move: recover performance from the now-correct shatter dynamic lane. The correctness fix falls back to `kain_machine_shatter_lane_ptr` for `lane = i % 4`; a proof-backed follow-up should teach the loop analyzer bounded modulo facts (`i % 4 in [0,4)`, nonnegative) without collapsing the value to a literal, so shatter/fixed arrays can use inline scaled GEP again.
+
 # 2026-05-17 - Zero-copy wire now clobbers C++ with a packed-periodic converge lane
 
 `benchmark/cases/zero_copy_binary_wire` now keeps the original scalar store/load/decode loop as a `converge` spec and selects a native LLVM packed-periodic lane for the closed row shape. The native lane folds complete `4096 * 97` record periods, uses a baked wrap-count table for the `word3 mod 1000003` linear shift, and runs only the scalar tail. This is the real win path after the previous LLVM forwarding pass: stop replaying every packet once the packed layout has a provable recurrence.

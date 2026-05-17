@@ -38,6 +38,7 @@ FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
 DEFAULT_MINIMAL_REPORT_NAME = "latest.md"
 DEFAULT_LATEST_REPORT_STEM = "latest"
 BASELINE_CACHE_SCHEMA_VERSION = 1
+CASE_WORKLOAD_FINGERPRINT_IGNORED_KEYS = {"default_enabled"}
 
 LANGUAGE_ORDER = ["kain", "rust", "cpp", "zig", "go", "erlang", "javascript", "python"]
 LANGUAGE_LABELS = {
@@ -514,7 +515,11 @@ def case_workload_fingerprint(case: dict[str, Any], language: str) -> dict[str, 
     elif go_manifest:
         primary_path = (BENCHMARK_ROOT / str(go_manifest)).resolve().parent
     fingerprint: dict[str, Any] = {
-        "case": case,
+        "case": {
+            key: value
+            for key, value in case.items()
+            if key not in CASE_WORKLOAD_FINGERPRINT_IGNORED_KEYS
+        },
         "language": language,
         "primary": fingerprint_tree(primary_path),
     }
@@ -665,10 +670,14 @@ def annotate_cache_usage(
     run["baseline_cache"] = cache_info
 
 
+def case_enabled_for_default_suite(case: dict[str, Any]) -> bool:
+    return bool(case.get("default_enabled", True))
+
+
 def selected_cases(manifest: dict[str, Any], only_case: str | None) -> list[dict[str, Any]]:
     cases = manifest["cases"]
     if only_case is None:
-        return cases
+        return [case for case in cases if case_enabled_for_default_suite(case)]
     requested = [case_id.strip() for case_id in only_case.split(",") if case_id.strip()]
     by_id = {case["id"]: case for case in cases}
     missing = [case_id for case_id in requested if case_id not in by_id]

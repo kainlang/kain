@@ -1564,6 +1564,251 @@ impl LlvmGenerator {
         }
     }
 
+    fn collect_expr_assigned_identifier_names(expr: &Expr, assigned: &mut HashSet<String>) {
+        match expr {
+            Expr::Assign { target, value, .. } => {
+                if let Expr::Ident(name, _) = target.as_ref() {
+                    assigned.insert(name.clone());
+                }
+                Self::collect_expr_assigned_identifier_names(value, assigned);
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::collect_expr_assigned_identifier_names(condition, assigned);
+                Self::collect_block_assigned_identifier_names(then_branch, assigned);
+                if let Some(else_branch) = else_branch {
+                    Self::collect_else_branch_assigned_identifier_names(else_branch, assigned);
+                }
+            }
+            Expr::Match { scrutinee, arms, .. } => {
+                Self::collect_expr_assigned_identifier_names(scrutinee, assigned);
+                for arm in arms {
+                    if let Some(guard) = &arm.guard {
+                        Self::collect_expr_assigned_identifier_names(guard, assigned);
+                    }
+                    Self::collect_expr_assigned_identifier_names(&arm.body, assigned);
+                }
+            }
+            Expr::Binary { left, right, .. } => {
+                Self::collect_expr_assigned_identifier_names(left, assigned);
+                Self::collect_expr_assigned_identifier_names(right, assigned);
+            }
+            Expr::Unary { operand, .. }
+            | Expr::Deref(operand, _)
+            | Expr::Try(operand, _)
+            | Expr::Await(operand, _)
+            | Expr::AsyncBlock(operand, _)
+            | Expr::Comptime(operand, _)
+            | Expr::Paren(operand, _)
+            | Expr::Cast { value: operand, .. }
+            | Expr::Ref { value: operand, .. }
+            | Expr::AddrOf { value: operand, .. } => {
+                Self::collect_expr_assigned_identifier_names(operand, assigned);
+            }
+            Expr::Call { callee, args, .. } => {
+                Self::collect_expr_assigned_identifier_names(callee, assigned);
+                for arg in args {
+                    Self::collect_expr_assigned_identifier_names(&arg.value, assigned);
+                }
+            }
+            Expr::StageCall { args, .. } => {
+                for arg in args {
+                    Self::collect_expr_assigned_identifier_names(&arg.value, assigned);
+                }
+            }
+            Expr::MacroCall { args, .. } => {
+                for arg in args {
+                    Self::collect_expr_assigned_identifier_names(arg, assigned);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                Self::collect_expr_assigned_identifier_names(receiver, assigned);
+                for arg in args {
+                    Self::collect_expr_assigned_identifier_names(&arg.value, assigned);
+                }
+            }
+            Expr::Field { object, .. } => {
+                Self::collect_expr_assigned_identifier_names(object, assigned);
+            }
+            Expr::Index { object, index, .. } => {
+                Self::collect_expr_assigned_identifier_names(object, assigned);
+                Self::collect_expr_assigned_identifier_names(index, assigned);
+            }
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    Self::collect_expr_assigned_identifier_names(value, assigned);
+                }
+                if let Some(rest) = rest {
+                    Self::collect_expr_assigned_identifier_names(rest, assigned);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    Self::collect_expr_assigned_identifier_names(value, assigned);
+                }
+            }
+            Expr::Array(items, _) | Expr::Tuple(items, _) | Expr::FString(items, _) => {
+                for item in items {
+                    Self::collect_expr_assigned_identifier_names(item, assigned);
+                }
+            }
+            Expr::Range { start, end, .. } => {
+                if let Some(start) = start {
+                    Self::collect_expr_assigned_identifier_names(start, assigned);
+                }
+                if let Some(end) = end {
+                    Self::collect_expr_assigned_identifier_names(end, assigned);
+                }
+            }
+            Expr::Lambda { body, .. } => {
+                Self::collect_expr_assigned_identifier_names(body, assigned);
+            }
+            Expr::Block(block, _) => {
+                Self::collect_block_assigned_identifier_names(block, assigned);
+            }
+            Expr::Return(Some(value), _) | Expr::Break(Some(value), _) => {
+                Self::collect_expr_assigned_identifier_names(value, assigned);
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+                Self::collect_expr_assigned_identifier_names(offset, assigned);
+            }
+            Expr::MemLoad { pointer, .. } | Expr::Decay { target: pointer, .. } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+            }
+            Expr::MemStore { pointer, value, .. } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+                Self::collect_expr_assigned_identifier_names(value, assigned);
+            }
+            Expr::Alloc { size, .. } => {
+                Self::collect_expr_assigned_identifier_names(size, assigned);
+            }
+            Expr::Realloc { pointer, size, .. } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+                Self::collect_expr_assigned_identifier_names(size, assigned);
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                Self::collect_expr_assigned_identifier_names(target, assigned);
+                Self::collect_expr_assigned_identifier_names(body, assigned);
+            }
+            Expr::Teleport { value, .. } => {
+                Self::collect_expr_assigned_identifier_names(value, assigned);
+            }
+            Expr::Spawn { init, .. } => {
+                for (_, value) in init {
+                    Self::collect_expr_assigned_identifier_names(value, assigned);
+                }
+            }
+            Expr::SendMsg { target, data, .. } => {
+                Self::collect_expr_assigned_identifier_names(target, assigned);
+                for (_, value) in data {
+                    Self::collect_expr_assigned_identifier_names(value, assigned);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => {}
+                kain_core::ast::EnumVariantFields::Tuple(items) => {
+                    for item in items {
+                        Self::collect_expr_assigned_identifier_names(item, assigned);
+                    }
+                }
+                kain_core::ast::EnumVariantFields::Struct(fields) => {
+                    for (_, value) in fields {
+                        Self::collect_expr_assigned_identifier_names(value, assigned);
+                    }
+                }
+            },
+            Expr::Int(_, _)
+            | Expr::Float(_, _)
+            | Expr::String(_, _)
+            | Expr::Bool(_, _)
+            | Expr::None(_)
+            | Expr::Ident(_, _)
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. }
+            | Expr::JSX(_, _)
+            | Expr::Return(None, _)
+            | Expr::Break(None, _)
+            | Expr::Continue(_) => {}
+        }
+    }
+
+    fn collect_else_branch_assigned_identifier_names(
+        else_branch: &ElseBranch,
+        assigned: &mut HashSet<String>,
+    ) {
+        match else_branch {
+            ElseBranch::Else(block) => Self::collect_block_assigned_identifier_names(block, assigned),
+            ElseBranch::ElseIf(condition, block, nested) => {
+                Self::collect_expr_assigned_identifier_names(condition, assigned);
+                Self::collect_block_assigned_identifier_names(block, assigned);
+                if let Some(nested) = nested {
+                    Self::collect_else_branch_assigned_identifier_names(nested, assigned);
+                }
+            }
+        }
+    }
+
+    fn collect_block_assigned_identifier_names(block: &Block, assigned: &mut HashSet<String>) {
+        for stmt in &block.stmts {
+            match stmt {
+                Stmt::Expr(expr)
+                | Stmt::Return(Some(expr), _)
+                | Stmt::Break(Some(expr), _) => {
+                    Self::collect_expr_assigned_identifier_names(expr, assigned);
+                }
+                Stmt::For { iter, body, .. } => {
+                    Self::collect_expr_assigned_identifier_names(iter, assigned);
+                    Self::collect_block_assigned_identifier_names(body, assigned);
+                }
+                Stmt::While {
+                    condition, body, ..
+                } => {
+                    Self::collect_expr_assigned_identifier_names(condition, assigned);
+                    Self::collect_block_assigned_identifier_names(body, assigned);
+                }
+                Stmt::Loop { body, .. } => {
+                    Self::collect_block_assigned_identifier_names(body, assigned);
+                }
+                Stmt::Let { value, .. } => {
+                    if let Some(value) = value {
+                        Self::collect_expr_assigned_identifier_names(value, assigned);
+                    }
+                }
+                Stmt::Return(None, _)
+                | Stmt::Break(None, _)
+                | Stmt::Continue(_)
+                | Stmt::Item(_) => {}
+            }
+        }
+    }
+
+    fn clear_loop_variant_literal_facts(&mut self, body: &Block) {
+        let mut assigned = HashSet::new();
+        Self::collect_block_assigned_identifier_names(body, &mut assigned);
+        if assigned.is_empty() {
+            return;
+        }
+        for scope in self.known_i64_literal_scopes.iter_mut() {
+            for name in &assigned {
+                scope.remove(name);
+            }
+        }
+        for scope in self.known_nonnegative_i64_scopes.iter_mut() {
+            for name in &assigned {
+                scope.remove(name);
+            }
+        }
+    }
+
     fn record_stmt_i64_literal_effects(&mut self, stmt: &Stmt) {
         if let Some(name) = Self::stmt_assigned_identifier_name(stmt) {
             for scope in self.known_i64_literal_scopes.iter_mut().rev() {
@@ -9129,6 +9374,7 @@ impl LlvmGenerator {
             Stmt::While {
                 condition, body, ..
             } => {
+                self.clear_loop_variant_literal_facts(body);
                 let label_cond = self.next_label();
                 let label_body = self.next_label();
                 let label_end = self.next_label();
@@ -9154,6 +9400,7 @@ impl LlvmGenerator {
                 self.emit_label(&label_end);
             }
             Stmt::Loop { body, .. } => {
+                self.clear_loop_variant_literal_facts(body);
                 let label_body = self.next_label();
                 let label_end = self.next_label();
 
@@ -9256,6 +9503,8 @@ impl LlvmGenerator {
                         ))
                     }
                 };
+
+                self.clear_loop_variant_literal_facts(body);
 
                 // Allocate loop variable
                 let loop_var = if let kain_core::ast::Pattern::Binding { name, .. } = binding {

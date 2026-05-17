@@ -58,6 +58,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - Erlang auto-detects from the official OTP `bin` directory first.
 - Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release`, `opt-level=3`, `target-cpu=native`, no debug info, and `KAIN_RUNTIME_MANIFEST_PATH=runtime/native_core_runtime.toml` unless a case overrides it.
 - `python benchmark/run.py` now defaults to `--baseline-mode auto`: if Kain is part of the selected language set, rerun Kain fresh and reuse matching non-Kain baselines from `benchmark/out/baselines/<case>/<language>.json`. Use `--baseline-mode refresh-foreign` for a true full refresh, `--baseline-mode reuse-foreign` to reuse baselines even on foreign-only runs, or `--baseline-mode off` to disable the cache.
+- Manifest cases may set `"default_enabled": false` to keep experimental or temporarily failing rows out of no-`--case` standard runs while preserving focused `--case <id>` execution. This selection-only flag is intentionally ignored by foreign baseline cache keys.
 - If repeated Windows native builds keep printing `Native runtime cache: 0 reused, 36 compiled` or `0 reused, 37 compiled`, inspect `crates/cli/src/main.rs::parse_native_runtime_depfile(...)` before blaming the compiler or linker. The healthy steady-state line is full object reuse for the active native runtime manifest.
 - Reports are written to:
   - `benchmark/latest.md`
