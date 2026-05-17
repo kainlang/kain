@@ -14,6 +14,7 @@ sources = [
     "native/src/core/converge.c",
     "native/src/core/simd.c",
     "native/src/core/wire.c",
+    "native/src/core/json.c",
     "native/src/core/json_benchmark.c",
     "native/src/core/machine_stones.c",
     "native/src/core/stdlib_abi.c",
@@ -133,6 +134,14 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "Native axiom predicates, pulse scheduler/snapshots, shatter SoA lane buffers, and teleport zero-copy handoff telemetry"
+
+[[services]]
+key = "data.json"
+name = "Native JSON Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Native JSON parse/render/object/array helpers for LLVM builtin calls over string, integer, boolean, null, object, and array values"
 
 [[services]]
 key = "contract"

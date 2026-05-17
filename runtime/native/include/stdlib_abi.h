@@ -11,6 +11,7 @@
 #include "converge.h"
 #include "cpu.h"
 #include "simd.h"
+#include "json.h"
 #include "machine_stones.h"
 
 #ifdef __cplusplus

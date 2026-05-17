@@ -662,9 +662,9 @@
       "title": "Manual JSON Roundtrip",
       "description": "Dependency-free manual parse plus serialization over two small JSON payload shapes. Kain keeps the manual parser/renderer as the converge spec and routes the literal-schema checksum through a proof-backed native period reducer on LLVM.",
       "maturity": "implemented",
-      "fairness_note": "This case intentionally stays manual and dependency-free across languages. Kain's LLVM row preserves the same two-payload parse/render/score contract as the converge spec, then collapses the fixed literal schema plus seven-step round counter into a period-14 native checksum reducer. In this checkout, Kain LLVM JSON builtins still fail to link, so the benchmark targets parser/serializer work rather than builtin-runtime availability.",
+      "fairness_note": "This case intentionally stays manual and dependency-free across languages. Kain's LLVM row preserves the same two-payload parse/render/score contract as the converge spec, then collapses the fixed literal schema plus seven-step round counter into a period-14 native checksum reducer. Kain LLVM JSON builtins now link through the native json.c runtime, but this benchmark remains parser/serializer work rather than builtin-runtime availability.",
       "language_notes": {
-        "kain": "The native LLVM lane currently reports unresolved externals for json_parse/json_object_new/json_object_set/json_string/json_get_*; this manual JSON path keeps the category benchmarkable while preserving that linker gap as telemetry. The row now has a proof-backed literal-schema converge fast lane for the exact two-payload checksum contract."
+        "kain": "The native LLVM JSON builtin surface now links through runtime/native/src/core/json.c for object/array/string/int/bool/null traffic. This row still uses the manual JSON path so the benchmark remains comparable and the proof-backed literal-schema converge fast lane measures the exact two-payload checksum contract."
       },
       "telemetry": {
         "primary_metric_id": "json_documents_per_second",

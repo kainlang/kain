@@ -1,0 +1,22 @@
+fn main() -> Int:
+    let payload = json_object_new()
+    json_object_set(payload, "name", "kain")
+    json_object_set(payload, "count", 7)
+    json_object_set(payload, "ready", true)
+
+    let rendered = json_string(payload)
+    let parsed = json_parse(rendered)
+    if !json_has(parsed, "name"):
+        return 10
+    if json_get_string(parsed, "name") != "kain":
+        return 11
+    if json_get_int(parsed, "count") != 7:
+        return 12
+    if !json_get_bool(parsed, "ready"):
+        return 13
+
+    let nested = json_object_new()
+    json_object_set(nested, "parsed", parsed)
+    if !json_has(json_get(nested, "parsed"), "ready"):
+        return 14
+    return 0

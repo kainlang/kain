@@ -146,6 +146,10 @@ const ABI_TAG_RESULT_ERR_LLVM: i64 = 3;
 const ABI_TAGGED_IMMEDIATE_MASK_LLVM: i64 = 7;
 const ABI_TAGGED_IMMEDIATE_INT_MIN_LLVM: i64 = -(1i64 << 60);
 const ABI_TAGGED_IMMEDIATE_INT_MAX_LLVM: i64 = (1i64 << 60) - 1;
+const JSON_ANY_TAG_INT_LLVM: i64 = 1;
+const JSON_ANY_TAG_BOOL_LLVM: i64 = 2;
+const JSON_ANY_TAG_STRING_LLVM: i64 = 3;
+const JSON_ANY_TAG_NULL_LLVM: i64 = 4;
 const ABI_DEFAULT_ASK_TIMEOUT_MS_LLVM: i64 = 30_000;
 const ACTOR_REF_LLVM_TYPE: &str = "%KainActorRef";
 const REPLY_PORT_ACTOR_NAME: &str = "KainReplyPort";
@@ -363,6 +367,8 @@ struct LlvmGenerator {
     fixed_array_candidate_scopes: Vec<HashSet<String>>,
     /// Locals that are borrowed views and must not be released on scope exit.
     borrowed_locals: HashSet<String>,
+    /// i64 locals that carry native JSON handles or JSON-tagged Any values.
+    json_handle_locals: HashSet<String>,
     /// Maps function names to return type
     functions: HashMap<String, String>,
     /// Tracks function parameter LLVM types for call-site lowering.
@@ -440,6 +446,7 @@ impl LlvmGenerator {
             forwarded_mem_slot_scopes: Vec::new(),
             fixed_array_candidate_scopes: Vec::new(),
             borrowed_locals: HashSet::new(),
+            json_handle_locals: HashSet::new(),
             functions: HashMap::new(),
             function_params: HashMap::new(),
             string_function_params: HashMap::new(),
@@ -4588,6 +4595,112 @@ impl LlvmGenerator {
         }
     }
 
+    fn expr_returns_json_handle(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Ident(name, _) => self.json_handle_locals.contains(name),
+            Expr::Paren(inner, _) => self.expr_returns_json_handle(inner),
+            Expr::Cast { value, .. } => self.expr_returns_json_handle(value),
+            Expr::Call { callee, .. } => matches!(
+                callee.as_ref(),
+                Expr::Ident(name, _)
+                    if matches!(
+                        name.as_str(),
+                        "json_object_new"
+                            | "json_array_new"
+                            | "json_parse"
+                            | "json_get"
+                            | "json_array_get"
+                    )
+            ),
+            _ => false,
+        }
+    }
+
+    fn encode_json_any_i64_payload(&mut self, value: &str, tag: i64) -> String {
+        let shifted = self.next_reg();
+        self.emit(&format!("  {} = shl i64 {}, 3", shifted, value));
+        let tagged = self.next_reg();
+        self.emit(&format!("  {} = or i64 {}, {}", tagged, shifted, tag));
+        tagged
+    }
+
+    fn compile_json_any_argument(&mut self, expr: &Expr) -> KainResult<String> {
+        if matches!(expr, Expr::None(_)) {
+            return Ok(JSON_ANY_TAG_NULL_LLVM.to_string());
+        }
+        if matches!(expr, Expr::Ident(name, _) if name == "None") {
+            return Ok(JSON_ANY_TAG_NULL_LLVM.to_string());
+        }
+
+        let is_json_handle = self.expr_returns_json_handle(expr);
+        let (value, ty) = self.compile_expr(expr)?;
+        if is_json_handle {
+            return Ok(self.coerce_to_i64_storage(&value, &ty));
+        }
+
+        match ty.as_str() {
+            "i64" => Ok(self.encode_json_any_i64_payload(&value, JSON_ANY_TAG_INT_LLVM)),
+            "i32" | "i8" => {
+                let widened = self.cast_numeric_value(value, &ty, "i64")?;
+                Ok(self.encode_json_any_i64_payload(&widened, JSON_ANY_TAG_INT_LLVM))
+            }
+            "i1" => {
+                let widened = self.cast_numeric_value(value, "i1", "i64")?;
+                Ok(self.encode_json_any_i64_payload(&widened, JSON_ANY_TAG_BOOL_LLVM))
+            }
+            "i8*" => {
+                let pointer_bits = self.next_reg();
+                self.emit(&format!("  {} = ptrtoint i8* {} to i64", pointer_bits, value));
+                let tagged = self.next_reg();
+                self.emit(&format!(
+                    "  {} = or i64 {}, {}",
+                    tagged, pointer_bits, JSON_ANY_TAG_STRING_LLVM
+                ));
+                Ok(tagged)
+            }
+            _ if ty.ends_with('*') => Ok(self.coerce_to_i64_storage(&value, &ty)),
+            _ => Ok(self.coerce_to_i64_storage(&value, &ty)),
+        }
+    }
+
+    fn compile_json_builtin_call(
+        &mut self,
+        func_name: &str,
+        args: &[kain_core::ast::CallArg],
+    ) -> KainResult<Option<(String, String)>> {
+        match (func_name, args.len()) {
+            ("json_object_set", 3) => {
+                let (object, object_ty) = self.compile_expr(&args[0].value)?;
+                let object_i64 = self.coerce_to_i64_storage(&object, &object_ty);
+                let (key, key_ty) = self.compile_expr_for_target_type(&args[1].value, "i8*")?;
+                let value_any = self.compile_json_any_argument(&args[2].value)?;
+                self.emit(&format!(
+                    "  call void @json_object_set(i64 {}, i8* {}, i64 {})",
+                    object_i64, key, value_any
+                ));
+                self.emit_release_if_new_object_expr(&args[1].value, &key, &key_ty);
+                Ok(Some(("0".to_string(), "i64".to_string())))
+            }
+            ("json_array_push", 2) => {
+                let (array, array_ty) = self.compile_expr(&args[0].value)?;
+                let array_i64 = self.coerce_to_i64_storage(&array, &array_ty);
+                let value_any = self.compile_json_any_argument(&args[1].value)?;
+                self.emit(&format!(
+                    "  call void @json_array_push(i64 {}, i64 {})",
+                    array_i64, value_any
+                ));
+                Ok(Some(("0".to_string(), "i64".to_string())))
+            }
+            ("json_string", 1) => {
+                let value_any = self.compile_json_any_argument(&args[0].value)?;
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i8* @json_string(i64 {})", result, value_any));
+                Ok(Some((result, "i8*".to_string())))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn cast_numeric_value(
         &mut self,
         val: String,
@@ -7056,6 +7169,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
@@ -7228,6 +7342,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
@@ -7708,6 +7823,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
@@ -7797,6 +7913,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
@@ -7953,6 +8070,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
@@ -8136,6 +8254,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
@@ -8189,6 +8308,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
@@ -8232,6 +8352,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.scopes.clear();
@@ -8353,6 +8474,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.scopes.clear();
@@ -8597,6 +8719,7 @@ impl LlvmGenerator {
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
         self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
         self.string_locals.clear();
         self.string_length_values.clear();
         self.scopes.clear();
@@ -8991,6 +9114,7 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = load {}, {}* {}", tmp, ty, ty, addr));
                     self.emit_release(&tmp, &ty);
                 }
+                self.json_handle_locals.remove(var_name);
             }
         }
     }
@@ -9031,6 +9155,7 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = load {}, {}* {}", tmp, ty, ty, addr));
                     self.emit_release(&tmp, &ty);
                 }
+                self.json_handle_locals.remove(&var_name);
             }
         }
     }
@@ -9151,6 +9276,7 @@ impl LlvmGenerator {
                                     .insert(name.clone(), (storage_reg.clone(), array_ty.clone()));
                                 self.helper_owned_pointer_locals.remove(name);
                                 self.ephemeral_owned_pointer_locals.remove(name);
+                                self.json_handle_locals.remove(name);
                                 self.shattered_array_locals.remove(name);
                                 self.fixed_array_locals.insert(
                                     name.clone(),
@@ -9209,6 +9335,7 @@ impl LlvmGenerator {
                                 self.locals
                                     .insert(name.clone(), (addr_reg, "i64".to_string()));
                                 self.helper_owned_pointer_locals.remove(name);
+                                self.json_handle_locals.remove(name);
                                 self.ephemeral_owned_pointer_locals.insert(
                                     name.clone(),
                                     EphemeralOwnershipLocalWitness {
@@ -9251,6 +9378,11 @@ impl LlvmGenerator {
                         let local_pointer_provenance =
                             self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
+                        if self.expr_returns_json_handle(val_expr) {
+                            self.json_handle_locals.insert(name.clone());
+                        } else {
+                            self.json_handle_locals.remove(name);
+                        }
                         self.record_helper_owned_pointer_local(name, local_pointer_provenance);
                         self.fixed_array_locals.remove(name);
                         if let Some(struct_name) = self.shattered_array_expr_struct_name(val_expr) {
@@ -9844,6 +9976,10 @@ impl LlvmGenerator {
                 &args[1].value,
                 &args[2].value,
             );
+        }
+
+        if let Some(result) = self.compile_json_builtin_call(func_name, args)? {
+            return Ok(result);
         }
 
         let mut compiled_args = Vec::new();

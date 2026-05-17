@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-17 - Native LLVM JSON builtins now link through json.c
+
+The native LLVM JSON builtin gap is closed for the core builtin surface: `json_parse`, `json_string`, `json_get`, `json_get_string`, `json_get_int`, `json_get_bool`, `json_has`, `json_object_new`, `json_object_set`, `json_array_new`, `json_array_push`, `json_array_len`, and `json_array_get`.
+
+What changed:
+
+- `runtime/native/include/json.h` and `runtime/native/src/core/json.c`
+  - Added a Kain-owned C JSON tree for null/bool/int/string/object/array values.
+  - Added low-bit tagged JSON Any payloads for LLVM call lowering: raw aligned JSON handles use tag `0`, integers tag `1`, bools tag `2`, strings tag `3`, null tag `4`.
+  - Added a tiny native handle registry so JSON handles survive even when an upstream `Any` lowering path arrives through the integer-tag shape.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Special-cases `json_object_set`, `json_array_push`, and `json_string` so LLVM sends the native runtime a single `i64` JSON Any payload instead of mismatched `i8*`/`i1` arguments.
+  - Tracks JSON-handle locals for common `json_object_new`/`json_array_new`/`json_parse`/`json_get`/`json_array_get` flows.
+- `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, `runtime/runtime_manifest_data.bzl`, and `runtime/native/include/stdlib_abi.h`
+  - Wired `native/src/core/json.c` and declared the `data.json` native runtime service.
+- `smoketest/native_json_builtins.kn`
+  - Added a focused native LLVM smoke that creates, renders, parses, reads, and nests JSON objects.
+- `benchmark/README.md` and `benchmark/benchmarks.json`
+  - Removed stale “JSON builtins fail to link” notes. `json_manual_roundtrip` remains manual because it measures schema-literal parser/render collapse, not generic JSON builtin availability.
+
+Proof and validation:
+
+- `runtime/native/src/core/z3/proofs-experimental/json-any-tagged-lane.smt2`
+- Report: `z3/reports/20260517T222854Z-runtime-json-any-tagged-lane.json`
+- Result: eight `unsat` checks for low-bit tag disjointness, string pointer untagging, and signed 61-bit int round-trip.
+- `clang -fsyntax-only -Iruntime/native/include runtime/native/src/core/json.c`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `cargo run -p cli --bin kain -- build smoketest/native_json_builtins.kn --target llvm -o .playground/native_json_builtins.exe` emitted valid LLVM IR.
+- Full manual runtime link with the emitted IR plus `runtime/native` sources succeeded, and `.playground/native_json_builtins.exe` exited `0`.
+
+Known next hardening:
+
+- `json.c` is intentionally a first native ABI floor, not the final JSON engine. It currently supports integer numbers, basic string escapes, arrays, objects, bools, and null; full floating-point number support, Unicode escape fidelity, destructor/RC ownership for JSON handles, and a cleaner compiler-side generic `Any` representation should come next.
+
 # 2026-05-17 - Manual JSON roundtrip collapsed into a period-14 native lane
 
 `benchmark/cases/json_manual_roundtrip` now keeps the dependency-free manual parser/renderer loop as the `converge` spec and routes Kain LLVM through `abi_json_manual_roundtrip_literal_checksum(...)`, a native C reducer for the row's two literal payloads plus seven-step `round_mod` schedule.
