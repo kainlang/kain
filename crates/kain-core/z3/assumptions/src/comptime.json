@@ -40,15 +40,15 @@
       "id": "eval-jsx.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 136,
+      "line": 142,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
       "span": {
         "end_col": 49,
-        "end_line": 136,
+        "end_line": 142,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
         "start_col": 1,
-        "start_line": 136
+        "start_line": 142
       },
       "symbol": "eval_jsx",
       "tags": [
@@ -68,7 +68,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "c159f35208010f4e3f978c3e82d1cc86ab9e6edfdb922654c5046690dc04c936",
+  "source_hash": "06f0f1569c8f54153c99303a0b49f3a34267a9095ab77fab9877d5d1325a2d05",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
   "version": 1
 }

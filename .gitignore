@@ -7,6 +7,7 @@ tidus/
 **/debug/**
 /.playground
 /.zarchive/
+/z3-mcp
 /smoketest/3D/
 reference/
 library_of_kain/
@@ -146,4 +147,3 @@ zender
 # Bazel local state
 /bazel-*
 /.bazel-cache/
-AGENTS.md

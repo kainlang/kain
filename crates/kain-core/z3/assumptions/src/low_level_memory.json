@@ -312,15 +312,15 @@
       "id": "collect-address-taken-from-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1783,
+      "line": 1810,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 55,
-        "end_line": 1783,
+        "end_line": 1810,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1783
+        "start_line": 1810
       },
       "symbol": "collect_address_taken_from_expr",
       "tags": [
@@ -645,15 +645,15 @@
       "id": "first-memory-block-context.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2678,
+      "line": 2705,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 65,
-        "end_line": 2678,
+        "end_line": 2705,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2678
+        "start_line": 2705
       },
       "symbol": "first_memory_block_context",
       "tags": [
@@ -677,15 +677,15 @@
       "id": "first-memory-else-branch-context.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2912,
+      "line": 2943,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 71,
-        "end_line": 2912,
+        "end_line": 2943,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2912
+        "start_line": 2943
       },
       "symbol": "first_memory_else_branch_context",
       "tags": [
@@ -709,15 +709,15 @@
       "id": "first-memory-expr-context.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2739,
+      "line": 2766,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 74,
-        "end_line": 2739,
+        "end_line": 2766,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2739
+        "start_line": 2766
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -744,15 +744,15 @@
       "id": "first-memory-expr-context.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2747,
+      "line": 2778,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 71,
-        "end_line": 2747,
+        "end_line": 2778,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2747
+        "start_line": 2778
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -779,15 +779,15 @@
       "id": "first-memory-expr-context.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2763,
+      "line": 2794,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 73,
-        "end_line": 2763,
+        "end_line": 2794,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2763
+        "start_line": 2794
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -814,15 +814,15 @@
       "id": "first-memory-expr-context.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2771,
+      "line": 2802,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 75,
-        "end_line": 2771,
+        "end_line": 2802,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2771
+        "start_line": 2802
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -849,15 +849,15 @@
       "id": "first-memory-expr-context.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2779,
+      "line": 2810,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 73,
-        "end_line": 2779,
+        "end_line": 2810,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2779
+        "start_line": 2810
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -884,15 +884,15 @@
       "id": "first-memory-expr-context.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2786,
+      "line": 2817,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 73,
-        "end_line": 2786,
+        "end_line": 2817,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2786
+        "start_line": 2817
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -919,15 +919,15 @@
       "id": "first-memory-expr-context.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2793,
+      "line": 2824,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 84,
-        "end_line": 2793,
+        "end_line": 2824,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2793
+        "start_line": 2824
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -954,15 +954,15 @@
       "id": "first-memory-expr-context.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2808,
+      "line": 2839,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 71,
-        "end_line": 2808,
+        "end_line": 2839,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2808
+        "start_line": 2839
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -989,15 +989,15 @@
       "id": "first-memory-expr-context.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2828,
+      "line": 2859,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 76,
-        "end_line": 2828,
+        "end_line": 2859,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2828
+        "start_line": 2859
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -1024,15 +1024,15 @@
       "id": "first-memory-expr-context.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2842,
+      "line": 2873,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 76,
-        "end_line": 2842,
+        "end_line": 2873,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2842
+        "start_line": 2873
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -1059,15 +1059,15 @@
       "id": "first-memory-expr-context.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2846,
+      "line": 2877,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 76,
-        "end_line": 2846,
+        "end_line": 2877,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2846
+        "start_line": 2877
       },
       "symbol": "first_memory_expr_context",
       "tags": [
@@ -1095,15 +1095,15 @@
       "id": "first-memory-expr-context-from-call-args.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2898,
+      "line": 2929,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 77,
-        "end_line": 2898,
+        "end_line": 2929,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2898
+        "start_line": 2929
       },
       "symbol": "first_memory_expr_context_from_call_args",
       "tags": [
@@ -1129,15 +1129,15 @@
       "id": "first-memory-expr-context-from-exprs.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2886,
+      "line": 2917,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 72,
-        "end_line": 2886,
+        "end_line": 2917,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2886
+        "start_line": 2917
       },
       "symbol": "first_memory_expr_context_from_exprs",
       "tags": [
@@ -1161,15 +1161,15 @@
       "id": "first-memory-expr-context-from-pairs.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2877,
+      "line": 2908,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 72,
-        "end_line": 2877,
+        "end_line": 2908,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2877
+        "start_line": 2908
       },
       "symbol": "first_memory_expr_context_from_pairs",
       "tags": [
@@ -1193,15 +1193,15 @@
       "id": "first-memory-stmt-context.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2701,
+      "line": 2728,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 50,
-        "end_line": 2701,
+        "end_line": 2728,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2701
+        "start_line": 2728
       },
       "symbol": "first_memory_stmt_context",
       "tags": [
@@ -1223,15 +1223,15 @@
       "id": "first-memory-stmt-context.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2713,
+      "line": 2740,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 50,
-        "end_line": 2713,
+        "end_line": 2740,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2713
+        "start_line": 2740
       },
       "symbol": "first_memory_stmt_context",
       "tags": [
@@ -1253,15 +1253,15 @@
       "id": "first-unsupported-memory-context.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2525,
+      "line": 2552,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 79,
-        "end_line": 2525,
+        "end_line": 2552,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2525
+        "start_line": 2552
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1286,15 +1286,15 @@
       "id": "first-unsupported-memory-context.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2530,
+      "line": 2557,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 24,
-        "end_line": 2530,
+        "end_line": 2557,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2530
+        "start_line": 2557
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1315,15 +1315,15 @@
       "id": "first-unsupported-memory-context.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2532,
+      "line": 2559,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 33,
-        "end_line": 2532,
+        "end_line": 2559,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2532
+        "start_line": 2559
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1345,15 +1345,15 @@
       "id": "first-unsupported-memory-context.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2542,
+      "line": 2569,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 24,
-        "end_line": 2542,
+        "end_line": 2569,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2542
+        "start_line": 2569
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1374,15 +1374,15 @@
       "id": "first-unsupported-memory-context.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2544,
+      "line": 2571,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 32,
-        "end_line": 2544,
+        "end_line": 2571,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2544
+        "start_line": 2571
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1404,15 +1404,15 @@
       "id": "first-unsupported-memory-context.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2554,
+      "line": 2581,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 24,
-        "end_line": 2554,
+        "end_line": 2581,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2554
+        "start_line": 2581
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1433,15 +1433,15 @@
       "id": "first-unsupported-memory-context.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2556,
+      "line": 2583,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 33,
-        "end_line": 2556,
+        "end_line": 2583,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2556
+        "start_line": 2583
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1463,15 +1463,15 @@
       "id": "first-unsupported-memory-context.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2566,
+      "line": 2593,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 55,
-        "end_line": 2566,
+        "end_line": 2593,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2566
+        "start_line": 2593
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1496,15 +1496,15 @@
       "id": "first-unsupported-memory-context.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2569,
+      "line": 2596,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 26,
-        "end_line": 2569,
+        "end_line": 2596,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2569
+        "start_line": 2596
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1525,15 +1525,15 @@
       "id": "first-unsupported-memory-context.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2570,
+      "line": 2597,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 50,
-        "end_line": 2570,
+        "end_line": 2597,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2570
+        "start_line": 2597
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1556,15 +1556,15 @@
       "id": "first-unsupported-memory-context.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2579,
+      "line": 2606,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 63,
-        "end_line": 2579,
+        "end_line": 2606,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2579
+        "start_line": 2606
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1589,15 +1589,15 @@
       "id": "first-unsupported-memory-context.guard-condition.12",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2588,
+      "line": 2615,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 23,
-        "end_line": 2588,
+        "end_line": 2615,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2588
+        "start_line": 2615
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1619,15 +1619,15 @@
       "id": "first-unsupported-memory-context.guard-condition.13",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2596,
+      "line": 2623,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 79,
-        "end_line": 2596,
+        "end_line": 2623,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2596
+        "start_line": 2623
       },
       "symbol": "first_unsupported_memory_context",
       "tags": [
@@ -1653,15 +1653,15 @@
       "id": "first-unsupported-memory-context-in-ast-function.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2646,
+      "line": 2673,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 24,
-        "end_line": 2646,
+        "end_line": 2673,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2646
+        "start_line": 2673
       },
       "symbol": "first_unsupported_memory_context_in_ast_function",
       "tags": [
@@ -1682,15 +1682,15 @@
       "id": "first-unsupported-memory-context-in-ast-function.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2648,
+      "line": 2675,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 33,
-        "end_line": 2648,
+        "end_line": 2675,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2648
+        "start_line": 2675
       },
       "symbol": "first_unsupported_memory_context_in_ast_function",
       "tags": [
@@ -1712,15 +1712,15 @@
       "id": "first-unsupported-memory-context-in-ast-function.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2655,
+      "line": 2682,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 43,
-        "end_line": 2655,
+        "end_line": 2682,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2655
+        "start_line": 2682
       },
       "symbol": "first_unsupported_memory_context_in_ast_function",
       "tags": [
@@ -1744,15 +1744,15 @@
       "id": "first-unsupported-memory-context-in-ast-function.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2656,
+      "line": 2683,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 28,
-        "end_line": 2656,
+        "end_line": 2683,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2656
+        "start_line": 2683
       },
       "symbol": "first_unsupported_memory_context_in_ast_function",
       "tags": [
@@ -1773,15 +1773,15 @@
       "id": "first-unsupported-memory-context-in-ast-function.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2665,
+      "line": 2692,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 26,
-        "end_line": 2665,
+        "end_line": 2692,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2665
+        "start_line": 2692
       },
       "symbol": "first_unsupported_memory_context_in_ast_function",
       "tags": [
@@ -1802,15 +1802,15 @@
       "id": "first-unsupported-memory-context-in-ast-function.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2666,
+      "line": 2693,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 23,
-        "end_line": 2666,
+        "end_line": 2693,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2666
+        "start_line": 2693
       },
       "symbol": "first_unsupported_memory_context_in_ast_function",
       "tags": [
@@ -1832,15 +1832,15 @@
       "id": "first-unsupported-memory-context-in-function.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2611,
+      "line": 2638,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 24,
-        "end_line": 2611,
+        "end_line": 2638,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2611
+        "start_line": 2638
       },
       "symbol": "first_unsupported_memory_context_in_function",
       "tags": [
@@ -1861,15 +1861,15 @@
       "id": "first-unsupported-memory-context-in-function.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2613,
+      "line": 2640,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 33,
-        "end_line": 2613,
+        "end_line": 2640,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2613
+        "start_line": 2640
       },
       "symbol": "first_unsupported_memory_context_in_function",
       "tags": [
@@ -1891,15 +1891,15 @@
       "id": "first-unsupported-memory-context-in-function.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2620,
+      "line": 2647,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 47,
-        "end_line": 2620,
+        "end_line": 2647,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2620
+        "start_line": 2647
       },
       "symbol": "first_unsupported_memory_context_in_function",
       "tags": [
@@ -1924,15 +1924,15 @@
       "id": "first-unsupported-memory-context-in-function.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2621,
+      "line": 2648,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 28,
-        "end_line": 2621,
+        "end_line": 2648,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2621
+        "start_line": 2648
       },
       "symbol": "first_unsupported_memory_context_in_function",
       "tags": [
@@ -1953,15 +1953,15 @@
       "id": "first-unsupported-memory-context-in-function.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2630,
+      "line": 2657,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 26,
-        "end_line": 2630,
+        "end_line": 2657,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2630
+        "start_line": 2657
       },
       "symbol": "first_unsupported_memory_context_in_function",
       "tags": [
@@ -1982,15 +1982,15 @@
       "id": "first-unsupported-memory-context-in-function.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2631,
+      "line": 2658,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 51,
-        "end_line": 2631,
+        "end_line": 2658,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2631
+        "start_line": 2658
       },
       "symbol": "first_unsupported_memory_context_in_function",
       "tags": [
@@ -2014,15 +2014,15 @@
       "id": "format-ptr-type.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2946,
+      "line": 2977,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 13,
-        "end_line": 2946,
+        "end_line": 2977,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2946
+        "start_line": 2977
       },
       "symbol": "format_ptr_type",
       "tags": [
@@ -2041,15 +2041,15 @@
       "id": "format-type.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2956,
+      "line": 2987,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 25,
-        "end_line": 2956,
+        "end_line": 2987,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2956
+        "start_line": 2987
       },
       "symbol": "format_type",
       "tags": [
@@ -2071,15 +2071,15 @@
       "id": "format-type.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2966,
+      "line": 2997,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 14,
-        "end_line": 2966,
+        "end_line": 2997,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2966
+        "start_line": 2997
       },
       "symbol": "format_type",
       "tags": [
@@ -2100,15 +2100,15 @@
       "id": "format-type.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2973,
+      "line": 3004,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 14,
-        "end_line": 2973,
+        "end_line": 3004,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2973
+        "start_line": 3004
       },
       "symbol": "format_type",
       "tags": [
@@ -2129,15 +2129,15 @@
       "id": "format-type.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2998,
+      "line": 3029,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 25,
-        "end_line": 2998,
+        "end_line": 3029,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2998
+        "start_line": 3029
       },
       "symbol": "format_type",
       "tags": [
@@ -2165,15 +2165,15 @@
       "id": "join-formatted-type-list.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3015,
+      "line": 3046,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 12,
-        "end_line": 3015,
+        "end_line": 3046,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 3015
+        "start_line": 3046
       },
       "symbol": "join_formatted_type_list",
       "tags": [
@@ -2198,15 +2198,15 @@
       "id": "join-type-key-list.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1954,
+      "line": 1981,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 12,
-        "end_line": 1954,
+        "end_line": 1981,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1954
+        "start_line": 1981
       },
       "symbol": "join_type_key_list",
       "tags": [
@@ -2225,15 +2225,15 @@
       "id": "load-from-pointer-binding.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1611,
+      "line": 1638,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 23,
-        "end_line": 1611,
+        "end_line": 1638,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1611
+        "start_line": 1638
       },
       "symbol": "load_from_pointer_binding",
       "tags": [
@@ -2253,15 +2253,15 @@
       "id": "lower-addr-of-memory.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1653,
+      "line": 1680,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 57,
-        "end_line": 1653,
+        "end_line": 1680,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1653
+        "start_line": 1680
       },
       "symbol": "lower_addr_of_memory",
       "tags": [
@@ -2285,15 +2285,15 @@
       "id": "lower-addr-of-memory.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1657,
+      "line": 1684,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 31,
-        "end_line": 1657,
+        "end_line": 1684,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1657
+        "start_line": 1684
       },
       "symbol": "lower_addr_of_memory",
       "tags": [
@@ -2315,15 +2315,15 @@
       "id": "lower-aggregate-init-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2354,
+      "line": 2381,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 19,
-        "end_line": 2354,
+        "end_line": 2381,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2354
+        "start_line": 2381
       },
       "symbol": "lower_aggregate_init_expr",
       "tags": [
@@ -2343,15 +2343,15 @@
       "id": "lower-aggregate-init-expr.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2370,
+      "line": 2397,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 43,
-        "end_line": 2370,
+        "end_line": 2397,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2370
+        "start_line": 2397
       },
       "symbol": "lower_aggregate_init_expr",
       "tags": [
@@ -2372,15 +2372,15 @@
       "id": "lower-aggregate-init-expr.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2406,
+      "line": 2433,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 51,
-        "end_line": 2406,
+        "end_line": 2433,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2406
+        "start_line": 2433
       },
       "symbol": "lower_aggregate_init_expr",
       "tags": [
@@ -2406,15 +2406,15 @@
       "id": "lower-aggregate-init-expr.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2410,
+      "line": 2437,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 20,
-        "end_line": 2410,
+        "end_line": 2437,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2410
+        "start_line": 2437
       },
       "symbol": "lower_aggregate_init_expr",
       "tags": [
@@ -2466,15 +2466,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1036,
+      "line": 1063,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 48,
-        "end_line": 1036,
+        "end_line": 1063,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1036
+        "start_line": 1063
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2501,15 +2501,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1037,
+      "line": 1064,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 41,
-        "end_line": 1037,
+        "end_line": 1064,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1037
+        "start_line": 1064
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2532,15 +2532,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1048,
+      "line": 1075,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 61,
-        "end_line": 1048,
+        "end_line": 1075,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1048
+        "start_line": 1075
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2567,15 +2567,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1049,
+      "line": 1076,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 75,
-        "end_line": 1049,
+        "end_line": 1076,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1049
+        "start_line": 1076
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2602,15 +2602,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1056,
+      "line": 1083,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 43,
-        "end_line": 1056,
+        "end_line": 1083,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1056
+        "start_line": 1083
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2634,15 +2634,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1099,
+      "line": 1126,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 66,
-        "end_line": 1099,
+        "end_line": 1126,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1099
+        "start_line": 1126
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2668,15 +2668,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1165,
+      "line": 1192,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 52,
-        "end_line": 1165,
+        "end_line": 1192,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1165
+        "start_line": 1192
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2698,15 +2698,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1275,
+      "line": 1302,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 75,
-        "end_line": 1275,
+        "end_line": 1302,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1275
+        "start_line": 1302
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2733,15 +2733,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1280,
+      "line": 1307,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 43,
-        "end_line": 1280,
+        "end_line": 1307,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1280
+        "start_line": 1307
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2765,15 +2765,15 @@
       "id": "lower-expr-memory-with-ctx.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1322,
+      "line": 1349,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 66,
-        "end_line": 1322,
+        "end_line": 1349,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1322
+        "start_line": 1349
       },
       "symbol": "lower_expr_memory_with_ctx",
       "tags": [
@@ -2887,15 +2887,15 @@
       "id": "lower-heap-alloc-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2304,
+      "line": 2331,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 41,
-        "end_line": 2304,
+        "end_line": 2331,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2304
+        "start_line": 2331
       },
       "symbol": "lower_heap_alloc_expr",
       "tags": [
@@ -2914,15 +2914,15 @@
       "id": "lower-heap-realloc-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2325,
+      "line": 2352,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 41,
-        "end_line": 2325,
+        "end_line": 2352,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2325
+        "start_line": 2352
       },
       "symbol": "lower_heap_realloc_expr",
       "tags": [
@@ -3039,15 +3039,15 @@
       "id": "lower-storage-array-items.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2268,
+      "line": 2295,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 22,
-        "end_line": 2268,
+        "end_line": 2295,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2268
+        "start_line": 2295
       },
       "symbol": "lower_storage_array_items",
       "tags": [
@@ -3067,15 +3067,15 @@
       "id": "lower-storage-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2205,
+      "line": 2232,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 12,
-        "end_line": 2205,
+        "end_line": 2232,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2205
+        "start_line": 2232
       },
       "symbol": "lower_storage_expr",
       "tags": [
@@ -3096,15 +3096,15 @@
       "id": "lower-storage-expr.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2212,
+      "line": 2239,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 12,
-        "end_line": 2212,
+        "end_line": 2239,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2212
+        "start_line": 2239
       },
       "symbol": "lower_storage_expr",
       "tags": [
@@ -3125,15 +3125,15 @@
       "id": "lower-storage-expr.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2219,
+      "line": 2246,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 12,
-        "end_line": 2219,
+        "end_line": 2246,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2219
+        "start_line": 2246
       },
       "symbol": "lower_storage_expr",
       "tags": [
@@ -3154,15 +3154,15 @@
       "id": "lower-storage-expr.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2226,
+      "line": 2253,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 12,
-        "end_line": 2226,
+        "end_line": 2253,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2226
+        "start_line": 2253
       },
       "symbol": "lower_storage_expr",
       "tags": [
@@ -3182,15 +3182,15 @@
       "id": "lower-storage-expr.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2236,
+      "line": 2263,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 51,
-        "end_line": 2236,
+        "end_line": 2263,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2236
+        "start_line": 2263
       },
       "symbol": "lower_storage_expr",
       "tags": [
@@ -3256,15 +3256,15 @@
       "id": "lower-union-aggregate-fields.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2462,
+      "line": 2489,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 18,
-        "end_line": 2462,
+        "end_line": 2489,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2462
+        "start_line": 2489
       },
       "symbol": "lower_union_aggregate_fields",
       "tags": [
@@ -3284,15 +3284,15 @@
       "id": "lower-union-aggregate-fields.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2465,
+      "line": 2492,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 42,
-        "end_line": 2465,
+        "end_line": 2492,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2465
+        "start_line": 2492
       },
       "symbol": "lower_union_aggregate_fields",
       "tags": [
@@ -3315,15 +3315,15 @@
       "id": "lower-union-aggregate-fields.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2470,
+      "line": 2497,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 27,
-        "end_line": 2470,
+        "end_line": 2497,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2470
+        "start_line": 2497
       },
       "symbol": "lower_union_aggregate_fields",
       "tags": [
@@ -3345,15 +3345,15 @@
       "id": "lower-union-aggregate-fields.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2482,
+      "line": 2509,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 20,
-        "end_line": 2482,
+        "end_line": 2509,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2482
+        "start_line": 2509
       },
       "symbol": "lower_union_aggregate_fields",
       "tags": [
@@ -3373,15 +3373,15 @@
       "id": "lower-union-aggregate-fields.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2494,
+      "line": 2521,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 51,
-        "end_line": 2494,
+        "end_line": 2521,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2494
+        "start_line": 2521
       },
       "symbol": "lower_union_aggregate_fields",
       "tags": [
@@ -3408,15 +3408,15 @@
       "id": "lower-union-aggregate-fields.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2499,
+      "line": 2526,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 20,
-        "end_line": 2499,
+        "end_line": 2526,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2499
+        "start_line": 2526
       },
       "symbol": "lower_union_aggregate_fields",
       "tags": [
@@ -3436,15 +3436,15 @@
       "id": "pointer-for-addressable.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1675,
+      "line": 1702,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 69,
-        "end_line": 1675,
+        "end_line": 1702,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1675
+        "start_line": 1702
       },
       "symbol": "pointer_for_addressable",
       "tags": [
@@ -3471,15 +3471,15 @@
       "id": "pointer-for-addressable.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1676,
+      "line": 1703,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 44,
-        "end_line": 1676,
+        "end_line": 1703,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 1676
+        "start_line": 1703
       },
       "symbol": "pointer_for_addressable",
       "tags": [
@@ -3558,15 +3558,15 @@
       "id": "storage-seed-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2283,
+      "line": 2310,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
       "span": {
         "end_col": 12,
-        "end_line": 2283,
+        "end_line": 2310,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
         "start_col": 1,
-        "start_line": 2283
+        "start_line": 2310
       },
       "symbol": "storage_seed_expr",
       "tags": [
@@ -3644,7 +3644,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "be40cc8568f49c88925da6780635e131cc7146166193b9937d795a31509edf71",
+  "source_hash": "cc8e52c7f14edcfa64343620633b920d7b486ef6d44aeffe2d65a8451824b4df",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
   "version": 1
 }

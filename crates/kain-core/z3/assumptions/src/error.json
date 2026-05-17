@@ -7,15 +7,15 @@
       "id": "enhanced-diagnostic-uses-registry-metadata.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 752,
+      "line": 755,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
       "span": {
         "end_col": 45,
-        "end_line": 752,
+        "end_line": 755,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
         "start_col": 1,
-        "start_line": 752
+        "start_line": 755
       },
       "symbol": "enhanced_diagnostic_uses_registry_metadata",
       "tags": [
@@ -38,15 +38,15 @@
       "id": "enhanced-diagnostic-uses-registry-metadata.assert-condition.2",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 753,
+      "line": 756,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
       "span": {
         "end_col": 56,
-        "end_line": 753,
+        "end_line": 756,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
         "start_col": 1,
-        "start_line": 753
+        "start_line": 756
       },
       "symbol": "enhanced_diagnostic_uses_registry_metadata",
       "tags": [
@@ -70,15 +70,15 @@
       "id": "enhanced-diagnostic-uses-registry-metadata.assert-condition.3",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 754,
+      "line": 757,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
       "span": {
         "end_col": 58,
-        "end_line": 754,
+        "end_line": 757,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
         "start_col": 1,
-        "start_line": 754
+        "start_line": 757
       },
       "symbol": "enhanced_diagnostic_uses_registry_metadata",
       "tags": [
@@ -102,15 +102,15 @@
       "id": "enhanced-diagnostic-uses-registry-metadata.assert-condition.4",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 755,
+      "line": 758,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
       "span": {
         "end_col": 37,
-        "end_line": 755,
+        "end_line": 758,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
         "start_col": 1,
-        "start_line": 755
+        "start_line": 758
       },
       "symbol": "enhanced_diagnostic_uses_registry_metadata",
       "tags": [
@@ -445,7 +445,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "7dfbddfc14fdacb8964c13e704ad415fe17799c24404490fbaa4333fa376cc40",
+  "source_hash": "35866410a06311aabfbfe764ada66b51e3484fb118c625fe283a701cc265dc9f",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\error.rs",
   "version": 1
 }

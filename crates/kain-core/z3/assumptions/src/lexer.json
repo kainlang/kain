@@ -7,15 +7,15 @@
       "id": "process-indentation.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 360,
+      "line": 366,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 38,
-        "end_line": 360,
+        "end_line": 366,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 360
+        "start_line": 366
       },
       "symbol": "process_indentation",
       "tags": [
@@ -39,15 +39,15 @@
       "id": "process-indentation.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 364,
+      "line": 370,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 34,
-        "end_line": 364,
+        "end_line": 370,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 364
+        "start_line": 370
       },
       "symbol": "process_indentation",
       "tags": [
@@ -71,15 +71,15 @@
       "id": "process-indentation.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 365,
+      "line": 371,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 48,
-        "end_line": 365,
+        "end_line": 371,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 365
+        "start_line": 371
       },
       "symbol": "process_indentation",
       "tags": [
@@ -111,15 +111,15 @@
       "id": "process-indentation.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 375,
+      "line": 381,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 22,
-        "end_line": 375,
+        "end_line": 381,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 375
+        "start_line": 381
       },
       "symbol": "process_indentation",
       "tags": [
@@ -140,15 +140,15 @@
       "id": "process-indentation.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 383,
+      "line": 389,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 73,
-        "end_line": 383,
+        "end_line": 389,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 383
+        "start_line": 389
       },
       "symbol": "process_indentation",
       "tags": [
@@ -172,15 +172,15 @@
       "id": "process-indentation.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 400,
+      "line": 406,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 31,
-        "end_line": 400,
+        "end_line": 406,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 400
+        "start_line": 406
       },
       "symbol": "process_indentation",
       "tags": [
@@ -201,15 +201,15 @@
       "id": "test-basic-tokens.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 444,
+      "line": 450,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 50,
-        "end_line": 444,
+        "end_line": 450,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 444
+        "start_line": 450
       },
       "symbol": "test_basic_tokens",
       "tags": [
@@ -233,15 +233,15 @@
       "id": "test-basic-tokens.assert-condition.2",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 445,
+      "line": 451,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 56,
-        "end_line": 445,
+        "end_line": 451,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 445
+        "start_line": 451
       },
       "symbol": "test_basic_tokens",
       "tags": [
@@ -266,15 +266,15 @@
       "id": "test-indentation.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 452,
+      "line": 458,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 69,
-        "end_line": 452,
+        "end_line": 458,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 452
+        "start_line": 458
       },
       "symbol": "test_indentation",
       "tags": [
@@ -300,15 +300,15 @@
       "id": "tokenize.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 327,
+      "line": 333,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 38,
-        "end_line": 327,
+        "end_line": 333,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 327
+        "start_line": 333
       },
       "symbol": "tokenize",
       "tags": [
@@ -331,15 +331,15 @@
       "id": "tokenize.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 332,
+      "line": 338,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 65,
-        "end_line": 332,
+        "end_line": 338,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 332
+        "start_line": 338
       },
       "symbol": "tokenize",
       "tags": [
@@ -362,15 +362,15 @@
       "id": "unescape.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 413,
+      "line": 419,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 35,
-        "end_line": 413,
+        "end_line": 419,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 413
+        "start_line": 419
       },
       "symbol": "unescape",
       "tags": [
@@ -392,15 +392,15 @@
       "id": "unescape.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 414,
+      "line": 420,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
       "span": {
         "end_col": 15,
-        "end_line": 414,
+        "end_line": 420,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
         "start_col": 1,
-        "start_line": 414
+        "start_line": 420
       },
       "symbol": "unescape",
       "tags": [
@@ -413,7 +413,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "5862ab83be8fe5d9bfdc7f07c74d3af0e2860d1ab2a7e2bb3a2c11e617642584",
+  "source_hash": "052f57c3f60077ab479e253cbfe6ee8d1bed5523fdae0b6c9ddd076f565de21c",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
   "version": 1
 }

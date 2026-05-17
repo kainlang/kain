@@ -1,0 +1,252 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "err.to_string().contains(\"was moved by teleport\")",
+      "id": "machine-stones-typecheck-and-teleport-poison-origin.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 181,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 181,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+        "start_col": 1,
+        "start_line": 181
+      },
+      "symbol": "machine_stones_typecheck_and_teleport_poison_origin",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(err.to_string().contains(\"was moved by teleport\"));",
+      "variables": [
+        "by",
+        "contains",
+        "err",
+        "moved",
+        "teleport",
+        "to_string",
+        "was"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"KAIN-MEM-0002\")",
+      "id": "non-native-backends-reject-ownership-expressions-before-codegen.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 115,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 115,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+        "start_col": 1,
+        "start_line": 115
+      },
+      "symbol": "non_native_backends_reject_ownership_expressions_before_codegen",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(rendered.contains(\"KAIN-MEM-0002\"));",
+      "variables": [
+        "KAIN",
+        "MEM",
+        "contains",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(target.as_ref(), Expr::Ident(name, _) if name == \"p\")",
+      "id": "parser-recognizes-observe-collapse-and-decay-expressions.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 45,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 45,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+        "start_col": 1,
+        "start_line": 45
+      },
+      "symbol": "parser_recognizes_observe_collapse_and_decay_expressions",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(target.as_ref(), Expr::Ident(name, _) if name == \"p\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "matches",
+        "name",
+        "p",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(body.as_ref(), Expr::Block(_, _))",
+      "id": "parser-recognizes-observe-collapse-and-decay-expressions.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 46,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 46,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+        "start_col": 1,
+        "start_line": 46
+      },
+      "symbol": "parser_recognizes_observe_collapse_and_decay_expressions",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(body.as_ref(), Expr::Block(_, _)));",
+      "variables": [
+        "Block",
+        "Expr",
+        "_",
+        "as_ref",
+        "body",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(target.as_ref(), Expr::Ident(name, _) if name == \"p\")",
+      "id": "parser-recognizes-observe-collapse-and-decay-expressions.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 51,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 51,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+        "start_col": 1,
+        "start_line": 51
+      },
+      "symbol": "parser_recognizes_observe_collapse_and_decay_expressions",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(target.as_ref(), Expr::Ident(name, _) if name == \"p\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "matches",
+        "name",
+        "p",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(body.as_ref(), Expr::Block(_, _))",
+      "id": "parser-recognizes-observe-collapse-and-decay-expressions.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 52,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 52,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+        "start_col": 1,
+        "start_line": 52
+      },
+      "symbol": "parser_recognizes_observe_collapse_and_decay_expressions",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(body.as_ref(), Expr::Block(_, _)));",
+      "variables": [
+        "Block",
+        "Expr",
+        "_",
+        "as_ref",
+        "body",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(target.as_ref(), Expr::Ident(name, _) if name == \"p\")",
+      "id": "parser-recognizes-observe-collapse-and-decay-expressions.assert-condition.5",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 57,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 57,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+        "start_col": 1,
+        "start_line": 57
+      },
+      "symbol": "parser_recognizes_observe_collapse_and_decay_expressions",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(target.as_ref(), Expr::Ident(name, _) if name == \"p\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "matches",
+        "name",
+        "p",
+        "target"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "8c7487d8b8416c2a1c61aa939743feb08e84b75403fed873c4679e8d3d70bb60",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ownership_keywords_test.rs",
+  "version": 1
+}

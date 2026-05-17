@@ -7,15 +7,15 @@
       "id": "append-blade-module-candidates-for-roots.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 126,
+      "line": 127,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
       "span": {
         "end_col": 30,
-        "end_line": 126,
+        "end_line": 127,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
         "start_col": 1,
-        "start_line": 126
+        "start_line": 127
       },
       "symbol": "append_blade_module_candidates_for_roots",
       "tags": [
@@ -36,15 +36,15 @@
       "id": "append-blade-module-candidates-for-roots.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 137,
+      "line": 138,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
       "span": {
         "end_col": 29,
-        "end_line": 137,
+        "end_line": 138,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
         "start_col": 1,
-        "start_line": 137
+        "start_line": 138
       },
       "symbol": "append_blade_module_candidates_for_roots",
       "tags": [
@@ -65,15 +65,15 @@
       "id": "filesystem-item-import-fallback-start.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 147,
+      "line": 148,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
       "span": {
         "end_col": 29,
-        "end_line": 147,
+        "end_line": 148,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
         "start_col": 1,
-        "start_line": 147
+        "start_line": 148
       },
       "symbol": "filesystem_item_import_fallback_start",
       "tags": [
@@ -92,15 +92,15 @@
       "id": "filesystem-module-candidates.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 75,
+      "line": 76,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
       "span": {
         "end_col": 30,
-        "end_line": 75,
+        "end_line": 76,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
         "start_col": 1,
-        "start_line": 75
+        "start_line": 76
       },
       "symbol": "filesystem_module_candidates",
       "tags": [
@@ -121,15 +121,15 @@
       "id": "filesystem-module-candidates.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 97,
+      "line": 98,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
       "span": {
         "end_col": 29,
-        "end_line": 97,
+        "end_line": 98,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
         "start_col": 1,
-        "start_line": 97
+        "start_line": 98
       },
       "symbol": "filesystem_module_candidates",
       "tags": [
@@ -339,15 +339,15 @@
       "id": "push-unique-path.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 155,
+      "line": 156,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
       "span": {
         "end_col": 53,
-        "end_line": 155,
+        "end_line": 156,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
         "start_col": 1,
-        "start_line": 155
+        "start_line": 156
       },
       "symbol": "push_unique_path",
       "tags": [
@@ -370,15 +370,15 @@
       "id": "resolve-filesystem-module-file.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 56,
+      "line": 57,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
       "span": {
         "end_col": 24,
-        "end_line": 56,
+        "end_line": 57,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
         "start_col": 1,
-        "start_line": 56
+        "start_line": 57
       },
       "symbol": "resolve_filesystem_module_file",
       "tags": [
@@ -392,7 +392,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "7061621d70a18fd12ff1546ba01f4625025d39fd563bf6a9251ce8f6a8487b3e",
+  "source_hash": "60cb4a0cbb1040779f90b9f50d27148d6d344aa4d950f6b27b6996a0ab205c2b",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
   "version": 1
 }
