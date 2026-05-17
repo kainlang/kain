@@ -1,5 +1,5 @@
 pub fn benchmark_language_count() -> Int:
-    return 6
+    return 7
 
 pub fn benchmark_language_label(index: Int) -> String:
     if index == 0:
@@ -9,13 +9,15 @@ pub fn benchmark_language_label(index: Int) -> String:
     if index == 2:
         return "C++ CLANG"
     if index == 3:
-        return "GO GC"
+        return "ZIG RELEASEFAST"
     if index == 4:
+        return "GO GC"
+    if index == 5:
         return "NODE JS"
     return "CPYTHON"
 
 pub fn benchmark_language_cli() -> String:
-    return "kain,rust,cpp,go,javascript,python"
+    return "kain,rust,cpp,zig,go,javascript,python"
 
 pub fn benchmark_case_count() -> Int:
     return 47

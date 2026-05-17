@@ -1,5 +1,5 @@
 {
-  "checksum": "45cc436c7d02d74c604d2b45d1701ca1f7e543c563b8956459f4585f1c313492",
+  "checksum": "2a8b3bcb75fb1b8985d6e5679c8911ec45d48e8bfd94e06380a3b034182a3872",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -15951,6 +15951,76 @@
       },
       "license": null,
       "license_ids": [],
+      "license_file": null
+    },
+    "kain-amalgamate 0.1.0": {
+      "name": "kain-amalgamate",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_amalgamate",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_amalgamate",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "base64 0.22.1",
+              "target": "base64"
+            },
+            {
+              "id": "chrono 0.4.43",
+              "target": "chrono"
+            },
+            {
+              "id": "serde 1.0.209",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
+            },
+            {
+              "id": "sha2 0.10.9",
+              "target": "sha2"
+            },
+            {
+              "id": "thiserror 1.0.69",
+              "target": "thiserror"
+            },
+            {
+              "id": "toml 0.8.23",
+              "target": "toml"
+            },
+            {
+              "id": "zstd 0.13.3",
+              "target": "zstd"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
       "license_file": null
     },
     "kain-asm 0.1.0": {
@@ -47584,6 +47654,62 @@
       ],
       "license_file": "LICENSE"
     },
+    "zstd 0.13.3": {
+      "name": "zstd",
+      "version": "0.13.3",
+      "package_url": "https://github.com/gyscos/zstd-rs",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/zstd/0.13.3/download",
+          "sha256": "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "zstd",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "zstd",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "arrays",
+            "default",
+            "legacy",
+            "zdict_builder"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "zstd-safe 7.2.4",
+              "target": "zstd_safe"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2018",
+        "version": "0.13.3"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": "LICENSE"
+    },
     "zstd-safe 6.0.6": {
       "name": "zstd-safe",
       "version": "6.0.6",
@@ -47678,6 +47804,99 @@
       ],
       "license_file": "LICENSE"
     },
+    "zstd-safe 7.2.4": {
+      "name": "zstd-safe",
+      "version": "7.2.4",
+      "package_url": "https://github.com/gyscos/zstd-rs",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/zstd-safe/7.2.4/download",
+          "sha256": "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "zstd_safe",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_build",
+            "crate_root": "build.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "zstd_safe",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "arrays",
+            "legacy",
+            "std",
+            "zdict_builder"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "zstd-safe 7.2.4",
+              "target": "build_script_build"
+            },
+            {
+              "id": "zstd-sys 2.0.16+zstd.1.5.7",
+              "target": "zstd_sys"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2018",
+        "version": "7.2.4"
+      },
+      "build_script_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "compile_data_glob_excludes": [
+          "**/*.rs"
+        ],
+        "data_glob": [
+          "**"
+        ],
+        "link_deps": {
+          "common": [
+            {
+              "id": "zstd-sys 2.0.16+zstd.1.5.7",
+              "target": "zstd_sys"
+            }
+          ],
+          "selects": {}
+        }
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE"
+    },
     "zstd-sys 2.0.16+zstd.1.5.7": {
       "name": "zstd-sys",
       "version": "2.0.16+zstd.1.5.7",
@@ -47721,7 +47940,9 @@
         ],
         "crate_features": {
           "common": [
-            "std"
+            "legacy",
+            "std",
+            "zdict_builder"
           ],
           "selects": {}
         },
@@ -48063,6 +48284,7 @@
     "gpu 0.1.0": "crates/gpu",
     "kain-3d 0.1.0": "crates/kain-3D",
     "kain-actor 0.1.0": "crates/kain-actor",
+    "kain-amalgamate 0.1.0": "crates/kain-amalgamate",
     "kain-asm 0.1.0": "crates/kain-asm",
     "kain-build 0.1.0": "crates/kain-build",
     "kain-c-ffi 0.1.0": "crates/kain-c-ffi",
@@ -48308,6 +48530,7 @@
     "anyhow 1.0.101",
     "ariadne 0.4.1",
     "ash 0.37.3+1.3.251",
+    "base64 0.22.1",
     "bitflags 2.9.4",
     "bitvec 1.0.1",
     "brotli 3.5.0",
@@ -48377,7 +48600,8 @@
     "wgpu 24.0.5",
     "which 6.0.3",
     "winnow 0.6.26",
-    "zstd 0.12.4"
+    "zstd 0.12.4",
+    "zstd 0.13.3"
   ],
   "direct_dev_deps": [
     "pretty_assertions 1.4.1",

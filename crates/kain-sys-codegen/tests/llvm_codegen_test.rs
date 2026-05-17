@@ -192,6 +192,64 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_registers_nested_module_const_values() {
+    let source = r#"
+mod math:
+    const HALF_PI: Float = 1.5707963267948966
+
+    fn half_turn() -> Float:
+        return HALF_PI
+
+fn main() -> Int:
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("@__kain_const_HALF_PI = internal constant double 1.570796"));
+    assert!(llvm.contains("load double, double* @__kain_const_HALF_PI"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "nested-module-const-values");
+}
+
+#[test]
+fn llvm_lowers_named_vec_fields_and_tuple_alias_access() {
+    let source = r#"
+struct Bounds:
+    min: Vec3
+    max: Vec3
+
+fn x_component(v: Vec3) -> Int:
+    if v.x < v.z:
+        return 1
+    return 0
+
+fn bounds_mix(bounds: Bounds) -> Int:
+    if bounds.min.x < bounds.max.z:
+        return 1
+    return 0
+
+fn main() -> Int:
+    let bounds = Bounds { min: vec3(1.0, 2.0, 3.0), max: vec3(4.0, 5.0, 6.0) }
+    return x_component(bounds.min) + bounds_mix(bounds)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%__kain_tuple_double_double_double = type { double, double, double }"));
+    assert!(llvm.contains("%Bounds = type { %__kain_tuple_double_double_double, %__kain_tuple_double_double_double }"));
+    assert!(llvm.contains("@x_component(%__kain_tuple_double_double_double %arg0)"));
+    assert!(llvm.contains("@bounds_mix(%Bounds %arg0)"));
+    assert!(llvm.contains("getelementptr inbounds %__kain_tuple_double_double_double"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "vec-field-tuple-alias-access");
+}
+
+#[test]
 fn llvm_uses_explicit_native_stdlib_wrapper_string_signatures() {
     let source = r#"
 @extern
@@ -1710,6 +1768,31 @@ fn llvm_generates_float_arithmetic_and_comparisons() {
     assert!(llvm.contains("fcmp ogt double"));
     assert!(llvm.contains("call double @pow(double"));
     assert!(llvm.contains("frem double"));
+}
+
+#[test]
+fn llvm_lowers_numeric_builtins_with_float_operands_without_int_abs_calls() {
+    let source = r#"
+fn probe() -> Float:
+    let a = abs(-1.5)
+    let b = min(10.0, 20.0)
+    let c = max(-2.0, 0.5)
+    let d = clamp(2.5, 0.0, 1.0)
+    return a + b + c + d
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("@probe("));
+    assert!(!llvm.contains("call i64 @abs(double"));
+    assert!(!llvm.contains("call i64 @min(double"));
+    assert!(!llvm.contains("call i64 @max(double"));
+    assert!(!llvm.contains("call i64 @clamp(double"));
+    assert!(llvm.contains("fcmp oge double"));
+    assert!(llvm.contains("select i1"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "float-numeric-builtins");
 }
 
 #[test]

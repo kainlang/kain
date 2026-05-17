@@ -1468,8 +1468,8 @@ const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
     (CompileTarget::Js, &[""]),
     (CompileTarget::Ts, &[""]),
     (CompileTarget::Hybrid, &[""]),
-    (CompileTarget::Llvm, &["native"]),
-    (CompileTarget::C, &["native", "c"]),
+    (CompileTarget::Llvm, &[""]),
+    (CompileTarget::C, &["", "c"]),
     (CompileTarget::Rust, &[""]),
     (CompileTarget::Cpp, &[""]),
     (CompileTarget::Interpret, &[""]),
@@ -1478,7 +1478,10 @@ const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
 ];
 
 fn resolve_profile_path(root: &std::path::Path, profile: &str) -> std::path::PathBuf {
-    if profile.trim().is_empty() || profile.eq_ignore_ascii_case("root") {
+    if profile.trim().is_empty()
+        || profile.eq_ignore_ascii_case("root")
+        || profile.eq_ignore_ascii_case("native")
+    {
         return root.to_path_buf();
     }
     root.join(profile)
@@ -1858,9 +1861,6 @@ mod tests {
         let c_dir = stdlib_dir.join("c");
         fs::create_dir(&c_dir).unwrap();
         create_kn_file(&c_dir, "c.kn", "// c stdlib");
-        let native_dir = stdlib_dir.join("native");
-        fs::create_dir(&native_dir).unwrap();
-        create_kn_file(&native_dir, "native.kn", "// native stdlib");
         let roots = vec![stdlib_dir.clone()];
         let ts_profiles = target_profiles(CompileTarget::Ts)
             .iter()
@@ -1920,17 +1920,26 @@ mod tests {
         assert!(!usf_stdlib.contains("// root stdlib"));
 
         let llvm_stdlib = load_stdlib_from_profiles(&roots, &llvm_profiles);
-        assert!(llvm_stdlib.contains("// native stdlib"));
-        assert!(!llvm_stdlib.contains("// root stdlib"));
+        assert!(llvm_stdlib.contains("// root stdlib"));
         assert!(!llvm_stdlib.contains("// c stdlib"));
 
         let c_stdlib = load_stdlib_from_profiles(&roots, &c_profiles);
-        assert!(c_stdlib.contains("// native stdlib"));
+        assert!(c_stdlib.contains("// root stdlib"));
         assert!(c_stdlib.contains("// c stdlib"));
-        assert!(!c_stdlib.contains("// root stdlib"));
-        let native_pos = c_stdlib.find("// native stdlib").unwrap();
+        let native_pos = c_stdlib.find("// root stdlib").unwrap();
         let c_pos = c_stdlib.find("// c stdlib").unwrap();
         assert!(native_pos < c_pos);
+    }
+
+    #[test]
+    fn test_native_profile_alias_loads_root_stdlib() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = create_test_stdlib_dir(&temp_dir);
+        create_kn_file(&stdlib_dir, "root.kn", "// root stdlib");
+        let roots = vec![stdlib_dir];
+
+        let native_alias_stdlib = load_stdlib_from_profiles(&roots, &["native".to_string()]);
+        assert!(native_alias_stdlib.contains("// root stdlib"));
     }
 
     #[test]

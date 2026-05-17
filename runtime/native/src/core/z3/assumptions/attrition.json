@@ -1,0 +1,1888 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX",
+        "role": "capacity-like",
+        "type": "local_config.quarantine_capacity >"
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 214,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 81,
+        "end_line": 214,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 214
+      },
+      "symbol": "if",
+      "text": "if (local_config.quarantine_capacity > KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX) {",
+      "variables": [
+        "KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "written",
+        "role": "unsigned-size",
+        "type": "(size_t)"
+      },
+      "id": "if.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 350,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 350,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 350
+      },
+      "symbol": "if",
+      "text": "if ((size_t)written >= capacity) {",
+      "variables": [
+        "written"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "quarantine_capacity",
+        "role": "capacity-like",
+        "type": "g_kain_attrition_state.config."
+      },
+      "id": "if.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 419,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 419,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 419
+      },
+      "symbol": "if",
+      "text": "if (g_kain_attrition_state.config.quarantine_capacity == 0u) {",
+      "variables": [
+        "quarantine_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "max_bytes",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "max_bytes == 0u",
+      "id": "kain-attrition-fragmentation-noise-locked.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 142,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 142,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 142
+      },
+      "symbol": "kain_attrition_fragmentation_noise_locked",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (max_bytes == 0u) {",
+      "variables": [
+        "max_bytes",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "noise_block",
+          "NULL"
+        ],
+        "op": "eq"
+      },
+      "expression": "noise_block == NULL",
+      "id": "kain-attrition-fragmentation-noise-locked.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 147,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 147,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 147
+      },
+      "symbol": "kain_attrition_fragmentation_noise_locked",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (noise_block == NULL) {",
+      "variables": [
+        "NULL",
+        "noise_block"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.fragmentation_ring[slot].ptr != NULL",
+      "id": "kain-attrition-fragmentation-noise-locked.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 152,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 67,
+        "end_line": 152,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 152
+      },
+      "symbol": "kain_attrition_fragmentation_noise_locked",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (g_kain_attrition_state.fragmentation_ring[slot].ptr != NULL) {",
+      "variables": [
+        "NULL",
+        "fragmentation_ring",
+        "g_kain_attrition_state",
+        "ptr",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "total_bytes",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-attrition-heap-alloc.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 392,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 392,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 392
+      },
+      "symbol": "kain_attrition_heap_alloc",
+      "text": "void* kain_attrition_heap_alloc(size_t total_bytes) {",
+      "variables": [
+        "total_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(g_kain_attrition_state.config.allocation_fail_after != 0u &&",
+      "id": "kain-attrition-heap-alloc.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 396,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 396,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 396
+      },
+      "symbol": "kain_attrition_heap_alloc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_kain_attrition_state.config.allocation_fail_after != 0u &&",
+      "variables": [
+        "allocation_fail_after",
+        "config",
+        "g_kain_attrition_state",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "total_bytes",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-attrition-heap-release.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 407,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 72,
+        "end_line": 407,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 407
+      },
+      "symbol": "kain_attrition_heap_release",
+      "text": "int kain_attrition_heap_release(void* raw_header, size_t total_bytes) {",
+      "variables": [
+        "total_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "raw_header",
+          "NULL"
+        ],
+        "op": "eq"
+      },
+      "expression": "raw_header == NULL",
+      "id": "kain-attrition-heap-release.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 410,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 410,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 410
+      },
+      "symbol": "kain_attrition_heap_release",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (raw_header == NULL) {",
+      "variables": [
+        "NULL",
+        "raw_header"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.config.poison_on_free != 0u",
+      "id": "kain-attrition-heap-release.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 415,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 58,
+        "end_line": 415,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 415
+      },
+      "symbol": "kain_attrition_heap_release",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (g_kain_attrition_state.config.poison_on_free != 0u) {",
+      "variables": [
+        "config",
+        "g_kain_attrition_state",
+        "poison_on_free",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.config.quarantine_capacity == 0u",
+      "id": "kain-attrition-heap-release.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 419,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 419,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 419
+      },
+      "symbol": "kain_attrition_heap_release",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (g_kain_attrition_state.config.quarantine_capacity == 0u) {",
+      "variables": [
+        "config",
+        "g_kain_attrition_state",
+        "quarantine_capacity",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "entry->ptr != NULL",
+      "id": "kain-attrition-heap-release.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 425,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 425,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 425
+      },
+      "symbol": "kain_attrition_heap_release",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (entry->ptr != NULL) {",
+      "variables": [
+        "NULL",
+        "entry",
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "actor_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-actor-exit.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 583,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 583,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 583
+      },
+      "symbol": "kain_attrition_note_actor_exit",
+      "text": "void kain_attrition_note_actor_exit(uint64_t actor_id, int synthetic_reply_port) {",
+      "variables": [
+        "actor_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "actor_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-actor-spawn.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 570,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 570,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 570
+      },
+      "symbol": "kain_attrition_note_actor_spawn",
+      "text": "void kain_attrition_note_actor_spawn(uint64_t actor_id, int synthetic_reply_port) {",
+      "variables": [
+        "actor_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "actor_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-actor-stale-reject.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 596,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 596,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 596
+      },
+      "symbol": "kain_attrition_note_actor_stale_reject",
+      "text": "void kain_attrition_note_actor_stale_reject(uint64_t actor_id, uint64_t generation) {",
+      "variables": [
+        "actor_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "generation",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-actor-stale-reject.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 596,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 596,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 596
+      },
+      "symbol": "kain_attrition_note_actor_stale_reject",
+      "text": "void kain_attrition_note_actor_stale_reject(uint64_t actor_id, uint64_t generation) {",
+      "variables": [
+        "generation"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "task_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-async-task-exit.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 631,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 61,
+        "end_line": 631,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 631
+      },
+      "symbol": "kain_attrition_note_async_task_exit",
+      "text": "void kain_attrition_note_async_task_exit(uint64_t task_id) {",
+      "variables": [
+        "task_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "task_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-async-task-spawn.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 624,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 624,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 624
+      },
+      "symbol": "kain_attrition_note_async_task_spawn",
+      "text": "void kain_attrition_note_async_task_spawn(uint64_t task_id) {",
+      "variables": [
+        "task_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "task_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-async-task-stale-reject.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 638,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 69,
+        "end_line": 638,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 638
+      },
+      "symbol": "kain_attrition_note_async_task_stale_reject",
+      "text": "void kain_attrition_note_async_task_stale_reject(uint64_t task_id) {",
+      "variables": [
+        "task_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "timer_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-async-timer-cancel.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 659,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 659,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 659
+      },
+      "symbol": "kain_attrition_note_async_timer_cancel",
+      "text": "void kain_attrition_note_async_timer_cancel(uint64_t timer_id) {",
+      "variables": [
+        "timer_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "timer_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-async-timer-exit.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 652,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 652,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 652
+      },
+      "symbol": "kain_attrition_note_async_timer_exit",
+      "text": "void kain_attrition_note_async_timer_exit(uint64_t timer_id) {",
+      "variables": [
+        "timer_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "timer_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-async-timer-spawn.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 645,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 645,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 645
+      },
+      "symbol": "kain_attrition_note_async_timer_spawn",
+      "text": "void kain_attrition_note_async_timer_spawn(uint64_t timer_id) {",
+      "variables": [
+        "timer_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "timer_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-async-timer-stale-reject.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 666,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 71,
+        "end_line": 666,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 666
+      },
+      "symbol": "kain_attrition_note_async_timer_stale_reject",
+      "text": "void kain_attrition_note_async_timer_stale_reject(uint64_t timer_id) {",
+      "variables": [
+        "timer_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "process_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-process-exit.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 610,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 61,
+        "end_line": 610,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 610
+      },
+      "symbol": "kain_attrition_note_process_exit",
+      "text": "void kain_attrition_note_process_exit(uint64_t process_id) {",
+      "variables": [
+        "process_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "process_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-process-spawn.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 603,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 603,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 603
+      },
+      "symbol": "kain_attrition_note_process_spawn",
+      "text": "void kain_attrition_note_process_spawn(uint64_t process_id) {",
+      "variables": [
+        "process_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "subject_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-note-process-stale-reject.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 617,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 85,
+        "end_line": 617,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 617
+      },
+      "symbol": "kain_attrition_note_process_stale_reject",
+      "text": "void kain_attrition_note_process_stale_reject(uint64_t subject_id, int64_t status) {",
+      "variables": [
+        "subject_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "status",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-attrition-note-process-stale-reject.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 617,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 85,
+        "end_line": 617,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 617
+      },
+      "symbol": "kain_attrition_note_process_stale_reject",
+      "text": "void kain_attrition_note_process_stale_reject(uint64_t subject_id, int64_t status) {",
+      "variables": [
+        "status"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "total_bytes",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-attrition-note-rc-alloc.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 509,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 56,
+        "end_line": 509,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 509
+      },
+      "symbol": "kain_attrition_note_rc_alloc",
+      "text": "void kain_attrition_note_rc_alloc(size_t total_bytes) {",
+      "variables": [
+        "total_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.live_runtime_bytes > g_kain_attrition_state.peak_runtime_bytes",
+      "id": "kain-attrition-note-rc-alloc.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 515,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 93,
+        "end_line": 515,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 515
+      },
+      "symbol": "kain_attrition_note_rc_alloc",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_kain_attrition_state.live_runtime_bytes > g_kain_attrition_state.peak_runtime_bytes) {",
+      "variables": [
+        "g_kain_attrition_state",
+        "live_runtime_bytes",
+        "peak_runtime_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "total_bytes",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-attrition-note-rc-free.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 522,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 522,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 522
+      },
+      "symbol": "kain_attrition_note_rc_free",
+      "text": "void kain_attrition_note_rc_free(size_t total_bytes) {",
+      "variables": [
+        "total_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.live_rc_objects > 0u",
+      "id": "kain-attrition-note-rc-free.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 526,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 526,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 526
+      },
+      "symbol": "kain_attrition_note_rc_free",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_kain_attrition_state.live_rc_objects > 0u) {",
+      "variables": [
+        "g_kain_attrition_state",
+        "live_rc_objects",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.live_runtime_bytes >= total_bytes",
+      "id": "kain-attrition-note-rc-free.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 529,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 529,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 529
+      },
+      "symbol": "kain_attrition_note_rc_free",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_kain_attrition_state.live_runtime_bytes >= total_bytes) {",
+      "variables": [
+        "g_kain_attrition_state",
+        "live_runtime_bytes",
+        "total_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.config.virtual_time_enabled != 0u",
+      "id": "kain-attrition-now-millis.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 442,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 442,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 442
+      },
+      "symbol": "kain_attrition_now_millis",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_kain_attrition_state.config.virtual_time_enabled != 0u) {",
+      "variables": [
+        "config",
+        "g_kain_attrition_state",
+        "u",
+        "virtual_time_enabled"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-popcount-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 229,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 229,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 229
+      },
+      "symbol": "kain_attrition_popcount_u64",
+      "text": "static uint64_t kain_attrition_popcount_u64(uint64_t value) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(value * UINT64_C(0x0101010101010101)) >> 56u",
+      "id": "kain-attrition-popcount-u64.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 233,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 233,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 233
+      },
+      "symbol": "kain_attrition_popcount_u64",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "return (value * UINT64_C(0x0101010101010101)) >> 56u;",
+      "variables": [
+        "UINT64_C",
+        "u",
+        "value",
+        "x0101010101010101"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "kind",
+        "role": "unsigned-int",
+        "type": "uint32_t"
+      },
+      "id": "kain-attrition-record-event-locked.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 124,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 123,
+        "end_line": 124,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 124
+      },
+      "symbol": "kain_attrition_record_event_locked",
+      "text": "static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint64_t arg0, uint64_t arg1, uint64_t arg2) {",
+      "variables": [
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "aux",
+        "role": "unsigned-int",
+        "type": "uint32_t"
+      },
+      "id": "kain-attrition-record-event-locked.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 124,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 123,
+        "end_line": 124,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 124
+      },
+      "symbol": "kain_attrition_record_event_locked",
+      "text": "static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint64_t arg0, uint64_t arg1, uint64_t arg2) {",
+      "variables": [
+        "aux"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "arg0",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-record-event-locked.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 124,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 123,
+        "end_line": 124,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 124
+      },
+      "symbol": "kain_attrition_record_event_locked",
+      "text": "static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint64_t arg0, uint64_t arg1, uint64_t arg2) {",
+      "variables": [
+        "arg0"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "arg1",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-record-event-locked.parameter-role.4",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 124,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 123,
+        "end_line": 124,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 124
+      },
+      "symbol": "kain_attrition_record_event_locked",
+      "text": "static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint64_t arg0, uint64_t arg1, uint64_t arg2) {",
+      "variables": [
+        "arg1"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "arg2",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-record-event-locked.parameter-role.5",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 124,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 123,
+        "end_line": 124,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 124
+      },
+      "symbol": "kain_attrition_record_event_locked",
+      "text": "static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint64_t arg0, uint64_t arg1, uint64_t arg2) {",
+      "variables": [
+        "arg2"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "subject_id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-runtime-checkpoint.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 357,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 81,
+        "end_line": 357,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 357
+      },
+      "symbol": "kain_attrition_runtime_checkpoint",
+      "text": "void kain_attrition_runtime_checkpoint(const char* label, uint64_t subject_id) {",
+      "variables": [
+        "subject_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*cursor != '\\0'",
+      "id": "kain-attrition-runtime-checkpoint.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 361,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 361,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 361
+      },
+      "symbol": "kain_attrition_runtime_checkpoint",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (*cursor != '\\0') {",
+      "variables": [
+        "cursor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "config",
+          "NULL"
+        ],
+        "op": "neq"
+      },
+      "expression": "config != NULL",
+      "id": "kain-attrition-runtime-configure.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 211,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 211,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 211
+      },
+      "symbol": "kain_attrition_runtime_configure",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (config != NULL) {",
+      "variables": [
+        "NULL",
+        "config"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "local_config.quarantine_capacity > KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX",
+      "id": "kain-attrition-runtime-configure.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 214,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 81,
+        "end_line": 214,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 214
+      },
+      "symbol": "kain_attrition_runtime_configure",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (local_config.quarantine_capacity > KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX) {",
+      "variables": [
+        "KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX",
+        "local_config",
+        "quarantine_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "local_config.determinism_tier == 0u",
+      "id": "kain-attrition-runtime-configure.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 217,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 217,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 217
+      },
+      "symbol": "kain_attrition_runtime_configure",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (local_config.determinism_tier == 0u) {",
+      "variables": [
+        "determinism_tier",
+        "local_config",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "local_config.virtual_time_step_ms == 0u",
+      "id": "kain-attrition-runtime-configure.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 220,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 47,
+        "end_line": 220,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 220
+      },
+      "symbol": "kain_attrition_runtime_configure",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (local_config.virtual_time_step_ms == 0u) {",
+      "variables": [
+        "local_config",
+        "u",
+        "virtual_time_step_ms"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "max_events",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-attrition-runtime-copy-events.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 272,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 95,
+        "end_line": 272,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 272
+      },
+      "symbol": "kain_attrition_runtime_copy_events",
+      "text": "size_t kain_attrition_runtime_copy_events(KainAttritionEvent* out_events, size_t max_events) {",
+      "variables": [
+        "max_events"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "out_events",
+              "NULL"
+            ],
+            "op": "eq"
+          },
+          {
+            "args": [
+              "max_events",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "out_events == NULL || max_events == 0u",
+      "id": "kain-attrition-runtime-copy-events.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 286,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 286,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 286
+      },
+      "symbol": "kain_attrition_runtime_copy_events",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (out_events == NULL || max_events == 0u) {",
+      "variables": [
+        "NULL",
+        "max_events",
+        "out_events",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "iteration",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-runtime-note-progress.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 376,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 376,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 376
+      },
+      "symbol": "kain_attrition_runtime_note_progress",
+      "text": "void kain_attrition_runtime_note_progress(uint64_t iteration, uint64_t checksum) {",
+      "variables": [
+        "iteration"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "checksum",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-attrition-runtime-note-progress.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 376,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 376,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 376
+      },
+      "symbol": "kain_attrition_runtime_note_progress",
+      "text": "void kain_attrition_runtime_note_progress(uint64_t iteration, uint64_t checksum) {",
+      "variables": [
+        "checksum"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "out_snapshot",
+          "NULL"
+        ],
+        "op": "eq"
+      },
+      "expression": "out_snapshot == NULL",
+      "id": "kain-attrition-runtime-snapshot.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 237,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 237,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 237
+      },
+      "symbol": "kain_attrition_runtime_snapshot",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (out_snapshot == NULL) {",
+      "variables": [
+        "NULL",
+        "out_snapshot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "capacity",
+        "role": "capacity-like",
+        "type": "size_t"
+      },
+      "id": "kain-attrition-runtime-write-audit-json.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 307,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 307,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 307
+      },
+      "symbol": "kain_attrition_runtime_write_audit_json",
+      "text": "size_t kain_attrition_runtime_write_audit_json(char* out_text, size_t capacity) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "capacity",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-attrition-runtime-write-audit-json.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 307,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 307,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 307
+      },
+      "symbol": "kain_attrition_runtime_write_audit_json",
+      "text": "size_t kain_attrition_runtime_write_audit_json(char* out_text, size_t capacity) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "out_text",
+              "NULL"
+            ],
+            "op": "eq"
+          },
+          {
+            "args": [
+              "capacity",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "out_text == NULL || capacity == 0u",
+      "id": "kain-attrition-runtime-write-audit-json.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 310,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 310,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 310
+      },
+      "symbol": "kain_attrition_runtime_write_audit_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (out_text == NULL || capacity == 0u) {",
+      "variables": [
+        "NULL",
+        "capacity",
+        "out_text",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "written",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "written < 0",
+      "id": "kain-attrition-runtime-write-audit-json.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 346,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 346,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 346
+      },
+      "symbol": "kain_attrition_runtime_write_audit_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (written < 0) {",
+      "variables": [
+        "written"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(size_t)written >= capacity",
+      "id": "kain-attrition-runtime-write-audit-json.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 350,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 350,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 350
+      },
+      "symbol": "kain_attrition_runtime_write_audit_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if ((size_t)written >= capacity) {",
+      "variables": [
+        "capacity",
+        "size_t",
+        "written"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "config",
+          "NULL"
+        ],
+        "op": "eq"
+      },
+      "expression": "config == NULL",
+      "id": "kain-attrition-session-config-init.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 188,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 188,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 188
+      },
+      "symbol": "kain_attrition_session_config_init",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (config == NULL) {",
+      "variables": [
+        "NULL",
+        "config"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.config.virtual_time_enabled != 0u",
+      "id": "kain-attrition-sleep-for-millis.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 466,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 466,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 466
+      },
+      "symbol": "kain_attrition_sleep_for_millis",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_kain_attrition_state.config.virtual_time_enabled != 0u) {",
+      "variables": [
+        "config",
+        "g_kain_attrition_state",
+        "u",
+        "virtual_time_enabled"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "nanosleep(&delay, &delay) != 0 && errno == EINTR",
+      "id": "kain-attrition-sleep-for-millis.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 495,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 495,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 495
+      },
+      "symbol": "kain_attrition_sleep_for_millis",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {",
+      "variables": [
+        "EINTR",
+        "delay",
+        "errno",
+        "nanosleep"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.quarantine[index].ptr != NULL",
+      "id": "kain-attrition-state-reset-locked.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 86,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 60,
+        "end_line": 86,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 86
+      },
+      "symbol": "kain_attrition_state_reset_locked",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (g_kain_attrition_state.quarantine[index].ptr != NULL) {",
+      "variables": [
+        "NULL",
+        "g_kain_attrition_state",
+        "index",
+        "ptr",
+        "quarantine"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_attrition_state.fragmentation_ring[index].ptr != NULL",
+      "id": "kain-attrition-state-reset-locked.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 93,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 93,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 93
+      },
+      "symbol": "kain_attrition_state_reset_locked",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (g_kain_attrition_state.fragmentation_ring[index].ptr != NULL) {",
+      "variables": [
+        "NULL",
+        "fragmentation_ring",
+        "g_kain_attrition_state",
+        "index",
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "cursor",
+        "role": "cursor-like",
+        "type": "*"
+      },
+      "id": "while.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 361,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 361,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+        "start_col": 1,
+        "start_line": 361
+      },
+      "symbol": "while",
+      "text": "while (*cursor != '\\0') {",
+      "variables": [
+        "cursor"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "f7419cd8b9034436f906abcb2394643fb08caeeab48353f43e00d4438f12a906",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\attrition.c",
+  "version": 1
+}

@@ -1,0 +1,11 @@
+use std::runtime
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+    let _result = runtime_attrition_result_set(0, 0, "")
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    return 0

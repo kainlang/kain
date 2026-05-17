@@ -1,3 +1,6 @@
+use std::runtime
+use std::actor
+
 actor SemanticRelay:
     state bias: Int = 11
 
@@ -15,7 +18,7 @@ fn fold_shared_cells(cells: ptr<Int>) -> Int:
     return acc
 
 fn main() -> Int:
-    let init_status = native_runtime_init()
+    let init_status = runtime_init()
     if init_status != 0:
         return 100 + init_status
 
@@ -47,8 +50,8 @@ fn main() -> Int:
     decay cells
 
     let final_score: Int = (checksum + observed) % modulus
-    let actor_floor_ok = native_actor_abi_version() >= 3
-    let shutdown_status = native_runtime_shutdown()
+    let actor_floor_ok = actor_abi_version() >= 3
+    let shutdown_status = runtime_shutdown()
     if shutdown_status != 0:
         return 200 + shutdown_status
     if actor_floor_ok == false:

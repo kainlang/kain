@@ -6,6 +6,8 @@ sources = [
     "native/src/core/diagnostics.c",
     "native/src/core/entangle.c",
     "native/src/core/stdlib_abi.c",
+    "native/src/core/attrition.c",
+    "native/src/core/process_system.c",
     "native/src/core/async.c",
     "native/src/core/actor.c",
 ]

@@ -1,0 +1,12 @@
+{
+  "description": "Reduced-language benchmark pass for Kain, Rust, C++, and Erlang with dedicated fast snapshots.",
+  "runner": "run.py",
+  "after_args": [
+    "--languages",
+    "kain,rust,cpp,erlang",
+    "--minimal-name",
+    "latest_fast.md",
+    "--latest-stem",
+    "latest_fast"
+  ]
+}

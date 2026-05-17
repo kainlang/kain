@@ -1,0 +1,18 @@
+{
+  "suite": "kain-simulation-benchmarks",
+  "default_warmups": 0,
+  "default_runs": 1,
+  "default_languages": [
+    "kain",
+    "rust",
+    "cpp"
+  ],
+  "minimal_name": "latest_sim.md",
+  "latest_stem": "latest_sim",
+  "include_manifest": "benchmarks.json",
+  "case_ids": [
+    "sim_nbody_gravity",
+    "sim_uv_velocity_grid",
+    "sim_cfd_pressure_projection"
+  ]
+}

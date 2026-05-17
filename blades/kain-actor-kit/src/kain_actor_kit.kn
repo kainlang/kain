@@ -1,4 +1,4 @@
-use std::native::actor
+use std::actor
 use kain_log::log_level_info
 use kain_log::log_render_message
 

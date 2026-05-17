@@ -1,3 +1,5 @@
+use std::runtime
+
 actor Echo:
     state bias: Int = 1
 
@@ -14,7 +16,7 @@ fn ask_worker(worker_slot: Int, worker0: Echo, worker1: Echo, worker2: Echo, wor
     return ask(worker3, "Call", request)
 
 fn main() -> Int:
-    let runtime_status = native_runtime_init()
+    let runtime_status = runtime_init()
     if runtime_status != 0:
         return 100 + runtime_status
 
@@ -40,7 +42,7 @@ fn main() -> Int:
         checksum = (checksum + reply + lane) % checksum_mod
         index = index + 1
 
-    let shutdown_status = native_runtime_shutdown()
+    let shutdown_status = runtime_shutdown()
     if shutdown_status != 0:
         return 200 + shutdown_status
     if checksum != expected_checksum:

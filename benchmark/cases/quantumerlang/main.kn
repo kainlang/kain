@@ -1,3 +1,6 @@
+use std::runtime
+use std::intent
+
 axiom quantumerlang_machine_truth:
     when target("llvm")
     when arch("x86_64")
@@ -58,7 +61,7 @@ fn fold_lane_cells(cells: ptr<Int>, cell_count: Int) -> Int:
     return acc
 
 fn main() -> Int:
-    let init_status = native_runtime_init()
+    let init_status = runtime_init()
     if init_status != 0:
         return 100 + init_status
 
@@ -165,8 +168,8 @@ fn main() -> Int:
     decay cells
 
     let final_score: Int = (checksum + observed) % modulus
-    let runtime_shape_ok = boot_signal > 0 and native_patch_journal_count() >= 1 and native_entangle_propagation_count() >= 1 and runtime_machine_teleport_count() >= 1 and native_converge_mismatch_count() == 0
-    let shutdown_status = native_runtime_shutdown()
+    let runtime_shape_ok = boot_signal > 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_machine_teleport_count() >= 1 and converge_mismatch_count() == 0
+    let shutdown_status = runtime_shutdown()
     if shutdown_status != 0:
         return 200 + shutdown_status
     if runtime_shape_ok == false:

@@ -1,20 +1,25 @@
 # Kain Multi-Language Benchmarks
 
-This folder is the native benchmark lane for Kain LLVM against Rust LLVM, C++ on Clang, Go `gc`, Erlang/OTP, and optional JavaScript/Node plus Python/CPython rows when a case declares them.
+This folder is the native benchmark lane for Kain LLVM against Rust LLVM, C++ on Clang, Zig `ReleaseFast`, Go `gc`, Erlang/OTP, and optional JavaScript/Node plus Python/CPython rows when a case declares them.
 
 The contract is intentionally simple:
 
-- Normal benchmarks in `cases/<case>/` should have dependency-free `main.kn`, `main.rs`, `main.cpp`, `main.go`, `main.js`, and `main.py` sources when those languages participate in the case.
+- Normal benchmarks in `cases/<case>/` should have dependency-free `main.kn`, `main.rs`, `main.cpp`, `main.zig`, `main.go`, `main.js`, and `main.py` sources when those languages participate in the case.
 - A manifest case can explicitly declare a `languages` map to become Kain/Rust-only, Kain/Erlang-only, Kain-only, etc. Missing selected languages show as `n/a` in reports instead of failing the whole suite.
+- A manifest case can also declare `telemetry.primary_metric_id` plus `telemetry.metrics[]` so reports speak in domain units like requests/s, bytes/s, lookups/s, frames/s, or sim interactions/s instead of only raw `ms`.
 - Rust normally builds through direct `rustc`; dependency benchmarks can opt into Cargo with `rust_manifest`, `rust_package`, and `rust_binary`. Put an empty `[workspace]` in those per-case Cargo manifests so Cargo does not accidentally attach them to the repo root workspace.
+- Zig builds through direct `zig build-exe -O ReleaseFast` over `main.zig` for dependency-free rows.
 - Go normally builds through direct `go build` over `main.go`. A case can opt into a module/package build by adding `go_manifest`, `go_package`, and `go_binary` in `benchmark/benchmarks.json`.
 - Erlang cases compile through `erlc` and run through `erl -noshell`; the runner resolves the official OTP `bin` directory on Windows so wrapper scripts do not fail to find `erlexec.dll`.
 - Some cases build support artifacts beside the executables. `ffi_shared_call_stress` is the current example: the runner compiles the shared C helper under `benchmark/out/build/...`, copies the DLL beside each built executable, and compiles the Kain row from the case directory so the case-local `KAIN.toml` for `use c::...` resolves correctly.
 - Build time is recorded separately; timed samples run the already-built executables.
 - The runner prefers a release-built `kain.exe`, pins Kain benchmark links to `runtime/native_core_runtime.toml`, and passes a benchmark-native tuning profile into the Kain compiler unless you override it.
+- Foreign baseline caching is now part of the normal inner loop. `python benchmark/run.py` defaults to `--baseline-mode auto`, which means: when Kain is in the selected language set, rerun Kain fresh and reuse cached non-Kain baselines from `benchmark/out/baselines/<case>/<language>.json` when the machine/tool/source/flags/workload key still matches. Use `--baseline-mode refresh-foreign` for a true cross-language refresh, `--baseline-mode reuse-foreign` to force cached foreign baselines even without Kain selected, or `--baseline-mode off` to disable caching completely.
 - Every normal run writes `benchmark/latest.md` as the compact root snapshot, plus `out/reports/latest.llm.md`, a timestamped `.llm.md` report, and `out/reports/latest.json`. Stale `latest.html` is removed.
-- `python benchmark/run_fast.py` locks the suite to `kain,rust,cpp,erlang` and writes `benchmark/latest_fast.md` as the compact root snapshot for the reduced lane.
-- The report includes a maturity/fairness note per case. Some pressure tests are honest proxies until Kain exposes the matching runtime primitive directly in LLVM.
+- Wrapper plugins now live under `benchmark/wrappers/*.json`. Use `python benchmark/run_wrapper.py --list` to discover fire-and-forget suites without touching `run.py`.
+- `python benchmark/run_fast.py` or `python benchmark/run_wrapper.py fast` locks the suite to `kain,rust,cpp,erlang` and writes `benchmark/latest_fast.md` plus `benchmark/out/reports/latest_fast.llm.md` / `latest_fast.json`.
+- `python benchmark/run_sim.py` or `python benchmark/run_wrapper.py sim` runs the extracted simulation pack and writes `benchmark/latest_sim.md` plus `benchmark/out/reports/latest_sim.llm.md` / `latest_sim.json`.
+- The report includes a maturity/fairness note per case, and telemetry metrics when a case declares them. Some pressure tests are honest proxies until Kain exposes the matching runtime primitive directly in LLVM.
 - Subprocess output is decoded as UTF-8 with replacement so the Unicode-heavy cases can report cleanly on Windows.
 
 Current pressure cases:
@@ -78,6 +83,14 @@ Fast reduced-language pass:
 
 ```powershell
 python benchmark/run_fast.py
+python benchmark/run_wrapper.py fast
+```
+
+Simulation pack:
+
+```powershell
+python benchmark/run_sim.py
+python benchmark/run_wrapper.py sim
 ```
 
 Useful variants:
@@ -85,8 +98,11 @@ Useful variants:
 ```powershell
 python benchmark/run.py --runs 9 --warmups 2
 python benchmark/run.py --case ownership_memory
-python benchmark/run.py --languages kain,rust,cpp,go,javascript,python
+python benchmark/run.py --case native_map_lookup --baseline-mode auto
+python benchmark/run.py --case native_map_lookup --baseline-mode refresh-foreign
+python benchmark/run.py --languages kain,rust,cpp,zig,go,javascript,python
 python benchmark/run.py --languages js,py --runs 1 --warmups 0
+python benchmark/run.py --case branch_dispatch,call_chain,native_map_lookup,zero_copy_binary_wire --languages kain,rust,cpp,zig --runs 3 --warmups 1
 python benchmark/run.py --case ecs_archetype_query,zero_copy_binary_wire,dynamic_vtable_thrashing,crypto_block_cipher,ray_sphere_intersection --languages kain,rust,cpp,go --runs 3 --warmups 1
 python benchmark/run.py --case sim_nbody_gravity,sim_uv_velocity_grid,sim_cfd_pressure_projection --languages kain,rust,cpp --runs 3 --warmups 1
 python benchmark/run.py --case http_server_frameworks --languages kain,rust,go --runs 5 --warmups 2
@@ -97,7 +113,10 @@ python benchmark/run.py --case actor_mailbox_erlang --languages kain,erlang --ru
 python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 5 --warmups 2
 python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe
 python benchmark/run.py --languages cpp --cxx D:\Kain-Lang\toolchain\llvm\bin\clang++.exe
+python benchmark/run.py --case native_map_lookup --languages zig --zig C:\Users\Admin\scoop\shims\zig.exe
 python benchmark/run_fast.py --case actor_mailbox_erlang --runs 3 --warmups 1
+python benchmark/run_wrapper.py sim --runs 3 --warmups 1
+python benchmark/run_wrapper.py --list
 ```
 
 Native benchmark blade:
@@ -112,4 +131,4 @@ The blade source lives in `benchmark/blades/kain-benchmark`. It renders a compac
 .\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName D:\Kain-Lang\benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm
 ```
 
-The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe`; use `--cxx` or `CXX` only when you intentionally want a different `clang++`/`g++`-style driver. The Go lane defaults to `go` from PATH; use `--go` or `GO` only when you intentionally want a different toolchain. Erlang auto-detects from the official OTP `bin` directory first; use `--erl` and `--erlc` only when you intentionally want a different `erl`/`erlc` pair. Kain benchmark builds set `KAIN_RUNTIME_MANIFEST_PATH` to the lean core runtime manifest; use the broad runtime manifest only for app/vendor/UI lanes. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning. `run_fast.py` forwards the same flags but forcibly appends `--languages kain,rust,cpp,erlang` and `--minimal-name latest_fast.md`.
+The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. The C++ lane defaults to the repo-bundled `toolchain/llvm/bin/clang++.exe`; use `--cxx` or `CXX` only when you intentionally want a different `clang++`/`g++`-style driver. The Zig lane defaults to `zig` from PATH; use `--zig` or `ZIG` only when you intentionally want a different Zig toolchain. The Go lane defaults to `go` from PATH; use `--go` or `GO` only when you intentionally want a different toolchain. Erlang auto-detects from the official OTP `bin` directory first; use `--erl` and `--erlc` only when you intentionally want a different `erl`/`erlc` pair. Kain benchmark builds set `KAIN_RUNTIME_MANIFEST_PATH` to the lean core runtime manifest; use the broad runtime manifest only for app/vendor/UI lanes. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning. The preferred extension point for new suite categories is `benchmark/wrappers/*.json`: add a new wrapper config with `before_args` and/or `after_args`, then launch it with `python benchmark/run_wrapper.py <name>` instead of splicing more one-off flow into `run.py`. For day-to-day Kain optimization work, leave `--baseline-mode` at `auto`; for nightly or release-grade cross-language truth runs, use `--baseline-mode refresh-foreign`.

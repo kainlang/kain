@@ -601,16 +601,36 @@ impl LlvmGenerator {
         name
     }
 
-    fn tuple_struct_ptr_type_from_types(field_tys: &[String]) -> String {
-        format!("%{}*", Self::tuple_struct_name_from_types(field_tys))
-    }
-
     fn tuple_struct_storage_type_from_types(&self, field_tys: &[String]) -> String {
         let tuple_name = Self::tuple_struct_name_from_types(field_tys);
         if self.value_aggregate_structs.contains(&tuple_name) {
             format!("%{}", tuple_name)
         } else {
             format!("%{}*", tuple_name)
+        }
+    }
+
+    fn builtin_named_tuple_storage_type(&self, name: &str) -> Option<String> {
+        let lanes = match name {
+            "Vec2" => 2usize,
+            "Vec3" => 3usize,
+            "Vec4" => 4usize,
+            _ => return None,
+        };
+        let field_tys = vec!["double".to_string(); lanes];
+        Some(self.tuple_struct_storage_type_from_types(&field_tys))
+    }
+
+    fn tuple_field_alias_index(field: &str) -> Option<usize> {
+        match field {
+            "x" | "r" => Some(0),
+            "y" | "g" => Some(1),
+            "z" | "b" => Some(2),
+            "w" | "a" => Some(3),
+            _ => field
+                .strip_prefix("_")
+                .or_else(|| field.strip_prefix("__kain_tuple_"))
+                .and_then(|index| index.parse::<usize>().ok()),
         }
     }
 
@@ -829,6 +849,12 @@ impl LlvmGenerator {
         }
     }
 
+    fn register_builtin_tuple_structs(&mut self) {
+        for lanes in [2usize, 3usize, 4usize] {
+            self.register_tuple_struct(vec!["double".to_string(); lanes]);
+        }
+    }
+
     fn map_type_from_ast(&self, ty: &kain_core::ast::Type) -> String {
         match ty {
             kain_core::ast::Type::Named { name, generics, .. } => match name.as_str() {
@@ -882,6 +908,9 @@ impl LlvmGenerator {
             "KainActorBootstrapFn" => "i32 (i64, i8*, i8*)*".into(),
             "KainActorTurnFn" => "i32 (i64, i8*, i8*, i32)*".into(),
             _ => {
+                if let Some(tuple_ty) = self.builtin_named_tuple_storage_type(name) {
+                    return tuple_ty;
+                }
                 // Check if it's a known struct/enum
                 if self.struct_defs.contains_key(name) {
                     self.struct_storage_type(name)
@@ -4195,10 +4224,15 @@ impl LlvmGenerator {
     }
 
     fn field_index(&self, struct_name: &str, field: &str) -> Option<usize> {
-        self.struct_defs
-            .get(struct_name)?
-            .iter()
-            .position(|(name, _)| name == field)
+        let fields = self.struct_defs.get(struct_name)?;
+        fields.iter().position(|(name, _)| name == field).or_else(|| {
+            if struct_name.starts_with("__kain_tuple") {
+                let index = Self::tuple_field_alias_index(field)?;
+                (index < fields.len()).then_some(index)
+            } else {
+                None
+            }
+        })
     }
 
     fn native_world_field_path(&self, struct_name: &str, field: &str) -> Option<String> {
@@ -4669,7 +4703,10 @@ impl LlvmGenerator {
                         (struct_name, tmp_addr, index)
                     } else {
                         return Err(KainError::codegen(
-                            "Field address requires a struct or struct pointer",
+                            format!(
+                                "Field address for .{} requires a struct or struct pointer, but LLVM lowered {:?} to {}",
+                                field, object, obj_ty
+                            ),
                             *span,
                         ));
                     };
@@ -5765,6 +5802,128 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    fn register_type_definitions_recursive(&mut self, items: &[TypedItem]) -> KainResult<()> {
+        for item in items {
+            match item {
+                TypedItem::Struct(s) => {
+                    let struct_is_value_aggregate = s
+                        .field_types
+                        .values()
+                        .all(|ty| self.resolved_type_is_scalar_value_aggregate_pod(ty));
+                    let mut fields = Vec::new();
+                    for field in &s.ast.fields {
+                        if let Some(res_ty) = s.field_types.get(&field.name) {
+                            fields.push((field.name.clone(), self.map_type(res_ty)));
+                        } else {
+                            fields.push((field.name.clone(), "i64".into()));
+                        }
+                    }
+                    self.struct_defs.insert(s.ast.name.clone(), fields.clone());
+                    if struct_is_value_aggregate {
+                        self.value_aggregate_structs.insert(s.ast.name.clone());
+                    }
+
+                    let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
+                    self.emit(&format!(
+                        "%{} = type {{ {} }}",
+                        s.ast.name,
+                        field_types.join(", ")
+                    ));
+                }
+                TypedItem::World(world) => {
+                    self.register_world_type_and_global(world)?;
+                }
+                TypedItem::Component(component) => {
+                    let mut props = Vec::new();
+                    for prop in &component.ast.props {
+                        if let Some(res_ty) = component.prop_types.get(&prop.name) {
+                            props.push((prop.name.clone(), self.map_type(res_ty)));
+                        } else {
+                            props.push((prop.name.clone(), self.map_type_from_ast(&prop.ty)));
+                        }
+                    }
+                    props.push(("children".to_string(), "i8*".to_string()));
+                    self.component_defs
+                        .insert(component.ast.name.clone(), props.clone());
+                    self.functions
+                        .insert(component.ast.name.clone(), "i8*".to_string());
+                }
+                TypedItem::Actor(a) => {
+                    let mut fields = Vec::new();
+                    fields.push(("__actor_ref".to_string(), ACTOR_REF_LLVM_TYPE.into()));
+
+                    for state in &a.ast.state {
+                        if let Some(res_ty) = a.state_types.get(&state.name) {
+                            fields.push((state.name.clone(), self.map_type(res_ty)));
+                        } else {
+                            fields.push((state.name.clone(), "i64".into()));
+                        }
+                    }
+                    self.struct_defs.insert(a.ast.name.clone(), fields.clone());
+
+                    let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
+                    self.emit(&format!(
+                        "%{} = type {{ {} }}",
+                        a.ast.name,
+                        field_types.join(", ")
+                    ));
+
+                    for handler in &a.ast.handlers {
+                        let mut payload_fields = Vec::new();
+                        let mut field_defs = Vec::new();
+                        for param in &handler.params {
+                            let p_ty = self.map_type_from_ast(&param.ty);
+                            payload_fields.push(p_ty.clone());
+                            field_defs.push((param.name.clone(), p_ty));
+                        }
+                        let msg_struct_name = format!("{}_{}", a.ast.name, handler.message_type);
+                        self.struct_defs.insert(msg_struct_name.clone(), field_defs);
+                        self.emit(&format!(
+                            "%{} = type {{ {} }}",
+                            msg_struct_name,
+                            payload_fields.join(", ")
+                        ));
+                    }
+                }
+                TypedItem::Enum(e) => {
+                    self.emit(&format!("%{} = type {{ i64, i8* }}", e.ast.name));
+                    self.struct_defs.insert(
+                        e.ast.name.clone(),
+                        vec![
+                            ("tag".to_string(), "i64".to_string()),
+                            ("payload".to_string(), "i8*".to_string()),
+                        ],
+                    );
+
+                    for (variant_name, payload_types) in &e.variant_payload_types {
+                        if !payload_types.is_empty() {
+                            let field_types: Vec<String> =
+                                payload_types.iter().map(|t| self.map_type(t)).collect();
+                            let struct_name = format!("{}_{}", e.ast.name, variant_name);
+                            self.emit(&format!(
+                                "%{} = type {{ {} }}",
+                                struct_name,
+                                field_types.join(", ")
+                            ));
+
+                            let mut fields = Vec::new();
+                            for (i, ty) in field_types.iter().enumerate() {
+                                fields.push((format!("_{}", i), ty.clone()));
+                            }
+                            self.struct_defs.insert(struct_name, fields);
+                        }
+                    }
+                }
+                TypedItem::Mod(module) => {
+                    self.register_type_definitions_recursive(&module.items)?;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
     fn compile_typed_items(&mut self, items: &[TypedItem]) -> KainResult<()> {
         for item in items {
             match item {
@@ -5929,14 +6088,26 @@ impl LlvmGenerator {
     }
 
     fn register_const_globals(&mut self, items: &[TypedItem]) {
-        for item in items {
-            if let TypedItem::Const(constant) = item {
-                self.register_const_global(constant);
-            }
-        }
-        if items.iter().any(|item| matches!(item, TypedItem::Const(_))) {
+        if self.register_const_globals_recursive(items) {
             self.emit("");
         }
+    }
+
+    fn register_const_globals_recursive(&mut self, items: &[TypedItem]) -> bool {
+        let mut saw_const = false;
+        for item in items {
+            match item {
+                TypedItem::Const(constant) => {
+                    self.register_const_global(constant);
+                    saw_const = true;
+                }
+                TypedItem::Mod(module) => {
+                    saw_const |= self.register_const_globals_recursive(&module.items);
+                }
+                _ => {}
+            }
+        }
+        saw_const
     }
 
     fn compile_const_initializer(&mut self, constant: &TypedConst) -> KainResult<()> {
@@ -6055,128 +6226,15 @@ impl LlvmGenerator {
         self.collect_native_entanglements(&program.items);
         self.collect_machine_stone_metadata(&program.items);
         self.collect_program_tuple_types(program);
+        self.register_builtin_tuple_structs();
         self.emit_runtime_abi_types();
         self.struct_defs.insert(
             REPLY_PORT_ACTOR_NAME.to_string(),
             vec![("__actor_ref".to_string(), ACTOR_REF_LLVM_TYPE.to_string())],
         );
 
-        // 2a. Pre-scan Structs to register and emit definitions
-        for item in &program.items {
-            if let TypedItem::Struct(s) = item {
-                let struct_is_value_aggregate = s
-                    .field_types
-                    .values()
-                    .all(|ty| self.resolved_type_is_scalar_value_aggregate_pod(ty));
-                let mut fields = Vec::new();
-                for field in &s.ast.fields {
-                    // We need to resolve type from field_types map
-                    if let Some(res_ty) = s.field_types.get(&field.name) {
-                        fields.push((field.name.clone(), self.map_type(res_ty)));
-                    } else {
-                        // Should not happen if typed correctly
-                        fields.push((field.name.clone(), "i64".into()));
-                    }
-                }
-                self.struct_defs.insert(s.ast.name.clone(), fields.clone());
-                if struct_is_value_aggregate {
-                    self.value_aggregate_structs.insert(s.ast.name.clone());
-                }
-
-                // Emit type definition
-                let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
-                self.emit(&format!(
-                    "%{} = type {{ {} }}",
-                    s.ast.name,
-                    field_types.join(", ")
-                ));
-            } else if let TypedItem::World(world) = item {
-                self.register_world_type_and_global(world)?;
-            } else if let TypedItem::Component(component) = item {
-                let mut props = Vec::new();
-                for prop in &component.ast.props {
-                    if let Some(res_ty) = component.prop_types.get(&prop.name) {
-                        props.push((prop.name.clone(), self.map_type(res_ty)));
-                    } else {
-                        props.push((prop.name.clone(), self.map_type_from_ast(&prop.ty)));
-                    }
-                }
-                props.push(("children".to_string(), "i8*".to_string()));
-                self.component_defs
-                    .insert(component.ast.name.clone(), props.clone());
-                self.functions
-                    .insert(component.ast.name.clone(), "i8*".to_string());
-            } else if let TypedItem::Actor(a) = item {
-                let mut fields = Vec::new();
-                // Actor ref is always field 0 so handles can address the canonical runtime ABI.
-                fields.push(("__actor_ref".to_string(), ACTOR_REF_LLVM_TYPE.into()));
-
-                for state in &a.ast.state {
-                    if let Some(res_ty) = a.state_types.get(&state.name) {
-                        fields.push((state.name.clone(), self.map_type(res_ty)));
-                    } else {
-                        fields.push((state.name.clone(), "i64".into()));
-                    }
-                }
-                self.struct_defs.insert(a.ast.name.clone(), fields.clone());
-
-                let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
-                self.emit(&format!(
-                    "%{} = type {{ {} }}",
-                    a.ast.name,
-                    field_types.join(", ")
-                ));
-
-                // Emit Message Payload Structs
-                for handler in &a.ast.handlers {
-                    let mut payload_fields = Vec::new();
-                    let mut field_defs = Vec::new();
-                    for param in &handler.params {
-                        let p_ty = self.map_type_from_ast(&param.ty);
-                        payload_fields.push(p_ty.clone());
-                        field_defs.push((param.name.clone(), p_ty));
-                    }
-                    let msg_struct_name = format!("{}_{}", a.ast.name, handler.message_type);
-                    self.struct_defs.insert(msg_struct_name.clone(), field_defs);
-                    self.emit(&format!(
-                        "%{} = type {{ {} }}",
-                        msg_struct_name,
-                        payload_fields.join(", ")
-                    ));
-                }
-            } else if let TypedItem::Enum(e) = item {
-                // Emit Enum definition: { tag, payload* }
-                self.emit(&format!("%{} = type {{ i64, i8* }}", e.ast.name));
-                self.struct_defs.insert(
-                    e.ast.name.clone(),
-                    vec![
-                        ("tag".to_string(), "i64".to_string()),
-                        ("payload".to_string(), "i8*".to_string()),
-                    ],
-                );
-
-                // Emit Variant Payload Structs
-                for (variant_name, payload_types) in &e.variant_payload_types {
-                    if !payload_types.is_empty() {
-                        let field_types: Vec<String> =
-                            payload_types.iter().map(|t| self.map_type(t)).collect();
-                        let struct_name = format!("{}_{}", e.ast.name, variant_name);
-                        self.emit(&format!(
-                            "%{} = type {{ {} }}",
-                            struct_name,
-                            field_types.join(", ")
-                        ));
-
-                        // Register payload struct fields for later lookup
-                        let mut fields = Vec::new();
-                        for (i, ty) in field_types.iter().enumerate() {
-                            fields.push((format!("_{}", i), ty.clone()));
-                        }
-                        self.struct_defs.insert(struct_name, fields);
-                    }
-                }
-            }
-        }
+        // 2a. Pre-scan Structs and other type definitions, including nested modules.
+        self.register_type_definitions_recursive(&program.items)?;
 
         self.register_const_globals(&program.items);
 
@@ -8487,6 +8545,171 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    fn compile_numeric_abs_builtin(&mut self, arg: &Expr) -> KainResult<(String, String)> {
+        let (value, value_ty) = self.compile_expr(arg)?;
+        if value_ty == "double" {
+            let is_non_negative = self.next_reg();
+            self.emit(&format!(
+                "  {} = fcmp oge double {}, 0.000000",
+                is_non_negative, value
+            ));
+            let negated = self.next_reg();
+            self.emit(&format!("  {} = fsub double 0.000000, {}", negated, value));
+            let selected = self.next_reg();
+            self.emit(&format!(
+                "  {} = select i1 {}, double {}, double {}",
+                selected, is_non_negative, value, negated
+            ));
+            return Ok((selected, "double".to_string()));
+        }
+
+        if matches!(value_ty.as_str(), "i64" | "i32" | "i8" | "i1") {
+            let widened = if value_ty == "i64" {
+                value
+            } else {
+                self.cast_numeric_value(value, &value_ty, "i64")?
+            };
+            let is_non_negative = self.next_reg();
+            self.emit(&format!(
+                "  {} = icmp sge i64 {}, 0",
+                is_non_negative, widened
+            ));
+            let negated = self.next_reg();
+            self.emit(&format!("  {} = sub i64 0, {}", negated, widened));
+            let selected = self.next_reg();
+            self.emit(&format!(
+                "  {} = select i1 {}, i64 {}, i64 {}",
+                selected, is_non_negative, widened, negated
+            ));
+            return Ok((selected, "i64".to_string()));
+        }
+
+        Err(KainError::codegen(
+            format!("abs expects numeric argument, found {}", value_ty),
+            arg.span(),
+        ))
+    }
+
+    fn compile_numeric_min_or_max_builtin(
+        &mut self,
+        func_name: &str,
+        lhs_expr: &Expr,
+        rhs_expr: &Expr,
+    ) -> KainResult<(String, String)> {
+        let (lhs, lhs_ty) = self.compile_expr(lhs_expr)?;
+        let (rhs, rhs_ty) = self.compile_expr(rhs_expr)?;
+        let (lhs, common_ty, rhs, _) = self.coerce_binary_operands(lhs, lhs_ty, rhs, rhs_ty)?;
+        let compare = self.next_reg();
+        let select = self.next_reg();
+
+        match common_ty.as_str() {
+            "double" => {
+                let predicate = if func_name == "min" { "ole" } else { "oge" };
+                self.emit(&format!(
+                    "  {} = fcmp {} double {}, {}",
+                    compare, predicate, lhs, rhs
+                ));
+                self.emit(&format!(
+                    "  {} = select i1 {}, double {}, double {}",
+                    select, compare, lhs, rhs
+                ));
+                Ok((select, "double".to_string()))
+            }
+            "i64" | "i32" | "i8" | "i1" => {
+                let predicate = if func_name == "min" { "sle" } else { "sge" };
+                self.emit(&format!(
+                    "  {} = icmp {} {} {}, {}",
+                    compare, predicate, common_ty, lhs, rhs
+                ));
+                self.emit(&format!(
+                    "  {} = select i1 {}, {} {}, {} {}",
+                    select, compare, common_ty, lhs, common_ty, rhs
+                ));
+                Ok((select, common_ty))
+            }
+            _ => Err(KainError::codegen(
+                format!("{func_name} expects numeric arguments, found {}", common_ty),
+                lhs_expr.span(),
+            )),
+        }
+    }
+
+    fn compile_numeric_clamp_builtin(
+        &mut self,
+        value_expr: &Expr,
+        lo_expr: &Expr,
+        hi_expr: &Expr,
+    ) -> KainResult<(String, String)> {
+        let (value, value_ty) = self.compile_expr(value_expr)?;
+        let (lo, lo_ty) = self.compile_expr(lo_expr)?;
+        let (hi, hi_ty) = self.compile_expr(hi_expr)?;
+        let (mut value, mut value_common_ty, lo, lo_common_ty) =
+            self.coerce_binary_operands(value, value_ty, lo, lo_ty)?;
+        let (lo, final_ty, hi, _) = self.coerce_binary_operands(lo, lo_common_ty, hi, hi_ty)?;
+        if value_common_ty != final_ty {
+            value = self.cast_numeric_value(value, &value_common_ty, &final_ty)?;
+            value_common_ty = final_ty.clone();
+        }
+
+        let (lower_bounded, lower_ty) = self.compile_numeric_min_or_max_builtin_from_values(
+            "max",
+            value,
+            value_common_ty,
+            lo,
+            value_expr.span(),
+        )?;
+        self.compile_numeric_min_or_max_builtin_from_values(
+            "min",
+            lower_bounded,
+            lower_ty,
+            hi,
+            value_expr.span(),
+        )
+    }
+
+    fn compile_numeric_min_or_max_builtin_from_values(
+        &mut self,
+        func_name: &str,
+        lhs: String,
+        lhs_ty: String,
+        rhs: String,
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        let compare = self.next_reg();
+        let select = self.next_reg();
+
+        match lhs_ty.as_str() {
+            "double" => {
+                let predicate = if func_name == "min" { "ole" } else { "oge" };
+                self.emit(&format!(
+                    "  {} = fcmp {} double {}, {}",
+                    compare, predicate, lhs, rhs
+                ));
+                self.emit(&format!(
+                    "  {} = select i1 {}, double {}, double {}",
+                    select, compare, lhs, rhs
+                ));
+                Ok((select, "double".to_string()))
+            }
+            "i64" | "i32" | "i8" | "i1" => {
+                let predicate = if func_name == "min" { "sle" } else { "sge" };
+                self.emit(&format!(
+                    "  {} = icmp {} {} {}, {}",
+                    compare, predicate, lhs_ty, lhs, rhs
+                ));
+                self.emit(&format!(
+                    "  {} = select i1 {}, {} {}, {} {}",
+                    select, compare, lhs_ty, lhs, lhs_ty, rhs
+                ));
+                Ok((select, lhs_ty))
+            }
+            _ => Err(KainError::codegen(
+                format!("{func_name} expects numeric arguments, found {}", lhs_ty),
+                span,
+            )),
+        }
+    }
+
     fn compile_direct_call(
         &mut self,
         func_name: &str,
@@ -8548,6 +8771,26 @@ impl LlvmGenerator {
             )? {
                 return Ok((result, "i64".to_string()));
             }
+        }
+
+        if func_name == "abs" && args.len() == 1 {
+            return self.compile_numeric_abs_builtin(&args[0].value);
+        }
+
+        if matches!(func_name, "min" | "max") && args.len() == 2 {
+            return self.compile_numeric_min_or_max_builtin(
+                func_name,
+                &args[0].value,
+                &args[1].value,
+            );
+        }
+
+        if func_name == "clamp" && args.len() == 3 {
+            return self.compile_numeric_clamp_builtin(
+                &args[0].value,
+                &args[1].value,
+                &args[2].value,
+            );
         }
 
         let mut compiled_args = Vec::new();

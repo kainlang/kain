@@ -1,3 +1,6 @@
+use std::runtime
+use std::intent
+
 axiom semantic_singularity_no_entangle_machine_truth:
     when target("llvm")
     when arch("x86_64")
@@ -83,7 +86,7 @@ fn fold_shared_cells(cells: ptr<Int>) -> Int:
     return acc
 
 fn main() -> Int:
-    let init_status = native_runtime_init()
+    let init_status = runtime_init()
     if init_status != 0:
         return 100 + init_status
 
@@ -116,7 +119,7 @@ fn main() -> Int:
             let moved = teleport hot_shard from SemanticAuthority to SemanticMirror via hot_bus
             let local_score: Int = shard_score_parts(moved.x, moved.y, moved.drift, moved.alive, lane)
             let patched: Int = commit_signal(authority, (checksum + local_score + i) % modulus)
-            let law_status: Int = native_law_status(signal_in_bounds(patched))
+            let law_status: Int = law_status(signal_in_bounds(patched))
             let staged: Int = semantic_pipeline(patched + local_score)
             let old_cell: Int = mem_load(ptr_offset(cells, slot, "Int"), "Int")
             let request: Int = (staged + old_cell + semantic_mask(lane, 4)) % modulus
@@ -133,12 +136,12 @@ fn main() -> Int:
     decay cells
 
     let final_score: Int = (checksum + observed) % modulus
-    let patch_count: Int = native_patch_journal_count()
-    let entangle_count: Int = native_entangle_propagation_count()
+    let patch_count: Int = patch_journal_count()
+    let entangle_count: Int = entangle_propagation_count()
     let teleport_count: Int = runtime_machine_teleport_count()
     let pulse_count: Int = runtime_machine_pulse_total_fire_count()
-    let runtime_shape_ok = patch_count >= 1 and patch_count <= iterations and entangle_count == 0 and native_converge_mismatch_count() == 0 and teleport_count >= iterations and pulse_count >= 1
-    let shutdown_status = native_runtime_shutdown()
+    let runtime_shape_ok = patch_count >= 1 and patch_count <= iterations and entangle_count == 0 and converge_mismatch_count() == 0 and teleport_count >= iterations and pulse_count >= 1
+    let shutdown_status = runtime_shutdown()
     if shutdown_status != 0:
         return 200 + shutdown_status
     if runtime_shape_ok == false:

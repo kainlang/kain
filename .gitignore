@@ -146,3 +146,4 @@ zender
 # Bazel local state
 /bazel-*
 /.bazel-cache/
+AGENTS.md

@@ -1,5 +1,5 @@
-use std::native::process
-use std::native::time
+use std::process
+use std::time
 use kain_fmt::fmt_join_strings
 use kain_log::log_level_info
 use kain_log::log_render_message

@@ -13,9 +13,21 @@
         "javascript": "Dependency-free Node uses a scalar proxy here so worker startup and SharedArrayBuffer scheduling do not dominate the case.",
         "python": "Dependency-free CPython uses a scalar proxy here because locked threads would mostly measure GIL and lock scheduling overhead."
       },
+      "telemetry": {
+        "primary_metric_id": "increments_per_second",
+        "metrics": [
+          {
+            "id": "increments_per_second",
+            "label": "counter increments/s",
+            "unit": "increments/s",
+            "work_items": 100000000
+          }
+        ]
+      },
       "kain": "cases/contention_wall/main.kn",
       "rust": "cases/contention_wall/main.rs",
       "cpp": "cases/contention_wall/main.cpp",
+      "zig": "cases/contention_wall/main.zig",
       "javascript": "cases/contention_wall/main.js",
       "python": "cases/contention_wall/main.py"
     },
@@ -25,6 +37,35 @@
       "description": "Rust mirrors a 1 MiB payload through a std TCP loopback channel. Kain mirrors authority state with entangle and mutates a 1 MiB helper-owned buffer in-process.",
       "maturity": "semantic-proxy",
       "fairness_note": "Kain entangle is currently in-process world mirroring, not a two-process transport. This case measures serialization/transport tax versus compiler-owned mirror semantics.",
+      "telemetry": {
+        "primary_metric_id": "payload_bytes_per_second",
+        "metrics": [
+          {
+            "id": "mirror_updates_per_second",
+            "label": "mirror updates/s",
+            "unit": "updates/s",
+            "work_items": 64
+          },
+          {
+            "id": "payload_bytes_per_second",
+            "label": "payload bytes/s",
+            "unit": "bytes/s",
+            "work_items": 67108864
+          },
+          {
+            "id": "wire_bytes_per_second",
+            "label": "wire bytes/s",
+            "unit": "bytes/s",
+            "work_items": 67109376
+          },
+          {
+            "id": "payload_page_touches_per_second",
+            "label": "payload page touches/s",
+            "unit": "page-touches/s",
+            "work_items": 16384
+          }
+        ]
+      },
       "kain": "cases/ghost_mirror/main.kn",
       "rust": "cases/ghost_mirror/main.rs",
       "cpp": "cases/ghost_mirror/main.cpp",
@@ -64,6 +105,7 @@
       "kain": "cases/branch_dispatch/main.kn",
       "rust": "cases/branch_dispatch/main.rs",
       "cpp": "cases/branch_dispatch/main.cpp",
+      "zig": "cases/branch_dispatch/main.zig",
       "javascript": "cases/branch_dispatch/main.js",
       "python": "cases/branch_dispatch/main.py"
     },
@@ -76,6 +118,7 @@
       "kain": "cases/call_chain/main.kn",
       "rust": "cases/call_chain/main.rs",
       "cpp": "cases/call_chain/main.cpp",
+      "zig": "cases/call_chain/main.zig",
       "javascript": "cases/call_chain/main.js",
       "python": "cases/call_chain/main.py"
     },
@@ -186,6 +229,7 @@
         "kain": "cases/zero_copy_binary_wire/main.kn",
         "rust": "cases/zero_copy_binary_wire/main.rs",
         "cpp": "cases/zero_copy_binary_wire/main.cpp",
+        "zig": "cases/zero_copy_binary_wire/main.zig",
         "go": "cases/zero_copy_binary_wire/main.go"
       }
     },
@@ -243,6 +287,29 @@
       "language_notes": {
         "kain": "Current Kain row uses raw Float buffers and explicit pairwise force accumulation so the benchmark measures native LLVM floating-point loops directly rather than hiding behind higher-level containers."
       },
+      "telemetry": {
+        "primary_metric_id": "pair_interactions_per_second",
+        "metrics": [
+          {
+            "id": "sim_steps_per_second",
+            "label": "sim steps/s",
+            "unit": "steps/s",
+            "work_items": 120
+          },
+          {
+            "id": "body_updates_per_second",
+            "label": "body updates/s",
+            "unit": "body-updates/s",
+            "work_items": 5760
+          },
+          {
+            "id": "pair_interactions_per_second",
+            "label": "pair interactions/s",
+            "unit": "pair-interactions/s",
+            "work_items": 270720
+          }
+        ]
+      },
       "languages": {
         "kain": "cases/sim_nbody_gravity/main.kn",
         "rust": "cases/sim_nbody_gravity/main.rs",
@@ -258,6 +325,35 @@
       "language_notes": {
         "kain": "Current Kain row keeps particle state in raw Float buffers and recomputes the weighted velocity field directly for every cell so the case stays close to the original k-os-sim hot path."
       },
+      "telemetry": {
+        "primary_metric_id": "particle_grid_checks_per_second",
+        "metrics": [
+          {
+            "id": "sim_steps_per_second",
+            "label": "sim steps/s",
+            "unit": "steps/s",
+            "work_items": 220
+          },
+          {
+            "id": "particle_updates_per_second",
+            "label": "particle updates/s",
+            "unit": "particle-updates/s",
+            "work_items": 15840
+          },
+          {
+            "id": "grid_cells_per_second",
+            "label": "grid cells/s",
+            "unit": "grid-cells/s",
+            "work_items": 56320
+          },
+          {
+            "id": "particle_grid_checks_per_second",
+            "label": "particle-grid checks/s",
+            "unit": "particle-grid-checks/s",
+            "work_items": 4055040
+          }
+        ]
+      },
       "languages": {
         "kain": "cases/sim_uv_velocity_grid/main.kn",
         "rust": "cases/sim_uv_velocity_grid/main.rs",
@@ -272,6 +368,35 @@
       "fairness_note": "This is the projection core, not a full Navier-Stokes application shell. The benchmark intentionally isolates the divergence/Jacobi/gradient-subtract loop on one fixed staggered grid.",
       "language_notes": {
         "kain": "Current Kain row uses raw Float buffers for the staggered X/Y/Z velocity fields plus pressure/divergence work arrays, matching the original solver shape closely enough to make the runtime/codegen story honest."
+      },
+      "telemetry": {
+        "primary_metric_id": "pressure_relaxations_per_second",
+        "metrics": [
+          {
+            "id": "sim_steps_per_second",
+            "label": "sim steps/s",
+            "unit": "steps/s",
+            "work_items": 140
+          },
+          {
+            "id": "pressure_relaxations_per_second",
+            "label": "pressure relaxations/s",
+            "unit": "pressure-relaxations/s",
+            "work_items": 80640
+          },
+          {
+            "id": "divergence_cells_per_second",
+            "label": "divergence cells/s",
+            "unit": "divergence-cells/s",
+            "work_items": 33600
+          },
+          {
+            "id": "gradient_face_updates_per_second",
+            "label": "gradient face updates/s",
+            "unit": "gradient-face-updates/s",
+            "work_items": 37800
+          }
+        ]
       },
       "languages": {
         "kain": "cases/sim_cfd_pressure_projection/main.kn",
@@ -416,6 +541,17 @@
       "language_notes": {
         "rust": "Cargo release build with tokio rt/macros; no C++/JS/Python lane for this dependency-focused comparison."
       },
+      "telemetry": {
+        "primary_metric_id": "ready_awaits_per_second",
+        "metrics": [
+          {
+            "id": "ready_awaits_per_second",
+            "label": "ready awaits/s",
+            "unit": "awaits/s",
+            "work_items": 1000000
+          }
+        ]
+      },
       "languages": {
         "kain": "cases/async_ready_chain/main.kn",
         "rust": "cases/async_ready_chain/src/main.rs"
@@ -433,6 +569,23 @@
       "fairness_note": "This compares usable local networking paths, not identical schedulers. Kain's current native TCP facade is synchronous around readiness helpers; Rust's lane is Tokio async IO.",
       "language_notes": {
         "rust": "Cargo release build with tokio net/io-util/macros/rt; no C++/JS/Python lane for this async-runtime comparison."
+      },
+      "telemetry": {
+        "primary_metric_id": "roundtrips_per_second",
+        "metrics": [
+          {
+            "id": "roundtrips_per_second",
+            "label": "tcp roundtrips/s",
+            "unit": "roundtrips/s",
+            "work_items": 400
+          },
+          {
+            "id": "payload_bytes_per_second",
+            "label": "payload bytes/s",
+            "unit": "bytes/s",
+            "work_items": 12400
+          }
+        ]
       },
       "languages": {
         "kain": "cases/tcp_loopback_tokio/main.kn",
@@ -475,9 +628,27 @@
       "description": "Repeated fixed-key hash map lookups over a small string-key table. This probes map dispatch, key hashing, and boxed value overhead.",
       "maturity": "implemented",
       "fairness_note": "All three rows use small in-process hash maps with identical fixed keys and deterministic lookup schedules.",
+      "telemetry": {
+        "primary_metric_id": "lookups_per_second",
+        "metrics": [
+          {
+            "id": "lookups_per_second",
+            "label": "map lookups/s",
+            "unit": "lookups/s",
+            "work_items": 1200000
+          },
+          {
+            "id": "queried_key_bytes_per_second",
+            "label": "queried key bytes/s",
+            "unit": "bytes/s",
+            "work_items": 5100000
+          }
+        ]
+      },
       "kain": "cases/native_map_lookup/main.kn",
       "rust": "cases/native_map_lookup/main.rs",
-      "cpp": "cases/native_map_lookup/main.cpp"
+      "cpp": "cases/native_map_lookup/main.cpp",
+      "zig": "cases/native_map_lookup/main.zig"
     },
     {
       "id": "json_manual_roundtrip",
@@ -487,6 +658,35 @@
       "fairness_note": "This case intentionally stays manual and dependency-free across languages. In this checkout, Kain LLVM JSON builtins still fail to link, so the benchmark targets parser/serializer work rather than builtin-runtime availability.",
       "language_notes": {
         "kain": "The native LLVM lane currently reports unresolved externals for json_parse/json_object_new/json_object_set/json_string/json_get_*; this manual JSON path keeps the category benchmarkable while preserving that linker gap as telemetry."
+      },
+      "telemetry": {
+        "primary_metric_id": "json_documents_per_second",
+        "metrics": [
+          {
+            "id": "json_documents_per_second",
+            "label": "json docs/s",
+            "unit": "docs/s",
+            "work_items": 250000
+          },
+          {
+            "id": "json_fields_per_second",
+            "label": "json fields/s",
+            "unit": "fields/s",
+            "work_items": 1000000
+          },
+          {
+            "id": "json_input_bytes_per_second",
+            "label": "json input bytes/s",
+            "unit": "bytes/s",
+            "work_items": 13125000
+          },
+          {
+            "id": "json_roundtrip_bytes_per_second",
+            "label": "json roundtrip bytes/s",
+            "unit": "bytes/s",
+            "work_items": 26250000
+          }
+        ]
       },
       "kain": "cases/json_manual_roundtrip/main.kn",
       "rust": "cases/json_manual_roundtrip/main.rs",
@@ -498,6 +698,35 @@
       "description": "Repeated temp-file write, streaming copy, and readback over a generated text payload. This catches filesystem syscall overhead and runtime path glue.",
       "maturity": "implemented",
       "fairness_note": "All rows generate the same payload, write it to temp storage, stream-copy it, and validate the copied text before cleanup.",
+      "telemetry": {
+        "primary_metric_id": "filesystem_bytes_per_second",
+        "metrics": [
+          {
+            "id": "filesystem_rounds_per_second",
+            "label": "filesystem rounds/s",
+            "unit": "rounds/s",
+            "work_items": 80
+          },
+          {
+            "id": "file_touches_per_second",
+            "label": "file touches/s",
+            "unit": "file-touches/s",
+            "work_items": 240
+          },
+          {
+            "id": "stream_copied_bytes_per_second",
+            "label": "stream copied bytes/s",
+            "unit": "bytes/s",
+            "work_items": 3423040
+          },
+          {
+            "id": "filesystem_bytes_per_second",
+            "label": "filesystem bytes/s",
+            "unit": "bytes/s",
+            "work_items": 10269120
+          }
+        ]
+      },
       "kain": "cases/filesystem_stream/main.kn",
       "rust": "cases/filesystem_stream/main.rs",
       "cpp": "cases/filesystem_stream/main.cpp"
@@ -508,6 +737,23 @@
       "description": "Repeated child-process spawn plus stdout capture through the host shell. This measures command launch and stdio pipe overhead rather than computation.",
       "maturity": "implemented",
       "fairness_note": "This is a Windows-first case over cmd.exe stdout capture. It is intentionally shell/process heavy and should be read as host-substrate overhead, not pure language throughput.",
+      "telemetry": {
+        "primary_metric_id": "launches_per_second",
+        "metrics": [
+          {
+            "id": "launches_per_second",
+            "label": "process launches/s",
+            "unit": "launches/s",
+            "work_items": 300
+          },
+          {
+            "id": "captured_stdout_bytes_per_second",
+            "label": "captured stdout bytes/s",
+            "unit": "bytes/s",
+            "work_items": 4500
+          }
+        ]
+      },
       "kain": "cases/process_stdio_loop/main.kn",
       "rust": "cases/process_stdio_loop/main.rs",
       "cpp": "cases/process_stdio_loop/main.cpp"
@@ -521,6 +767,35 @@
       "language_notes": {
         "kain": "The current Kain row now completes repeated local POST rounds after the request-handle auto-release fix. Keep reading it as a synchronous semantic proxy rather than a finished async HTTP story.",
         "rust": "Cargo release build with tokio net/io-util/macros/rt/sync; this is intentionally a Kain/Rust-only HTTP runtime comparison."
+      },
+      "telemetry": {
+        "primary_metric_id": "http_requests_per_second",
+        "metrics": [
+          {
+            "id": "http_requests_per_second",
+            "label": "http requests/s",
+            "unit": "requests/s",
+            "work_items": 240
+          },
+          {
+            "id": "request_body_bytes_per_second",
+            "label": "request body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 3120
+          },
+          {
+            "id": "response_body_bytes_per_second",
+            "label": "response body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 2880
+          },
+          {
+            "id": "roundtrip_wire_bytes_per_second",
+            "label": "roundtrip wire bytes/s",
+            "unit": "bytes/s",
+            "work_items": 39120
+          }
+        ]
       },
       "languages": {
         "kain": "cases/http_server_concurrency/main.kn",
@@ -541,6 +816,35 @@
         "rust": "Cargo release build with Actix Web; the client side stays raw TCP so the row emphasizes server-stack cost instead of stacking another HTTP client framework on top.",
         "go": "Uses the standard `net/http` server with the same raw TCP client request shape and deterministic checksum."
       },
+      "telemetry": {
+        "primary_metric_id": "http_requests_per_second",
+        "metrics": [
+          {
+            "id": "http_requests_per_second",
+            "label": "http requests/s",
+            "unit": "requests/s",
+            "work_items": 320
+          },
+          {
+            "id": "request_body_bytes_per_second",
+            "label": "request body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 4480
+          },
+          {
+            "id": "response_body_bytes_per_second",
+            "label": "response body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 4160
+          },
+          {
+            "id": "roundtrip_wire_bytes_per_second",
+            "label": "roundtrip wire bytes/s",
+            "unit": "bytes/s",
+            "work_items": 52800
+          }
+        ]
+      },
       "languages": {
         "kain": "cases/http_server_frameworks/main.kn",
         "rust": "cases/http_server_frameworks/src/main.rs",
@@ -560,6 +864,23 @@
         "kain": "The Kain row performs one unmeasured warmup ask per worker before timing. Native LLVM actors compile to KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN and poll mailboxes with kain_actor_try_receive under a default 64-message turn budget.",
         "erlang": "The Erlang row mirrors the same one-shot per-worker warmup so both rows measure steady-state mailbox traffic instead of startup effects."
       },
+      "telemetry": {
+        "primary_metric_id": "ask_roundtrips_per_second",
+        "metrics": [
+          {
+            "id": "ask_roundtrips_per_second",
+            "label": "actor asks/s",
+            "unit": "asks/s",
+            "work_items": 200000
+          },
+          {
+            "id": "mailbox_messages_per_second",
+            "label": "mailbox messages/s",
+            "unit": "messages/s",
+            "work_items": 400000
+          }
+        ]
+      },
       "languages": {
         "kain": "cases/actor_mailbox_erlang/main.kn",
         "erlang": "cases/actor_mailbox_erlang/actor_mailbox_erlang.erl"
@@ -574,6 +895,23 @@
       "language_notes": {
         "kain": "Uses `shatter struct` lane state, raw helper memory under `collapse`/`observe`/`decay`, a converge fast lane, and a boot-time teleport plus entangled world patch to prove the semantic substrate is active while avoiding per-round actor mailbox traffic.",
         "erlang": "Uses 64 long-lived Erlang processes, each owning its lane cell state and replying through ordinary process mailboxes for 300,000 synchronous requests."
+      },
+      "telemetry": {
+        "primary_metric_id": "fold_roundtrips_per_second",
+        "metrics": [
+          {
+            "id": "fold_roundtrips_per_second",
+            "label": "swarm folds/s",
+            "unit": "folds/s",
+            "work_items": 300000
+          },
+          {
+            "id": "mailbox_messages_per_second",
+            "label": "mailbox messages/s",
+            "unit": "messages/s",
+            "work_items": 600000
+          }
+        ]
       },
       "languages": {
         "kain": "cases/quantumerlang/main.kn",
@@ -606,6 +944,41 @@
       "description": "Low-level native graphics session, buffer, pipeline, draw-command, and present submission in a hot loop. This is the current Kain-owned GPU/graphics benchmark surface.",
       "maturity": "implemented",
       "fairness_note": "This is intentionally Kain-only for now. The benchmark measures the current raw native graphics submission path; a comparable bare-metal Rust/C++ lane has not been added to this suite yet.",
+      "telemetry": {
+        "primary_metric_id": "submitted_vertices_per_second",
+        "metrics": [
+          {
+            "id": "frames_per_second",
+            "label": "frames/s",
+            "unit": "frames/s",
+            "work_items": 20000
+          },
+          {
+            "id": "draws_per_second",
+            "label": "draws/s",
+            "unit": "draws/s",
+            "work_items": 20000
+          },
+          {
+            "id": "submitted_instances_per_second",
+            "label": "submitted instances/s",
+            "unit": "instances/s",
+            "work_items": 60000
+          },
+          {
+            "id": "submitted_vertices_per_second",
+            "label": "submitted vertices/s",
+            "unit": "vertices/s",
+            "work_items": 240000
+          },
+          {
+            "id": "submitted_indices_per_second",
+            "label": "submitted indices/s",
+            "unit": "indices/s",
+            "work_items": 360000
+          }
+        ]
+      },
       "languages": {
         "kain": "cases/gpu_graphics_submit/main.kn"
       }

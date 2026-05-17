@@ -1,3 +1,5 @@
+use std::process
+
 fn main() -> Int:
     let _reset = process_reset()
     if process_platform_available() != 1:

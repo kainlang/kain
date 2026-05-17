@@ -1,3 +1,5 @@
+use std::fs
+
 fn build_payload(line_count: Int) -> String:
     let mut text = ""
     let mut index = 0

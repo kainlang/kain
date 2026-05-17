@@ -1,0 +1,8 @@
+{
+  "description": "Simulation benchmark pack for the extracted k-os-sim kernels with dedicated sim snapshots.",
+  "runner": "run.py",
+  "after_args": [
+    "--manifest",
+    "benchmark/simulations/simulations.json"
+  ]
+}

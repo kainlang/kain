@@ -1,0 +1,1393 @@
+// Canonical root math stdlib for Kain.
+//
+// This is the engine-facing math surface for native LLVM, shaders, UI,
+// graphics, simulation, procedural generation, and GPU layout authoring.
+// It favors explicit data layouts and free functions so the surface stays
+// stable across Kain's current compiler/runtime lanes.
+
+pub const PI: Float = 3.141592653589793
+pub const TAU: Float = 6.283185307179586
+pub const HALF_PI: Float = 1.5707963267948966
+pub const DEG_TO_RAD: Float = 0.017453292519943295
+pub const RAD_TO_DEG: Float = 57.29577951308232
+pub const EPSILON: Float = 0.000001
+pub const HUGE_EPSILON: Float = 0.0001
+
+pub fn pi() -> Float:
+    return PI
+
+pub fn tau() -> Float:
+    return TAU
+
+pub fn half_pi() -> Float:
+    return HALF_PI
+
+pub fn vec2(x: Float, y: Float) -> Vec2:
+    return (x, y)
+
+pub fn vec3(x: Float, y: Float, z: Float) -> Vec3:
+    return (x, y, z)
+
+pub fn vec4(x: Float, y: Float, z: Float, w: Float) -> Vec4:
+    return (x, y, z, w)
+
+pub fn math_min(a: Float, b: Float) -> Float:
+    if a <= b:
+        return a
+    return b
+
+pub fn math_max(a: Float, b: Float) -> Float:
+    if a >= b:
+        return a
+    return b
+
+pub fn math_clamp(value: Float, low: Float, high: Float) -> Float:
+    return math_min(math_max(value, low), high)
+
+pub fn math_int_clamp(value: Int, low: Int, high: Int) -> Int:
+    if value <= low:
+        return low
+    if value >= high:
+        return high
+    return value
+
+pub struct Vec3A:
+    x: Float
+    y: Float
+    z: Float
+    pad: Float
+
+pub struct Quat:
+    x: Float
+    y: Float
+    z: Float
+    w: Float
+
+pub struct Mat3:
+    row0: Vec3
+    row1: Vec3
+    row2: Vec3
+
+pub struct Mat4:
+    row0: Vec4
+    row1: Vec4
+    row2: Vec4
+    row3: Vec4
+
+pub struct Affine2:
+    x_axis: Vec2
+    y_axis: Vec2
+    translation: Vec2
+
+pub struct Affine3:
+    x_axis: Vec3
+    y_axis: Vec3
+    z_axis: Vec3
+    translation: Vec3
+
+pub struct Float8:
+    lo: Vec4
+    hi: Vec4
+
+pub struct Vec3x4:
+    x: Vec4
+    y: Vec4
+    z: Vec4
+
+pub struct Vec4x8:
+    x: Float8
+    y: Float8
+    z: Float8
+    w: Float8
+
+pub struct GpuLayoutInfo:
+    alignment_bytes: Int
+    size_bytes: Int
+    stride_bytes: Int
+    padded_size_bytes: Int
+
+pub struct CBuffer<T>:
+    value: T
+    layout: GpuLayoutInfo
+
+pub struct Std140<T>:
+    value: T
+    layout: GpuLayoutInfo
+
+pub struct Std430<T>:
+    value: T
+    layout: GpuLayoutInfo
+
+pub struct Std140Vec3:
+    x: Float
+    y: Float
+    z: Float
+    pad: Float
+
+pub struct Std140Mat3:
+    row0: Vec4
+    row1: Vec4
+    row2: Vec4
+
+pub struct Plane:
+    normal: Vec3
+    distance: Float
+
+pub struct Ray3:
+    origin: Vec3
+    direction: Vec3
+
+pub struct Aabb:
+    min: Vec3
+    max: Vec3
+
+pub struct Obb:
+    center: Vec3
+    axis_x: Vec3
+    axis_y: Vec3
+    axis_z: Vec3
+    half_extents: Vec3
+
+pub struct BoundingSphere:
+    center: Vec3
+    radius: Float
+
+pub struct Frustum:
+    left: Plane
+    right: Plane
+    top: Plane
+    bottom: Plane
+    near: Plane
+    far: Plane
+
+pub struct RayHit:
+    hit: Bool
+    distance: Float
+    position: Vec3
+    normal: Vec3
+    barycentric: Vec3
+
+pub struct ColorRgb:
+    r: Float
+    g: Float
+    b: Float
+
+pub struct ColorRgba:
+    r: Float
+    g: Float
+    b: Float
+    a: Float
+
+pub struct Hsv:
+    h: Float
+    s: Float
+    v: Float
+
+pub struct Hsl:
+    h: Float
+    s: Float
+    l: Float
+
+pub fn degrees_to_radians(value: Float) -> Float:
+    return value * DEG_TO_RAD
+
+pub fn radians_to_degrees(value: Float) -> Float:
+    return value * RAD_TO_DEG
+
+pub fn saturate(value: Float) -> Float:
+    return math_clamp(value, 0.0, 1.0)
+
+pub fn sign_nonzero(value: Float) -> Float:
+    if value < 0.0:
+        return -1.0
+    return 1.0
+
+pub fn inverse_lerp(a: Float, b: Float, value: Float) -> Float:
+    let span = b - a
+    if abs(span) <= EPSILON:
+        return 0.0
+    return (value - a) / span
+
+pub fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+pub fn smoothstep(edge0: Float, edge1: Float, value: Float) -> Float:
+    let t = saturate(inverse_lerp(edge0, edge1, value))
+    return t * t * (3.0 - 2.0 * t)
+
+pub fn smootherstep(edge0: Float, edge1: Float, value: Float) -> Float:
+    let t = saturate(inverse_lerp(edge0, edge1, value))
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+
+pub fn nearly_equal(a: Float, b: Float, epsilon: Float) -> Bool:
+    return abs(a - b) <= epsilon
+
+pub fn fast_sin(angle: Float) -> Float:
+    let wrapped = ((angle + PI) % TAU) - PI
+    let b = 4.0 / PI
+    let c = -4.0 / (PI * PI)
+    let y = b * wrapped + c * wrapped * abs(wrapped)
+    let p = 0.225
+    return p * (y * abs(y) - y) + y
+
+pub fn fast_cos(angle: Float) -> Float:
+    return fast_sin(angle + HALF_PI)
+
+pub fn fast_atan2(y: Float, x: Float) -> Float:
+    if abs(x) <= EPSILON:
+        if y > 0.0:
+            return HALF_PI
+        if y < 0.0:
+            return -HALF_PI
+        return 0.0
+    let abs_y = abs(y) + 0.0000001
+    let angle_base = if x >= 0.0:
+        let r = (x - abs_y) / (x + abs_y)
+        0.78539816339 - 0.78539816339 * r
+    else:
+        let r = (x + abs_y) / (abs_y - x)
+        2.35619449019 - 0.78539816339 * r
+    if y < 0.0:
+        return -angle_base
+    return angle_base
+
+pub fn fast_acos(value: Float) -> Float:
+    let x = math_clamp(abs(value), 0.0, 1.0)
+    let step0 = -0.0187293 * x + 0.0742610
+    let step1 = step0 * x - 0.2121144
+    let step2 = step1 * x + 1.5707288
+    let root = sqrt(math_max(1.0 - x * x, 0.0))
+    let arc = step2 * root
+    if value < 0.0:
+        return PI - arc
+    return arc
+
+pub fn tan_scalar(value: Float) -> Float:
+    let denominator = cos(value)
+    if abs(denominator) <= EPSILON:
+        return sign_nonzero(sin(value)) * 1000000000.0
+    return sin(value) / denominator
+
+pub fn fma_scalar(a: Float, b: Float, c: Float) -> Float:
+    return a * b + c
+
+pub fn frac_scalar(value: Float) -> Float:
+    return value - floor(value)
+
+pub fn vec2_zero() -> Vec2:
+    return vec2(0.0, 0.0)
+
+pub fn vec2_one() -> Vec2:
+    return vec2(1.0, 1.0)
+
+pub fn vec2_splat(value: Float) -> Vec2:
+    return vec2(value, value)
+
+pub fn vec3_zero() -> Vec3:
+    return vec3(0.0, 0.0, 0.0)
+
+pub fn vec3_one() -> Vec3:
+    return vec3(1.0, 1.0, 1.0)
+
+pub fn vec3_up() -> Vec3:
+    return vec3(0.0, 1.0, 0.0)
+
+pub fn vec3_right() -> Vec3:
+    return vec3(1.0, 0.0, 0.0)
+
+pub fn vec3_forward() -> Vec3:
+    return vec3(0.0, 0.0, 1.0)
+
+pub fn vec3_splat(value: Float) -> Vec3:
+    return vec3(value, value, value)
+
+pub fn vec4_zero() -> Vec4:
+    return vec4(0.0, 0.0, 0.0, 0.0)
+
+pub fn vec4_one() -> Vec4:
+    return vec4(1.0, 1.0, 1.0, 1.0)
+
+pub fn vec4_splat(value: Float) -> Vec4:
+    return vec4(value, value, value, value)
+
+pub fn vec2_dot(a: Vec2, b: Vec2) -> Float:
+    return a.x * b.x + a.y * b.y
+
+pub fn vec3_dot(a: Vec3, b: Vec3) -> Float:
+    return a.x * b.x + a.y * b.y + a.z * b.z
+
+pub fn vec4_dot(a: Vec4, b: Vec4) -> Float:
+    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
+
+pub fn vec3_cross(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
+
+pub fn vec2_length(value: Vec2) -> Float:
+    return sqrt(vec2_dot(value, value))
+
+pub fn vec3_length(value: Vec3) -> Float:
+    return sqrt(vec3_dot(value, value))
+
+pub fn vec4_length(value: Vec4) -> Float:
+    return sqrt(vec4_dot(value, value))
+
+pub fn vec2_length_squared(value: Vec2) -> Float:
+    return vec2_dot(value, value)
+
+pub fn vec2_add(a: Vec2, b: Vec2) -> Vec2:
+    return vec2(a.x + b.x, a.y + b.y)
+
+pub fn vec2_sub(a: Vec2, b: Vec2) -> Vec2:
+    return vec2(a.x - b.x, a.y - b.y)
+
+pub fn vec2_mul_scalar(value: Vec2, scalar: Float) -> Vec2:
+    return vec2(value.x * scalar, value.y * scalar)
+
+pub fn vec2_div_scalar(value: Vec2, scalar: Float) -> Vec2:
+    return vec2(value.x / scalar, value.y / scalar)
+
+pub fn vec2_hadamard(a: Vec2, b: Vec2) -> Vec2:
+    return vec2(a.x * b.x, a.y * b.y)
+
+pub fn vec2_floor(value: Vec2) -> Vec2:
+    return vec2(floor(value.x), floor(value.y))
+
+pub fn vec2_frac(value: Vec2) -> Vec2:
+    return vec2(frac_scalar(value.x), frac_scalar(value.y))
+
+pub fn vec3_add(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(a.x + b.x, a.y + b.y, a.z + b.z)
+
+pub fn vec3_sub(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(a.x - b.x, a.y - b.y, a.z - b.z)
+
+pub fn vec3_mul_scalar(value: Vec3, scalar: Float) -> Vec3:
+    return vec3(value.x * scalar, value.y * scalar, value.z * scalar)
+
+pub fn vec3_div_scalar(value: Vec3, scalar: Float) -> Vec3:
+    return vec3(value.x / scalar, value.y / scalar, value.z / scalar)
+
+pub fn vec3_neg(value: Vec3) -> Vec3:
+    return vec3(-value.x, -value.y, -value.z)
+
+pub fn vec3_abs(value: Vec3) -> Vec3:
+    return vec3(abs(value.x), abs(value.y), abs(value.z))
+
+pub fn vec4_add(a: Vec4, b: Vec4) -> Vec4:
+    return vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w)
+
+pub fn vec4_sub(a: Vec4, b: Vec4) -> Vec4:
+    return vec4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w)
+
+pub fn vec4_mul_scalar(value: Vec4, scalar: Float) -> Vec4:
+    return vec4(value.x * scalar, value.y * scalar, value.z * scalar, value.w * scalar)
+
+pub fn vec4_div_scalar(value: Vec4, scalar: Float) -> Vec4:
+    return vec4(value.x / scalar, value.y / scalar, value.z / scalar, value.w / scalar)
+
+pub fn vec3_length_squared(value: Vec3) -> Float:
+    return vec3_dot(value, value)
+
+pub fn vec4_length_squared(value: Vec4) -> Float:
+    return vec4_dot(value, value)
+
+pub fn vec2_distance(a: Vec2, b: Vec2) -> Float:
+    return vec2_length(vec2_sub(a, b))
+
+pub fn vec3_distance(a: Vec3, b: Vec3) -> Float:
+    return vec3_length(vec3_sub(a, b))
+
+pub fn vec4_distance(a: Vec4, b: Vec4) -> Float:
+    return vec4_length(vec4_sub(a, b))
+
+pub fn vec2_normalize_or_zero(value: Vec2) -> Vec2:
+    let length_value = vec2_length(value)
+    if length_value <= EPSILON:
+        return vec2_zero()
+    return vec2_div_scalar(value, length_value)
+
+pub fn vec3_normalize_or_zero(value: Vec3) -> Vec3:
+    let length_value = vec3_length(value)
+    if length_value <= EPSILON:
+        return vec3_zero()
+    return vec3_div_scalar(value, length_value)
+
+pub fn vec4_normalize_or_zero(value: Vec4) -> Vec4:
+    let length_value = vec4_length(value)
+    if length_value <= EPSILON:
+        return vec4_zero()
+    return vec4_div_scalar(value, length_value)
+
+pub fn vec2_perp(value: Vec2) -> Vec2:
+    return vec2(-value.y, value.x)
+
+pub fn vec2_rotate(value: Vec2, angle: Float) -> Vec2:
+    let c = cos(angle)
+    let s = sin(angle)
+    return vec2(value.x * c - value.y * s, value.x * s + value.y * c)
+
+pub fn vec2_lerp(a: Vec2, b: Vec2, t: Float) -> Vec2:
+    return vec2_add(a, vec2_mul_scalar(vec2_sub(b, a), t))
+
+pub fn vec3_lerp(a: Vec3, b: Vec3, t: Float) -> Vec3:
+    return vec3_add(a, vec3_mul_scalar(vec3_sub(b, a), t))
+
+pub fn vec4_lerp(a: Vec4, b: Vec4, t: Float) -> Vec4:
+    return vec4_add(a, vec4_mul_scalar(vec4_sub(b, a), t))
+
+pub fn vec2_min(a: Vec2, b: Vec2) -> Vec2:
+    return vec2(math_min(a.x, b.x), math_min(a.y, b.y))
+
+pub fn vec2_max(a: Vec2, b: Vec2) -> Vec2:
+    return vec2(math_max(a.x, b.x), math_max(a.y, b.y))
+
+pub fn vec3_min(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(math_min(a.x, b.x), math_min(a.y, b.y), math_min(a.z, b.z))
+
+pub fn vec3_max(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(math_max(a.x, b.x), math_max(a.y, b.y), math_max(a.z, b.z))
+
+pub fn vec4_min(a: Vec4, b: Vec4) -> Vec4:
+    return vec4(math_min(a.x, b.x), math_min(a.y, b.y), math_min(a.z, b.z), math_min(a.w, b.w))
+
+pub fn vec4_max(a: Vec4, b: Vec4) -> Vec4:
+    return vec4(math_max(a.x, b.x), math_max(a.y, b.y), math_max(a.z, b.z), math_max(a.w, b.w))
+
+pub fn vec3_clamp(value: Vec3, lo: Vec3, hi: Vec3) -> Vec3:
+    return vec3(
+        math_clamp(value.x, lo.x, hi.x),
+        math_clamp(value.y, lo.y, hi.y),
+        math_clamp(value.z, lo.z, hi.z)
+    )
+
+pub fn vec4_clamp(value: Vec4, lo: Vec4, hi: Vec4) -> Vec4:
+    return vec4(
+        math_clamp(value.x, lo.x, hi.x),
+        math_clamp(value.y, lo.y, hi.y),
+        math_clamp(value.z, lo.z, hi.z),
+        math_clamp(value.w, lo.w, hi.w)
+    )
+
+pub fn vec3_hadamard(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(a.x * b.x, a.y * b.y, a.z * b.z)
+
+pub fn vec3_floor(value: Vec3) -> Vec3:
+    return vec3(floor(value.x), floor(value.y), floor(value.z))
+
+pub fn vec3_frac(value: Vec3) -> Vec3:
+    return vec3(frac_scalar(value.x), frac_scalar(value.y), frac_scalar(value.z))
+
+pub fn vec4_hadamard(a: Vec4, b: Vec4) -> Vec4:
+    return vec4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w)
+
+pub fn vec3_project(a: Vec3, onto: Vec3) -> Vec3:
+    let denom = vec3_dot(onto, onto)
+    if denom <= EPSILON:
+        return vec3_zero()
+    return vec3_mul_scalar(onto, vec3_dot(a, onto) / denom)
+
+pub fn vec3_reject(a: Vec3, onto: Vec3) -> Vec3:
+    return vec3_sub(a, vec3_project(a, onto))
+
+pub fn vec3_reflect(direction: Vec3, normal: Vec3) -> Vec3:
+    let n = vec3_normalize_or_zero(normal)
+    return vec3_sub(direction, vec3_mul_scalar(n, 2.0 * vec3_dot(direction, n)))
+
+pub fn vec3_refract(direction: Vec3, normal: Vec3, eta: Float) -> Vec3:
+    let n = vec3_normalize_or_zero(normal)
+    let d = vec3_normalize_or_zero(direction)
+    let cos_i = math_clamp(-vec3_dot(n, d), -1.0, 1.0)
+    let sin_t2 = eta * eta * (1.0 - cos_i * cos_i)
+    if sin_t2 > 1.0:
+        return vec3_zero()
+    let cos_t = sqrt(1.0 - sin_t2)
+    return vec3_add(vec3_mul_scalar(d, eta), vec3_mul_scalar(n, eta * cos_i - cos_t))
+
+pub fn vec3_faceforward(normal: Vec3, incident: Vec3, reference_normal: Vec3) -> Vec3:
+    if vec3_dot(reference_normal, incident) < 0.0:
+        return normal
+    return vec3_neg(normal)
+
+pub fn vec3a(value: Vec3) -> Vec3A:
+    return Vec3A { x: value.x, y: value.y, z: value.z, pad: 0.0 }
+
+pub fn vec3a_to_vec3(value: Vec3A) -> Vec3:
+    return vec3(value.x, value.y, value.z)
+
+pub fn vec3a_length(value: Vec3A) -> Float:
+    return sqrt(value.x * value.x + value.y * value.y + value.z * value.z)
+
+pub fn vec3a_normalize_or_zero(value: Vec3A) -> Vec3A:
+    let length_value = vec3a_length(value)
+    if length_value <= EPSILON:
+        return Vec3A { x: 0.0, y: 0.0, z: 0.0, pad: 0.0 }
+    return Vec3A {
+        x: value.x / length_value,
+        y: value.y / length_value,
+        z: value.z / length_value,
+        pad: 0.0
+    }
+
+pub fn float8_splat(value: Float) -> Float8:
+    return Float8 { lo: vec4_splat(value), hi: vec4_splat(value) }
+
+pub fn vec3x4_from_vec3(a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Vec3x4:
+    return Vec3x4 {
+        x: vec4(a.x, b.x, c.x, d.x),
+        y: vec4(a.y, b.y, c.y, d.y),
+        z: vec4(a.z, b.z, c.z, d.z)
+    }
+
+pub fn vec3x4_add(a: Vec3x4, b: Vec3x4) -> Vec3x4:
+    return Vec3x4 { x: vec4_add(a.x, b.x), y: vec4_add(a.y, b.y), z: vec4_add(a.z, b.z) }
+
+pub fn vec3x4_sub(a: Vec3x4, b: Vec3x4) -> Vec3x4:
+    return Vec3x4 { x: vec4_sub(a.x, b.x), y: vec4_sub(a.y, b.y), z: vec4_sub(a.z, b.z) }
+
+pub fn vec3x4_mul_scalar(a: Vec3x4, value: Float) -> Vec3x4:
+    return Vec3x4 { x: vec4_mul_scalar(a.x, value), y: vec4_mul_scalar(a.y, value), z: vec4_mul_scalar(a.z, value) }
+
+pub fn vec3x4_dot(a: Vec3x4, b: Vec3x4) -> Vec4:
+    return vec4_add(vec4_add(vec4_hadamard(a.x, b.x), vec4_hadamard(a.y, b.y)), vec4_hadamard(a.z, b.z))
+
+pub fn vec3x4_length_squared(value: Vec3x4) -> Vec4:
+    return vec3x4_dot(value, value)
+
+pub fn vec3x4_normalize_or_zero(value: Vec3x4) -> Vec3x4:
+    let lengths = vec4(
+        sqrt(math_max(value.x.x * value.x.x + value.y.x * value.y.x + value.z.x * value.z.x, EPSILON)),
+        sqrt(math_max(value.x.y * value.x.y + value.y.y * value.y.y + value.z.y * value.z.y, EPSILON)),
+        sqrt(math_max(value.x.z * value.x.z + value.y.z * value.y.z + value.z.z * value.z.z, EPSILON)),
+        sqrt(math_max(value.x.w * value.x.w + value.y.w * value.y.w + value.z.w * value.z.w, EPSILON))
+    )
+    return Vec3x4 {
+        x: vec4(value.x.x / lengths.x, value.x.y / lengths.y, value.x.z / lengths.z, value.x.w / lengths.w),
+        y: vec4(value.y.x / lengths.x, value.y.y / lengths.y, value.y.z / lengths.z, value.y.w / lengths.w),
+        z: vec4(value.z.x / lengths.x, value.z.y / lengths.y, value.z.z / lengths.z, value.z.w / lengths.w)
+    }
+
+pub fn vec4x8_make(x_lo: Vec4, x_hi: Vec4, y_lo: Vec4, y_hi: Vec4, z_lo: Vec4, z_hi: Vec4, w_lo: Vec4, w_hi: Vec4) -> Vec4x8:
+    return Vec4x8 {
+        x: Float8 { lo: x_lo, hi: x_hi },
+        y: Float8 { lo: y_lo, hi: y_hi },
+        z: Float8 { lo: z_lo, hi: z_hi },
+        w: Float8 { lo: w_lo, hi: w_hi }
+    }
+
+pub fn vec4x8_add(a: Vec4x8, b: Vec4x8) -> Vec4x8:
+    return Vec4x8 {
+        x: Float8 { lo: vec4_add(a.x.lo, b.x.lo), hi: vec4_add(a.x.hi, b.x.hi) },
+        y: Float8 { lo: vec4_add(a.y.lo, b.y.lo), hi: vec4_add(a.y.hi, b.y.hi) },
+        z: Float8 { lo: vec4_add(a.z.lo, b.z.lo), hi: vec4_add(a.z.hi, b.z.hi) },
+        w: Float8 { lo: vec4_add(a.w.lo, b.w.lo), hi: vec4_add(a.w.hi, b.w.hi) }
+    }
+
+pub fn quat_identity() -> Quat:
+    return Quat { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
+
+pub fn quat_conjugate(value: Quat) -> Quat:
+    return Quat { x: -value.x, y: -value.y, z: -value.z, w: value.w }
+
+pub fn quat_dot(a: Quat, b: Quat) -> Float:
+    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
+
+pub fn quat_length(value: Quat) -> Float:
+    return sqrt(quat_dot(value, value))
+
+pub fn quat_normalize_or_identity(value: Quat) -> Quat:
+    let length_value = quat_length(value)
+    if length_value <= EPSILON:
+        return quat_identity()
+    return Quat {
+        x: value.x / length_value,
+        y: value.y / length_value,
+        z: value.z / length_value,
+        w: value.w / length_value
+    }
+
+pub fn quat_from_axis_angle(axis: Vec3, angle: Float) -> Quat:
+    let n = vec3_normalize_or_zero(axis)
+    let half_angle = angle * 0.5
+    let s = sin(half_angle)
+    return quat_normalize_or_identity(Quat { x: n.x * s, y: n.y * s, z: n.z * s, w: cos(half_angle) })
+
+pub fn quat_mul(a: Quat, b: Quat) -> Quat:
+    return Quat {
+        x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+        y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+        z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+        w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+    }
+
+pub fn quat_rotate_vec3(rotation: Quat, value: Vec3) -> Vec3:
+    let q = quat_normalize_or_identity(rotation)
+    let u = vec3(q.x, q.y, q.z)
+    let s = q.w
+    let rotated = vec3_add(vec3_add(vec3_mul_scalar(u, 2.0 * vec3_dot(u, value)), vec3_mul_scalar(value, s * s - vec3_dot(u, u))), vec3_mul_scalar(vec3_cross(u, value), 2.0 * s))
+    return rotated
+
+pub fn quat_nlerp(a: Quat, b: Quat, t: Float) -> Quat:
+    let blend = Quat {
+        x: lerp(a.x, b.x, t),
+        y: lerp(a.y, b.y, t),
+        z: lerp(a.z, b.z, t),
+        w: lerp(a.w, b.w, t)
+    }
+    return quat_normalize_or_identity(blend)
+
+pub fn quat_slerp(a: Quat, b: Quat, t: Float) -> Quat:
+    let mut_end = if quat_dot(a, b) < 0.0:
+        Quat { x: -b.x, y: -b.y, z: -b.z, w: -b.w }
+    else:
+        b
+    let cos_theta = math_clamp(quat_dot(a, mut_end), -1.0, 1.0)
+    if cos_theta > 0.9995:
+        return quat_nlerp(a, mut_end, t)
+    let theta = fast_acos(cos_theta)
+    let sin_theta = sin(theta)
+    let w0 = sin((1.0 - t) * theta) / sin_theta
+    let w1 = sin(t * theta) / sin_theta
+    return quat_normalize_or_identity(Quat {
+        x: a.x * w0 + mut_end.x * w1,
+        y: a.y * w0 + mut_end.y * w1,
+        z: a.z * w0 + mut_end.z * w1,
+        w: a.w * w0 + mut_end.w * w1
+    })
+
+pub fn mat3_identity() -> Mat3:
+    return Mat3 {
+        row0: vec3(1.0, 0.0, 0.0),
+        row1: vec3(0.0, 1.0, 0.0),
+        row2: vec3(0.0, 0.0, 1.0)
+    }
+
+pub fn mat3_mul_vec3(transform_matrix: Mat3, value: Vec3) -> Vec3:
+    return vec3(
+        vec3_dot(transform_matrix.row0, value),
+        vec3_dot(transform_matrix.row1, value),
+        vec3_dot(transform_matrix.row2, value)
+    )
+
+pub fn mat3_transpose(transform_matrix: Mat3) -> Mat3:
+    return Mat3 {
+        row0: vec3(transform_matrix.row0.x, transform_matrix.row1.x, transform_matrix.row2.x),
+        row1: vec3(transform_matrix.row0.y, transform_matrix.row1.y, transform_matrix.row2.y),
+        row2: vec3(transform_matrix.row0.z, transform_matrix.row1.z, transform_matrix.row2.z)
+    }
+
+pub fn mat4_identity() -> Mat4:
+    return Mat4 {
+        row0: vec4(1.0, 0.0, 0.0, 0.0),
+        row1: vec4(0.0, 1.0, 0.0, 0.0),
+        row2: vec4(0.0, 0.0, 1.0, 0.0),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_translation(offset: Vec3) -> Mat4:
+    return Mat4 {
+        row0: vec4(1.0, 0.0, 0.0, offset.x),
+        row1: vec4(0.0, 1.0, 0.0, offset.y),
+        row2: vec4(0.0, 0.0, 1.0, offset.z),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_scale(scale: Vec3) -> Mat4:
+    return Mat4 {
+        row0: vec4(scale.x, 0.0, 0.0, 0.0),
+        row1: vec4(0.0, scale.y, 0.0, 0.0),
+        row2: vec4(0.0, 0.0, scale.z, 0.0),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_rotation_x(angle: Float) -> Mat4:
+    let c = cos(angle)
+    let s = sin(angle)
+    return Mat4 {
+        row0: vec4(1.0, 0.0, 0.0, 0.0),
+        row1: vec4(0.0, c, -s, 0.0),
+        row2: vec4(0.0, s, c, 0.0),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_rotation_y(angle: Float) -> Mat4:
+    let c = cos(angle)
+    let s = sin(angle)
+    return Mat4 {
+        row0: vec4(c, 0.0, s, 0.0),
+        row1: vec4(0.0, 1.0, 0.0, 0.0),
+        row2: vec4(-s, 0.0, c, 0.0),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_rotation_z(angle: Float) -> Mat4:
+    let c = cos(angle)
+    let s = sin(angle)
+    return Mat4 {
+        row0: vec4(c, -s, 0.0, 0.0),
+        row1: vec4(s, c, 0.0, 0.0),
+        row2: vec4(0.0, 0.0, 1.0, 0.0),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_from_quat(value: Quat) -> Mat4:
+    let q = quat_normalize_or_identity(value)
+    let xx = q.x * q.x
+    let yy = q.y * q.y
+    let zz = q.z * q.z
+    let xy = q.x * q.y
+    let xz = q.x * q.z
+    let yz = q.y * q.z
+    let wx = q.w * q.x
+    let wy = q.w * q.y
+    let wz = q.w * q.z
+    return Mat4 {
+        row0: vec4(1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy), 0.0),
+        row1: vec4(2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx), 0.0),
+        row2: vec4(2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_rotation_xyz(angles: Vec3) -> Mat4:
+    return mat4_mul(mat4_mul(mat4_rotation_z(angles.z), mat4_rotation_y(angles.y)), mat4_rotation_x(angles.x))
+
+pub fn mat4_transpose(transform_matrix: Mat4) -> Mat4:
+    return Mat4 {
+        row0: vec4(transform_matrix.row0.x, transform_matrix.row1.x, transform_matrix.row2.x, transform_matrix.row3.x),
+        row1: vec4(transform_matrix.row0.y, transform_matrix.row1.y, transform_matrix.row2.y, transform_matrix.row3.y),
+        row2: vec4(transform_matrix.row0.z, transform_matrix.row1.z, transform_matrix.row2.z, transform_matrix.row3.z),
+        row3: vec4(transform_matrix.row0.w, transform_matrix.row1.w, transform_matrix.row2.w, transform_matrix.row3.w)
+    }
+
+pub fn mat4_mul(a: Mat4, b: Mat4) -> Mat4:
+    let bt = mat4_transpose(b)
+    return Mat4 {
+        row0: vec4(vec4_dot(a.row0, bt.row0), vec4_dot(a.row0, bt.row1), vec4_dot(a.row0, bt.row2), vec4_dot(a.row0, bt.row3)),
+        row1: vec4(vec4_dot(a.row1, bt.row0), vec4_dot(a.row1, bt.row1), vec4_dot(a.row1, bt.row2), vec4_dot(a.row1, bt.row3)),
+        row2: vec4(vec4_dot(a.row2, bt.row0), vec4_dot(a.row2, bt.row1), vec4_dot(a.row2, bt.row2), vec4_dot(a.row2, bt.row3)),
+        row3: vec4(vec4_dot(a.row3, bt.row0), vec4_dot(a.row3, bt.row1), vec4_dot(a.row3, bt.row2), vec4_dot(a.row3, bt.row3))
+    }
+
+pub fn mat4_transform_point(transform_matrix: Mat4, point: Vec3) -> Vec3:
+    let p = vec4(point.x, point.y, point.z, 1.0)
+    let x = vec4_dot(transform_matrix.row0, p)
+    let y = vec4_dot(transform_matrix.row1, p)
+    let z = vec4_dot(transform_matrix.row2, p)
+    let w = vec4_dot(transform_matrix.row3, p)
+    if abs(w) <= EPSILON:
+        return vec3(x, y, z)
+    return vec3(x / w, y / w, z / w)
+
+pub fn mat4_transform_vector(transform_matrix: Mat4, vector: Vec3) -> Vec3:
+    let p = vec4(vector.x, vector.y, vector.z, 0.0)
+    return vec3(vec4_dot(transform_matrix.row0, p), vec4_dot(transform_matrix.row1, p), vec4_dot(transform_matrix.row2, p))
+
+pub fn mat4_from_trs(translation: Vec3, rotation: Quat, scale: Vec3) -> Mat4:
+    return mat4_mul(mat4_translation(translation), mat4_mul(mat4_from_quat(rotation), mat4_scale(scale)))
+
+pub fn mat4_perspective(fov_y_radians: Float, aspect: Float, near_plane: Float, far_plane: Float) -> Mat4:
+    let f = 1.0 / tan_scalar(fov_y_radians * 0.5)
+    let range_inv = 1.0 / (near_plane - far_plane)
+    return Mat4 {
+        row0: vec4(f / math_max(aspect, EPSILON), 0.0, 0.0, 0.0),
+        row1: vec4(0.0, f, 0.0, 0.0),
+        row2: vec4(0.0, 0.0, (far_plane + near_plane) * range_inv, (2.0 * far_plane * near_plane) * range_inv),
+        row3: vec4(0.0, 0.0, -1.0, 0.0)
+    }
+
+pub fn mat4_orthographic(left: Float, right: Float, bottom: Float, top: Float, near_plane: Float, far_plane: Float) -> Mat4:
+    let width = right - left
+    let height = top - bottom
+    let depth = far_plane - near_plane
+    return Mat4 {
+        row0: vec4(2.0 / math_max(width, EPSILON), 0.0, 0.0, -(right + left) / math_max(width, EPSILON)),
+        row1: vec4(0.0, 2.0 / math_max(height, EPSILON), 0.0, -(top + bottom) / math_max(height, EPSILON)),
+        row2: vec4(0.0, 0.0, -2.0 / math_max(depth, EPSILON), -(far_plane + near_plane) / math_max(depth, EPSILON)),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn mat4_look_at(eye: Vec3, target: Vec3, up: Vec3) -> Mat4:
+    let forward = vec3_normalize_or_zero(vec3_sub(target, eye))
+    let right = vec3_normalize_or_zero(vec3_cross(forward, up))
+    let corrected_up = vec3_cross(right, forward)
+    return Mat4 {
+        row0: vec4(right.x, right.y, right.z, -vec3_dot(right, eye)),
+        row1: vec4(corrected_up.x, corrected_up.y, corrected_up.z, -vec3_dot(corrected_up, eye)),
+        row2: vec4(-forward.x, -forward.y, -forward.z, vec3_dot(forward, eye)),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn affine2_identity() -> Affine2:
+    return Affine2 { x_axis: vec2(1.0, 0.0), y_axis: vec2(0.0, 1.0), translation: vec2_zero() }
+
+pub fn affine2_transform_point(transform: Affine2, point: Vec2) -> Vec2:
+    return vec2(
+        transform.x_axis.x * point.x + transform.y_axis.x * point.y + transform.translation.x,
+        transform.x_axis.y * point.x + transform.y_axis.y * point.y + transform.translation.y
+    )
+
+pub fn affine3_identity() -> Affine3:
+    return Affine3 { x_axis: vec3_right(), y_axis: vec3_up(), z_axis: vec3_forward(), translation: vec3_zero() }
+
+pub fn affine3_from_trs(translation: Vec3, rotation: Quat, scale: Vec3) -> Affine3:
+    let basis = mat4_from_quat(rotation)
+    return Affine3 {
+        x_axis: mat4_transform_vector(basis, vec3(scale.x, 0.0, 0.0)),
+        y_axis: mat4_transform_vector(basis, vec3(0.0, scale.y, 0.0)),
+        z_axis: mat4_transform_vector(basis, vec3(0.0, 0.0, scale.z)),
+        translation: translation
+    }
+
+pub fn affine3_transform_point(transform: Affine3, point: Vec3) -> Vec3:
+    let translated = vec3_add(vec3_add(transform.translation, vec3_mul_scalar(transform.x_axis, point.x)), vec3_add(vec3_mul_scalar(transform.y_axis, point.y), vec3_mul_scalar(transform.z_axis, point.z)))
+    return translated
+
+pub fn affine3_transform_vector(transform: Affine3, vector: Vec3) -> Vec3:
+    return vec3_add(vec3_mul_scalar(transform.x_axis, vector.x), vec3_add(vec3_mul_scalar(transform.y_axis, vector.y), vec3_mul_scalar(transform.z_axis, vector.z)))
+
+pub fn affine3_to_mat4(transform: Affine3) -> Mat4:
+    return Mat4 {
+        row0: vec4(transform.x_axis.x, transform.y_axis.x, transform.z_axis.x, transform.translation.x),
+        row1: vec4(transform.x_axis.y, transform.y_axis.y, transform.z_axis.y, transform.translation.y),
+        row2: vec4(transform.x_axis.z, transform.y_axis.z, transform.z_axis.z, transform.translation.z),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+pub fn affine3_mul(a: Affine3, b: Affine3) -> Affine3:
+    return Affine3 {
+        x_axis: affine3_transform_vector(a, b.x_axis),
+        y_axis: affine3_transform_vector(a, b.y_axis),
+        z_axis: affine3_transform_vector(a, b.z_axis),
+        translation: affine3_transform_point(a, b.translation)
+    }
+
+pub fn align_up_int(value: Int, alignment: Int) -> Int:
+    if alignment <= 0:
+        return value
+    let remainder = value % alignment
+    if remainder == 0:
+        return value
+    return value + alignment - remainder
+
+pub fn gpu_layout_info(size_bytes: Int, alignment_bytes: Int) -> GpuLayoutInfo:
+    let padded = align_up_int(size_bytes, alignment_bytes)
+    return GpuLayoutInfo {
+        alignment_bytes: alignment_bytes,
+        size_bytes: size_bytes,
+        stride_bytes: padded,
+        padded_size_bytes: padded
+    }
+
+pub fn std140_vec3(value: Vec3) -> Std140<Std140Vec3>:
+    return Std140 {
+        value: Std140Vec3 { x: value.x, y: value.y, z: value.z, pad: 0.0 },
+        layout: gpu_layout_info(12, 16)
+    }
+
+pub fn std140_vec4(value: Vec4) -> Std140<Vec4>:
+    return Std140 { value: value, layout: gpu_layout_info(16, 16) }
+
+pub fn std140_mat3(value: Mat3) -> Std140<Std140Mat3>:
+    return Std140 {
+        value: Std140Mat3 {
+            row0: vec4(value.row0.x, value.row0.y, value.row0.z, 0.0),
+            row1: vec4(value.row1.x, value.row1.y, value.row1.z, 0.0),
+            row2: vec4(value.row2.x, value.row2.y, value.row2.z, 0.0)
+        },
+        layout: gpu_layout_info(48, 16)
+    }
+
+pub fn std140_mat4(value: Mat4) -> Std140<Mat4>:
+    return Std140 { value: value, layout: gpu_layout_info(64, 16) }
+
+pub fn std430_vec3a(value: Vec3A) -> Std430<Vec3A>:
+    return Std430 { value: value, layout: gpu_layout_info(16, 16) }
+
+pub fn std430_vec4(value: Vec4) -> Std430<Vec4>:
+    return Std430 { value: value, layout: gpu_layout_info(16, 16) }
+
+pub fn cbuffer_mat4(value: Mat4) -> CBuffer<Mat4>:
+    return CBuffer { value: value, layout: gpu_layout_info(64, 16) }
+
+pub fn std140_mat4_alignment_bytes(value: Std140<Mat4>) -> Int:
+    return value.layout.alignment_bytes
+
+pub fn std140_mat4_stride_bytes(value: Std140<Mat4>) -> Int:
+    return value.layout.stride_bytes
+
+pub fn color_rgba_red(value: ColorRgba) -> Float:
+    return value.r
+
+pub fn color_rgba_green(value: ColorRgba) -> Float:
+    return value.g
+
+pub fn color_rgba_blue(value: ColorRgba) -> Float:
+    return value.b
+
+pub fn color_rgba_alpha(value: ColorRgba) -> Float:
+    return value.a
+
+pub fn ray_hit_is_hit(value: RayHit) -> Bool:
+    return value.hit
+
+pub fn plane_from_point_normal(point: Vec3, normal: Vec3) -> Plane:
+    let n = vec3_normalize_or_zero(normal)
+    return Plane { normal: n, distance: -vec3_dot(n, point) }
+
+pub fn plane_signed_distance(plane: Plane, point: Vec3) -> Float:
+    return vec3_dot(plane.normal, point) + plane.distance
+
+pub fn plane_normalize(plane: Plane) -> Plane:
+    let len = vec3_length(plane.normal)
+    if len <= EPSILON:
+        return Plane { normal: vec3_up(), distance: 0.0 }
+    return Plane { normal: vec3_div_scalar(plane.normal, len), distance: plane.distance / len }
+
+pub fn ray3(origin: Vec3, direction: Vec3) -> Ray3:
+    return Ray3 { origin: origin, direction: vec3_normalize_or_zero(direction) }
+
+pub fn aabb_center(bounds: Aabb) -> Vec3:
+    return vec3_mul_scalar(vec3_add(bounds.min, bounds.max), 0.5)
+
+pub fn aabb_half_extents(bounds: Aabb) -> Vec3:
+    return vec3_mul_scalar(vec3_sub(bounds.max, bounds.min), 0.5)
+
+pub fn aabb_expand_point(bounds: Aabb, point: Vec3) -> Aabb:
+    return Aabb { min: vec3_min(bounds.min, point), max: vec3_max(bounds.max, point) }
+
+pub fn aabb_union(a: Aabb, b: Aabb) -> Aabb:
+    return Aabb { min: vec3_min(a.min, b.min), max: vec3_max(a.max, b.max) }
+
+pub fn aabb_contains_point(bounds: Aabb, point: Vec3) -> Bool:
+    let inside = point.x >= bounds.min.x and point.x <= bounds.max.x and point.y >= bounds.min.y and point.y <= bounds.max.y and point.z >= bounds.min.z and point.z <= bounds.max.z
+    return inside
+
+pub fn sphere_contains_point(sphere: BoundingSphere, point: Vec3) -> Bool:
+    return vec3_distance(sphere.center, point) <= sphere.radius
+
+pub fn closest_point_on_aabb(bounds: Aabb, point: Vec3) -> Vec3:
+    return vec3_clamp(point, bounds.min, bounds.max)
+
+pub fn closest_point_on_obb(bounds: Obb, point: Vec3) -> Vec3:
+    let delta = vec3_sub(point, bounds.center)
+    let axis_x = vec3_normalize_or_zero(bounds.axis_x)
+    let axis_y = vec3_normalize_or_zero(bounds.axis_y)
+    let axis_z = vec3_normalize_or_zero(bounds.axis_z)
+    let x = math_clamp(vec3_dot(delta, axis_x), -bounds.half_extents.x, bounds.half_extents.x)
+    let y = math_clamp(vec3_dot(delta, axis_y), -bounds.half_extents.y, bounds.half_extents.y)
+    let z = math_clamp(vec3_dot(delta, axis_z), -bounds.half_extents.z, bounds.half_extents.z)
+    return vec3_add(bounds.center, vec3_add(vec3_mul_scalar(axis_x, x), vec3_add(vec3_mul_scalar(axis_y, y), vec3_mul_scalar(axis_z, z))))
+
+pub fn sphere_vs_obb(sphere: BoundingSphere, bounds: Obb) -> Bool:
+    let closest = closest_point_on_obb(bounds, sphere.center)
+    return vec3_distance(closest, sphere.center) <= sphere.radius
+
+pub fn ray_vs_aabb(ray: Ray3, bounds: Aabb) -> RayHit:
+    let inv_x = if abs(ray.direction.x) <= EPSILON: 1000000000.0 else: 1.0 / ray.direction.x
+    let inv_y = if abs(ray.direction.y) <= EPSILON: 1000000000.0 else: 1.0 / ray.direction.y
+    let inv_z = if abs(ray.direction.z) <= EPSILON: 1000000000.0 else: 1.0 / ray.direction.z
+    let tx1 = (bounds.min.x - ray.origin.x) * inv_x
+    let tx2 = (bounds.max.x - ray.origin.x) * inv_x
+    let ty1 = (bounds.min.y - ray.origin.y) * inv_y
+    let ty2 = (bounds.max.y - ray.origin.y) * inv_y
+    let tz1 = (bounds.min.z - ray.origin.z) * inv_z
+    let tz2 = (bounds.max.z - ray.origin.z) * inv_z
+    let tmin = math_max(math_max(math_min(tx1, tx2), math_min(ty1, ty2)), math_min(tz1, tz2))
+    let tmax = math_min(math_min(math_max(tx1, tx2), math_max(ty1, ty2)), math_max(tz1, tz2))
+    if tmax < 0.0 or tmin > tmax:
+        return RayHit { hit: false, distance: 0.0, position: vec3_zero(), normal: vec3_zero(), barycentric: vec3_zero() }
+    let distance_value = if tmin >= 0.0: tmin else: tmax
+    let position = vec3_add(ray.origin, vec3_mul_scalar(ray.direction, distance_value))
+    let center = aabb_center(bounds)
+    let delta = vec3_sub(position, center)
+    let half_extents = aabb_half_extents(bounds)
+    let abs_delta = vec3_abs(delta)
+    let normal = if abs(abs_delta.x - half_extents.x) <= HUGE_EPSILON:
+        vec3(sign_nonzero(delta.x), 0.0, 0.0)
+    else if abs(abs_delta.y - half_extents.y) <= HUGE_EPSILON:
+        vec3(0.0, sign_nonzero(delta.y), 0.0)
+    else:
+        vec3(0.0, 0.0, sign_nonzero(delta.z))
+    return RayHit { hit: true, distance: distance_value, position: position, normal: normal, barycentric: vec3_zero() }
+
+pub fn ray_vs_triangle(ray: Ray3, a: Vec3, b: Vec3, c: Vec3) -> RayHit:
+    let edge_ab = vec3_sub(b, a)
+    let edge_ac = vec3_sub(c, a)
+    let pvec = vec3_cross(ray.direction, edge_ac)
+    let determinant = vec3_dot(edge_ab, pvec)
+    if abs(determinant) <= EPSILON:
+        return RayHit { hit: false, distance: 0.0, position: vec3_zero(), normal: vec3_zero(), barycentric: vec3_zero() }
+    let inv_det = 1.0 / determinant
+    let tvec = vec3_sub(ray.origin, a)
+    let u = vec3_dot(tvec, pvec) * inv_det
+    if u < 0.0 or u > 1.0:
+        return RayHit { hit: false, distance: 0.0, position: vec3_zero(), normal: vec3_zero(), barycentric: vec3_zero() }
+    let qvec = vec3_cross(tvec, edge_ab)
+    let v = vec3_dot(ray.direction, qvec) * inv_det
+    if v < 0.0 or (u + v) > 1.0:
+        return RayHit { hit: false, distance: 0.0, position: vec3_zero(), normal: vec3_zero(), barycentric: vec3_zero() }
+    let distance_value = vec3_dot(edge_ac, qvec) * inv_det
+    if distance_value < 0.0:
+        return RayHit { hit: false, distance: 0.0, position: vec3_zero(), normal: vec3_zero(), barycentric: vec3_zero() }
+    let normal = vec3_normalize_or_zero(vec3_cross(edge_ab, edge_ac))
+    return RayHit {
+        hit: true,
+        distance: distance_value,
+        position: vec3_add(ray.origin, vec3_mul_scalar(ray.direction, distance_value)),
+        normal: normal,
+        barycentric: vec3(1.0 - u - v, u, v)
+    }
+
+pub fn frustum_contains_point(frustum: Frustum, point: Vec3) -> Bool:
+    let inside = plane_signed_distance(frustum.left, point) >= 0.0 and plane_signed_distance(frustum.right, point) >= 0.0 and plane_signed_distance(frustum.top, point) >= 0.0 and plane_signed_distance(frustum.bottom, point) >= 0.0 and plane_signed_distance(frustum.near, point) >= 0.0 and plane_signed_distance(frustum.far, point) >= 0.0
+    return inside
+
+pub fn aabb_support_point(bounds: Aabb, normal: Vec3) -> Vec3:
+    let support_x = if normal.x >= 0.0: bounds.max.x else: bounds.min.x
+    let support_y = if normal.y >= 0.0: bounds.max.y else: bounds.min.y
+    let support_z = if normal.z >= 0.0: bounds.max.z else: bounds.min.z
+    return vec3(support_x, support_y, support_z)
+
+pub fn plane_accepts_aabb(plane: Plane, bounds: Aabb) -> Bool:
+    let support_point = aabb_support_point(bounds, plane.normal)
+    return plane_signed_distance(plane, support_point) >= 0.0
+
+pub fn frustum_vs_aabb(frustum: Frustum, bounds: Aabb) -> Bool:
+    return plane_accepts_aabb(frustum.left, bounds) and plane_accepts_aabb(frustum.right, bounds) and plane_accepts_aabb(frustum.top, bounds) and plane_accepts_aabb(frustum.bottom, bounds) and plane_accepts_aabb(frustum.near, bounds) and plane_accepts_aabb(frustum.far, bounds)
+
+pub fn bezier_quadratic_vec2(a: Vec2, b: Vec2, c: Vec2, t: Float) -> Vec2:
+    let u = 1.0 - t
+    return vec2_add(vec2_add(vec2_mul_scalar(a, u * u), vec2_mul_scalar(b, 2.0 * u * t)), vec2_mul_scalar(c, t * t))
+
+pub fn bezier_quadratic_vec3(a: Vec3, b: Vec3, c: Vec3, t: Float) -> Vec3:
+    let u = 1.0 - t
+    return vec3_add(vec3_add(vec3_mul_scalar(a, u * u), vec3_mul_scalar(b, 2.0 * u * t)), vec3_mul_scalar(c, t * t))
+
+pub fn bezier_quadratic_tangent_vec3(a: Vec3, b: Vec3, c: Vec3, t: Float) -> Vec3:
+    return vec3_normalize_or_zero(vec3_add(vec3_mul_scalar(vec3_sub(b, a), 2.0 * (1.0 - t)), vec3_mul_scalar(vec3_sub(c, b), 2.0 * t)))
+
+pub fn bezier_cubic_vec2(a: Vec2, b: Vec2, c: Vec2, d: Vec2, t: Float) -> Vec2:
+    let u = 1.0 - t
+    let tt = t * t
+    let uu = u * u
+    return vec2_add(vec2_add(vec2_mul_scalar(a, uu * u), vec2_mul_scalar(b, 3.0 * uu * t)), vec2_add(vec2_mul_scalar(c, 3.0 * u * tt), vec2_mul_scalar(d, tt * t)))
+
+pub fn bezier_cubic_vec3(a: Vec3, b: Vec3, c: Vec3, d: Vec3, t: Float) -> Vec3:
+    let u = 1.0 - t
+    let tt = t * t
+    let uu = u * u
+    return vec3_add(vec3_add(vec3_mul_scalar(a, uu * u), vec3_mul_scalar(b, 3.0 * uu * t)), vec3_add(vec3_mul_scalar(c, 3.0 * u * tt), vec3_mul_scalar(d, tt * t)))
+
+pub fn bezier_cubic_tangent_vec3(a: Vec3, b: Vec3, c: Vec3, d: Vec3, t: Float) -> Vec3:
+    let u = 1.0 - t
+    let tangent = vec3_add(vec3_add(vec3_mul_scalar(vec3_sub(b, a), 3.0 * u * u), vec3_mul_scalar(vec3_sub(c, b), 6.0 * u * t)), vec3_mul_scalar(vec3_sub(d, c), 3.0 * t * t))
+    return vec3_normalize_or_zero(tangent)
+
+pub fn catmull_rom_vec3(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: Float) -> Vec3:
+    let t2 = t * t
+    let t3 = t2 * t
+    let term0 = vec3_mul_scalar(p1, 2.0)
+    let term1 = vec3_mul_scalar(vec3_sub(p2, p0), t)
+    let term2_base = vec3_sub(vec3_add(vec3_sub(vec3_mul_scalar(p0, 2.0), vec3_mul_scalar(p1, 5.0)), vec3_mul_scalar(p2, 4.0)), p3)
+    let term2 = vec3_mul_scalar(term2_base, t2)
+    let term3_base = vec3_sub(vec3_add(vec3_mul_scalar(p1, 3.0), p3), vec3_add(p0, vec3_mul_scalar(p2, 3.0)))
+    let term3 = vec3_mul_scalar(term3_base, t3)
+    return vec3_mul_scalar(vec3_add(vec3_add(term0, term1), vec3_add(term2, term3)), 0.5)
+
+pub fn catmull_rom_tangent_vec3(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: Float) -> Vec3:
+    let t2 = t * t
+    let linear_term = vec3_sub(p2, p0)
+    let first_poly = vec3_sub(vec3_add(vec3_sub(vec3_mul_scalar(p0, 4.0), vec3_mul_scalar(p1, 10.0)), vec3_mul_scalar(p2, 8.0)), vec3_mul_scalar(p3, 2.0))
+    let second_poly = vec3_sub(vec3_add(vec3_mul_scalar(p1, 9.0), vec3_mul_scalar(p3, 3.0)), vec3_add(vec3_mul_scalar(p0, 3.0), vec3_mul_scalar(p2, 9.0)))
+    let tangent = vec3_add(linear_term, vec3_add(vec3_mul_scalar(first_poly, t), vec3_mul_scalar(second_poly, t2)))
+    return vec3_normalize_or_zero(vec3_mul_scalar(tangent, 0.5))
+
+pub fn bspline_cubic_vec3(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: Float) -> Vec3:
+    let t2 = t * t
+    let t3 = t2 * t
+    let term0 = vec3_mul_scalar(p0, -t3 + 3.0 * t2 - 3.0 * t + 1.0)
+    let term1 = vec3_mul_scalar(p1, 3.0 * t3 - 6.0 * t2 + 4.0)
+    let term2 = vec3_mul_scalar(p2, -3.0 * t3 + 3.0 * t2 + 3.0 * t + 1.0)
+    let term3 = vec3_mul_scalar(p3, t3)
+    return vec3_div_scalar(vec3_add(vec3_add(term0, term1), vec3_add(term2, term3)), 6.0)
+
+pub fn color_rgb(r: Float, g: Float, b: Float) -> ColorRgb:
+    return ColorRgb { r: r, g: g, b: b }
+
+pub fn color_rgba(r: Float, g: Float, b: Float, a: Float) -> ColorRgba:
+    return ColorRgba { r: r, g: g, b: b, a: a }
+
+pub fn color_rgb_to_vec3(value: ColorRgb) -> Vec3:
+    return vec3(value.r, value.g, value.b)
+
+pub fn color_rgba_to_vec4(value: ColorRgba) -> Vec4:
+    return vec4(value.r, value.g, value.b, value.a)
+
+pub fn srgb_to_linear_scalar(value: Float) -> Float:
+    let clamped = saturate(value)
+    if clamped <= 0.04045:
+        return clamped / 12.92
+    return pow((clamped + 0.055) / 1.055, 2.4)
+
+pub fn linear_to_srgb_scalar(value: Float) -> Float:
+    let clamped = math_max(value, 0.0)
+    if clamped <= 0.0031308:
+        return clamped * 12.92
+    return 1.055 * pow(clamped, 1.0 / 2.4) - 0.055
+
+pub fn srgb_to_linear(color: Vec3) -> Vec3:
+    return vec3(
+        srgb_to_linear_scalar(color.x),
+        srgb_to_linear_scalar(color.y),
+        srgb_to_linear_scalar(color.z)
+    )
+
+pub fn linear_to_srgb(color: Vec3) -> Vec3:
+    return vec3(
+        linear_to_srgb_scalar(color.x),
+        linear_to_srgb_scalar(color.y),
+        linear_to_srgb_scalar(color.z)
+    )
+
+pub fn rgb_to_hsv(rgb: Vec3) -> Hsv:
+    let max_c = math_max(rgb.x, math_max(rgb.y, rgb.z))
+    let min_c = math_min(rgb.x, math_min(rgb.y, rgb.z))
+    let delta = max_c - min_c
+    var h = 0.0
+    var s = 0.0
+    if delta > EPSILON:
+        if max_c == rgb.x:
+            h = ((rgb.y - rgb.z) / delta) % 6.0
+        else if max_c == rgb.y:
+            h = ((rgb.z - rgb.x) / delta) + 2.0
+        else:
+            h = ((rgb.x - rgb.y) / delta) + 4.0
+        h = h / 6.0
+    if max_c > EPSILON:
+        s = delta / max_c
+    return Hsv { h: h, s: s, v: max_c }
+
+pub fn hsv_to_rgb(hsv: Hsv) -> Vec3:
+    let h = (hsv.h % 1.0) * 6.0
+    let c = hsv.v * hsv.s
+    let x = c * (1.0 - abs((h % 2.0) - 1.0))
+    let m = hsv.v - c
+    if h < 1.0:
+        return vec3(c + m, x + m, m)
+    else if h < 2.0:
+        return vec3(x + m, c + m, m)
+    else if h < 3.0:
+        return vec3(m, c + m, x + m)
+    else if h < 4.0:
+        return vec3(m, x + m, c + m)
+    else if h < 5.0:
+        return vec3(x + m, m, c + m)
+    return vec3(c + m, m, x + m)
+
+pub fn rgb_to_hsl(rgb: Vec3) -> Hsl:
+    let max_c = math_max(rgb.x, math_max(rgb.y, rgb.z))
+    let min_c = math_min(rgb.x, math_min(rgb.y, rgb.z))
+    let delta = max_c - min_c
+    let lightness = (max_c + min_c) * 0.5
+    var hue = 0.0
+    var saturation = 0.0
+    if delta > EPSILON:
+        saturation = delta / (1.0 - abs(2.0 * lightness - 1.0))
+        if max_c == rgb.x:
+            hue = ((rgb.y - rgb.z) / delta) % 6.0
+        else if max_c == rgb.y:
+            hue = ((rgb.z - rgb.x) / delta) + 2.0
+        else:
+            hue = ((rgb.x - rgb.y) / delta) + 4.0
+        hue = hue / 6.0
+    return Hsl { h: hue, s: saturation, l: lightness }
+
+pub fn hsl_to_rgb(hsl: Hsl) -> Vec3:
+    let c = (1.0 - abs(2.0 * hsl.l - 1.0)) * hsl.s
+    let h = (hsl.h % 1.0) * 6.0
+    let x = c * (1.0 - abs((h % 2.0) - 1.0))
+    let m = hsl.l - c * 0.5
+    if h < 1.0:
+        return vec3(c + m, x + m, m)
+    else if h < 2.0:
+        return vec3(x + m, c + m, m)
+    else if h < 3.0:
+        return vec3(m, c + m, x + m)
+    else if h < 4.0:
+        return vec3(m, x + m, c + m)
+    else if h < 5.0:
+        return vec3(x + m, m, c + m)
+    return vec3(c + m, m, x + m)
+
+pub fn tonemap_aces(color: Vec3) -> Vec3:
+    let a = 2.51
+    let b = 0.03
+    let c = 2.43
+    let d = 0.59
+    let e = 0.14
+    return vec3_clamp(
+        vec3(
+            (color.x * (a * color.x + b)) / (color.x * (c * color.x + d) + e),
+            (color.y * (a * color.y + b)) / (color.y * (c * color.y + d) + e),
+            (color.z * (a * color.z + b)) / (color.z * (c * color.z + d) + e)
+        ),
+        vec3_zero(),
+        vec3_one()
+    )
+
+pub fn tonemap_reinhard(color: Vec3) -> Vec3:
+    return vec3(
+        color.x / (1.0 + color.x),
+        color.y / (1.0 + color.y),
+        color.z / (1.0 + color.z)
+    )
+
+pub fn tonemap_uncharted2(color: Vec3) -> Vec3:
+    let a = 0.15
+    let b = 0.50
+    let c = 0.10
+    let d = 0.20
+    let e = 0.02
+    let f = 0.30
+    let white = 11.2
+    let white_scale = ((white * (a * white + c * b) + d * e) / (white * (a * white + b) + d * f)) - e / f
+    return vec3(
+        (((color.x * (a * color.x + c * b) + d * e) / (color.x * (a * color.x + b) + d * f)) - e / f) / white_scale,
+        (((color.y * (a * color.y + c * b) + d * e) / (color.y * (a * color.y + b) + d * f)) - e / f) / white_scale,
+        (((color.z * (a * color.z + c * b) + d * e) / (color.z * (a * color.z + b) + d * f)) - e / f) / white_scale
+    )
+
+pub fn pack_unorm8(value: Float) -> Int:
+    return math_int_clamp(round(saturate(value) * 255.0) as Int, 0, 255)
+
+pub fn pack_unorm4x8(value: Vec4) -> Int:
+    let x = pack_unorm8(value.x)
+    let y = pack_unorm8(value.y)
+    let z = pack_unorm8(value.z)
+    let w = pack_unorm8(value.w)
+    return x | (y << 8) | (z << 16) | (w << 24)
+
+pub fn pack_rgba_to_u32(value: ColorRgba) -> Int:
+    return pack_unorm4x8(vec4(value.r, value.g, value.b, value.a))
+
+pub fn unpack_u32_to_rgba(packed: Int) -> ColorRgba:
+    let r = packed & 255
+    let g = (packed >> 8) & 255
+    let b = (packed >> 16) & 255
+    let a = (packed >> 24) & 255
+    return ColorRgba {
+        r: r as Float / 255.0,
+        g: g as Float / 255.0,
+        b: b as Float / 255.0,
+        a: a as Float / 255.0
+    }
+
+pub fn hash11(x: Float) -> Float:
+    return frac_scalar(sin(x * 127.1) * 43758.5453123)
+
+pub fn hash22(p: Vec2) -> Vec2:
+    let p3 = vec3_frac(vec3_hadamard(vec3(p.x, p.y, p.x), vec3(0.1031, 0.1030, 0.0973)))
+    let offset = vec3_add(vec3(p3.y, p3.z, p3.x), vec3(33.33, 33.33, 33.33))
+    let sum = vec3_add(p3, vec3_splat(vec3_dot(p3, offset)))
+    let packed = vec2_hadamard(vec2(sum.x + sum.y, sum.x + sum.z), vec2(sum.z, sum.y))
+    return vec2_frac(packed)
+
+pub fn hash33(p: Vec3) -> Vec3:
+    let q = vec3(
+        vec3_dot(p, vec3(127.1, 311.7, 74.7)),
+        vec3_dot(p, vec3(269.5, 183.3, 246.1)),
+        vec3_dot(p, vec3(113.5, 271.9, 124.6))
+    )
+    return vec3(
+        frac_scalar(sin(q.x) * 43758.5453123),
+        frac_scalar(sin(q.y) * 43758.5453123),
+        frac_scalar(sin(q.z) * 43758.5453123)
+    )
+
+pub fn pcg32_step(state: Int) -> Int:
+    return (state * 747796405 + 2891336453) & 2147483647
+
+pub fn noise2(p: Vec2) -> Float:
+    let cell = vec2_floor(p)
+    let local = vec2_frac(p)
+    let local2 = vec2_hadamard(local, local)
+    let curve = vec2_sub(vec2(3.0, 3.0), vec2_hadamard(vec2(2.0, 2.0), local))
+    let u = vec2_hadamard(local2, curve)
+    let a = hash11(vec2_dot(cell, vec2(1.0, 57.0)))
+    let b = hash11(vec2_dot(vec2_add(cell, vec2(1.0, 0.0)), vec2(1.0, 57.0)))
+    let c = hash11(vec2_dot(vec2_add(cell, vec2(0.0, 1.0)), vec2(1.0, 57.0)))
+    let d = hash11(vec2_dot(vec2_add(cell, vec2(1.0, 1.0)), vec2(1.0, 57.0)))
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y)
+
+pub fn noise3(p: Vec3) -> Float:
+    let i = vec3_floor(p)
+    let f = vec3_frac(p)
+    let u = vec3_hadamard(vec3_hadamard(f, f), vec3_sub(vec3(3.0, 3.0, 3.0), vec3_hadamard(vec3(2.0, 2.0, 2.0), f)))
+    let n000 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(0.0, 0.0, 0.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let n100 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(1.0, 0.0, 0.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let n010 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(0.0, 1.0, 0.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let n110 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(1.0, 1.0, 0.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let n001 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(0.0, 0.0, 1.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let n101 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(1.0, 0.0, 1.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let n011 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(0.0, 1.0, 1.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let n111 = frac_scalar(sin(vec3_dot(vec3_add(i, vec3(1.0, 1.0, 1.0)), vec3(127.1, 311.7, 74.7))) * 43758.5453123)
+    let nx00 = lerp(n000, n100, u.x)
+    let nx10 = lerp(n010, n110, u.x)
+    let nx01 = lerp(n001, n101, u.x)
+    let nx11 = lerp(n011, n111, u.x)
+    let nxy0 = lerp(nx00, nx10, u.y)
+    let nxy1 = lerp(nx01, nx11, u.y)
+    return lerp(nxy0, nxy1, u.z)
+
+pub fn fbm2(p: Vec2, octaves: Int) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var index = 0
+    while index < octaves:
+        value = value + noise2(vec2_mul_scalar(p, frequency)) * amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        index = index + 1
+    return value
+
+pub fn fbm3(p: Vec3, octaves: Int) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var total_amplitude = 0.0
+    var index = 0
+    while index < octaves:
+        value = value + noise3(vec3_mul_scalar(p, frequency)) * amplitude
+        total_amplitude = total_amplitude + amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        index = index + 1
+    if total_amplitude <= EPSILON:
+        return 0.0
+    return value / total_amplitude
+
+pub fn worley_noise(uv: Vec2, scale: Float, randomness: Float, seed: Float) -> Float:
+    let scaled_uv = vec2_mul_scalar(uv, scale)
+    let n = vec2_floor(scaled_uv)
+    let f = vec2_frac(scaled_uv)
+    var best = 8.0
+    var j = -1
+    while j <= 1:
+        var i = -1
+        while i <= 1:
+            let g = vec2(i as Float, j as Float)
+            let jitter = vec2_add(vec2_add(n, g), vec2(seed, seed))
+            let o = vec2_mul_scalar(hash22(jitter), randomness)
+            let r = vec2_sub(vec2_add(g, o), f)
+            let d = vec2_dot(r, r)
+            if d < best:
+                best = d
+            i = i + 1
+        j = j + 1
+    return sqrt(best)
+
+pub fn blue_noise_dither_approx(pixel_x: Int, pixel_y: Int, frame: Int) -> Float:
+    let x = pixel_x as Float * 0.754877666
+    let y = pixel_y as Float * 0.569840296
+    let z = frame as Float * 0.438289001
+    return frac_scalar(x + y + z + hash11(x + y * 7.0 + z * 13.0))

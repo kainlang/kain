@@ -11,12 +11,12 @@ use std::sync::Mutex;
 
 use kain_core::ast::{Expr, Item, Program, ShaderStage, Use, WorldSurfaceKind};
 use kain_core::error::KainError;
-use kain_core::module_resolution::resolve_filesystem_module_file;
+use kain_core::module_resolution::{resolve_filesystem_module_file, resolve_stdlib_module_file};
 use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::runtime;
 use kain_core::{
     comptime, diagnostics, emit_realtime_app_bundle, emit_runtime_contract_bundle, monomorphize,
-    realtime_app_bundle_to_json, stdlib, types, CompileTarget, Lexer, Parser, RealtimeAppBundle,
+    realtime_app_bundle_to_json, types, CompileTarget, Lexer, Parser, RealtimeAppBundle,
     ResolvedType, RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
 };
 
@@ -238,6 +238,8 @@ struct FrontendImportCollector {
     visited_module_files: HashSet<PathBuf>,
     module_sources: Vec<String>,
 }
+
+const AMBIENT_STDLIB_MODULES: &[&str] = &["runtime", "actor"];
 
 #[cfg(feature = "sys")]
 #[derive(Debug, Clone)]
@@ -778,6 +780,16 @@ impl DriverSession {
 }
 
 impl FrontendImportCollector {
+    fn collect_target_stdlib_prelude(&mut self, target: CompileTarget) -> Result<(), KainError> {
+        for module_name in ambient_stdlib_modules_for_target(target) {
+            let Some(module_file) = resolve_stdlib_module_file(module_name) else {
+                continue;
+            };
+            self.collect_module_file(module_file, target)?;
+        }
+        Ok(())
+    }
+
     fn collect_from_source(
         &mut self,
         source: &str,
@@ -788,25 +800,33 @@ impl FrontendImportCollector {
             let Item::Use(import) = item else {
                 continue;
             };
-            let Some(module_file) = resolve_frontend_module_file(&import) else {
+            let Some(module_file) = resolve_frontend_import_file(&import) else {
                 continue;
             };
-            let module_file = canonicalize_existing_path(&module_file);
-            if !self.visited_module_files.insert(module_file.clone()) {
-                continue;
-            }
-
-            let module_source = std::fs::read_to_string(&module_file).map_err(|err| {
-                KainError::runtime(format!(
-                    "Failed to read imported frontend module {}: {err}",
-                    module_file.display()
-                ))
-            })?;
-            let prepared_module_source =
-                prepare_frontend_source_for_target(&module_source, target)?;
-            self.collect_from_source(&prepared_module_source, target)?;
-            self.module_sources.push(prepared_module_source);
+            self.collect_module_file(module_file, target)?;
         }
+        Ok(())
+    }
+
+    fn collect_module_file(
+        &mut self,
+        module_file: PathBuf,
+        target: CompileTarget,
+    ) -> Result<(), KainError> {
+        let module_file = canonicalize_existing_path(&module_file);
+        if !self.visited_module_files.insert(module_file.clone()) {
+            return Ok(());
+        }
+
+        let module_source = std::fs::read_to_string(&module_file).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to read imported frontend module {}: {err}",
+                module_file.display()
+            ))
+        })?;
+        let prepared_module_source = prepare_frontend_source_for_target(&module_source, target)?;
+        self.collect_from_source(&prepared_module_source, target)?;
+        self.module_sources.push(prepared_module_source);
         Ok(())
     }
 }
@@ -817,11 +837,10 @@ fn build_frontend_source_bundle(
 ) -> Result<FrontendSourceBundle, KainError> {
     let prepared_source = prepare_frontend_source_for_target(source, target)?;
     let mut collector = FrontendImportCollector::default();
+    collector.collect_target_stdlib_prelude(target)?;
     collector.collect_from_source(&prepared_source, target)?;
-    let user_source = assemble_frontend_user_source(&collector.module_sources, &prepared_source);
-    let stdlib_source = stdlib::load_stdlib_for_target(target);
     Ok(FrontendSourceBundle {
-        full_source: format!("{stdlib_source}\n{user_source}"),
+        full_source: assemble_frontend_user_source(&collector.module_sources, &prepared_source),
     })
 }
 
@@ -843,7 +862,36 @@ fn parse_frontend_program(source: &str, filename: &str) -> Result<Program, KainE
     Parser::new(&tokens, &span_mapper, filename).parse()
 }
 
-fn resolve_frontend_module_file(import: &Use) -> Option<PathBuf> {
+fn ambient_stdlib_modules_for_target(_target: CompileTarget) -> &'static [&'static str] {
+    AMBIENT_STDLIB_MODULES
+}
+
+fn resolve_frontend_import_file(import: &Use) -> Option<PathBuf> {
+    resolve_frontend_stdlib_module_file(import).or_else(|| resolve_frontend_filesystem_module_file(import))
+}
+
+fn resolve_frontend_stdlib_module_file(import: &Use) -> Option<PathBuf> {
+    let Some(first_segment) = import.path.first() else {
+        return None;
+    };
+    if !matches!(first_segment.as_str(), "std" | "stdlib") {
+        return None;
+    }
+    if import.path.len() <= 1 {
+        return None;
+    }
+
+    for path_len in (1..import.path.len()).rev() {
+        let module_name = import.path[1..=path_len].join("/");
+        if let Some(module_file) = resolve_stdlib_module_file(&module_name) {
+            return Some(module_file);
+        }
+    }
+
+    None
+}
+
+fn resolve_frontend_filesystem_module_file(import: &Use) -> Option<PathBuf> {
     let Some(first_segment) = import.path.first() else {
         return None;
     };
@@ -2205,6 +2253,50 @@ pub fn four() -> Int:
         let typed = result.expect("typed program");
         assert!(typed.items.iter().any(|item| {
             matches!(item, TypedItem::Function(function) if function.ast.name == "four")
+        }));
+    }
+
+    #[test]
+    fn frontend_source_bundle_materializes_imported_stdlib_modules_without_whole_root_slurp() {
+        let frontend = build_frontend_source_bundle(
+            r#"
+use std::math
+
+fn main() -> Int:
+    return native_actor_spawn("probe", "state=0")
+"#,
+            CompileTarget::Llvm,
+        )
+        .expect("frontend bundle");
+
+        assert!(frontend.full_source.contains("pub fn vec3_length(value: Vec3) -> Float:"));
+        assert!(frontend
+            .full_source
+            .contains("pub fn native_runtime_init() -> Int:"));
+        assert!(frontend
+            .full_source
+            .contains("pub fn native_actor_spawn(actor_name: String, init_payload: String) -> Int:"));
+        assert!(!frontend.full_source.contains("actor GenServer:"));
+    }
+
+    #[test]
+    fn frontend_to_typed_program_includes_imported_stdlib_module_items() {
+        let typed = DriverSession::default()
+            .frontend_to_typed_program(
+                r#"
+use std::math
+
+fn main() -> Int:
+    if vec3_length(vec3(3.0, 4.0, 0.0)) > 0.0:
+        return 0
+    return 1
+"#,
+                CompileTarget::Llvm,
+            )
+            .expect("typed program");
+
+        assert!(typed.items.iter().any(|item| {
+            matches!(item, TypedItem::Function(function) if function.ast.name == "vec3_length")
         }));
     }
 

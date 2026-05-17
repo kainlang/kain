@@ -9,8 +9,11 @@ standard library for orchestration, timing, JSON, and LLM-readable report output
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import statistics
@@ -28,16 +31,20 @@ REPO_ROOT = BENCHMARK_ROOT.parent
 OUT_ROOT = BENCHMARK_ROOT / "out"
 BUILD_ROOT = OUT_ROOT / "build"
 REPORT_ROOT = OUT_ROOT / "reports"
+BASELINE_ROOT = OUT_ROOT / "baselines"
 NATIVE_CORE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
 DEFAULT_MINIMAL_REPORT_NAME = "latest.md"
+DEFAULT_LATEST_REPORT_STEM = "latest"
+BASELINE_CACHE_SCHEMA_VERSION = 1
 
-LANGUAGE_ORDER = ["kain", "rust", "cpp", "go", "erlang", "javascript", "python"]
+LANGUAGE_ORDER = ["kain", "rust", "cpp", "zig", "go", "erlang", "javascript", "python"]
 LANGUAGE_LABELS = {
     "kain": "Kain LLVM",
     "rust": "Rust LLVM",
     "cpp": "C++ Clang",
+    "zig": "Zig ReleaseFast",
     "go": "Go gc",
     "erlang": "Erlang OTP",
     "javascript": "JavaScript Node",
@@ -47,6 +54,7 @@ LANGUAGE_SOURCE_KEYS = {
     "kain": "kain",
     "rust": "rust",
     "cpp": "cpp",
+    "zig": "zig",
     "go": "go",
     "erlang": "erlang",
     "javascript": "javascript",
@@ -93,6 +101,12 @@ CPP_RELEASE_FLAGS = [
 GO_RELEASE_FLAGS = [
     "-trimpath",
     "-ldflags=-s -w",
+]
+
+ZIG_RELEASE_FLAGS = [
+    "build-exe",
+    "-O",
+    "ReleaseFast",
 ]
 
 KAIN_NATIVE_PROFILE_DEFAULTS: dict[str, dict[str, str]] = {
@@ -356,9 +370,299 @@ def kain_native_env_from_tuning(
 def load_manifest(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         manifest = json.load(handle)
+    include_manifest = manifest.get("include_manifest")
+    if include_manifest:
+        include_path = (BENCHMARK_ROOT / str(include_manifest)).resolve()
+        included_manifest = load_manifest(include_path)
+        included_cases = included_manifest.get("cases", [])
+        included_by_id = {
+            case["id"]: case
+            for case in included_cases
+            if isinstance(case, dict) and "id" in case
+        }
+        requested_case_ids = manifest.get("case_ids")
+        override_cases = {
+            case["id"]: case
+            for case in manifest.get("cases", [])
+            if isinstance(case, dict) and "id" in case
+        }
+        if requested_case_ids is None:
+            selected_case_ids = [case["id"] for case in included_cases if isinstance(case, dict) and "id" in case]
+        else:
+            selected_case_ids = [str(case_id) for case_id in requested_case_ids]
+        selected_cases: list[dict[str, Any]] = []
+        missing_case_ids = [case_id for case_id in selected_case_ids if case_id not in included_by_id]
+        if missing_case_ids:
+            raise ValueError(
+                f"unknown included case(s) in {path.name}: {', '.join(missing_case_ids)}"
+            )
+        for case_id in selected_case_ids:
+            merged_case = dict(included_by_id[case_id])
+            override_case = override_cases.get(case_id)
+            if override_case:
+                for key, value in override_case.items():
+                    if key in {"languages", "language_notes"} and isinstance(merged_case.get(key), dict) and isinstance(value, dict):
+                        merged_case[key] = {**merged_case[key], **value}
+                    else:
+                        merged_case[key] = value
+            selected_cases.append(merged_case)
+        manifest["cases"] = selected_cases
     if "cases" not in manifest or not isinstance(manifest["cases"], list):
         raise ValueError("manifest must contain a cases array")
     return manifest
+
+
+def stable_json_text(payload: Any) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def machine_fingerprint() -> dict[str, Any]:
+    uname = platform.uname()
+    return {
+        "platform": sys.platform,
+        "system": uname.system,
+        "release": uname.release,
+        "version": uname.version,
+        "machine": uname.machine,
+        "processor": uname.processor,
+        "python": sys.version,
+        "cpu_count": os.cpu_count(),
+        "computer_name": os.environ.get("COMPUTERNAME", ""),
+    }
+
+
+def path_stat_descriptor(path: Path) -> dict[str, Any]:
+    descriptor = {"path": str(path)}
+    if path.exists():
+        stat = path.stat()
+        descriptor.update(
+            {
+                "resolved": str(path.resolve()),
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
+    return descriptor
+
+
+def tool_descriptor(tool: Any) -> dict[str, Any]:
+    if isinstance(tool, ResolvedExecutable):
+        descriptor = path_stat_descriptor(tool.path)
+        descriptor["source"] = tool.source
+        if tool.build_command:
+            descriptor["build_command"] = tool.build_command
+        return descriptor
+    if isinstance(tool, Path):
+        return path_stat_descriptor(tool)
+    if isinstance(tool, str):
+        return path_stat_descriptor(Path(tool))
+    return {"value": str(tool)}
+
+
+def fingerprint_tree(path: Path) -> dict[str, Any]:
+    path = path.resolve()
+    if path.is_file():
+        return {
+            "type": "file",
+            "path": repo_relative(path),
+            "sha256": sha256_file(path),
+            "size": path.stat().st_size,
+        }
+    if path.is_dir():
+        entries: list[dict[str, Any]] = []
+        for file_path in sorted(item for item in path.rglob("*") if item.is_file()):
+            relative_parts = file_path.relative_to(path).parts
+            if any(part in {"target", "__pycache__", ".kain", ".git"} for part in relative_parts):
+                continue
+            entries.append(
+                {
+                    "path": str(Path(*relative_parts)).replace("\\", "/"),
+                    "sha256": sha256_file(file_path),
+                    "size": file_path.stat().st_size,
+                }
+            )
+        return {
+            "type": "directory",
+            "path": repo_relative(path),
+            "entries": entries,
+        }
+    return {
+        "type": "missing",
+        "path": repo_relative(path),
+    }
+
+
+def case_workload_fingerprint(case: dict[str, Any], language: str) -> dict[str, Any]:
+    source_path = case_source_path(case, language)
+    rust_manifest = case.get("rust_manifest") if language == "rust" else None
+    go_manifest = case.get("go_manifest") if language == "go" else None
+    primary_path = source_path
+    if rust_manifest:
+        primary_path = (BENCHMARK_ROOT / str(rust_manifest)).resolve().parent
+    elif go_manifest:
+        primary_path = (BENCHMARK_ROOT / str(go_manifest)).resolve().parent
+    fingerprint: dict[str, Any] = {
+        "case": case,
+        "language": language,
+        "primary": fingerprint_tree(primary_path),
+    }
+    if case["id"] == FFI_SHARED_CASE_ID:
+        fingerprint["ffi_shared_support"] = fingerprint_tree(
+            BENCHMARK_ROOT / "ffi_boundary" / "native" / "ffi_boundary.c"
+        )
+    return fingerprint
+
+
+def build_flags_descriptor(case: dict[str, Any], language: str) -> dict[str, Any]:
+    if language == "rust":
+        flags: dict[str, Any] = {"flags": RUST_RELEASE_FLAGS}
+        if case.get("rust_manifest"):
+            flags["cargo_mode"] = True
+            flags["rust_manifest"] = str(case.get("rust_manifest"))
+            flags["rust_package"] = str(case.get("rust_package", case["id"].replace("_", "-")))
+            flags["rust_binary"] = str(case.get("rust_binary", flags["rust_package"]))
+        return flags
+    if language == "cpp":
+        return {
+            "flags": CPP_RELEASE_FLAGS,
+            "extra_flags": cpp_extra_flags_for_case(case["id"]),
+            "link_flags": cpp_link_flags_for_case(case["id"]),
+        }
+    if language == "zig":
+        return {
+            "flags": ZIG_RELEASE_FLAGS,
+            "link_flags": zig_link_flags_for_case(case["id"]),
+        }
+    if language == "go":
+        flags = {"flags": GO_RELEASE_FLAGS}
+        if case.get("go_manifest"):
+            flags["go_manifest"] = str(case.get("go_manifest"))
+            flags["go_package"] = str(case.get("go_package", "."))
+            flags["go_binary"] = str(case.get("go_binary", case["id"]))
+        return flags
+    if language == "erlang":
+        return {"erlang_module": str(case.get("erlang_module", case_source_path(case, "erlang").stem))}
+    return {}
+
+
+def baseline_cache_path(case_id: str, language: str) -> Path:
+    return BASELINE_ROOT / case_id / f"{language}.json"
+
+
+def baseline_mode_uses_cache(mode: str, selected_languages: list[str], language: str) -> bool:
+    if language == "kain":
+        return False
+    if mode == "off":
+        return False
+    if mode in {"reuse-foreign", "refresh-foreign"}:
+        return True
+    if mode == "auto":
+        return "kain" in selected_languages
+    raise ValueError(f"unknown baseline mode: {mode}")
+
+
+def baseline_cache_key(
+    case: dict[str, Any],
+    language: str,
+    tools: dict[str, Any],
+    warmups: int,
+    runs: int,
+) -> str:
+    payload = {
+        "schema_version": BASELINE_CACHE_SCHEMA_VERSION,
+        "machine": machine_fingerprint(),
+        "tool": tool_descriptor(tools.get("kain") if language == "kain" else tools.get(language) or tools.get(f"{language}c")),
+        "workload": case_workload_fingerprint(case, language),
+        "build_flags": build_flags_descriptor(case, language),
+        "measurement": {"warmups": warmups, "runs": runs},
+    }
+    if language == "rust":
+        payload["tool"] = tool_descriptor(tools.get("rustc"))
+    elif language == "cpp":
+        payload["tool"] = tool_descriptor(tools.get("cxx"))
+    elif language == "erlang":
+        payload["tool"] = {
+            "erl": tool_descriptor(tools.get("erl")),
+            "erlc": tool_descriptor(tools.get("erlc")),
+        }
+    return sha256_text(stable_json_text(payload))
+
+
+def load_cached_baseline(
+    case: dict[str, Any],
+    language: str,
+    cache_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    path = baseline_cache_path(case["id"], language)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if payload.get("schema_version") != BASELINE_CACHE_SCHEMA_VERSION:
+        return None
+    if payload.get("cache_key") != cache_key:
+        return None
+    build = payload.get("build")
+    run = payload.get("run")
+    if not isinstance(build, dict) or not isinstance(run, dict):
+        return None
+    return copy.deepcopy(build), copy.deepcopy(run)
+
+
+def save_cached_baseline(
+    case: dict[str, Any],
+    language: str,
+    cache_key: str,
+    build: dict[str, Any],
+    run: dict[str, Any],
+) -> None:
+    path = baseline_cache_path(case["id"], language)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": BASELINE_CACHE_SCHEMA_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "case_id": case["id"],
+        "language": language,
+        "cache_key": cache_key,
+        "build": build,
+        "run": run,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def annotate_cache_usage(
+    build: dict[str, Any],
+    run: dict[str, Any],
+    *,
+    mode: str,
+    status: str,
+    cache_path: Path | None,
+    reason: str,
+    cache_key: str | None,
+) -> None:
+    cache_info = {
+        "mode": mode,
+        "status": status,
+        "path": str(cache_path) if cache_path else "",
+        "reason": reason,
+        "cache_key": cache_key or "",
+    }
+    build["baseline_cache"] = cache_info
+    run["baseline_cache"] = cache_info
 
 
 def selected_cases(manifest: dict[str, Any], only_case: str | None) -> list[dict[str, Any]]:
@@ -386,6 +690,7 @@ def parse_languages(raw_languages: str | None) -> list[str]:
         "c++": "cpp",
         "cxx": "cpp",
         "cplusplus": "cpp",
+        "ziglang": "zig",
         "golang": "go",
         "erl": "erlang",
         "beam": "erlang",
@@ -730,6 +1035,12 @@ def cpp_extra_flags_for_case(case_id: str) -> list[str]:
     return []
 
 
+def zig_link_flags_for_case(case_id: str) -> list[str]:
+    if os.name == "nt" and case_id == "ghost_mirror":
+        return ["-lws2_32"]
+    return []
+
+
 def build_cpp_case(
     case: dict[str, Any],
     cxx: str,
@@ -860,6 +1171,61 @@ def build_go_case(
         "stdout": result.stdout[-4000:],
         "stderr": result.stderr[-4000:],
         "error": "" if ok else "Go build failed or did not produce executable.",
+    }
+
+
+def build_zig_case(
+    case: dict[str, Any],
+    zig_exe: str,
+    timeout: int,
+    no_build: bool,
+) -> dict[str, Any]:
+    case_id = case["id"]
+    source = case_source_path(case, "zig")
+    build_dir = BUILD_ROOT / case_id / "zig"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    exe_path = build_dir / executable_name(case_id)
+    link_flags = zig_link_flags_for_case(case_id)
+    command = [
+        zig_exe,
+        *ZIG_RELEASE_FLAGS,
+        source.name,
+        *link_flags,
+        "-femit-bin=" + str(exe_path.resolve()),
+    ]
+
+    if not shutil.which(zig_exe) and not Path(zig_exe).exists():
+        return missing_tool_build("zig", command, f"Zig executable not found: {zig_exe}")
+
+    if no_build:
+        return {
+            "ok": exe_path.exists(),
+            "language": "zig",
+            "exe": str(exe_path),
+            "run_command": [str(exe_path)],
+            "command": command,
+            "flags": ZIG_RELEASE_FLAGS,
+            "link_flags": link_flags,
+            "build_ms": 0.0,
+            "stdout": "",
+            "stderr": "",
+            "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
+        }
+
+    result = run_command(command, timeout=timeout, cwd=source.parent)
+    ok = result.returncode == 0 and exe_path.exists()
+    return {
+        "ok": ok,
+        "language": "zig",
+        "exe": str(exe_path),
+        "run_command": [str(exe_path)],
+        "command": command,
+        "flags": ZIG_RELEASE_FLAGS,
+        "link_flags": link_flags,
+        "build_ms": result.elapsed_ms,
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "error": "" if ok else "Zig build failed or did not produce executable.",
     }
 
 
@@ -1022,6 +1388,8 @@ def build_language_case(
         return build_rust_case(case, tools["rustc"], timeout, no_build, support_artifacts)
     if language == "cpp":
         return build_cpp_case(case, tools["cxx"], timeout, no_build, support_artifacts)
+    if language == "zig":
+        return build_zig_case(case, tools["zig"], timeout, no_build)
     if language == "go":
         return build_go_case(case, tools["go"], timeout, no_build)
     if language == "erlang":
@@ -1137,6 +1505,7 @@ def benchmark_case(
     timeout: int,
     no_build: bool,
     kain_native_env: dict[str, str],
+    baseline_mode: str,
 ) -> dict[str, Any]:
     case_languages = selected_case_languages(case, languages)
     validate_case_files(case, case_languages)
@@ -1146,17 +1515,70 @@ def benchmark_case(
     case_kain_native_env["KAIN_RUNTIME_MANIFEST_PATH"] = str(resolved_kain_runtime_manifest(case))
 
     for language in case_languages:
-        build_results[language] = build_language_case(
-            case,
-            language,
-            tools,
-            timeout,
-            no_build,
-            case_kain_native_env,
-        )
-        run_results[language] = measure_program(build_results[language], warmups, runs, timeout)
+        cache_enabled = baseline_mode_uses_cache(baseline_mode, languages, language)
+        cache_key = baseline_cache_key(case, language, tools, warmups, runs) if cache_enabled else None
+        cache_path = baseline_cache_path(case["id"], language) if cache_enabled else None
+        used_cached_baseline = False
+        if cache_enabled and baseline_mode != "refresh-foreign" and cache_key:
+            cached = load_cached_baseline(case, language, cache_key)
+            if cached:
+                build_results[language], run_results[language] = cached
+                annotate_cache_usage(
+                    build_results[language],
+                    run_results[language],
+                    mode=baseline_mode,
+                    status="hit",
+                    cache_path=cache_path,
+                    reason="foreign baseline cache key matched",
+                    cache_key=cache_key,
+                )
+                used_cached_baseline = True
+
+        if not used_cached_baseline:
+            build_results[language] = build_language_case(
+                case,
+                language,
+                tools,
+                timeout,
+                no_build,
+                case_kain_native_env,
+            )
+            run_results[language] = measure_program(build_results[language], warmups, runs, timeout)
+            if cache_enabled and cache_key:
+                if build_results[language]["ok"] and run_results[language]["ok"]:
+                    save_cached_baseline(case, language, cache_key, build_results[language], run_results[language])
+                    annotate_cache_usage(
+                        build_results[language],
+                        run_results[language],
+                        mode=baseline_mode,
+                        status="refreshed",
+                        cache_path=cache_path,
+                        reason="saved fresh foreign baseline",
+                        cache_key=cache_key,
+                    )
+                else:
+                    annotate_cache_usage(
+                        build_results[language],
+                        run_results[language],
+                        mode=baseline_mode,
+                        status="miss",
+                        cache_path=cache_path,
+                        reason="cache not updated because build or run failed",
+                        cache_key=cache_key,
+                    )
+            elif language != "kain":
+                annotate_cache_usage(
+                    build_results[language],
+                    run_results[language],
+                    mode=baseline_mode,
+                    status="disabled",
+                    cache_path=None,
+                    reason="foreign baseline cache disabled for this run",
+                    cache_key=None,
+                )
 
     winner, fastest_ms = compute_winner(run_results, case_languages)
+    telemetry = compute_case_telemetry(case, run_results, case_languages)
     return {
         "id": case["id"],
         "title": case.get("title", case["id"]),
@@ -1174,6 +1596,59 @@ def benchmark_case(
         "winner": winner,
         "fastest_median_ms": fastest_ms,
         "relative_to_fastest": compute_relative_to_fastest(run_results, fastest_ms, case_languages),
+        "telemetry": telemetry,
+    }
+
+
+def compute_case_telemetry(
+    case: dict[str, Any],
+    run_results: dict[str, dict[str, Any]],
+    languages: list[str],
+) -> dict[str, Any] | None:
+    telemetry = case.get("telemetry")
+    if not isinstance(telemetry, dict):
+        return None
+    metric_configs = telemetry.get("metrics")
+    if not isinstance(metric_configs, list):
+        return None
+    computed_metrics: list[dict[str, Any]] = []
+    for metric in metric_configs:
+        if not isinstance(metric, dict):
+            continue
+        metric_id = str(metric.get("id", "")).strip()
+        if not metric_id:
+            continue
+        work_items_raw = metric.get("work_items")
+        try:
+            work_items = float(work_items_raw)
+        except (TypeError, ValueError):
+            continue
+        label = str(metric.get("label", metric_id))
+        unit = str(metric.get("unit", "items/s"))
+        values: dict[str, float | None] = {}
+        for language in languages:
+            run = run_results.get(language)
+            rate: float | None = None
+            if run and run.get("ok") and run.get("median_ms") not in (None, 0):
+                median_ms = float(run["median_ms"])
+                if median_ms > 0.0:
+                    rate = (work_items * 1000.0) / median_ms
+            values[language] = rate
+        computed_metrics.append(
+            {
+                "id": metric_id,
+                "label": label,
+                "unit": unit,
+                "work_items": work_items_raw,
+                "values": values,
+            }
+        )
+    if not computed_metrics:
+        return None
+    primary_metric_id = str(telemetry.get("primary_metric_id", computed_metrics[0]["id"]))
+    return {
+        "primary_metric_id": primary_metric_id,
+        "metrics": computed_metrics,
     }
 
 
@@ -1181,6 +1656,21 @@ def fmt_ms(value: Any) -> str:
     if value is None:
         return "n/a"
     return f"{float(value):.3f}"
+
+
+def fmt_rate(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):,.3f}"
+
+
+def fmt_work_items(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    numeric = float(value)
+    if numeric.is_integer():
+        return f"{int(numeric):,}"
+    return f"{numeric:,.3f}"
 
 
 def fmt_ratio(value: Any) -> str:
@@ -1214,6 +1704,64 @@ def root_snapshot_path(name: str) -> Path:
     return BENCHMARK_ROOT / candidate.name
 
 
+def latest_report_stem(stem: str) -> str:
+    candidate = Path(stem)
+    if candidate.is_absolute() or len(candidate.parts) != 1 or candidate.name != stem:
+        raise ValueError(f"latest report stem must stay in benchmark report root: {stem}")
+    if "." in stem:
+        raise ValueError(f"latest report stem cannot include dots: {stem}")
+    return candidate.name
+
+
+def metric_by_id(case: dict[str, Any], metric_id: str) -> dict[str, Any] | None:
+    telemetry = case.get("telemetry")
+    if not isinstance(telemetry, dict):
+        return None
+    for metric in telemetry.get("metrics", []):
+        if isinstance(metric, dict) and metric.get("id") == metric_id:
+            return metric
+    return None
+
+
+def primary_metric(case: dict[str, Any]) -> dict[str, Any] | None:
+    telemetry = case.get("telemetry")
+    if not isinstance(telemetry, dict):
+        return None
+    primary_metric_id = str(telemetry.get("primary_metric_id", ""))
+    if not primary_metric_id:
+        return None
+    return metric_by_id(case, primary_metric_id)
+
+
+def baseline_cache_summary(report: dict[str, Any]) -> dict[str, Any]:
+    summary = {
+        "mode": report.get("baseline_mode", "off"),
+        "root": str(BASELINE_ROOT),
+        "hits": 0,
+        "refreshed": 0,
+        "misses": 0,
+        "disabled": 0,
+        "eligible_languages": 0,
+    }
+    for case in report.get("cases", []):
+        for language in case.get("languages", []):
+            build = case.get("build", {}).get(language, {})
+            cache_info = build.get("baseline_cache")
+            if not isinstance(cache_info, dict):
+                continue
+            summary["eligible_languages"] += 1
+            status = str(cache_info.get("status", ""))
+            if status == "hit":
+                summary["hits"] += 1
+            elif status == "refreshed":
+                summary["refreshed"] += 1
+            elif status == "miss":
+                summary["misses"] += 1
+            elif status == "disabled":
+                summary["disabled"] += 1
+    return summary
+
+
 def render_summary_table(report: dict[str, Any]) -> str:
     languages = report["languages"]
     header = ["case", "maturity", "winner"] + [f"{language} median ms" for language in languages]
@@ -1228,9 +1776,31 @@ def render_summary_table(report: dict[str, Any]) -> str:
     return "\n".join(rows)
 
 
+def render_telemetry_table(report: dict[str, Any]) -> str:
+    languages = report.get("languages", [])
+    telemetry_cases = [case for case in report.get("cases", []) if primary_metric(case)]
+    if not telemetry_cases:
+        return ""
+    header = ["case", "primary metric", "winner"] + [f"{language} value" for language in languages]
+    divider = ["---"] * len(header)
+    rows = [markdown_table_row(header), markdown_table_row(divider)]
+    for case in telemetry_cases:
+        metric = primary_metric(case)
+        if not metric:
+            continue
+        cells = [case["id"], metric["label"], case.get("winner", "n/a")]
+        values = metric.get("values", {})
+        for language in languages:
+            rate = values.get(language) if isinstance(values, dict) else None
+            cells.append(fmt_rate(rate))
+        rows.append(markdown_table_row(cells))
+    return "\n".join(rows)
+
+
 def render_toolchain(report: dict[str, Any]) -> str:
     toolchain = report.get("toolchain", {})
     kain_native_env = toolchain.get("kain_native_env", {})
+    cache_summary = report.get("baseline_cache", {})
     lines = [
         "## Toolchain",
         "",
@@ -1243,12 +1813,19 @@ def render_toolchain(report: dict[str, Any]) -> str:
         f"- cxx: `{toolchain.get('cxx', 'n/a')}`",
         f"- clang: `{toolchain.get('clang', 'n/a')}`",
         f"- cpp_flags: `{display_command(toolchain.get('cpp_flags', []))}`",
+        f"- zig: `{toolchain.get('zig', 'n/a')}`",
+        f"- zig_flags: `{display_command(toolchain.get('zig_flags', []))}`",
         f"- go: `{toolchain.get('go', 'n/a')}`",
         f"- go_flags: `{display_command(toolchain.get('go_flags', []))}`",
         f"- erl: `{toolchain.get('erl', 'n/a')}`",
         f"- erlc: `{toolchain.get('erlc', 'n/a')}`",
         f"- node: `{toolchain.get('node', 'n/a')}`",
         f"- python: `{toolchain.get('python', 'n/a')}`",
+        f"- baseline_mode: `{report.get('baseline_mode', 'off')}`",
+        f"- baseline_cache_root: `{cache_summary.get('root', str(BASELINE_ROOT))}`",
+        f"- baseline_cache_hits: `{cache_summary.get('hits', 0)}`",
+        f"- baseline_cache_refreshed: `{cache_summary.get('refreshed', 0)}`",
+        f"- baseline_cache_misses: `{cache_summary.get('misses', 0)}`",
     ]
     return "\n".join(lines)
 
@@ -1273,6 +1850,24 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
             if note:
                 lines.append(f"  - {language}: {note}")
 
+    telemetry = case.get("telemetry")
+    if isinstance(telemetry, dict) and telemetry.get("metrics"):
+        lines.extend(["", "Telemetry:"])
+        metric = primary_metric(case)
+        if metric:
+            lines.append(f"- primary_metric: `{metric.get('label', 'n/a')}`")
+        for entry in telemetry.get("metrics", []):
+            if not isinstance(entry, dict):
+                continue
+            values = entry.get("values", {})
+            value_text = ", ".join(
+                f"{language} `{fmt_rate(values.get(language) if isinstance(values, dict) else None)}`"
+                for language in case_languages
+            )
+            lines.append(
+                f"- {entry.get('label', 'metric')} (`{fmt_work_items(entry.get('work_items'))}` work/run, `{entry.get('unit', 'items/s')}`): {value_text}"
+            )
+
     lines.extend(["", "Sources:"])
     for language in case_languages:
         lines.append(f"- {language}: `{case['source'][language]}`")
@@ -1296,6 +1891,11 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
                 f"  - run_command: `{display_command(build.get('run_command'))}`",
             ]
         )
+        cache_info = build.get("baseline_cache")
+        if isinstance(cache_info, dict):
+            reason = str(cache_info.get("reason", "")).strip()
+            reason_suffix = f" - {reason}" if reason else ""
+            lines.append(f"  - baseline_cache: `{cache_info.get('status', 'n/a')}`{reason_suffix}")
         if build.get("env"):
             lines.append(f"  - build_env: `{json.dumps(build['env'], sort_keys=True)}`")
         if build.get("error") or run.get("error"):
@@ -1309,6 +1909,7 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
 
 def render_llm_report(report: dict[str, Any]) -> str:
     languages = report.get("languages", [])
+    latest_stem = report.get("latest_stem", DEFAULT_LATEST_REPORT_STEM)
     lines = [
         "# Kain Benchmark Report",
         "",
@@ -1319,18 +1920,23 @@ def render_llm_report(report: dict[str, Any]) -> str:
         f"- warmups: `{report.get('warmups', 'n/a')}`",
         f"- timed_runs: `{report.get('runs', 'n/a')}`",
         f"- languages: `{', '.join(languages)}`",
-        f"- json_report: `benchmark/out/reports/latest.json`",
+        f"- baseline_mode: `{report.get('baseline_mode', 'off')}`",
+        f"- json_report: `benchmark/out/reports/{latest_stem}.json`",
         "",
     ]
     if report.get("fatal_error"):
         lines.extend(["## Fatal Error", "", report["fatal_error"], ""])
-    lines.extend([render_toolchain(report), "", "## Summary", "", render_summary_table(report), "", "## Case Details", ""])
+    lines.extend([render_toolchain(report), "", "## Summary", "", render_summary_table(report), ""])
+    telemetry_table = render_telemetry_table(report)
+    if telemetry_table:
+        lines.extend(["## Telemetry", "", telemetry_table, ""])
+    lines.extend(["## Case Details", ""])
     for case in report.get("cases", []):
         lines.extend([render_case_detail(case, languages), ""])
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_minimal_report(report: dict[str, Any], minimal_name: str) -> str:
+def render_minimal_report(report: dict[str, Any], minimal_name: str, latest_stem: str) -> str:
     languages = report.get("languages", [])
     lines = [
         "# Kain Benchmark Snapshot",
@@ -1340,28 +1946,48 @@ def render_minimal_report(report: dict[str, Any], minimal_name: str) -> str:
         f"- warmups: `{report.get('warmups', 'n/a')}`",
         f"- timed_runs: `{report.get('runs', 'n/a')}`",
         f"- languages: `{', '.join(languages)}`",
+        f"- baseline_mode: `{report.get('baseline_mode', 'off')}`",
         f"- root_snapshot: `benchmark/{minimal_name}`",
-        "- full_report: `benchmark/out/reports/latest.llm.md`",
-        "- json_report: `benchmark/out/reports/latest.json`",
+        f"- full_report: `benchmark/out/reports/{latest_stem}.llm.md`",
+        f"- json_report: `benchmark/out/reports/{latest_stem}.json`",
         "",
     ]
+    cache_summary = report.get("baseline_cache", {})
+    if isinstance(cache_summary, dict):
+        lines.extend(
+            [
+                f"- baseline_cache_hits: `{cache_summary.get('hits', 0)}`",
+                f"- baseline_cache_refreshed: `{cache_summary.get('refreshed', 0)}`",
+                f"- baseline_cache_misses: `{cache_summary.get('misses', 0)}`",
+                "",
+            ]
+        )
     if report.get("fatal_error"):
         lines.extend(["## Fatal Error", "", report["fatal_error"], ""])
     lines.extend(["## Summary", "", render_summary_table(report)])
+    telemetry_table = render_telemetry_table(report)
+    if telemetry_table:
+        lines.extend(["", "## Telemetry", "", telemetry_table])
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_reports(report: dict[str, Any], minimal_name: str = DEFAULT_MINIMAL_REPORT_NAME) -> dict[str, Path]:
+def write_reports(
+    report: dict[str, Any],
+    minimal_name: str = DEFAULT_MINIMAL_REPORT_NAME,
+    latest_stem: str = DEFAULT_LATEST_REPORT_STEM,
+) -> dict[str, Path]:
     REPORT_ROOT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    latest_stem = latest_report_stem(latest_stem)
     json_text = json.dumps(report, indent=2)
     llm_text = render_llm_report(report)
-    minimal_text = render_minimal_report(report, minimal_name)
+    minimal_text = render_minimal_report(report, minimal_name, latest_stem)
 
-    json_path = REPORT_ROOT / f"{stamp}.json"
-    llm_path = REPORT_ROOT / f"{stamp}.llm.md"
-    latest_json = REPORT_ROOT / "latest.json"
-    latest_llm = REPORT_ROOT / "latest.llm.md"
+    stamp_prefix = stamp if latest_stem == DEFAULT_LATEST_REPORT_STEM else f"{stamp}.{latest_stem}"
+    json_path = REPORT_ROOT / f"{stamp_prefix}.json"
+    llm_path = REPORT_ROOT / f"{stamp_prefix}.llm.md"
+    latest_json = REPORT_ROOT / f"{latest_stem}.json"
+    latest_llm = REPORT_ROOT / f"{latest_stem}.llm.md"
     latest_minimal = root_snapshot_path(minimal_name)
 
     json_path.write_text(json_text, encoding="utf-8")
@@ -1387,7 +2013,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=str(BENCHMARK_ROOT / "benchmarks.json"))
     parser.add_argument("--case", dest="only_case", help="Single case id or comma-separated case ids")
-    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,go,erlang,javascript,python")
+    parser.add_argument("--languages", help="Comma-separated subset: kain,rust,cpp,zig,go,erlang,javascript,python")
     parser.add_argument("--runs", type=int)
     parser.add_argument("--warmups", type=int)
     parser.add_argument("--timeout", type=int, default=180)
@@ -1395,6 +2021,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rustc", default=os.environ.get("RUSTC", "rustc"))
     parser.add_argument("--cxx")
     parser.add_argument("--clang")
+    parser.add_argument("--zig", default=os.environ.get("ZIG", "zig"))
     parser.add_argument("--go", default=os.environ.get("GO", "go"))
     parser.add_argument("--erl", default=os.environ.get("ERL"))
     parser.add_argument("--erlc", default=os.environ.get("ERLC"))
@@ -1408,17 +2035,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kain-native-opt-level")
     parser.add_argument("--kain-native-target-cpu")
     parser.add_argument("--kain-native-debug-info")
-    parser.add_argument("--minimal-name", default=DEFAULT_MINIMAL_REPORT_NAME)
+    parser.add_argument("--minimal-name")
+    parser.add_argument("--latest-stem")
     parser.add_argument("--no-build", action="store_true")
+    parser.add_argument(
+        "--baseline-mode",
+        choices=["auto", "reuse-foreign", "refresh-foreign", "off"],
+        default="auto",
+        help="auto = reuse foreign baselines only when Kain is also selected; reuse-foreign = reuse foreign baselines whenever possible; refresh-foreign = force rerun and refresh foreign baselines; off = disable baseline caching",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     manifest = load_manifest(Path(args.manifest))
-    languages = parse_languages(args.languages)
+    default_languages = args.languages
+    if default_languages is None:
+        manifest_default_languages = manifest.get("default_languages")
+        if isinstance(manifest_default_languages, list):
+            default_languages = ",".join(str(language) for language in manifest_default_languages)
+        elif isinstance(manifest_default_languages, str):
+            default_languages = manifest_default_languages
+    languages = parse_languages(default_languages)
     warmups = args.warmups if args.warmups is not None else int(manifest.get("default_warmups", 2))
     runs = args.runs if args.runs is not None else int(manifest.get("default_runs", 7))
+    minimal_name = args.minimal_name or str(manifest.get("minimal_name", DEFAULT_MINIMAL_REPORT_NAME))
+    latest_stem = args.latest_stem or str(manifest.get("latest_stem", DEFAULT_LATEST_REPORT_STEM))
     kain_native_tuning = resolved_kain_native_tuning(args)
     kain_native_env = kain_native_env_from_tuning(kain_native_tuning)
 
@@ -1429,6 +2072,8 @@ def main() -> int:
         "warmups": warmups,
         "runs": runs,
         "languages": languages,
+        "latest_stem": latest_stem,
+        "baseline_mode": args.baseline_mode,
         "language_labels": {language: LANGUAGE_LABELS[language] for language in languages},
         "cases": [],
         "ok": False,
@@ -1440,6 +2085,7 @@ def main() -> int:
         rustc_path = resolve_tool(args.rustc, "RUSTC", "rustc")
         cxx_path = resolve_cpp_compiler(args.cxx)
         clang_path = resolve_clang(args.clang)
+        zig_path = resolve_tool(args.zig, "ZIG", "zig")
         go_path = resolve_tool(args.go, "GO", "go")
         erl_path = resolve_erlang_tool(args.erl, "ERL", "erl")
         erlc_path = resolve_erlang_tool(args.erlc, "ERLC", "erlc")
@@ -1450,6 +2096,7 @@ def main() -> int:
             "rustc": rustc_path,
             "cxx": cxx_path,
             "clang": clang_path,
+            "zig": zig_path,
             "go": go_path,
             "erl": erl_path,
             "erlc": erlc_path,
@@ -1467,6 +2114,8 @@ def main() -> int:
             "cxx": cxx_path,
             "clang": clang_path,
             "cpp_flags": CPP_RELEASE_FLAGS,
+            "zig": zig_path,
+            "zig_flags": ZIG_RELEASE_FLAGS,
             "go": go_path,
             "go_flags": GO_RELEASE_FLAGS,
             "erl": erl_path,
@@ -1486,6 +2135,7 @@ def main() -> int:
                 timeout=args.timeout,
                 no_build=args.no_build,
                 kain_native_env=kain_native_env,
+                baseline_mode=args.baseline_mode,
             )
             report["cases"].append(result)
         report["ok"] = all(
@@ -1493,12 +2143,15 @@ def main() -> int:
             for case in report["cases"]
             for language in case.get("languages", languages)
         )
+        report["baseline_cache"] = baseline_cache_summary(report)
     except Exception as exc:
         report["fatal_error"] = str(exc)
         report["ok"] = False
         print(f"[bench] fatal: {exc}", file=sys.stderr)
     finally:
-        outputs = write_reports(report, minimal_name=args.minimal_name)
+        if "baseline_cache" not in report:
+            report["baseline_cache"] = baseline_cache_summary(report)
+        outputs = write_reports(report, minimal_name=minimal_name, latest_stem=latest_stem)
         print(f"[bench] report: {outputs['latest_llm']}")
         print(f"[bench] snapshot: {outputs['latest_minimal']}")
 

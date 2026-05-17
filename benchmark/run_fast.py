@@ -2,8 +2,7 @@
 """
 Fast Kain benchmark wrapper.
 
-Runs the main benchmark runner with the reduced language set:
-Kain LLVM, Rust LLVM, C++ Clang, and Erlang OTP.
+Compatibility shim for the data-driven `fast` wrapper config.
 """
 
 from __future__ import annotations
@@ -14,22 +13,13 @@ from pathlib import Path
 
 
 BENCHMARK_ROOT = Path(__file__).resolve().parent
-RUNNER = BENCHMARK_ROOT / "run.py"
-FAST_LANGUAGES = "kain,rust,cpp,erlang"
-FAST_MINIMAL_NAME = "latest_fast.md"
+RUN_WRAPPER = BENCHMARK_ROOT / "run_wrapper.py"
+WRAPPER_NAME = "fast"
 
 
 def main() -> int:
     forwarded_args = sys.argv[1:]
-    command = [
-        sys.executable,
-        str(RUNNER),
-        *forwarded_args,
-        "--languages",
-        FAST_LANGUAGES,
-        "--minimal-name",
-        FAST_MINIMAL_NAME,
-    ]
+    command = [sys.executable, str(RUN_WRAPPER), WRAPPER_NAME, *forwarded_args]
     completed = subprocess.run(command, cwd=str(BENCHMARK_ROOT.parent))
     return completed.returncode
 

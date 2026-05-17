@@ -40,9 +40,10 @@ pub fn find_stdlib_roots() -> Vec<PathBuf> {
 }
 
 pub fn resolve_stdlib_module_file(module_name: &str) -> Option<PathBuf> {
+    let normalized_module_name = module_name.strip_prefix("native/").unwrap_or(module_name);
     find_stdlib_roots()
         .into_iter()
-        .map(|root| root.join(format!("{module_name}.kn")))
+        .map(|root| root.join(format!("{normalized_module_name}.kn")))
         .find(|candidate| candidate.exists())
 }
 
@@ -160,6 +161,9 @@ fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn blade_module_roots_extend_filesystem_candidates() {
@@ -170,5 +174,26 @@ mod tests {
         assert!(candidates
             .iter()
             .any(|candidate| candidate.ends_with("blades/math/src/math.kn")));
+    }
+
+    #[test]
+    fn stdlib_native_prefix_resolves_to_root_module_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = temp_dir.path().join("stdlib");
+        fs::create_dir_all(&stdlib_dir).unwrap();
+        let actor_path = stdlib_dir.join("actor.kn");
+        fs::write(&actor_path, "pub fn actor_ping() -> Int:\n    return 1\n").unwrap();
+
+        let previous_stdlib_path = env::var_os("KAIN_STDLIB_PATH");
+        env::set_var("KAIN_STDLIB_PATH", &stdlib_dir);
+
+        let resolved = resolve_stdlib_module_file("native/actor");
+
+        match previous_stdlib_path {
+            Some(previous) => env::set_var("KAIN_STDLIB_PATH", previous),
+            None => env::remove_var("KAIN_STDLIB_PATH"),
+        }
+
+        assert_eq!(resolved, Some(actor_path));
     }
 }
