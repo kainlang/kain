@@ -1,5 +1,46 @@
 # Kain Memory
 
+# 2026-05-17 - Root stdlib gained a proof-backed hash domain and `kain run` path handling was hardened
+
+The stdlib assessment found a high-leverage missing pure data-integrity domain: deterministic target-neutral hashing/fingerprinting. The first new off-the-charts stdlib slice is now `std::hash`, backed by a proof blade and focused SMT checks.
+
+What changed:
+
+- `stdlib/hash.kn`
+  - Added canonical 32-bit masking and byte masking.
+  - Added `Hash32` and `Fingerprint32` wrappers.
+  - Added rotate-left/right, Wang-style word mixing, seeded word hash, ordered pair/triple/quad combinators, commutative unordered pair hashing, bucket helpers, byte-fed FNV-1a, byte-fed CRC32, and salted fingerprint accumulation/finalization.
+  - Kept the implementation pure Kain and host-string-layout independent so it can be used by caches, capsules, import fingerprints, wire/layout probes, benchmarks, and future compiler/runtime proof blades.
+- `blades/hash-domains`
+  - Added a runnable proof blade that imports `std::hash` and checks range, rotation, bucket, FNV, CRC, ordered/unordered, fingerprint, and wrapper behavior.
+  - `[run]` uses target `kain`; the build task still carries the LLVM check target.
+- `crates/kain-core/z3/proofs/stdlib-hash-*.yaml`
+  - Added durable proof cases for `rotl32` u32-range closure, power-of-two bucket bounds, and FNV byte-update u32-range closure.
+- `crates/kain-run/src/lib.rs`
+  - Fixed a real run-path glitch: relative inputs that existed under the caller cwd were stored as relative adapter paths, then `run_kain` changed cwd to the entry directory and read the wrong path. Run planning now absolutizes resolved file paths, and a regression test executes `src/main.kn` from a relative input after cwd switching.
+- `ARCHITECTURE.md`
+  - Registered `std::hash` and the new `blades/hash-domains` proof surface.
+
+Validation:
+
+- `kain check stdlib\hash.kn`
+- `kain check blades\hash-domains\src\main.kn`
+- `D:/kain-bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe check blades\hash-domains\src\main.kn --target llvm`
+- Fresh Bazel launcher `kain.exe run blades\hash-domains\src\main.kn` -> succeeded, output `0`
+- Fresh Bazel launcher `kain.exe run blades\hash-domains` -> succeeded, output `0`
+- Fresh Bazel launcher from `blades/hash-domains`: `kain.exe run .` -> succeeded, output `0`
+- Fresh Bazel launcher from `%TEMP%`: `kain.exe run D:\Kain-Lang\blades\hash-domains\src\main.kn` -> succeeded, output `0`
+- `cargo test -p kain-run --target-dir target\codex-kain-run-hash -- --nocapture`
+- Direct Z3 MCP `check_smt2` results were `unsat` for the three hash invariants, with reports:
+  - `z3/reports/20260517T121002Z-stdlib-hash-rotl32-stays-in-u32-range.json`
+  - `z3/reports/20260517T121002Z-stdlib-hash-power-two-bucket-stays-in-capacity.json`
+  - `z3/reports/20260517T121002Z-stdlib-hash-fnv1a-byte-update-stays-in-u32-range.json`
+
+Notes:
+
+- The current proof-pack glob runner returned zero matched cases for the fresh YAML files even though direct `check_smt2` proved the claims. Future proof-pack work should repair that discovery mismatch.
+- A native executable link attempt for the hash blade hit unrelated in-flight SIMD runtime unresolved externals from `runtime/native/src/core/simd.c`; `kain run` itself is now clean through the unified interpreter adapter.
+
 # 2026-05-17 - SIMD lane mix graduated from scalar proxy to native AVX converge
 
 `benchmark/cases/simd_lane_mix` now uses a real native SIMD runtime kernel behind `converge` instead of running the hot dot product through scalar Kain memory helpers.

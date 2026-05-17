@@ -1166,16 +1166,26 @@ fn resolve_existing_or_declared_path(workspace_root: &Path, path: &Path) -> Path
     }
     let candidate = PathBuf::from(path);
     if candidate.exists() {
-        return candidate;
+        return absolute_path(&candidate);
     }
-    workspace_root.join(path)
+    absolute_path(&workspace_root.join(path))
 }
 
 fn resolve_path(root: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()
     } else {
-        root.join(path)
+        absolute_path(&root.join(path))
+    }
+}
+
+fn absolute_path(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else if let Ok(cwd) = std::env::current_dir() {
+        cwd.join(path)
+    } else {
+        path.to_path_buf()
     }
 }
 
@@ -1504,5 +1514,26 @@ fn main() -> String:
         assert!(report.is_success());
         assert_eq!(report.units.len(), 1);
         assert!(report.units[0].output.contains("one,two"));
+    }
+
+    #[test]
+    fn executes_relative_kain_file_after_switching_to_entry_cwd() {
+        let _guard = process_context_test_lock().lock().unwrap();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        kfs::create_dir_all(temp.path().join("src")).unwrap();
+        kfs::write_text(
+            temp.path().join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 42\n",
+        )
+        .unwrap();
+        std::env::set_current_dir(temp.path()).unwrap();
+        let report = execute_run(&RunRequest::new(Some(PathBuf::from("src").join("main.kn"))));
+        std::env::set_current_dir(previous_cwd).unwrap();
+        let report = report.unwrap();
+
+        assert!(report.is_success());
+        assert_eq!(report.units[0].output.trim(), "42");
+        assert!(report.units[0].inputs[0].is_absolute());
     }
 }

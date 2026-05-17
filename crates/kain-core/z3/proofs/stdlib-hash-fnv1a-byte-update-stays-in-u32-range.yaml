@@ -1,0 +1,32 @@
+version: 1
+id: kain.core.proofs.stdlib_hash_fnv1a_byte_update_stays_in_u32_range
+kind: check_smt2
+description: A byte-fed FNV-1a update masked as std::hash defines it cannot leak
+  high bits outside the u32 result domain.
+tags:
+- stdlib
+- hash
+- fnv1a
+- bitvector
+source:
+  path: D:\Kain-Lang\stdlib\hash.kn
+  symbol: hash_fnv1a32_update_byte
+  start_line: 114
+  reason: byte-fed deterministic fingerprints are the first portable hash lane.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const hash (_ BitVec 64))
+    (declare-const byte (_ BitVec 64))
+    (define-fun mask32 ((x (_ BitVec 64))) (_ BitVec 64)
+      (bvand x #x00000000ffffffff))
+    (define-fun mask8 ((x (_ BitVec 64))) (_ BitVec 64)
+      (bvand x #x00000000000000ff))
+    (define-fun mixed () (_ BitVec 64)
+      (bvxor (mask32 hash) (mask8 byte)))
+    (define-fun updated () (_ BitVec 64)
+      (mask32 (bvmul mixed #x0000000001000193)))
+    (assert (not (= (bvand updated #xffffffff00000000) #x0000000000000000)))
+    (check-sat)
+  include_model: false
+  include_stats: false

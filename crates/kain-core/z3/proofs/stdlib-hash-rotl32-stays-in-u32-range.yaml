@@ -1,0 +1,36 @@
+version: 1
+id: kain.core.proofs.stdlib_hash_rotl32_stays_in_u32_range
+kind: check_smt2
+description: The std::hash rotl32 helper keeps every masked 32-bit value inside
+  the u32 domain for every rotation amount.
+tags:
+- stdlib
+- hash
+- bitvector
+- rotate
+source:
+  path: D:\Kain-Lang\stdlib\hash.kn
+  symbol: rotl32
+  start_line: 39
+  reason: rotl32 is the primitive used by hash combinators and bucket mixing.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const value (_ BitVec 64))
+    (declare-const bits (_ BitVec 64))
+    (define-fun mask32 ((x (_ BitVec 64))) (_ BitVec 64)
+      (bvand x #x00000000ffffffff))
+    (define-fun amount () (_ BitVec 64)
+      (bvand bits #x000000000000001f))
+    (define-fun x () (_ BitVec 64) (mask32 value))
+    (define-fun rotated () (_ BitVec 64)
+      (ite (= amount #x0000000000000000)
+           x
+           (mask32
+             (bvor
+               (mask32 (bvshl x amount))
+               (bvlshr x (bvsub #x0000000000000020 amount))))))
+    (assert (not (= (bvand rotated #xffffffff00000000) #x0000000000000000)))
+    (check-sat)
+  include_model: false
+  include_stats: false

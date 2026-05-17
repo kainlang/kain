@@ -1,0 +1,179 @@
+// Canonical root hashing stdlib for Kain.
+//
+// This module is intentionally target-neutral Kain source: deterministic
+// 32-bit word mixing, byte-fed FNV-1a, CRC32 byte folding, and fingerprint
+// combinators that are useful to capsules, caches, wire formats, benchmarks,
+// and compiler/runtime proof blades without depending on host string layout.
+
+pub const HASH_U32_MASK: Int = 4294967295
+pub const HASH_BYTE_MASK: Int = 255
+pub const HASH_FNV1A32_OFFSET: Int = 2166136261
+pub const HASH_FNV1A32_PRIME: Int = 16777619
+pub const HASH_CRC32_POLY: Int = 3988292384
+pub const HASH_GOLDEN32: Int = 2654435769
+pub const HASH_EMPTY32: Int = 0
+
+pub struct Hash32:
+    value: Int
+
+pub struct Fingerprint32:
+    value: Int
+    words: Int
+    salt: Int
+
+pub fn hash_u32_mask(value: Int) -> Int:
+    return value & HASH_U32_MASK
+
+pub fn hash_byte_mask(value: Int) -> Int:
+    return value & HASH_BYTE_MASK
+
+pub fn hash32(value: Int) -> Hash32:
+    return Hash32 { value: hash_u32_mask(value) }
+
+pub fn hash32_value(hash: Hash32) -> Int:
+    return hash_u32_mask(hash.value)
+
+pub fn hash32_is_zero(hash: Hash32) -> Bool:
+    return hash32_value(hash) == 0
+
+pub fn rotl32(value: Int, bits: Int) -> Int:
+    let x = hash_u32_mask(value)
+    let amount = bits & 31
+    if amount == 0:
+        return x
+    let left = hash_u32_mask(x << amount)
+    let right = x >> (32 - amount)
+    return hash_u32_mask(left | right)
+
+pub fn rotr32(value: Int, bits: Int) -> Int:
+    let x = hash_u32_mask(value)
+    let amount = bits & 31
+    if amount == 0:
+        return x
+    let right = x >> amount
+    let left = hash_u32_mask(x << (32 - amount))
+    return hash_u32_mask(left | right)
+
+pub fn hash_wang32(value: Int) -> Int:
+    var x = hash_u32_mask(value)
+    x = hash_u32_mask((x ^ 61) ^ (x >> 16))
+    x = hash_u32_mask(x + hash_u32_mask(x << 3))
+    x = hash_u32_mask(x ^ (x >> 4))
+    x = hash_u32_mask(x * 668265263)
+    x = hash_u32_mask(x ^ (x >> 15))
+    return x
+
+pub fn hash_u32(value: Int) -> Int:
+    return hash_wang32(value)
+
+pub fn hash_u32_with_seed(value: Int, seed: Int) -> Int:
+    let seeded = hash_u32_mask(value ^ hash_wang32(seed + HASH_GOLDEN32))
+    return hash_wang32(seeded)
+
+pub fn hash_mix32(seed: Int, value: Int) -> Int:
+    let s = hash_u32_mask(seed)
+    let v = hash_u32_mask(value)
+    let folded = hash_u32_mask(v + HASH_GOLDEN32 + hash_u32_mask(s << 6) + (s >> 2))
+    return hash_wang32(s ^ folded)
+
+pub fn hash_pair32(left: Int, right: Int) -> Int:
+    return hash_mix32(hash_u32(left), right)
+
+pub fn hash_triple32(a: Int, b: Int, c: Int) -> Int:
+    return hash_mix32(hash_pair32(a, b), c)
+
+pub fn hash_quad32(a: Int, b: Int, c: Int, d: Int) -> Int:
+    return hash_mix32(hash_triple32(a, b, c), d)
+
+pub fn hash_bool32(value: Bool) -> Int:
+    if value:
+        return hash_u32(1)
+    return hash_u32(0)
+
+pub fn hash_ordered_finish(seed: Int, words: Int) -> Int:
+    return hash_wang32(hash_mix32(seed, words))
+
+pub fn hash_unordered_pair32(left: Int, right: Int) -> Int:
+    let a = hash_u32(left)
+    let b = hash_u32(right)
+    return hash_wang32(hash_u32_mask(a + b) ^ rotl32(a ^ b, 16))
+
+pub fn hash_bucket_power_of_two(hash: Int, capacity: Int) -> Int:
+    if capacity <= 0:
+        return 0
+    return hash_u32_mask(hash) & (capacity - 1)
+
+pub fn hash_bucket_mod(hash: Int, capacity: Int) -> Int:
+    if capacity <= 0:
+        return 0
+    return hash_u32_mask(hash) % capacity
+
+pub fn hash_fnv1a32_init() -> Int:
+    return HASH_FNV1A32_OFFSET
+
+pub fn hash_fnv1a32_update_byte(hash: Int, byte: Int) -> Int:
+    let mixed = hash_u32_mask(hash) ^ hash_byte_mask(byte)
+    return hash_u32_mask(mixed * HASH_FNV1A32_PRIME)
+
+pub fn hash_fnv1a32_update_u32(hash: Int, value: Int) -> Int:
+    var h = hash_u32_mask(hash)
+    let x = hash_u32_mask(value)
+    h = hash_fnv1a32_update_byte(h, x & 255)
+    h = hash_fnv1a32_update_byte(h, (x >> 8) & 255)
+    h = hash_fnv1a32_update_byte(h, (x >> 16) & 255)
+    h = hash_fnv1a32_update_byte(h, (x >> 24) & 255)
+    return h
+
+pub fn hash_bytes4(byte0: Int, byte1: Int, byte2: Int, byte3: Int) -> Int:
+    var h = hash_fnv1a32_init()
+    h = hash_fnv1a32_update_byte(h, byte0)
+    h = hash_fnv1a32_update_byte(h, byte1)
+    h = hash_fnv1a32_update_byte(h, byte2)
+    h = hash_fnv1a32_update_byte(h, byte3)
+    return h
+
+pub fn hash_crc32_init() -> Int:
+    return HASH_U32_MASK
+
+pub fn hash_crc32_update_byte(crc: Int, byte: Int) -> Int:
+    var c = hash_u32_mask(crc ^ hash_byte_mask(byte))
+    var bit = 0
+    while bit < 8:
+        if (c & 1) == 1:
+            c = hash_u32_mask((c >> 1) ^ HASH_CRC32_POLY)
+        else:
+            c = hash_u32_mask(c >> 1)
+        bit = bit + 1
+    return c
+
+pub fn hash_crc32_finish(crc: Int) -> Int:
+    return hash_u32_mask(crc ^ HASH_U32_MASK)
+
+pub fn hash_crc32_bytes4(byte0: Int, byte1: Int, byte2: Int, byte3: Int) -> Int:
+    var crc = hash_crc32_init()
+    crc = hash_crc32_update_byte(crc, byte0)
+    crc = hash_crc32_update_byte(crc, byte1)
+    crc = hash_crc32_update_byte(crc, byte2)
+    crc = hash_crc32_update_byte(crc, byte3)
+    return hash_crc32_finish(crc)
+
+pub fn fingerprint32_begin(salt: Int) -> Fingerprint32:
+    return Fingerprint32 { value: hash_u32(salt), words: 0, salt: hash_u32_mask(salt) }
+
+pub fn fingerprint32_add_word(fingerprint: Fingerprint32, word: Int) -> Fingerprint32:
+    let next_words = fingerprint.words + 1
+    let next_value = hash_mix32(fingerprint.value, word)
+    return Fingerprint32 { value: next_value, words: next_words, salt: fingerprint.salt }
+
+pub fn fingerprint32_add_pair(fingerprint: Fingerprint32, left: Int, right: Int) -> Fingerprint32:
+    let after_left = fingerprint32_add_word(fingerprint, left)
+    return fingerprint32_add_word(after_left, right)
+
+pub fn fingerprint32_finish(fingerprint: Fingerprint32) -> Int:
+    return hash_ordered_finish(hash_mix32(fingerprint.value, fingerprint.salt), fingerprint.words)
+
+pub fn fingerprint32_words(fingerprint: Fingerprint32) -> Int:
+    return fingerprint.words
+
+pub fn fingerprint32_value(fingerprint: Fingerprint32) -> Int:
+    return hash_u32_mask(fingerprint.value)

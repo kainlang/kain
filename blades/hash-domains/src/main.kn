@@ -1,0 +1,81 @@
+use std::hash
+
+fn require_u32(value: Int, code: Int) -> Int:
+    if value < 0:
+        return code
+    if value > HASH_U32_MASK:
+        return code
+    return 0
+
+fn main() -> Int:
+    if hash_u32_mask(-1) != HASH_U32_MASK:
+        return 1
+    if hash_byte_mask(511) != 255:
+        return 2
+
+    let rotated = rotl32(1, 8)
+    if rotated != 256:
+        return 3
+    if rotr32(rotated, 8) != 1:
+        return 4
+    if rotl32(305419896, 0) != hash_u32_mask(305419896):
+        return 5
+
+    let word_hash = hash_u32(123456789)
+    let range_error = require_u32(word_hash, 6)
+    if range_error != 0:
+        return range_error
+    if hash_u32_with_seed(123456789, 17) == word_hash:
+        return 7
+
+    let ordered_ab = hash_pair32(17, 23)
+    let ordered_ba = hash_pair32(23, 17)
+    if ordered_ab == ordered_ba:
+        return 8
+    let unordered_ab = hash_unordered_pair32(17, 23)
+    let unordered_ba = hash_unordered_pair32(23, 17)
+    if unordered_ab != unordered_ba:
+        return 9
+
+    let bucket_pow2 = hash_bucket_power_of_two(ordered_ab, 64)
+    if bucket_pow2 < 0 or bucket_pow2 >= 64:
+        return 10
+    let bucket_mod = hash_bucket_mod(ordered_ab, 97)
+    if bucket_mod < 0 or bucket_mod >= 97:
+        return 11
+    if hash_bucket_mod(ordered_ab, 0) != 0:
+        return 12
+
+    var fnv = hash_fnv1a32_init()
+    fnv = hash_fnv1a32_update_byte(fnv, 75)
+    fnv = hash_fnv1a32_update_byte(fnv, 65)
+    fnv = hash_fnv1a32_update_byte(fnv, 73)
+    fnv = hash_fnv1a32_update_byte(fnv, 78)
+    if fnv != hash_bytes4(75, 65, 73, 78):
+        return 13
+    if require_u32(fnv, 14) != 0:
+        return 14
+
+    let crc = hash_crc32_bytes4(75, 65, 73, 78)
+    if require_u32(crc, 15) != 0:
+        return 15
+    if crc == fnv:
+        return 16
+
+    let fp0 = fingerprint32_begin(2026)
+    let fp1 = fingerprint32_add_word(fp0, 17)
+    let fp2 = fingerprint32_add_pair(fp1, 23, 29)
+    if fingerprint32_words(fp2) != 3:
+        return 17
+    let final_a = fingerprint32_finish(fp2)
+    let final_b = hash_ordered_finish(hash_mix32(hash_mix32(hash_mix32(hash_mix32(hash_u32(2026), 17), 23), 29), 2026), 3)
+    if final_a != final_b:
+        return 18
+    if require_u32(final_a, 19) != 0:
+        return 19
+
+    let wrapped = hash32(HASH_U32_MASK + 99)
+    if hash32_value(wrapped) != 98:
+        return 20
+
+    return 0

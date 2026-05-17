@@ -1,0 +1,32 @@
+version: 1
+id: kain.core.proofs.stdlib_hash_power_two_bucket_stays_in_capacity
+kind: check_smt2
+description: The std::hash power-of-two bucket selector cannot produce an index
+  outside a positive power-of-two table capacity.
+tags:
+- stdlib
+- hash
+- table
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\hash.kn
+  symbol: hash_bucket_power_of_two
+  start_line: 101
+  reason: bucket masking is the fast path Kain maps, caches, and capsules want.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const hash (_ BitVec 64))
+    (declare-const shift (_ BitVec 64))
+    (define-fun one () (_ BitVec 64) #x0000000000000001)
+    (define-fun mask32 ((x (_ BitVec 64))) (_ BitVec 64)
+      (bvand x #x00000000ffffffff))
+    (assert (bvuge shift #x0000000000000001))
+    (assert (bvule shift #x000000000000001f))
+    (define-fun capacity () (_ BitVec 64) (bvshl one shift))
+    (define-fun bucket () (_ BitVec 64)
+      (bvand (mask32 hash) (bvsub capacity one)))
+    (assert (bvuge bucket capacity))
+    (check-sat)
+  include_model: false
+  include_stats: false
