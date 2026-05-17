@@ -142,5 +142,6 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `python benchmark/run_wrapper.py fast --case actor_mailbox_erlang --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/run_wrapper.py sim --runs 1 --warmups 0 --timeout 900`
 - `python benchmark/ffi_boundary/run.py --warmups 2 --runs 5 --timeout 300`
+- `python scripts/python/release_readiness_gate.py --profile quick --run` for the repo-level honest-release matrix that pairs the benchmark release subset with attrition, stdlib-import, and runtime-conformance blockers
 - Build `benchmark/kain-benchmark.exe` with the blade compile helper and capture a non-empty native UI screenshot after UI edits.
 - Inspect `benchmark/out/reports/latest.llm.md` and `benchmark/latest.md` before summarizing results.

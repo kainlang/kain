@@ -1,0 +1,1024 @@
+{
+  "schema_version": 1,
+  "title": "Kain Release Readiness",
+  "summary": "Data-driven release gate for honest benchmark rows, stdlib surface coverage, targeted Kain attrition lanes, and runtime conformance hooks.",
+  "profiles": {
+    "quick": {
+      "run_hooks": [
+        "benchmark.release_subset",
+        "attrition.release_subset",
+        "conformance.graphics_runtime",
+        "conformance.ui_runtime",
+        "conformance.input_runtime",
+        "conformance.net_runtime",
+        "conformance.process_runtime"
+      ],
+      "evaluate_checks": [
+        "benchmark.release_subset",
+        "attrition.release_subset",
+        "imports.release_case_stdlib",
+        "coverage.quick_release_features"
+      ]
+    },
+    "full": {
+      "run_hooks": [
+        "benchmark.release_subset",
+        "attrition.release_subset",
+        "conformance.graphics_runtime",
+        "conformance.ui_runtime",
+        "conformance.input_runtime",
+        "conformance.net_runtime",
+        "conformance.process_runtime",
+        "conformance.actor_runtime",
+        "conformance.async_runtime",
+        "conformance.diagnostics",
+        "conformance.abi_parity",
+        "conformance.reflection",
+        "conformance.host_bridge",
+        "conformance.hot_reload",
+        "conformance.platform_parity"
+      ],
+      "evaluate_checks": [
+        "benchmark.release_subset",
+        "attrition.release_subset",
+        "imports.release_case_stdlib",
+        "coverage.quick_release_features",
+        "coverage.full_runtime_features"
+      ]
+    }
+  },
+  "hooks": [
+    {
+      "id": "benchmark.release_subset",
+      "cwd": ".",
+      "command": [
+        "{python}",
+        "benchmark/run.py",
+        "--case",
+        "branch_dispatch,call_chain,ownership_memory,memory_stream,native_map_lookup,zero_copy_binary_wire,crypto_block_cipher,ray_sphere_intersection,filesystem_stream,json_manual_roundtrip,process_stdio_loop,async_ready_chain,actor_mailbox_erlang,gpu_graphics_submit",
+        "--languages",
+        "kain",
+        "--runs",
+        "1",
+        "--warmups",
+        "0",
+        "--timeout",
+        "900",
+        "--latest-stem",
+        "latest_release_readiness",
+        "--minimal-name",
+        "latest_release_readiness.md"
+      ],
+      "artifacts": [
+        "benchmark/out/reports/latest_release_readiness.json",
+        "benchmark/latest_release_readiness.md"
+      ]
+    },
+    {
+      "id": "attrition.release_subset",
+      "cwd": ".",
+      "command": [
+        "{python}",
+        "attrition/run.py",
+        "--case",
+        "saturated_rc_hot_object,process_slot_recycle,mixed_runtime_boss,kain_actor_ask_roundtrip,kain_stdlib_domains,kain_float_array_literal_indexing,kain_semantic_singularity_crucible_attrition",
+        "--profile",
+        "release-instrumented",
+        "--scale",
+        "small",
+        "--timeout",
+        "900"
+      ],
+      "artifacts": [
+        "attrition/out/reports/latest.json",
+        "attrition/latest.md"
+      ]
+    },
+    {
+      "id": "conformance.graphics_runtime",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "graphics_runtime"
+      ]
+    },
+    {
+      "id": "conformance.ui_runtime",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "ui_runtime"
+      ]
+    },
+    {
+      "id": "conformance.input_runtime",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "input_runtime"
+      ]
+    },
+    {
+      "id": "conformance.net_runtime",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "net_runtime"
+      ]
+    },
+    {
+      "id": "conformance.process_runtime",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "process_runtime"
+      ]
+    },
+    {
+      "id": "conformance.actor_runtime",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "actor_runtime"
+      ]
+    },
+    {
+      "id": "conformance.async_runtime",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "async_runtime"
+      ]
+    },
+    {
+      "id": "conformance.diagnostics",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "diagnostics"
+      ]
+    },
+    {
+      "id": "conformance.abi_parity",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "abi_parity"
+      ]
+    },
+    {
+      "id": "conformance.reflection",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "reflection"
+      ]
+    },
+    {
+      "id": "conformance.host_bridge",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "host_bridge"
+      ]
+    },
+    {
+      "id": "conformance.hot_reload",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "hot_reload"
+      ]
+    },
+    {
+      "id": "conformance.platform_parity",
+      "cwd": ".",
+      "command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "runtime/conformance/run_all.ps1",
+        "-Backend",
+        "all",
+        "-Mode",
+        "full",
+        "-Category",
+        "platform_parity"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "benchmark.release_subset",
+      "kind": "benchmark_report",
+      "manifest_path": "benchmark/benchmarks.json",
+      "report_path": "benchmark/out/reports/latest_release_readiness.json",
+      "forbidden_fragments": [
+        "not yet parity-safe",
+        "proxy",
+        "skeleton",
+        "workaround",
+        "todo"
+      ],
+      "required_cases": [
+        {
+          "id": "branch_dispatch",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "call_chain",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "ownership_memory",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "memory_stream",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "native_map_lookup",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "zero_copy_binary_wire",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "crypto_block_cipher",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "ray_sphere_intersection",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "filesystem_stream",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "json_manual_roundtrip",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "process_stdio_loop",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "async_ready_chain",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "actor_mailbox_erlang",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        },
+        {
+          "id": "gpu_graphics_submit",
+          "required_languages": [
+            "kain"
+          ],
+          "allowed_maturity": [
+            "implemented"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attrition.release_subset",
+      "kind": "attrition_report",
+      "report_path": "attrition/out/reports/latest.json",
+      "require_suite_passed": true,
+      "required_cases": [
+        "saturated_rc_hot_object",
+        "process_slot_recycle",
+        "mixed_runtime_boss",
+        "kain_actor_ask_roundtrip",
+        "kain_stdlib_domains",
+        "kain_float_array_literal_indexing",
+        "kain_semantic_singularity_crucible_attrition"
+      ]
+    },
+    {
+      "id": "imports.release_case_stdlib",
+      "kind": "source_imports",
+      "rules": [
+        {
+          "id": "imports.rule.benchmark.filesystem_stream.fs",
+          "path": "benchmark/cases/filesystem_stream/main.kn",
+          "required_imports": [
+            "use std::fs"
+          ]
+        },
+        {
+          "id": "imports.rule.benchmark.process_stdio_loop.process",
+          "path": "benchmark/cases/process_stdio_loop/main.kn",
+          "required_imports": [
+            "use std::process"
+          ]
+        },
+        {
+          "id": "imports.rule.benchmark.gpu_graphics_submit.graphics",
+          "path": "benchmark/cases/gpu_graphics_submit/main.kn",
+          "required_imports": [
+            "use std::graphics"
+          ]
+        },
+        {
+          "id": "imports.rule.benchmark.http_server_concurrency.runtime",
+          "path": "benchmark/cases/http_server_concurrency/main.kn",
+          "required_imports": [
+            "use std::runtime"
+          ]
+        },
+        {
+          "id": "imports.rule.benchmark.http_server_concurrency.net",
+          "path": "benchmark/cases/http_server_concurrency/main.kn",
+          "required_imports": [
+            "use std::net"
+          ]
+        },
+        {
+          "id": "imports.rule.attrition.kain_stdlib_domains.root_bundle",
+          "path": "attrition/cases/kain_stdlib_domains/main.kn",
+          "required_imports": [
+            "use std::runtime",
+            "use std::actor",
+            "use std::collections",
+            "use std::diagnostics",
+            "use std::result",
+            "use std::time",
+            "use std::intent",
+            "use std::fs",
+            "use std::input",
+            "use std::net",
+            "use std::http",
+            "use std::tls",
+            "use std::http2",
+            "use std::process",
+            "use std::graphics",
+            "use std::ui"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "coverage.quick_release_features",
+      "kind": "coverage_matrix",
+      "features": [
+        {
+          "id": "native_llvm.control_and_call_lowering",
+          "label": "Control And Call Lowering",
+          "summary": "Branch and call graph lowering must survive native LLVM release builds without caveats.",
+          "current_surfaces": [
+            "benchmark/cases/branch_dispatch/main.kn",
+            "benchmark/cases/call_chain/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/branch_dispatch/main.kn",
+                "benchmark/cases/call_chain/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.branch_dispatch",
+            "benchmark.case.call_chain"
+          ]
+        },
+        {
+          "id": "native_llvm.ownership_memory",
+          "label": "Ownership Memory",
+          "summary": "First-class ownership and raw memory rows must measure honestly in the release subset.",
+          "current_surfaces": [
+            "benchmark/cases/ownership_memory/main.kn",
+            "benchmark/cases/memory_stream/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/ownership_memory/main.kn",
+                "benchmark/cases/memory_stream/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.ownership_memory",
+            "benchmark.case.memory_stream"
+          ]
+        },
+        {
+          "id": "native_llvm.binary_layout_and_map",
+          "label": "Binary Layout And Map",
+          "summary": "Zero-copy wire layout math and native map lookup must hold up in the release benchmark subset.",
+          "current_surfaces": [
+            "benchmark/cases/native_map_lookup/main.kn",
+            "benchmark/cases/zero_copy_binary_wire/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/native_map_lookup/main.kn",
+                "benchmark/cases/zero_copy_binary_wire/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.native_map_lookup",
+            "benchmark.case.zero_copy_binary_wire"
+          ]
+        },
+        {
+          "id": "native_llvm.integer_crypto",
+          "label": "Integer Crypto",
+          "summary": "Integer-heavy rotate xor add lowering must remain honest in the release subset.",
+          "current_surfaces": [
+            "benchmark/cases/crypto_block_cipher/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/crypto_block_cipher/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.crypto_block_cipher"
+          ]
+        },
+        {
+          "id": "native_llvm.float_array_literal_indexing",
+          "label": "Float Array Literal Indexing",
+          "summary": "Float array literal indexing must have its own dedicated release blocker instead of hiding behind a benchmark note.",
+          "current_surfaces": [
+            "benchmark/cases/ray_sphere_intersection/main.kn",
+            "attrition/cases/kain_float_array_literal_indexing/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "attrition",
+              "owned_paths": [
+                "attrition/cases/kain_float_array_literal_indexing/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.ray_sphere_intersection",
+            "attrition.case.kain_float_array_literal_indexing"
+          ]
+        },
+        {
+          "id": "root_stdlib.filesystem_surface",
+          "label": "Root Stdlib Filesystem Surface",
+          "summary": "Root filesystem imports and runtime behavior must stay green.",
+          "current_surfaces": [
+            "benchmark/cases/filesystem_stream/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/filesystem_stream/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.filesystem_stream",
+            "imports.rule.benchmark.filesystem_stream.fs"
+          ]
+        },
+        {
+          "id": "root_stdlib.process_surface",
+          "label": "Root Stdlib Process Surface",
+          "summary": "Root process imports and the native process runtime lane must stay green.",
+          "current_surfaces": [
+            "benchmark/cases/process_stdio_loop/main.kn",
+            "runtime/conformance/process_runtime/test_native_process_system_kernel.c"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/process_stdio_loop/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.process_stdio_loop",
+            "imports.rule.benchmark.process_stdio_loop.process",
+            "conformance.process_runtime"
+          ]
+        },
+        {
+          "id": "root_stdlib.graphics_surface",
+          "label": "Root Stdlib Graphics Surface",
+          "summary": "Root graphics imports and the native graphics runtime lane must stay green.",
+          "current_surfaces": [
+            "benchmark/cases/gpu_graphics_submit/main.kn",
+            "runtime/conformance/graphics_runtime/test_native_graphics_system_kernel.c"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/gpu_graphics_submit/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.gpu_graphics_submit",
+            "imports.rule.benchmark.gpu_graphics_submit.graphics",
+            "conformance.graphics_runtime"
+          ]
+        },
+        {
+          "id": "root_stdlib.net_http_surface",
+          "label": "Root Stdlib Net HTTP Surface",
+          "summary": "Root networking and HTTP imports must be present, and the native net runtime lane must pass.",
+          "current_surfaces": [
+            "benchmark/cases/http_server_concurrency/main.kn",
+            "attrition/cases/kain_stdlib_domains/main.kn",
+            "runtime/conformance/net_runtime/test_native_net_system_kernel.c"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/http_server_concurrency/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "attrition.case.kain_stdlib_domains",
+            "imports.rule.benchmark.http_server_concurrency.runtime",
+            "imports.rule.benchmark.http_server_concurrency.net",
+            "conformance.net_runtime"
+          ]
+        },
+        {
+          "id": "root_stdlib.input_surface",
+          "label": "Root Stdlib Input Surface",
+          "summary": "The root input domain must remain covered by a live stdlib attrition lane and native runtime conformance.",
+          "current_surfaces": [
+            "attrition/cases/kain_stdlib_domains/main.kn",
+            "runtime/conformance/input_runtime/test_native_input_system_kernel.c"
+          ],
+          "owners": [
+            {
+              "subsystem": "attrition",
+              "owned_paths": [
+                "attrition/cases/kain_stdlib_domains/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "attrition.case.kain_stdlib_domains",
+            "conformance.input_runtime"
+          ]
+        },
+        {
+          "id": "root_stdlib.ui_surface",
+          "label": "Root Stdlib UI Surface",
+          "summary": "The root UI domain must remain covered by a live stdlib attrition lane and native runtime conformance.",
+          "current_surfaces": [
+            "attrition/cases/kain_stdlib_domains/main.kn",
+            "runtime/conformance/ui_runtime/test_native_ui_system_kernel.c"
+          ],
+          "owners": [
+            {
+              "subsystem": "attrition",
+              "owned_paths": [
+                "attrition/cases/kain_stdlib_domains/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "attrition.case.kain_stdlib_domains",
+            "conformance.ui_runtime"
+          ]
+        },
+        {
+          "id": "native_llvm.async_ready_futures",
+          "label": "Async Ready Futures",
+          "summary": "Native async ready-future lowering must stay green in the release subset.",
+          "current_surfaces": [
+            "benchmark/cases/async_ready_chain/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "benchmark",
+              "owned_paths": [
+                "benchmark/cases/async_ready_chain/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.async_ready_chain"
+          ]
+        },
+        {
+          "id": "native_llvm.actor_roundtrip",
+          "label": "Actor Roundtrip",
+          "summary": "Actor ask reply traffic must stay covered by both benchmark and attrition lanes.",
+          "current_surfaces": [
+            "benchmark/cases/actor_mailbox_erlang/main.kn",
+            "attrition/cases/kain_actor_ask_roundtrip/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "attrition",
+              "owned_paths": [
+                "attrition/cases/kain_actor_ask_roundtrip/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "benchmark.case.actor_mailbox_erlang",
+            "attrition.case.kain_actor_ask_roundtrip"
+          ]
+        },
+        {
+          "id": "semantics.crucible",
+          "label": "Semantics Crucible",
+          "summary": "The broad semantic crucible remains one lane in the matrix, not the whole matrix.",
+          "current_surfaces": [
+            "attrition/cases/kain_semantic_singularity_crucible_attrition/main.kn"
+          ],
+          "owners": [
+            {
+              "subsystem": "attrition",
+              "owned_paths": [
+                "attrition/cases/kain_semantic_singularity_crucible_attrition/main.kn"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "attrition.case.kain_semantic_singularity_crucible_attrition"
+          ]
+        },
+        {
+          "id": "runtime.mixed_attrition_boss",
+          "label": "Mixed Attrition Boss",
+          "summary": "The runtime teardown and mixed-substrate attrition lanes must stay green.",
+          "current_surfaces": [
+            "attrition/cases/mixed_runtime_boss/main.c",
+            "attrition/cases/process_slot_recycle/main.c",
+            "attrition/cases/saturated_rc_hot_object/main.c"
+          ],
+          "owners": [
+            {
+              "subsystem": "attrition",
+              "owned_paths": [
+                "attrition/cases/mixed_runtime_boss/main.c",
+                "attrition/cases/process_slot_recycle/main.c",
+                "attrition/cases/saturated_rc_hot_object/main.c"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "attrition.case.mixed_runtime_boss",
+            "attrition.case.process_slot_recycle",
+            "attrition.case.saturated_rc_hot_object"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "coverage.full_runtime_features",
+      "kind": "coverage_matrix",
+      "features": [
+        {
+          "id": "runtime.abi_parity",
+          "label": "Runtime ABI Parity",
+          "summary": "ABI parity conformance must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/abi_parity/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/abi_parity/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.abi_parity"
+          ]
+        },
+        {
+          "id": "runtime.actor_kernel",
+          "label": "Runtime Actor Kernel",
+          "summary": "The native actor runtime conformance lane must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/actor_runtime/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/actor_runtime/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.actor_runtime"
+          ]
+        },
+        {
+          "id": "runtime.async_kernel",
+          "label": "Runtime Async Kernel",
+          "summary": "The native async runtime conformance lane must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/async_runtime/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/async_runtime/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.async_runtime"
+          ]
+        },
+        {
+          "id": "runtime.diagnostics_kernel",
+          "label": "Runtime Diagnostics Kernel",
+          "summary": "The diagnostics conformance lane must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/diagnostics/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/diagnostics/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.diagnostics"
+          ]
+        },
+        {
+          "id": "runtime.reflection_kernel",
+          "label": "Runtime Reflection Kernel",
+          "summary": "The reflection conformance lane must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/reflection/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/reflection/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.reflection"
+          ]
+        },
+        {
+          "id": "runtime.host_bridge",
+          "label": "Runtime Host Bridge",
+          "summary": "The host bridge conformance lane must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/host_bridge/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/host_bridge/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.host_bridge"
+          ]
+        },
+        {
+          "id": "runtime.hot_reload_kernel",
+          "label": "Runtime Hot Reload Kernel",
+          "summary": "The hot reload conformance lane must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/hot_reload/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/hot_reload/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.hot_reload"
+          ]
+        },
+        {
+          "id": "runtime.platform_parity",
+          "label": "Runtime Platform Parity",
+          "summary": "The platform parity conformance lane must pass in the full release gate.",
+          "current_surfaces": [
+            "runtime/conformance/platform_parity/run_tests.sh"
+          ],
+          "owners": [
+            {
+              "subsystem": "runtime_conformance",
+              "owned_paths": [
+                "runtime/conformance/platform_parity/run_tests.sh"
+              ]
+            }
+          ],
+          "required_evidence": [
+            "conformance.platform_parity"
+          ]
+        }
+      ]
+    }
+  ]
+}

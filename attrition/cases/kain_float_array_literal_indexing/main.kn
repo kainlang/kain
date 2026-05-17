@@ -1,0 +1,93 @@
+use std::runtime
+
+const FLOAT_ARRAY_ATTRITION_MODULUS: Int = 1000000007
+const FLOAT_ARRAY_BUCKET_EXPECTED: Int = 17000
+
+fn digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let mut sign = 1
+    let mut index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let mut value = 0
+    while index < len(text):
+        value = value * 10 + digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn attrition_env_int(key: String, fallback: Int) -> Int:
+    let text = env(key)
+    if len(text) == 0:
+        return fallback
+    return parse_int_text(text)
+
+fn attrition_complete(status: Int, checksum: Int, message: String) -> Int:
+    let _result = runtime_attrition_result_set(checksum, status, message)
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        if status != 0:
+            return status
+        return 200 + shutdown_status
+    return status
+
+fn expected_checksum(ops: Int) -> Int:
+    let base = ops * (FLOAT_ARRAY_BUCKET_EXPECTED + 4)
+    let drift = 17 * ops * (ops - 1) / 2
+    return (base + drift) % FLOAT_ARRAY_ATTRITION_MODULUS
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot < 0:
+        return 100 + boot
+
+    let ops = attrition_env_int("KAIN_ATTRITION_OPS", 8)
+    var round = 0
+    var checksum = 0
+    while round < ops:
+        let weights = [0.25, 0.5, 1.25, 2.0]
+        let scales = [4.0, 3.0, 2.0, 1.0]
+        let offsets = [0.125, 0.25, 0.375, 0.5]
+
+        var index = 0
+        var lane_sum: Float = 0.0
+        while index < len(weights):
+            lane_sum = lane_sum + (weights[index] * scales[index]) + (offsets[index] * 8.0)
+            index = index + 1
+
+        let bucket = floor(lane_sum * 1000.0) as Int
+        if bucket != FLOAT_ARRAY_BUCKET_EXPECTED:
+            return attrition_complete(1, checksum, "float array literal indexing bucket mismatch")
+
+        checksum = (checksum + bucket + len(weights) + (round * 17)) % FLOAT_ARRAY_ATTRITION_MODULUS
+        if round % 8 == 0:
+            let _progress = runtime_attrition_note_progress(round, checksum)
+        round = round + 1
+
+    if checksum != expected_checksum(ops):
+        return attrition_complete(2, checksum, "float array literal indexing checksum mismatch")
+    if runtime_heap_validate() < 0:
+        return attrition_complete(3, checksum, "runtime heap validate failed")
+    return attrition_complete(0, checksum, "")

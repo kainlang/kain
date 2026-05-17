@@ -5592,3 +5592,51 @@ Benchmark lesson:
 
 - `option_result` generated IR no longer calls option/result/tagged helper functions, but the benchmark remains allocation-bound because the loop still boxes every `Some` / `Ok` / `Err` / `None`. Rust scalar-replaces this away, so the next real win is unboxed Option/Result lowering or escape-analysis-driven box elimination.
 - `memory_stream` now emits direct load/store IR and a 5-run spot check reported Kain median `77.419 ms` vs Rust `11.132 ms` (`benchmark/out/reports/20260515T005259Z.html`). The repeated ~75 ms Kain floor across unrelated cases suggests process/runtime startup and the full native runtime linkage are now the dominant benchmark tax, not just individual helper calls.
+
+# 2026-05-17 - Repo-level release-readiness gate now blocks on honest benchmark rows, stdlib import shape, targeted attrition lanes, and runtime conformance
+
+The repo had strong point tools but no single release-blocking matrix. A passing crucible or one green benchmark slice could still hide unrelated public-surface drift or a fairness caveat buried in `benchmarks.json`. This pass added a machine-readable release gate so future agents can ask one question: "what concrete blocker still says the recipe is not ready?"
+
+What changed:
+
+- Added `release/readiness_policy.json` as the source of truth for release readiness.
+  - It declares `quick` and `full` profiles.
+  - Hook commands rerun the Kain-only release benchmark subset, a targeted attrition subset, and runtime conformance categories.
+  - Checks inspect benchmark and attrition JSON reports, verify root-stdlib import shape in benchmark/attrition Kain files, and evaluate a coverage matrix that maps features to durable evidence ids.
+- Added `scripts/python/release_readiness_gate.py`.
+  - `--profile quick --run` is now the focused pre-release matrix.
+  - `--profile full --run` extends that with actor/async/diagnostics/ABI/reflection/host-bridge/hot-reload/platform conformance.
+  - The gate reuses artifacts when hooks are not run, so it can inspect existing reports or force fresh proof.
+- Added `scripts/python/test_release_readiness_gate.py` and `python -m py_compile scripts/python/release_readiness_gate.py scripts/python/test_release_readiness_gate.py` now passes.
+- Added `attrition/cases/kain_float_array_literal_indexing/main.kn` plus the `kain_float_array_literal_indexing` entry in `attrition/attritions.json`.
+  - This turns literal `Float` array construction plus indexed reads into a first-class release blocker instead of leaving the problem implied only by `ray_sphere_intersection`.
+- Updated `ARCHITECTURE.md`, `scripts/python/README.md`, and `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future agents know the release gate exists and where the policy lives.
+
+First live quick-profile result:
+
+- `python scripts/python/release_readiness_gate.py --profile quick --run`
+- Benchmark hook passed and produced `benchmark/out/reports/latest_release_readiness.json`.
+- Runtime conformance hooks passed for:
+  - `graphics_runtime`
+  - `ui_runtime`
+  - `input_runtime`
+  - `net_runtime`
+  - `process_runtime`
+- The gate still failed, and the failures are useful repo truth rather than gate wiring bugs:
+  - `benchmark.case.ray_sphere_intersection` failed because the release gate now forbids the existing Kain caveat text: `not yet parity-safe`.
+  - `attrition.release_subset` failed for four Kain lanes:
+    - `kain_actor_ask_roundtrip`: `live_rc_objects drifted from baseline`
+    - `kain_stdlib_domains`: `live_rc_objects drifted from baseline`
+    - `kain_float_array_literal_indexing`: `float array literal indexing bucket mismatch`
+    - `kain_semantic_singularity_crucible_attrition`: did not report a passing attrition result
+
+Durable interpretation:
+
+- The repo now has a real answer to "is the recipe ready?" but the answer in this checkout is still "no".
+- The new gate is intentionally stricter than the old workflow:
+  - it does not let `semantic_singularity_crucible` stand in for every public surface,
+  - it does not let root-stdlib import drift hide behind a later benchmark report,
+  - and it does not let float-array parity stay a comment-only caveat.
+- If a future agent fixes one of these blockers, rerun the gate instead of trusting local intuition:
+  - `python scripts/python/release_readiness_gate.py --profile quick --run`
+  - `python scripts/python/release_readiness_gate.py --profile full --run`

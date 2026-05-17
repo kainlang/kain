@@ -244,6 +244,32 @@
       "expected_fail_sabotages": []
     },
     {
+      "id": "kain_float_array_literal_indexing",
+      "title": "Kain Float Array Literal Indexing",
+      "description": "Dedicated Kain LLVM attrition lane for literal Float array construction and indexed reads so float-array parity becomes a first-class release blocker instead of a benchmark caveat.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_float_array_literal_indexing/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 64,
+        "medium": 512,
+        "full": 4096
+      },
+      "validation": {
+        "closure_groups": [
+          "rc"
+        ]
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "rc.bytes_return_to_floor",
+        "rc.alloc_free_reconciled"
+      ],
+      "expected_fail_sabotages": []
+    },
+    {
       "id": "kain_quantumerlang_attrition",
       "title": "Kain Quantumerlang Attrition",
       "description": "Real Kain LLVM quantumerlang semantics copied from the benchmark case and widened into a variable-op attrition lane.",
