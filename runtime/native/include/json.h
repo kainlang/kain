@@ -13,6 +13,7 @@ char* json_string(int64_t value);
 int64_t json_get(int64_t object, const char* key);
 char* json_get_string(int64_t object, const char* key);
 int64_t json_get_int(int64_t object, const char* key);
+double json_get_float(int64_t object, const char* key);
 bool json_get_bool(int64_t object, const char* key);
 bool json_has(int64_t object, const char* key);
 int64_t json_object_new(void);
@@ -21,6 +22,8 @@ int64_t json_array_new(void);
 void json_array_push(int64_t array, int64_t value);
 int64_t json_array_len(int64_t array);
 int64_t json_array_get(int64_t array, int64_t index);
+int64_t json_box_float(double value);
+void json_release(int64_t value);
 
 #ifdef __cplusplus
 }

@@ -115,6 +115,12 @@ struct ForwardedMemSlot {
     nonnegative_i64: bool,
 }
 
+#[derive(Clone, Debug)]
+struct JsonAnyArgument {
+    value: String,
+    release_after_call: bool,
+}
+
 const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
     id: LlvmTargetId::WindowsX64Msvc,
     triple: "x86_64-pc-windows-msvc",
@@ -1591,7 +1597,9 @@ impl LlvmGenerator {
                     Self::collect_else_branch_assigned_identifier_names(else_branch, assigned);
                 }
             }
-            Expr::Match { scrutinee, arms, .. } => {
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 Self::collect_expr_assigned_identifier_names(scrutinee, assigned);
                 for arm in arms {
                     if let Some(guard) = &arm.guard {
@@ -1686,7 +1694,10 @@ impl LlvmGenerator {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
                 Self::collect_expr_assigned_identifier_names(offset, assigned);
             }
-            Expr::MemLoad { pointer, .. } | Expr::Decay { target: pointer, .. } => {
+            Expr::MemLoad { pointer, .. }
+            | Expr::Decay {
+                target: pointer, ..
+            } => {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
             }
             Expr::MemStore { pointer, value, .. } => {
@@ -1753,7 +1764,9 @@ impl LlvmGenerator {
         assigned: &mut HashSet<String>,
     ) {
         match else_branch {
-            ElseBranch::Else(block) => Self::collect_block_assigned_identifier_names(block, assigned),
+            ElseBranch::Else(block) => {
+                Self::collect_block_assigned_identifier_names(block, assigned)
+            }
             ElseBranch::ElseIf(condition, block, nested) => {
                 Self::collect_expr_assigned_identifier_names(condition, assigned);
                 Self::collect_block_assigned_identifier_names(block, assigned);
@@ -1767,9 +1780,7 @@ impl LlvmGenerator {
     fn collect_block_assigned_identifier_names(block: &Block, assigned: &mut HashSet<String>) {
         for stmt in &block.stmts {
             match stmt {
-                Stmt::Expr(expr)
-                | Stmt::Return(Some(expr), _)
-                | Stmt::Break(Some(expr), _) => {
+                Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                     Self::collect_expr_assigned_identifier_names(expr, assigned);
                 }
                 Stmt::For { iter, body, .. } => {
@@ -4624,43 +4635,85 @@ impl LlvmGenerator {
         tagged
     }
 
-    fn compile_json_any_argument(&mut self, expr: &Expr) -> KainResult<String> {
+    fn compile_json_any_argument(&mut self, expr: &Expr) -> KainResult<JsonAnyArgument> {
         if matches!(expr, Expr::None(_)) {
-            return Ok(JSON_ANY_TAG_NULL_LLVM.to_string());
+            return Ok(JsonAnyArgument {
+                value: JSON_ANY_TAG_NULL_LLVM.to_string(),
+                release_after_call: false,
+            });
         }
         if matches!(expr, Expr::Ident(name, _) if name == "None") {
-            return Ok(JSON_ANY_TAG_NULL_LLVM.to_string());
+            return Ok(JsonAnyArgument {
+                value: JSON_ANY_TAG_NULL_LLVM.to_string(),
+                release_after_call: false,
+            });
         }
 
         let is_json_handle = self.expr_returns_json_handle(expr);
         let (value, ty) = self.compile_expr(expr)?;
         if is_json_handle {
-            return Ok(self.coerce_to_i64_storage(&value, &ty));
+            return Ok(JsonAnyArgument {
+                value: self.coerce_to_i64_storage(&value, &ty),
+                release_after_call: false,
+            });
         }
 
-        match ty.as_str() {
-            "i64" => Ok(self.encode_json_any_i64_payload(&value, JSON_ANY_TAG_INT_LLVM)),
+        let any = match ty.as_str() {
+            "i64" => JsonAnyArgument {
+                value: self.encode_json_any_i64_payload(&value, JSON_ANY_TAG_INT_LLVM),
+                release_after_call: false,
+            },
             "i32" | "i8" => {
                 let widened = self.cast_numeric_value(value, &ty, "i64")?;
-                Ok(self.encode_json_any_i64_payload(&widened, JSON_ANY_TAG_INT_LLVM))
+                JsonAnyArgument {
+                    value: self.encode_json_any_i64_payload(&widened, JSON_ANY_TAG_INT_LLVM),
+                    release_after_call: false,
+                }
             }
             "i1" => {
                 let widened = self.cast_numeric_value(value, "i1", "i64")?;
-                Ok(self.encode_json_any_i64_payload(&widened, JSON_ANY_TAG_BOOL_LLVM))
+                JsonAnyArgument {
+                    value: self.encode_json_any_i64_payload(&widened, JSON_ANY_TAG_BOOL_LLVM),
+                    release_after_call: false,
+                }
+            }
+            "double" => {
+                let boxed = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @json_box_float(double {})",
+                    boxed, value
+                ));
+                JsonAnyArgument {
+                    value: boxed,
+                    release_after_call: true,
+                }
             }
             "i8*" => {
                 let pointer_bits = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint i8* {} to i64", pointer_bits, value));
+                self.emit(&format!(
+                    "  {} = ptrtoint i8* {} to i64",
+                    pointer_bits, value
+                ));
                 let tagged = self.next_reg();
                 self.emit(&format!(
                     "  {} = or i64 {}, {}",
                     tagged, pointer_bits, JSON_ANY_TAG_STRING_LLVM
                 ));
-                Ok(tagged)
+                JsonAnyArgument {
+                    value: tagged,
+                    release_after_call: false,
+                }
             }
-            _ if ty.ends_with('*') => Ok(self.coerce_to_i64_storage(&value, &ty)),
-            _ => Ok(self.coerce_to_i64_storage(&value, &ty)),
-        }
+            _ if ty.ends_with('*') => JsonAnyArgument {
+                value: self.coerce_to_i64_storage(&value, &ty),
+                release_after_call: false,
+            },
+            _ => JsonAnyArgument {
+                value: self.coerce_to_i64_storage(&value, &ty),
+                release_after_call: false,
+            },
+        };
+        Ok(any)
     }
 
     fn compile_json_builtin_call(
@@ -4676,8 +4729,14 @@ impl LlvmGenerator {
                 let value_any = self.compile_json_any_argument(&args[2].value)?;
                 self.emit(&format!(
                     "  call void @json_object_set(i64 {}, i8* {}, i64 {})",
-                    object_i64, key, value_any
+                    object_i64, key, value_any.value
                 ));
+                if value_any.release_after_call {
+                    self.emit(&format!(
+                        "  call void @json_release(i64 {})",
+                        value_any.value
+                    ));
+                }
                 self.emit_release_if_new_object_expr(&args[1].value, &key, &key_ty);
                 Ok(Some(("0".to_string(), "i64".to_string())))
             }
@@ -4687,14 +4746,29 @@ impl LlvmGenerator {
                 let value_any = self.compile_json_any_argument(&args[1].value)?;
                 self.emit(&format!(
                     "  call void @json_array_push(i64 {}, i64 {})",
-                    array_i64, value_any
+                    array_i64, value_any.value
                 ));
+                if value_any.release_after_call {
+                    self.emit(&format!(
+                        "  call void @json_release(i64 {})",
+                        value_any.value
+                    ));
+                }
                 Ok(Some(("0".to_string(), "i64".to_string())))
             }
             ("json_string", 1) => {
                 let value_any = self.compile_json_any_argument(&args[0].value)?;
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call i8* @json_string(i64 {})", result, value_any));
+                self.emit(&format!(
+                    "  {} = call i8* @json_string(i64 {})",
+                    result, value_any.value
+                ));
+                if value_any.release_after_call {
+                    self.emit(&format!(
+                        "  call void @json_release(i64 {})",
+                        value_any.value
+                    ));
+                }
                 Ok(Some((result, "i8*".to_string())))
             }
             _ => Ok(None),
@@ -7619,6 +7693,8 @@ impl LlvmGenerator {
         self.emit("declare void @rc_retain(i8*)");
         self.emit("declare void @rc_release(i8*)");
         self.emit("declare i8* @string_new(i8*)");
+        self.emit("declare i64 @json_box_float(double)");
+        self.emit("declare void @json_release(i64)");
         self.emit("declare i64 @map_get_prehashed(i64, i8*, i64, i64, i64)");
         self.emit("declare i64 @find_substring_from_known_lengths(i8*, i64, i8*, i64, i64)");
         self.emit("declare i8* @array_new(i64)");
@@ -9108,6 +9184,11 @@ impl LlvmGenerator {
                 if self.fixed_array_locals.remove(var_name).is_some() {
                     continue;
                 }
+                if ty == "i64" && self.json_handle_locals.contains(var_name) {
+                    let tmp = self.next_reg();
+                    self.emit(&format!("  {} = load i64, i64* {}", tmp, addr));
+                    self.emit(&format!("  call void @json_release(i64 {})", tmp));
+                }
                 // Release if it's a pointer or struct
                 if ty == "i8*" || ty.starts_with("%") {
                     let tmp = self.next_reg();
@@ -9149,6 +9230,11 @@ impl LlvmGenerator {
                 }
                 if self.fixed_array_locals.contains_key(&var_name) {
                     continue;
+                }
+                if ty == "i64" && self.json_handle_locals.contains(&var_name) {
+                    let tmp = self.next_reg();
+                    self.emit(&format!("  {} = load i64, i64* {}", tmp, addr));
+                    self.emit(&format!("  call void @json_release(i64 {})", tmp));
                 }
                 if ty == "i8*" || ty.starts_with("%") {
                     let tmp = self.next_reg();

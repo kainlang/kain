@@ -3,10 +3,13 @@
 ; - an 8-byte-aligned JSON/string pointer remains distinguishable from low-bit
 ;   scalar tags 1..4;
 ; - clearing the string tag recovers the original aligned pointer;
-; - signed 61-bit integer payloads round-trip through (x << 3) | 1 and >> 3.
+; - signed 61-bit integer payloads round-trip through (x << 3) | 1 and >> 3;
+; - boxed floats and cloned json_get/json_array_get results stay in the raw
+;   aligned handle lane rather than stealing a scalar tag.
 (set-logic QF_BV)
 
 (declare-fun ptr () (_ BitVec 64))
+(declare-fun boxed_float_ptr () (_ BitVec 64))
 (declare-fun x () (_ BitVec 64))
 
 (define-fun tag ((v (_ BitVec 64))) (_ BitVec 64)
@@ -21,6 +24,7 @@
   (bvor v #x0000000000000003))
 
 (assert (aligned ptr))
+(assert (aligned boxed_float_ptr))
 (assert (bvsge x #xf800000000000000))
 (assert (bvsle x #x07ffffffffffffff))
 
@@ -61,5 +65,10 @@
 
 (push)
 (assert (not (= (tag (enc_bool x)) #x0000000000000002)))
+(check-sat)
+(pop)
+
+(push)
+(assert (not (= (tag boxed_float_ptr) #x0000000000000000)))
 (check-sat)
 (pop)

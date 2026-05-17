@@ -365,6 +365,12 @@ impl StdLib {
             "Read a required integer field from a JSON object",
         );
         lib.add_fn(
+            "json_get_float",
+            &[("object", "Any"), ("key", "String")],
+            "Float",
+            "Read a required floating-point field from a JSON object",
+        );
+        lib.add_fn(
             "json_get_bool",
             &[("object", "Any"), ("key", "String")],
             "Bool",

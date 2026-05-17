@@ -907,6 +907,13 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         ),
     );
     env.define_global(
+        "json_get_float".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Float(FloatSize::F64),
+        ),
+    );
+    env.define_global(
         "json_get_bool".into(),
         builtin_function_type(
             vec![ResolvedType::Unknown, ResolvedType::String],

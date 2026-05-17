@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-17 - Native JSON ABI hardened for floats, Unicode escapes, and RC handles
+
+The native LLVM JSON builtin floor now supports `Float` values and Unicode escape decoding while JSON trees are owned by the runtime RC/destructor path instead of process-lifetime allocation. `json_get` and `json_array_get` now return owned cloned JSON handles, so compiler scope cleanup can release locals safely without freeing children still owned by parent objects/arrays.
+
+What changed:
+
+- `runtime/native/include/json.h` and `runtime/native/src/core/json.c`
+  - Added `KAIN_JSON_FLOAT`, `json_box_float(double)`, and `json_get_float(...)`.
+  - Switched JSON nodes to `kain_alloc_rc(...)` plus `KAIN_set_destructor(...)`; destructors unregister handles, free keys/strings, and release object/array children.
+  - Replaced `\uXXXX` placeholder decoding with UTF-8 emission, including surrogate-pair handling.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - JSON Any lowering boxes `double` values through `json_box_float` instead of truncating through `fptosi`.
+  - JSON handle locals now emit `json_release(i64)` during scope cleanup.
+- `crates/kain-core/src/{runtime.rs,stdlib.rs,types.rs}`
+  - Added interpreter/type/stdlib parity for `json_get_float`.
+- `smoketest/native_json_builtins.kn`
+  - Extended the smoke with float roundtrip and `\u0041` escape fidelity.
+
+Proof and validation:
+
+- `runtime/native/src/core/z3/proofs-experimental/json-any-tagged-lane.smt2`
+- `runtime/native/src/core/z3/proofs-experimental/json-rc-owned-handle-lane.smt2`
+- Reports: `z3/reports/20260517T225121Z-json-any-tagged-lane-hardening.json`, `z3/reports/20260517T225134Z-json-rc-owned-handle-lane.json`
+- Results: all checks `unsat`.
+- `cargo check -p kain-core -p kain-sys-codegen`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bazel build //runtime:all --config=dev`
+- `cargo run -p cli --bin kain -- build smoketest/native_json_builtins.kn --target llvm`
+- `cargo run -p cli --bin kain -- run smoketest/native_json_builtins.kn` returned exit `0`.
+
+Known next hardening:
+
+- The remaining JSON truth gap is a compiler-wide typed `Any` representation so JSON does not need a bespoke low-bit bridge forever. Unicode `\u0000` still maps to replacement text because Kain native strings are currently C-string shaped rather than length-carrying byte slices.
+
 # 2026-05-17 - Process stdio loop collapsed to one-shot native output
 
 `process_stdio_loop` is no longer paying the old Kain process-object lifecycle and post-exit sleep tax on every iteration. The benchmark now uses a native `process_output_text(...)` ABI that matches Rust's `Command::output()` shape for this row: create/spawn/wait/drain/close happens inside one runtime call.

@@ -909,6 +909,39 @@ impl Env {
                 ))),
             }
         });
+        self.define_native("json_get_float", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_get_float: expected 2 arguments (object, key)",
+                ));
+            }
+
+            let fields = match &args[0] {
+                Value::Struct(_, fields) => fields,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_get_float: first argument must be a struct-backed json object",
+                    ))
+                }
+            };
+            let key = match &args[1] {
+                Value::String(key) => key,
+                _ => return Err(KainError::runtime("json_get_float: key must be a string")),
+            };
+
+            match fields.read().unwrap().get(key) {
+                Some(Value::Float(value)) => Ok(Value::Float(*value)),
+                Some(Value::Int(value)) => Ok(Value::Float(*value as f64)),
+                Some(other) => Err(KainError::runtime(format!(
+                    "json_get_float: key '{}' did not contain a float-like value (found {:?})",
+                    key, other
+                ))),
+                None => Err(KainError::runtime(format!(
+                    "json_get_float: missing key '{}'",
+                    key
+                ))),
+            }
+        });
         self.define_native("json_get_bool", |_env, args| {
             if args.len() != 2 {
                 return Err(KainError::runtime(
@@ -2027,11 +2060,19 @@ impl Env {
             }
             let s = match &args[0] {
                 Value::String(s) => s,
-                _ => return Err(KainError::runtime("byte_at: first argument must be a string")),
+                _ => {
+                    return Err(KainError::runtime(
+                        "byte_at: first argument must be a string",
+                    ))
+                }
             };
             let idx = match &args[1] {
                 Value::Int(n) => *n,
-                _ => return Err(KainError::runtime("byte_at: second argument must be an integer")),
+                _ => {
+                    return Err(KainError::runtime(
+                        "byte_at: second argument must be an integer",
+                    ))
+                }
             };
             if idx < 0 {
                 return Ok(Value::Int(-1));
