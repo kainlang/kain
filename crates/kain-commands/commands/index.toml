@@ -11,6 +11,10 @@ id = "runtime"
 path = "runtime.toml"
 
 [[packs]]
+id = "stdlib"
+path = "stdlib.toml"
+
+[[packs]]
 id = "run"
 path = "run.toml"
 

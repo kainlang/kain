@@ -16,7 +16,11 @@ pub fn make_request(
 ) -> Result<RunRequest, String> {
     let input = match input {
         Some(path) => match crate::amalgamate::maybe_materialize_input(&path)? {
-            Some(materialized) => Some(materialized.runnable_input().map_err(|err| err.to_string())?),
+            Some(materialized) => Some(
+                materialized
+                    .runnable_input()
+                    .map_err(|err| err.to_string())?,
+            ),
             None => Some(path),
         },
         None => None,

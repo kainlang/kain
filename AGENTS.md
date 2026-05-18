@@ -36,6 +36,7 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 - Prefer full implementations over scaffolding. Placeholders are only acceptable when they are honest, labeled, and unblock a larger verified path.
 - Prefer new capability over familiar shape. A clean conventional implementation that leaves 10x performance or a new semantic primitive on the table is not clean in this repo.
 - If the normal solution feels obvious, pause and ask what a solver, a compiler, a GPU, a cache line, or Kain's ownership/world model could do that the normal solution cannot.
+- Feel free to make new files in and entire new modules in both the /runtime and /crates whenever if need be if it means we can fine tune it better for future performance - you have no limits in this codebase.
 
 ## Kain Priorities
 
@@ -218,6 +219,7 @@ python attrition/run.py --case <case> --sabotage <mode>
 - Benchmark claims go through `benchmark/run.py` or a wrapper in `benchmark/wrappers/*.json`.
 - Runtime closure claims go through `attrition/run.py`, including expected-fail sabotage when proving the harness catches the class of bug.
 - Save proof reports under `z3/reports/` or the existing proof-report location used by that pack.
+
 
 ## Memory And Continuity
 

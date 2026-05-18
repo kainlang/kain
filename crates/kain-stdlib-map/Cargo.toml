@@ -1,0 +1,15 @@
+[package]
+name = "kain-stdlib-map"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "kain_stdlib_map_tool"
+path = "src/main.rs"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }

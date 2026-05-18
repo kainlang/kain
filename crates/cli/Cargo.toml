@@ -35,6 +35,7 @@ kain-omni = { path = "../kain-omni" }
 kain-repair = { path = "../kain-repair" }
 kain-run = { path = "../kain-run" }
 kain-repl = { path = "../kain-repl" }
+kain-stdlib-map = { path = "../kain-stdlib-map" }
 ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }
 ue5-shaders = { path = "../ue5-shaders", optional = true }

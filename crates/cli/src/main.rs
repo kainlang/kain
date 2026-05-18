@@ -384,6 +384,56 @@ fn run_format_command(input: Option<PathBuf>, check: bool, write: bool) -> bool 
     true
 }
 
+fn run_stdlib_map_command(
+    repo_root: Option<PathBuf>,
+    stdlib_root: Option<PathBuf>,
+    native_manifests: Vec<PathBuf>,
+    json_out: Option<PathBuf>,
+    llm_out: Option<PathBuf>,
+    write: bool,
+    check: bool,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let repo_root = match repo_root {
+        Some(path) => path,
+        None => kain_stdlib_map::discover_repo_root(std::env::current_dir()?)?,
+    };
+    let options = kain_stdlib_map::StdlibMapOptions::from_repo_root(repo_root)
+        .with_stdlib_root(stdlib_root)
+        .with_native_manifests(native_manifests)
+        .with_json_out(json_out)
+        .with_llm_out(llm_out);
+
+    if check {
+        kain_stdlib_map::check_generated_files(&options)?;
+        println!(
+            " Stdlib map is current: {}, {}",
+            options.json_out.display(),
+            options.llm_out.display()
+        );
+        return Ok(());
+    }
+
+    if write {
+        let report = kain_stdlib_map::write_generated_files(&options)?;
+        println!(
+            " Wrote stdlib map: {} symbols across {} modules",
+            report.map.summary.symbol_count, report.map.summary.module_count
+        );
+        println!("   json: {}", report.json_path.display());
+        println!("   llm: {}", report.llm_path.display());
+        return Ok(());
+    }
+
+    let map = kain_stdlib_map::generate_stdlib_map(&options)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&map)?);
+    } else {
+        print!("{}", kain_stdlib_map::render_llm_markdown(&map));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Serialize)]
 struct HybridBundleDescriptor {
     schema_version: u32,
@@ -1900,6 +1950,30 @@ fn main() {
                     write,
                 }) => {
                     if !run_format_command(input, check, write) {
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::StdlibMap {
+                    repo_root,
+                    stdlib_root,
+                    native_manifests,
+                    json_out,
+                    llm_out,
+                    write,
+                    check,
+                    json,
+                }) => {
+                    if let Err(err) = run_stdlib_map_command(
+                        repo_root,
+                        stdlib_root,
+                        native_manifests,
+                        json_out,
+                        llm_out,
+                        write,
+                        check,
+                        json,
+                    ) {
+                        eprintln!(" Stdlib map failed: {}", err);
                         std::process::exit(1);
                     }
                 }
@@ -4692,7 +4766,13 @@ macos = ["Cocoa"]
             PathBuf::from("/tmp/include/next.h"),
         ]
         .into_iter()
-        .map(|path| if path.is_absolute() { path } else { cwd.join(path) })
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                cwd.join(path)
+            }
+        })
         .collect::<Vec<_>>();
 
         assert_eq!(dependencies, expected);

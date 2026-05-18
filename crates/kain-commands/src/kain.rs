@@ -431,6 +431,42 @@ pub enum KainCommand {
         write: bool,
     },
 
+    /// Generate, print, or check the compiler-owned stdlib symbol atlas
+    #[command(name = "stdlib-map")]
+    StdlibMap {
+        /// Repo root. Defaults to auto-discovery from the current directory.
+        #[arg(long)]
+        repo_root: Option<PathBuf>,
+
+        /// Stdlib source root. Defaults to <repo>/stdlib.
+        #[arg(long)]
+        stdlib_root: Option<PathBuf>,
+
+        /// Native runtime manifest to include. Repeatable.
+        #[arg(long = "native-manifest")]
+        native_manifests: Vec<PathBuf>,
+
+        /// JSON output path for --write/--check.
+        #[arg(long)]
+        json_out: Option<PathBuf>,
+
+        /// LLM markdown output path for --write/--check.
+        #[arg(long)]
+        llm_out: Option<PathBuf>,
+
+        /// Rewrite checked-in generated atlas files.
+        #[arg(long, conflicts_with = "check")]
+        write: bool,
+
+        /// Fail if checked-in generated atlas files are stale.
+        #[arg(long, conflicts_with = "write")]
+        check: bool,
+
+        /// Print JSON instead of LLM markdown when not writing/checking.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Check Kain source without emitting backend artifacts
     Check {
         /// Input Kain source file or directory. Use '-' to read from stdin.

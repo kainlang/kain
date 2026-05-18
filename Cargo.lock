@@ -946,6 +946,7 @@ dependencies = [
  "kain-repair",
  "kain-repl",
  "kain-run",
+ "kain-stdlib-map",
  "kain-sys-codegen",
  "kain-test",
  "minijinja",
@@ -3130,6 +3131,17 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kain-stdlib-map"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "kain-core",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]
