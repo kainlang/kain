@@ -2172,6 +2172,64 @@ fn diagnostics_from_error(text: &str, error: &KainError) -> Vec<Diagnostic> {
             .iter()
             .flat_map(|inner| diagnostics_from_error(text, inner))
             .collect(),
+        KainError::Rich(report) => {
+            let spec = spec_for_code(report.code);
+            let severity = match report.severity {
+                kain_core::error::DiagnosticSeverity::Error => DiagnosticSeverity::ERROR,
+                kain_core::error::DiagnosticSeverity::Warning => DiagnosticSeverity::WARNING,
+                kain_core::error::DiagnosticSeverity::Note => DiagnosticSeverity::INFORMATION,
+                kain_core::error::DiagnosticSeverity::Help => DiagnosticSeverity::HINT,
+            };
+            let span = report
+                .primary_span
+                .or_else(|| {
+                    report
+                        .labels
+                        .iter()
+                        .find(|label| label.primary)
+                        .map(|label| label.span)
+                })
+                .or_else(|| report.location.map(|(line, column)| line_col_to_span(text, line, column)))
+                .unwrap_or_default();
+            let mut lines = vec![report.message.clone()];
+            for label in report
+                .labels
+                .iter()
+                .filter(|label| Some(label.span) != report.primary_span)
+            {
+                lines.push(format!("Label: {}", label.message));
+            }
+            for note in &report.notes {
+                lines.push(format!("Note: {}", note));
+            }
+            for help in &report.help {
+                lines.push(format!("Help: {}", help));
+            }
+            for fixit in &report.fixits {
+                lines.push(format!(
+                    "Fix-it: {} at bytes {}..{} -> {:?}",
+                    fixit.message, fixit.span.start, fixit.span.end, fixit.replacement
+                ));
+            }
+            if let Some(origin) = &report.origin {
+                lines.push(format!("Origin: {}", origin));
+            }
+            if let Some(docs_key) = spec.docs_key {
+                lines.push(format!("Reference: {}", docs_key));
+            }
+
+            vec![Diagnostic {
+                range: span_to_range(text, span),
+                severity: Some(severity),
+                code: Some(NumberOrString::String(spec.code_str.to_string())),
+                code_description: None,
+                source: Some("KAIN".to_string()),
+                message: lines.join("\n"),
+                related_information: None,
+                tags: None,
+                data: None,
+            }]
+        }
         KainError::Enhanced {
             kind,
             code,

@@ -2573,6 +2573,47 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_hoists_loop_carried_string_param_lengths_out_of_loop_bodies() {
+    let source = r#"
+fn sum_bytes(text: String) -> Int:
+    let mut index = 0
+    let mut acc = 0
+    while index < len(text):
+        acc = acc + byte_at(text, index)
+        index = index + 1
+    return acc
+
+fn main() -> Int:
+    return sum_bytes("kain")
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let sum_ir = llvm_function_ir(&llvm, "define internal i64 @sum_bytes(i8* %arg0)");
+    let loop_start = sum_ir
+        .find("
+  br label %L")
+        .expect("sum_bytes should branch into a loop");
+    let entry_region = &sum_ir[..loop_start];
+    let loop_region = &sum_ir[loop_start..];
+
+    assert!(
+        entry_region.contains("call i64 @len(i8*"),
+        "loop-carried string param lengths should be primed before the loop:
+{}",
+        sum_ir
+    );
+    assert!(
+        !loop_region.contains("call i64 @len(i8*"),
+        "loop body should reuse the entry-cached string length instead of rescanning each iteration:
+{}",
+        sum_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-carried-string-param-len-hoist");
+}
+
+#[test]
 fn llvm_lowers_find_substring_from_on_known_strings_with_precomputed_lengths() {
     let source = r#"
 fn locate_field(text: String, key: String) -> Int:

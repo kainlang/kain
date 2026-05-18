@@ -1519,6 +1519,224 @@ impl LlvmGenerator {
         format!("{:?}", node).contains(&format!("\"{}\"", target))
     }
 
+    fn else_branch_has_loop_that_mentions_identifier(else_branch: &ElseBranch, target: &str) -> bool {
+        match else_branch {
+            ElseBranch::Else(block) => Self::block_has_loop_that_mentions_identifier(block, target),
+            ElseBranch::ElseIf(condition, block, nested) => {
+                (Self::debug_mentions_identifier(condition, target)
+                    || Self::block_has_loop_that_mentions_identifier(block, target))
+                    || nested
+                        .as_ref()
+                        .map(|branch| {
+                            Self::else_branch_has_loop_that_mentions_identifier(branch, target)
+                        })
+                        .unwrap_or(false)
+            }
+        }
+    }
+
+    fn expr_has_loop_that_mentions_identifier(expr: &Expr, target: &str) -> bool {
+        match expr {
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Try(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Comptime(inner, _) => Self::expr_has_loop_that_mentions_identifier(inner, target),
+            Expr::Block(block, _) => Self::block_has_loop_that_mentions_identifier(block, target),
+            Expr::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::block_has_loop_that_mentions_identifier(then_branch, target)
+                    || else_branch
+                        .as_ref()
+                        .map(|branch| {
+                            Self::else_branch_has_loop_that_mentions_identifier(branch, target)
+                        })
+                        .unwrap_or(false)
+            }
+            Expr::Match { arms, .. } => arms.iter().any(|arm| {
+                arm.guard
+                    .as_ref()
+                    .map(|guard| Self::expr_has_loop_that_mentions_identifier(guard, target))
+                    .unwrap_or(false)
+                    || Self::expr_has_loop_that_mentions_identifier(&arm.body, target)
+            }),
+            Expr::Lambda { body, .. } => Self::expr_has_loop_that_mentions_identifier(body, target),
+            Expr::Call { callee, args, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(callee, target)
+                    || args
+                        .iter()
+                        .any(|arg| Self::expr_has_loop_that_mentions_identifier(&arg.value, target))
+            }
+            Expr::StageCall { args, .. } => args
+                .iter()
+                .any(|arg| Self::expr_has_loop_that_mentions_identifier(&arg.value, target)),
+            Expr::MethodCall { receiver, args, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(receiver, target)
+                    || args
+                        .iter()
+                        .any(|arg| Self::expr_has_loop_that_mentions_identifier(&arg.value, target))
+            }
+            Expr::Binary { left, right, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(left, target)
+                    || Self::expr_has_loop_that_mentions_identifier(right, target)
+            }
+            Expr::Unary { operand, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(operand, target)
+            }
+            Expr::Field { object, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(object, target)
+            }
+            Expr::Index { object, index, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(object, target)
+                    || Self::expr_has_loop_that_mentions_identifier(index, target)
+            }
+            Expr::Assign { target: lhs, value, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(lhs, target)
+                    || Self::expr_has_loop_that_mentions_identifier(value, target)
+            }
+            Expr::Struct { fields, rest, .. } => {
+                fields
+                    .iter()
+                    .any(|(_, value)| Self::expr_has_loop_that_mentions_identifier(value, target))
+                    || rest
+                        .as_ref()
+                        .map(|value| Self::expr_has_loop_that_mentions_identifier(value, target))
+                        .unwrap_or(false)
+            }
+            Expr::AggregateInit { fields, .. } => fields
+                .iter()
+                .any(|(_, value)| Self::expr_has_loop_that_mentions_identifier(value, target)),
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => false,
+                kain_core::ast::EnumVariantFields::Tuple(values) => values
+                    .iter()
+                    .any(|value| Self::expr_has_loop_that_mentions_identifier(value, target)),
+                kain_core::ast::EnumVariantFields::Struct(fields) => fields
+                    .iter()
+                    .any(|(_, value)| Self::expr_has_loop_that_mentions_identifier(value, target)),
+            },
+            Expr::Array(items, _) | Expr::Tuple(items, _) | Expr::FString(items, _) => items
+                .iter()
+                .any(|item| Self::expr_has_loop_that_mentions_identifier(item, target)),
+            Expr::Range { start, end, .. } => {
+                start
+                    .as_ref()
+                    .map(|value| Self::expr_has_loop_that_mentions_identifier(value, target))
+                    .unwrap_or(false)
+                    || end
+                        .as_ref()
+                        .map(|value| Self::expr_has_loop_that_mentions_identifier(value, target))
+                        .unwrap_or(false)
+            }
+            Expr::Ref { value, .. }
+            | Expr::AddrOf { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Observe { target: value, .. }
+            | Expr::Collapse { target: value, .. }
+            | Expr::Decay { target: value, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(value, target)
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+                    || Self::expr_has_loop_that_mentions_identifier(offset, target)
+            }
+            Expr::MemLoad { pointer, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+            }
+            Expr::MemStore { pointer, value, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+                    || Self::expr_has_loop_that_mentions_identifier(value, target)
+            }
+            Expr::Alloc { size, .. } => Self::expr_has_loop_that_mentions_identifier(size, target),
+            Expr::Realloc { pointer, size, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+                    || Self::expr_has_loop_that_mentions_identifier(size, target)
+            }
+            Expr::Teleport { value, .. }
+            | Expr::Return(Some(value), _)
+            | Expr::Break(Some(value), _) => {
+                Self::expr_has_loop_that_mentions_identifier(value, target)
+            }
+            Expr::Spawn { init, .. } => init
+                .iter()
+                .any(|(_, value)| Self::expr_has_loop_that_mentions_identifier(value, target)),
+            Expr::SendMsg {
+                target: msg_target,
+                data,
+                ..
+            } => {
+                Self::expr_has_loop_that_mentions_identifier(msg_target, target)
+                    || data.iter().any(|(_, value)| {
+                        Self::expr_has_loop_that_mentions_identifier(value, target)
+                    })
+            }
+            Expr::MacroCall { args, .. } => args
+                .iter()
+                .any(|arg| Self::expr_has_loop_that_mentions_identifier(arg, target)),
+            Expr::Return(None, _)
+            | Expr::Break(None, _)
+            | Expr::Continue(_)
+            | Expr::Int(..)
+            | Expr::Float(..)
+            | Expr::String(..)
+            | Expr::Bool(..)
+            | Expr::None(..)
+            | Expr::Ident(..)
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. }
+            | Expr::JSX(..) => false,
+        }
+    }
+
+    fn stmt_has_loop_that_mentions_identifier(stmt: &Stmt, target: &str) -> bool {
+        match stmt {
+            Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                Self::expr_has_loop_that_mentions_identifier(expr, target)
+            }
+            Stmt::Let { value: Some(expr), .. } => {
+                Self::expr_has_loop_that_mentions_identifier(expr, target)
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                Self::debug_mentions_identifier(condition, target)
+                    || Self::debug_mentions_identifier(body, target)
+                    || Self::block_has_loop_that_mentions_identifier(body, target)
+            }
+            Stmt::For {
+                iter, body, ..
+            } => {
+                Self::debug_mentions_identifier(iter, target)
+                    || Self::debug_mentions_identifier(body, target)
+                    || Self::block_has_loop_that_mentions_identifier(body, target)
+            }
+            Stmt::Loop { body, .. } => {
+                Self::debug_mentions_identifier(body, target)
+                    || Self::block_has_loop_that_mentions_identifier(body, target)
+            }
+            Stmt::Item(_item) => false,
+            Stmt::Let { value: None, .. }
+            | Stmt::Return(None, _)
+            | Stmt::Break(None, _)
+            | Stmt::Continue(_) => false,
+        }
+    }
+
+    fn block_has_loop_that_mentions_identifier(block: &Block, target: &str) -> bool {
+        block
+            .stmts
+            .iter()
+            .any(|stmt| Self::stmt_has_loop_that_mentions_identifier(stmt, target))
+    }
+
     fn expr_is_exact_target_pointer(expr: &Expr, target: &str) -> bool {
         match expr {
             Expr::Ident(name, _) => name == target,
@@ -2887,6 +3105,18 @@ impl LlvmGenerator {
             }
         }
         Ok(Some(len))
+    }
+
+    fn prime_string_param_length_cache(&mut self, param_name: &str, addr_reg: &str) {
+        if self.string_length_values.contains_key(param_name) {
+            return;
+        }
+        let ptr = self.next_reg();
+        self.emit(&format!("  {} = load i8*, i8** {}", ptr, addr_reg));
+        let len = self.next_reg();
+        self.emit(&format!("  {} = call i64 @len(i8* {})", len, ptr));
+        self.string_length_values
+            .insert(param_name.to_string(), len);
     }
 
     fn compile_expr_as_i64(&mut self, expr: &Expr) -> KainResult<String> {
@@ -8224,7 +8454,8 @@ impl LlvmGenerator {
                 "  store {} %arg{}, {}* {}",
                 param_ty, index, param_ty, addr_reg
             ));
-            self.locals.insert(param.name.clone(), (addr_reg, param_ty));
+            self.locals
+                .insert(param.name.clone(), (addr_reg.clone(), param_ty));
             if (!matches!(param.ty, Type::Infer(_)) && Self::ast_type_is_string(&param.ty))
                 || (matches!(param.ty, Type::Infer(_))
                     && param_types
@@ -8235,6 +8466,9 @@ impl LlvmGenerator {
                 self.string_locals.insert(param.name.clone());
                 if borrowed_string_params.get(index).copied().unwrap_or(false) {
                     self.borrowed_locals.insert(param.name.clone());
+                }
+                if Self::block_has_loop_that_mentions_identifier(body, &param.name) {
+                    self.prime_string_param_length_cache(&param.name, &addr_reg);
                 }
             }
             if let Some(scope) = self.scopes.last_mut() {
