@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -15,7 +15,20 @@ pub struct CFfiConfig {
     #[serde(default)]
     pub cpp_command: Option<String>,
     #[serde(default)]
+    pub tier: CInteropTier,
+    #[serde(default)]
     pub libraries: Vec<CLibraryConfig>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CInteropTier {
+    #[default]
+    Dynamic,
+    Static,
+    Bitcode,
+    Inline,
+    Fused,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -36,4 +49,8 @@ pub struct CLibraryConfig {
     pub cpp_options: Vec<String>,
     #[serde(default)]
     pub cpp_command: Option<String>,
+    #[serde(default)]
+    pub tier: Option<CInteropTier>,
+    #[serde(default)]
+    pub runtime_owned: bool,
 }

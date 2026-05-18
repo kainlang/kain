@@ -56,6 +56,8 @@ pub fn write_generated_artifacts(
             .shared_lib_path
             .as_ref()
             .map(|value| value.display().to_string()),
+        interop_tier: resolved.tier,
+        runtime_owned: resolved.runtime_owned,
         cache_dir: cache_dir.display().to_string(),
         report_json_path: report_json_path.display().to_string(),
         report_text_path: report_text_path.display().to_string(),
@@ -175,7 +177,11 @@ fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingB
                 if index > 0 {
                     output.push_str(", ");
                 }
-                output.push_str(&format!("{}: {}", param.name, param.ty.render_kain()));
+                output.push_str(&format!(
+                    "{}: {}",
+                    render_kain_param_name(&param.name),
+                    param.ty.render_kain()
+                ));
             }
             output.push(')');
             if !matches!(binding.return_type, BridgeType::Unit) {
@@ -185,6 +191,46 @@ fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingB
         }
     }
     output
+}
+
+fn render_kain_param_name(name: &str) -> String {
+    if is_kain_reserved_param_name(name) {
+        format!("c_{name}")
+    } else {
+        name.to_string()
+    }
+}
+
+fn is_kain_reserved_param_name(name: &str) -> bool {
+    matches!(
+        name,
+        "as" | "break"
+            | "class"
+            | "continue"
+            | "else"
+            | "enum"
+            | "extern"
+            | "fn"
+            | "for"
+            | "if"
+            | "impl"
+            | "in"
+            | "let"
+            | "loop"
+            | "match"
+            | "mod"
+            | "mut"
+            | "out"
+            | "pub"
+            | "return"
+            | "self"
+            | "struct"
+            | "trait"
+            | "type"
+            | "use"
+            | "var"
+            | "while"
+    )
 }
 
 fn render_prelude_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> String {

@@ -361,8 +361,12 @@ fn resolve_library(
         }
     }
 
+    if let Some(resolved) = resolve_runtime_owned_header(import_name, &start_dir) {
+        return Ok(resolved);
+    }
+
     Err(KainError::runtime(format!(
-        "Could not resolve C FFI import '{import_name}' from nearest KAIN.toml or discovered blades"
+        "Could not resolve C FFI import '{import_name}' from nearest KAIN.toml, discovered blades, or runtime/native/include"
     )))
 }
 
@@ -393,6 +397,8 @@ fn resolve_library_from_manifest_root(
         .shared_lib
         .as_ref()
         .map(|value| resolve_relative_path(manifest_root, value));
+    let tier = library.tier.unwrap_or(config.tier);
+    let runtime_owned = library.runtime_owned;
 
     Ok(Some((
         ResolvedCLibrary {
@@ -402,6 +408,8 @@ fn resolve_library_from_manifest_root(
             shared_lib_path,
             config: library,
             global_config: config.clone(),
+            tier,
+            runtime_owned,
         },
         model::ManifestContext {
             root_dir: Some(manifest_root.to_path_buf()),
@@ -438,6 +446,90 @@ fn load_c_ffi_config(root: &Path) -> Result<Option<config::CFfiConfig>, KainErro
         return Ok(None);
     }
     Ok(None)
+}
+
+fn resolve_runtime_owned_header(
+    import_name: &str,
+    start_dir: &Path,
+) -> Option<(ResolvedCLibrary, model::ManifestContext)> {
+    let repo_root = find_repo_root_with_runtime_include(start_dir)?;
+    let include_dir = repo_root.join("runtime").join("native").join("include");
+    let header_name = runtime_header_candidates(import_name)
+        .into_iter()
+        .find(|candidate| include_dir.join(candidate).exists())?;
+    let header_path = include_dir.join(&header_name);
+    let library = config::CLibraryConfig {
+        name: import_name.to_string(),
+        header: header_path.clone(),
+        shared_lib: None,
+        symbols: BTreeMap::new(),
+        include_paths: vec![include_dir.clone()],
+        defines: Vec::new(),
+        link_libs: Vec::new(),
+        cpp_options: Vec::new(),
+        cpp_command: None,
+        tier: Some(config::CInteropTier::Static),
+        runtime_owned: true,
+    };
+    let global_config = config::CFfiConfig {
+        include_paths: vec![include_dir],
+        defines: Vec::new(),
+        link_libs: Vec::new(),
+        cpp_options: Vec::new(),
+        cpp_command: None,
+        tier: config::CInteropTier::Static,
+        libraries: vec![library.clone()],
+    };
+
+    Some((
+        ResolvedCLibrary {
+            import_name: import_name.to_string(),
+            manifest_root: repo_root,
+            header_path,
+            shared_lib_path: None,
+            config: library,
+            global_config: global_config.clone(),
+            tier: config::CInteropTier::Static,
+            runtime_owned: true,
+        },
+        model::ManifestContext {
+            root_dir: None,
+            config: Some(global_config),
+        },
+    ))
+}
+
+fn runtime_header_candidates(import_name: &str) -> Vec<String> {
+    let normalized = import_name.replace('-', "_");
+    let mut candidates = vec![format!("{normalized}.h")];
+    if !normalized.ends_with("_system") {
+        candidates.push(format!("{normalized}_system.h"));
+    }
+    if normalized == "net" {
+        candidates.push("net_system.h".to_string());
+    } else if normalized == "process" {
+        candidates.push("process_system.h".to_string());
+    } else if normalized == "graphics" {
+        candidates.push("graphics_system.h".to_string());
+    } else if normalized == "input" {
+        candidates.push("input_system.h".to_string());
+    } else if normalized == "ui" {
+        candidates.push("ui_system.h".to_string());
+    }
+    candidates.sort();
+    candidates.dedup();
+    candidates
+}
+
+fn find_repo_root_with_runtime_include(start_dir: &Path) -> Option<PathBuf> {
+    let mut current = Some(start_dir);
+    while let Some(dir) = current {
+        if dir.join("runtime").join("native").join("include").is_dir() {
+            return Some(dir.to_path_buf());
+        }
+        current = dir.parent();
+    }
+    None
 }
 
 fn find_kain_manifest_root(start_dir: &Path) -> Option<PathBuf> {
@@ -642,6 +734,67 @@ mod tests {
         assert!(augmented.contains("@extern fn"));
         assert!(augmented.contains("beacon_add"));
         assert!(augmented.contains("beacon_ping"));
+    }
+
+    #[test]
+    fn runtime_owned_headers_resolve_without_manifest_ceremony() {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|path| path.parent())
+            .expect("repo root")
+            .to_path_buf();
+
+        let output = import_library(
+            "version",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(repo_root.join("runtime").join("blades")),
+                manifest_path: None,
+            },
+        )
+        .expect("runtime header import should resolve from runtime/native/include");
+
+        assert!(output.resolved.runtime_owned);
+        assert!(output.resolved.native_runtime_linked());
+        assert_eq!(output.resolved.tier, config::CInteropTier::Static);
+        assert!(output
+            .resolved
+            .header_path
+            .ends_with(Path::new("runtime/native/include/version.h")));
+        assert!(output.canonical_module_source.contains("mod c:"));
+        assert!(output.canonical_module_source.contains("c_out:"));
+        assert!(!output.canonical_module_source.contains(" out:"));
+        assert!(output.report_json_path.exists());
+    }
+
+    #[test]
+    fn runtime_owned_header_augmented_source_parses() {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|path| path.parent())
+            .expect("repo root")
+            .to_path_buf();
+        let source =
+            "use c::version\nfn main() -> Int:\n    return version_check_abi_compatibility(256)\n";
+        let augmented = augment_source_for_runtime(
+            source,
+            CompileTarget::Llvm,
+            &PrepareContext {
+                current_dir: Some(repo_root.join("runtime").join("blades")),
+                manifest_path: None,
+            },
+        )
+        .expect("augment runtime header");
+        let tokens = Lexer::new(&augmented).tokenize().expect("tokens");
+        let span_mapper = SpanMapper::new(&augmented);
+        Parser::new(&tokens, &span_mapper, "<runtime-c-ffi-test>")
+            .parse()
+            .unwrap_or_else(|err| {
+                panic!("generated runtime C import should parse: {err}\n{augmented}")
+            });
     }
 
     #[test]

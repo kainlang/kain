@@ -3490,6 +3490,9 @@ fn resolve_c_ffi_shared_libraries_for_linking(
     let mut shared_libraries = Vec::new();
     let mut link_libs = Vec::new();
     for output in outputs {
+        if output.resolved.native_runtime_linked() {
+            continue;
+        }
         let shared_lib_path = output.resolved.shared_lib_path.ok_or_else(|| {
             format!(
                 "C FFI library '{}' does not declare a shared library for LLVM linking",

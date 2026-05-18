@@ -3,12 +3,20 @@
   "bridgeCostNs": 9,
   "boundaryRule": "Kain owns runtime policy and hot LLVM loops; the C ABI floor owns OS/syscall/raw-handle contact and must be crossed in batches.",
   "initialBatchSize": 64,
+  "cInteropTiers": [
+    "dynamic",
+    "static",
+    "bitcode",
+    "inline",
+    "fused"
+  ],
+  "runtimeOwnedHeaderRule": "Imports that resolve to runtime/native/include are runtime-owned and link through the native runtime bundle instead of requiring blade-local shared_lib metadata.",
   "plannedCffiModules": [
-    "runtime",
+    "version",
     "actor",
     "async",
-    "net",
-    "process",
+    "net_system",
+    "process_system",
     "fs",
     "ownership"
   ]

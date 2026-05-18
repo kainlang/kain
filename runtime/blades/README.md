@@ -28,7 +28,9 @@ as long as the boundary is coarse, batched, and proof-backed.
 
 ## Next Moves
 
-1. Add a real C floor object/shared library for the first active `use c::` module.
+1. Promote runtime-owned header imports such as `use c::version` into the normal
+   runtime authoring style so Kain files can reach `runtime/native/include`
+   without blade-local `[c_ffi]` ceremony.
 2. Move HTTP pump scheduling policy out of the benchmark case and into
    `runtime-core`.
 3. Add Z3 cases for batch arithmetic: no request index escapes the batch span,

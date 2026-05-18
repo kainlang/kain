@@ -1,4 +1,5 @@
 use std::runtime
+use c::version
 use runtime_core::runtime_bridge_amortized_ps
 use runtime_core::runtime_bridge_boundary_ns
 use runtime_core::runtime_bridge_mode
@@ -12,9 +13,11 @@ fn main() -> Int:
     let boundary = runtime_bridge_boundary_ns()
     let amortized = runtime_bridge_amortized_ps(64)
     let probe = runtime_core_probe()
+    let abi_ok = version_check_abi_compatibility(256)
     println("runtime-abi-probe.boundary_ns=" + str(boundary))
     println("runtime-abi-probe.amortized_ps_at_64=" + str(amortized))
     println("runtime-abi-probe.bridge_mode=" + runtime_bridge_mode(64))
+    println("runtime-abi-probe.runtime_c_header_abi_ok=" + str(abi_ok))
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:
@@ -25,4 +28,6 @@ fn main() -> Int:
         return 3
     if probe <= 0:
         return 4
+    if abi_ok != 1:
+        return 5
     return 0

@@ -1,4 +1,4 @@
-use crate::config::{CFfiConfig, CLibraryConfig};
+use crate::config::{CFfiConfig, CInteropTier, CLibraryConfig};
 use kain_foreign_abi::{ForeignBaseKind, ForeignBridgeClass, ForeignOwnershipPolicy};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -54,6 +54,22 @@ pub struct ResolvedCLibrary {
     pub shared_lib_path: Option<PathBuf>,
     pub config: CLibraryConfig,
     pub global_config: CFfiConfig,
+    pub tier: CInteropTier,
+    pub runtime_owned: bool,
+}
+
+impl ResolvedCLibrary {
+    pub fn native_runtime_linked(&self) -> bool {
+        self.runtime_owned
+            && self.shared_lib_path.is_none()
+            && matches!(
+                self.tier,
+                CInteropTier::Static
+                    | CInteropTier::Bitcode
+                    | CInteropTier::Inline
+                    | CInteropTier::Fused
+            )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +114,8 @@ pub struct BindingReport {
     pub parser_backend: String,
     pub header_path: String,
     pub shared_lib_path: Option<String>,
+    pub interop_tier: CInteropTier,
+    pub runtime_owned: bool,
     pub cache_dir: String,
     pub report_json_path: String,
     pub report_text_path: String,

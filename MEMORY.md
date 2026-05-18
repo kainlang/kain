@@ -1,5 +1,32 @@
 # Kain Memory
 
+# 2026-05-18 - Runtime-owned C header imports and C interop tiers
+
+`crates/kain-c-ffi` now has the first slice of the tiered `use c::` optimizer model: `dynamic`, `static`, `bitcode`, `inline`, and `fused`. The landed behavior is the runtime-owned static lane: Kain files can import headers from `runtime/native/include` without blade-local `[c_ffi]` metadata, and the CLI no longer demands a `shared_lib` for those imports because they link through the native runtime bundle.
+
+What changed:
+
+- `crates/kain-c-ffi/src/config.rs`, `model.rs`, `generate.rs`, and `lib.rs`
+  - Added `CInteropTier`, per-library tier overrides, `runtime_owned` metadata, report output for tier/runtime ownership, and runtime header fallback resolution.
+  - Runtime header imports currently support flat names like `use c::version`, `use c::net`, or `use c::net_system`; nested `use c::runtime::*` is still a grammar/import follow-up.
+  - Generated extern parameter names are sanitized when C headers use Kain-reserved words such as `out`.
+- `crates/cli/src/main.rs`
+  - LLVM linking skips `shared_lib` enforcement for runtime-owned native-runtime-linked imports.
+- `runtime/blades/runtime-abi-probe`
+  - Dogfoods `use c::version` and checks `version_check_abi_compatibility(256)`.
+
+Validation:
+
+- `cargo fmt -p kain-c-ffi -p cli`
+- `cargo test -p kain-c-ffi runtime_owned_headers_resolve_without_manifest_ceremony --target-dir target\codex-foreign-abi -- --test-threads=1 --nocapture`
+- `cargo test -p kain-c-ffi runtime_owned_header_augmented_source_parses --target-dir target\codex-foreign-abi -- --test-threads=1 --nocapture`
+- `cargo test -p kain-c-ffi --target-dir target\codex-foreign-abi -- --test-threads=1 --nocapture` passed 11/11.
+- `cargo check -p kain-c-ffi --target-dir target\codex-foreign-abi`
+
+Known boundary:
+
+- Live `cargo run -p cli --bin kain -- check/build runtime\blades\runtime-abi-probe\src\main.kn --target llvm` was blocked before execution by unrelated dirty `crates/kain-stdlib-map/src/lib.rs` compile errors (`collect_native_stdlib_files`, `render_symbol_rows`, and `module_public_sections` unresolved). The C-FFI parser/unit lane is green.
+
 # 2026-05-18 - Runtime blade workspace bootstrapped
 
 `runtime/blades` is now a real Blade workspace for Kain-authored runtime work over the native C ABI floor. The first pass deliberately keeps C crossings coarse: Kain owns policy/batch math in `runtime-core`, while the existing native runtime remains the metal layer to bind as real shared/object-backed `use c::` modules.
