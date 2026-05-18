@@ -6145,3 +6145,36 @@ Benchmark evidence:
 Next concrete move:
 
 - To flip zero-copy all the way past C++, attack the remaining load/unpack chain: store-load forwarding for same-address local stack-buffer slots, non-negative facts for forwarded loaded packed words, and header unpack lowering from signed `sdiv`/`srem` to shifts/masks once the loaded word provenance is proved. That should remove the remaining `observed0 / 16`, `observed0 % 16`, `observed1 / 128`, and related scalar signed divides in the generated IR.
+
+# 2026-05-17 - Generated stdlib atlas landed for LLM-readable Kain authoring
+
+Kain now has a generated stdlib map so agents do not need training-data luck or broad repo spelunking to use the current standard library surgically.
+
+What changed:
+
+- Added `crates/kain-stdlib-map`, the generator behind `kain stdlib-map`.
+- The generator emits:
+  - `stdlib/stdlib.map.json`
+  - `stdlib/STDLIB_MAP.llm.md`
+- The atlas merges three surfaces:
+  - parsed/fallback-scanned symbols from `stdlib/**/*.kn`,
+  - Rust-registered interpreter builtins from `kain-core`,
+  - native service metadata from `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml`.
+- Added the `kain stdlib-map` CLI command with `--write`, `--check`, JSON output, custom roots, and custom native manifests.
+- Added `tools/bazel/kain_rules.bzl`, `stdlib/BUILD.bazel`, `//stdlib:stdlib_map`, and `//stdlib:stdlib_map_check` so Bazel can generate and enforce atlas freshness.
+
+Validation:
+
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+- `cargo test -p kain-stdlib-map`
+- `cargo check -p cli`
+- `python tools/bazel/sync_rust_builds.py --check`
+- `bazel build //stdlib:stdlib_map_check --config=dev`
+- `bazel build //stdlib:stdlib_map --config=dev`
+
+Durable notes:
+
+- Parser fallback diagnostics must stay repo-relative; the first Bazel check failure was caused by absolute-vs-execroot parser paths in JSON error strings.
+- Current atlas summary: 47 modules, 2190 stdlib symbols, 1351 public stdlib symbols, 233 Rust builtins, and 35 native services.
+- `stdlib/codebase/bridge.kn` and `stdlib/ue5/shaders.kn` still require fallback scanning because the parser rejects their current source shape. That is useful parser-debt telemetry, not a generator failure.
