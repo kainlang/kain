@@ -56,6 +56,7 @@ impl Default for RunMode {
 pub enum RunTarget {
     Auto,
     Kain,
+    Llvm,
     C,
     Cargo,
     Fabric,
@@ -74,13 +75,14 @@ impl RunTarget {
         match value.trim().to_ascii_lowercase().as_str() {
             "" | "auto" => Ok(Self::Auto),
             "kain" | "kn" | "run" | "interpret" => Ok(Self::Kain),
+            "llvm" | "native" | "native-llvm" => Ok(Self::Llvm),
             "c" | "clang" | "native-c" => Ok(Self::C),
             "cargo" | "rust" | "rust-crate" => Ok(Self::Cargo),
             "fabric" | "kain-fabric" => Ok(Self::Fabric),
             "node" | "js" | "javascript" => Ok(Self::Node),
             "bun" => Ok(Self::Bun),
             other => Err(RunError::Config(format!(
-                "unknown run target '{other}'; expected auto, kain, c, cargo, fabric, node, or bun"
+                "unknown run target '{other}'; expected auto, kain, llvm, c, cargo, fabric, node, or bun"
             ))),
         }
     }
@@ -175,6 +177,10 @@ pub struct RunUnit {
 pub enum RunAdapter {
     KainInterpreter {
         entry: PathBuf,
+    },
+    KainNativeLlvm {
+        entry: PathBuf,
+        executable: PathBuf,
     },
     CExecutable {
         source: PathBuf,
@@ -580,12 +586,14 @@ fn resolve_file_unit(
     cache_root: &Path,
 ) -> RunResult<RunUnit> {
     let target = if request.target == RunTarget::Auto {
-        infer_target_from_path(input)
+        infer_target_from_run_manifest(workspace_root, input)?
+            .unwrap_or_else(|| infer_target_from_path(input))
     } else {
         request.target
     };
     match target {
         RunTarget::Kain => kain_unit("kain", workspace_root, input),
+        RunTarget::Llvm => llvm_unit(workspace_root, input, cache_root),
         RunTarget::C => c_unit(workspace_root, input, cache_root),
         RunTarget::Cargo => {
             let manifest = if input.file_name() == Some(OsStr::new("Cargo.toml")) {
@@ -614,6 +622,24 @@ fn kain_unit(id: &str, workspace_root: &Path, entry: &Path) -> RunResult<RunUnit
         inputs: vec![entry.to_path_buf()],
         adapter: RunAdapter::KainInterpreter {
             entry: entry.to_path_buf(),
+        },
+    })
+}
+
+fn llvm_unit(workspace_root: &Path, entry: &Path, cache_root: &Path) -> RunResult<RunUnit> {
+    ensure_file(entry, "Kain LLVM entry")?;
+    let executable = cached_llvm_executable_path(cache_root, entry)?;
+    Ok(RunUnit {
+        id: "llvm".to_string(),
+        target: RunTarget::Llvm,
+        label: format!("Compile/cache/run LLVM native {}", entry.display()),
+        cwd: workspace_root.to_path_buf(),
+        args: Vec::new(),
+        env: BTreeMap::new(),
+        inputs: vec![entry.to_path_buf()],
+        adapter: RunAdapter::KainNativeLlvm {
+            entry: entry.to_path_buf(),
+            executable,
         },
     })
 }
@@ -718,6 +744,7 @@ fn execute_unit(unit: &RunUnit) -> RunResult<RunUnitExecution> {
     let started_unix_ms = unix_timestamp_ms();
     let result = match &unit.adapter {
         RunAdapter::KainInterpreter { entry } => run_kain(entry, unit),
+        RunAdapter::KainNativeLlvm { entry, executable } => run_llvm(entry, executable, unit),
         RunAdapter::CExecutable {
             source,
             executable,
@@ -760,6 +787,11 @@ fn execute_unit(unit: &RunUnit) -> RunResult<RunUnitExecution> {
             error: Some(error.to_string()),
         },
     })
+}
+
+fn run_llvm(entry: &Path, executable: &Path, unit: &RunUnit) -> RunResult<RunUnitExecution> {
+    compile_llvm_if_needed(entry, executable, unit)?;
+    run_process(command_for_process(executable, unit, &unit.args), unit)
 }
 
 fn run_kain(entry: &Path, unit: &RunUnit) -> RunResult<RunUnitExecution> {
@@ -965,9 +997,51 @@ fn apply_unit_environment(command: &mut Command, unit: &RunUnit) {
     }
 }
 
+fn compile_llvm_if_needed(entry: &Path, executable: &Path, unit: &RunUnit) -> RunResult<()> {
+    if let Some(parent) = executable.parent() {
+        kfs::create_dir_all(parent)?;
+    }
+    let launcher = find_kain_launcher();
+    let mut command = Command::new(&launcher);
+    command
+        .arg(entry)
+        .arg("--target")
+        .arg("llvm")
+        .arg("--output")
+        .arg(executable)
+        .current_dir(unit.cwd.clone())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    apply_unit_environment(&mut command, unit);
+    command.env("KAIN_NO_BANNER", "1");
+
+    let output = command.output().map_err(|err| {
+        RunError::Process(format!(
+            "failed to invoke Kain LLVM compiler {}: {err}",
+            launcher.display()
+        ))
+    })?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(RunError::Process(format!(
+            "LLVM native compile failed with status {}\n{}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )))
+    }
+}
+
 fn process_spec_for_unit(unit: &RunUnit) -> Option<ProcessSpec> {
     match &unit.adapter {
         RunAdapter::KainInterpreter { .. } | RunAdapter::Fabric { .. } => None,
+        RunAdapter::KainNativeLlvm { executable, .. } => Some(process_spec(
+            executable.to_string_lossy().into_owned(),
+            &unit.args,
+            &unit.cwd,
+            &unit.env,
+        )),
         RunAdapter::CExecutable { executable, .. } => Some(process_spec(
             executable.to_string_lossy().into_owned(),
             &unit.args,
@@ -1147,12 +1221,43 @@ fn infer_target_from_path(path: &Path) -> RunTarget {
     }
     match path.extension().and_then(OsStr::to_str).unwrap_or_default() {
         "kn" | "god" => RunTarget::Kain,
+        "ll" => RunTarget::Llvm,
         "c" => RunTarget::C,
         "js" | "mjs" | "cjs" => RunTarget::Node,
         "ts" => RunTarget::Bun,
         "toml" => RunTarget::Fabric,
         _ => RunTarget::Kain,
     }
+}
+
+fn infer_target_from_run_manifest(
+    workspace_root: &Path,
+    input: &Path,
+) -> RunResult<Option<RunTarget>> {
+    let manifest_path = workspace_root.join("KAIN.toml");
+    if !manifest_path.is_file() {
+        return Ok(None);
+    }
+    let manifest = load_kain_manifest(&manifest_path)?;
+    let Some(target) = manifest.run.target.as_deref() else {
+        return Ok(None);
+    };
+    if let Some(entry) = manifest.run.entry.as_ref() {
+        let entry = resolve_path(workspace_root, entry);
+        if !same_declared_path(&entry, input) {
+            return Ok(None);
+        }
+    }
+    RunTarget::parse(target).map(Some)
+}
+
+fn same_declared_path(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    let left = kfs::canonicalize_path(left).unwrap_or_else(|_| left.display().to_string());
+    let right = kfs::canonicalize_path(right).unwrap_or_else(|_| right.display().to_string());
+    left.eq_ignore_ascii_case(&right)
 }
 
 fn load_run_section(path: &Path) -> RunResult<KainRunSection> {
@@ -1211,6 +1316,51 @@ fn cached_c_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathB
     Ok(cache_root
         .join("c")
         .join(format!("{}-{}.{}", sanitize_id(&name), &hash[..16], ext)))
+}
+
+fn cached_llvm_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathBuf> {
+    let hash = kfs::hash_file(source)?;
+    let name = path_stem_or_name(source);
+    let ext = if cfg!(target_os = "windows") {
+        "exe"
+    } else {
+        "bin"
+    };
+    Ok(cache_root
+        .join("llvm")
+        .join(format!("{}-{}.{}", sanitize_id(&name), &hash[..16], ext)))
+}
+
+fn find_kain_launcher() -> PathBuf {
+    if let Ok(path) = std::env::var("KAIN_BIN") {
+        let candidate = PathBuf::from(path);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+
+    if let Ok(current_exe) = std::env::current_exe() {
+        let stem = current_exe
+            .file_stem()
+            .and_then(OsStr::to_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if matches!(stem.as_str(), "kain" | "kn") {
+            return current_exe;
+        }
+        if let Some(parent) = current_exe.parent() {
+            let sibling = parent.join(if cfg!(target_os = "windows") {
+                "kain.exe"
+            } else {
+                "kain"
+            });
+            if sibling.exists() {
+                return sibling;
+            }
+        }
+    }
+
+    PathBuf::from("kain")
 }
 
 fn find_clang(workspace_root: &Path) -> PathBuf {
@@ -1316,6 +1466,8 @@ mod tests {
     fn parses_run_targets() {
         assert_eq!(RunTarget::parse("auto").unwrap(), RunTarget::Auto);
         assert_eq!(RunTarget::parse("kain").unwrap(), RunTarget::Kain);
+        assert_eq!(RunTarget::parse("llvm").unwrap(), RunTarget::Llvm);
+        assert_eq!(RunTarget::parse("native").unwrap(), RunTarget::Llvm);
         assert_eq!(RunTarget::parse("rust-crate").unwrap(), RunTarget::Cargo);
     }
 
@@ -1324,6 +1476,10 @@ mod tests {
         assert_eq!(
             infer_target_from_path(Path::new("main.kn")),
             RunTarget::Kain
+        );
+        assert_eq!(
+            infer_target_from_path(Path::new("main.ll")),
+            RunTarget::Llvm
         );
         assert_eq!(infer_target_from_path(Path::new("hello.c")), RunTarget::C);
         assert_eq!(
@@ -1342,6 +1498,86 @@ mod tests {
         assert_eq!(plan.units.len(), 1);
         assert_eq!(plan.units[0].target, RunTarget::Kain);
         assert!(plan.watch_inputs.contains(&entry));
+    }
+
+    #[test]
+    fn manifest_run_section_can_route_file_auto_to_llvm() {
+        let temp = tempfile::tempdir().unwrap();
+        let entry = temp.path().join("src").join("main.kn");
+        kfs::create_dir_all(entry.parent().unwrap()).unwrap();
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
+        kfs::write_text(
+            temp.path().join("KAIN.toml"),
+            r#"
+[package]
+name = "native-auto"
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(entry.clone()));
+        let plan = plan_run(&request).unwrap();
+        let unit = &plan.units[0];
+        assert_eq!(unit.target, RunTarget::Llvm);
+        assert!(same_declared_path(&unit.cwd, temp.path()));
+        match &unit.adapter {
+            RunAdapter::KainNativeLlvm {
+                entry: planned_entry,
+                executable,
+            } => {
+                assert_eq!(planned_entry, &entry);
+                assert!(executable
+                    .parent()
+                    .is_some_and(|path| path.ends_with("llvm")));
+            }
+            other => panic!("expected LLVM native adapter, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn blade_run_section_can_route_auto_to_llvm() {
+        let temp = tempfile::tempdir().unwrap();
+        kfs::write_text(
+            temp.path().join("KAIN.toml"),
+            r#"
+[workspace]
+blades = ["blades/*"]
+"#,
+        )
+        .unwrap();
+
+        let blade_root = temp.path().join("blades").join("native");
+        let entry = blade_root.join("src").join("main.kn");
+        kfs::create_dir_all(entry.parent().unwrap()).unwrap();
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
+        kfs::write_text(
+            blade_root.join("KAIN.toml"),
+            r#"
+[package]
+name = "native"
+
+[blade]
+name = "native"
+entry = "src/main.kn"
+source_roots = ["src"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(blade_root.clone()));
+        let plan = plan_run(&request).unwrap();
+        let unit = &plan.units[0];
+        assert_eq!(unit.target, RunTarget::Llvm);
+        assert!(same_declared_path(&unit.cwd, &blade_root));
+        assert!(matches!(unit.adapter, RunAdapter::KainNativeLlvm { .. }));
     }
 
     #[test]

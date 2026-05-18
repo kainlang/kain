@@ -420,7 +420,7 @@ fn extract_module(options: &StdlibMapOptions, path: &Path) -> Result<StdlibModul
     let module_name = module_name(options, path);
     let import_path = format!("std::{}", module_name.replace('/', "::"));
     let docs = leading_comments(&source);
-    let parsed = parse_module(path, &source);
+    let parsed = parse_module(&relative, &source);
     let (parse_status, mut symbols) = match parsed {
         Ok(items) => (
             ParseStatus::Parsed,
@@ -448,11 +448,10 @@ fn extract_module(options: &StdlibMapOptions, path: &Path) -> Result<StdlibModul
     })
 }
 
-fn parse_module(path: &Path, source: &str) -> Result<Vec<Item>> {
+fn parse_module(filename: &str, source: &str) -> Result<Vec<Item>> {
     let tokens = Lexer::new(source).tokenize()?;
     let span_mapper = SpanMapper::new(source);
-    let filename = path.to_string_lossy();
-    let program = Parser::new(&tokens, &span_mapper, &filename).parse()?;
+    let program = Parser::new(&tokens, &span_mapper, filename).parse()?;
     Ok(program.items)
 }
 

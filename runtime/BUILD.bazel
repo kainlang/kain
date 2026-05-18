@@ -4,6 +4,11 @@ load(":runtime_manifest_data.bzl", "NATIVE_CORE_RUNTIME", "NATIVE_RUNTIME", "NAT
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files([
+    "native_core_runtime.toml",
+    "native_runtime.toml",
+])
+
 config_setting(
     name = "windows",
     constraint_values = ["@platforms//os:windows"],

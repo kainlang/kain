@@ -1,5 +1,5 @@
 {
-  "checksum": "2a8b3bcb75fb1b8985d6e5679c8911ec45d48e8bfd94e06380a3b034182a3872",
+  "checksum": "55157b6721a82a48c567d96297ec13479e3ea9777dcf79ff3f0787a419d85671",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -17847,6 +17847,58 @@
             {
               "id": "serde_json 1.0.143",
               "target": "serde_json"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "kain-stdlib-map 0.1.0": {
+      "name": "kain-stdlib-map",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_stdlib_map",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_stdlib_map",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "clap 4.5.57",
+              "target": "clap"
+            },
+            {
+              "id": "serde 1.0.209",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
+            },
+            {
+              "id": "toml 0.8.23",
+              "target": "toml"
             }
           ],
           "selects": {}
@@ -48317,6 +48369,7 @@
     "kain-runtime-parallel 0.1.0": "runtime/parallel/rust/kain-runtime-parallel",
     "kain-sdk 0.1.0": "crates/kain-sdk",
     "kain-selfhost 0.1.0": "crates/kain-selfhost",
+    "kain-stdlib-map 0.1.0": "crates/kain-stdlib-map",
     "kain-sys-codegen 0.1.0": "crates/kain-sys-codegen",
     "kain-test 0.1.0": "crates/kain-test",
     "kain-ui 0.1.0": "crates/kain-ui",

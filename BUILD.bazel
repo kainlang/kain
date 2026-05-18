@@ -51,6 +51,16 @@ alias(
 )
 
 alias(
+    name = "kain_stdlib_map",
+    actual = "//crates/kain-stdlib-map:kain-stdlib-map",
+)
+
+alias(
+    name = "stdlib_map_check",
+    actual = "//stdlib:stdlib_map_check",
+)
+
+alias(
     name = "kain_entangle",
     actual = "//crates/kain-entangle:kain-entangle",
 )
