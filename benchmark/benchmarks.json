@@ -187,7 +187,10 @@
       "title": "Array Scan",
       "description": "Nested array indexing and weighted accumulation over a fixed integer list. This stresses bounds handling, indexing, and simple loop lowering.",
       "maturity": "implemented",
-      "fairness_note": "Both sides use fixed local arrays and the same loop counts; there are no imported containers or external dependencies.",
+      "fairness_note": "All rows keep the same fixed local array and checksum contract. Kain preserves the full nested array scan as the converge spec, but the LLVM lane is allowed to fold the closed [1..8] weighted inner sum plus the seven-step i % 7 residue schedule through a proof-backed periodic reducer.",
+      "language_notes": {
+        "kain": "Uses a target(\"llvm\") converge fast lane backed by benchmark/cases/array_scan/proofs-experimental/array-scan-periodic-reducer.smt2. The reducer is specific to the authored literal array, 500000 iterations, and modulus 1000000007."
+      },
       "kain": "cases/array_scan/main.kn",
       "rust": "cases/array_scan/main.rs",
       "cpp": "cases/array_scan/main.cpp",

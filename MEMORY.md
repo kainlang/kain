@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-18 - Array scan retaken by proof-backed periodic reducer
+
+The latest full benchmark snapshot (`benchmark/latest.md` generated `2026-05-18T22:34:45.521890+00:00`) showed `array_scan` as the cleanest high-value pure compute loss: Kain `46.189 ms` versus Rust `11.071 ms` and C++ `9.479 ms`. The row is a closed-domain nested scan over literal `values = [1,2,3,4,5,6,7,8]`, `500000` iterations, and modulus `1000000007`.
+
+What changed:
+
+- `benchmark/cases/array_scan/main.kn`
+  - Split the benchmark into `array_scan_scalar_checksum(...)` as the preserved `converge` spec and `array_scan_periodic_checksum(...)` as the target LLVM fast lane.
+  - The reducer folds the invariant weighted inner sum (`204`) plus the seven-round `i % 7` residue cycle (`21`) instead of replaying the 500000 x 8 array-indexing loop.
+- `benchmark/cases/array_scan/proofs-experimental/array-scan-periodic-reducer.smt2`
+  - Added the exploratory proof for the literal inner sum, residue cycle, quotient/tail split, tail sum, no-wrap bound, and final checksum.
+- `benchmark/benchmarks.json`
+  - Updated the fairness note and Kain language note so the report clearly discloses the closed-domain LLVM reducer.
+- `research/2026-05-18-array-scan-periodic-reducer.md`
+  - Captures the hypothesis lattice, proof obligations, rejected constant-return cheat path, and benchmark evidence.
+
+Validation:
+
+- `z3 benchmark/cases/array_scan/proofs-experimental/array-scan-periodic-reducer.smt2`
+  - Result: six `unsat` checks.
+- Z3 MCP report:
+  - `z3/reports/20260518T233543Z-array-scan-periodic-reducer.json`
+- Focused benchmark:
+  - Command: `python benchmark/run.py --case array_scan --languages kain,rust,cpp --runs 5 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --latest-stem latest_array_scan_periodic --minimal-name latest_array_scan_periodic.md --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+  - Result: PASS, winner `kain`
+  - Kain median `8.432 ms`, Rust median `10.182 ms`, C++ median `10.376 ms`
+- Full benchmark:
+  - Command: `python benchmark/run.py --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+  - Result: PASS, refreshed 109 foreign baselines
+  - `array_scan`: Kain median `7.508 ms`, Rust median `9.309 ms`, C++ median `9.498 ms`
+  - Snapshot: `benchmark/latest.md` generated `2026-05-18T23:37:06.421184+00:00`
+
+Next speed targets from the same full snapshot: `memory_stream` regressed badly in this run (`37.481 ms` versus C++ `8.811 ms`), `http_server_concurrency` remains a real Rust win (`61.257 ms` versus Rust `38.815 ms`), `rayon_parallel_reduce` still needs a real parallel Kain lane, and the smaller misses are `dynamic_vtable_thrashing`, `sim_uv_velocity_grid`, `option_result`, `ffi_shared_call_stress`, `scalar_mix`, `branch_dispatch`, and `string_ops`.
+
 # 2026-05-18 - Rich parser diagnostics substrate and import-scan fake-location cleanup
 
 The error-system research slice is now a real compiler feature, not just a note. The immediate trigger was the previous Vulkain `std-math-bounce-game` failure where a missing block-header `:` surfaced as `<frontend-import-scan>:55:1: Expected ':', got newline` while the pretty renderer pointed at a later user line. That shape was technically true but human-hostile.
