@@ -1,0 +1,28 @@
+use std::runtime
+use runtime_core::runtime_bridge_amortized_ps
+use runtime_core::runtime_bridge_boundary_ns
+use runtime_core::runtime_bridge_mode
+use runtime_core::runtime_core_probe
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let boundary = runtime_bridge_boundary_ns()
+    let amortized = runtime_bridge_amortized_ps(64)
+    let probe = runtime_core_probe()
+    println("runtime-abi-probe.boundary_ns=" + str(boundary))
+    println("runtime-abi-probe.amortized_ps_at_64=" + str(amortized))
+    println("runtime-abi-probe.bridge_mode=" + runtime_bridge_mode(64))
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if boundary != 9:
+        return 2
+    if amortized <= 0:
+        return 3
+    if probe <= 0:
+        return 4
+    return 0

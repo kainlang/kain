@@ -1,0 +1,39 @@
+[package]
+name = "runtime-abi-probe"
+version = "0.1.0"
+description = "Native LLVM smoke probe for Kain-authored runtime policy over the C ABI floor."
+
+[blade]
+name = "runtime-abi-probe"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = [
+  "src",
+  "../runtime-core/src",
+]
+build_targets = ["llvm"]
+dependencies = [
+  { name = "runtime-core", path = "../runtime-core" },
+]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-runtime-abi-probe"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "../runtime-core/src/runtime_core.kn",
+  "config/runtime_abi_map.json",
+]

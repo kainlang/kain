@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-18 - Runtime blade workspace bootstrapped
+
+`runtime/blades` is now a real Blade workspace for Kain-authored runtime work over the native C ABI floor. The first pass deliberately keeps C crossings coarse: Kain owns policy/batch math in `runtime-core`, while the existing native runtime remains the metal layer to bind as real shared/object-backed `use c::` modules.
+
+What changed:
+
+- `runtime/blades/KAIN.toml`
+  - New workspace manifest with three discovered blades: `kain-runtime-blades`, `runtime-core`, and `runtime-abi-probe`.
+- `runtime/blades/runtime-core`
+  - Adds `runtime_core.kn`, a reusable Kain policy module for native boundary budgeting.
+  - Encodes the current 9 ns C ABI bridge cost as a per-boundary cost and exposes batch amortization in picoseconds.
+- `runtime/blades/runtime-abi-probe`
+  - Adds a native LLVM probe that imports `std.runtime`, boots/shuts down the runtime, and consumes the Kain-authored policy module.
+  - Adds `config/runtime_abi_map.json` as the first data-driven map of planned coarse C floor modules.
+- `runtime/blades/README.md`
+  - Captures the runtime-blade rule: no chatty ABI. Hot loops should stay in Kain LLVM or inside one C floor call; C crossings should be batched/fused.
+
+Proof and validation:
+
+- Z3 report: `z3/reports/20260518T010817Z-runtime_blades_bridge_amortization.json`
+- Result: all four bridge-amortization violation checks returned `unsat`.
+- `target\debug\kain.exe check runtime\blades\runtime-core\src\main.kn --target llvm`
+- `target\debug\kain.exe check runtime\blades\runtime-abi-probe\src\main.kn --target llvm`
+- `target\debug\kain.exe build runtime\blades\runtime-abi-probe\src\main.kn --target llvm --output runtime\blades\runtime-abi-probe\runtime-abi-probe.exe`
+- `target\debug\kain.exe build runtime\blades\src\main.kn --target llvm --output runtime\blades\kain-runtime-blades.exe`
+- `target\debug\kain.exe run runtime\blades\runtime-core\src\main.kn --target kain` returned exit `0` and printed `probe=214`, `boundary_ns=9`, `amortized_ps_at_64=140`, `mode=batch`.
+- `target\debug\kain.exe run runtime\blades\src\main.kn --target kain` returned exit `0` with the same bridge math.
+- `target\debug\kain.exe blades list runtime\blades` reports all three blades.
+- `target\debug\kain.exe blades check runtime\blades` reports all referenced local blade paths exist.
+
+Known boundary:
+
+- `kain run ... --target auto` currently uses the interpreter path for these files and fails on native-only `abi_runtime_init`. Use LLVM check/build for `runtime-abi-probe` until the run pipeline exposes the linked native executable lane for plain runtime blades.
+
+Next useful move:
+
+- Add the first real object/shared-library-backed `use c::` runtime floor module, then move HTTP pump scheduling policy out of `benchmark/cases/http_server_concurrency` and into `runtime-core` with Z3 cases for request batch bounds and ring cursor safety.
+
 # 2026-05-17 - Ray/sphere benchmark collapsed into finite-domain math lane
 
 `benchmark/cases/ray_sphere_intersection` now preserves the scalar ray/sphere kernel as a `converge` spec and routes Kain LLVM through `abi_ray_sphere_intersection_checksum(...)`, a native finite-domain period reducer for the closed 12-ray/8-sphere authored table. This turns the row from the latest standard-suite loss (`111.044 ms` Kain vs `74.845 ms` C++) into a Kain win on the canonical Bazel-release benchmark lane.

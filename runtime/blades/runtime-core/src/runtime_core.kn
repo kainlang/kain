@@ -1,0 +1,26 @@
+const KAIN_RUNTIME_CORE_VERSION: Int = 1
+const KAIN_RUNTIME_C_ABI_BRIDGE_COST_NS: Int = 9
+const KAIN_RUNTIME_DEFAULT_BRIDGE_BATCH: Int = 64
+
+pub fn runtime_bridge_boundary_ns() -> Int:
+    return KAIN_RUNTIME_C_ABI_BRIDGE_COST_NS
+
+pub fn runtime_bridge_amortized_ps(batch_size: Int) -> Int:
+    var safe_batch: Int = batch_size
+    if safe_batch <= 0:
+        safe_batch = 1
+    return (KAIN_RUNTIME_C_ABI_BRIDGE_COST_NS * 1000) / safe_batch
+
+pub fn runtime_bridge_mode(calls_per_turn: Int) -> String:
+    if calls_per_turn <= 1:
+        return "direct"
+    if calls_per_turn <= KAIN_RUNTIME_DEFAULT_BRIDGE_BATCH:
+        return "batch"
+    return "fuse"
+
+pub fn runtime_should_batch(calls_per_turn: Int) -> Bool:
+    return calls_per_turn > 1
+
+pub fn runtime_core_probe() -> Int:
+    let batch: Int = KAIN_RUNTIME_DEFAULT_BRIDGE_BATCH
+    return KAIN_RUNTIME_CORE_VERSION + runtime_bridge_boundary_ns() + runtime_bridge_amortized_ps(batch) + batch

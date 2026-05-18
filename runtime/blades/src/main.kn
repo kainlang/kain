@@ -1,0 +1,14 @@
+use runtime_core::runtime_bridge_amortized_ps
+use runtime_core::runtime_bridge_boundary_ns
+use runtime_core::runtime_bridge_mode
+use runtime_core::runtime_core_probe
+
+fn main() -> Int:
+    let probe = runtime_core_probe()
+    println("kain-runtime-blades.probe=" + str(probe))
+    println("kain-runtime-blades.boundary_ns=" + str(runtime_bridge_boundary_ns()))
+    println("kain-runtime-blades.amortized_ps_at_64=" + str(runtime_bridge_amortized_ps(64)))
+    println("kain-runtime-blades.bridge_mode=" + runtime_bridge_mode(64))
+    if probe <= 0:
+        return 1
+    return 0

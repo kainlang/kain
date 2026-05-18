@@ -1,0 +1,47 @@
+[package]
+name = "kain-runtime-blades"
+version = "0.1.0"
+description = "Kain-authored runtime workspace over the native C ABI floor."
+
+[workspace]
+members = [
+  "runtime-core",
+  "runtime-abi-probe",
+]
+search_roots = [
+  "src",
+  "runtime-core/src",
+  "runtime-abi-probe/src",
+]
+
+[blade]
+name = "kain-runtime-blades"
+kind = "kain_workspace"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = [
+  "src",
+  "runtime-core/src",
+  "runtime-abi-probe/src",
+]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-runtime-workspace"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "runtime-core/src/runtime_core.kn",
+]

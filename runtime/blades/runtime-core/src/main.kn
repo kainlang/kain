@@ -1,0 +1,17 @@
+use runtime_core::runtime_bridge_amortized_ps
+use runtime_core::runtime_bridge_boundary_ns
+use runtime_core::runtime_bridge_mode
+use runtime_core::runtime_core_probe
+use runtime_core::runtime_should_batch
+
+fn main() -> Int:
+    let probe = runtime_core_probe()
+    println("runtime-core.probe=" + str(probe))
+    println("runtime-core.boundary_ns=" + str(runtime_bridge_boundary_ns()))
+    println("runtime-core.amortized_ps_at_64=" + str(runtime_bridge_amortized_ps(64)))
+    println("runtime-core.mode=" + runtime_bridge_mode(64))
+    if runtime_should_batch(64) != true:
+        return 2
+    if probe <= 0:
+        return 1
+    return 0

@@ -1,0 +1,15 @@
+{
+  "workspace": "kain-runtime-blades",
+  "bridgeCostNs": 9,
+  "boundaryRule": "Kain owns runtime policy and hot LLVM loops; the C ABI floor owns OS/syscall/raw-handle contact and must be crossed in batches.",
+  "initialBatchSize": 64,
+  "plannedCffiModules": [
+    "runtime",
+    "actor",
+    "async",
+    "net",
+    "process",
+    "fs",
+    "ownership"
+  ]
+}
