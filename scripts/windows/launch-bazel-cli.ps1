@@ -402,6 +402,11 @@ $runtimeStampFiles = Convert-ToStringArray -Value (Get-HashValue -Table $syncPol
 
 $resolvedClangPath = Resolve-ClangPath -RepoRoot $repoRoot
 $resolvedPythonPath = Resolve-Python312Path
+$invocationLocation = Get-Location
+$invocationWorkingDirectory = $null
+if ($invocationLocation.Provider -and $invocationLocation.Provider.Name -eq "FileSystem") {
+    $invocationWorkingDirectory = $invocationLocation.ProviderPath
+}
 
 $env:KAIN_REPO_ROOT = $repoRoot
 $env:KAIN_STDLIB_PATH = (Join-Path $repoRoot "stdlib")
@@ -475,6 +480,10 @@ try {
         } else {
             $ForwardArgs = @()
         }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($invocationWorkingDirectory)) {
+        Set-Location -LiteralPath $invocationWorkingDirectory
     }
 
     & $resolvedBinaryPath @ForwardArgs

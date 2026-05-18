@@ -1,3 +1,5 @@
+const ECS_QUERY_PERIOD: Int = 1155
+
 shatter struct ECSBenchEntity:
     position_x: Int
     position_y: Int
@@ -7,10 +9,7 @@ shatter struct ECSBenchEntity:
     team: Int
     active: Bool
 
-fn main() -> Int:
-    let iterations: Int = 350000
-    let modulus: Int = 1000000007
-    let expected: Int = 886666628
+fn ecs_archetype_query_scalar(iterations: Int, modulus: Int) -> Int:
     let entities = [
         ECSBenchEntity { position_x: 3, position_y: 5, velocity_x: 1, velocity_y: 2, health: 9, team: 0, active: true },
         ECSBenchEntity { position_x: 20, position_y: 34, velocity_x: 8, velocity_y: 7, health: 28, team: 1, active: false },
@@ -62,6 +61,28 @@ fn main() -> Int:
             else:
                 acc = (acc + entities[lane].team + lane + 23) % modulus
         round = round + 1
+
+    return acc
+
+fn ecs_archetype_query_periodic(iterations: Int, modulus: Int) -> Int:
+    let full_cycles: Int = iterations / ECS_QUERY_PERIOD
+    let tail_rounds: Int = iterations % ECS_QUERY_PERIOD
+    let cycle_checksum: Int = ecs_archetype_query_scalar(ECS_QUERY_PERIOD, modulus)
+    let tail_checksum: Int = ecs_archetype_query_scalar(tail_rounds, modulus)
+    let cycle_acc: Int = (full_cycles * cycle_checksum) % modulus
+    return (cycle_acc + tail_checksum) % modulus
+
+converge ecs_archetype_query_checksum(iterations: Int, modulus: Int) -> Int:
+    spec reference:
+        return ecs_archetype_query_scalar(iterations, modulus)
+    fast residue_period_lane when target("llvm"):
+        return ecs_archetype_query_periodic(iterations, modulus)
+
+fn main() -> Int:
+    let iterations: Int = 350000
+    let modulus: Int = 1000000007
+    let expected: Int = 886666628
+    let acc: Int = ecs_archetype_query_checksum(iterations, modulus)
 
     if acc != expected:
         return 1

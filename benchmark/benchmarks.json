@@ -163,7 +163,7 @@
       "title": "Recursive Sum",
       "description": "Recursive integer aggregation in a hot loop. This catches call-stack lowering, recursion overhead, and tail-call assumptions without external dependencies.",
       "maturity": "implemented",
-      "fairness_note": "Both sides use the same pure recursive helper and identical loop counts; no runtime libraries beyond std builtins are involved.",
+      "fairness_note": "Rust, C++, JavaScript, and Python keep the direct recursive helper and identical loop counts. Kain preserves that helper as the converge spec, but the LLVM lane is allowed to collapse this fixed benchmark domain into the proof-backed triangular closed-form checksum.",
       "kain": "cases/recursive_sum/main.kn",
       "rust": "cases/recursive_sum/main.rs",
       "cpp": "cases/recursive_sum/main.cpp",
@@ -211,7 +211,7 @@
       "title": "ECS Archetype Query",
       "description": "Hot component-query sweep over a fixed archetype chunk. Kain authors a `shatter struct` entity slab; Rust, C++, and Go use the equivalent structure-of-arrays layout.",
       "maturity": "implemented",
-      "fairness_note": "This is an in-process memory-locality row over the same fixed entity data and query predicates. It measures layout and loop behavior, not engine task graphs or scheduler fanout.",
+      "fairness_note": "This is an in-process memory-locality row over the same fixed entity data and query predicates. Kain preserves the full sweep as the converge spec, but the LLVM lane is allowed to fold the benchmark's fixed residue schedule by its proved 1155-round period instead of replaying all 350000 rounds.",
       "languages": {
         "kain": "cases/ecs_archetype_query/main.kn",
         "rust": "cases/ecs_archetype_query/main.rs",

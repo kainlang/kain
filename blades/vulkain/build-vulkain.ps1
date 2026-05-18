@@ -45,6 +45,8 @@ if (!$VulkanSdk -or !(Test-Path $VulkanSdk)) {
         throw "VULKAN_SDK is not set and no fallback Vulkan SDK was found."
     }
 }
+$VulkanSdk = (Resolve-Path $VulkanSdk).Path
+$env:VULKAN_SDK = $VulkanSdk
 
 if (!$Clang) {
     $bundled = Join-Path $repoRoot "toolchain\llvm\bin\clang.exe"

@@ -7,15 +7,15 @@
       "id": "find-stdlib-search-roots.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1339,
+      "line": 1345,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 53,
-        "end_line": 1339,
+        "end_line": 1345,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1339
+        "start_line": 1345
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -40,15 +40,15 @@
       "id": "find-stdlib-search-roots.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1341,
+      "line": 1347,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 19,
-        "end_line": 1341,
+        "end_line": 1347,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1341
+        "start_line": 1347
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -69,15 +69,15 @@
       "id": "find-stdlib-search-roots.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1348,
+      "line": 1354,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 43,
-        "end_line": 1348,
+        "end_line": 1354,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1348
+        "start_line": 1354
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -101,15 +101,15 @@
       "id": "find-stdlib-search-roots.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1349,
+      "line": 1355,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 47,
-        "end_line": 1349,
+        "end_line": 1355,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1349
+        "start_line": 1355
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -134,15 +134,15 @@
       "id": "find-stdlib-search-roots.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1352,
+      "line": 1358,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 48,
-        "end_line": 1352,
+        "end_line": 1358,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1352
+        "start_line": 1358
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -164,15 +164,15 @@
       "id": "find-stdlib-search-roots.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1358,
+      "line": 1364,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 41,
-        "end_line": 1358,
+        "end_line": 1364,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1358
+        "start_line": 1364
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -195,15 +195,15 @@
       "id": "find-stdlib-search-roots.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1368,
+      "line": 1374,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 46,
-        "end_line": 1368,
+        "end_line": 1374,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1368
+        "start_line": 1374
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -228,15 +228,15 @@
       "id": "find-stdlib-search-roots.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1371,
+      "line": 1377,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 48,
-        "end_line": 1371,
+        "end_line": 1377,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1371
+        "start_line": 1377
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -258,15 +258,15 @@
       "id": "find-stdlib-search-roots.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1373,
+      "line": 1379,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 45,
-        "end_line": 1373,
+        "end_line": 1379,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1373
+        "start_line": 1379
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -290,15 +290,15 @@
       "id": "find-stdlib-search-roots.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1380,
+      "line": 1386,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 41,
-        "end_line": 1380,
+        "end_line": 1386,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1380
+        "start_line": 1386
       },
       "symbol": "find_stdlib_search_roots",
       "tags": [
@@ -321,15 +321,15 @@
       "id": "load-kn-files-from-dir.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1413,
+      "line": 1419,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 20,
-        "end_line": 1413,
+        "end_line": 1419,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1413
+        "start_line": 1419
       },
       "symbol": "load_kn_files_from_dir",
       "tags": [
@@ -350,15 +350,15 @@
       "id": "load-kn-files-from-dir.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1414,
+      "line": 1420,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 43,
-        "end_line": 1414,
+        "end_line": 1420,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1414
+        "start_line": 1420
       },
       "symbol": "load_kn_files_from_dir",
       "tags": [
@@ -382,15 +382,15 @@
       "id": "load-kn-files-from-dir.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1418,
+      "line": 1424,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1418,
+        "end_line": 1424,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1418
+        "start_line": 1424
       },
       "symbol": "load_kn_files_from_dir",
       "tags": [
@@ -412,15 +412,15 @@
       "id": "load-kn-files-from-dir.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1420,
+      "line": 1426,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 52,
-        "end_line": 1420,
+        "end_line": 1426,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1420
+        "start_line": 1426
       },
       "symbol": "load_kn_files_from_dir",
       "tags": [
@@ -443,15 +443,15 @@
       "id": "load-kn-files-from-dir.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1441,
+      "line": 1447,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 25,
-        "end_line": 1441,
+        "end_line": 1447,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1441
+        "start_line": 1447
       },
       "symbol": "load_kn_files_from_dir",
       "tags": [
@@ -472,15 +472,15 @@
       "id": "load-stdlib.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1535,
+      "line": 1541,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 29,
-        "end_line": 1535,
+        "end_line": 1541,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1535
+        "start_line": 1541
       },
       "symbol": "load_stdlib",
       "tags": [
@@ -501,15 +501,15 @@
       "id": "load-stdlib-for-target.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1551,
+      "line": 1557,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 29,
-        "end_line": 1551,
+        "end_line": 1557,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1551
+        "start_line": 1557
       },
       "symbol": "load_stdlib_for_target",
       "tags": [
@@ -530,15 +530,15 @@
       "id": "load-stdlib-from-profiles.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1510,
+      "line": 1516,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 54,
-        "end_line": 1510,
+        "end_line": 1516,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1510
+        "start_line": 1516
       },
       "symbol": "load_stdlib_from_profiles",
       "tags": [
@@ -559,15 +559,15 @@
       "id": "load-stdlib-from-profiles.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1511,
+      "line": 1517,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 70,
-        "end_line": 1511,
+        "end_line": 1517,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1511
+        "start_line": 1517
       },
       "symbol": "load_stdlib_from_profiles",
       "tags": [
@@ -590,15 +590,15 @@
       "id": "load-stdlib-from-profiles.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1517,
+      "line": 1523,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 24,
-        "end_line": 1517,
+        "end_line": 1523,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1517
+        "start_line": 1523
       },
       "symbol": "load_stdlib_from_profiles",
       "tags": [
@@ -618,15 +618,15 @@
       "id": "parse-profile-env-override.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1498,
+      "line": 1504,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 25,
-        "end_line": 1498,
+        "end_line": 1504,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1498
+        "start_line": 1504
       },
       "symbol": "parse_profile_env_override",
       "tags": [
@@ -646,15 +646,15 @@
       "id": "resolve-profile-path.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1481,
+      "line": 1487,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 29,
-        "end_line": 1481,
+        "end_line": 1487,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1481
+        "start_line": 1487
       },
       "symbol": "resolve_profile_path",
       "tags": [
@@ -675,15 +675,15 @@
       "id": "test-find-stdlib-invalid-env-var-falls-back.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1630,
+      "line": 1636,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 48,
-        "end_line": 1630,
+        "end_line": 1636,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1630
+        "start_line": 1636
       },
       "symbol": "test_find_stdlib_invalid_env_var_falls_back",
       "tags": [
@@ -711,15 +711,15 @@
       "id": "test-load-kn-files-alphabetical-order.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1658,
+      "line": 1664,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 33,
-        "end_line": 1658,
+        "end_line": 1664,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1658
+        "start_line": 1664
       },
       "symbol": "test_load_kn_files_alphabetical_order",
       "tags": [
@@ -747,15 +747,15 @@
       "id": "test-load-kn-files-alphabetical-order.assert-condition.2",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1659,
+      "line": 1665,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 33,
-        "end_line": 1659,
+        "end_line": 1665,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1659
+        "start_line": 1665
       },
       "symbol": "test_load_kn_files_alphabetical_order",
       "tags": [
@@ -776,15 +776,15 @@
       "id": "test-load-kn-files-empty-directory.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1713,
+      "line": 1719,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 27,
-        "end_line": 1713,
+        "end_line": 1719,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1713
+        "start_line": 1719
       },
       "symbol": "test_load_kn_files_empty_directory",
       "tags": [
@@ -804,15 +804,15 @@
       "id": "test-load-kn-files-multiple-files.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1695,
+      "line": 1701,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 38,
-        "end_line": 1695,
+        "end_line": 1701,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1695
+        "start_line": 1701
       },
       "symbol": "test_load_kn_files_multiple_files",
       "tags": [
@@ -833,15 +833,15 @@
       "id": "test-load-kn-files-multiple-files.assert-condition.2",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1696,
+      "line": 1702,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 38,
-        "end_line": 1696,
+        "end_line": 1702,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1696
+        "start_line": 1702
       },
       "symbol": "test_load_kn_files_multiple_files",
       "tags": [
@@ -862,15 +862,15 @@
       "id": "test-load-kn-files-multiple-files.assert-condition.3",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1697,
+      "line": 1703,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 38,
-        "end_line": 1697,
+        "end_line": 1703,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1697
+        "start_line": 1703
       },
       "symbol": "test_load_kn_files_multiple_files",
       "tags": [
@@ -891,15 +891,15 @@
       "id": "test-load-kn-files-multiple-files.assert-condition.4",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1701,
+      "line": 1707,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 27,
-        "end_line": 1701,
+        "end_line": 1707,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1701
+        "start_line": 1707
       },
       "symbol": "test_load_kn_files_multiple_files",
       "tags": [
@@ -919,15 +919,15 @@
       "id": "test-load-kn-files-no-kn-files.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1728,
+      "line": 1734,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 27,
-        "end_line": 1728,
+        "end_line": 1734,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1728
+        "start_line": 1734
       },
       "symbol": "test_load_kn_files_no_kn_files",
       "tags": [
@@ -947,15 +947,15 @@
       "id": "test-load-kn-files-nonexistent-directory.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1739,
+      "line": 1745,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 27,
-        "end_line": 1739,
+        "end_line": 1745,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1739
+        "start_line": 1745
       },
       "symbol": "test_load_kn_files_nonexistent_directory",
       "tags": [
@@ -982,15 +982,15 @@
       "id": "test-load-stdlib-for-target-uses-target-profile-order.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1931,
+      "line": 1937,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 29,
-        "end_line": 1931,
+        "end_line": 1937,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1931
+        "start_line": 1937
       },
       "symbol": "test_load_stdlib_for_target_uses_target_profile_order",
       "tags": [
@@ -1011,15 +1011,15 @@
       "id": "test-load-stdlib-graceful-degradation-no-panic.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1759,
+      "line": 1765,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 50,
-        "end_line": 1759,
+        "end_line": 1765,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1759
+        "start_line": 1765
       },
       "symbol": "test_load_stdlib_graceful_degradation_no_panic",
       "tags": [
@@ -1039,15 +1039,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1950,
+      "line": 1956,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 49,
-        "end_line": 1950,
+        "end_line": 1956,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1950
+        "start_line": 1956
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1068,15 +1068,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.2",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1951,
+      "line": 1957,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 51,
-        "end_line": 1951,
+        "end_line": 1957,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1951
+        "start_line": 1957
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1097,15 +1097,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.3",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1952,
+      "line": 1958,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 48,
-        "end_line": 1952,
+        "end_line": 1958,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1952
+        "start_line": 1958
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1126,15 +1126,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.4",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1953,
+      "line": 1959,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 48,
-        "end_line": 1953,
+        "end_line": 1959,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1953
+        "start_line": 1959
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1155,15 +1155,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.5",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1954,
+      "line": 1960,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 48,
-        "end_line": 1954,
+        "end_line": 1960,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1954
+        "start_line": 1960
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1184,15 +1184,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.6",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1955,
+      "line": 1961,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 47,
-        "end_line": 1955,
+        "end_line": 1961,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1955
+        "start_line": 1961
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1213,15 +1213,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.7",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1956,
+      "line": 1962,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 55,
-        "end_line": 1956,
+        "end_line": 1962,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1956
+        "start_line": 1962
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1242,15 +1242,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.8",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1957,
+      "line": 1963,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 55,
-        "end_line": 1957,
+        "end_line": 1963,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1957
+        "start_line": 1963
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1271,15 +1271,15 @@
       "id": "test-stdlib-builtin-functions-exist.assert-condition.9",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1958,
+      "line": 1964,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 54,
-        "end_line": 1958,
+        "end_line": 1964,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1958
+        "start_line": 1964
       },
       "symbol": "test_stdlib_builtin_functions_exist",
       "tags": [
@@ -1300,15 +1300,15 @@
       "id": "test-stdlib-function-metadata.assert-condition.1",
       "kind": "assert-condition",
       "language": "rust",
-      "line": 1972,
+      "line": 1978,
       "origin_class": "assert-condition",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
       "span": {
         "end_col": 34,
-        "end_line": 1972,
+        "end_line": 1978,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
         "start_col": 1,
-        "start_line": 1972
+        "start_line": 1978
       },
       "symbol": "test_stdlib_function_metadata",
       "tags": [
@@ -1323,7 +1323,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "3c2daa04780861ed3bb3da541bec69c92b7fd22695500d4eee08030aa81e29ab",
+  "source_hash": "bcb05784205724de6608d67b2d0c659b631c9011d6a91eb2e60b1ea1e0407e52",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
   "version": 1
 }

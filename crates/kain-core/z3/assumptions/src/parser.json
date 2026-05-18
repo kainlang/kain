@@ -11,15 +11,15 @@
       "id": "new.parameter-role.1",
       "kind": "parameter-role",
       "language": "rust",
-      "line": 239,
+      "line": 240,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 90,
-        "end_line": 239,
+        "end_line": 240,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 239
+        "start_line": 240
       },
       "symbol": "new",
       "text": "pub fn new(tokens: &'a [Token], span_mapper: &'a SpanMapper, filename: &'a str) -> Self {",
@@ -34,15 +34,15 @@
       "id": "parse.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 350,
+      "line": 404,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 23,
-        "end_line": 350,
+        "end_line": 404,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 350
+        "start_line": 404
       },
       "symbol": "parse",
       "tags": [
@@ -63,15 +63,15 @@
       "id": "parse.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 352,
+      "line": 406,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 37,
-        "end_line": 352,
+        "end_line": 406,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 352
+        "start_line": 406
       },
       "symbol": "parse",
       "tags": [
@@ -94,15 +94,15 @@
       "id": "parse.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 356,
+      "line": 410,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 19,
-        "end_line": 356,
+        "end_line": 410,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 356
+        "start_line": 410
       },
       "symbol": "parse",
       "tags": [
@@ -123,15 +123,15 @@
       "id": "parse.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 399,
+      "line": 453,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 46,
-        "end_line": 399,
+        "end_line": 453,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 399
+        "start_line": 453
       },
       "symbol": "parse",
       "tags": [
@@ -154,15 +154,15 @@
       "id": "parse.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 407,
+      "line": 461,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 407,
+        "end_line": 461,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 407
+        "start_line": 461
       },
       "symbol": "parse",
       "tags": [
@@ -185,15 +185,15 @@
       "id": "parse.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 416,
+      "line": 470,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 46,
-        "end_line": 416,
+        "end_line": 470,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 416
+        "start_line": 470
       },
       "symbol": "parse",
       "tags": [
@@ -216,15 +216,15 @@
       "id": "parse.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 437,
+      "line": 491,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 46,
-        "end_line": 437,
+        "end_line": 491,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 437
+        "start_line": 491
       },
       "symbol": "parse",
       "tags": [
@@ -247,15 +247,15 @@
       "id": "parse.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 446,
+      "line": 500,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 33,
-        "end_line": 446,
+        "end_line": 500,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 446
+        "start_line": 500
       },
       "symbol": "parse",
       "tags": [
@@ -276,15 +276,15 @@
       "id": "parse.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 465,
+      "line": 519,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 29,
-        "end_line": 465,
+        "end_line": 519,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 465
+        "start_line": 519
       },
       "symbol": "parse",
       "tags": [
@@ -306,15 +306,15 @@
       "id": "parse-actor-with-attrs.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2490,
+      "line": 2544,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2490,
+        "end_line": 2544,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2490
+        "start_line": 2544
       },
       "symbol": "parse_actor_with_attrs",
       "tags": [
@@ -337,15 +337,15 @@
       "id": "parse-actor-with-attrs.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2492,
+      "line": 2546,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2492,
+        "end_line": 2546,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2492
+        "start_line": 2546
       },
       "symbol": "parse_actor_with_attrs",
       "tags": [
@@ -367,15 +367,15 @@
       "id": "parse-actor-with-attrs.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2500,
+      "line": 2554,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 2500,
+        "end_line": 2554,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2500
+        "start_line": 2554
       },
       "symbol": "parse_actor_with_attrs",
       "tags": [
@@ -397,15 +397,15 @@
       "id": "parse-actor-with-attrs.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2533,
+      "line": 2587,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 30,
-        "end_line": 2533,
+        "end_line": 2587,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2533
+        "start_line": 2587
       },
       "symbol": "parse_actor_with_attrs",
       "tags": [
@@ -427,15 +427,15 @@
       "id": "parse-actor-with-attrs.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2539,
+      "line": 2593,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 17,
-        "end_line": 2539,
+        "end_line": 2593,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2539
+        "start_line": 2593
       },
       "symbol": "parse_actor_with_attrs",
       "tags": [
@@ -455,15 +455,15 @@
       "id": "parse-actor-with-attrs.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2590,
+      "line": 2644,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2590,
+        "end_line": 2644,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2590
+        "start_line": 2644
       },
       "symbol": "parse_actor_with_attrs",
       "tags": [
@@ -485,15 +485,15 @@
       "id": "parse-assignment.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3780,
+      "line": 3834,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 58,
-        "end_line": 3780,
+        "end_line": 3834,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3780
+        "start_line": 3834
       },
       "symbol": "parse_assignment",
       "tags": [
@@ -515,15 +515,15 @@
       "id": "parse-attributes.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 849,
+      "line": 903,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 849,
+        "end_line": 903,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 849
+        "start_line": 903
       },
       "symbol": "parse_attributes",
       "tags": [
@@ -546,15 +546,15 @@
       "id": "parse-attributes.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 858,
+      "line": 912,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 858,
+        "end_line": 912,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 858
+        "start_line": 912
       },
       "symbol": "parse_attributes",
       "tags": [
@@ -578,15 +578,15 @@
       "id": "parse-attributes.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 860,
+      "line": 914,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 860,
+        "end_line": 914,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 860
+        "start_line": 914
       },
       "symbol": "parse_attributes",
       "tags": [
@@ -611,15 +611,15 @@
       "id": "parse-attributes.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 864,
+      "line": 918,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 864,
+        "end_line": 918,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 864
+        "start_line": 918
       },
       "symbol": "parse_attributes",
       "tags": [
@@ -642,15 +642,15 @@
       "id": "parse-attributes.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 882,
+      "line": 936,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 882,
+        "end_line": 936,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 882
+        "start_line": 936
       },
       "symbol": "parse_attributes",
       "tags": [
@@ -673,15 +673,15 @@
       "id": "parse-axiom.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1385,
+      "line": 1439,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 1385,
+        "end_line": 1439,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1385
+        "start_line": 1439
       },
       "symbol": "parse_axiom",
       "tags": [
@@ -704,15 +704,15 @@
       "id": "parse-axiom.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1387,
+      "line": 1441,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1387,
+        "end_line": 1441,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1387
+        "start_line": 1441
       },
       "symbol": "parse_axiom",
       "tags": [
@@ -734,15 +734,15 @@
       "id": "parse-axiom.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1402,
+      "line": 1456,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 24,
-        "end_line": 1402,
+        "end_line": 1456,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1402
+        "start_line": 1456
       },
       "symbol": "parse_axiom",
       "tags": [
@@ -766,15 +766,15 @@
       "id": "parse-binary.parameter-role.1",
       "kind": "parameter-role",
       "language": "rust",
-      "line": 3852,
+      "line": 3906,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 63,
-        "end_line": 3852,
+        "end_line": 3906,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3852
+        "start_line": 3906
       },
       "symbol": "parse_binary",
       "text": "fn parse_binary(&mut self, min_prec: u8) -> KainResult<Expr> {",
@@ -789,15 +789,15 @@
       "id": "parse-binary.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3855,
+      "line": 3909,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 3855,
+        "end_line": 3909,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3855
+        "start_line": 3909
       },
       "symbol": "parse_binary",
       "tags": [
@@ -828,15 +828,15 @@
       "id": "parse-binary.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3856,
+      "line": 3910,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 21,
-        "end_line": 3856,
+        "end_line": 3910,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3856
+        "start_line": 3910
       },
       "symbol": "parse_binary",
       "tags": [
@@ -856,15 +856,15 @@
       "id": "parse-block.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3616,
+      "line": 3670,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3616,
+        "end_line": 3670,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3616
+        "start_line": 3670
       },
       "symbol": "parse_block",
       "tags": [
@@ -887,15 +887,15 @@
       "id": "parse-block.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3618,
+      "line": 3672,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 33,
-        "end_line": 3618,
+        "end_line": 3672,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3618
+        "start_line": 3672
       },
       "symbol": "parse_block",
       "tags": [
@@ -917,15 +917,15 @@
       "id": "parse-block.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3627,
+      "line": 3681,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3627,
+        "end_line": 3681,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3627
+        "start_line": 3681
       },
       "symbol": "parse_block",
       "tags": [
@@ -947,15 +947,15 @@
       "id": "parse-coalesce.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3842,
+      "line": 3896,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 45,
-        "end_line": 3842,
+        "end_line": 3896,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3842
+        "start_line": 3896
       },
       "symbol": "parse_coalesce",
       "tags": [
@@ -976,15 +976,15 @@
       "id": "parse-component.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1854,
+      "line": 1908,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 1854,
+        "end_line": 1908,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1854
+        "start_line": 1908
       },
       "symbol": "parse_component",
       "tags": [
@@ -1007,15 +1007,15 @@
       "id": "parse-component.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1856,
+      "line": 1910,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1856,
+        "end_line": 1910,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1856
+        "start_line": 1910
       },
       "symbol": "parse_component",
       "tags": [
@@ -1037,15 +1037,15 @@
       "id": "parse-component.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1860,
+      "line": 1914,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 1860,
+        "end_line": 1914,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1860
+        "start_line": 1914
       },
       "symbol": "parse_component",
       "tags": [
@@ -1067,15 +1067,15 @@
       "id": "parse-component.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1862,
+      "line": 1916,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 71,
-        "end_line": 1862,
+        "end_line": 1916,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1862
+        "start_line": 1916
       },
       "symbol": "parse_component",
       "tags": [
@@ -1101,15 +1101,15 @@
       "id": "parse-component.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1881,
+      "line": 1935,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 18,
-        "end_line": 1881,
+        "end_line": 1935,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1881
+        "start_line": 1935
       },
       "symbol": "parse_component",
       "tags": [
@@ -1129,15 +1129,15 @@
       "id": "parse-component.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1898,
+      "line": 1952,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 1898,
+        "end_line": 1952,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1898
+        "start_line": 1952
       },
       "symbol": "parse_component",
       "tags": [
@@ -1159,15 +1159,15 @@
       "id": "parse-component.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1928,
+      "line": 1982,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1928,
+        "end_line": 1982,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1928
+        "start_line": 1982
       },
       "symbol": "parse_component",
       "tags": [
@@ -1189,15 +1189,15 @@
       "id": "parse-component.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1973,
+      "line": 2027,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1973,
+        "end_line": 2027,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1973
+        "start_line": 2027
       },
       "symbol": "parse_component",
       "tags": [
@@ -1219,15 +1219,15 @@
       "id": "parse-component-with-attrs.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2018,
+      "line": 2072,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2018,
+        "end_line": 2072,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2018
+        "start_line": 2072
       },
       "symbol": "parse_component_with_attrs",
       "tags": [
@@ -1250,15 +1250,15 @@
       "id": "parse-component-with-attrs.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2020,
+      "line": 2074,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2020,
+        "end_line": 2074,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2020
+        "start_line": 2074
       },
       "symbol": "parse_component_with_attrs",
       "tags": [
@@ -1280,15 +1280,15 @@
       "id": "parse-component-with-attrs.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2024,
+      "line": 2078,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 2024,
+        "end_line": 2078,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2024
+        "start_line": 2078
       },
       "symbol": "parse_component_with_attrs",
       "tags": [
@@ -1310,15 +1310,15 @@
       "id": "parse-component-with-attrs.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2025,
+      "line": 2079,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 71,
-        "end_line": 2025,
+        "end_line": 2079,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2025
+        "start_line": 2079
       },
       "symbol": "parse_component_with_attrs",
       "tags": [
@@ -1344,15 +1344,15 @@
       "id": "parse-component-with-attrs.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2029,
+      "line": 2083,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 18,
-        "end_line": 2029,
+        "end_line": 2083,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2029
+        "start_line": 2083
       },
       "symbol": "parse_component_with_attrs",
       "tags": [
@@ -1372,15 +1372,15 @@
       "id": "parse-component-with-attrs.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2046,
+      "line": 2100,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 2046,
+        "end_line": 2100,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2046
+        "start_line": 2100
       },
       "symbol": "parse_component_with_attrs",
       "tags": [
@@ -1402,15 +1402,15 @@
       "id": "parse-component-with-attrs.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2092,
+      "line": 2146,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2092,
+        "end_line": 2146,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2092
+        "start_line": 2146
       },
       "symbol": "parse_component_with_attrs",
       "tags": [
@@ -1432,15 +1432,15 @@
       "id": "parse-conditional.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3808,
+      "line": 3862,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 38,
-        "end_line": 3808,
+        "end_line": 3862,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3808
+        "start_line": 3862
       },
       "symbol": "parse_conditional",
       "tags": [
@@ -1462,15 +1462,15 @@
       "id": "parse-converge.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1547,
+      "line": 1601,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 1547,
+        "end_line": 1601,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1547
+        "start_line": 1601
       },
       "symbol": "parse_converge",
       "tags": [
@@ -1493,15 +1493,15 @@
       "id": "parse-converge.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1549,
+      "line": 1603,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1549,
+        "end_line": 1603,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1549
+        "start_line": 1603
       },
       "symbol": "parse_converge",
       "tags": [
@@ -1523,15 +1523,15 @@
       "id": "parse-converge.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1555,
+      "line": 1609,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 25,
-        "end_line": 1555,
+        "end_line": 1609,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1555
+        "start_line": 1609
       },
       "symbol": "parse_converge",
       "tags": [
@@ -1551,15 +1551,15 @@
       "id": "parse-converge.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1587,
+      "line": 1641,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 27,
-        "end_line": 1587,
+        "end_line": 1641,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1587
+        "start_line": 1641
       },
       "symbol": "parse_converge",
       "tags": [
@@ -1579,15 +1579,15 @@
       "id": "parse-converge-selector.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1676,
+      "line": 1730,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 42,
-        "end_line": 1676,
+        "end_line": 1730,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1676
+        "start_line": 1730
       },
       "symbol": "parse_converge_selector",
       "tags": [
@@ -1607,15 +1607,15 @@
       "id": "parse-effects.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3354,
+      "line": 3408,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 33,
-        "end_line": 3354,
+        "end_line": 3408,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3354
+        "start_line": 3408
       },
       "symbol": "parse_effects",
       "tags": [
@@ -1636,15 +1636,15 @@
       "id": "parse-effects.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3390,
+      "line": 3444,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 26,
-        "end_line": 3390,
+        "end_line": 3444,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3390
+        "start_line": 3444
       },
       "symbol": "parse_effects",
       "tags": [
@@ -1665,15 +1665,15 @@
       "id": "parse-effects.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3393,
+      "line": 3447,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3393,
+        "end_line": 3447,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3393
+        "start_line": 3447
       },
       "symbol": "parse_effects",
       "tags": [
@@ -1694,15 +1694,15 @@
       "id": "parse-entangle-endpoint.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1801,
+      "line": 1855,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1801,
+        "end_line": 1855,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1801
+        "start_line": 1855
       },
       "symbol": "parse_entangle_endpoint",
       "tags": [
@@ -1723,15 +1723,15 @@
       "id": "parse-entangle-endpoint.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1805,
+      "line": 1859,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 24,
-        "end_line": 1805,
+        "end_line": 1859,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1805
+        "start_line": 1859
       },
       "symbol": "parse_entangle_endpoint",
       "tags": [
@@ -1750,15 +1750,15 @@
       "id": "parse-enum.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2355,
+      "line": 2409,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2355,
+        "end_line": 2409,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2355
+        "start_line": 2409
       },
       "symbol": "parse_enum",
       "tags": [
@@ -1782,15 +1782,15 @@
       "id": "parse-enum.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2357,
+      "line": 2411,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2357,
+        "end_line": 2411,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2357
+        "start_line": 2411
       },
       "symbol": "parse_enum",
       "tags": [
@@ -1813,15 +1813,15 @@
       "id": "parse-enum.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2366,
+      "line": 2420,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2366,
+        "end_line": 2420,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2366
+        "start_line": 2420
       },
       "symbol": "parse_enum",
       "tags": [
@@ -1845,15 +1845,15 @@
       "id": "parse-enum.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2368,
+      "line": 2422,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 2368,
+        "end_line": 2422,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2368
+        "start_line": 2422
       },
       "symbol": "parse_enum",
       "tags": [
@@ -1876,15 +1876,15 @@
       "id": "parse-enum.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2385,
+      "line": 2439,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2385,
+        "end_line": 2439,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2385
+        "start_line": 2439
       },
       "symbol": "parse_enum",
       "tags": [
@@ -1908,15 +1908,15 @@
       "id": "parse-enum.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2386,
+      "line": 2440,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 47,
-        "end_line": 2386,
+        "end_line": 2440,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2386
+        "start_line": 2440
       },
       "symbol": "parse_enum",
       "tags": [
@@ -1940,15 +1940,15 @@
       "id": "parse-enum.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2389,
+      "line": 2443,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 48,
-        "end_line": 2389,
+        "end_line": 2443,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2389
+        "start_line": 2443
       },
       "symbol": "parse_enum",
       "tags": [
@@ -1972,15 +1972,15 @@
       "id": "parse-enum.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2394,
+      "line": 2448,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 80,
-        "end_line": 2394,
+        "end_line": 2448,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2394
+        "start_line": 2448
       },
       "symbol": "parse_enum",
       "tags": [
@@ -2005,15 +2005,15 @@
       "id": "parse-enum.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2414,
+      "line": 2468,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 2414,
+        "end_line": 2468,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2414
+        "start_line": 2468
       },
       "symbol": "parse_enum",
       "tags": [
@@ -2036,15 +2036,15 @@
       "id": "parse-enum.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2415,
+      "line": 2469,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 2415,
+        "end_line": 2469,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2415
+        "start_line": 2469
       },
       "symbol": "parse_enum",
       "tags": [
@@ -2068,15 +2068,15 @@
       "id": "parse-enum.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2422,
+      "line": 2476,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 14,
-        "end_line": 2422,
+        "end_line": 2476,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2422
+        "start_line": 2476
       },
       "symbol": "parse_enum",
       "tags": [
@@ -2096,15 +2096,15 @@
       "id": "parse-enum.guard-condition.12",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2459,
+      "line": 2513,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2459,
+        "end_line": 2513,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2459
+        "start_line": 2513
       },
       "symbol": "parse_enum",
       "tags": [
@@ -2127,15 +2127,15 @@
       "id": "parse-enum-variant-fields.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 635,
+      "line": 689,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 635,
+        "end_line": 689,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 635
+        "start_line": 689
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2157,15 +2157,15 @@
       "id": "parse-enum-variant-fields.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 639,
+      "line": 693,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 639,
+        "end_line": 693,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 639
+        "start_line": 693
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2187,15 +2187,15 @@
       "id": "parse-enum-variant-fields.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 641,
+      "line": 695,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 37,
-        "end_line": 641,
+        "end_line": 695,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 641
+        "start_line": 695
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2217,15 +2217,15 @@
       "id": "parse-enum-variant-fields.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 643,
+      "line": 697,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 643,
+        "end_line": 697,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 643
+        "start_line": 697
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2247,15 +2247,15 @@
       "id": "parse-enum-variant-fields.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 650,
+      "line": 704,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 22,
-        "end_line": 650,
+        "end_line": 704,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 650
+        "start_line": 704
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2275,15 +2275,15 @@
       "id": "parse-enum-variant-fields.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 667,
+      "line": 721,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 667,
+        "end_line": 721,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 667
+        "start_line": 721
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2306,15 +2306,15 @@
       "id": "parse-enum-variant-fields.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 668,
+      "line": 722,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 47,
-        "end_line": 668,
+        "end_line": 722,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 668
+        "start_line": 722
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2337,15 +2337,15 @@
       "id": "parse-enum-variant-fields.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 677,
+      "line": 731,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 85,
-        "end_line": 677,
+        "end_line": 731,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 677
+        "start_line": 731
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2369,15 +2369,15 @@
       "id": "parse-enum-variant-fields.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 678,
+      "line": 732,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 678,
+        "end_line": 732,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 678
+        "start_line": 732
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2400,15 +2400,15 @@
       "id": "parse-enum-variant-fields.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 685,
+      "line": 739,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 14,
-        "end_line": 685,
+        "end_line": 739,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 685
+        "start_line": 739
       },
       "symbol": "parse_enum_variant_fields",
       "tags": [
@@ -2427,15 +2427,15 @@
       "id": "parse-generics.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3288,
+      "line": 3342,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 3288,
+        "end_line": 3342,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3288
+        "start_line": 3342
       },
       "symbol": "parse_generics",
       "tags": [
@@ -2458,15 +2458,15 @@
       "id": "parse-generics.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3293,
+      "line": 3347,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 53,
-        "end_line": 3293,
+        "end_line": 3347,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3293
+        "start_line": 3347
       },
       "symbol": "parse_generics",
       "tags": [
@@ -2490,15 +2490,15 @@
       "id": "parse-generics.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3299,
+      "line": 3353,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 3299,
+        "end_line": 3353,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3299
+        "start_line": 3353
       },
       "symbol": "parse_generics",
       "tags": [
@@ -2521,15 +2521,15 @@
       "id": "parse-generics.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3307,
+      "line": 3361,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 3307,
+        "end_line": 3361,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3307
+        "start_line": 3361
       },
       "symbol": "parse_generics",
       "tags": [
@@ -2552,15 +2552,15 @@
       "id": "parse-generics.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3320,
+      "line": 3374,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 3320,
+        "end_line": 3374,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3320
+        "start_line": 3374
       },
       "symbol": "parse_generics",
       "tags": [
@@ -2583,15 +2583,15 @@
       "id": "parse-generics-as-types.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3332,
+      "line": 3386,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 3332,
+        "end_line": 3386,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3332
+        "start_line": 3386
       },
       "symbol": "parse_generics_as_types",
       "tags": [
@@ -2613,15 +2613,15 @@
       "id": "parse-generics-as-types.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3336,
+      "line": 3390,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 84,
-        "end_line": 3336,
+        "end_line": 3390,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3336
+        "start_line": 3390
       },
       "symbol": "parse_generics_as_types",
       "tags": [
@@ -2645,15 +2645,15 @@
       "id": "parse-generics-as-types.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3338,
+      "line": 3392,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 63,
-        "end_line": 3338,
+        "end_line": 3392,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3338
+        "start_line": 3392
       },
       "symbol": "parse_generics_as_types",
       "tags": [
@@ -2676,15 +2676,15 @@
       "id": "parse-generics-as-types.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3342,
+      "line": 3396,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 3342,
+        "end_line": 3396,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3342
+        "start_line": 3396
       },
       "symbol": "parse_generics_as_types",
       "tags": [
@@ -2706,15 +2706,15 @@
       "id": "parse-graph-editor.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2903,
+      "line": 2957,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 2903,
+        "end_line": 2957,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2903
+        "start_line": 2957
       },
       "symbol": "parse_graph_editor",
       "tags": [
@@ -2740,15 +2740,15 @@
       "id": "parse-graph-editor.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2904,
+      "line": 2958,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 18,
-        "end_line": 2904,
+        "end_line": 2958,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2904
+        "start_line": 2958
       },
       "symbol": "parse_graph_editor",
       "tags": [
@@ -2769,15 +2769,15 @@
       "id": "parse-graph-editor.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2938,
+      "line": 2992,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2938,
+        "end_line": 2992,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2938
+        "start_line": 2992
       },
       "symbol": "parse_graph_editor",
       "tags": [
@@ -2801,15 +2801,15 @@
       "id": "parse-graph-editor.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2940,
+      "line": 2994,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2940,
+        "end_line": 2994,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2940
+        "start_line": 2994
       },
       "symbol": "parse_graph_editor",
       "tags": [
@@ -2832,15 +2832,15 @@
       "id": "parse-graph-editor.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2947,
+      "line": 3001,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 54,
-        "end_line": 2947,
+        "end_line": 3001,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2947
+        "start_line": 3001
       },
       "symbol": "parse_graph_editor",
       "tags": [
@@ -2865,15 +2865,15 @@
       "id": "parse-graph-editor.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2964,
+      "line": 3018,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2964,
+        "end_line": 3018,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2964
+        "start_line": 3018
       },
       "symbol": "parse_graph_editor",
       "tags": [
@@ -2896,15 +2896,15 @@
       "id": "parse-graph-schema.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3185,
+      "line": 3239,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 3185,
+        "end_line": 3239,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3185
+        "start_line": 3239
       },
       "symbol": "parse_graph_schema",
       "tags": [
@@ -2929,15 +2929,15 @@
       "id": "parse-graph-schema.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3186,
+      "line": 3240,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 19,
-        "end_line": 3186,
+        "end_line": 3240,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3186
+        "start_line": 3240
       },
       "symbol": "parse_graph_schema",
       "tags": [
@@ -2957,15 +2957,15 @@
       "id": "parse-graph-schema.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3205,
+      "line": 3259,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3205,
+        "end_line": 3259,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3205
+        "start_line": 3259
       },
       "symbol": "parse_graph_schema",
       "tags": [
@@ -2988,15 +2988,15 @@
       "id": "parse-graph-schema.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3207,
+      "line": 3261,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3207,
+        "end_line": 3261,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3207
+        "start_line": 3261
       },
       "symbol": "parse_graph_schema",
       "tags": [
@@ -3018,15 +3018,15 @@
       "id": "parse-graph-schema.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3229,
+      "line": 3283,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3229,
+        "end_line": 3283,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3229
+        "start_line": 3283
       },
       "symbol": "parse_graph_schema",
       "tags": [
@@ -3048,15 +3048,15 @@
       "id": "parse-impl.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1055,
+      "line": 1109,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 1055,
+        "end_line": 1109,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1055
+        "start_line": 1109
       },
       "symbol": "parse_impl",
       "tags": [
@@ -3079,15 +3079,15 @@
       "id": "parse-impl.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1057,
+      "line": 1111,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1057,
+        "end_line": 1111,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1057
+        "start_line": 1111
       },
       "symbol": "parse_impl",
       "tags": [
@@ -3109,15 +3109,15 @@
       "id": "parse-impl.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1062,
+      "line": 1116,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 1062,
+        "end_line": 1116,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1062
+        "start_line": 1116
       },
       "symbol": "parse_impl",
       "tags": [
@@ -3139,15 +3139,15 @@
       "id": "parse-impl.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1063,
+      "line": 1117,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 55,
-        "end_line": 1063,
+        "end_line": 1117,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1063
+        "start_line": 1117
       },
       "symbol": "parse_impl",
       "tags": [
@@ -3172,15 +3172,15 @@
       "id": "parse-impl.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1078,
+      "line": 1132,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1078,
+        "end_line": 1132,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1078
+        "start_line": 1132
       },
       "symbol": "parse_impl",
       "tags": [
@@ -3202,15 +3202,15 @@
       "id": "parse-item.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 700,
+      "line": 754,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 59,
-        "end_line": 700,
+        "end_line": 754,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 700
+        "start_line": 754
       },
       "symbol": "parse_item",
       "tags": [
@@ -3234,15 +3234,15 @@
       "id": "parse-item.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 705,
+      "line": 759,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 62,
-        "end_line": 705,
+        "end_line": 759,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 705
+        "start_line": 759
       },
       "symbol": "parse_item",
       "tags": [
@@ -3266,15 +3266,15 @@
       "id": "parse-item.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 710,
+      "line": 764,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 710,
+        "end_line": 764,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 710
+        "start_line": 764
       },
       "symbol": "parse_item",
       "tags": [
@@ -3298,15 +3298,15 @@
       "id": "parse-item.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 715,
+      "line": 769,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 58,
-        "end_line": 715,
+        "end_line": 769,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 715
+        "start_line": 769
       },
       "symbol": "parse_item",
       "tags": [
@@ -3330,15 +3330,15 @@
       "id": "parse-item.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 720,
+      "line": 774,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 58,
-        "end_line": 720,
+        "end_line": 774,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 720
+        "start_line": 774
       },
       "symbol": "parse_item",
       "tags": [
@@ -3362,15 +3362,15 @@
       "id": "parse-item.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 725,
+      "line": 779,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 58,
-        "end_line": 725,
+        "end_line": 779,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 725
+        "start_line": 779
       },
       "symbol": "parse_item",
       "tags": [
@@ -3394,15 +3394,15 @@
       "id": "parse-item.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 730,
+      "line": 784,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 58,
-        "end_line": 730,
+        "end_line": 784,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 730
+        "start_line": 784
       },
       "symbol": "parse_item",
       "tags": [
@@ -3426,15 +3426,15 @@
       "id": "parse-item.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 735,
+      "line": 789,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 735,
+        "end_line": 789,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 735
+        "start_line": 789
       },
       "symbol": "parse_item",
       "tags": [
@@ -3458,15 +3458,15 @@
       "id": "parse-item.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 740,
+      "line": 794,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 60,
-        "end_line": 740,
+        "end_line": 794,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 740
+        "start_line": 794
       },
       "symbol": "parse_item",
       "tags": [
@@ -3490,15 +3490,15 @@
       "id": "parse-item.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 745,
+      "line": 799,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 745,
+        "end_line": 799,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 745
+        "start_line": 799
       },
       "symbol": "parse_item",
       "tags": [
@@ -3522,15 +3522,15 @@
       "id": "parse-item.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 750,
+      "line": 804,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 750,
+        "end_line": 804,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 750
+        "start_line": 804
       },
       "symbol": "parse_item",
       "tags": [
@@ -3554,15 +3554,15 @@
       "id": "parse-item.guard-condition.12",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 755,
+      "line": 809,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 755,
+        "end_line": 809,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 755
+        "start_line": 809
       },
       "symbol": "parse_item",
       "tags": [
@@ -3586,15 +3586,15 @@
       "id": "parse-macro.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1161,
+      "line": 1215,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 39,
-        "end_line": 1161,
+        "end_line": 1215,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1161
+        "start_line": 1215
       },
       "symbol": "parse_macro",
       "tags": [
@@ -3616,15 +3616,15 @@
       "id": "parse-macro.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1179,
+      "line": 1233,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 1179,
+        "end_line": 1233,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1179
+        "start_line": 1233
       },
       "symbol": "parse_macro",
       "tags": [
@@ -3646,15 +3646,15 @@
       "id": "parse-material-function.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2788,
+      "line": 2842,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 2788,
+        "end_line": 2842,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2788
+        "start_line": 2842
       },
       "symbol": "parse_material_function",
       "tags": [
@@ -3677,15 +3677,15 @@
       "id": "parse-material-function.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2805,
+      "line": 2859,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2805,
+        "end_line": 2859,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2805
+        "start_line": 2859
       },
       "symbol": "parse_material_function",
       "tags": [
@@ -3709,15 +3709,15 @@
       "id": "parse-material-function.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2824,
+      "line": 2878,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 2824,
+        "end_line": 2878,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2824
+        "start_line": 2878
       },
       "symbol": "parse_material_function",
       "tags": [
@@ -3740,15 +3740,15 @@
       "id": "parse-material-function.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2841,
+      "line": 2895,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2841,
+        "end_line": 2895,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2841
+        "start_line": 2895
       },
       "symbol": "parse_material_function",
       "tags": [
@@ -3772,15 +3772,15 @@
       "id": "parse-material-function.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2843,
+      "line": 2897,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2843,
+        "end_line": 2897,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2843
+        "start_line": 2897
       },
       "symbol": "parse_material_function",
       "tags": [
@@ -3803,15 +3803,15 @@
       "id": "parse-material-function.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2848,
+      "line": 2902,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 2848,
+        "end_line": 2902,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2848
+        "start_line": 2902
       },
       "symbol": "parse_material_function",
       "tags": [
@@ -3834,15 +3834,15 @@
       "id": "parse-material-function.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2878,
+      "line": 2932,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2878,
+        "end_line": 2932,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2878
+        "start_line": 2932
       },
       "symbol": "parse_material_function",
       "tags": [
@@ -3865,15 +3865,15 @@
       "id": "parse-material-graph.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2657,
+      "line": 2711,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 2657,
+        "end_line": 2711,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2657
+        "start_line": 2711
       },
       "symbol": "parse_material_graph",
       "tags": [
@@ -3899,15 +3899,15 @@
       "id": "parse-material-graph.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2658,
+      "line": 2712,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 21,
-        "end_line": 2658,
+        "end_line": 2712,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2658
+        "start_line": 2712
       },
       "symbol": "parse_material_graph",
       "tags": [
@@ -3928,15 +3928,15 @@
       "id": "parse-material-graph.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2692,
+      "line": 2746,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2692,
+        "end_line": 2746,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2692
+        "start_line": 2746
       },
       "symbol": "parse_material_graph",
       "tags": [
@@ -3960,15 +3960,15 @@
       "id": "parse-material-graph.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2694,
+      "line": 2748,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2694,
+        "end_line": 2748,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2694
+        "start_line": 2748
       },
       "symbol": "parse_material_graph",
       "tags": [
@@ -3991,15 +3991,15 @@
       "id": "parse-material-graph.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2699,
+      "line": 2753,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 2699,
+        "end_line": 2753,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2699
+        "start_line": 2753
       },
       "symbol": "parse_material_graph",
       "tags": [
@@ -4025,15 +4025,15 @@
       "id": "parse-material-graph.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2770,
+      "line": 2824,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2770,
+        "end_line": 2824,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2770
+        "start_line": 2824
       },
       "symbol": "parse_material_graph",
       "tags": [
@@ -4056,15 +4056,15 @@
       "id": "parse-mod.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 816,
+      "line": 870,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 816,
+        "end_line": 870,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 816
+        "start_line": 870
       },
       "symbol": "parse_mod",
       "tags": [
@@ -4086,15 +4086,15 @@
       "id": "parse-mod.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 823,
+      "line": 877,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 823,
+        "end_line": 877,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 823
+        "start_line": 877
       },
       "symbol": "parse_mod",
       "tags": [
@@ -4117,15 +4117,15 @@
       "id": "parse-mod.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 825,
+      "line": 879,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 825,
+        "end_line": 879,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 825
+        "start_line": 879
       },
       "symbol": "parse_mod",
       "tags": [
@@ -4147,15 +4147,15 @@
       "id": "parse-node-type.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2981,
+      "line": 3035,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 2981,
+        "end_line": 3035,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2981
+        "start_line": 3035
       },
       "symbol": "parse_node_type",
       "tags": [
@@ -4180,15 +4180,15 @@
       "id": "parse-node-type.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2982,
+      "line": 3036,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 17,
-        "end_line": 2982,
+        "end_line": 3036,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2982
+        "start_line": 3036
       },
       "symbol": "parse_node_type",
       "tags": [
@@ -4208,15 +4208,15 @@
       "id": "parse-node-type.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3005,
+      "line": 3059,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 34,
-        "end_line": 3005,
+        "end_line": 3059,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3005
+        "start_line": 3059
       },
       "symbol": "parse_node_type",
       "tags": [
@@ -4240,15 +4240,15 @@
       "id": "parse-node-type.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3024,
+      "line": 3078,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3024,
+        "end_line": 3078,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3024
+        "start_line": 3078
       },
       "symbol": "parse_node_type",
       "tags": [
@@ -4271,15 +4271,15 @@
       "id": "parse-node-type.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3026,
+      "line": 3080,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3026,
+        "end_line": 3080,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3026
+        "start_line": 3080
       },
       "symbol": "parse_node_type",
       "tags": [
@@ -4301,15 +4301,15 @@
       "id": "parse-node-type.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3031,
+      "line": 3085,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 52,
-        "end_line": 3031,
+        "end_line": 3085,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3031
+        "start_line": 3085
       },
       "symbol": "parse_node_type",
       "tags": [
@@ -4334,15 +4334,15 @@
       "id": "parse-node-type.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3060,
+      "line": 3114,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3060,
+        "end_line": 3114,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3060
+        "start_line": 3114
       },
       "symbol": "parse_node_type",
       "tags": [
@@ -4364,15 +4364,15 @@
       "id": "parse-params.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3242,
+      "line": 3296,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3242,
+        "end_line": 3296,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3242
+        "start_line": 3296
       },
       "symbol": "parse_params",
       "tags": [
@@ -4395,15 +4395,15 @@
       "id": "parse-params.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3275,
+      "line": 3329,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 3275,
+        "end_line": 3329,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3275
+        "start_line": 3329
       },
       "symbol": "parse_params",
       "tags": [
@@ -4425,15 +4425,15 @@
       "id": "parse-path-name.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 563,
+      "line": 617,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 42,
-        "end_line": 563,
+        "end_line": 617,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 563
+        "start_line": 617
       },
       "symbol": "parse_path_name",
       "tags": [
@@ -4455,15 +4455,15 @@
       "id": "parse-path-segments-after.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 574,
+      "line": 628,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 42,
-        "end_line": 574,
+        "end_line": 628,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 574
+        "start_line": 628
       },
       "symbol": "parse_path_segments_after",
       "tags": [
@@ -4484,15 +4484,15 @@
       "id": "parse-pin-list.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3082,
+      "line": 3136,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3082,
+        "end_line": 3136,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3082
+        "start_line": 3136
       },
       "symbol": "parse_pin_list",
       "tags": [
@@ -4515,15 +4515,15 @@
       "id": "parse-pin-list.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3084,
+      "line": 3138,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3084,
+        "end_line": 3138,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3084
+        "start_line": 3138
       },
       "symbol": "parse_pin_list",
       "tags": [
@@ -4545,15 +4545,15 @@
       "id": "parse-pin-list.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3123,
+      "line": 3177,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3123,
+        "end_line": 3177,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3123
+        "start_line": 3177
       },
       "symbol": "parse_pin_list",
       "tags": [
@@ -4575,15 +4575,15 @@
       "id": "parse-postfix.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4095,
+      "line": 4149,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 48,
-        "end_line": 4095,
+        "end_line": 4149,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4095
+        "start_line": 4149
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4615,15 +4615,15 @@
       "id": "parse-postfix.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4107,
+      "line": 4161,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 40,
-        "end_line": 4107,
+        "end_line": 4161,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4107
+        "start_line": 4161
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4644,15 +4644,15 @@
       "id": "parse-postfix.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4125,
+      "line": 4179,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 21,
-        "end_line": 4125,
+        "end_line": 4179,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4125
+        "start_line": 4179
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4674,15 +4674,15 @@
       "id": "parse-postfix.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4190,
+      "line": 4244,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 4190,
+        "end_line": 4244,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4190
+        "start_line": 4244
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4705,15 +4705,15 @@
       "id": "parse-postfix.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4235,
+      "line": 4289,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 4235,
+        "end_line": 4289,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4235
+        "start_line": 4289
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4734,15 +4734,15 @@
       "id": "parse-postfix.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4244,
+      "line": 4298,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 38,
-        "end_line": 4244,
+        "end_line": 4298,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4244
+        "start_line": 4298
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4767,15 +4767,15 @@
       "id": "parse-postfix.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4250,
+      "line": 4304,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 37,
-        "end_line": 4250,
+        "end_line": 4304,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4250
+        "start_line": 4304
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4798,15 +4798,15 @@
       "id": "parse-postfix.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4252,
+      "line": 4306,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 4252,
+        "end_line": 4306,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4252
+        "start_line": 4306
       },
       "symbol": "parse_postfix",
       "tags": [
@@ -4829,15 +4829,15 @@
       "id": "parse-primary.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4317,
+      "line": 4371,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 42,
-        "end_line": 4317,
+        "end_line": 4371,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4317
+        "start_line": 4371
       },
       "symbol": "parse_primary",
       "tags": [
@@ -4860,15 +4860,15 @@
       "id": "parse-primary.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4318,
+      "line": 4372,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 14,
-        "end_line": 4318,
+        "end_line": 4372,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4318
+        "start_line": 4372
       },
       "symbol": "parse_primary",
       "tags": [
@@ -4886,15 +4886,15 @@
       "id": "parse-property-list.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3137,
+      "line": 3191,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3137,
+        "end_line": 3191,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3137
+        "start_line": 3191
       },
       "symbol": "parse_property_list",
       "tags": [
@@ -4917,15 +4917,15 @@
       "id": "parse-property-list.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3139,
+      "line": 3193,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3139,
+        "end_line": 3193,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3139
+        "start_line": 3193
       },
       "symbol": "parse_property_list",
       "tags": [
@@ -4947,15 +4947,15 @@
       "id": "parse-property-list.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3174,
+      "line": 3228,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3174,
+        "end_line": 3228,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3174
+        "start_line": 3228
       },
       "symbol": "parse_property_list",
       "tags": [
@@ -4977,15 +4977,15 @@
       "id": "parse-shader.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2123,
+      "line": 2177,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 20,
-        "end_line": 2123,
+        "end_line": 2177,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2123
+        "start_line": 2177
       },
       "symbol": "parse_shader",
       "tags": [
@@ -5006,15 +5006,15 @@
       "id": "parse-shader.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2149,
+      "line": 2203,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2149,
+        "end_line": 2203,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2149
+        "start_line": 2203
       },
       "symbol": "parse_shader",
       "tags": [
@@ -5038,15 +5038,15 @@
       "id": "parse-shader.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2151,
+      "line": 2205,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2151,
+        "end_line": 2205,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2151
+        "start_line": 2205
       },
       "symbol": "parse_shader",
       "tags": [
@@ -5070,15 +5070,15 @@
       "id": "parse-shader.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2162,
+      "line": 2216,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 16,
-        "end_line": 2162,
+        "end_line": 2216,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2162
+        "start_line": 2216
       },
       "symbol": "parse_shader",
       "tags": [
@@ -5098,15 +5098,15 @@
       "id": "parse-shader.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2195,
+      "line": 2249,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2195,
+        "end_line": 2249,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2195
+        "start_line": 2249
       },
       "symbol": "parse_shader",
       "tags": [
@@ -5129,15 +5129,15 @@
       "id": "parse-shader.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2214,
+      "line": 2268,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 50,
-        "end_line": 2214,
+        "end_line": 2268,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2214
+        "start_line": 2268
       },
       "symbol": "parse_shader",
       "tags": [
@@ -5161,15 +5161,15 @@
       "id": "parse-shader.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2215,
+      "line": 2269,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 55,
-        "end_line": 2215,
+        "end_line": 2269,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2215
+        "start_line": 2269
       },
       "symbol": "parse_shader",
       "tags": [
@@ -5193,15 +5193,15 @@
       "id": "parse-stmt.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3638,
+      "line": 3692,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 26,
-        "end_line": 3638,
+        "end_line": 3692,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3638
+        "start_line": 3692
       },
       "symbol": "parse_stmt",
       "tags": [
@@ -5220,15 +5220,15 @@
       "id": "parse-struct-with-attrs.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2263,
+      "line": 2317,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 2263,
+        "end_line": 2317,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2263
+        "start_line": 2317
       },
       "symbol": "parse_struct_with_attrs",
       "tags": [
@@ -5250,15 +5250,15 @@
       "id": "parse-struct-with-attrs.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2276,
+      "line": 2330,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 2276,
+        "end_line": 2330,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2276
+        "start_line": 2330
       },
       "symbol": "parse_struct_with_attrs",
       "tags": [
@@ -5281,15 +5281,15 @@
       "id": "parse-struct-with-attrs.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2278,
+      "line": 2332,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2278,
+        "end_line": 2332,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2278
+        "start_line": 2332
       },
       "symbol": "parse_struct_with_attrs",
       "tags": [
@@ -5311,15 +5311,15 @@
       "id": "parse-struct-with-attrs.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2284,
+      "line": 2338,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 2284,
+        "end_line": 2338,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2284
+        "start_line": 2338
       },
       "symbol": "parse_struct_with_attrs",
       "tags": [
@@ -5341,15 +5341,15 @@
       "id": "parse-struct-with-attrs.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2285,
+      "line": 2339,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 70,
-        "end_line": 2285,
+        "end_line": 2339,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2285
+        "start_line": 2339
       },
       "symbol": "parse_struct_with_attrs",
       "tags": [
@@ -5375,15 +5375,15 @@
       "id": "parse-struct-with-attrs.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2294,
+      "line": 2348,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 17,
-        "end_line": 2294,
+        "end_line": 2348,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2294
+        "start_line": 2348
       },
       "symbol": "parse_struct_with_attrs",
       "tags": [
@@ -5403,15 +5403,15 @@
       "id": "parse-struct-with-attrs.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2327,
+      "line": 2381,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 2327,
+        "end_line": 2381,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 2327
+        "start_line": 2381
       },
       "symbol": "parse_struct_with_attrs",
       "tags": [
@@ -5433,15 +5433,15 @@
       "id": "parse-trait.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 964,
+      "line": 1018,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 964,
+        "end_line": 1018,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 964
+        "start_line": 1018
       },
       "symbol": "parse_trait",
       "tags": [
@@ -5464,15 +5464,15 @@
       "id": "parse-trait.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 966,
+      "line": 1020,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 966,
+        "end_line": 1020,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 966
+        "start_line": 1020
       },
       "symbol": "parse_trait",
       "tags": [
@@ -5494,15 +5494,15 @@
       "id": "parse-trait.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1007,
+      "line": 1061,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1007,
+        "end_line": 1061,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1007
+        "start_line": 1061
       },
       "symbol": "parse_trait",
       "tags": [
@@ -5524,15 +5524,15 @@
       "id": "parse-type.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3405,
+      "line": 3459,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 3405,
+        "end_line": 3459,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3405
+        "start_line": 3459
       },
       "symbol": "parse_type",
       "tags": [
@@ -5556,15 +5556,15 @@
       "id": "parse-type.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3423,
+      "line": 3477,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 37,
-        "end_line": 3423,
+        "end_line": 3477,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3423
+        "start_line": 3477
       },
       "symbol": "parse_type",
       "tags": [
@@ -5588,15 +5588,15 @@
       "id": "parse-type.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3426,
+      "line": 3480,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 33,
-        "end_line": 3426,
+        "end_line": 3480,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3426
+        "start_line": 3480
       },
       "symbol": "parse_type",
       "tags": [
@@ -5620,15 +5620,15 @@
       "id": "parse-type.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3450,
+      "line": 3504,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3450,
+        "end_line": 3504,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3450
+        "start_line": 3504
       },
       "symbol": "parse_type",
       "tags": [
@@ -5652,15 +5652,15 @@
       "id": "parse-type.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3454,
+      "line": 3508,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3454,
+        "end_line": 3508,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3454
+        "start_line": 3508
       },
       "symbol": "parse_type",
       "tags": [
@@ -5684,15 +5684,15 @@
       "id": "parse-type.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3463,
+      "line": 3517,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 37,
-        "end_line": 3463,
+        "end_line": 3517,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3463
+        "start_line": 3517
       },
       "symbol": "parse_type",
       "tags": [
@@ -5716,15 +5716,15 @@
       "id": "parse-type.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3465,
+      "line": 3519,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 3465,
+        "end_line": 3519,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3465
+        "start_line": 3519
       },
       "symbol": "parse_type",
       "tags": [
@@ -5748,15 +5748,15 @@
       "id": "parse-type.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3476,
+      "line": 3530,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 33,
-        "end_line": 3476,
+        "end_line": 3530,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3476
+        "start_line": 3530
       },
       "symbol": "parse_type",
       "tags": [
@@ -5780,15 +5780,15 @@
       "id": "parse-type.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3482,
+      "line": 3536,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 3482,
+        "end_line": 3536,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3482
+        "start_line": 3536
       },
       "symbol": "parse_type",
       "tags": [
@@ -5812,15 +5812,15 @@
       "id": "parse-type.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3484,
+      "line": 3538,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 84,
-        "end_line": 3484,
+        "end_line": 3538,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3484
+        "start_line": 3538
       },
       "symbol": "parse_type",
       "tags": [
@@ -5846,15 +5846,15 @@
       "id": "parse-type.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3486,
+      "line": 3540,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 63,
-        "end_line": 3486,
+        "end_line": 3540,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3486
+        "start_line": 3540
       },
       "symbol": "parse_type",
       "tags": [
@@ -5879,15 +5879,15 @@
       "id": "parse-type.guard-condition.12",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3492,
+      "line": 3546,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 3492,
+        "end_line": 3546,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3492
+        "start_line": 3546
       },
       "symbol": "parse_type",
       "tags": [
@@ -5911,15 +5911,15 @@
       "id": "parse-type.guard-condition.13",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3507,
+      "line": 3561,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 3507,
+        "end_line": 3561,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3507
+        "start_line": 3561
       },
       "symbol": "parse_type",
       "tags": [
@@ -5943,15 +5943,15 @@
       "id": "parse-type.guard-condition.14",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3513,
+      "line": 3567,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3513,
+        "end_line": 3567,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3513
+        "start_line": 3567
       },
       "symbol": "parse_type",
       "tags": [
@@ -5976,15 +5976,15 @@
       "id": "parse-type.guard-condition.15",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3515,
+      "line": 3569,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 3515,
+        "end_line": 3569,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3515
+        "start_line": 3569
       },
       "symbol": "parse_type",
       "tags": [
@@ -6008,15 +6008,15 @@
       "id": "parse-type.guard-condition.16",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3542,
+      "line": 3596,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3542,
+        "end_line": 3596,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3542
+        "start_line": 3596
       },
       "symbol": "parse_type",
       "tags": [
@@ -6042,15 +6042,15 @@
       "id": "parse-type.guard-condition.17",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3547,
+      "line": 3601,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 3547,
+        "end_line": 3601,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3547
+        "start_line": 3601
       },
       "symbol": "parse_type",
       "tags": [
@@ -6075,15 +6075,15 @@
       "id": "parse-type.guard-condition.18",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3549,
+      "line": 3603,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 3549,
+        "end_line": 3603,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3549
+        "start_line": 3603
       },
       "symbol": "parse_type",
       "tags": [
@@ -6107,15 +6107,15 @@
       "id": "parse-type.guard-condition.19",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3568,
+      "line": 3622,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 3568,
+        "end_line": 3622,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3568
+        "start_line": 3622
       },
       "symbol": "parse_type",
       "tags": [
@@ -6139,15 +6139,15 @@
       "id": "parse-type.guard-condition.20",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3570,
+      "line": 3624,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 84,
-        "end_line": 3570,
+        "end_line": 3624,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3570
+        "start_line": 3624
       },
       "symbol": "parse_type",
       "tags": [
@@ -6173,15 +6173,15 @@
       "id": "parse-type.guard-condition.21",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3572,
+      "line": 3626,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 63,
-        "end_line": 3572,
+        "end_line": 3626,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3572
+        "start_line": 3626
       },
       "symbol": "parse_type",
       "tags": [
@@ -6206,15 +6206,15 @@
       "id": "parse-type.guard-condition.22",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3580,
+      "line": 3634,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 32,
-        "end_line": 3580,
+        "end_line": 3634,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3580
+        "start_line": 3634
       },
       "symbol": "parse_type",
       "tags": [
@@ -6238,15 +6238,15 @@
       "id": "parse-type.guard-condition.23",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3594,
+      "line": 3648,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 66,
-        "end_line": 3594,
+        "end_line": 3648,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3594
+        "start_line": 3648
       },
       "symbol": "parse_type",
       "tags": [
@@ -6271,15 +6271,15 @@
       "id": "parse-unary.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3976,
+      "line": 4030,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 3976,
+        "end_line": 4030,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3976
+        "start_line": 4030
       },
       "symbol": "parse_unary",
       "tags": [
@@ -6301,15 +6301,15 @@
       "id": "parse-unary.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3992,
+      "line": 4046,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 21,
-        "end_line": 3992,
+        "end_line": 4046,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 3992
+        "start_line": 4046
       },
       "symbol": "parse_unary",
       "tags": [
@@ -6330,15 +6330,15 @@
       "id": "parse-unary.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4000,
+      "line": 4054,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 31,
-        "end_line": 4000,
+        "end_line": 4054,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4000
+        "start_line": 4054
       },
       "symbol": "parse_unary",
       "tags": [
@@ -6360,15 +6360,15 @@
       "id": "parse-use.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1100,
+      "line": 1154,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 74,
-        "end_line": 1100,
+        "end_line": 1154,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1100
+        "start_line": 1154
       },
       "symbol": "parse_use",
       "tags": [
@@ -6391,15 +6391,15 @@
       "id": "parse-use.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1104,
+      "line": 1158,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 33,
-        "end_line": 1104,
+        "end_line": 1158,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1104
+        "start_line": 1158
       },
       "symbol": "parse_use",
       "tags": [
@@ -6421,15 +6421,15 @@
       "id": "parse-variant-pattern-fields.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 604,
+      "line": 658,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 604,
+        "end_line": 658,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 604
+        "start_line": 658
       },
       "symbol": "parse_variant_pattern_fields",
       "tags": [
@@ -6450,15 +6450,15 @@
       "id": "parse-variant-pattern-fields.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 607,
+      "line": 661,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 39,
-        "end_line": 607,
+        "end_line": 661,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 607
+        "start_line": 661
       },
       "symbol": "parse_variant_pattern_fields",
       "tags": [
@@ -6479,15 +6479,15 @@
       "id": "parse-variant-pattern-fields.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 609,
+      "line": 663,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 609,
+        "end_line": 663,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 609
+        "start_line": 663
       },
       "symbol": "parse_variant_pattern_fields",
       "tags": [
@@ -6508,15 +6508,15 @@
       "id": "parse-variant-pattern-fields.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 618,
+      "line": 672,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 39,
-        "end_line": 618,
+        "end_line": 672,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 618
+        "start_line": 672
       },
       "symbol": "parse_variant_pattern_fields",
       "tags": [
@@ -6537,15 +6537,15 @@
       "id": "parse-variant-pattern-fields.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 623,
+      "line": 677,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 36,
-        "end_line": 623,
+        "end_line": 677,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 623
+        "start_line": 677
       },
       "symbol": "parse_variant_pattern_fields",
       "tags": [
@@ -6566,15 +6566,15 @@
       "id": "parse-world.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1617,
+      "line": 1671,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 57,
-        "end_line": 1617,
+        "end_line": 1671,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1617
+        "start_line": 1671
       },
       "symbol": "parse_world",
       "tags": [
@@ -6597,15 +6597,15 @@
       "id": "parse-world.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1619,
+      "line": 1673,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 35,
-        "end_line": 1619,
+        "end_line": 1673,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 1619
+        "start_line": 1673
       },
       "symbol": "parse_world",
       "tags": [
@@ -6623,19 +6623,48 @@
     {
       "active": true,
       "confidence": "high",
+      "expression": "Self::synthetic_filename(self.filename)",
+      "id": "parser-report-at.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 303,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 303,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
+        "start_col": 1,
+        "start_line": 303
+      },
+      "symbol": "parser_report_at",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if Self::synthetic_filename(self.filename) {",
+      "variables": [
+        "Self",
+        "filename",
+        "self",
+        "synthetic_filename"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "expression": "segments.len() < 2",
       "id": "path-looks-like-enum-variant.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 594,
+      "line": 648,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 24,
-        "end_line": 594,
+        "end_line": 648,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 594
+        "start_line": 648
       },
       "symbol": "path_looks_like_enum_variant",
       "tags": [
@@ -6656,15 +6685,15 @@
       "id": "previous-token-allows-postfix-call.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 4285,
+      "line": 4339,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 19,
-        "end_line": 4285,
+        "end_line": 4339,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 4285
+        "start_line": 4339
       },
       "symbol": "previous_token_allows_postfix_call",
       "tags": [
@@ -6681,19 +6710,48 @@
     {
       "active": true,
       "confidence": "high",
+      "expression": "Self::synthetic_filename(self.filename)",
+      "id": "rich-parser-error.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 281,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 281,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
+        "start_col": 1,
+        "start_line": 281
+      },
+      "symbol": "rich_parser_error",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if Self::synthetic_filename(self.filename) {",
+      "variables": [
+        "Self",
+        "filename",
+        "self",
+        "synthetic_filename"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "expression": "!self.at_end()",
       "id": "synchronize.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 483,
+      "line": 537,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 23,
-        "end_line": 483,
+        "end_line": 537,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 483
+        "start_line": 537
       },
       "symbol": "synchronize",
       "tags": [
@@ -6721,15 +6779,15 @@
       "id": "synchronize.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 493,
+      "line": 547,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 16,
-        "end_line": 493,
+        "end_line": 547,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 493
+        "start_line": 547
       },
       "symbol": "synchronize",
       "tags": [
@@ -6749,15 +6807,15 @@
       "id": "synchronize.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 495,
+      "line": 549,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 43,
-        "end_line": 495,
+        "end_line": 549,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 495
+        "start_line": 549
       },
       "symbol": "synchronize",
       "tags": [
@@ -6786,15 +6844,15 @@
       "id": "synchronize.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 503,
+      "line": 557,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 16,
-        "end_line": 503,
+        "end_line": 557,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 503
+        "start_line": 557
       },
       "symbol": "synchronize",
       "tags": [
@@ -6814,15 +6872,15 @@
       "id": "synchronize.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 504,
+      "line": 558,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 43,
-        "end_line": 504,
+        "end_line": 558,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 504
+        "start_line": 558
       },
       "symbol": "synchronize",
       "tags": [
@@ -6844,15 +6902,15 @@
       "id": "synchronize.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 511,
+      "line": 565,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 40,
-        "end_line": 511,
+        "end_line": 565,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 511
+        "start_line": 565
       },
       "symbol": "synchronize",
       "tags": [
@@ -6869,20 +6927,47 @@
     },
     {
       "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "filename",
+        "role": "length-like",
+        "type": "&str"
+      },
+      "id": "synthetic-filename.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 272,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 272,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
+        "start_col": 1,
+        "start_line": 272
+      },
+      "symbol": "synthetic_filename",
+      "text": "fn synthetic_filename(filename: &str) -> bool {",
+      "variables": [
+        "filename"
+      ]
+    },
+    {
+      "active": true,
       "confidence": "high",
       "expression": "RESERVED_KEYWORDS.contains(&name)",
       "id": "validate-identifier.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 330,
+      "line": 384,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
       "span": {
         "end_col": 39,
-        "end_line": 330,
+        "end_line": 384,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
         "start_col": 1,
-        "start_line": 330
+        "start_line": 384
       },
       "symbol": "validate_identifier",
       "tags": [
@@ -6899,7 +6984,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "acec831a3d49f051678064c2e22a6dfb997e63e36988da5b71acfb84d6524207",
+  "source_hash": "77f89904e450a3ef59f514602aea7c63476a7d274bbf6f384f25e925a98bacca",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\parser.rs",
   "version": 1
 }

@@ -63,7 +63,7 @@ $env:KAIN_RUNTIME_CACHE_DIR = $runtimeCacheRoot
 New-Item -ItemType Directory -Force -Path $runtimeCacheRoot | Out-Null
 $entry = Join-Path $bladeRoot "src\main.kn"
 
-$resolvedKainBin = if ($KainBin) { $KainBin } else { Resolve-ExistingBazelKainBinary }
+$resolvedKainBin = if ($KainBin) { $KainBin } else { $null }
 if ($resolvedKainBin) {
     & $compileScript `
         -Entry $entry `
@@ -77,7 +77,8 @@ if ($resolvedKainBin) {
         -Entry $entry `
         -OutputName "vulkain.exe" `
         -BazelConfig $BazelConfig `
-        -VerifyLlvm
+        -VerifyLlvm `
+        -CompilerBuild auto
 }
 
 Copy-Item -LiteralPath $nativeBridge -Destination $rootBridge -Force

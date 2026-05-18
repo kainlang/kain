@@ -1,0 +1,45 @@
+version: 1
+id: kain.native.core.proofs.native_memory_helper_allocation_cache_bounds
+kind: check_smt2
+description: Helper allocation cache admits only exact-size eligible blocks and keeps byte/node cache accounting within the bounded policy.
+tags:
+- native-runtime
+- memory
+- allocation
+- benchmark
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\memory.c
+  symbol: __kain_alloc
+  reason: alloc_zeroed may reuse cached helper-owned blocks only when exact payload size and bounded cache guards preserve allocation semantics
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-fun HEADER_BYTES () (_ BitVec 64) (_ bv16 64))
+    (define-fun MIN_PAYLOAD () (_ BitVec 64) (_ bv4096 64))
+    (define-fun MAX_PAYLOAD () (_ BitVec 64) (_ bv262144 64))
+    (define-fun MAX_CACHE_BYTES () (_ BitVec 64) (_ bv8388608 64))
+    (define-fun MAX_CACHE_NODES () (_ BitVec 32) (_ bv256 32))
+    (declare-const request_payload (_ BitVec 64))
+    (declare-const cached_payload (_ BitVec 64))
+    (declare-const cache_bytes_before (_ BitVec 64))
+    (declare-const cache_nodes_before (_ BitVec 32))
+    (assert (bvule MIN_PAYLOAD request_payload))
+    (assert (bvule request_payload MAX_PAYLOAD))
+    (assert (= cached_payload request_payload))
+    (define-fun allocation_size () (_ BitVec 64)
+      (bvadd HEADER_BYTES request_payload))
+    (assert (bvule cache_bytes_before (bvsub MAX_CACHE_BYTES allocation_size)))
+    (assert (bvult cache_nodes_before MAX_CACHE_NODES))
+    (define-fun cache_bytes_after () (_ BitVec 64)
+      (bvadd cache_bytes_before allocation_size))
+    (define-fun cache_nodes_after () (_ BitVec 32)
+      (bvadd cache_nodes_before (_ bv1 32)))
+    (assert
+      (or
+        (bvult allocation_size request_payload)
+        (bvugt cache_bytes_after MAX_CACHE_BYTES)
+        (bvugt cache_nodes_after MAX_CACHE_NODES)
+        (not (= cached_payload request_payload))))
+    (check-sat)
+  include_model: false
+  include_stats: false

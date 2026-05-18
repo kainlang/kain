@@ -254,6 +254,95 @@ static int test_imported_path_ignores_spoofed_helper_header(void) {
     return 1;
 }
 
+static int test_helper_decay_reclaims_registry_slots(void) {
+    printf("\n=== Test 4: helper decay reclaims registry slots ===\n");
+
+    uint16_t first_slot_token = 0u;
+    int saw_reuse = 0;
+    for (int i = 0; i < 5000; ++i) {
+        int* value = (int*)__kain_alloc(8, sizeof(int), 1);
+        if (!expect_ptr("helper reclaim allocation", value)) {
+            return 0;
+        }
+        KainAllocHeader* header = __kain_alloc_header_from_payload(value);
+        uint16_t slot_token = __kain_alloc_header_slot_token(header);
+        if (slot_token == 0u) {
+            printf("FAIL: helper allocation did not receive a slot token\n");
+            return 0;
+        }
+        if (i == 0) {
+            first_slot_token = slot_token;
+        } else if (slot_token == first_slot_token) {
+            saw_reuse = 1;
+        }
+        value[0] = i;
+        if (!expect_status(
+                "helper decay",
+                __kain_ownership_decay_helper(value),
+                KAIN_OWNERSHIP_OK
+            )) {
+            return 0;
+        }
+        if (!expect_status(
+                "decayed helper token no longer resolves",
+                __kain_ownership_helper_allocation_state(value, slot_token),
+                KAIN_OWNERSHIP_ERR_NOT_FOUND
+            )) {
+            return 0;
+        }
+    }
+
+    if (!saw_reuse) {
+        printf("FAIL: helper registry slots were not observed being reused\n");
+        return 0;
+    }
+
+    printf("PASS: helper decay reclaims helper-owned registry slots\n");
+    return 1;
+}
+
+static int test_large_zeroed_alloc_reuses_clean_cached_block(void) {
+    printf("\n=== Test 5: large zeroed helper allocation cache preserves zero-fill ===\n");
+
+    int* first = (int*)__kain_alloc(512, sizeof(int), 1);
+    if (!expect_ptr("first large zeroed allocation", first)) {
+        return 0;
+    }
+    first[0] = 111;
+    first[256] = 222;
+    first[511] = 333;
+    if (!expect_status(
+            "decay first cached candidate",
+            __kain_ownership_decay_helper(first),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+
+    int* second = (int*)__kain_alloc(512, sizeof(int), 1);
+    if (!expect_ptr("second large zeroed allocation", second)) {
+        return 0;
+    }
+    if (second != first) {
+        printf("FAIL: large allocation cache did not reuse exact-size block\n");
+        return 0;
+    }
+    if (second[0] != 0 || second[256] != 0 || second[511] != 0) {
+        printf("FAIL: cached zeroed allocation leaked prior contents\n");
+        return 0;
+    }
+    if (!expect_status(
+            "decay reused cached block",
+            __kain_ownership_decay_helper(second),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+
+    printf("PASS: large cached helper allocations keep alloc_zeroed semantics\n");
+    return 1;
+}
+
 int main(void) {
     int passed = 0;
     int total = 0;
@@ -264,6 +353,10 @@ int main(void) {
     passed += test_imported_region_transitions();
     total++;
     passed += test_imported_path_ignores_spoofed_helper_header();
+    total++;
+    passed += test_helper_decay_reclaims_registry_slots();
+    total++;
+    passed += test_large_zeroed_alloc_reuses_clean_cached_block();
 
     printf("\nOwnership memory runtime tests: %d/%d passed\n", passed, total);
     return passed == total ? 0 : 1;

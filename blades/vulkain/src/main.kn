@@ -1,7 +1,7 @@
 use c::vulkain_bridge
 use vulkain::vulkain_frames_presented
 use vulkain::vulkain_probe
-use vulkain::vulkain_run_window
+use vulkain::vulkain_run_mesh_scene
 use vulkain::vulkain_vertices_drawn
 use vulkain::vulkain_write_report
 
@@ -10,8 +10,8 @@ fn main() -> Int:
         println("vulkain probe failed")
         return 10
 
-    let status = vulkain_run_window(
-        "Vulkain // Raw Vulkan Core",
+    let status = vulkain_run_mesh_scene(
+        "Vulkain // Kain Authored Mesh",
         1280,
         720,
         240,
@@ -21,6 +21,13 @@ fn main() -> Int:
         54,
         192,
         255,
+        36,
+        680,
+        -260,
+        1060,
+        340,
+        1220,
+        1250,
         ".kain/gpu/basic_window/vulkain_basic.vert.spv",
         ".kain/gpu/basic_window/vulkain_basic.frag.spv"
     )

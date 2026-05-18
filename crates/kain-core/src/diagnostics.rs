@@ -1,7 +1,8 @@
 //! Pretty error reporting for KAIN
 //! Shows source context with line numbers and error highlighting
 
-use crate::error::KainError;
+use crate::diagnostic_registry::spec_for_code;
+use crate::error::{DiagnosticReport, KainError};
 use crate::span::Span;
 
 /// Source location with file, line, and column information
@@ -123,6 +124,7 @@ impl<'a> Diagnostics<'a> {
                 // Enhanced errors format themselves via Display trait
                 format!("\n{}\n", error)
             }
+            KainError::Rich(report) => self.format_diagnostic_report(report),
             KainError::Multi(errors) => {
                 let mut output = format!(
                     "\n\x1b[1;31merror\x1b[0m: {} error(s) found:\n",
@@ -135,6 +137,94 @@ impl<'a> Diagnostics<'a> {
                 output
             }
         }
+    }
+
+    fn format_diagnostic_report(&self, report: &DiagnosticReport) -> String {
+        let spec = spec_for_code(report.code);
+        let mut output = String::new();
+        output.push_str(&format!(
+            "\n\x1b[1;31m{}[{}:{}]\x1b[0m: {}\n",
+            report.severity, report.kind, spec.code_str, report.message
+        ));
+
+        if let Some(span) = report.primary_span {
+            let (line_num, col, line_content) = self.get_line_info(span);
+            let file = report
+                .file
+                .as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| self.filename.to_string());
+            output.push_str(&format!(
+                "  \x1b[1;34m-->\x1b[0m {}:{}:{}\n",
+                file, line_num, col
+            ));
+            output.push_str("   \x1b[1;34m|\x1b[0m\n");
+            output.push_str(&format!(
+                "\x1b[1;34m{:>3} |\x1b[0m {}\n",
+                line_num, line_content
+            ));
+
+            let pointer_offset = col.saturating_sub(1);
+            let content_len = line_content.len();
+            let remaining_len = content_len.saturating_sub(pointer_offset);
+            let span_len = span.end.saturating_sub(span.start);
+            let pointer_len = span_len.min(remaining_len).max(1);
+            let primary_label = report
+                .labels
+                .iter()
+                .find(|label| label.primary && label.span == span)
+                .or_else(|| report.labels.iter().find(|label| label.span == span));
+            output.push_str(&format!(
+                "   \x1b[1;34m|\x1b[0m {}\x1b[1;31m{}\x1b[0m",
+                " ".repeat(pointer_offset),
+                "^".repeat(pointer_len)
+            ));
+            if let Some(label) = primary_label {
+                output.push_str(&format!(" {}", label.message));
+            }
+            output.push('\n');
+            output.push_str("   \x1b[1;34m|\x1b[0m\n");
+        } else if let Some(path) = &report.file {
+            output.push_str(&format!("  \x1b[1;34m-->\x1b[0m {}", path.display()));
+            if let Some((line, col)) = report.location {
+                output.push_str(&format!(":{}:{}", line, col));
+            }
+            output.push('\n');
+        }
+
+        for label in report
+            .labels
+            .iter()
+            .filter(|label| Some(label.span) != report.primary_span)
+        {
+            let (line, col, _) = self.get_line_info(label.span);
+            output.push_str(&format!(
+                "   \x1b[1;34m=\x1b[0m label {}:{}: {}\n",
+                line, col, label.message
+            ));
+        }
+        for note in &report.notes {
+            output.push_str(&format!("   \x1b[1;34m=\x1b[0m note: {}\n", note));
+        }
+        for help in &report.help {
+            output.push_str(&format!("   \x1b[1;34m=\x1b[0m help: {}\n", help));
+        }
+        for fixit in &report.fixits {
+            output.push_str(&format!(
+                "   \x1b[1;34m=\x1b[0m fix-it: {} at bytes {}..{} -> {:?}\n",
+                fixit.message, fixit.span.start, fixit.span.end, fixit.replacement
+            ));
+        }
+        if let Some(default_suggestion) = spec.default_suggestion {
+            output.push_str(&format!(
+                "   \x1b[1;34m=\x1b[0m help: {}\n",
+                default_suggestion
+            ));
+        }
+        if let Some(docs_key) = spec.docs_key {
+            output.push_str(&format!("   \x1b[1;34m=\x1b[0m reference: {}\n", docs_key));
+        }
+        output
     }
 
     fn format_with_context(&self, error_type: &str, message: &str, span: Span) -> String {

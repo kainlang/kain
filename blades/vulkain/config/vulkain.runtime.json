@@ -1,6 +1,6 @@
 {
   "base_root": "..",
-  "window_title": "Vulkain // Raw Vulkan Core",
+  "window_title": "Vulkain // Kain Authored Mesh",
   "window_width": 1280,
   "window_height": 720,
   "frame_budget": 240,
@@ -10,8 +10,14 @@
   "accent_red": 54,
   "accent_green": 192,
   "accent_blue": 255,
+  "draw_vertices": 36,
+  "camera_yaw_milli": 680,
+  "camera_pitch_milli": -260,
+  "mesh_scale_milli": 1060,
+  "mesh_twist_milli": 340,
+  "depth_bias_milli": 1220,
+  "energy": 1250,
   "vertex_shader": ".kain/gpu/basic_window/vulkain_basic.vert.spv",
   "fragment_shader": ".kain/gpu/basic_window/vulkain_basic.frag.spv",
   "report_path": ".kain/run/vulkain_report.txt"
 }
-

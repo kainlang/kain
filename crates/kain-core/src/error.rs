@@ -2,9 +2,230 @@
 
 use crate::diagnostic_registry::{default_code_for_kind, spec_for_code, DiagnosticCode};
 use crate::span::Span;
+use serde_json::{json, Value as JsonValue};
 use std::fmt;
 use std::path::PathBuf;
 use thiserror::Error;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticSeverity {
+    Error,
+    Warning,
+    Note,
+    Help,
+}
+
+impl fmt::Display for DiagnosticSeverity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DiagnosticSeverity::Error => write!(f, "error"),
+            DiagnosticSeverity::Warning => write!(f, "warning"),
+            DiagnosticSeverity::Note => write!(f, "note"),
+            DiagnosticSeverity::Help => write!(f, "help"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticLabel {
+    pub span: Span,
+    pub message: String,
+    pub primary: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticFixIt {
+    pub span: Span,
+    pub replacement: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticReport {
+    pub kind: ErrorKind,
+    pub code: DiagnosticCode,
+    pub severity: DiagnosticSeverity,
+    pub message: String,
+    pub file: Option<PathBuf>,
+    pub location: Option<(usize, usize)>,
+    pub primary_span: Option<Span>,
+    pub labels: Vec<DiagnosticLabel>,
+    pub notes: Vec<String>,
+    pub help: Vec<String>,
+    pub fixits: Vec<DiagnosticFixIt>,
+    pub origin: Option<String>,
+}
+
+impl DiagnosticReport {
+    pub fn new(kind: ErrorKind, code: DiagnosticCode, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            code,
+            severity: DiagnosticSeverity::Error,
+            message: message.into(),
+            file: None,
+            location: None,
+            primary_span: None,
+            labels: Vec::new(),
+            notes: Vec::new(),
+            help: Vec::new(),
+            fixits: Vec::new(),
+            origin: None,
+        }
+    }
+
+    pub fn file(mut self, path: impl Into<PathBuf>) -> Self {
+        self.file = Some(path.into());
+        self
+    }
+
+    pub fn location(mut self, line: usize, col: usize) -> Self {
+        self.location = Some((line, col));
+        self
+    }
+
+    pub fn primary_span(mut self, span: Span) -> Self {
+        self.primary_span = Some(span);
+        self
+    }
+
+    pub fn label(mut self, span: Span, message: impl Into<String>) -> Self {
+        self.labels.push(DiagnosticLabel {
+            span,
+            message: message.into(),
+            primary: false,
+        });
+        self
+    }
+
+    pub fn primary_label(mut self, span: Span, message: impl Into<String>) -> Self {
+        self.primary_span = Some(span);
+        self.labels.push(DiagnosticLabel {
+            span,
+            message: message.into(),
+            primary: true,
+        });
+        self
+    }
+
+    pub fn note(mut self, note: impl Into<String>) -> Self {
+        self.notes.push(note.into());
+        self
+    }
+
+    pub fn help(mut self, help: impl Into<String>) -> Self {
+        self.help.push(help.into());
+        self
+    }
+
+    pub fn fixit(
+        mut self,
+        span: Span,
+        replacement: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        self.fixits.push(DiagnosticFixIt {
+            span,
+            replacement: replacement.into(),
+            message: message.into(),
+        });
+        self
+    }
+
+    pub fn origin(mut self, origin: impl Into<String>) -> Self {
+        self.origin = Some(origin.into());
+        self
+    }
+
+    pub fn to_json_value(&self) -> JsonValue {
+        let labels: Vec<JsonValue> = self
+            .labels
+            .iter()
+            .map(|label| {
+                json!({
+                    "span": {"start": label.span.start, "end": label.span.end},
+                    "message": label.message,
+                    "primary": label.primary,
+                })
+            })
+            .collect();
+        let fixits: Vec<JsonValue> = self
+            .fixits
+            .iter()
+            .map(|fixit| {
+                json!({
+                    "span": {"start": fixit.span.start, "end": fixit.span.end},
+                    "replacement": fixit.replacement,
+                    "message": fixit.message,
+                })
+            })
+            .collect();
+
+        json!({
+            "severity": self.severity.to_string(),
+            "kind": self.kind.to_string(),
+            "code": spec_for_code(self.code).code_str,
+            "message": self.message,
+            "file": self.file.as_ref().map(|path| path.display().to_string()),
+            "location": self.location.map(|(line, col)| json!({"line": line, "column": col})),
+            "primary_span": self.primary_span.map(|span| json!({"start": span.start, "end": span.end})),
+            "labels": labels,
+            "notes": self.notes,
+            "help": self.help,
+            "fixits": fixits,
+            "origin": self.origin,
+        })
+    }
+}
+
+impl fmt::Display for DiagnosticReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let spec = spec_for_code(self.code);
+        write!(
+            f,
+            "{}[{}:{}]: {}",
+            self.severity, self.kind, spec.code_str, self.message
+        )?;
+
+        if let Some(path) = &self.file {
+            write!(f, "\n  --> {}", path.display())?;
+            if let Some((line, col)) = self.location {
+                write!(f, ":{}:{}", line, col)?;
+            }
+        } else if let Some(origin) = &self.origin {
+            write!(f, "\n  = origin: {}", origin)?;
+        }
+
+        for label in &self.labels {
+            let marker = if label.primary { "primary" } else { "label" };
+            write!(
+                f,
+                "\n  = {}[{}..{}]: {}",
+                marker, label.span.start, label.span.end, label.message
+            )?;
+        }
+        for note in &self.notes {
+            write!(f, "\n  = note: {}", note)?;
+        }
+        for help in &self.help {
+            write!(f, "\n  = help: {}", help)?;
+        }
+        for fixit in &self.fixits {
+            write!(
+                f,
+                "\n  = fix-it[{}..{}]: {} -> {:?}",
+                fixit.span.start, fixit.span.end, fixit.message, fixit.replacement
+            )?;
+        }
+        if let Some(default_suggestion) = spec.default_suggestion {
+            write!(f, "\n  = help: {}", default_suggestion)?;
+        }
+        if let Some(docs_key) = spec.docs_key {
+            write!(f, "\n  = reference: {}", docs_key)?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum KainError {
@@ -53,12 +274,15 @@ pub enum KainError {
         suggestion: Option<String>,
     },
 
+    #[error("{0}")]
+    Rich(Box<DiagnosticReport>),
+
     /// Multiple errors collected during error-recovery parsing
     #[error("{}", format_multi_errors(.0))]
     Multi(Vec<KainError>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorKind {
     Parse,
     Type,
@@ -291,6 +515,28 @@ impl KainError {
             context: String::new(),
             message: message.into(),
             suggestion: None,
+        }
+    }
+
+    pub fn rich(report: DiagnosticReport) -> Self {
+        KainError::Rich(Box::new(report))
+    }
+
+    pub fn diagnostic_json(&self) -> Option<JsonValue> {
+        match self {
+            KainError::Rich(report) => Some(report.to_json_value()),
+            KainError::Multi(errors) => {
+                let diagnostics: Vec<JsonValue> = errors
+                    .iter()
+                    .filter_map(KainError::diagnostic_json)
+                    .collect();
+                if diagnostics.is_empty() {
+                    None
+                } else {
+                    Some(json!({ "diagnostics": diagnostics }))
+                }
+            }
+            _ => None,
         }
     }
 }

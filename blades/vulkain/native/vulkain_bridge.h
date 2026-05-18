@@ -32,11 +32,52 @@ VULKAIN_EXPORT int32_t vulkain_native_run_window(
     const char* fragment_spv_path
 );
 
+VULKAIN_EXPORT int32_t vulkain_native_run_mesh_scene(
+    const char* title,
+    int32_t width,
+    int32_t height,
+    int32_t frame_budget,
+    int32_t clear_red,
+    int32_t clear_green,
+    int32_t clear_blue,
+    int32_t accent_red,
+    int32_t accent_green,
+    int32_t accent_blue,
+    int32_t draw_vertices,
+    int32_t camera_yaw_milli,
+    int32_t camera_pitch_milli,
+    int32_t mesh_scale_milli,
+    int32_t mesh_twist_milli,
+    int32_t depth_bias_milli,
+    int32_t energy,
+    const char* vertex_spv_path,
+    const char* fragment_spv_path
+);
+
+VULKAIN_EXPORT int32_t vulkain_native_run_authored_mesh_scene(
+    int32_t width,
+    int32_t height,
+    int32_t frame_budget,
+    int32_t clear_red,
+    int32_t clear_green,
+    int32_t clear_blue,
+    int32_t accent_red,
+    int32_t accent_green,
+    int32_t accent_blue,
+    int32_t draw_vertices,
+    int32_t camera_yaw_milli,
+    int32_t camera_pitch_milli,
+    int32_t mesh_scale_milli,
+    int32_t mesh_twist_milli,
+    int32_t depth_bias_milli,
+    int32_t energy
+);
+
 VULKAIN_EXPORT int32_t vulkain_native_write_report(const char* path);
+VULKAIN_EXPORT int32_t vulkain_native_write_default_mesh_report(void);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
-

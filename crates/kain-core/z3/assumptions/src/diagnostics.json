@@ -3,6 +3,169 @@
     {
       "active": true,
       "confidence": "high",
+      "expression": "let Some(span) = report.primary_span",
+      "id": "format-diagnostic-report.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 150,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 150,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 150
+      },
+      "symbol": "format_diagnostic_report",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(span) = report.primary_span {",
+      "variables": [
+        "Some",
+        "let",
+        "primary_span",
+        "report",
+        "span"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(label) = primary_label",
+      "id": "format-diagnostic-report.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 182,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 182,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 182
+      },
+      "symbol": "format_diagnostic_report",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(label) = primary_label {",
+      "variables": [
+        "Some",
+        "label",
+        "let",
+        "primary_label"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some((line, col)) = report.location",
+      "id": "format-diagnostic-report.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 189,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 189,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 189
+      },
+      "symbol": "format_diagnostic_report",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some((line, col)) = report.location {",
+      "variables": [
+        "Some",
+        "col",
+        "let",
+        "line",
+        "location",
+        "report"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default_suggestion) = spec.default_suggestion",
+      "id": "format-diagnostic-report.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 218,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 218,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 218
+      },
+      "symbol": "format_diagnostic_report",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(default_suggestion) = spec.default_suggestion {",
+      "variables": [
+        "Some",
+        "default_suggestion",
+        "let",
+        "spec"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(docs_key) = spec.docs_key",
+      "id": "format-diagnostic-report.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 224,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 224,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 224
+      },
+      "symbol": "format_diagnostic_report",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(docs_key) = spec.docs_key {",
+      "variables": [
+        "Some",
+        "docs_key",
+        "let",
+        "spec"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "fact": {
         "parameter": "span",
         "role": "unsigned-size",
@@ -11,15 +174,15 @@
       "id": "get-line-info.parameter-role.1",
       "kind": "parameter-role",
       "language": "rust",
-      "line": 186,
+      "line": 276,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
       "span": {
         "end_col": 62,
-        "end_line": 186,
+        "end_line": 276,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
         "start_col": 1,
-        "start_line": 186
+        "start_line": 276
       },
       "symbol": "get_line_info",
       "text": "fn get_line_info(&self, span: Span) -> (usize, usize, &str) {",
@@ -41,15 +204,15 @@
       "id": "get-line-info.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 194,
+      "line": 284,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
       "span": {
         "end_col": 16,
-        "end_line": 194,
+        "end_line": 284,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
         "start_col": 1,
-        "start_line": 194
+        "start_line": 284
       },
       "symbol": "get_line_info",
       "tags": [
@@ -70,15 +233,15 @@
       "id": "get-line-info.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 197,
+      "line": 287,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
       "span": {
         "end_col": 15,
-        "end_line": 197,
+        "end_line": 287,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
         "start_col": 1,
-        "start_line": 197
+        "start_line": 287
       },
       "symbol": "get_line_info",
       "tags": [
@@ -103,15 +266,15 @@
       "id": "new.parameter-role.1",
       "kind": "parameter-role",
       "language": "rust",
-      "line": 16,
+      "line": 17,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
       "span": {
         "end_col": 61,
-        "end_line": 16,
+        "end_line": 17,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
         "start_col": 1,
-        "start_line": 16
+        "start_line": 17
       },
       "symbol": "new",
       "text": "pub fn new(file: &'a str, line: usize, col: usize) -> Self {",
@@ -130,15 +293,15 @@
       "id": "new.parameter-role.2",
       "kind": "parameter-role",
       "language": "rust",
-      "line": 16,
+      "line": 17,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
       "span": {
         "end_col": 61,
-        "end_line": 16,
+        "end_line": 17,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
         "start_col": 1,
-        "start_line": 16
+        "start_line": 17
       },
       "symbol": "new",
       "text": "pub fn new(file: &'a str, line: usize, col: usize) -> Self {",
@@ -153,15 +316,15 @@
       "id": "new.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 34,
+      "line": 35,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
       "span": {
         "end_col": 16,
-        "end_line": 34,
+        "end_line": 35,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
         "start_col": 1,
-        "start_line": 34
+        "start_line": 35
       },
       "symbol": "new",
       "tags": [
@@ -184,15 +347,15 @@
       "id": "new.parameter-role.4",
       "kind": "parameter-role",
       "language": "rust",
-      "line": 85,
+      "line": 86,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
       "span": {
         "end_col": 57,
-        "end_line": 85,
+        "end_line": 86,
         "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
         "start_col": 1,
-        "start_line": 85
+        "start_line": 86
       },
       "symbol": "new",
       "text": "pub fn new(source: &'a str, filename: &'a str) -> Self {",
@@ -202,7 +365,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "f185b5379f3a227ba26999c93b33f591030664068bea19b8aa73bd265e12aa24",
+  "source_hash": "f43674b1efa7feeb8834c78e290c217b05cad501e34bf82351db35b97793a3b8",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
   "version": 1
 }

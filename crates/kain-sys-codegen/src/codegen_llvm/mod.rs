@@ -88,6 +88,11 @@ struct FixedArrayLocal {
     element_count: usize,
 }
 
+#[derive(Clone, Debug, Default)]
+struct LiteralMapLocal {
+    entries: HashMap<String, i64>,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct LoopIndexBounds {
     lower_inclusive: i64,
@@ -371,6 +376,10 @@ struct LlvmGenerator {
     /// Locals whose array literal can stay as an LLVM fixed array because every
     /// remaining use is a len() query or an index load.
     fixed_array_candidate_scopes: Vec<HashSet<String>>,
+    /// Locals whose `map_new` seed and all remaining uses stay inside a closed
+    /// literal-key / literal-value lane, so `map_get` can collapse to direct
+    /// constants without changing runtime-visible semantics.
+    literal_map_candidate_scopes: Vec<HashSet<String>>,
     /// Locals that are borrowed views and must not be released on scope exit.
     borrowed_locals: HashSet<String>,
     /// i64 locals that carry native JSON handles or JSON-tagged Any values.
@@ -418,6 +427,7 @@ struct LlvmGenerator {
     shattered_structs: HashSet<String>,
     shattered_array_locals: HashMap<String, ShatteredArrayLocal>,
     fixed_array_locals: HashMap<String, FixedArrayLocal>,
+    sealed_literal_map_locals: HashMap<String, LiteralMapLocal>,
     active_loop_index_bounds: Vec<HashMap<String, LoopIndexBounds>>,
     current_patch_name: Option<String>,
     const_init_blocks: HashMap<String, String>,
@@ -451,6 +461,7 @@ impl LlvmGenerator {
             known_nonnegative_i64_scopes: Vec::new(),
             forwarded_mem_slot_scopes: Vec::new(),
             fixed_array_candidate_scopes: Vec::new(),
+            literal_map_candidate_scopes: Vec::new(),
             borrowed_locals: HashSet::new(),
             json_handle_locals: HashSet::new(),
             functions: HashMap::new(),
@@ -482,6 +493,7 @@ impl LlvmGenerator {
             shattered_structs: HashSet::new(),
             shattered_array_locals: HashMap::new(),
             fixed_array_locals: HashMap::new(),
+            sealed_literal_map_locals: HashMap::new(),
             active_loop_index_bounds: Vec::new(),
             current_patch_name: None,
             const_init_blocks: HashMap::new(),
@@ -1341,6 +1353,13 @@ impl LlvmGenerator {
             .unwrap_or(false)
     }
 
+    fn current_scope_marks_literal_map_candidate(&self, name: &str) -> bool {
+        self.literal_map_candidate_scopes
+            .last()
+            .map(|candidates| candidates.contains(name))
+            .unwrap_or(false)
+    }
+
     fn active_loop_bounds_for(&self, name: &str) -> Option<LoopIndexBounds> {
         self.active_loop_index_bounds
             .iter()
@@ -2059,6 +2078,40 @@ impl LlvmGenerator {
             if let Some(scope) = self.known_i64_literal_scopes.last_mut() {
                 scope.insert(name, literal);
             }
+        }
+    }
+
+    fn record_stmt_literal_map_effects(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(value),
+                ..
+            } => {
+                self.sealed_literal_map_locals.remove(name);
+                if self.current_scope_marks_literal_map_candidate(name)
+                    && Self::expr_is_literal_map_seed(value)
+                {
+                    self.sealed_literal_map_locals
+                        .insert(name.clone(), LiteralMapLocal::default());
+                }
+            }
+            Stmt::Expr(Expr::Call { callee, args, .. })
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "map_set")
+                    && args.len() == 3 =>
+            {
+                if let Expr::Ident(map_name, _) = &args[0].value {
+                    if let Some(local) = self.sealed_literal_map_locals.get_mut(map_name) {
+                        if let (Some(key), Some(value)) = (
+                            Self::extract_string_literal(&args[1].value),
+                            Self::resolve_i64_literal(&args[2].value, &HashMap::new()),
+                        ) {
+                            local.entries.insert(key, value);
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -2891,6 +2944,195 @@ impl LlvmGenerator {
                     && block.stmts[index + 1..]
                         .iter()
                         .all(|stmt| Self::stmt_is_safe_fixed_array_use(stmt, name))
+                {
+                    candidates.insert(name.clone());
+                }
+            }
+        }
+        candidates
+    }
+
+    fn expr_is_literal_map_seed(expr: &Expr) -> bool {
+        matches!(
+            expr,
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "map_new") && args.is_empty()
+        )
+    }
+
+    fn expr_matches_literal_map_set(expr: &Expr, target: &str) -> bool {
+        let Expr::Call { callee, args, .. } = expr else {
+            return false;
+        };
+        matches!(callee.as_ref(), Expr::Ident(name, _) if name == "map_set")
+            && args.len() == 3
+            && Self::expr_is_exact_target_pointer(&args[0].value, target)
+            && Self::extract_string_literal(&args[1].value).is_some()
+            && matches!(args[2].value, Expr::Int(_, _))
+    }
+
+    fn expr_is_safe_literal_map_use(expr: &Expr, target: &str) -> bool {
+        match expr {
+            Expr::Ident(name, _) => name != target,
+            Expr::Call { callee, args, .. } => {
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "map_get")
+                    && args.len() == 2
+                    && Self::expr_is_exact_target_pointer(&args[0].value, target)
+                    && Self::extract_string_literal(&args[1].value).is_some()
+                {
+                    return true;
+                }
+                Self::expr_is_safe_literal_map_use(callee, target)
+                    && args
+                        .iter()
+                        .all(|arg| Self::expr_is_safe_literal_map_use(&arg.value, target))
+            }
+            Expr::Index { object, index, .. } => {
+                Self::expr_is_safe_literal_map_use(object, target)
+                    && Self::expr_is_safe_literal_map_use(index, target)
+            }
+            Expr::Assign {
+                target: assign_target,
+                value,
+                ..
+            } => {
+                !Self::debug_mentions_identifier(assign_target, target)
+                    && Self::expr_is_safe_literal_map_use(assign_target, target)
+                    && Self::expr_is_safe_literal_map_use(value, target)
+            }
+            Expr::Binary { left, right, .. } => {
+                Self::expr_is_safe_literal_map_use(left, target)
+                    && Self::expr_is_safe_literal_map_use(right, target)
+            }
+            Expr::Unary { operand, .. }
+            | Expr::Paren(operand, _)
+            | Expr::Deref(operand, _)
+            | Expr::Try(operand, _)
+            | Expr::Await(operand, _)
+            | Expr::AsyncBlock(operand, _)
+            | Expr::Comptime(operand, _)
+            | Expr::Return(Some(operand), _)
+            | Expr::Break(Some(operand), _) => Self::expr_is_safe_literal_map_use(operand, target),
+            Expr::Return(None, _) | Expr::Break(None, _) => true,
+            Expr::FString(parts, _) | Expr::Array(parts, _) | Expr::Tuple(parts, _) => parts
+                .iter()
+                .all(|part| Self::expr_is_safe_literal_map_use(part, target)),
+            Expr::MacroCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_literal_map_use(arg, target)),
+            Expr::StageCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_literal_map_use(&arg.value, target)),
+            Expr::MethodCall { receiver, args, .. } => {
+                Self::expr_is_safe_literal_map_use(receiver, target)
+                    && args
+                        .iter()
+                        .all(|arg| Self::expr_is_safe_literal_map_use(&arg.value, target))
+            }
+            Expr::Field { object, .. } => Self::expr_is_safe_literal_map_use(object, target),
+            Expr::Struct { fields, rest, .. } => {
+                fields
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_literal_map_use(value, target))
+                    && rest
+                        .as_ref()
+                        .map(|value| Self::expr_is_safe_literal_map_use(value, target))
+                        .unwrap_or(true)
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => true,
+                kain_core::ast::EnumVariantFields::Tuple(values) => values
+                    .iter()
+                    .all(|value| Self::expr_is_safe_literal_map_use(value, target)),
+                kain_core::ast::EnumVariantFields::Struct(values) => values
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_literal_map_use(value, target)),
+            },
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::expr_is_safe_literal_map_use(condition, target)
+                    && Self::block_is_safe_literal_map_use(then_branch, target)
+                    && else_branch
+                        .as_ref()
+                        .map(|branch| match branch.as_ref() {
+                            ElseBranch::Else(block) => {
+                                Self::block_is_safe_literal_map_use(block, target)
+                            }
+                            ElseBranch::ElseIf(condition, block, next) => {
+                                Self::expr_is_safe_literal_map_use(condition, target)
+                                    && Self::block_is_safe_literal_map_use(block, target)
+                                    && next
+                                        .as_ref()
+                                        .map(|nested| match nested.as_ref() {
+                                            ElseBranch::Else(block) => {
+                                                Self::block_is_safe_literal_map_use(block, target)
+                                            }
+                                            ElseBranch::ElseIf(..) => {
+                                                !Self::debug_mentions_identifier(nested, target)
+                                            }
+                                        })
+                                        .unwrap_or(true)
+                            }
+                        })
+                        .unwrap_or(true)
+            }
+            Expr::Block(block, _) => Self::block_is_safe_literal_map_use(block, target),
+            other => !Self::debug_mentions_identifier(other, target),
+        }
+    }
+
+    fn stmt_is_safe_literal_map_use(stmt: &Stmt, target: &str) -> bool {
+        match stmt {
+            Stmt::Let { value, .. } => value
+                .as_ref()
+                .map(|expr| Self::expr_is_safe_literal_map_use(expr, target))
+                .unwrap_or(true),
+            Stmt::Expr(expr) => {
+                Self::expr_matches_literal_map_set(expr, target)
+                    || Self::expr_is_safe_literal_map_use(expr, target)
+            }
+            Stmt::Return(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
+            Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
+            Stmt::Break(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
+            Stmt::For { iter, body, .. } => {
+                Self::expr_is_safe_literal_map_use(iter, target)
+                    && Self::block_is_safe_literal_map_use(body, target)
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                Self::expr_is_safe_literal_map_use(condition, target)
+                    && Self::block_is_safe_literal_map_use(body, target)
+            }
+            Stmt::Loop { body, .. } => Self::block_is_safe_literal_map_use(body, target),
+            Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+        }
+    }
+
+    fn block_is_safe_literal_map_use(block: &Block, target: &str) -> bool {
+        block
+            .stmts
+            .iter()
+            .all(|stmt| Self::stmt_is_safe_literal_map_use(stmt, target))
+    }
+
+    fn collect_block_literal_map_candidate_names(block: &Block) -> HashSet<String> {
+        let mut candidates = HashSet::new();
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            if let Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(value),
+                ..
+            } = stmt
+            {
+                if Self::expr_is_literal_map_seed(value)
+                    && block.stmts[index + 1..]
+                        .iter()
+                        .all(|stmt| Self::stmt_is_safe_literal_map_use(stmt, name))
                 {
                     candidates.insert(name.clone());
                 }
@@ -7472,6 +7714,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -7645,6 +7888,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -7810,6 +8054,7 @@ impl LlvmGenerator {
             self.helper_owned_pointer_locals.clear();
             self.shattered_array_locals.clear();
             self.fixed_array_locals.clear();
+            self.sealed_literal_map_locals.clear();
             self.locals
                 .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
 
@@ -7925,6 +8170,7 @@ impl LlvmGenerator {
         self.emit("declare i8* @string_new(i8*)");
         self.emit("declare i64 @json_box_float(double)");
         self.emit("declare void @json_release(i64)");
+        self.emit("declare void @map_set_static_prehashed(i64, i8*, i64, i64, i64, i64)");
         self.emit("declare i64 @map_get_prehashed(i64, i8*, i64, i64, i64)");
         self.emit("declare i64 @find_substring_from_known_lengths(i8*, i64, i8*, i64, i64)");
         self.emit("declare i8* @array_new(i64)");
@@ -8128,6 +8374,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -8218,6 +8465,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -8290,9 +8538,13 @@ impl LlvmGenerator {
                 p_ty,
                 addr_reg
             ));
-            self.locals.insert(param.name.clone(), (addr_reg, p_ty));
+            self.locals
+                .insert(param.name.clone(), (addr_reg.clone(), p_ty));
             if Self::ast_type_is_string(&param.ty) {
                 self.string_locals.insert(param.name.clone());
+                if Self::block_has_loop_that_mentions_identifier(&method.body, &param.name) {
+                    self.prime_string_param_length_cache(&param.name, &addr_reg);
+                }
             }
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
@@ -8375,6 +8627,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -8563,6 +8816,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -8617,6 +8871,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -8661,6 +8916,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -8783,6 +9039,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -9028,6 +9285,7 @@ impl LlvmGenerator {
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
@@ -9196,6 +9454,8 @@ impl LlvmGenerator {
         );
         self.fixed_array_candidate_scopes
             .push(Self::collect_block_fixed_array_candidate_names(block));
+        self.literal_map_candidate_scopes
+            .push(Self::collect_block_literal_map_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
         self.known_nonnegative_i64_scopes.push(HashSet::new());
         self.forwarded_mem_slot_scopes.push(HashMap::new());
@@ -9204,11 +9464,13 @@ impl LlvmGenerator {
                 self.forwarded_mem_slot_scopes.pop();
                 self.known_nonnegative_i64_scopes.pop();
                 self.known_i64_literal_scopes.pop();
+                self.literal_map_candidate_scopes.pop();
                 self.fixed_array_candidate_scopes.pop();
                 self.ephemeral_zero_init_elision_scopes.pop();
                 self.ephemeral_candidate_scopes.pop();
                 return Err(err);
             }
+            self.record_stmt_literal_map_effects(stmt);
             self.record_stmt_i64_literal_effects(stmt);
             self.record_stmt_nonnegative_i64_effects(stmt);
             if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
@@ -9219,6 +9481,7 @@ impl LlvmGenerator {
         self.forwarded_mem_slot_scopes.pop();
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
+        self.literal_map_candidate_scopes.pop();
         self.fixed_array_candidate_scopes.pop();
         self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
@@ -9243,6 +9506,8 @@ impl LlvmGenerator {
         );
         self.fixed_array_candidate_scopes
             .push(Self::collect_block_fixed_array_candidate_names(block));
+        self.literal_map_candidate_scopes
+            .push(Self::collect_block_literal_map_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
         self.known_nonnegative_i64_scopes.push(HashSet::new());
         self.forwarded_mem_slot_scopes.push(HashMap::new());
@@ -9255,6 +9520,7 @@ impl LlvmGenerator {
                     let (val, ty) = self.compile_expr(expr)?;
                     last_res = Some((val, ty));
                     last_is_new = self.is_new_object(expr);
+                    self.record_stmt_literal_map_effects(stmt);
                     self.record_stmt_i64_literal_effects(stmt);
                     self.record_stmt_nonnegative_i64_effects(stmt);
                     if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
@@ -9265,11 +9531,13 @@ impl LlvmGenerator {
                         self.forwarded_mem_slot_scopes.pop();
                         self.known_nonnegative_i64_scopes.pop();
                         self.known_i64_literal_scopes.pop();
+                        self.literal_map_candidate_scopes.pop();
                         self.fixed_array_candidate_scopes.pop();
                         self.ephemeral_zero_init_elision_scopes.pop();
                         self.ephemeral_candidate_scopes.pop();
                         return Err(err);
                     }
+                    self.record_stmt_literal_map_effects(stmt);
                     self.record_stmt_i64_literal_effects(stmt);
                     self.record_stmt_nonnegative_i64_effects(stmt);
                     if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
@@ -9281,11 +9549,13 @@ impl LlvmGenerator {
                     self.forwarded_mem_slot_scopes.pop();
                     self.known_nonnegative_i64_scopes.pop();
                     self.known_i64_literal_scopes.pop();
+                    self.literal_map_candidate_scopes.pop();
                     self.fixed_array_candidate_scopes.pop();
                     self.ephemeral_zero_init_elision_scopes.pop();
                     self.ephemeral_candidate_scopes.pop();
                     return Err(err);
                 }
+                self.record_stmt_literal_map_effects(stmt);
                 self.record_stmt_i64_literal_effects(stmt);
                 self.record_stmt_nonnegative_i64_effects(stmt);
                 if !Self::stmt_preserves_forwarded_mem_slots(stmt) {
@@ -9308,6 +9578,7 @@ impl LlvmGenerator {
         self.forwarded_mem_slot_scopes.pop();
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
+        self.literal_map_candidate_scopes.pop();
         self.fixed_array_candidate_scopes.pop();
         self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
@@ -9401,6 +9672,7 @@ impl LlvmGenerator {
 
     fn emit_scope_cleanup_for_vars(&mut self, vars: &[String]) {
         for var_name in vars.iter().rev() {
+            self.sealed_literal_map_locals.remove(var_name);
             if let Some((addr, ty)) = self.locals.get(var_name).cloned() {
                 if self.borrowed_locals.contains(var_name) {
                     continue;
@@ -9449,6 +9721,7 @@ impl LlvmGenerator {
         }
 
         for var_name in vars_to_release {
+            self.sealed_literal_map_locals.remove(&var_name);
             if let Some((addr, ty)) = self.locals.get(&var_name).cloned() {
                 if self.borrowed_locals.contains(&var_name) {
                     continue;
@@ -10243,6 +10516,13 @@ impl LlvmGenerator {
 
         if func_name == "map_get" && args.len() == 2 {
             if let Some(literal) = self.extract_static_string_literal(&args[1].value) {
+                if let Expr::Ident(map_name, _) = &args[0].value {
+                    if let Some(local) = self.sealed_literal_map_locals.get(map_name) {
+                        if let Some(value) = local.entries.get(&literal) {
+                            return Ok((value.to_string(), "i64".to_string()));
+                        }
+                    }
+                }
                 let (map_value, map_ty) = self.compile_expr(&args[0].value)?;
                 if map_ty != "i64" {
                     return Err(KainError::codegen(
@@ -10259,6 +10539,43 @@ impl LlvmGenerator {
                     result, map_value, key_ptr, key_length, key_hash, key_prefix
                 ));
                 return Ok((result, "i64".to_string()));
+            }
+        }
+
+        if func_name == "map_set" && args.len() == 3 {
+            if let Some(literal) = self.extract_static_string_literal(&args[1].value) {
+                let (map_value, map_ty) = self.compile_expr(&args[0].value)?;
+                let (key_length, key_hash, key_prefix) =
+                    kain_map_codegen_static_key_metadata(&literal);
+                let key_ptr = self.compile_static_c_string_literal(&literal);
+                let (mut value, mut value_ty) = self.compile_expr(&args[2].value)?;
+                if matches!(value_ty.as_str(), "i32" | "i8" | "i1" | "double") {
+                    value = self.cast_numeric_value(value, &value_ty, "i64")?;
+                    value_ty = "i64".to_string();
+                }
+                if value_ty == "i8*" && !self.is_new_object(&args[2].value) {
+                    self.emit_rc_retain_if_heap_i8(&value);
+                }
+                if value_ty == "i8*" || value_ty.starts_with('%') {
+                    let int_val = self.next_reg();
+                    self.emit(&format!("  {} = ptrtoint {} {} to i64", int_val, value_ty, value));
+                    value = int_val;
+                    value_ty = "i64".to_string();
+                }
+                if map_ty != "i64" || value_ty != "i64" {
+                    return Err(KainError::codegen(
+                        format!(
+                            "map_set expects native map/value handles as i64, found {} and {}",
+                            map_ty, value_ty
+                        ),
+                        args[0].value.span(),
+                    ));
+                }
+                self.emit(&format!(
+                    "  call void @map_set_static_prehashed(i64 {}, i8* {}, i64 {}, i64 {}, i64 {}, i64 {})",
+                    map_value, key_ptr, key_length, key_hash, key_prefix, value
+                ));
+                return Ok(("0".into(), "i64".into()));
             }
         }
 

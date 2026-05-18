@@ -302,6 +302,28 @@ fn test_struct_literal_rest_and_ref_lifetimes() {
 }
 
 #[test]
+fn test_missing_block_colon_reports_actionable_newline_hint() {
+    let source = "pulse singularity_clock every 8ms jitter 1ms\nshatter struct EchoTrail:\n    drift_x: Float\n";
+    let tokens = lexer::Lexer::new(source).tokenize().unwrap();
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = parser::Parser::new(&tokens, &span_mapper, "pulse_missing_colon.kn");
+
+    match parser.parse() {
+        Ok(_) => panic!("Expected parse error for missing pulse ':' but got success"),
+        Err(e) => {
+            let error_str = e.to_string();
+            let lower = error_str.to_lowercase();
+            assert!(
+                lower.contains("expected ':' before newline")
+                    && lower.contains("must end with ':'"),
+                "Error should explain the missing block colon but got: {}",
+                error_str
+            );
+        }
+    }
+}
+
+#[test]
 fn test_struct_literal_function_call_style() {
     let source = "struct Vec3:\n    x: Float\n    y: Float\n    z: Float\n\nfn create_vec():\n    let v = Vec3(x: 1.0, y: 2.0, z: 3.0)";
     let tokens = lexer::Lexer::new(source).tokenize().unwrap();

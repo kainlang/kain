@@ -1,0 +1,291 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "acc",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-json-mod-add-small.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 25,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 25,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 25
+      },
+      "symbol": "kain_json_mod_add_small",
+      "text": "static int64_t kain_json_mod_add_small(int64_t acc, int64_t value, int64_t modulus) {",
+      "variables": [
+        "acc"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-json-mod-add-small.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 25,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 25,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 25
+      },
+      "symbol": "kain_json_mod_add_small",
+      "text": "static int64_t kain_json_mod_add_small(int64_t acc, int64_t value, int64_t modulus) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "modulus",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-json-mod-add-small.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 25,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 25,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 25
+      },
+      "symbol": "kain_json_mod_add_small",
+      "text": "static int64_t kain_json_mod_add_small(int64_t acc, int64_t value, int64_t modulus) {",
+      "variables": [
+        "modulus"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "left",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-json-mod-mul-nonnegative.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 10,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 93,
+        "end_line": 10,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 10
+      },
+      "symbol": "kain_json_mod_mul_nonnegative",
+      "text": "static int64_t kain_json_mod_mul_nonnegative(int64_t left, int64_t right, int64_t modulus) {",
+      "variables": [
+        "left"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "right",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-json-mod-mul-nonnegative.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 10,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 93,
+        "end_line": 10,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 10
+      },
+      "symbol": "kain_json_mod_mul_nonnegative",
+      "text": "static int64_t kain_json_mod_mul_nonnegative(int64_t left, int64_t right, int64_t modulus) {",
+      "variables": [
+        "right"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "modulus",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-json-mod-mul-nonnegative.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 10,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 93,
+        "end_line": 10,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 10
+      },
+      "symbol": "kain_json_mod_mul_nonnegative",
+      "text": "static int64_t kain_json_mod_mul_nonnegative(int64_t left, int64_t right, int64_t modulus) {",
+      "variables": [
+        "modulus"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "count",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "count != 0u",
+      "id": "kain-json-mod-mul-nonnegative.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 15,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 15,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 15
+      },
+      "symbol": "kain_json_mod_mul_nonnegative",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (count != 0u) {",
+      "variables": [
+        "count",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(count & 1u) != 0u",
+      "id": "kain-json-mod-mul-nonnegative.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 16,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "kain_json_mod_mul_nonnegative",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if ((count & 1u) != 0u) {",
+      "variables": [
+        "count",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "while.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 15,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 15,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 15
+      },
+      "symbol": "while",
+      "text": "while (count != 0u) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(count & 1u) != 0u",
+      "id": "while.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 16,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if ((count & 1u) != 0u) {",
+      "variables": [
+        "count",
+        "u"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "90470ab25a19c5845b22c426b16531432d9a11968a4773c1d0e0f362cc53317f",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\json_benchmark.c",
+  "version": 1
+}

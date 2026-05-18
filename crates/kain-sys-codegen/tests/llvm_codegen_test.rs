@@ -304,6 +304,33 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_map_set_string_literals_as_static_prehashed_inserts() {
+    let source = r#"
+fn main() -> Int:
+    let metrics = map_new()
+    map_set(metrics, "alpha", 11)
+    return map_get(metrics, "alpha")
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+    let main_ir = llvm_function_ir(&llvm, "define i64 @main()");
+
+    assert!(
+        main_ir.contains("call void @map_set_static_prehashed"),
+        "map_set literal path should call the static prehashed insert helper:\n{}",
+        main_ir
+    );
+    assert!(
+        !main_ir.contains("call i8* @string_new"),
+        "map_set literal path should not allocate heap strings for static keys:\n{}",
+        main_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "map-set-static-prehashed-string");
+}
+
+#[test]
 fn llvm_lowers_native_input_action_primitives() {
     let source = r#"
 @extern
@@ -2592,22 +2619,19 @@ fn main() -> Int:
         .expect("llvm output should be utf8");
     let sum_ir = llvm_function_ir(&llvm, "define internal i64 @sum_bytes(i8* %arg0)");
     let loop_start = sum_ir
-        .find("
-  br label %L")
+        .find("\n  br label %L")
         .expect("sum_bytes should branch into a loop");
     let entry_region = &sum_ir[..loop_start];
     let loop_region = &sum_ir[loop_start..];
 
     assert!(
         entry_region.contains("call i64 @len(i8*"),
-        "loop-carried string param lengths should be primed before the loop:
-{}",
+        "loop-carried string param lengths should be primed before the loop:\n{}",
         sum_ir
     );
     assert!(
         !loop_region.contains("call i64 @len(i8*"),
-        "loop body should reuse the entry-cached string length instead of rescanning each iteration:
-{}",
+        "loop body should reuse the entry-cached string length instead of rescanning each iteration:\n{}",
         sum_ir
     );
     verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-carried-string-param-len-hoist");

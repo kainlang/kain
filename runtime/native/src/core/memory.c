@@ -14,8 +14,99 @@
 #include "../../include/ownership.h"
 #include <errno.h>
 #include <stddef.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define KAIN_ALLOC_CACHE_BUCKETS 64u
+#define KAIN_ALLOC_CACHE_MIN_PAYLOAD 4096u
+#define KAIN_ALLOC_CACHE_MAX_PAYLOAD 262144u
+#define KAIN_ALLOC_CACHE_MAX_BYTES (8u * 1024u * 1024u)
+#define KAIN_ALLOC_CACHE_MAX_NODES 256u
+
+static KainAllocHeader* KAIN_ALLOC_CACHE[KAIN_ALLOC_CACHE_BUCKETS];
+static size_t KAIN_ALLOC_CACHE_BYTES = 0;
+static size_t KAIN_ALLOC_CACHE_NODES = 0;
+static atomic_flag KAIN_ALLOC_CACHE_LOCK = ATOMIC_FLAG_INIT;
+
+_Static_assert(sizeof(KainAllocHeader) == 16u, "KainAllocHeader proof constants require 16-byte header accounting.");
+
+static int kain_add_overflow_size(size_t left, size_t right, size_t* out);
+
+static void kain_alloc_cache_lock(void) {
+    while (atomic_flag_test_and_set_explicit(&KAIN_ALLOC_CACHE_LOCK, memory_order_acquire)) {
+    }
+}
+
+static void kain_alloc_cache_unlock(void) {
+    atomic_flag_clear_explicit(&KAIN_ALLOC_CACHE_LOCK, memory_order_release);
+}
+
+static int kain_alloc_cache_eligible(size_t payload_size) {
+    return payload_size >= KAIN_ALLOC_CACHE_MIN_PAYLOAD &&
+        payload_size <= KAIN_ALLOC_CACHE_MAX_PAYLOAD &&
+        payload_size >= sizeof(KainAllocHeader*);
+}
+
+static size_t kain_alloc_cache_bucket(size_t payload_size) {
+    uint64_t mixed = (uint64_t)payload_size * UINT64_C(11400714819323198485);
+    mixed ^= mixed >> 33u;
+    return (size_t)(mixed & (KAIN_ALLOC_CACHE_BUCKETS - 1u));
+}
+
+static KainAllocHeader** kain_alloc_cache_next_cell(KainAllocHeader* header) {
+    return (KainAllocHeader**)__kain_alloc_payload_from_header(header);
+}
+
+static KainAllocHeader* kain_alloc_cache_take(size_t payload_size) {
+    if (!kain_alloc_cache_eligible(payload_size)) {
+        return NULL;
+    }
+
+    KainAllocHeader* result = NULL;
+    size_t bucket = kain_alloc_cache_bucket(payload_size);
+    kain_alloc_cache_lock();
+    KainAllocHeader** link = &KAIN_ALLOC_CACHE[bucket];
+    while (*link != NULL) {
+        KainAllocHeader* candidate = *link;
+        KainAllocHeader** next = kain_alloc_cache_next_cell(candidate);
+        if (candidate->metadata.payload_size == payload_size) {
+            *link = *next;
+            KAIN_ALLOC_CACHE_NODES -= 1u;
+            KAIN_ALLOC_CACHE_BYTES -= sizeof(KainAllocHeader) + payload_size;
+            result = candidate;
+            break;
+        }
+        link = next;
+    }
+    kain_alloc_cache_unlock();
+    return result;
+}
+
+static int kain_alloc_cache_release(KainAllocHeader* header, size_t payload_size) {
+    size_t allocation_size = 0;
+    if (header == NULL || !kain_alloc_cache_eligible(payload_size) ||
+        kain_add_overflow_size(sizeof(KainAllocHeader), payload_size, &allocation_size)) {
+        return 0;
+    }
+
+    size_t bucket = kain_alloc_cache_bucket(payload_size);
+    kain_alloc_cache_lock();
+    if (KAIN_ALLOC_CACHE_NODES >= KAIN_ALLOC_CACHE_MAX_NODES ||
+        KAIN_ALLOC_CACHE_BYTES > KAIN_ALLOC_CACHE_MAX_BYTES - allocation_size) {
+        kain_alloc_cache_unlock();
+        return 0;
+    }
+
+    header->metadata.magic_and_slot = 0;
+    header->metadata.payload_size = payload_size;
+    *kain_alloc_cache_next_cell(header) = KAIN_ALLOC_CACHE[bucket];
+    KAIN_ALLOC_CACHE[bucket] = header;
+    KAIN_ALLOC_CACHE_NODES += 1u;
+    KAIN_ALLOC_CACHE_BYTES += allocation_size;
+    kain_alloc_cache_unlock();
+    return 1;
+}
 
 static int kain_mul_overflow_size(size_t left, size_t right, size_t* out) {
     if (left != 0 && right > (SIZE_MAX / left)) {
@@ -232,7 +323,12 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
         return NULL;
     }
 
-    if (zeroed) {
+    header = kain_alloc_cache_take(payload_size);
+    if (header != NULL) {
+        if (zeroed) {
+            memset(__kain_alloc_payload_from_header(header), 0, payload_size);
+        }
+    } else if (zeroed) {
         header = (KainAllocHeader*)calloc(1, allocation_size);
     } else {
         header = (KainAllocHeader*)malloc(allocation_size);
@@ -249,7 +345,11 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
             &slot_token
         ) != KAIN_OWNERSHIP_OK) {
         header->metadata.magic_and_slot = 0;
-        free(header);
+        header->metadata.payload_size = payload_size;
+        if (!kain_alloc_cache_release(header, payload_size)) {
+            header->metadata.payload_size = 0;
+            free(header);
+        }
         return NULL;
     }
     __kain_alloc_header_set_magic_and_slot(header, slot_token);
@@ -333,7 +433,11 @@ int __kain_free(void* ptr) {
         return -1;
     }
 
+    size_t payload_size = header->metadata.payload_size;
     header->metadata.magic_and_slot = 0;
+    if (kain_alloc_cache_release(header, payload_size)) {
+        return 0;
+    }
     header->metadata.payload_size = 0;
     free(header);
     return 0;

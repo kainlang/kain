@@ -1040,6 +1040,8 @@ typedef struct {
     uint64_t empty_index;
 } KainMapSlotSearch;
 
+static uint64_t kain_mix_u64(uint64_t value);
+
 static uint64_t kain_rotate_left_u64(uint64_t value, unsigned int shift) {
     return (value << shift) | (value >> (64u - shift));
 }
@@ -1050,6 +1052,93 @@ static uint64_t kain_map_nonzero_bit(uint64_t value) {
 
 static uint64_t kain_map_zero_bit(uint64_t value) {
     return kain_map_nonzero_bit(value) ^ 1u;
+}
+
+static uint64_t kain_map_tiny_fingerprint(uint64_t key_hash, uint64_t key_prefix, uint64_t key_length) {
+    return key_hash ^
+        kain_rotate_left_u64(key_prefix, 17u) ^
+        (key_length * 0x9e3779b97f4a7c15ULL);
+}
+
+static uint64_t kain_map_tiny_slot(uint64_t fingerprint, uint64_t magic) {
+    return (fingerprint * magic) >> 58u;
+}
+
+static void kain_map_disable_tiny_dispatch(KainMap* map) {
+    if (!map) {
+        return;
+    }
+    map->tiny_magic = 0u;
+    map->tiny_ready = 0u;
+    memset(map->tiny_dispatch, 0xFF, sizeof(map->tiny_dispatch));
+}
+
+static void kain_map_rebuild_tiny_dispatch(KainMap* map) {
+    uint64_t fingerprints[KAIN_MAP_TINY_MAX_COUNT];
+    uint8_t entry_indices[KAIN_MAP_TINY_MAX_COUNT];
+    uint8_t dispatch[KAIN_MAP_TINY_DISPATCH_SIZE];
+    uint64_t occupied_count = 0u;
+    uint64_t entry_index;
+    uint64_t base_seed;
+    uint64_t attempt;
+
+    kain_map_disable_tiny_dispatch(map);
+    if (!map || map->count <= 0) {
+        return;
+    }
+    if ((uint64_t)map->count > KAIN_MAP_TINY_MAX_COUNT) {
+        return;
+    }
+    if ((uint64_t)map->capacity > (uint64_t)KAIN_MAP_TINY_EMPTY_INDEX) {
+        return;
+    }
+
+    for (entry_index = 0u; entry_index < (uint64_t)map->capacity; ++entry_index) {
+        MapEntry* entry = &map->entries[entry_index];
+        if (entry->occupied) {
+            if (occupied_count >= KAIN_MAP_TINY_MAX_COUNT) {
+                return;
+            }
+            fingerprints[occupied_count] = kain_map_tiny_fingerprint(
+                entry->hash,
+                entry->key_prefix,
+                (uint64_t)entry->key_length
+            );
+            entry_indices[occupied_count] = (uint8_t)entry_index;
+            occupied_count += 1u;
+        }
+    }
+
+    if (occupied_count != (uint64_t)map->count) {
+        return;
+    }
+
+    base_seed = kain_mix_u64(
+        fingerprints[0] ^
+        ((uint64_t)occupied_count * 0x94d049bb133111ebULL) ^
+        map->mask
+    ) | 1u;
+
+    for (attempt = 0u; attempt < 4096u; ++attempt) {
+        uint64_t magic = (base_seed + (attempt * 0x9e3779b97f4a7c15ULL)) | 1u;
+        uint64_t probe_index;
+        uint64_t collision = 0u;
+        memset(dispatch, 0xFF, sizeof(dispatch));
+        for (probe_index = 0u; probe_index < occupied_count; ++probe_index) {
+            uint64_t slot = kain_map_tiny_slot(fingerprints[probe_index], magic);
+            if (dispatch[slot] != KAIN_MAP_TINY_EMPTY_INDEX) {
+                collision = 1u;
+                break;
+            }
+            dispatch[slot] = entry_indices[probe_index];
+        }
+        if (!collision) {
+            map->tiny_magic = magic;
+            map->tiny_ready = 1u;
+            memcpy(map->tiny_dispatch, dispatch, sizeof(dispatch));
+            return;
+        }
+    }
 }
 
 static uint64_t kain_map_select_u64(uint64_t left, uint64_t right, uint64_t bit) {
@@ -1158,7 +1247,9 @@ static uint64_t kain_map_entry_match_bit(
     uint64_t prefix_match = kain_map_zero_bit(entry->key_prefix ^ key_prefix);
     uint64_t length_match = kain_map_zero_bit((uint64_t)entry->key_length ^ (uint64_t)key_length);
     uint64_t metadata_match = occupied & hash_match & prefix_match & length_match;
-    uint64_t exact_match = metadata_match ? (uint64_t)(memcmp(entry->key, key, key_length) == 0) : 0u;
+    uint64_t exact_match = metadata_match
+        ? (uint64_t)(entry->key == key || memcmp(entry->key, key, key_length) == 0)
+        : 0u;
     return metadata_match & exact_match;
 }
 
@@ -1173,7 +1264,46 @@ static int kain_map_entry_matches_prehashed(
         entry->hash == key_hash &&
         entry->key_prefix == key_prefix &&
         entry->key_length == key_length &&
-        memcmp(entry->key, key, key_length) == 0;
+        (entry->key == key || memcmp(entry->key, key, key_length) == 0);
+}
+
+static int kain_map_tiny_get_prehashed(
+    KainMap* map,
+    char* key,
+    size_t key_length,
+    uint64_t key_hash,
+    uint64_t key_prefix,
+    long long* out_value
+) {
+    uint64_t slot;
+    uint8_t entry_index;
+    MapEntry* entry;
+
+    if (!map || !map->tiny_ready) {
+        return -1;
+    }
+
+    slot = kain_map_tiny_slot(
+        kain_map_tiny_fingerprint(key_hash, key_prefix, (uint64_t)key_length),
+        map->tiny_magic
+    );
+    entry_index = map->tiny_dispatch[slot];
+    if (entry_index == KAIN_MAP_TINY_EMPTY_INDEX) {
+        return 0;
+    }
+    if ((uint64_t)entry_index >= (uint64_t)map->capacity) {
+        return -1;
+    }
+
+    entry = &map->entries[entry_index];
+    if (!entry->occupied) {
+        return -1;
+    }
+    if (!kain_map_entry_matches_prehashed(entry, key, key_length, key_hash, key_prefix)) {
+        return 0;
+    }
+    *out_value = entry->value;
+    return 1;
 }
 
 static KainMapProbeWindow kain_map_probe_window(
@@ -1332,18 +1462,25 @@ static int kain_map_insert_prehashed(
     uint64_t key_hash,
     uint64_t key_prefix,
     long long value,
-    int retain_key
+    int key_state,
+    int rebuild_tiny_dispatch
 ) {
     KainMapSlotSearch slot = kain_map_find_slot(map, key, key_length, key_hash, key_prefix);
 
     if (slot.has_match) {
-        map->entries[slot.match_index].value = value;
+        MapEntry* entry = &map->entries[slot.match_index];
+        if (entry->occupied == KAIN_MAP_ENTRY_OWNED_KEY && key_state == KAIN_MAP_ENTRY_STATIC_KEY) {
+            rc_release(entry->key);
+            entry->key = key;
+            entry->occupied = KAIN_MAP_ENTRY_STATIC_KEY;
+        }
+        entry->value = value;
         return 1;
     }
     if (!slot.has_empty) {
         return 0;
     }
-    if (retain_key) {
+    if (key_state == KAIN_MAP_ENTRY_OWNED_KEY) {
         rc_retain(key);
     }
     map->entries[slot.empty_index].key = key;
@@ -1351,8 +1488,11 @@ static int kain_map_insert_prehashed(
     map->entries[slot.empty_index].key_prefix = key_prefix;
     map->entries[slot.empty_index].key_length = key_length;
     map->entries[slot.empty_index].value = value;
-    map->entries[slot.empty_index].occupied = 1;
+    map->entries[slot.empty_index].occupied = key_state;
     map->count += 1;
+    if (rebuild_tiny_dispatch) {
+        kain_map_rebuild_tiny_dispatch(map);
+    }
     return 1;
 }
 
@@ -1389,6 +1529,7 @@ static int kain_map_resize(KainMap* map, uint64_t new_capacity) {
                 old_entry->hash,
                 old_entry->key_prefix,
                 old_entry->value,
+                old_entry->occupied,
                 0
             )) {
                 emit_diagnostic(
@@ -1405,6 +1546,7 @@ static int kain_map_resize(KainMap* map, uint64_t new_capacity) {
     }
 
     free(old_entries);
+    kain_map_rebuild_tiny_dispatch(map);
     return 1;
 }
 
@@ -1412,7 +1554,7 @@ void map_free_elems(void* ptr) {
     KainMap* map = (KainMap*)ptr;
     long long i;
     for (i = 0; i < map->capacity; ++i) {
-        if (map->entries[i].occupied) {
+        if (map->entries[i].occupied == KAIN_MAP_ENTRY_OWNED_KEY) {
             rc_release(map->entries[i].key);
         }
     }
@@ -1426,6 +1568,7 @@ KainMap* map_new() {
     map->count = 0;
     map->mask = 15u;
     map->entries = (MapEntry*)calloc(16, sizeof(MapEntry));
+    kain_map_disable_tiny_dispatch(map);
     if (!map->entries) {
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
@@ -1468,7 +1611,16 @@ void map_set(KainMap* map, char* key, long long value) {
         }
     }
 
-    if (!kain_map_insert_prehashed(map, key, key_length, key_hash, key_prefix, value, 1)) {
+    if (!kain_map_insert_prehashed(
+        map,
+        key,
+        key_length,
+        key_hash,
+        key_prefix,
+        value,
+        KAIN_MAP_ENTRY_OWNED_KEY,
+        1
+    )) {
         uint64_t current_capacity = (uint64_t)map->capacity;
         uint64_t new_capacity = current_capacity << 1u;
         if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {
@@ -1484,7 +1636,95 @@ void map_set(KainMap* map, char* key, long long value) {
         if (!kain_map_resize(map, new_capacity)) {
             return;
         }
-        (void)kain_map_insert_prehashed(map, key, key_length, key_hash, key_prefix, value, 1);
+        (void)kain_map_insert_prehashed(
+            map,
+            key,
+            key_length,
+            key_hash,
+            key_prefix,
+            value,
+            KAIN_MAP_ENTRY_OWNED_KEY,
+            1
+        );
+    }
+}
+
+void map_set_static(KainMap* map, char* key, long long value) {
+    size_t key_length;
+    uint64_t key_hash;
+    uint64_t key_prefix;
+
+    if (!map || !key) return;
+
+    kain_map_key_metadata(key, &key_length, &key_hash, &key_prefix);
+    map_set_static_prehashed(map, key, (uint64_t)key_length, key_hash, key_prefix, value);
+}
+
+void map_set_static_prehashed(
+    KainMap* map,
+    char* key,
+    uint64_t key_length,
+    uint64_t key_hash,
+    uint64_t key_prefix,
+    long long value
+) {
+    if (!map || !key) return;
+    if (key_length > (uint64_t)SIZE_MAX) return;
+
+    if ((uint64_t)map->count >= kain_map_growth_threshold((uint64_t)map->capacity)) {
+        uint64_t current_capacity = (uint64_t)map->capacity;
+        uint64_t new_capacity = current_capacity << 1u;
+
+        if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+                "Map resize failed",
+                "Map capacity overflowed while doubling"
+            );
+            return;
+        }
+        if (!kain_map_resize(map, new_capacity)) {
+            return;
+        }
+    }
+
+    if (!kain_map_insert_prehashed(
+        map,
+        key,
+        (size_t)key_length,
+        key_hash,
+        key_prefix,
+        value,
+        KAIN_MAP_ENTRY_STATIC_KEY,
+        1
+    )) {
+        uint64_t current_capacity = (uint64_t)map->capacity;
+        uint64_t new_capacity = current_capacity << 1u;
+        if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+                "Map insert failed",
+                "Map capacity overflowed while recovering from a saturated probe"
+            );
+            return;
+        }
+        if (!kain_map_resize(map, new_capacity)) {
+            return;
+        }
+        (void)kain_map_insert_prehashed(
+            map,
+            key,
+            (size_t)key_length,
+            key_hash,
+            key_prefix,
+            value,
+            KAIN_MAP_ENTRY_STATIC_KEY,
+            1
+        );
     }
 }
 
@@ -1506,6 +1746,8 @@ long long map_get_prehashed(
     uint64_t key_hash,
     uint64_t key_prefix
 ) {
+    long long tiny_value;
+    int tiny_status;
     uint64_t start_index;
     uint64_t probe_offset;
     size_t exact_key_length;
@@ -1513,8 +1755,23 @@ long long map_get_prehashed(
     if (!map || !key) return 0;
     if (key_length > (uint64_t)SIZE_MAX) return 0;
     exact_key_length = (size_t)key_length;
-    start_index = key_hash & map->mask;
 
+    tiny_status = kain_map_tiny_get_prehashed(
+        map,
+        key,
+        exact_key_length,
+        key_hash,
+        key_prefix,
+        &tiny_value
+    );
+    if (tiny_status > 0) {
+        return tiny_value;
+    }
+    if (tiny_status == 0) {
+        return 0;
+    }
+
+    start_index = key_hash & map->mask;
     for (probe_offset = 0u; probe_offset < (uint64_t)map->capacity; ++probe_offset) {
         MapEntry* entry = &map->entries[(start_index + probe_offset) & map->mask];
         if (!entry->occupied) {

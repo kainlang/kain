@@ -1,0 +1,45 @@
+version: 1
+id: kain.native.core.proofs.native_map_static_key_state_guard
+kind: check_smt2
+description: >
+  Static literal-key map entries stay in the borrowed-static state through
+  insert, update, and destruction. The runtime only calls rc_release for owned
+  key entries, so borrowed literals are never released as heap strings.
+tags:
+- native-runtime
+- map
+- lookup
+- literal-key
+- ownership
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\core.c
+  symbol: kain_map_insert_prehashed
+  start_line: 1458
+  reason: static literal insert/update lanes must never fall back into the owned-key release path
+case:
+  smt2: |
+    (set-logic QF_LIA)
+
+    (declare-fun existing_state () Int)
+    (declare-fun incoming_state () Int)
+    (declare-fun matched_existing () Bool)
+
+    (assert (or (= existing_state 0) (= existing_state 1) (= existing_state 2)))
+    (assert (or (= incoming_state 1) (= incoming_state 2)))
+
+    (define-fun result_state () Int
+      (ite matched_existing
+        (ite (and (= existing_state 1) (= incoming_state 2)) 2 existing_state)
+        incoming_state))
+
+    (define-fun free_releases_key () Bool
+      (= result_state 1))
+
+    (assert
+      (or
+        (and (= incoming_state 2) (= result_state 1))
+        (and (= existing_state 2) matched_existing free_releases_key)))
+
+    (check-sat)
+  include_model: false
+  include_stats: false

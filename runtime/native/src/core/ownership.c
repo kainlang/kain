@@ -19,6 +19,7 @@
 #define KAIN_OWNERSHIP_WORD_COUNT (KAIN_OWNERSHIP_MAX_REGIONS / KAIN_OWNERSHIP_WORD_BITS)
 #define KAIN_OWNERSHIP_INDEX_CAPACITY 8192u
 #define KAIN_OWNERSHIP_INDEX_MASK (KAIN_OWNERSHIP_INDEX_CAPACITY - 1u)
+#define KAIN_OWNERSHIP_INDEX_TOMBSTONE UINT32_MAX
 #if (KAIN_OWNERSHIP_MAX_REGIONS % KAIN_OWNERSHIP_WORD_BITS) != 0
 #error "KAIN_OWNERSHIP_MAX_REGIONS must be divisible by 64 for occupancy-word indexing."
 #endif
@@ -115,6 +116,7 @@ static unsigned int kain_ownership_low_bit_index_u64(uint64_t one_hot) {
 static int kain_ownership_index_insert_unlocked(const void* ptr, int slot) {
     uint32_t index;
     uint32_t encoded_slot;
+    uint32_t first_tombstone = KAIN_OWNERSHIP_INDEX_CAPACITY;
 
     if (ptr == NULL || slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
         return KAIN_OWNERSHIP_ERR_INVALID;
@@ -125,13 +127,59 @@ static int kain_ownership_index_insert_unlocked(const void* ptr, int slot) {
     for (uint32_t probe = 0u; probe < KAIN_OWNERSHIP_INDEX_CAPACITY; ++probe) {
         uint32_t candidate_index = (index + probe) & KAIN_OWNERSHIP_INDEX_MASK;
         uint32_t candidate = KAIN_OWNERSHIP_POINTER_INDEX[candidate_index];
-        if (candidate == 0u || candidate == encoded_slot) {
-            KAIN_OWNERSHIP_POINTER_INDEX[candidate_index] = encoded_slot;
+        if (candidate == KAIN_OWNERSHIP_INDEX_TOMBSTONE) {
+            if (first_tombstone == KAIN_OWNERSHIP_INDEX_CAPACITY) {
+                first_tombstone = candidate_index;
+            }
+            continue;
+        }
+        if (candidate == encoded_slot) {
+            return KAIN_OWNERSHIP_OK;
+        }
+        if (candidate == 0u) {
+            KAIN_OWNERSHIP_POINTER_INDEX[
+                first_tombstone == KAIN_OWNERSHIP_INDEX_CAPACITY
+                    ? candidate_index
+                    : first_tombstone
+            ] = encoded_slot;
             return KAIN_OWNERSHIP_OK;
         }
     }
 
+    if (first_tombstone != KAIN_OWNERSHIP_INDEX_CAPACITY) {
+        KAIN_OWNERSHIP_POINTER_INDEX[first_tombstone] = encoded_slot;
+        return KAIN_OWNERSHIP_OK;
+    }
+
     return KAIN_OWNERSHIP_ERR_CAPACITY;
+}
+
+static int kain_ownership_index_remove_unlocked(const void* ptr, int slot) {
+    uint32_t index;
+    uint32_t encoded_slot;
+
+    if (ptr == NULL || slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
+        return KAIN_OWNERSHIP_ERR_INVALID;
+    }
+
+    index = kain_ownership_pointer_index_slot(ptr);
+    encoded_slot = (uint32_t)slot + 1u;
+    for (uint32_t probe = 0u; probe < KAIN_OWNERSHIP_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (index + probe) & KAIN_OWNERSHIP_INDEX_MASK;
+        uint32_t candidate = KAIN_OWNERSHIP_POINTER_INDEX[candidate_index];
+        if (candidate == 0u) {
+            return KAIN_OWNERSHIP_ERR_NOT_FOUND;
+        }
+        if (candidate == KAIN_OWNERSHIP_INDEX_TOMBSTONE) {
+            continue;
+        }
+        if (candidate == encoded_slot) {
+            KAIN_OWNERSHIP_POINTER_INDEX[candidate_index] = KAIN_OWNERSHIP_INDEX_TOMBSTONE;
+            return KAIN_OWNERSHIP_OK;
+        }
+    }
+
+    return KAIN_OWNERSHIP_ERR_NOT_FOUND;
 }
 
 static void kain_ownership_rebuild_pointer_index_unlocked(void) {
@@ -161,6 +209,9 @@ static int kain_ownership_find_slot(const void* ptr) {
         if (encoded_slot == 0u) {
             return -1;
         }
+        if (encoded_slot == KAIN_OWNERSHIP_INDEX_TOMBSTONE) {
+            continue;
+        }
         slot = encoded_slot - 1u;
         if (slot < KAIN_OWNERSHIP_MAX_REGIONS &&
             KAIN_OWNERSHIP_REGIONS[slot].occupied &&
@@ -170,6 +221,27 @@ static int kain_ownership_find_slot(const void* ptr) {
     }
 
     return -1;
+}
+
+static void kain_ownership_clear_slot_unlocked(int slot) {
+    if (slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
+        return;
+    }
+
+    KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+    if (!region->occupied) {
+        return;
+    }
+
+    (void)kain_ownership_index_remove_unlocked(region->ptr, slot);
+    region->ptr = NULL;
+    region->size = 0;
+    region->kind = 0;
+    region->state = KAIN_OWNERSHIP_STATE_DECAYED;
+    region->observers = 0;
+    region->occupied = 0;
+    KAIN_OWNERSHIP_OCCUPANCY_WORDS[(uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS] &=
+        ~(UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS));
 }
 
 static int kain_ownership_find_free_slot(void) {
@@ -612,7 +684,7 @@ int __kain_ownership_end_collapse_helper(void* ptr) {
     return status;
 }
 
-static int kain_ownership_decay_slot_unlocked(void* ptr, int slot) {
+static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_helper_slot) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -633,6 +705,10 @@ static int kain_ownership_decay_slot_unlocked(void* ptr, int slot) {
         if (free_status != 0) {
             return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
         }
+        if (reclaim_helper_slot) {
+            kain_ownership_clear_slot_unlocked(slot);
+            return KAIN_OWNERSHIP_OK;
+        }
     }
 
     region->state = KAIN_OWNERSHIP_STATE_DECAYED;
@@ -645,11 +721,15 @@ static int kain_ownership_decay_registered_unlocked(void* ptr) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
-    return kain_ownership_decay_slot_unlocked(ptr, slot);
+    return kain_ownership_decay_slot_unlocked(ptr, slot, 0);
 }
 
 static int kain_ownership_decay_helper_unlocked(void* ptr) {
-    return kain_ownership_decay_slot_unlocked(ptr, kain_ownership_find_helper_slot_unlocked(ptr));
+    return kain_ownership_decay_slot_unlocked(
+        ptr,
+        kain_ownership_find_helper_slot_unlocked(ptr),
+        1
+    );
 }
 
 int __kain_ownership_decay(void* ptr) {

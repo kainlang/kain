@@ -1,0 +1,6 @@
+{
+  "description": "Dedicated GPU/SPIR-V benchmark lane with static SPIR-V density, validation, dispatcher timing, and telemetry sidecars.",
+  "runner": "gpu/run_gpu.py",
+  "after_args": []
+}
+

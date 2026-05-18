@@ -1,0 +1,53 @@
+use c::vulkain_bridge
+use vulkain::vulkain_frames_presented
+use vulkain::vulkain_probe
+use vulkain::vulkain_run_authored_mesh_scene
+use vulkain::vulkain_vertices_drawn
+use vulkain::vulkain_write_default_mesh_report
+
+const VULKAIN_CUBE_VERTICES: Int = 36
+const VULKAIN_SCREENSHOT_FRAMES: Int = 4096
+
+fn scene_energy(seed: Int) -> Int:
+    return 900 + ((seed * 97 + 211) % 700)
+
+fn scene_yaw_milli(seed: Int) -> Int:
+    return 640 + ((seed * 17) % 160)
+
+fn scene_pitch_milli(seed: Int) -> Int:
+    return -360 + ((seed * 11) % 90)
+
+fn scene_twist_milli(seed: Int) -> Int:
+    return 300 + ((seed * 31) % 180)
+
+fn main() -> Int:
+    if vulkain_probe() != 1:
+        return 10
+
+    let seed = 7
+    let status = vulkain_run_authored_mesh_scene(
+        1280,
+        720,
+        VULKAIN_SCREENSHOT_FRAMES,
+        7,
+        11,
+        20,
+        66,
+        206,
+        255,
+        VULKAIN_CUBE_VERTICES,
+        scene_yaw_milli(seed),
+        scene_pitch_milli(seed),
+        1090,
+        scene_twist_milli(seed),
+        1180,
+        scene_energy(seed)
+    )
+    let _report_status = vulkain_write_default_mesh_report()
+    if status != 0:
+        return 20
+    if vulkain_frames_presented() != VULKAIN_SCREENSHOT_FRAMES:
+        return 30
+    if vulkain_vertices_drawn() != VULKAIN_SCREENSHOT_FRAMES * VULKAIN_CUBE_VERTICES:
+        return 31
+    return 0

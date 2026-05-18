@@ -1,0 +1,129 @@
+shader compute semantic_ping_pong(id: UVec3) -> Vec4:
+    uniform current_positions: StorageBuffer<Vec4> @0
+    uniform history_positions: StorageBuffer<Vec4> @1
+    uniform next_positions: StorageBuffer<Vec4> @2
+    uniform alpha_per_joint: StorageBuffer<Float> @3
+    uniform mode_per_joint: StorageBuffer<Int> @4
+    uniform parent_index: StorageBuffer<Int> @5
+    uniform count: UInt @6
+    uniform time_base: Float @7
+    uniform round_phase: Float @8
+    uniform gain: Float @9
+    uniform eps: Float @10
+    uniform width: UInt @11
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let idx = id.x + (id.y * width)
+    if idx >= count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let cur = current_positions[idx]
+    let hist = history_positions[idx]
+    let cur_xyz = vec3(cur.x, cur.y, cur.z)
+    let hist_xyz = vec3(hist.x, hist.y, hist.z)
+    let alpha = alpha_per_joint[idx]
+    let mode = mode_per_joint[idx]
+    let parent = parent_index[idx]
+    let parent_gate = if parent < 0: 0.0 else: 1.0
+    let t = time_base + round_phase + (idx as Float) * 0.000173
+
+    let base_mix = 0.22 + alpha * 0.13
+    let base = vec3(
+        cur_xyz.x + (hist_xyz.x - cur_xyz.x) * base_mix,
+        cur_xyz.y + (hist_xyz.y - cur_xyz.y) * base_mix,
+        cur_xyz.z + (hist_xyz.z - cur_xyz.z) * base_mix
+    )
+    let normal_seed = vec3(base.x + eps + parent_gate * 0.001, base.y, base.z)
+    let normal = normalize(normal_seed)
+    let tangent = cross(vec3(0.0, 1.0, 0.0), normal)
+    let lane = mode % 6
+
+    let mut accum = base
+    if lane == 0:
+        accum = vec3(
+            accum.x + normal.x * gain,
+            accum.y + normal.y * gain,
+            accum.z + normal.z * gain
+        )
+    else:
+        if lane == 1:
+            let wave_gain = gain * (0.5 + alpha)
+            accum = vec3(
+                accum.x + sin(t) * wave_gain,
+                accum.y + cos(t * 1.3) * wave_gain,
+                accum.z + sin(t * 0.7) * wave_gain
+            )
+        else:
+            if lane == 2:
+                let flipped = vec3(hist.z, hist.x, hist.y)
+                let flipped_mix = 0.35 + alpha * 0.15
+                accum = vec3(
+                    accum.x + (flipped.x - accum.x) * flipped_mix,
+                    accum.y + (flipped.y - accum.y) * flipped_mix,
+                    accum.z + (flipped.z - accum.z) * flipped_mix
+                )
+            else:
+                if lane == 3:
+                    let lift = max(0.0, sin(t * 0.5)) * gain
+                    accum = vec3(accum.x + tangent.x * lift, accum.y + lift, accum.z + tangent.z * lift)
+                else:
+                    if lane == 4:
+                        let squash = 1.0 + cos(t * 0.9) * 0.25 * gain
+                        accum = vec3(accum.x * squash, accum.y / max(squash, eps), accum.z * squash)
+                    else:
+                        let cross_rhs = vec3(tangent.x + alpha, tangent.y, tangent.z + parent_gate)
+                        let cross_term = cross(normal, cross_rhs)
+                        let cross_gain = 0.35 * gain
+                        accum = vec3(
+                            accum.x + cross_term.x * cross_gain,
+                            accum.y + cross_term.y * cross_gain,
+                            accum.z + cross_term.z * cross_gain
+                        )
+
+    let mut octave = 0
+    let mut wobble = vec3(0.0, 0.0, 0.0)
+    let mut freq = 1.0
+    let mut amp = 0.18 * gain
+    while octave < 3:
+        let phase = t * freq + alpha * ((octave as Float) + 1.0)
+        let dir = vec3(cos(phase), sin(phase * 1.7), cos(phase * 0.5))
+        let wobble_seed = vec3(dir.x + tangent.x + eps, dir.y + tangent.y, dir.z + tangent.z)
+        let wobble_dir = normalize(wobble_seed)
+        wobble = vec3(
+            wobble.x + wobble_dir.x * amp,
+            wobble.y + wobble_dir.y * amp,
+            wobble.z + wobble_dir.z * amp
+        )
+        freq = freq * 2.03
+        amp = amp * 0.5
+        octave = octave + 1
+
+    accum = vec3(
+        accum.x + wobble.x,
+        accum.y + wobble.y,
+        accum.z + wobble.z
+    )
+
+    let mut pulse = 0.0
+    for k in range(1, 4):
+        pulse = pulse + sin(t * (k as Float)) * (0.03 * alpha)
+
+    let rebound = vec3(
+        hist_xyz.x + normal.x * pulse,
+        hist_xyz.y + normal.y * pulse,
+        hist_xyz.z + normal.z * pulse
+    )
+    let rebound_mix = 0.2 + parent_gate * 0.05
+    accum = vec3(
+        accum.x + (rebound.x - accum.x) * rebound_mix,
+        accum.y + (rebound.y - accum.y) * rebound_mix,
+        accum.z + (rebound.z - accum.z) * rebound_mix
+    )
+    let out_v = vec4(accum.x, accum.y, accum.z, cur.w + 0.25 + alpha * 0.5 + round_phase * 0.01)
+    next_positions[idx] = out_v
+    return out_v
+
+fn main() -> Int:
+    return 0

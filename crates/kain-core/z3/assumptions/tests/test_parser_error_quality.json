@@ -160,7 +160,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "7e524baef762e569c44c67ffbb22e7982540446893cf6edcb33f22439156c6ff",
+  "source_hash": "f3a6902f26014e62a3f12b4b3515ad0602acf6e5ca45e5ff80606535f9b2ff31",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_quality.rs",
   "version": 1
 }

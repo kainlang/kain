@@ -1,0 +1,19 @@
+shader compute vec3_storage_copy(id: UVec3) -> Void:
+    uniform src: StorageBuffer<Vec3> @0
+    uniform dst: StorageBuffer<Vec3> @1
+    uniform count: UInt @2
+    uniform width: UInt @3
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let idx = id.x + (id.y * width)
+    if idx >= count:
+        return
+
+    let value = src[idx]
+    dst[idx] = value
+    return
+
+fn main() -> Int:
+    return 0

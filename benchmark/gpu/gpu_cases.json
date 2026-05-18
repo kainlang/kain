@@ -1,0 +1,90 @@
+{
+  "suite": "gpu",
+  "description": "Dedicated SPIR-V/Vulkan benchmark lane for shader artifact density, validation, dispatcher wall time, and optional pipeline executable telemetry.",
+  "cases": [
+    {
+      "id": "vec3_storage_copy",
+      "title": "Vec3 storage-buffer copy",
+      "description": "First Kain SPIR-V black-box breaker: a std430 Vec3 storage-buffer compute kernel that validates under Vulkan, runs through the same headless Vulkan dispatcher as the C++ reference shader, and emits telemetry.",
+      "maturity": "vulkan-runtime-smoke",
+      "work_items": 1048576,
+      "width": 1024,
+      "languages": {
+        "kain": {
+          "shader": "cases/vec3_storage_copy/kain.kn",
+          "target": "spirv",
+          "stage": "comp",
+          "entry_point": "vec3_storage_copy",
+          "runner": "cases/vec3_storage_copy/vulkan_vec3_copy.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        },
+        "cpp": {
+          "shader": "cases/vec3_storage_copy/reference.comp",
+          "shader_compiler": "glslang",
+          "stage": "comp",
+          "entry_point": "main",
+          "runner": "cases/vec3_storage_copy/vulkan_vec3_copy.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        }
+      },
+      "fairness_note": "Kain and C++ use different shader frontends, but both run the same copy contract through the same C++ Vulkan dispatcher, descriptor layout, buffers, command submission, timestamp query, and readback verifier. Host setup time is included in process median; GPU timestamp duration is emitted in sidecar telemetry."
+    },
+    {
+      "id": "semantic_ping_pong",
+      "title": "Semantic ping-pong supermotion",
+      "description": "Golden SPIR-V showcase row: a branchy, loop-heavy, vector-math compute kernel rebounds Vec4 state through repeated Vulkan ping-pong rounds, then proves the final state against a CPU oracle while collecting executable telemetry.",
+      "maturity": "vulkan-runtime-proof",
+      "work_items": 131072,
+      "width": 512,
+      "runner_env": {
+        "KAIN_GPU_ROUNDS": 12,
+        "KAIN_GPU_VERIFY_EPSILON": 0.0015,
+        "KAIN_GPU_GAIN": 0.85,
+        "KAIN_GPU_TIME_STEP": 0.03125
+      },
+      "languages": {
+        "kain": {
+          "shader": "cases/semantic_ping_pong/kain.kn",
+          "target": "spirv",
+          "stage": "comp",
+          "entry_point": "semantic_ping_pong",
+          "runner": "cases/semantic_ping_pong/vulkan_semantic_ping_pong.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        },
+        "cpp": {
+          "shader": "cases/semantic_ping_pong/reference.comp",
+          "shader_compiler": "glslang",
+          "stage": "comp",
+          "entry_point": "main",
+          "runner": "cases/semantic_ping_pong/vulkan_semantic_ping_pong.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        }
+      },
+      "fairness_note": "Kain and C++ still use different shader frontends, but both execute the same rebound contract through the same C++ Vulkan host, descriptor bindings, repeated ping-pong dispatch schedule, CPU-side oracle, timestamp accumulation, and telemetry sidecar. Process medians include host verification; sidecar duration is pure GPU time summed across rounds."
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+[package]
+name = "vulkain-mesh-scene"
+version = "0.1.0"
+description = "Kain-authored Vulkain mesh scene using inline C bitcode interop."
+
+[blade]
+name = "vulkain-mesh-scene"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src", "../../src"]
+module_roots = ["src", "../../src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+tier = "inline"
+header = "../../native/vulkain_bridge.h"
+sources = ["../../native/vulkain_bridge.c"]
+include_paths = [
+  "../../native",
+  "${env:VULKAN_SDK}/Include",
+]
+defines = ["_CRT_SECURE_NO_WARNINGS"]
+link_libs = ["user32"]

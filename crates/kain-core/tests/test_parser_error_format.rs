@@ -56,3 +56,70 @@ fn test_parser_error_format_with_different_files() {
         }
     }
 }
+
+#[test]
+fn test_missing_colon_before_newline_has_fixit_and_header_label() {
+    let source = "fn demo()\n    let x = 1";
+    let tokens = lexer::Lexer::new(source).tokenize().unwrap();
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = parser::Parser::new(&tokens, &span_mapper, "test.kn");
+
+    let err = parser
+        .parse()
+        .expect_err("missing function-header colon should fail");
+    let rendered = diagnostics::Diagnostics::new(source, "test.kn").format_error(&err);
+
+    assert!(
+        rendered.contains("Missing ':' before line break"),
+        "got: {rendered}"
+    );
+    assert!(rendered.contains("fix-it"));
+    assert!(rendered.contains("insert ':'"));
+    assert!(rendered.contains("this header or declaration ended without ':'"));
+    assert!(
+        rendered.contains("test.kn:1:"),
+        "diagnostic should anchor the header line, got: {rendered}"
+    );
+}
+
+#[test]
+fn test_synthetic_import_scan_error_does_not_inline_fake_location() {
+    let source = "fn demo()\n    let x = 1";
+    let tokens = lexer::Lexer::new(source).tokenize().unwrap();
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = parser::Parser::new(&tokens, &span_mapper, "<frontend-import-scan>");
+
+    let err = parser
+        .parse()
+        .expect_err("missing function-header colon should fail");
+    let raw = err.to_string();
+    assert!(
+        raw.contains("Missing ':' before line break"),
+        "got raw diagnostic: {raw}"
+    );
+    assert!(
+        !raw.contains("<frontend-import-scan>:"),
+        "synthetic scanner origin must not masquerade as a source location: {raw}"
+    );
+
+    let rendered = diagnostics::Diagnostics::new(source, "real_main.kn").format_error(&err);
+    assert!(rendered.contains("real_main.kn:1:"));
+    assert!(rendered.contains("fix-it"));
+}
+
+#[test]
+fn test_rich_parse_diagnostic_has_machine_readable_json() {
+    let source = "fn demo()\n    let x = 1";
+    let tokens = lexer::Lexer::new(source).tokenize().unwrap();
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = parser::Parser::new(&tokens, &span_mapper, "json.kn");
+
+    let err = parser
+        .parse()
+        .expect_err("missing function-header colon should fail");
+    let json = err
+        .diagnostic_json()
+        .expect("rich parser diagnostics should expose JSON");
+    assert_eq!(json["diagnostics"][0]["code"], "KAIN-PARSE-0001");
+    assert_eq!(json["diagnostics"][0]["fixits"][0]["replacement"], ":");
+}

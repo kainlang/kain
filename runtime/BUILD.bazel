@@ -98,6 +98,21 @@ cc_test(
     deps = [":native_core_runtime"],
 )
 
+cc_test(
+    name = "native_test_map_lookup",
+    srcs = ["native/tests/test_map_lookup.c"],
+    copts = platform_select(
+        windows = WINDOWS_COPTS,
+        linux = POSIX_C_COPTS,
+        macos = POSIX_C_COPTS,
+    ),
+    defines = platform_select(
+        linux = RUNTIME_TEST_LINUX_DEFINES,
+        macos = RUNTIME_TEST_LINUX_DEFINES,
+    ),
+    deps = [":native_core_runtime"],
+)
+
 test_suite(
     name = "native_runtime_tests",
     tests = [
@@ -105,5 +120,6 @@ test_suite(
         ":native_test_actor_supervision",
         ":native_test_ownership_memory",
         ":native_test_machine_stones",
+        ":native_test_map_lookup",
     ],
 )

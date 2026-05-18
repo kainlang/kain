@@ -64,11 +64,12 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - `benchmark/latest.md`
   - `benchmark/latest_fast.md` and `benchmark/out/reports/latest_fast.llm.md` / `latest_fast.json` when the `fast` wrapper is used
   - `benchmark/latest_sim.md` and `benchmark/out/reports/latest_sim.llm.md` / `latest_sim.json` when the `sim` wrapper is used
+  - `benchmark/latest_gpu.md` and `benchmark/out/reports/latest_gpu.llm.md` / `latest_gpu.json` when the dedicated GPU lane is used
   - `benchmark/out/reports/latest.llm.md`
   - `benchmark/out/reports/latest.json`
   - timestamped `benchmark/out/reports/<stamp>.llm.md`
   - timestamped `benchmark/out/reports/<stamp>.json`
-- `benchmark/latest.md`, `benchmark/latest_fast.md`, and `benchmark/latest_sim.md` are intentionally minimal LLM-facing snapshots. If a case declares telemetry metrics, the snapshot also includes a compact telemetry table keyed by the case primary metric.
+- `benchmark/latest.md`, `benchmark/latest_fast.md`, `benchmark/latest_sim.md`, and `benchmark/latest_gpu.md` are intentionally minimal LLM-facing snapshots. If a case declares telemetry metrics, the snapshot also includes a compact telemetry table keyed by the case primary metric.
 - Root snapshots and full reports now include `baseline_mode` plus baseline-cache hit/refresh counts so you can tell at a glance whether the fast foreign-baseline path actually engaged.
 - HTML is no longer a report format. If `benchmark/out/reports/latest.html` appears, treat it as stale-output cleanup debt.
 - The preferred extension point for new categories is `benchmark/wrappers/*.json`, not new hardcoded branches in `run.py`. Wrapper configs are data-driven plugins that can inject `before_args` and `after_args` around user-supplied CLI flags.
@@ -79,6 +80,19 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - This specialized lane sits outside `benchmarks.json`.
 - It compares `llvm_pure`, direct LLVM object/shared-library C FFI, `interpret_pure`, the interpreter/live bridge path, `zig_pure`, and `zig_c_object`.
 - Reports land in `benchmark/out/reports/ffi_boundary_latest.llm.md`, `ffi_boundary_latest.json`, and timestamped siblings.
+
+## Dedicated GPU / SPIR-V Lane
+
+- Command: `python benchmark/run_gpu.py --warmups 1 --runs 5 --timeout 300`
+- Alias: `python benchmark/run_spirv.py ...`
+- Wrapper plugin: `python benchmark/run_wrapper.py gpu ...`
+- This specialized lane sits outside `benchmarks.json` under `benchmark/gpu/`.
+- `benchmark/gpu/gpu_cases.json` is the source of truth for shader/GPU cases. Case assets live under `benchmark/gpu/cases/<case_id>/`.
+- The runner builds Kain shaders with `-t spirv`, can compile GLSL reference shaders with `glslangValidator`, validates modules with `spirv-val --target-env vulkan1.3` when available, and profiles bytecode density with `spirv-dis` when available or the binary SPIR-V instruction stream as fallback.
+- Dispatcher executables should write optional hardware sidecars to `benchmark/out/build/gpu/<case_id>/<language>/<language>.telemetry.json`. The runner sets `KAIN_GPU_CASE_ID`, `KAIN_GPU_LANGUAGE`, `KAIN_GPU_SHADER_SPV`, `KAIN_GPU_ENTRY_POINT`, `KAIN_GPU_WORK_ITEMS`, `KAIN_GPU_WIDTH`, and `KAIN_GPU_TELEMETRY_PATH` for C++/Rust/Kain hosts, then merges any manifest `runner_env` overrides on top.
+- `benchmark/gpu/cases/vec3_storage_copy` is the first runtime proof row: Kain SPIR-V and a GLSL/C++ reference SPIR-V run through the same C++ Vulkan dispatcher, descriptor layout, buffers, timestamp query, readback verifier, and sidecar schema.
+- `benchmark/gpu/cases/semantic_ping_pong` is the first golden showcase row: a branchy, loop-heavy Vec4 rebound kernel bounces through 12 Vulkan ping-pong rounds, then proves the final state against a CPU oracle while emitting rounds/max-error/register/binary/timestamp telemetry.
+- Reports land in `benchmark/latest_gpu.md`, `benchmark/out/reports/latest_gpu.llm.md`, `benchmark/out/reports/latest_gpu.json`, and timestamped `.gpu.*` siblings.
 
 ## Blade Console
 

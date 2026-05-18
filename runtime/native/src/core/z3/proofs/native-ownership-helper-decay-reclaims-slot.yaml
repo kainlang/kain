@@ -1,0 +1,50 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_helper_decay_reclaims_slot
+kind: check_smt2
+description: Helper-owned decay frees only idle heap regions and clears the helper registry slot so the old token cannot resolve as live.
+tags:
+- native-runtime
+- ownership
+- decay
+- allocation
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\ownership.c
+  symbol: __kain_ownership_decay_helper
+  reason: helper decay owns the allocation lifetime and may reclaim the helper registry slot after a successful heap free
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-fun STATE_IDLE () (_ BitVec 2) #b00)
+    (define-fun STATE_DECAYED () (_ BitVec 2) #b11)
+    (define-fun KIND_HEAP () (_ BitVec 3) #b001)
+    (define-fun OK () (_ BitVec 4) #x0)
+    (define-fun NOT_FOUND () (_ BitVec 4) #xe)
+    (declare-const occupied_before Bool)
+    (declare-const ptr_matches Bool)
+    (declare-const free_status_ok Bool)
+    (declare-const state_before (_ BitVec 2))
+    (declare-const kind_before (_ BitVec 3))
+    (declare-const observers_before (_ BitVec 32))
+    (assert occupied_before)
+    (assert ptr_matches)
+    (assert free_status_ok)
+    (assert (= state_before STATE_IDLE))
+    (assert (= kind_before KIND_HEAP))
+    (assert (= observers_before (_ bv0 32)))
+    (define-fun can_reclaim () Bool
+      (and occupied_before
+           ptr_matches
+           free_status_ok
+           (= state_before STATE_IDLE)
+           (= kind_before KIND_HEAP)
+           (= observers_before (_ bv0 32))))
+    (define-fun occupied_after () Bool
+      (ite can_reclaim false occupied_before))
+    (define-fun state_after () (_ BitVec 2)
+      (ite can_reclaim STATE_DECAYED state_before))
+    (define-fun helper_token_status_after () (_ BitVec 4)
+      (ite (and occupied_after ptr_matches (= state_after STATE_IDLE)) OK NOT_FOUND))
+    (assert (or occupied_after (not (= helper_token_status_after NOT_FOUND))))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -4,6 +4,7 @@
 (declare-fun requested_width () (_ BitVec 32))
 (declare-fun requested_height () (_ BitVec 32))
 (declare-fun requested_budget () (_ BitVec 32))
+(declare-fun requested_draw_vertices () (_ BitVec 32))
 (declare-fun shader_bytes () (_ BitVec 32))
 (declare-fun requested_image_count () (_ BitVec 32))
 
@@ -25,8 +26,16 @@
 (define-fun budget_clamped64 () (_ BitVec 64)
   ((_ zero_extend 32) budget_clamped32))
 
+(define-fun draw_vertices_clamped32 () (_ BitVec 32)
+  (ite (bvult requested_draw_vertices #x00000003)
+       #x00000003
+       (ite (bvugt requested_draw_vertices #x00001000) #x00001000 requested_draw_vertices)))
+
+(define-fun draw_vertices_clamped64 () (_ BitVec 64)
+  ((_ zero_extend 32) draw_vertices_clamped32))
+
 (define-fun vertices_drawn () (_ BitVec 64)
-  (bvmul budget_clamped64 #x0000000000000003))
+  (bvmul budget_clamped64 draw_vertices_clamped64))
 
 (define-fun safe_image_count () (_ BitVec 32)
   (ite (bvult requested_image_count #x00000001)
@@ -55,7 +64,12 @@
 (pop)
 
 (push)
-(assert (not (bvule vertices_drawn #x0000000000003000)))
+(assert (not (and (bvuge draw_vertices_clamped32 #x00000003) (bvule draw_vertices_clamped32 #x00001000))))
+(check-sat)
+(pop)
+
+(push)
+(assert (not (bvule vertices_drawn #x0000000001000000)))
 (check-sat)
 (pop)
 

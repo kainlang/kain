@@ -1,9 +1,10 @@
 //! KAIN Parser - Python-style indentation with Rust semantics
 
 use crate::ast::*;
+use crate::diagnostic_registry::DiagnosticCode;
 use crate::diagnostics::SpanMapper;
 use crate::effects::Effect;
-use crate::error::{KainError, KainResult};
+use crate::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
 use crate::language_features::{default_language_capabilities, LanguageCapabilities};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::span::Span;
@@ -265,10 +266,63 @@ impl<'a> Parser<'a> {
 
     /// Create a parser error with file:line:col format
     fn parser_error(&self, message: impl Into<String>, span: Span) -> KainError {
+        self.rich_parser_error(message, span)
+    }
+
+    fn synthetic_filename(filename: &str) -> bool {
+        filename.starts_with('<') && filename.ends_with('>')
+    }
+
+    fn rich_parser_error(&self, message: impl Into<String>, span: Span) -> KainError {
         let loc = self.span_mapper.span_to_location(span, self.filename);
-        let formatted_message =
-            format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, message.into());
-        KainError::parser(formatted_message, span)
+        let mut report =
+            DiagnosticReport::new(ErrorKind::Parse, DiagnosticCode::ParseGeneric, message)
+                .primary_label(span, "parser stopped here");
+        if Self::synthetic_filename(self.filename) {
+            report = report.origin(self.filename);
+        } else {
+            report = report.file(loc.file).location(loc.line, loc.col);
+        }
+        KainError::rich(report)
+    }
+
+    fn rich_parser_report(&self, report: DiagnosticReport) -> KainError {
+        KainError::rich(report)
+    }
+
+    fn parser_report_at(
+        &self,
+        message: impl Into<String>,
+        span: Span,
+        label: impl Into<String>,
+    ) -> DiagnosticReport {
+        let loc = self.span_mapper.span_to_location(span, self.filename);
+        let mut report =
+            DiagnosticReport::new(ErrorKind::Parse, DiagnosticCode::ParseGeneric, message)
+                .primary_label(span, label);
+        if Self::synthetic_filename(self.filename) {
+            report = report.origin(self.filename);
+        } else {
+            report = report.file(loc.file).location(loc.line, loc.col);
+        }
+        report
+    }
+
+    fn previous_significant_span(&self) -> Option<Span> {
+        self.tokens[..self.pos.min(self.tokens.len())]
+            .iter()
+            .rev()
+            .find(|token| {
+                !matches!(
+                    token.kind,
+                    TokenKind::Newline(_)
+                        | TokenKind::Indent
+                        | TokenKind::Dedent
+                        | TokenKind::Comment
+                        | TokenKind::HashComment
+                )
+            })
+            .map(|token| token.span)
     }
 
     /// Convert a token to a user-friendly string for error messages
@@ -6201,14 +6255,47 @@ impl<'a> Parser<'a> {
             self.advance();
             Ok(())
         } else {
-            Err(self.parser_error(
-                format!(
-                    "Expected {}, got {}",
-                    crate::error::token_kind_to_user_string(&k),
-                    crate::error::token_kind_to_user_string(&self.peek_kind())
-                ),
-                self.current_span(),
-            ))
+            let expected = crate::error::token_kind_to_user_string(&k);
+            let actual = crate::error::token_kind_to_user_string(&self.peek_kind());
+            if matches!(k, TokenKind::Colon)
+                && matches!(self.peek_kind(), TokenKind::Newline(_) | TokenKind::Dedent)
+            {
+                let boundary_span = self.current_span();
+                let header_span = self.previous_significant_span().unwrap_or(boundary_span);
+                let report = self
+                    .parser_report_at(
+                        "Missing ':' before line break",
+                        header_span,
+                        "this header or declaration ended without ':'",
+                    )
+                    .label(boundary_span, "the next line started while ':' was still expected")
+                    .note(
+                        "Expected ':' before newline: Kain block headers and declarations must end with ':'.",
+                    )
+                    .note(
+                        "If this was meant to be a continued expression, wrap it in parentheses or keep it on one logical line.",
+                    )
+                    .help("Look immediately before the highlighted line break; the following line may only be where recovery noticed the damage.")
+                    .fixit(
+                        Span::new(header_span.end, header_span.end),
+                        ":",
+                        "insert ':' at the end of the header",
+                    );
+                return Err(self.rich_parser_report(report));
+            }
+
+            let report = self
+                .parser_report_at(
+                    format!("Expected {}, got {}", expected, actual),
+                    self.current_span(),
+                    format!("expected {} here", expected),
+                )
+                .note(format!(
+                    "Parser was in a grammar state that accepts {} but saw {} instead.",
+                    expected, actual
+                ))
+                .help("Check the token immediately before this point; most parse errors are caused by the previous unfinished construct.");
+            Err(self.rich_parser_report(report))
         }
     }
 
@@ -6217,14 +6304,15 @@ impl<'a> Parser<'a> {
             self.advance();
             Ok(())
         } else {
-            Err(self.parser_error(
-                format!(
-                    "Expected contextual keyword '{}', got {}",
-                    expected,
-                    crate::error::token_kind_to_user_string(&self.peek_kind())
-                ),
-                self.current_span(),
-            ))
+            let actual = crate::error::token_kind_to_user_string(&self.peek_kind());
+            let report = self
+                .parser_report_at(
+                    format!("Expected contextual keyword '{}', got {}", expected, actual),
+                    self.current_span(),
+                    format!("expected contextual keyword '{}' here", expected),
+                )
+                .note("Kain keeps several advanced forms as contextual keywords so they can coexist with normal identifiers outside that grammar slot.");
+            Err(self.rich_parser_report(report))
         }
     }
 

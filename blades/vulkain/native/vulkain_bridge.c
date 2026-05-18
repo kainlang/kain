@@ -24,13 +24,20 @@
 #define VKN_MAX_SWAPCHAIN_IMAGES 8u
 #define VKN_MAX_SHADER_BYTES (16u * 1024u * 1024u)
 #define VKN_MAX_TITLE_BYTES 256u
-#define VKN_DRAW_VERTICES 3u
+#define VKN_DEFAULT_DRAW_VERTICES 3u
+#define VKN_MAX_DRAW_VERTICES 4096u
 
 typedef struct VulkainPushConstants {
     float time_seconds;
     float accent_r;
     float accent_g;
     float accent_b;
+    float camera_yaw;
+    float camera_pitch;
+    float mesh_scale;
+    float mesh_twist;
+    float depth_bias;
+    float energy;
 } VulkainPushConstants;
 
 typedef struct VulkainApp {
@@ -40,8 +47,15 @@ typedef struct VulkainApp {
     int32_t width;
     int32_t height;
     int32_t frame_budget;
+    uint32_t draw_vertices;
     float clear_color[3];
     float accent_color[3];
+    float camera_yaw;
+    float camera_pitch;
+    float mesh_scale;
+    float mesh_twist;
+    float depth_bias;
+    float energy;
     char title[VKN_MAX_TITLE_BYTES];
 
     VkInstance instance;
@@ -82,6 +96,13 @@ static char g_last_title[VKN_MAX_TITLE_BYTES] = "Vulkain";
 static int32_t g_last_width = 0;
 static int32_t g_last_height = 0;
 static int32_t g_last_frame_budget = 0;
+static int32_t g_last_draw_vertices = 0;
+static int32_t g_last_camera_yaw_milli = 0;
+static int32_t g_last_camera_pitch_milli = 0;
+static int32_t g_last_mesh_scale_milli = 0;
+static int32_t g_last_mesh_twist_milli = 0;
+static int32_t g_last_depth_bias_milli = 0;
+static int32_t g_last_energy = 0;
 static int64_t g_frames_presented = 0;
 static int64_t g_vertices_drawn = 0;
 
@@ -209,6 +230,20 @@ static uint32_t vkn_clamp_color_u8(int32_t requested) {
     return (uint32_t)requested;
 }
 
+static uint32_t vkn_safe_draw_vertices(int32_t requested) {
+    if (requested < 3) {
+        return 3u;
+    }
+    if (requested > (int32_t)VKN_MAX_DRAW_VERTICES) {
+        return VKN_MAX_DRAW_VERTICES;
+    }
+    return (uint32_t)requested;
+}
+
+static float vkn_milli_to_float(int32_t requested) {
+    return (float)requested / 1000.0f;
+}
+
 static uint32_t vkn_safe_swapchain_image_count(const VulkainApp* app) {
     if (!app || app->image_count < 1u) {
         return 1u;
@@ -228,6 +263,20 @@ static void vkn_copy_title(char* dest, size_t dest_cap, const char* src) {
         return;
     }
     strncpy(dest, src, dest_cap - 1u);
+    dest[dest_cap - 1u] = '\0';
+}
+
+static void vkn_blade_path(char* dest, size_t dest_cap, const char* suffix) {
+    const char* root;
+    if (!dest || dest_cap == 0u) {
+        return;
+    }
+    root = getenv("VULKAIN_BLADE_ROOT");
+    if (root && root[0]) {
+        snprintf(dest, dest_cap, "%s/%s", root, suffix);
+    } else {
+        snprintf(dest, dest_cap, "%s", suffix);
+    }
     dest[dest_cap - 1u] = '\0';
 }
 
@@ -1035,6 +1084,12 @@ static int32_t vkn_record_command_buffer(VulkainApp* app, uint32_t image_index, 
     push.accent_r = app->accent_color[0];
     push.accent_g = app->accent_color[1];
     push.accent_b = app->accent_color[2];
+    push.camera_yaw = app->camera_yaw;
+    push.camera_pitch = app->camera_pitch;
+    push.mesh_scale = app->mesh_scale;
+    push.mesh_twist = app->mesh_twist;
+    push.depth_bias = app->depth_bias;
+    push.energy = app->energy;
     q_vkCmdPushConstants(
         command_buffer,
         app->pipeline_layout,
@@ -1043,7 +1098,7 @@ static int32_t vkn_record_command_buffer(VulkainApp* app, uint32_t image_index, 
         sizeof(push),
         &push
     );
-    q_vkCmdDraw(command_buffer, VKN_DRAW_VERTICES, 1u, 0u, 0u);
+    q_vkCmdDraw(command_buffer, app->draw_vertices, 1u, 0u, 0u);
     q_vkCmdEndRenderPass(command_buffer);
 
     result = q_vkEndCommandBuffer(command_buffer);
@@ -1106,7 +1161,7 @@ static int32_t vkn_draw_frame(VulkainApp* app, uint32_t frame_index) {
     }
 
     g_frames_presented += 1;
-    g_vertices_drawn += (int64_t)VKN_DRAW_VERTICES;
+    g_vertices_drawn += (int64_t)app->draw_vertices;
     return 0;
 }
 
@@ -1235,7 +1290,7 @@ int64_t vulkain_native_vertices_drawn(void) {
     return g_vertices_drawn;
 }
 
-int32_t vulkain_native_run_window(
+static int32_t vkn_run_scene(
     const char* title,
     int32_t width,
     int32_t height,
@@ -1246,6 +1301,13 @@ int32_t vulkain_native_run_window(
     int32_t accent_red,
     int32_t accent_green,
     int32_t accent_blue,
+    int32_t draw_vertices,
+    int32_t camera_yaw_milli,
+    int32_t camera_pitch_milli,
+    int32_t mesh_scale_milli,
+    int32_t mesh_twist_milli,
+    int32_t depth_bias_milli,
+    int32_t energy,
     const char* vertex_spv_path,
     const char* fragment_spv_path
 ) {
@@ -1268,17 +1330,31 @@ int32_t vulkain_native_run_window(
     app.width = (int32_t)vkn_clamp_dimension(width);
     app.height = (int32_t)vkn_clamp_dimension(height);
     app.frame_budget = (int32_t)vkn_safe_frame_budget(frame_budget);
+    app.draw_vertices = vkn_safe_draw_vertices(draw_vertices);
     app.clear_color[0] = (float)vkn_clamp_color_u8(clear_red) / 255.0f;
     app.clear_color[1] = (float)vkn_clamp_color_u8(clear_green) / 255.0f;
     app.clear_color[2] = (float)vkn_clamp_color_u8(clear_blue) / 255.0f;
     app.accent_color[0] = (float)vkn_clamp_color_u8(accent_red) / 255.0f;
     app.accent_color[1] = (float)vkn_clamp_color_u8(accent_green) / 255.0f;
     app.accent_color[2] = (float)vkn_clamp_color_u8(accent_blue) / 255.0f;
+    app.camera_yaw = vkn_milli_to_float(camera_yaw_milli);
+    app.camera_pitch = vkn_milli_to_float(camera_pitch_milli);
+    app.mesh_scale = vkn_milli_to_float(mesh_scale_milli);
+    app.mesh_twist = vkn_milli_to_float(mesh_twist_milli);
+    app.depth_bias = vkn_milli_to_float(depth_bias_milli);
+    app.energy = vkn_milli_to_float(energy);
     vkn_copy_title(app.title, sizeof(app.title), title);
     vkn_copy_title(g_last_title, sizeof(g_last_title), app.title);
     g_last_width = app.width;
     g_last_height = app.height;
     g_last_frame_budget = app.frame_budget;
+    g_last_draw_vertices = (int32_t)app.draw_vertices;
+    g_last_camera_yaw_milli = camera_yaw_milli;
+    g_last_camera_pitch_milli = camera_pitch_milli;
+    g_last_mesh_scale_milli = mesh_scale_milli;
+    g_last_mesh_twist_milli = mesh_twist_milli;
+    g_last_depth_bias_milli = depth_bias_milli;
+    g_last_energy = energy;
     g_frames_presented = 0;
     g_vertices_drawn = 0;
 
@@ -1301,10 +1377,137 @@ int32_t vulkain_native_run_window(
             break;
         }
         frame_index += 1u;
+        Sleep(16u);
     }
 
     vkn_shutdown(&app);
     return status;
+}
+
+int32_t vulkain_native_run_window(
+    const char* title,
+    int32_t width,
+    int32_t height,
+    int32_t frame_budget,
+    int32_t clear_red,
+    int32_t clear_green,
+    int32_t clear_blue,
+    int32_t accent_red,
+    int32_t accent_green,
+    int32_t accent_blue,
+    const char* vertex_spv_path,
+    const char* fragment_spv_path
+) {
+    return vkn_run_scene(
+        title,
+        width,
+        height,
+        frame_budget,
+        clear_red,
+        clear_green,
+        clear_blue,
+        accent_red,
+        accent_green,
+        accent_blue,
+        (int32_t)VKN_DEFAULT_DRAW_VERTICES,
+        0,
+        0,
+        1000,
+        0,
+        0,
+        1000,
+        vertex_spv_path,
+        fragment_spv_path
+    );
+}
+
+int32_t vulkain_native_run_mesh_scene(
+    const char* title,
+    int32_t width,
+    int32_t height,
+    int32_t frame_budget,
+    int32_t clear_red,
+    int32_t clear_green,
+    int32_t clear_blue,
+    int32_t accent_red,
+    int32_t accent_green,
+    int32_t accent_blue,
+    int32_t draw_vertices,
+    int32_t camera_yaw_milli,
+    int32_t camera_pitch_milli,
+    int32_t mesh_scale_milli,
+    int32_t mesh_twist_milli,
+    int32_t depth_bias_milli,
+    int32_t energy,
+    const char* vertex_spv_path,
+    const char* fragment_spv_path
+) {
+    return vkn_run_scene(
+        title,
+        width,
+        height,
+        frame_budget,
+        clear_red,
+        clear_green,
+        clear_blue,
+        accent_red,
+        accent_green,
+        accent_blue,
+        draw_vertices,
+        camera_yaw_milli,
+        camera_pitch_milli,
+        mesh_scale_milli,
+        mesh_twist_milli,
+        depth_bias_milli,
+        energy,
+        vertex_spv_path,
+        fragment_spv_path
+    );
+}
+
+int32_t vulkain_native_run_authored_mesh_scene(
+    int32_t width,
+    int32_t height,
+    int32_t frame_budget,
+    int32_t clear_red,
+    int32_t clear_green,
+    int32_t clear_blue,
+    int32_t accent_red,
+    int32_t accent_green,
+    int32_t accent_blue,
+    int32_t draw_vertices,
+    int32_t camera_yaw_milli,
+    int32_t camera_pitch_milli,
+    int32_t mesh_scale_milli,
+    int32_t mesh_twist_milli,
+    int32_t depth_bias_milli,
+    int32_t energy
+) {
+    char vertex_spv_path[1024];
+    char fragment_spv_path[1024];
+    vkn_blade_path(vertex_spv_path, sizeof(vertex_spv_path), ".kain/gpu/basic_window/vulkain_basic.vert.spv");
+    vkn_blade_path(fragment_spv_path, sizeof(fragment_spv_path), ".kain/gpu/basic_window/vulkain_basic.frag.spv");
+    return vkn_run_scene(
+        "Vulkain // Kain Authored 3D Mesh",
+        width,
+        height,
+        frame_budget,
+        clear_red,
+        clear_green,
+        clear_blue,
+        accent_red,
+        accent_green,
+        accent_blue,
+        draw_vertices,
+        camera_yaw_milli,
+        camera_pitch_milli,
+        mesh_scale_milli,
+        mesh_twist_milli,
+        depth_bias_milli,
+        energy,
+        vertex_spv_path,
+        fragment_spv_path
+    );
 }
 
 int32_t vulkain_native_write_report(const char* path) {
@@ -1322,9 +1525,20 @@ int32_t vulkain_native_write_report(const char* path) {
     fprintf(file, "window_width=%d\n", g_last_width);
     fprintf(file, "window_height=%d\n", g_last_height);
     fprintf(file, "frame_budget=%d\n", g_last_frame_budget);
+    fprintf(file, "draw_vertices=%d\n", g_last_draw_vertices);
+    fprintf(file, "camera_yaw_milli=%d\n", g_last_camera_yaw_milli);
+    fprintf(file, "camera_pitch_milli=%d\n", g_last_camera_pitch_milli);
+    fprintf(file, "mesh_scale_milli=%d\n", g_last_mesh_scale_milli);
+    fprintf(file, "mesh_twist_milli=%d\n", g_last_mesh_twist_milli);
+    fprintf(file, "depth_bias_milli=%d\n", g_last_depth_bias_milli);
+    fprintf(file, "energy=%d\n", g_last_energy);
     fprintf(file, "frames_presented=%lld\n", (long long)g_frames_presented);
     fprintf(file, "vertices_drawn=%lld\n", (long long)g_vertices_drawn);
     fprintf(file, "last_error=%s\n", g_last_error);
     fclose(file);
     return 0;
+}
+
+int32_t vulkain_native_write_default_mesh_report(void) {
+    return vulkain_native_write_report(".kain/run/vulkain_mesh_scene_report.txt");
 }

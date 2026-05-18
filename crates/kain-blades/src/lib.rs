@@ -845,9 +845,10 @@ fn resolve_path(root: &Path, path: &Path) -> PathBuf {
 fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
     let source = path.to_string_lossy();
     let mut expanded = source.into_owned();
-    const TOKEN_PREFIX: &str = "${kain_dynlib:";
+    const DYNLIB_TOKEN_PREFIX: &str = "${kain_dynlib:";
+    const ENV_TOKEN_PREFIX: &str = "${env:";
 
-    while let Some(start) = expanded.find(TOKEN_PREFIX) {
+    while let Some(start) = expanded.find(DYNLIB_TOKEN_PREFIX) {
         let token_end = expanded[start..]
             .find('}')
             .map(|offset| start + offset)
@@ -855,8 +856,21 @@ fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
         if token_end >= expanded.len() {
             break;
         }
-        let library_stem = &expanded[start + TOKEN_PREFIX.len()..token_end];
+        let library_stem = &expanded[start + DYNLIB_TOKEN_PREFIX.len()..token_end];
         let replacement = current_platform_dynamic_library_name(library_stem);
+        expanded.replace_range(start..=token_end, &replacement);
+    }
+
+    while let Some(start) = expanded.find(ENV_TOKEN_PREFIX) {
+        let token_end = expanded[start..]
+            .find('}')
+            .map(|offset| start + offset)
+            .unwrap_or(expanded.len());
+        if token_end >= expanded.len() {
+            break;
+        }
+        let variable = &expanded[start + ENV_TOKEN_PREFIX.len()..token_end];
+        let replacement = std::env::var(variable).unwrap_or_default();
         expanded.replace_range(start..=token_end, &replacement);
     }
 

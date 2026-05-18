@@ -829,9 +829,10 @@ fn validate_tier_contract(
 fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
     let source = path.to_string_lossy();
     let mut expanded = source.into_owned();
-    const TOKEN_PREFIX: &str = "${kain_dynlib:";
+    const DYNLIB_TOKEN_PREFIX: &str = "${kain_dynlib:";
+    const ENV_TOKEN_PREFIX: &str = "${env:";
 
-    while let Some(start) = expanded.find(TOKEN_PREFIX) {
+    while let Some(start) = expanded.find(DYNLIB_TOKEN_PREFIX) {
         let token_end = expanded[start..]
             .find('}')
             .map(|offset| start + offset)
@@ -839,8 +840,21 @@ fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
         if token_end >= expanded.len() {
             break;
         }
-        let library_stem = &expanded[start + TOKEN_PREFIX.len()..token_end];
+        let library_stem = &expanded[start + DYNLIB_TOKEN_PREFIX.len()..token_end];
         let replacement = current_platform_dynamic_library_name(library_stem);
+        expanded.replace_range(start..=token_end, &replacement);
+    }
+
+    while let Some(start) = expanded.find(ENV_TOKEN_PREFIX) {
+        let token_end = expanded[start..]
+            .find('}')
+            .map(|offset| start + offset)
+            .unwrap_or(expanded.len());
+        if token_end >= expanded.len() {
+            break;
+        }
+        let variable = &expanded[start + ENV_TOKEN_PREFIX.len()..token_end];
+        let replacement = std::env::var(variable).unwrap_or_default();
         expanded.replace_range(start..=token_end, &replacement);
     }
 
@@ -1505,6 +1519,62 @@ mod tests {
             resolved.shared_lib_path.as_deref(),
             Some(dylib_path.as_path())
         );
+    }
+
+    #[test]
+    fn resolve_library_expands_env_path_tokens_for_inline_includes() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let sdk_dir = root.join("sdk");
+        let include_dir = sdk_dir.join("Include");
+        let native_dir = root.join("native");
+        kfs::create_dir_all(&include_dir).expect("include dir");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, _dylib_path) = c_fixture_paths(&native_dir);
+        kfs::write_text(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+        unsafe {
+            std::env::set_var("KAIN_C_FFI_TEST_SDK", &sdk_dir);
+        }
+        kfs::write_text(
+            root.join("KAIN.toml"),
+            &format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\ntier = \"inline\"\nheader = \"{}\"\nsources = [\"{}\"]\ninclude_paths = [\"${{env:KAIN_C_FFI_TEST_SDK}}/Include\"]\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                source_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+            ),
+        )
+        .expect("manifest");
+
+        let (resolved, _) = resolve_library(
+            "beacon_math",
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("resolve library");
+
+        assert_eq!(resolved.config.include_paths, vec![include_dir]);
     }
 
     fn c_fixture_paths(native_dir: &Path) -> (PathBuf, PathBuf, PathBuf) {

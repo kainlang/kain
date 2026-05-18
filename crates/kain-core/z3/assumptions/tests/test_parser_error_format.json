@@ -1,7 +1,165 @@
 {
-  "assumptions": [],
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"fix-it\")",
+      "id": "test-missing-colon-before-newline-has-fixit-and-header-label.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 76,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 76,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+        "start_col": 1,
+        "start_line": 76
+      },
+      "symbol": "test_missing_colon_before_newline_has_fixit_and_header_label",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(rendered.contains(\"fix-it\"));",
+      "variables": [
+        "contains",
+        "fix",
+        "it",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"insert ':'\")",
+      "id": "test-missing-colon-before-newline-has-fixit-and-header-label.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 77,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 77,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+        "start_col": 1,
+        "start_line": 77
+      },
+      "symbol": "test_missing_colon_before_newline_has_fixit_and_header_label",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(rendered.contains(\"insert ':'\"));",
+      "variables": [
+        "contains",
+        "insert",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"this header or declaration ended without ':'\")",
+      "id": "test-missing-colon-before-newline-has-fixit-and-header-label.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 78,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+      "span": {
+        "end_col": 76,
+        "end_line": 78,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+        "start_col": 1,
+        "start_line": 78
+      },
+      "symbol": "test_missing_colon_before_newline_has_fixit_and_header_label",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(rendered.contains(\"this header or declaration ended without ':'\"));",
+      "variables": [
+        "contains",
+        "declaration",
+        "ended",
+        "header",
+        "rendered",
+        "this",
+        "without"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"real_main.kn:1:\")",
+      "id": "test-synthetic-import-scan-error-does-not-inline-fake-location.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 106,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 106,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+        "start_col": 1,
+        "start_line": 106
+      },
+      "symbol": "test_synthetic_import_scan_error_does_not_inline_fake_location",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(rendered.contains(\"real_main.kn:1:\"));",
+      "variables": [
+        "contains",
+        "kn",
+        "real_main",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"fix-it\")",
+      "id": "test-synthetic-import-scan-error-does-not-inline-fake-location.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 107,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 107,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
+        "start_col": 1,
+        "start_line": 107
+      },
+      "symbol": "test_synthetic_import_scan_error_does_not_inline_fake_location",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(rendered.contains(\"fix-it\"));",
+      "variables": [
+        "contains",
+        "fix",
+        "it",
+        "rendered"
+      ]
+    }
+  ],
   "language": "rust",
-  "source_hash": "4e6e2e3b2a07747735ac298963c272bfa60375675da2fc4c5d911d02b2b1430c",
+  "source_hash": "64e75a71e050c464a689ba2bae6b80731b73ec9819d404b73cb92b68c3daba01",
   "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_parser_error_format.rs",
   "version": 1
 }

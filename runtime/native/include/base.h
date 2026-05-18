@@ -232,11 +232,23 @@ typedef struct {
     int occupied;
 } MapEntry;
 
+enum {
+    KAIN_MAP_ENTRY_EMPTY = 0,
+    KAIN_MAP_ENTRY_OWNED_KEY = 1,
+    KAIN_MAP_ENTRY_STATIC_KEY = 2,
+    KAIN_MAP_TINY_MAX_COUNT = 24,
+    KAIN_MAP_TINY_DISPATCH_SIZE = 64,
+    KAIN_MAP_TINY_EMPTY_INDEX = 255,
+};
+
 typedef struct {
     MapEntry* entries;
     long long capacity;
     long long count;
     uint64_t mask;
+    uint64_t tiny_magic;
+    uint8_t tiny_ready;
+    uint8_t tiny_dispatch[KAIN_MAP_TINY_DISPATCH_SIZE];
 } KainMap;
 
 typedef struct MessageNode {
@@ -262,6 +274,15 @@ long long kain_floor_i64(double value);
 long long kain_ceil_i64(double value);
 long long kain_round_i64(double value);
 char* string_new(char* src);
+void map_set_static(KainMap* map, char* key, long long value);
+void map_set_static_prehashed(
+    KainMap* map,
+    char* key,
+    uint64_t key_length,
+    uint64_t key_hash,
+    uint64_t key_prefix,
+    long long value
+);
 long long map_get_prehashed(KainMap* map, char* key, uint64_t key_length, uint64_t key_hash, uint64_t key_prefix);
 long long find_substring_from_known_lengths(
     char* s,

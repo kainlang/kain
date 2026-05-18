@@ -1,0 +1,64 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "while.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 22,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\ray_sphere_benchmark.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 22,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\ray_sphere_benchmark.c",
+        "start_col": 1,
+        "start_line": 22
+      },
+      "symbol": "while",
+      "text": "while (count != 0u) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(count & 1u) != 0u",
+      "id": "while.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 23,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\ray_sphere_benchmark.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 23,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\ray_sphere_benchmark.c",
+        "start_col": 1,
+        "start_line": 23
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if ((count & 1u) != 0u) {",
+      "variables": [
+        "count",
+        "u"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "5b2e27771167334e82ed8b4fe95b0a9273bd7278dbcefc95b77043c78cd2a515",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\ray_sphere_benchmark.c",
+  "version": 1
+}
