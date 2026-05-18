@@ -27,6 +27,33 @@ Known boundary:
 
 - Live `cargo run -p cli --bin kain -- check/build runtime\blades\runtime-abi-probe\src\main.kn --target llvm` was blocked before execution by unrelated dirty `crates/kain-stdlib-map/src/lib.rs` compile errors (`collect_native_stdlib_files`, `render_symbol_rows`, and `module_public_sections` unresolved). The C-FFI parser/unit lane is green.
 
+# 2026-05-18 - `kain run --target auto` can native-run LLVM runtime blades
+
+`crates/kain-run` now has a first-class `RunTarget::Llvm` / `KainNativeLlvm` adapter. `[run] target = "llvm"` and direct file runs whose nearest `KAIN.toml` points at that entry now resolve away from the interpreter, compile through the executable-producing LLVM path, and run the cached native executable under `.kain/cache/run/llvm`.
+
+What changed:
+
+- `crates/kain-run/src/lib.rs`
+  - Added `llvm` / `native` / `native-llvm` run target parsing.
+  - Added a native LLVM run adapter that invokes the current or sibling `kain` launcher with `--target llvm --output <cached exe>` from the workspace/blade root, preserving manifest/module-root resolution.
+  - Added auto-target inference from the nearest `[run]` manifest section when the requested file matches `run.entry`.
+  - Added focused tests for direct-file auto routing and blade `[run] target = "llvm"` routing.
+- `docs/cli/build-run-init.md`, `docs/reference/command-matrix.md`, and `docs/cli/cli-overview.md`
+  - Documented `llvm` as a run target and the native-only ABI motivation.
+
+Proof and validation:
+
+- `cargo check -p kain-run --target-dir target\codex-kain-run-llvm-check`
+- `cargo test -p kain-run --target-dir target\codex-kain-run-llvm -- --nocapture` passed 9/9.
+- `cargo build -p cli --target-dir target\codex-kain-run-llvm`
+- `target\codex-kain-run-llvm\debug\kain.exe run plan runtime\blades\runtime-abi-probe\src\main.kn --json` now plans `target=llvm` with adapter `kain-native-llvm`.
+- `target\codex-kain-run-llvm\debug\kain.exe run runtime\blades\runtime-abi-probe --target auto` returned exit `0` and printed the native runtime ABI probe output.
+- `target\codex-kain-run-llvm\debug\blade.exe run runtime-abi-probe --path runtime\blades --target auto` returned exit `0` through the same adapter.
+
+Known boundary:
+
+- `runtime-abi-probe` still emits native `[MEMORY] ERROR: RC release underflow` diagnostics on process stderr while returning exit `0`; that is a native RC/string-lifetime issue, not run-target routing. Use the new run adapter evidence for the `abi_runtime_init` routing fix, but do not treat the RC diagnostics as solved.
+
 # 2026-05-18 - Runtime blade workspace bootstrapped
 
 `runtime/blades` is now a real Blade workspace for Kain-authored runtime work over the native C ABI floor. The first pass deliberately keeps C crossings coarse: Kain owns policy/batch math in `runtime-core`, while the existing native runtime remains the metal layer to bind as real shared/object-backed `use c::` modules.
@@ -59,7 +86,7 @@ Proof and validation:
 
 Known boundary:
 
-- `kain run ... --target auto` currently uses the interpreter path for these files and fails on native-only `abi_runtime_init`. Use LLVM check/build for `runtime-abi-probe` until the run pipeline exposes the linked native executable lane for plain runtime blades.
+- Historical note superseded by the run-target fix above: the previous `kain run ... --target auto` interpreter fallback for `runtime-abi-probe` is fixed in `crates/kain-run`.
 
 Next useful move:
 

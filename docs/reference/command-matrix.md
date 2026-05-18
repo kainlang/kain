@@ -216,7 +216,7 @@ Shared flags:
 
 | Flag | Meaning |
 | --- | --- |
-| `--target auto|kain|c|cargo|fabric|node|bun` | target override |
+| `--target auto|kain|llvm|c|cargo|fabric|node|bun` | target override |
 | `--json` | emit JSON plan or report |
 | `--trace` | request trace-oriented report detail |
 | `--keep-artifacts` | keep cached/generated run artifacts |
@@ -224,8 +224,10 @@ Shared flags:
 | `-- <ARGS>...` | pass runtime args to process-backed adapters |
 
 The `[run]` manifest section can provide `entry`, `blade`, `target`, `args`,
-`env`, `cwd`, and `watch`. Cached run executables and Cargo target dirs live
-under `.kain/cache/run`; JSON reports and JSONL event streams live under
+`env`, `cwd`, and `watch`. `target = "llvm"` compiles a Kain entry through the
+native LLVM executable path before running it, which keeps native-only ABI
+wrappers out of the interpreter. Cached run executables and Cargo target dirs
+live under `.kain/cache/run`; JSON reports and JSONL event streams live under
 `.kain/reports/run`.
 
 Capsule `.kn` inputs are materialized under

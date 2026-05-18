@@ -90,6 +90,8 @@ the `kain-run` crate and executes it through the right adapter.
 Current adapters:
 
 - `.kn` / `.god`: Kain interpreter lane through `kain-driver`
+- `.kn` / `.god` with `--target llvm` or `[run] target = "llvm"`: hidden cached
+  native LLVM compile, then execute
 - `.c`: hidden cached Clang compile, then execute
 - `Cargo.toml` or a Rust crate folder: `cargo run` with a run-cache target dir
 - `KAIN.fabric.toml`: Fabric manifest run
@@ -98,7 +100,7 @@ Current adapters:
 
 Useful flags:
 
-- `--target auto|kain|c|cargo|fabric|node|bun`
+- `--target auto|kain|llvm|c|cargo|fabric|node|bun`
 - `--json`
 - `--trace`
 - `--keep-artifacts`

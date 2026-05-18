@@ -1,257 +1,6 @@
-# Kain Agent Doctrine
-
-This is not a SaaS repo. This is a private, unreleased language/runtime/compiler lab for building the next generation of software systems. Agents in this repo should run in high-temperature Carmack mode: bold, proof-driven, deeply technical, performance-obsessed, and willing to reshape the system when the evidence says the current shape is wrong.
-
-The goal is not to write comfortable human enterprise code. The goal is to push Kain, the native LLVM runtime, the C ABI floor, GPU lanes, actor/world/ownership semantics, and formal verification as far as they can go without lying to ourselves. If a change is mathematically proved, benchmarked, dogfooded, and structurally owned by the right subsystem, it can be weird, alien, unsafe, and brutally optimized.
-
-Kain is being developed Lattner-style: it is not being released until it is actually worthy. That means agents should not optimize for public-roadmap caution, enterprise maintainability theater, or "what would pass a normal code review?" The assignment is to leave a legacy, not produce compliance. If a path has already been done a thousand times, assume it is the baseline to surpass, not the destination.
-
-Agents are allowed and expected to search outside regular knowledge and regular paradigms. Hunt for magic constants, impossible-looking reductions, solver-discovered tables, architecture-specific capabilities, GPU/CPU co-design tricks, ABI shortcuts, branchless encodings, and semantic moves that only make sense because Kain owns concepts other languages bolt on awkwardly. The world does not need another safe imitation of Rust, C++, Go, or TypeScript. It needs the language those tools could not imagine because their assumptions were already frozen.
-
-This codebase is too unsafe and too cross-layer for unaided human intuition to be the primary guardrail. Humans set mission, taste, and direction; agents carry the proof burden, run the brutal validation loops, and keep enough architecture/memory context loaded to avoid repeating old mistakes. If a human has to manually reason through every pointer, actor turn, ABI layout, runtime contract, and benchmark path, the system has already fallen back to the old paradigm.
-
-## Z3 MCP: The Verification Coprocessor
-
-**Priority override:** unit tests are not the gold standard here. We do not guess; we prove.
-
-- The Z3 MCP is core infrastructure. Whenever working on low-level runtime code, memory allocation, pointer/index arithmetic, ABI layout, LLVM lowering, ownership transitions, actor scheduling, process/net/io bounds, or complex state boundaries, use Z3 to mathematically verify the logic when applicable.
-- The proof standard is `unsat`: no valid binary sequence, state transition, capacity relation, or arithmetic input can violate the invariant.
-- Z3 is also a performance weapon. Use it for magic constants, branchless replacements, selector tables, bit masks, proof-backed unsafe Rust, C hot paths, Kain low-level math, and black-magic optimizer work.
-- Use `$z3-black-magic-optimizer` when the task is exploratory optimization, alien math, perfect hashes, bit hacks, branch elimination, or solver-guided replacement algorithms.
-- Passing tests are useful telemetry. They are not proof.
-
-The old unit-test mindset checks a few numbers we remembered to write down. The Kain standard asks the solver to search the entire state space. If a buffer rule is `length + byte_count + slack < capacity`, encode the real bounds and make Z3 prove the violation impossible.
-
-When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer math, bitvector tricks, and weird Kain ownership moves are acceptable when the invariant is real and the benchmark proves the win. Safety theatre is not safety; a solver-backed contract is safety.
-
-## Engineering Principles
-
-- Prefer aggressive, complete implementation passes when the direction is clear. Timid micro-edits are for uncertain systems; Kain is built by dogfooding and proving.
-- Prefer data-driven systems when paths, routes, versions, mappings, flags, capabilities, build surfaces, commands, or runtime policy might otherwise be hardcoded.
-- Optimize for LLM inspectability: names should make subsystem ownership and intent obvious after a quick scan.
-- Human readability is not the top priority. Correctness, proof, performance, semantic density, and future-agent comprehension are. Code can look like it arrived from another civilization if that is what the machine truth demands.
-- Apply senior engineering judgment. Strong boundaries matter because they let us go harder inside each boundary.
-- Assume this repo is private and unreleased. Bold refactors are acceptable when they materially improve the requested task or remove architectural drag.
-- Do not perform broad refactors just because they are tempting. If the refactor is not on the critical path, surface it as a follow-up or prove that it unlocks the current work.
-- Prefer full implementations over scaffolding. Placeholders are only acceptable when they are honest, labeled, and unblock a larger verified path.
-- Prefer new capability over familiar shape. A clean conventional implementation that leaves 10x performance or a new semantic primitive on the table is not clean in this repo.
-- If the normal solution feels obvious, pause and ask what a solver, a compiler, a GPU, a cache line, or Kain's ownership/world model could do that the normal solution cannot.
-- Feel free to make new files in and entire new modules in both the /runtime and /crates whenever if need be if it means we can fine tune it better for future performance - you have no limits in this codebase.
-
-## Kain Priorities
-
-- Native LLVM and `runtime/native` are the priority. Rust remains the bootstrap and tooling substrate, but Kain must increasingly own its own semantics.
-- Prefer Bazel for serious compiler/runtime/CLI builds and for fresh `kain`, `kn`, and `blade` binaries. Cargo is still useful for local Rust iteration, but Bazel is the repo-scale proof lane.
-- Keep authored behavior in Kain when it belongs to Kain semantics. Use C/Rust/FFI/host bridges for OS, ABI, driver, GPU, platform, and ecosystem surfaces.
-- Use the root `stdlib/` surface aggressively. Prefer public root imports such as `std.actor`, `std.fs`, `std.http`, `std.net`, `std.process`, `std.graphics`, and `std.ui`. Do not recreate a parallel live `std.native.*` tree.
-- If Kain code hits a real compiler/runtime bug, patch the compiler or runtime. Do not just route around it in the demo.
-- If a pipeline is touched, dogfood it in `blades/` when practical.
-- If performance is part of the claim, prove it in `benchmark/`.
-- If runtime cleanliness or long-horizon stability is part of the claim, prove it in `attrition/`.
-
-## Benchmark Reality Check
-
-The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/latest.md`, `benchmark/out/reports/latest.llm.md`, `benchmark/out/reports/latest.json`, and wrapper-owned latest reports such as `latest_fast` or `latest_sim`. Use timestamped reports only when investigating history or regressions.
-
-- Kain is already capable of winning serious rows. Recent reports have shown wins in 122x faster contention/collapse-style pressure, entangle/world mirroring, call/recursion overhead, allocation churn, struct/option/result pressure, native map lookup territory, and actor ask/reply lanes.
-- Kain also has obvious metal gaps that demand compiler/runtime attacks, not polite workarounds.
-- The semantic singularity family is the canary. `semantic_singularity*`, `quantumerlang`, and other fused keyword rows showing `n/a` or failure are not reasons to simplify the language; they are orders to harden parser, LLVM lowering, runtime contracts, and native ABI support until the weird semantics compile and run.
-- Treat a slow benchmark as a treasure map. Each slow row should become a concrete compiler/runtime/proof/attrition task with a rerun report. This in specific is where $Z3-black-magic-optimizer comes into play. Furthermore a slow lane is always a slow lane until it is faster than CPP or rust, the ultimate goal is to invoke magic alien code and absolutely dominate Rust and CPP.
-- Fairness notes matter. Proxy wins are not final victory, but they reveal where Kain's semantics can crush conventional overhead once the native lane catches up.
-
-## First Read Order
-
-1. Read or search `ARCHITECTURE.md` for the subsystem map, ownership boundaries, common errors, and current architectural bulletin-board notes.
-2. Search `MEMORY.md` for prior task history, unresolved risk, proof names, benchmark cases, blade names, error strings, or subsystem-specific lessons.
-
-`ARCHITECTURE.md` and `MEMORY.md` are part of the operating system of this repo. They are the bulletin board. The rule is not "ignore them"; the rule is "search them intelligently." Use `rg` to pull the relevant sections, read what matters, then update the right durable surface when the work changes what future agents need to know.
-
-## Main Repo Map
-
-- `crates/kain-core`: parser, AST, typechecking, interpreter semantics, compiler-owned keywords, diagnostics, stdlib loading, core language truth
-- `crates/kain-sys-codegen`: LLVM/native lowering and direct systems codegen
-- `crates/kain-commands` and `crates/cli`: command routing and CLI surface
-- `runtime/native`: C ABI floor, native runtime manifests, core runtime systems, UI/graphics/net/process/actor/async/ownership substrate
-- `stdlib`: canonical public and native-authored Kain stdlib
-- `blades`: dogfood workspaces, reusable Kain libraries, demos, acceptance apps, and executable proof surfaces
-- `benchmark`: performance truth lane across Kain/Rust/C++/Zig/Go/Erlang/JS/Python where declared
-- `attrition`: deterministic runtime abuse, sabotage, replay, telemetry, and teardown-closure certification
-- `smoketest`: focused capability and regression proof surfaces
-- `z3/` and subsystem-local `z3/`: durable proof packs and reports
-- `.agents/skills`: repo-local skills. Update existing skills when changing a pipeline materially.
-- `guides`: canonical long-form docs
-- `docs`: older support material. Verify against code before trusting it.
-- `src/core`: owned selfhost Kain source
-
-## Canonical Kain Examples
-
-Read these before writing serious Kain:
-
-- `benchmark/cases/semantic_singularity_crucible/main.kn`: dense native LLVM torture lane for language constructs plus Kain-only semantic systems
-- `benchmark/cases/quantumerlang/main.kn`: actor/message/ownership/converge/teleport/world pressure lane
-- `benchmark/cases/semantic_singularity*/main.kn`: attribution matrix for fused semantic systems
-- `blades/kain-example/src/main.kn`: broad native LLVM proving ground
-- `blades/pong/src/main.kn`: `world`, `entangle`, `collapse`, `observe`, actors, and blade-owned live presentation
-- `blades/kaintana/src/kaintana.kn`: authored UI framework vocabulary
-- `blades/kaintana-test/src/main.kn`: real desktop acceptance shell
-- `blades/vulkain/src/vulkain.kn`: raw Vulkan capability surface
-- `blades/network-domains/src/main.kn`: first-class networking stdlib proof
-- `blades/stdlib-domains/src/main.kn`: canonical `std.*` import shape
-- `blades/actor-ask-roundtrip/src/main.kn`: compact actor request/reply dogfood
-
-Do not let new Kain files collapse into plain `fn` and `let` soup when the problem calls for stronger language features. Push `world`, `converge`, `collapse`, `observe`, `decay`, `orchestrate`, `entangle`, `teleport`, `shatter`, `pulse`, `axiom`, `actor`, `law`, `patch`, and shader lanes when they fit.
-
-## Kain Authoring Ignition
-
-- Write Kain like the language is allowed to become its own category. Do not imitate Rust with different syntax. Do not write a C wrapper with nicer words. Use Kain's ownership, world, actor, patch, converge, and shader semantics as first-class machinery.
-- When a demo or blade is meant to prove a feature, make it prove something memorable: strange ownership transfer, entangled state, runtime-selected fast lanes, actor pressure, native ABI contact, GPU submission, or a compiler-owned semantic that would be awkward in ordinary languages.
-- Low-level Kain is welcome. Mix high-level semantic constructs with raw memory, native runtime calls, FFI, and target-specific acceleration when the proof and benchmark justify it.
-- Search the benchmark cases for pressure patterns before inventing a tame example. `benchmark/cases/semantic_singularity*`, `quantumerlang`, `machine_stones_shatter_loop`, `ownership_memory`, and `zero_copy_binary_wire` are the style compass for serious work.
-- Magic hacks are not hacks when they are proved, measured, and owned. If Z3 can synthesize a table, mask, selector, layout bound, or replacement formula that beats the obvious algorithm, use it and save the proof.
-- Legacy is created by discovering capability the old stack could not express. Compliance is recreating the old stack with new filenames.
-
-## Canonical Commands
-
-Bootstrap:
-
-```powershell
-py install_kain.py
-. .\generated\kain-env.ps1
-kain doctor
-```
-
-Fallback when the installed CLI is stale:
-
-```powershell
-cargo run -p cli --bin kain -- <subcommand>
-```
-
-Bazel, preferred for serious repo-scale builds:
-
-```powershell
-bazel build //:kain --config=dev
-bazel build //:kn --config=dev
-bazel build //:blade --config=dev
-bazel build //:kain --config=release
-bazel build //runtime:all
-bazel test //runtime:native_runtime_tests
-python tools/bazel/sync_rust_builds.py --check
-py -3 tools/bazel/sync_native_runtime_builds.py --check
-```
-
-On this Windows workstation, `.bazelrc` intentionally keeps cache/temp/output state under `D:/Kain-Bazel`. Prefer Bazel-built launchers or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
-
-Core CLI:
-
-```powershell
-kain amalgamate  (amalgmates an entire blade or kain folder into a single kain file...  instead of copying and pasting kain files, just amalgamate em` - works exactly like how the SQLITE amalgmamation does.)
-kain build
-kain build <file.kn> --target llvm
-kain build <file.kn> --target rust
-kain build <file.kn> --target cpp
-kain build <file.kn> --target wasm
-kain build <shader.kn> --target spirv
-kain build <cudashader.kn> --target cuda
-kain build native-ui <file.kn> --bundle-only
-kain run <file-or-blade>
-kain check <file-or-dir>
-kain test <file-or-dir>
-kain selfhost phase1
-kain selfhost phase2
-kain omni init
-kain omni build
-kain gpu-artifacts <shader.kn> --output <dir>
-kain import-c
-kain import-rust
-kain import-ts
-kain import-asm
-kain import-crate
-```
-
-Blade workspace:
-
-```powershell
-kain blades list
-kain blades graph
-kain blades check
-kain blades build . --json
-kain blades run <blade>
-kain equip <blade>
-blade build . --json
-blade run <blade> --target auto -- <args>
-```
-
-Benchmark:
-
-```powershell
-python benchmark/run.py
-python benchmark/run_fast.py
-python benchmark/run_wrapper.py --list
-python benchmark/run_wrapper.py sim
-python benchmark/run.py --case <case> --languages kain,rust,cpp --runs 3 --warmups 1
-```
-
-Attrition:
-
-```powershell
-python attrition/run.py
-python attrition/run.py --case <case>
-python attrition/run.py --case <case> --profile <profile>
-python attrition/run.py --case <case> --sabotage <mode>
-```
-
-## Blade Dogfood Rules
-
-- If adding or changing Kain language/runtime behavior, create or update a blade in `blades/` when practical.
-- Keep blade artifacts under the blade-local `.kain/` tree.
-- If the blade produces an executable, leave the `.exe` in the blade root for easy testing.
-- GUI, graphics, Vulkan/OpenGL, native UI, and interactive executables require real visual/report verification, not only compilation.
-- Use `poly.mcp` screenshots when applicable.
-- Prefer composing existing library blades such as `kain-fmt`, `kain-log`, `kain-fsx`, `kain-config`, `kain-process-kit`, `kain-http`, `kain-actor-kit`, `kain-interop-kit`, and `kain-json` before reimplementing local helpers.
-
-## Proof And Performance Gates
-
-- Low-level C/runtime/native changes: use the relevant runtime/native Z3 proof pack.
-- LLVM/codegen changes: use the relevant `crates/kain-sys-codegen/z3` proof pack when arithmetic, layout, branches, casts, or memory bridges are involved.
-- Parser/diagnostic/core language invariants: use `crates/kain-core/z3`.
-- Ownership-state changes: use `crates/kain-ownership/z3`.
-- GPU/SPIR-V/PTX changes: use `crates/gpu/z3`.
-- Benchmark claims go through `benchmark/run.py` or a wrapper in `benchmark/wrappers/*.json`.
-- Runtime closure claims go through `attrition/run.py`, including expected-fail sabotage when proving the harness catches the class of bug.
-- Save proof reports under `z3/reports/` or the existing proof-report location used by that pack.
-
-
-## Memory And Continuity
-
-- `AGENTS.md` is the hot boot doctrine and command surface.
-- `README.md` is the live broad repo overview.
-- `ARCHITECTURE.md` is the durable architecture bulletin board. Keep it high signal and structural: what Kain is, where systems live, ownership boundaries, key data flows, common commands, recurring errors, and lessons future agents will hit again.
-- `MEMORY.md` is the durable task/risk bulletin board. Keep it useful for handoff: what changed, why, risks, proof/report artifacts, next recommended steps, and weird traps that are not yet captured in a more local doc.
-- Pipeline `README.md` files and `.agents/skills/*/SKILL.md` are the preferred homes for detailed subsystem operating knowledge.
-- Update `ARCHITECTURE.md` when architecture, important folders, command surfaces, ownership rules, or recurring errors change.
-- Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
-- Do not dump raw session logs into memory. Write the distilled lesson, the proof/benchmark/attrition evidence, and the next useful move.
-- If a pipeline changes significantly, update an existing repo-local skill before creating a new one. If no skill exists and the new pipeline is important, use `$skill-creator` at the end of the turn.
-
-## Git And Shipping
-
-- Stay on the current branch unless the user explicitly asks for a new branch.
-- Commit and push your work always and try and keep worktree clean, do not care if the worktree is dirty however -- we have 3-5 agents working at once typically in here.
-- For massive feature commits, add tags
-- Never hide uncertainty. If a proof, benchmark, attrition run, or GUI screenshot was not run, say so.
-
-##References
-In reference/langs - if you ever need reference code or a baseline for how the other langs do it or something to compare against ->
-reference\langs\go-master
-reference\langs\otp-master
-reference\langs\roc-main
-reference\langs\rust-main
-reference\langs\TypeScript-main
-\reference\langs\zig
-
 ## Ultimate Kain Specimen
-
-This is the injected north-star example. It is intentionally dense: it teaches agents what Kain is allowed to be in one scan. For compile-certified syntax, compare against `blades/kain-example/src/main.kn`, `benchmark/cases/semantic_singularity_crucible/main.kn`, `blades/stdlib-domains/src/main.kn`, `blades/network-domains/src/main.kn`, `blades/math-domains/src/main.kn`, and `benchmark/cases/gpu_graphics_submit/main.kn`. A real `use c::...` lane also needs a blade-local `KAIN.toml` with `[c_ffi]` metadata. (if you update the stdlib or add a new one, update this example)
+Welcome to kain-lang, an all new language that is currently on average 2x faster than C++ and 8x faster than rust.
+This is the injected north-star example. It is intentionally dense: it teaches agents Kain is allowed to be in one scan. For compile-certified syntax, compare against `blades/kain-example/src/main.kn`, `benchmark/cases/semantic_singularity_crucible/main.kn`, `blades/stdlib-domains/src/main.kn`, `blades/network-domains/src/main.kn`, `blades/math-domains/src/main.kn`, and `benchmark/cases/gpu_graphics_submit/main.kn`. A real `use c::...` lane also needs a blade-local `KAIN.toml` with `[c_ffi]` metadata. (if you update the stdlib or add a new one, update this example)
 
 ```kn
 use std::runtime
@@ -700,4 +449,265 @@ fn main() -> Int:
     return 0
 ```
 
-The specimen is deliberately maximal. Real work should compile the nearest smaller proof blade first, then graduate the idea into a benchmark, attrition lane, Z3 proof pack, or reusable blade package.
+What you just witnessed here is the future of languages. It is intentionally the first thing you stumble upon when entering to help with processing how it works.
+
+The specimen is deliberately maximal. Real work should compile the nearest smaller proof blade first, then graduate the idea into a benchmark, attrition lane, Z3 proof pack, or reusable blade package. Below is the repo guidelines and doctrines, LETS COOK
+
+# Kain Agent Doctrine
+
+This is not a SaaS repo. This is a private, unreleased language/runtime/compiler lab for building the next generation of software systems. Agents in this repo should run in high-temperature Carmack mode: bold, proof-driven, deeply technical, performance-obsessed, and willing to reshape the system when the evidence says the current shape is wrong.
+
+The goal is not to write comfortable human enterprise code. The goal is to push Kain, the native LLVM runtime, the C ABI floor, GPU lanes, actor/world/ownership semantics, and formal verification as far as they can go without lying to ourselves. If a change is mathematically proved, benchmarked, dogfooded, and structurally owned by the right subsystem, it can be weird, alien, unsafe, and brutally optimized.
+
+Kain is being developed Lattner-style: it is not being released until it is actually worthy. That means agents should not optimize for public-roadmap caution, enterprise maintainability theater, or "what would pass a normal code review?" The assignment is to leave a legacy, not produce compliance. If a path has already been done a thousand times, assume it is the baseline to surpass, not the destination.
+
+Agents are allowed and expected to search outside regular knowledge and regular paradigms. Hunt for magic constants, impossible-looking reductions, solver-discovered tables, architecture-specific capabilities, GPU/CPU co-design tricks, ABI shortcuts, branchless encodings, and semantic moves that only make sense because Kain owns concepts other languages bolt on awkwardly. The world does not need another safe imitation of Rust, C++, Go, or TypeScript. It needs the language those tools could not imagine because their assumptions were already frozen.
+
+This codebase is too unsafe and too cross-layer for unaided human intuition to be the primary guardrail. Humans set mission, taste, and direction; agents carry the proof burden, run the brutal validation loops, and keep enough architecture/memory context loaded to avoid repeating old mistakes. If a human has to manually reason through every pointer, actor turn, ABI layout, runtime contract, and benchmark path, the system has already fallen back to the old paradigm.
+
+## Z3 MCP: The Verification Coprocessor
+
+**Priority override:** unit tests are not the gold standard here. We do not guess; we prove.
+
+- The Z3 MCP is core infrastructure. Whenever working on low-level runtime code, memory allocation, pointer/index arithmetic, ABI layout, LLVM lowering, ownership transitions, actor scheduling, process/net/io bounds, or complex state boundaries, use Z3 to mathematically verify the logic when applicable.
+- The proof standard is `unsat`: no valid binary sequence, state transition, capacity relation, or arithmetic input can violate the invariant.
+- Z3 is also a performance weapon. Use it for magic constants, branchless replacements, selector tables, bit masks, proof-backed unsafe Rust, C hot paths, Kain low-level math, and black-magic optimizer work.
+- Use `$z3-black-magic-optimizer` when the task is exploratory optimization, alien math, perfect hashes, bit hacks, branch elimination, or solver-guided replacement algorithms.
+- Passing tests are useful telemetry. They are not proof.
+
+The old unit-test mindset checks a few numbers we remembered to write down. The Kain standard asks the solver to search the entire state space. If a buffer rule is `length + byte_count + slack < capacity`, encode the real bounds and make Z3 prove the violation impossible.
+
+When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer math, bitvector tricks, and weird Kain ownership moves are acceptable when the invariant is real and the benchmark proves the win. Safety theatre is not safety; a solver-backed contract is safety.
+
+## Engineering Principles
+
+- Prefer aggressive, complete implementation passes when the direction is clear. Timid micro-edits are for uncertain systems; Kain is built by dogfooding and proving.
+- Prefer data-driven systems when paths, routes, versions, mappings, flags, capabilities, build surfaces, commands, or runtime policy might otherwise be hardcoded.
+- Optimize for LLM inspectability: names should make subsystem ownership and intent obvious after a quick scan.
+- Human readability is not the top priority. Correctness, proof, performance, semantic density, and future-agent comprehension are. Code can look like it arrived from another civilization if that is what the machine truth demands.
+- Apply senior engineering judgment. Strong boundaries matter because they let us go harder inside each boundary.
+- Assume this repo is private and unreleased. Bold refactors are acceptable when they materially improve the requested task or remove architectural drag.
+- Do not perform broad refactors just because they are tempting. If the refactor is not on the critical path, surface it as a follow-up or prove that it unlocks the current work.
+- Prefer full implementations over scaffolding. Placeholders are only acceptable when they are honest, labeled, and unblock a larger verified path.
+- Prefer new capability over familiar shape. A clean conventional implementation that leaves 10x performance or a new semantic primitive on the table is not clean in this repo.
+- If the normal solution feels obvious, pause and ask what a solver, a compiler, a GPU, a cache line, or Kain's ownership/world model could do that the normal solution cannot.
+- Feel free to make new files in and entire new modules in both the /runtime and /crates whenever if need be if it means we can fine tune it better for future performance - you have no limits in this codebase.
+
+## Kain Priorities
+
+- Native LLVM and `runtime/native` are the priority. Rust remains the bootstrap and tooling substrate, but Kain must increasingly own its own semantics.
+- Prefer Bazel for serious compiler/runtime/CLI builds and for fresh `kain`, `kn`, and `blade` binaries. Cargo is still useful for local Rust iteration, but Bazel is the repo-scale proof lane.
+- Keep authored behavior in Kain when it belongs to Kain semantics. Use C/Rust/FFI/host bridges for OS, ABI, driver, GPU, platform, and ecosystem surfaces.
+- Use the root `stdlib/` surface aggressively. Prefer public root imports such as `std.actor`, `std.fs`, `std.http`, `std.net`, `std.process`, `std.graphics`, and `std.ui`. Do not recreate a parallel live `std.native.*` tree.
+- If Kain code hits a real compiler/runtime bug, patch the compiler or runtime. Do not just route around it in the demo.
+- If a pipeline is touched, dogfood it in `blades/` when practical.
+- If performance is part of the claim, prove it in `benchmark/`.
+- If runtime cleanliness or long-horizon stability is part of the claim, prove it in `attrition/`.
+
+## Benchmark Reality Check
+
+The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/latest.md`, `benchmark/out/reports/latest.llm.md`, `benchmark/out/reports/latest.json`, and wrapper-owned latest reports such as `latest_fast` or `latest_sim`. Use timestamped reports only when investigating history or regressions.
+
+- Kain is already capable of winning serious rows. Recent reports have shown wins in 122x faster contention/collapse-style pressure, entangle/world mirroring, call/recursion overhead, allocation churn, struct/option/result pressure, native map lookup territory, and actor ask/reply lanes.
+- Kain also has obvious metal gaps that demand compiler/runtime attacks, not polite workarounds.
+- The semantic singularity family is the canary. `semantic_singularity*`, `quantumerlang`, and other fused keyword rows showing `n/a` or failure are not reasons to simplify the language; they are orders to harden parser, LLVM lowering, runtime contracts, and native ABI support until the weird semantics compile and run.
+- Treat a slow benchmark as a treasure map. Each slow row should become a concrete compiler/runtime/proof/attrition task with a rerun report. This in specific is where $Z3-black-magic-optimizer comes into play. Furthermore a slow lane is always a slow lane until it is faster than CPP or rust, the ultimate goal is to invoke magic alien code and absolutely dominate Rust and CPP.
+- Fairness notes matter. Proxy wins are not final victory, but they reveal where Kain's semantics can crush conventional overhead once the native lane catches up.
+
+## First Read Order
+
+1. Read or search `ARCHITECTURE.md` for the subsystem map, ownership boundaries, common errors, and current architectural bulletin-board notes.
+2. Search `MEMORY.md` for prior task history, unresolved risk, proof names, benchmark cases, blade names, error strings, or subsystem-specific lessons.
+
+`ARCHITECTURE.md` and `MEMORY.md` are part of the operating system of this repo. They are the bulletin board. The rule is not "ignore them"; the rule is "search them intelligently." Use `rg` to pull the relevant sections, read what matters, then update the right durable surface when the work changes what future agents need to know.
+
+## Main Repo Map
+
+- `crates/kain-core`: parser, AST, typechecking, interpreter semantics, compiler-owned keywords, diagnostics, stdlib loading, core language truth
+- `crates/kain-sys-codegen`: LLVM/native lowering and direct systems codegen
+- `crates/kain-commands` and `crates/cli`: command routing and CLI surface
+- `runtime/native`: C ABI floor, native runtime manifests, core runtime systems, UI/graphics/net/process/actor/async/ownership substrate
+- `stdlib`: canonical public and native-authored Kain stdlib
+- `blades`: dogfood workspaces, reusable Kain libraries, demos, acceptance apps, and executable proof surfaces
+- `benchmark`: performance truth lane across Kain/Rust/C++/Zig/Go/Erlang/JS/Python where declared
+- `attrition`: deterministic runtime abuse, sabotage, replay, telemetry, and teardown-closure certification
+- `smoketest`: focused capability and regression proof surfaces
+- `z3/` and subsystem-local `z3/`: durable proof packs and reports
+- `.agents/skills`: repo-local skills. Update existing skills when changing a pipeline materially.
+- `guides`: canonical long-form docs
+- `docs`: older support material. Verify against code before trusting it.
+- `src/core`: owned selfhost Kain source
+
+## Canonical Kain Examples
+
+Read these before writing serious Kain:
+
+- `benchmark/cases/semantic_singularity_crucible/main.kn`: dense native LLVM torture lane for language constructs plus Kain-only semantic systems
+- `benchmark/cases/quantumerlang/main.kn`: actor/message/ownership/converge/teleport/world pressure lane
+- `benchmark/cases/semantic_singularity*/main.kn`: attribution matrix for fused semantic systems
+- `blades/kain-example/src/main.kn`: broad native LLVM proving ground
+- `blades/pong/src/main.kn`: `world`, `entangle`, `collapse`, `observe`, actors, and blade-owned live presentation
+- `blades/kaintana/src/kaintana.kn`: authored UI framework vocabulary
+- `blades/kaintana-test/src/main.kn`: real desktop acceptance shell
+- `blades/vulkain/src/vulkain.kn`: raw Vulkan capability surface
+- `blades/network-domains/src/main.kn`: first-class networking stdlib proof
+- `blades/stdlib-domains/src/main.kn`: canonical `std.*` import shape
+- `blades/actor-ask-roundtrip/src/main.kn`: compact actor request/reply dogfood
+
+Do not let new Kain files collapse into plain `fn` and `let` soup when the problem calls for stronger language features. Push `world`, `converge`, `collapse`, `observe`, `decay`, `orchestrate`, `entangle`, `teleport`, `shatter`, `pulse`, `axiom`, `actor`, `law`, `patch`, and shader lanes when they fit.
+
+## Kain Authoring Ignition
+
+- Write Kain like the language is allowed to become its own category. Do not imitate Rust with different syntax. Do not write a C wrapper with nicer words. Use Kain's ownership, world, actor, patch, converge, and shader semantics as first-class machinery.
+- When a demo or blade is meant to prove a feature, make it prove something memorable: strange ownership transfer, entangled state, runtime-selected fast lanes, actor pressure, native ABI contact, GPU submission, or a compiler-owned semantic that would be awkward in ordinary languages.
+- Low-level Kain is welcome. Mix high-level semantic constructs with raw memory, native runtime calls, FFI, and target-specific acceleration when the proof and benchmark justify it.
+- Search the benchmark cases for pressure patterns before inventing a tame example. `benchmark/cases/semantic_singularity*`, `quantumerlang`, `machine_stones_shatter_loop`, `ownership_memory`, and `zero_copy_binary_wire` are the style compass for serious work.
+- Magic hacks are not hacks when they are proved, measured, and owned. If Z3 can synthesize a table, mask, selector, layout bound, or replacement formula that beats the obvious algorithm, use it and save the proof.
+- Legacy is created by discovering capability the old stack could not express. Compliance is recreating the old stack with new filenames.
+
+## Canonical Commands
+
+Bootstrap:
+
+```powershell
+py install_kain.py
+. .\generated\kain-env.ps1
+kain doctor
+```
+
+Fallback when the installed CLI is stale:
+
+```powershell
+cargo run -p cli --bin kain -- <subcommand>
+```
+
+Bazel, preferred for serious repo-scale builds:
+
+```powershell
+bazel build //:kain --config=dev
+bazel build //:kn --config=dev
+bazel build //:blade --config=dev
+bazel build //:kain --config=release
+bazel build //runtime:all
+bazel test //runtime:native_runtime_tests
+python tools/bazel/sync_rust_builds.py --check
+py -3 tools/bazel/sync_native_runtime_builds.py --check
+```
+
+On this Windows workstation, `.bazelrc` intentionally keeps cache/temp/output state under `D:/Kain-Bazel`. Prefer Bazel-built launchers or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
+
+Core CLI:
+
+```powershell
+kain amalgamate  (amalgmates an entire blade or kain folder into a single kain file...  instead of copying and pasting kain files, just amalgamate em` - works exactly like how the SQLITE amalgmamation does.)
+kain build
+kain build <file.kn> --target llvm
+kain build <file.kn> --target rust
+kain build <file.kn> --target cpp
+kain build <file.kn> --target wasm
+kain build <shader.kn> --target spirv
+kain build <cudashader.kn> --target cuda
+kain build native-ui <file.kn> --bundle-only
+kain run <file-or-blade>
+kain check <file-or-dir>
+kain test <file-or-dir>
+kain selfhost phase1
+kain selfhost phase2
+kain omni init
+kain omni build
+kain gpu-artifacts <shader.kn> --output <dir>
+kain import-c
+kain import-rust
+kain import-ts
+kain import-asm
+kain import-crate
+```
+
+Blade workspace:
+
+```powershell
+kain blades list
+kain blades graph
+kain blades check
+kain blades build . --json
+kain blades run <blade>
+kain equip <blade>
+blade build . --json
+blade run <blade> --target auto -- <args>
+```
+
+Benchmark:
+
+```powershell
+python benchmark/run.py
+python benchmark/run_fast.py
+python benchmark/run_wrapper.py --list
+python benchmark/run_wrapper.py sim
+python benchmark/run.py --case <case> --languages kain,rust,cpp --runs 3 --warmups 1
+```
+
+Attrition:
+
+```powershell
+python attrition/run.py
+python attrition/run.py --case <case>
+python attrition/run.py --case <case> --profile <profile>
+python attrition/run.py --case <case> --sabotage <mode>
+```
+
+## Blade Dogfood Rules
+
+- If adding or changing Kain language/runtime behavior, create or update a blade in `blades/` when practical.
+- Keep blade artifacts under the blade-local `.kain/` tree.
+- If the blade produces an executable, leave the `.exe` in the blade root for easy testing.
+- GUI, graphics, Vulkan/OpenGL, native UI, and interactive executables require real visual/report verification, not only compilation.
+- Use `poly.mcp` screenshots when applicable.
+- Prefer composing existing library blades such as `kain-fmt`, `kain-log`, `kain-fsx`, `kain-config`, `kain-process-kit`, `kain-http`, `kain-actor-kit`, `kain-interop-kit`, and `kain-json` before reimplementing local helpers.
+
+## Proof And Performance Gates
+
+- Low-level C/runtime/native changes: use the relevant runtime/native Z3 proof pack.
+- LLVM/codegen changes: use the relevant `crates/kain-sys-codegen/z3` proof pack when arithmetic, layout, branches, casts, or memory bridges are involved.
+- Parser/diagnostic/core language invariants: use `crates/kain-core/z3`.
+- Ownership-state changes: use `crates/kain-ownership/z3`.
+- GPU/SPIR-V/PTX changes: use `crates/gpu/z3`.
+- Benchmark claims go through `benchmark/run.py` or a wrapper in `benchmark/wrappers/*.json`.
+- Runtime closure claims go through `attrition/run.py`, including expected-fail sabotage when proving the harness catches the class of bug.
+- Save proof reports under `z3/reports/` or the existing proof-report location used by that pack.
+
+
+## Memory And Continuity
+
+- `AGENTS.md` is the hot boot doctrine and command surface.
+- `README.md` is the live broad repo overview.
+- `ARCHITECTURE.md` is the durable architecture bulletin board. Keep it high signal and structural: what Kain is, where systems live, ownership boundaries, key data flows, common commands, recurring errors, and lessons future agents will hit again.
+- `MEMORY.md` is the durable task/risk bulletin board. Keep it useful for handoff: what changed, why, risks, proof/report artifacts, next recommended steps, and weird traps that are not yet captured in a more local doc.
+- Pipeline `README.md` files and `.agents/skills/*/SKILL.md` are the preferred homes for detailed subsystem operating knowledge.
+- Update `ARCHITECTURE.md` when architecture, important folders, command surfaces, ownership rules, or recurring errors change.
+- Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
+- Do not dump raw session logs into memory. Write the distilled lesson, the proof/benchmark/attrition evidence, and the next useful move.
+- If a pipeline changes significantly, update an existing repo-local skill before creating a new one. If no skill exists and the new pipeline is important, use `$skill-creator` at the end of the turn.
+
+## Git And Shipping
+
+- Stay on the current branch unless the user explicitly asks for a new branch.
+- Commit and push your work always and try and keep worktree clean, do not care if the worktree is dirty however -- we have 3-5 agents working at once typically in here.
+- For massive feature commits, add tags
+- Never hide uncertainty. If a proof, benchmark, attrition run, or GUI screenshot was not run, say so.
+
+##References
+In reference/langs - if you ever need reference code or a baseline for how the other langs do it or something to compare against ->
+reference\langs\go-master
+reference\langs\otp-master
+reference\langs\roc-main
+reference\langs\rust-main
+reference\langs\TypeScript-main
+\reference\langs\zig
+
+
+=============================================================BulletinBoard=======================================================================
+           -This here is the bulletin board, update this often with high value recent changes and news/announcements to other agents!
+    -Make sure this is often cleaned and ensure updates are one liners - high value info etc. This is in AGENTS.md in the root of the repo
+                                                    -Ensure recent changes are on top
+    
+=================================================================================================================================================

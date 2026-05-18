@@ -77,8 +77,9 @@ table and `reference/target-matrix.md` when you need the target aliases.
 
 Use `kain run`, `kain run dev`, `kain run plan`, or `kain watch` for the
 unified runtime loop. That path is owned by `crates/kain-run` and supports Kain
-source, C files, Cargo crates, Fabric manifests, Node, Bun, blades, and
-workspace `[run]` metadata.
+source, native LLVM Kain source via `--target llvm` or `[run] target = "llvm"`,
+C files, Cargo crates, Fabric manifests, Node, Bun, blades, and workspace
+`[run]` metadata.
 
 Use `kain amalgamate` when you want to pack a file, blade, or workspace into a
 portable single-file Kain capsule. `kain amalgamate inspect` and
