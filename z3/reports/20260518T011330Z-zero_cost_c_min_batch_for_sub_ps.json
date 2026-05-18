@@ -1,0 +1,27 @@
+{
+  "direction": "min",
+  "model": {
+    "amortized_ps": {
+      "kind": "int",
+      "text": "1",
+      "value": 1
+    },
+    "batch": {
+      "kind": "int",
+      "text": "4501",
+      "value": 4501
+    },
+    "boundary_ns": {
+      "kind": "int",
+      "text": "9",
+      "value": 9
+    }
+  },
+  "objective_value": {
+    "kind": "int",
+    "text": "4501",
+    "value": 4501
+  },
+  "solver_status": "sat",
+  "status": "optimal"
+}

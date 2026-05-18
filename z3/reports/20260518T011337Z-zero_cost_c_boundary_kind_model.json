@@ -1,0 +1,39 @@
+{
+  "appended_commands": [
+    "get-model",
+    "get-info :all-statistics"
+  ],
+  "detail_lines": [
+    "unsat",
+    "unsat",
+    "(error \"line 28 column 10: model is not available\")",
+    "(:added-eqs                   16",
+    ":arith-eq-adapter            12",
+    ":arith-bound-propagations-lp 1",
+    ":arith-conflicts             5",
+    ":arith-diseq                 6",
+    ":arith-lower                 22",
+    ":arith-make-feasible         20",
+    ":arith-max-columns           10",
+    ":arith-max-rows              1",
+    ":arith-upper                 20",
+    ":binary-propagations         28",
+    ":conflicts                   9",
+    ":decisions                   9",
+    ":del-clause                  20",
+    ":max-memory                  17.75",
+    ":memory                      17.75",
+    ":mk-bool-var                 56",
+    ":mk-clause                   21",
+    ":mk-clause-binary            12",
+    ":num-allocs                  35717",
+    ":num-checks                  3",
+    ":propagations                38",
+    ":rlimit-count                921)"
+  ],
+  "query": "(set-logic QF_LIA)\n; Boundary kind: 0 dynamic FFI trampoline, 1 static external call, 2 same-module IR/lto inlined body, 3 compiler builtin/intrinsic.\n(declare-const kind Int)\n(declare-const boundary_cost Int)\n(assert (and (>= kind 0) (<= kind 3)))\n(assert (= boundary_cost (ite (= kind 0) 9 (ite (= kind 1) 3 0))))\n\n; Claim A: a dynamic unresolved foreign boundary cannot be zero cost.\n(push)\n(assert (= kind 0))\n(assert (= boundary_cost 0))\n(check-sat)\n(pop)\n\n; Claim B: a same-module/intrinsic lane can have zero boundary cost.\n(push)\n(assert (or (= kind 2) (= kind 3)))\n(assert (not (= boundary_cost 0)))\n(check-sat)\n(pop)\n\n; Claim C: if a source-level c call is proven inlineable, the remaining call-boundary cost is zero.\n(push)\n(assert (= kind 2))\n(assert (> boundary_cost 0))\n(check-sat)\n(pop)\n(get-model)\n(get-info :all-statistics)\n",
+  "return_code": 1,
+  "status": "unsat",
+  "stderr": "",
+  "stdout": "unsat\nunsat\nunsat\n(error \"line 28 column 10: model is not available\")\n(:added-eqs                   16\n :arith-eq-adapter            12\n :arith-bound-propagations-lp 1\n :arith-conflicts             5\n :arith-diseq                 6\n :arith-lower                 22\n :arith-make-feasible         20\n :arith-max-columns           10\n :arith-max-rows              1\n :arith-upper                 20\n :binary-propagations         28\n :conflicts                   9\n :decisions                   9\n :del-clause                  20\n :max-memory                  17.75\n :memory                      17.75\n :mk-bool-var                 56\n :mk-clause                   21\n :mk-clause-binary            12\n :num-allocs                  35717\n :num-checks                  3\n :propagations                38\n :rlimit-count                921)"
+}
