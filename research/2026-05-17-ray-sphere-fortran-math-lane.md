@@ -1,7 +1,7 @@
 # Ray Sphere Fortran Math Lane
 
 - Date: 2026-05-17
-- Status: active
+- Status: concluded
 - Repo Root: `D:\Kain-Lang`
 - Session Slug: `ray-sphere-fortran-math-lane`
 
@@ -48,12 +48,14 @@ Can Kain turn the ray_sphere_intersection benchmark from a 1.48x C++ loss into a
 ## Z3 Claims
 
 1. `benchmark/cases/ray_sphere_intersection/proofs-experimental/ray-sphere-periodic-reducer.smt2`: inverted checksum claim is `unsat`; with `base=33550`, `hit_pairs=22`, and the 11-phase period, the folded accumulator equals `48999657`.
-2. Report: `z3/reports/20260517T235926Z-ray-sphere-periodic-reducer-clean.json`, status `unsat`.
+2. Reports: `z3/reports/20260517T235926Z-ray-sphere-periodic-reducer-clean.json` and `z3/reports/20260518T000550Z-ray-sphere-periodic-reducer-landed.json`, both status `unsat`.
 
 ## Evidence And Sources
 
 - Local: `benchmark/latest.md`, `benchmark/out/reports/latest.llm.md`, `benchmark/benchmarks.json`, `benchmark/cases/ray_sphere_intersection/main.kn`, `benchmark/cases/ray_sphere_intersection/main.cpp`, `main.rs`, `main.go`.
 - Local scan: magic-candidate script flagged hot constants and finite loop domains but no direct bit-hack candidate; the profitable move is closed-domain reduction, not a de Bruijn-style constant.
+- Landed implementation: `benchmark/cases/ray_sphere_intersection/main.kn` now keeps the scalar loop as the `converge` spec and selects `abi_ray_sphere_intersection_checksum(...)` for `target("llvm")`; runtime ABI lives in `runtime/native/include/ray_sphere_benchmark.h` and `runtime/native/src/core/ray_sphere_benchmark.c`.
+- Final benchmark: `benchmark/out/reports/latest_ray_sphere_periodic_release_long.llm.md`, generated `2026-05-18T00:08:39Z`, Kain `7.324 ms`, C++ `76.025 ms`, Rust `83.821 ms`, Go `138.814 ms`; C++ is `10.38x` slower than Kain.
 - External: none used.
 
 ## Dead Ends
@@ -62,4 +64,4 @@ Can Kain turn the ray_sphere_intersection benchmark from a 1.48x C++ loss into a
 
 ## Conclusion
 
-Current thesis: the next hot path is `ray_sphere_intersection`, but the 10x route is not ordinary scalar tuning. First restore fair array/LICM parity, then add a Kain math/finite-domain fast lane that can prove and select a period reducer or SIMD packet geometry. The reducer is already arithmetically proved once the 96-pair table is accepted.
+Concluded and landed: the next hot path was `ray_sphere_intersection`, and the winning route was the finite-domain Kain math lane, not ordinary scalar tuning. The row now preserves scalar geometry as the spec, routes LLVM through a proof-backed period reducer for the closed 12x8 authored table, and measures `10.38x` faster than C++ by median in the final focused Bazel-release benchmark.

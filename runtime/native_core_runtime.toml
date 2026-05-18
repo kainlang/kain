@@ -18,6 +18,7 @@ sources = [
     "native/src/core/wire.c",
     "native/src/core/json.c",
     "native/src/core/json_benchmark.c",
+    "native/src/core/ray_sphere_benchmark.c",
     "native/src/core/machine_stones.c",
     "native/src/core/stdlib_abi.c",
     "native/src/core/input_system.c",

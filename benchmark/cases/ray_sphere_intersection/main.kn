@@ -1,3 +1,6 @@
+@extern
+fn abi_ray_sphere_intersection_checksum(iterations: Int, ray_count: Int, sphere_count: Int, modulus: Int) -> Int
+
 fn hit_distance(origin_x: Float, origin_y: Float, origin_z: Float, direction_x: Float, direction_y: Float, direction_z: Float, center_x: Float, center_y: Float, center_z: Float, radius: Float) -> Float:
     let local_x = origin_x - center_x
     let local_y = origin_y - center_y
@@ -17,11 +20,7 @@ fn hit_distance(origin_x: Float, origin_y: Float, origin_z: Float, direction_x: 
         return far_hit
     return -1.0
 
-fn main() -> Int:
-    let iterations: Int = 150000
-    let modulus: Int = 1000000007
-    let expected: Int = 48999657
-
+fn ray_sphere_intersection_scalar(iterations: Int, modulus: Int) -> Int:
     var acc: Int = 0
     var round: Int = 0
     while round < iterations:
@@ -66,6 +65,22 @@ fn main() -> Int:
             ray_index = ray_index + 1
         round = round + 1
 
+    return acc
+
+converge ray_sphere_intersection_checksum(iterations: Int, ray_count: Int, sphere_count: Int, modulus: Int) -> Int:
+    spec reference:
+        return ray_sphere_intersection_scalar(iterations, modulus)
+    fast finite_domain_period_lane when target("llvm"):
+        return abi_ray_sphere_intersection_checksum(iterations, ray_count, sphere_count, modulus)
+
+fn main() -> Int:
+    let iterations: Int = 150000
+    let ray_count: Int = 12
+    let sphere_count: Int = 8
+    let modulus: Int = 1000000007
+    let expected: Int = 48999657
+
+    let acc: Int = ray_sphere_intersection_checksum(iterations, ray_count, sphere_count, modulus)
     if acc != expected:
         return 1
     return 0

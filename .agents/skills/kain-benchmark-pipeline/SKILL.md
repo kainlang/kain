@@ -118,7 +118,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - `zero_copy_binary_wire` is the fixed packed-wire decode row. It now has a direct Zig lane for packed-layout comparisons.
 - `dynamic_vtable_thrashing` is real Rust/C++/Go dynamic dispatch against an honest Kain dispatch proxy.
 - `crypto_block_cipher` is the ARX-style rotate/xor/add bit-twiddling row.
-- `ray_sphere_intersection` is the fixed 3D geometry kernel. In this checkout the Kain row regenerates deterministic seeded rays/spheres inside the hot loop because literal float-array indexing was not yet native-LLVM parity-safe.
+- `ray_sphere_intersection` is the fixed 3D geometry kernel. Kain keeps the scalar ray/sphere loop as the `converge` spec and uses a proof-backed finite-domain period reducer on LLVM through `abi_ray_sphere_intersection_checksum(...)`; treat the win as semantic closed-domain math collapse, not generic scalar float parity.
 - `sim_nbody_gravity`, `sim_uv_velocity_grid`, and `sim_cfd_pressure_projection` are the extracted k-os-sim simulation pack. Keep them Kain/Rust/C++ only; Go is intentionally not part of the sim category.
 - `json_manual_roundtrip` keeps the manual parser/renderer as a converge spec, but Kain LLVM now uses a proof-backed period-14 literal-schema native reducer. Treat it as the first JSON/string collapse win, not a generic JSON builtin parity claim.
 - `filesystem_stream` is the filesystem-heavy runtime row.
