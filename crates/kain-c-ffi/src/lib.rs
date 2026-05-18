@@ -3,13 +3,13 @@ mod extract;
 mod generate;
 mod model;
 
-pub use config::{CFfiConfig, CLibraryConfig};
+pub use config::{CFfiConfig, CInteropTier, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
 pub use model::{
-    ArtifactMode, BindingManifest, BindingReport, BindingReportEntry, HostBridgeModuleDescriptor,
-    HostBridgeServiceDescriptor, ImportCOptions, ImportCOutput, ItemKind, ItemStatus,
-    PackagedBridgeBinaryArtifact, PackagedBridgeImport, PackagedBridgeManifest,
-    PackagedBridgeSymbolDescriptor, PrepareContext, ResolvedCLibrary,
+    ArtifactMode, BindingManifest, BindingReport, BindingReportEntry, CNativeLinkInputs,
+    HostBridgeModuleDescriptor, HostBridgeServiceDescriptor, ImportCOptions, ImportCOutput,
+    ItemKind, ItemStatus, PackagedBridgeBinaryArtifact, PackagedBridgeImport,
+    PackagedBridgeManifest, PackagedBridgeSymbolDescriptor, PrepareContext, ResolvedCLibrary,
 };
 
 use extract::extract_binding_bundle;
@@ -154,6 +154,12 @@ pub fn import_library(
     }
 
     if options.mode.wants_live() {
+        if !resolved.tier.is_dynamic() {
+            return Err(KainError::runtime(format!(
+                "C FFI import '{}' uses tier {:?}, which is native-link only and cannot be loaded by the live dynamic bridge",
+                resolved.import_name, resolved.tier
+            )));
+        }
         let (dylib_path, cache_hit) = ensure_bridge_library(&output)?;
         ensure_bridge_loaded(&dylib_path)?;
         output.dylib_path = Some(dylib_path);
@@ -161,6 +167,83 @@ pub fn import_library(
     }
 
     Ok(output)
+}
+
+pub fn prepare_native_link_inputs(
+    output: &ImportCOutput,
+    clang_cmd: &str,
+    compile_args: &[String],
+) -> Result<CNativeLinkInputs, KainError> {
+    let resolved = &output.resolved;
+    let mut inputs = CNativeLinkInputs {
+        link_inputs: Vec::new(),
+        link_libs: collect_link_libs(resolved),
+    };
+
+    if resolved.native_runtime_linked() {
+        return Ok(inputs);
+    }
+
+    match resolved.tier {
+        CInteropTier::Dynamic => {
+            let shared = resolved.shared_lib_path.as_ref().ok_or_else(|| {
+                KainError::runtime(format!(
+                    "C FFI dynamic import '{}' does not declare a shared library for native linking",
+                    resolved.import_name
+                ))
+            })?;
+            inputs
+                .link_inputs
+                .push(resolve_linkable_shared_library(shared)?);
+        }
+        CInteropTier::Static => {
+            push_existing_paths(&mut inputs.link_inputs, &resolved.object_paths, "object")?;
+            push_existing_paths(
+                &mut inputs.link_inputs,
+                &resolved.static_lib_paths,
+                "static library",
+            )?;
+            push_existing_paths(
+                &mut inputs.link_inputs,
+                &resolved.bitcode_paths,
+                "LLVM bitcode",
+            )?;
+            if let Some(shared) = &resolved.shared_lib_path {
+                inputs
+                    .link_inputs
+                    .push(resolve_linkable_shared_library(shared)?);
+            }
+            if inputs.link_inputs.is_empty() {
+                return Err(KainError::runtime(format!(
+                    "C FFI static import '{}' has no object, static library, bitcode, or shared-library link input",
+                    resolved.import_name
+                )));
+            }
+        }
+        CInteropTier::Bitcode | CInteropTier::Inline => {
+            push_existing_paths(
+                &mut inputs.link_inputs,
+                &resolved.bitcode_paths,
+                "LLVM bitcode",
+            )?;
+            let compiled = compile_c_sources_to_bitcode(output, clang_cmd, compile_args)?;
+            inputs.link_inputs.extend(compiled);
+            if inputs.link_inputs.is_empty() {
+                return Err(KainError::runtime(format!(
+                    "C FFI {:?} import '{}' requires `sources` or `bitcode` entries",
+                    resolved.tier, resolved.import_name
+                )));
+            }
+        }
+        CInteropTier::Fused => {
+            return Err(KainError::runtime(format!(
+                "C FFI fused import '{}' must be runtime-owned in this layer; generic fused call lowering is a compiler/runtime command-surface contract, not a dynamic bridge fallback",
+                resolved.import_name
+            )));
+        }
+    }
+
+    Ok(inputs)
 }
 
 pub fn augment_source_for_runtime(
@@ -333,6 +416,143 @@ fn ensure_bridge_library(output: &ImportCOutput) -> Result<(PathBuf, bool), Kain
     Ok((dylib_path, false))
 }
 
+fn collect_link_libs(resolved: &ResolvedCLibrary) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut link_libs = Vec::new();
+    for value in resolved
+        .global_config
+        .link_libs
+        .iter()
+        .chain(resolved.config.link_libs.iter())
+    {
+        if seen.insert(value.clone()) {
+            link_libs.push(value.clone());
+        }
+    }
+    link_libs
+}
+
+fn push_existing_paths(
+    output: &mut Vec<PathBuf>,
+    paths: &[PathBuf],
+    label: &str,
+) -> Result<(), KainError> {
+    for path in paths {
+        if !path.exists() {
+            return Err(KainError::runtime(format!(
+                "C FFI {label} link input '{}' does not exist",
+                path.display()
+            )));
+        }
+        output.push(path.clone());
+    }
+    Ok(())
+}
+
+fn resolve_linkable_shared_library(shared_lib_path: &Path) -> Result<PathBuf, KainError> {
+    if !shared_lib_path.exists() {
+        return Err(KainError::runtime(format!(
+            "C FFI shared library {} does not exist",
+            shared_lib_path.display()
+        )));
+    }
+    if cfg!(windows)
+        && shared_lib_path
+            .extension()
+            .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("dll"))
+            .unwrap_or(false)
+    {
+        let import_library_path = shared_lib_path.with_extension("lib");
+        if import_library_path.exists() {
+            return Ok(import_library_path);
+        }
+    }
+    Ok(shared_lib_path.to_path_buf())
+}
+
+fn compile_c_sources_to_bitcode(
+    output: &ImportCOutput,
+    clang_cmd: &str,
+    compile_args: &[String],
+) -> Result<Vec<PathBuf>, KainError> {
+    let resolved = &output.resolved;
+    let mut compiled = Vec::new();
+    if resolved.source_paths.is_empty() {
+        return Ok(compiled);
+    }
+
+    let bitcode_dir = output.cache_dir.join("bitcode");
+    kfs::create_dir_all(&bitcode_dir).map_err(fs_to_kain_error)?;
+    for (index, source_path) in resolved.source_paths.iter().enumerate() {
+        if !source_path.exists() {
+            return Err(KainError::runtime(format!(
+                "C FFI source '{}' does not exist",
+                source_path.display()
+            )));
+        }
+        let stem = source_path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("source")
+            .replace(|ch: char| !ch.is_ascii_alphanumeric(), "_");
+        let bitcode_path =
+            bitcode_dir.join(format!("{}_{}_{}.bc", resolved.import_name, index, stem));
+        let mut command = Command::new(clang_cmd);
+        for arg in compile_args {
+            command.arg(arg);
+        }
+        command.arg("-emit-llvm").arg("-c");
+        if matches!(resolved.tier, CInteropTier::Inline) {
+            command.arg("-flto=full");
+        }
+        for include_path in resolved
+            .global_config
+            .include_paths
+            .iter()
+            .chain(resolved.config.include_paths.iter())
+        {
+            command.arg("-I").arg(include_path);
+        }
+        for define in resolved
+            .global_config
+            .defines
+            .iter()
+            .chain(resolved.config.defines.iter())
+        {
+            command.arg(format!("-D{define}"));
+        }
+        for option in resolved
+            .global_config
+            .cpp_options
+            .iter()
+            .chain(resolved.config.cpp_options.iter())
+        {
+            command.arg(option);
+        }
+        let status = command
+            .arg(source_path)
+            .arg("-o")
+            .arg(&bitcode_path)
+            .status()
+            .map_err(|err| {
+                KainError::runtime(format!(
+                    "Failed to launch clang for C FFI {:?} source '{}': {err}",
+                    resolved.tier,
+                    source_path.display()
+                ))
+            })?;
+        if !status.success() {
+            return Err(KainError::runtime(format!(
+                "clang failed while compiling C FFI {:?} source '{}' to LLVM bitcode",
+                resolved.tier,
+                source_path.display()
+            )));
+        }
+        compiled.push(bitcode_path);
+    }
+    Ok(compiled)
+}
+
 fn resolve_library(
     import_name: &str,
     prepare: &PrepareContext,
@@ -399,6 +619,15 @@ fn resolve_library_from_manifest_root(
         .map(|value| resolve_relative_path(manifest_root, value));
     let tier = library.tier.unwrap_or(config.tier);
     let runtime_owned = library.runtime_owned;
+    let mut library = library;
+    library.include_paths = resolve_relative_paths(manifest_root, &library.include_paths);
+    library.sources = resolve_relative_paths(manifest_root, &library.sources);
+    library.objects = resolve_relative_paths(manifest_root, &library.objects);
+    library.static_libs = resolve_relative_paths(manifest_root, &library.static_libs);
+    library.bitcode = resolve_relative_paths(manifest_root, &library.bitcode);
+    let mut config = config;
+    config.include_paths = resolve_relative_paths(manifest_root, &config.include_paths);
+    validate_tier_contract(import_name, tier, runtime_owned, &library)?;
 
     Ok(Some((
         ResolvedCLibrary {
@@ -406,6 +635,10 @@ fn resolve_library_from_manifest_root(
             manifest_root: manifest_root.to_path_buf(),
             header_path,
             shared_lib_path,
+            source_paths: library.sources.clone(),
+            object_paths: library.objects.clone(),
+            static_lib_paths: library.static_libs.clone(),
+            bitcode_paths: library.bitcode.clone(),
             config: library,
             global_config: config.clone(),
             tier,
@@ -466,6 +699,10 @@ fn resolve_runtime_owned_header(
         include_paths: vec![include_dir.clone()],
         defines: Vec::new(),
         link_libs: Vec::new(),
+        sources: Vec::new(),
+        objects: Vec::new(),
+        static_libs: Vec::new(),
+        bitcode: Vec::new(),
         cpp_options: Vec::new(),
         cpp_command: None,
         tier: Some(config::CInteropTier::Static),
@@ -487,6 +724,10 @@ fn resolve_runtime_owned_header(
             manifest_root: repo_root,
             header_path,
             shared_lib_path: None,
+            source_paths: Vec::new(),
+            object_paths: Vec::new(),
+            static_lib_paths: Vec::new(),
+            bitcode_paths: Vec::new(),
             config: library,
             global_config: global_config.clone(),
             tier: config::CInteropTier::Static,
@@ -553,6 +794,36 @@ fn resolve_relative_path(root: &Path, path: &Path) -> PathBuf {
     } else {
         root.join(expanded)
     }
+}
+
+fn resolve_relative_paths(root: &Path, paths: &[PathBuf]) -> Vec<PathBuf> {
+    paths
+        .iter()
+        .map(|path| resolve_relative_path(root, path))
+        .collect()
+}
+
+fn validate_tier_contract(
+    import_name: &str,
+    tier: CInteropTier,
+    runtime_owned: bool,
+    library: &config::CLibraryConfig,
+) -> Result<(), KainError> {
+    if runtime_owned {
+        return Ok(());
+    }
+    if tier.is_fused() {
+        return Err(KainError::runtime(format!(
+            "C FFI fused import '{import_name}' must set runtime_owned = true; generic fused lowering is not a dynamic bridge"
+        )));
+    }
+    if tier.wants_llvm_bitcode() && library.sources.is_empty() && library.bitcode.is_empty() {
+        return Err(KainError::runtime(format!(
+            "C FFI {:?} import '{import_name}' requires `sources` or `bitcode` entries",
+            tier
+        )));
+    }
+    Ok(())
 }
 
 fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
@@ -734,6 +1005,127 @@ mod tests {
         assert!(augmented.contains("@extern fn"));
         assert!(augmented.contains("beacon_add"));
         assert!(augmented.contains("beacon_ping"));
+    }
+
+    #[test]
+    fn inline_tier_compiles_c_sources_to_llvm_bitcode_link_inputs() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, _dll_path) = c_fixture_paths(&native_dir);
+        kfs::write_text(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+        kfs::write_text(
+            root.join("KAIN.toml"),
+            &format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\ntier = \"inline\"\nheader = \"{}\"\nsources = [\"{}\"]\ninclude_paths = [\"native\"]\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                source_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+            ),
+        )
+        .expect("manifest");
+
+        let output = import_library(
+            "beacon_math",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("inline source-backed import");
+
+        assert_eq!(output.resolved.tier, config::CInteropTier::Inline);
+        assert!(output.resolved.source_backed_bitcode());
+        assert_eq!(output.resolved.source_paths, vec![source_path.clone()]);
+        let report_json = kfs::read_text(&output.report_json_path).expect("report");
+        assert!(report_json.contains("\"interop_tier\": \"inline\""));
+        assert!(report_json.contains("beacon_math.c"));
+
+        let link_inputs =
+            prepare_native_link_inputs(&output, "clang", &["-O2".to_string()]).expect("bitcode");
+        assert_eq!(link_inputs.link_inputs.len(), 1);
+        assert_eq!(
+            link_inputs.link_inputs[0]
+                .extension()
+                .and_then(|value| value.to_str()),
+            Some("bc")
+        );
+        assert!(link_inputs.link_inputs[0].exists());
+    }
+
+    #[test]
+    fn fused_tier_rejects_generic_dynamic_bridge_fallback() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, _dll_path) = c_fixture_paths(&native_dir);
+        kfs::write_text(&header_path, "int beacon_add(int a, int b);\n").expect("header");
+        kfs::write_text(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+        kfs::write_text(
+            root.join("KAIN.toml"),
+            &format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\ntier = \"fused\"\nheader = \"{}\"\nsources = [\"{}\"]\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                source_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+            ),
+        )
+        .expect("manifest");
+
+        let error = import_library(
+            "beacon_math",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect_err("generic fused import should be gated");
+        let message = error.to_string();
+        assert!(message.contains("fused"));
+        assert!(message.contains("runtime_owned"));
     }
 
     #[test]

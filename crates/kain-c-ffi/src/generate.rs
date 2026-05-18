@@ -56,6 +56,10 @@ pub fn write_generated_artifacts(
             .shared_lib_path
             .as_ref()
             .map(|value| value.display().to_string()),
+        source_paths: render_path_list(&resolved.source_paths),
+        object_paths: render_path_list(&resolved.object_paths),
+        static_lib_paths: render_path_list(&resolved.static_lib_paths),
+        bitcode_paths: render_path_list(&resolved.bitcode_paths),
         interop_tier: resolved.tier,
         runtime_owned: resolved.runtime_owned,
         cache_dir: cache_dir.display().to_string(),
@@ -157,6 +161,13 @@ pub fn write_generated_artifacts(
 
 fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
     KainError::runtime(format!("Filesystem error: {error}"))
+}
+
+fn render_path_list(paths: &[PathBuf]) -> Vec<String> {
+    paths
+        .iter()
+        .map(|value| value.display().to_string())
+        .collect()
 }
 
 fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> String {

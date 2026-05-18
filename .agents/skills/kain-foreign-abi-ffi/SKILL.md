@@ -10,8 +10,10 @@ Use this skill for work on `crates/kain-foreign-abi`, `crates/kain-c-ffi`, and `
 ## Ownership Boundaries
 
 - `crates/kain-foreign-abi` owns the shared type graph, normalized scalar tables, pointer/callback/raw-pointer bridge classes, safety reports, and Z3 proofs for ABI arithmetic.
-- `crates/kain-c-ffi` owns C-header discovery, `[c_ffi]` manifest resolution, Kain extern generation, binding reports/manifests, bridge crate source generation, and live/package bridge loading.
+- `crates/kain-c-ffi` owns C-header discovery, `[c_ffi]` manifest resolution, Kain extern generation, binding reports/manifests, bridge crate source generation, live/package bridge loading, and native C link-input preparation for `dynamic`, `static`, `bitcode`, `inline`, and runtime-owned `fused` tiers.
 - `kain-c-ffi` should consume `kain-foreign-abi` policy instead of adding local scalar/pointer match ladders.
+- `bitcode` and `inline` tiers are source/bitcode-backed native LLVM lanes. They must not silently fall back to the dynamic bridge; `inline` compiles C sources to LLVM bitcode with full-LTO intent for same-unit optimization at the final native link.
+- `fused` is not generic dynamic FFI. In `kain-c-ffi`, non-runtime-owned `fused` imports should be rejected until a compiler/runtime command-surface lowering owns them; runtime-owned fused surfaces may link through the native runtime bundle.
 - Raw imported pointers are external-ownership values. Do not wire them into `collapse`/`observe`/`decay` semantics without an explicit foreign ownership contract.
 - By-value aggregates must stay gated until parsed layout plus target ABI passing rules exist. Do not fake by-value struct calls as `void*`.
 
@@ -28,9 +30,10 @@ Use this skill for work on `crates/kain-foreign-abi`, `crates/kain-c-ffi`, and `
    - model/classification in `kain-foreign-abi`
    - extractor/type-registry use in `kain-c-ffi`
    - bridge type rendering in `model.rs`
+   - native link-input preparation and tier gates in `crates/kain-c-ffi/src/lib.rs`
    - generated bridge runtime code in `generate.rs`
    - focused C FFI regression tests in `crates/kain-c-ffi/src/lib.rs`
-4. Add or update Z3 proof cases for pointer-depth, bounds, layout, or ownership math under `crates/kain-foreign-abi/z3`.
+4. Add or update Z3 proof cases for pointer-depth, bounds, layout, ownership math, or closed-domain tier/link classifiers under `crates/kain-foreign-abi/z3`.
 5. If Cargo manifests changed, run `python tools/bazel/sync_rust_builds.py` and `python tools/bazel/sync_rust_builds.py --check`.
 
 ## Validation

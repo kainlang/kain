@@ -135,7 +135,7 @@ struct NativeRuntimeCompiledArtifacts {
 
 #[derive(Debug, Default)]
 struct CffiNativeLinkInputs {
-    shared_libraries: Vec<PathBuf>,
+    link_inputs: Vec<PathBuf>,
     link_libs: Vec<String>,
 }
 
@@ -203,6 +203,24 @@ impl NativeToolchainTuning {
             command.arg("-ffunction-sections");
             command.arg("-fdata-sections");
         }
+    }
+
+    fn clang_compile_args(&self) -> Vec<String> {
+        let mut args = vec![format!("-O{}", self.opt_level)];
+        if self.debug_info {
+            args.push("-g".to_string());
+        } else {
+            args.push("-g0".to_string());
+        }
+        if let Some(target_cpu) = &self.target_cpu {
+            args.push(format!("-march={target_cpu}"));
+            args.push(format!("-mtune={target_cpu}"));
+        }
+        if self.profile != NativeToolchainProfile::Debug {
+            args.push("-ffunction-sections".to_string());
+            args.push("-fdata-sections".to_string());
+        }
+        args
     }
 
     fn apply_link_gc_flags(&self, command: &mut Command) {
@@ -1065,8 +1083,11 @@ fn run_source(
                     let mut cmd = std::process::Command::new(&clang_cmd);
                     let mut runtime_link_libs = Vec::new();
                     let mut runtime_artifacts = NativeRuntimeCompiledArtifacts::default();
-                    let cffi_link_inputs = match resolve_c_ffi_shared_libraries_for_linking(&source)
-                    {
+                    let cffi_link_inputs = match resolve_c_ffi_native_link_inputs(
+                        &source,
+                        &clang_cmd,
+                        &native_toolchain_tuning,
+                    ) {
                         Ok(inputs) => inputs,
                         Err(err) => {
                             eprintln!(" Failed to resolve C FFI link inputs: {}", err);
@@ -1121,8 +1142,8 @@ fn run_source(
                     }
                     native_toolchain_tuning.apply_link_gc_flags(&mut cmd);
 
-                    for shared_library in cffi_link_inputs.shared_libraries {
-                        cmd.arg(shared_library);
+                    for link_input in cffi_link_inputs.link_inputs {
+                        cmd.arg(link_input);
                     }
 
                     runtime_link_libs = unique_link_libs(
@@ -3470,8 +3491,10 @@ fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>
     Ok(None)
 }
 
-fn resolve_c_ffi_shared_libraries_for_linking(
+fn resolve_c_ffi_native_link_inputs(
     source: &str,
+    clang_cmd: &str,
+    native_toolchain_tuning: &NativeToolchainTuning,
 ) -> Result<CffiNativeLinkInputs, String> {
     let prepare = CPrepareContext {
         current_dir: std::env::current_dir().ok(),
@@ -3487,43 +3510,18 @@ fn resolve_c_ffi_shared_libraries_for_linking(
     )
     .map_err(|err| err.to_string())?;
 
-    let mut shared_libraries = Vec::new();
+    let mut link_inputs = Vec::new();
     let mut link_libs = Vec::new();
+    let compile_args = native_toolchain_tuning.clang_compile_args();
     for output in outputs {
-        if output.resolved.native_runtime_linked() {
-            continue;
-        }
-        let shared_lib_path = output.resolved.shared_lib_path.ok_or_else(|| {
-            format!(
-                "C FFI library '{}' does not declare a shared library for LLVM linking",
-                output.resolved.import_name
-            )
-        })?;
-        if !shared_lib_path.exists() {
-            return Err(format!(
-                "C FFI shared library {} does not exist",
-                shared_lib_path.display()
-            ));
-        }
-        let mut link_input_path = shared_lib_path.clone();
-        if cfg!(windows)
-            && shared_lib_path
-                .extension()
-                .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("dll"))
-                .unwrap_or(false)
-        {
-            let import_library_path = shared_lib_path.with_extension("lib");
-            if import_library_path.exists() {
-                link_input_path = import_library_path;
-            }
-        }
-        shared_libraries.push(link_input_path);
-        link_libs.extend(output.resolved.global_config.link_libs.iter().cloned());
-        link_libs.extend(output.resolved.config.link_libs.iter().cloned());
+        let inputs = kain_c_ffi::prepare_native_link_inputs(&output, clang_cmd, &compile_args)
+            .map_err(|err| err.to_string())?;
+        link_inputs.extend(inputs.link_inputs);
+        link_libs.extend(inputs.link_libs);
     }
 
     Ok(CffiNativeLinkInputs {
-        shared_libraries,
+        link_inputs,
         link_libs: unique_link_libs(link_libs),
     })
 }

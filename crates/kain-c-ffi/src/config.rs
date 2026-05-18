@@ -31,6 +31,24 @@ pub enum CInteropTier {
     Fused,
 }
 
+impl CInteropTier {
+    pub fn is_dynamic(self) -> bool {
+        matches!(self, Self::Dynamic)
+    }
+
+    pub fn is_native_link(self) -> bool {
+        !self.is_dynamic()
+    }
+
+    pub fn wants_llvm_bitcode(self) -> bool {
+        matches!(self, Self::Bitcode | Self::Inline)
+    }
+
+    pub fn is_fused(self) -> bool {
+        matches!(self, Self::Fused)
+    }
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct CLibraryConfig {
     pub name: String,
@@ -45,6 +63,14 @@ pub struct CLibraryConfig {
     pub defines: Vec<String>,
     #[serde(default)]
     pub link_libs: Vec<String>,
+    #[serde(default, alias = "source_files")]
+    pub sources: Vec<PathBuf>,
+    #[serde(default, alias = "object_files")]
+    pub objects: Vec<PathBuf>,
+    #[serde(default, alias = "static_libraries")]
+    pub static_libs: Vec<PathBuf>,
+    #[serde(default, alias = "bitcode_files")]
+    pub bitcode: Vec<PathBuf>,
     #[serde(default)]
     pub cpp_options: Vec<String>,
     #[serde(default)]

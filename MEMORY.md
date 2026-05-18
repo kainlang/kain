@@ -1,5 +1,35 @@
 # Kain Memory
 
+# 2026-05-18 - C FFI bitcode/inline link lane and fused gate
+
+`crates/kain-c-ffi` now has real native link-input behavior behind the tier vocabulary. Manifest `[[c_ffi.libraries]]` entries can provide `sources`, `objects`, `static_libs`, and `bitcode`; `bitcode` and `inline` compile source files to LLVM `.bc` artifacts under the import cache, and the CLI native LLVM linker consumes those artifacts through `kain_c_ffi::prepare_native_link_inputs(...)`.
+
+What changed:
+
+- `crates/kain-c-ffi/src/config.rs`, `model.rs`, `lib.rs`, and `generate.rs`
+  - `CInteropTier` now exposes classifier helpers for dynamic/native-link/bitcode/fused behavior.
+  - `CLibraryConfig` accepts `sources`/`source_files`, `objects`/`object_files`, `static_libs`/`static_libraries`, and `bitcode`/`bitcode_files`.
+  - Resolved imports now carry absolute source/object/static/bitcode link paths, and binding reports include those paths.
+  - `prepare_native_link_inputs(...)` compiles `bitcode`/`inline` C sources to LLVM bitcode using clang and rejects generic non-runtime-owned `fused` imports instead of pretending they are dynamic bridge calls.
+- `crates/cli/src/main.rs`
+  - Native executable linking now asks `kain-c-ffi` for C link inputs, so dynamic, static, bitcode, inline, and runtime-owned fused contracts are centralized.
+- `.agents/skills/kain-foreign-abi-ffi/SKILL.md`
+  - Updated the C-FFI operating rules so future agents preserve the tier/link contract.
+
+Proof and validation:
+
+- Z3 proof: `crates/kain-foreign-abi/z3/proofs-experimental/c-ffi-tier-link-contract.smt2`
+- Z3 report: `z3/reports/20260518T022601Z-c-ffi-tier-link-contract.json`
+- Result: `unsat` for any closed-domain tier that violates dynamic/native-link/fused/bitcode disjointness or exhaustiveness.
+- `cargo fmt -p kain-c-ffi -p cli`
+- `cargo test -p kain-c-ffi --target-dir target\codex-foreign-abi -- --test-threads=1 --nocapture` passed 13/13.
+- `cargo check -p kain-c-ffi --target-dir target\codex-foreign-abi`
+- `cargo check -p cli --target-dir target\codex-cffi-cli`
+
+Known boundary:
+
+- This lands the real bitcode/inline link lane and a fused correctness gate. It does not yet implement generic Vulkan-style command-buffer rewriting of arbitrary `vk*` calls; that belongs in the compiler/runtime lowering layer and should target runtime-owned fused command surfaces rather than falling back to dynamic FFI.
+
 # 2026-05-18 - Runtime-owned C header imports and C interop tiers
 
 `crates/kain-c-ffi` now has the first slice of the tiered `use c::` optimizer model: `dynamic`, `static`, `bitcode`, `inline`, and `fused`. The landed behavior is the runtime-owned static lane: Kain files can import headers from `runtime/native/include` without blade-local `[c_ffi]` metadata, and the CLI no longer demands a `shared_lib` for those imports because they link through the native runtime bundle.

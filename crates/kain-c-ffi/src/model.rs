@@ -52,6 +52,10 @@ pub struct ResolvedCLibrary {
     pub manifest_root: PathBuf,
     pub header_path: PathBuf,
     pub shared_lib_path: Option<PathBuf>,
+    pub source_paths: Vec<PathBuf>,
+    pub object_paths: Vec<PathBuf>,
+    pub static_lib_paths: Vec<PathBuf>,
+    pub bitcode_paths: Vec<PathBuf>,
     pub config: CLibraryConfig,
     pub global_config: CFfiConfig,
     pub tier: CInteropTier,
@@ -60,15 +64,20 @@ pub struct ResolvedCLibrary {
 
 impl ResolvedCLibrary {
     pub fn native_runtime_linked(&self) -> bool {
-        self.runtime_owned
-            && self.shared_lib_path.is_none()
-            && matches!(
-                self.tier,
-                CInteropTier::Static
-                    | CInteropTier::Bitcode
-                    | CInteropTier::Inline
-                    | CInteropTier::Fused
-            )
+        self.runtime_owned && self.shared_lib_path.is_none() && self.tier.is_native_link()
+    }
+
+    pub fn source_backed_bitcode(&self) -> bool {
+        self.tier.wants_llvm_bitcode()
+            && (!self.source_paths.is_empty() || !self.bitcode_paths.is_empty())
+    }
+
+    pub fn has_direct_native_link_inputs(&self) -> bool {
+        self.shared_lib_path.is_some()
+            || !self.source_paths.is_empty()
+            || !self.object_paths.is_empty()
+            || !self.static_lib_paths.is_empty()
+            || !self.bitcode_paths.is_empty()
     }
 }
 
@@ -114,6 +123,10 @@ pub struct BindingReport {
     pub parser_backend: String,
     pub header_path: String,
     pub shared_lib_path: Option<String>,
+    pub source_paths: Vec<String>,
+    pub object_paths: Vec<String>,
+    pub static_lib_paths: Vec<String>,
+    pub bitcode_paths: Vec<String>,
     pub interop_tier: CInteropTier,
     pub runtime_owned: bool,
     pub cache_dir: String,
@@ -389,4 +402,10 @@ pub struct ImportCOutput {
     pub prelude_source: String,
     pub packaged_bridge_manifest: PackagedBridgeImport,
     pub cache_hit: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CNativeLinkInputs {
+    pub link_inputs: Vec<PathBuf>,
+    pub link_libs: Vec<String>,
 }
