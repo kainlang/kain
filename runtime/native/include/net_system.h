@@ -46,6 +46,7 @@ typedef struct KainNativeNetFunctionTable {
     int64_t (*http_server_create)(const char* host, int64_t port);
     int64_t (*http_server_listen)(int64_t server_id);
     int64_t (*http_server_pump)(int64_t server_id, int64_t timeout_ms);
+    int64_t (*http_server_pump_batch)(int64_t server_id, int64_t timeout_ms, int64_t max_requests);
     int64_t (*http_server_pending_request_count)(int64_t server_id);
     int64_t (*last_status)(void);
 } KainNativeNetFunctionTable;
@@ -95,6 +96,7 @@ int64_t abi_http_server_route_actor(
     const char* message_kind
 );
 int64_t abi_http_server_pump(int64_t server_id, int64_t timeout_ms);
+int64_t abi_http_server_pump_batch(int64_t server_id, int64_t timeout_ms, int64_t max_requests);
 int64_t abi_http_server_pending_request_count(int64_t server_id);
 int64_t abi_http_server_next_request(int64_t server_id);
 const char* abi_http_request_method(int64_t incoming_request_id);

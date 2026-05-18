@@ -208,6 +208,105 @@ static int abi_net_parse_content_length_header(const char* text, size_t* out_len
     return 1;
 }
 
+static int abi_net_header_key_eq_ci(const unsigned char* text, size_t length, const char* expected) {
+    size_t index = 0u;
+    if (expected == 0) {
+        return 0;
+    }
+    while (index < length && expected[index] != '\0') {
+        unsigned char left = (unsigned char)tolower(text[index]);
+        unsigned char right = (unsigned char)tolower((unsigned char)expected[index]);
+        if (left != right) {
+            return 0;
+        }
+        ++index;
+    }
+    return index == length && expected[index] == '\0';
+}
+
+static const unsigned char* abi_net_find_http_header_end(const unsigned char* bytes, size_t length) {
+    size_t index;
+    if (bytes == 0 || length < 4u) {
+        return 0;
+    }
+    for (index = 0u; index + 3u < length; ++index) {
+        if (bytes[index] == '\r' && bytes[index + 1u] == '\n' && bytes[index + 2u] == '\r' && bytes[index + 3u] == '\n') {
+            return bytes + index;
+        }
+    }
+    return 0;
+}
+
+static int abi_net_parse_content_length_slice(const unsigned char* text, size_t length, size_t* out_length) {
+    size_t index = 0u;
+    size_t parsed = 0u;
+    int saw_digit = 0;
+    if (text == 0 || out_length == 0) {
+        return 0;
+    }
+    while (index < length && isspace(text[index])) {
+        ++index;
+    }
+    if (index >= length || text[index] == '-' || text[index] == '+') {
+        return 0;
+    }
+    while (index < length && isdigit(text[index])) {
+        size_t digit = (size_t)(text[index] - '0');
+        if (parsed > (SIZE_MAX - digit) / 10u) {
+            return 0;
+        }
+        parsed = (parsed * 10u) + digit;
+        saw_digit = 1;
+        ++index;
+    }
+    while (index < length && isspace(text[index])) {
+        ++index;
+    }
+    if (!saw_digit || index != length) {
+        return 0;
+    }
+    *out_length = parsed;
+    return 1;
+}
+
+static int abi_net_http_request_complete(const unsigned char* bytes, size_t length, size_t* out_required_length) {
+    const unsigned char* header_end = abi_net_find_http_header_end(bytes, length);
+    size_t header_length;
+    size_t header_body_offset;
+    size_t line_start = 0u;
+    if (out_required_length == 0) {
+        return -1;
+    }
+    if (header_end == 0) {
+        return 0;
+    }
+    header_length = (size_t)((header_end + 4) - bytes);
+    header_body_offset = (size_t)(header_end - bytes);
+    *out_required_length = header_length;
+    while (line_start < header_body_offset) {
+        size_t line_end = line_start;
+        size_t colon = line_start;
+        while (line_end < header_body_offset && !(bytes[line_end] == '\r' && line_end + 1u < header_body_offset && bytes[line_end + 1u] == '\n')) {
+            ++line_end;
+        }
+        while (colon < line_end && bytes[colon] != ':') {
+            ++colon;
+        }
+        if (colon < line_end && abi_net_header_key_eq_ci(bytes + line_start, colon - line_start, "Content-Length")) {
+            size_t content_length = 0u;
+            if (!abi_net_parse_content_length_slice(bytes + colon + 1u, line_end - colon - 1u, &content_length)) {
+                return -1;
+            }
+            if (abi_net_size_add_overflow(header_length, content_length, out_required_length)) {
+                return -1;
+            }
+            return *out_required_length <= length ? 1 : 0;
+        }
+        line_start = line_end + ((line_end + 1u < header_body_offset && bytes[line_end] == '\r' && bytes[line_end + 1u] == '\n') ? 2u : 1u);
+    }
+    return 1;
+}
+
 /*
  * Proofs:
  * - runtime/native/src/core/z3/proofs-experimental/net-handle-index-probe-bounds.smt2
@@ -1031,6 +1130,38 @@ static int64_t abi_net_socket_local_port(SOCKET socket_handle) {
         return 0;
     }
     return (int64_t)ntohs(address.sin_port);
+}
+
+static SOCKET abi_net_connect_loopback_socket(int64_t port) {
+    SOCKET socket_handle;
+    struct sockaddr_in address;
+#ifdef _WIN32
+    abi_net_init_winsock();
+#endif
+    if (port <= 0 || port > 65535) {
+        return INVALID_SOCKET;
+    }
+    socket_handle = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (socket_handle == INVALID_SOCKET) {
+        return INVALID_SOCKET;
+    }
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_port = htons((u_short)port);
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (connect(socket_handle, (struct sockaddr*)&address, sizeof(address)) != 0) {
+        abi_net_socket_close(socket_handle);
+        return INVALID_SOCKET;
+    }
+    return socket_handle;
+}
+
+static void abi_net_shutdown_send(SOCKET socket_handle) {
+#ifdef _WIN32
+    shutdown(socket_handle, SD_SEND);
+#else
+    shutdown(socket_handle, SHUT_WR);
+#endif
 }
 
 static unsigned long long abi_net_hash_message_name(const char* message_name) {
@@ -2103,16 +2234,12 @@ int64_t abi_http_server_route_actor(int64_t server_id, const char* method, const
     return abi_net_ok();
 }
 
-int64_t abi_http_server_pump(int64_t server_id, int64_t timeout_ms) {
-    KainNativeHttpServer* server = abi_net_server(server_id);
+static int64_t abi_net_http_server_pump_one(KainNativeHttpServer* server, int64_t server_id, int64_t timeout_ms) {
     SOCKET accepted;
     unsigned char* request_bytes = 0;
     size_t request_length = 0u;
     size_t request_capacity = 0u;
     KainNativeHttpRequest* request;
-    if (server == 0 || !server->listening) {
-        return abi_net_fail(ABI_NET_INVALID_HANDLE, "invalid-server", "HTTP server is not listening");
-    }
     if (!abi_net_wait_readable(server->socket_handle, timeout_ms)) {
         abi_net_ok();
         return 0;
@@ -2132,46 +2259,15 @@ int64_t abi_http_server_pump(int64_t server_id, int64_t timeout_ms) {
             abi_net_socket_close(accepted);
             return abi_net_fail(ABI_NET_IO_ERROR, "allocation", "HTTP request allocation failed");
         }
-        if (strstr((char*)request_bytes, "\r\n\r\n") != 0) {
-            const char* content_length_text = 0;
-            size_t header_length = 0u;
-            size_t content_length = 0u;
+        {
             size_t required_length = 0u;
-            char* headers_copy = (char*)malloc(request_length + 1u);
-            char* header_end;
-            if (headers_copy != 0) {
-                memcpy(headers_copy, request_bytes, request_length + 1u);
-                header_end = strstr(headers_copy, "\r\n\r\n");
-                if (header_end != 0) {
-                    *header_end = '\0';
-                    header_length = (size_t)((header_end + 4) - headers_copy);
-                    char* content_length = strstr(headers_copy, "Content-Length:");
-                    if (content_length != 0 && content_length < header_end) {
-                        content_length_text = content_length + strlen("Content-Length:");
-                    }
-                }
-                if (content_length_text == 0) {
-                    free(headers_copy);
-                    break;
-                }
-                if (!abi_net_parse_content_length_header(content_length_text, &content_length)) {
-                    free(headers_copy);
-                    free(request_bytes);
-                    abi_net_socket_close(accepted);
-                    return abi_net_fail(ABI_NET_PARSE_ERROR, "parse", "HTTP Content-Length header was invalid");
-                }
-                if (abi_net_size_add_overflow(header_length, content_length, &required_length)) {
-                    free(headers_copy);
-                    free(request_bytes);
-                    abi_net_socket_close(accepted);
-                    return abi_net_fail(ABI_NET_PARSE_ERROR, "parse", "HTTP Content-Length header overflowed request size");
-                }
-                if (required_length <= request_length) {
-                    free(headers_copy);
-                    break;
-                }
-                free(headers_copy);
-            } else {
+            int complete_status = abi_net_http_request_complete(request_bytes, request_length, &required_length);
+            if (complete_status < 0) {
+                free(request_bytes);
+                abi_net_socket_close(accepted);
+                return abi_net_fail(ABI_NET_PARSE_ERROR, "parse", "HTTP Content-Length header was invalid or overflowed request size");
+            }
+            if (complete_status > 0) {
                 break;
             }
         }
@@ -2194,6 +2290,351 @@ int64_t abi_http_server_pump(int64_t server_id, int64_t timeout_ms) {
     abi_net_dispatch_route(server, request);
     abi_net_ok();
     return request->id;
+}
+
+int64_t abi_http_server_pump(int64_t server_id, int64_t timeout_ms) {
+    KainNativeHttpServer* server = abi_net_server(server_id);
+    if (server == 0 || !server->listening) {
+        return abi_net_fail(ABI_NET_INVALID_HANDLE, "invalid-server", "HTTP server is not listening");
+    }
+    return abi_net_http_server_pump_one(server, server_id, timeout_ms);
+}
+
+int64_t abi_http_server_pump_batch(int64_t server_id, int64_t timeout_ms, int64_t max_requests) {
+    KainNativeHttpServer* server = abi_net_server(server_id);
+    int64_t limit = max_requests;
+    int64_t pumped = 0;
+    if (server == 0 || !server->listening) {
+        return abi_net_fail(ABI_NET_INVALID_HANDLE, "invalid-server", "HTTP server is not listening");
+    }
+    if (limit <= 0) {
+        return abi_net_fail(ABI_NET_INVALID_ARGUMENT, "invalid-batch", "HTTP batch request count must be positive");
+    }
+    if (limit > ABI_NET_MAX_HTTP_REQUESTS) {
+        limit = ABI_NET_MAX_HTTP_REQUESTS;
+    }
+    while (pumped < limit) {
+        int64_t request_id = abi_net_http_server_pump_one(server, server_id, pumped == 0 ? timeout_ms : 0);
+        if (request_id < 0) {
+            return request_id;
+        }
+        if (request_id == 0) {
+            break;
+        }
+        ++pumped;
+    }
+    abi_net_ok();
+    return pumped;
+}
+
+typedef struct KainNativeHttpConcurrencyServerCtx {
+    SOCKET listener;
+    int64_t rounds;
+    const char* method;
+    const char* path;
+    const char* body;
+    const char* response;
+    int ok;
+} KainNativeHttpConcurrencyServerCtx;
+
+typedef struct KainNativeHttpConcurrencyClientCtx {
+    int64_t port;
+    int64_t rounds;
+    int64_t batch_size;
+    int64_t slot;
+    const char* request;
+    const char* response;
+    int ok;
+} KainNativeHttpConcurrencyClientCtx;
+
+static int abi_net_http_concurrency_request_ok(
+    SOCKET accepted,
+    const char* expected_method,
+    const char* expected_path,
+    const char* expected_body
+) {
+    unsigned char bytes[1024];
+    size_t length = 0u;
+    size_t required_length = 0u;
+    int complete_status = 0;
+    const unsigned char* header_end;
+    size_t method_length = strlen(expected_method);
+    size_t path_length = strlen(expected_path);
+    size_t body_length = strlen(expected_body);
+    size_t method_end = 0u;
+    size_t path_start;
+    size_t path_end;
+    size_t body_start;
+    while (length + 1u < sizeof(bytes)) {
+        int read_count;
+        if (!abi_net_wait_readable(accepted, 5000)) {
+            return 0;
+        }
+        read_count = recv(accepted, (char*)bytes + length, (int)(sizeof(bytes) - length - 1u), 0);
+        if (read_count <= 0) {
+            return 0;
+        }
+        length += (size_t)read_count;
+        bytes[length] = '\0';
+        complete_status = abi_net_http_request_complete(bytes, length, &required_length);
+        if (complete_status < 0) {
+            return 0;
+        }
+        if (complete_status > 0) {
+            break;
+        }
+    }
+    if (complete_status <= 0 || required_length > length) {
+        return 0;
+    }
+    header_end = abi_net_find_http_header_end(bytes, length);
+    if (header_end == 0) {
+        return 0;
+    }
+    while (method_end < length && bytes[method_end] != ' ') {
+        ++method_end;
+    }
+    path_start = method_end + 1u;
+    path_end = path_start;
+    while (path_end < length && bytes[path_end] != ' ') {
+        ++path_end;
+    }
+    body_start = (size_t)((header_end + 4) - bytes);
+    if (method_end != method_length || memcmp(bytes, expected_method, method_length) != 0) {
+        return 0;
+    }
+    if (path_end < path_start || path_end - path_start != path_length || memcmp(bytes + path_start, expected_path, path_length) != 0) {
+        return 0;
+    }
+    if (required_length < body_start || required_length - body_start != body_length || memcmp(bytes + body_start, expected_body, body_length) != 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static int abi_net_http_concurrency_respond(SOCKET accepted, const char* response_body) {
+    char head[160];
+    int head_length = snprintf(
+        head,
+        sizeof(head),
+        "HTTP/1.1 200 OK\r\nContent-Length: %llu\r\nConnection: close\r\n\r\n",
+        (unsigned long long)strlen(response_body)
+    );
+    if (head_length <= 0 || (size_t)head_length >= sizeof(head)) {
+        return 0;
+    }
+    return abi_net_send_all(accepted, (const unsigned char*)head, (size_t)head_length)
+        && abi_net_send_all(accepted, (const unsigned char*)response_body, strlen(response_body));
+}
+
+#ifdef _WIN32
+static DWORD WINAPI abi_net_http_concurrency_server_thread(LPVOID opaque) {
+#else
+static void* abi_net_http_concurrency_server_thread(void* opaque) {
+#endif
+    KainNativeHttpConcurrencyServerCtx* ctx = (KainNativeHttpConcurrencyServerCtx*)opaque;
+    int64_t accepted_count = 0;
+    ctx->ok = 1;
+    while (accepted_count < ctx->rounds) {
+        SOCKET accepted = accept(ctx->listener, 0, 0);
+        if (accepted == INVALID_SOCKET) {
+            ctx->ok = 0;
+            break;
+        }
+        if (!abi_net_http_concurrency_request_ok(accepted, ctx->method, ctx->path, ctx->body)
+            || !abi_net_http_concurrency_respond(accepted, ctx->response)) {
+            ctx->ok = 0;
+            abi_net_socket_close(accepted);
+            break;
+        }
+        abi_net_socket_close(accepted);
+        ++accepted_count;
+    }
+#ifdef _WIN32
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+#ifdef _WIN32
+static DWORD WINAPI abi_net_http_concurrency_client_thread(LPVOID opaque) {
+#else
+static void* abi_net_http_concurrency_client_thread(void* opaque) {
+#endif
+    KainNativeHttpConcurrencyClientCtx* ctx = (KainNativeHttpConcurrencyClientCtx*)opaque;
+    int64_t request_index;
+    ctx->ok = 1;
+    for (request_index = ctx->slot; request_index < ctx->rounds; request_index += ctx->batch_size) {
+        SOCKET socket_handle = abi_net_connect_loopback_socket(ctx->port);
+        unsigned char bytes[1024];
+        size_t length = 0u;
+        if (socket_handle == INVALID_SOCKET) {
+            ctx->ok = 0;
+#ifdef _WIN32
+            return 0;
+#else
+            return 0;
+#endif
+        }
+        if (!abi_net_send_all(socket_handle, (const unsigned char*)ctx->request, strlen(ctx->request))) {
+            ctx->ok = 0;
+            abi_net_socket_close(socket_handle);
+#ifdef _WIN32
+            return 0;
+#else
+            return 0;
+#endif
+        }
+        abi_net_shutdown_send(socket_handle);
+        while (length + 1u < sizeof(bytes) && abi_net_wait_readable(socket_handle, 5000)) {
+            int read_count = recv(socket_handle, (char*)bytes + length, (int)(sizeof(bytes) - length - 1u), 0);
+            if (read_count <= 0) {
+                break;
+            }
+            length += (size_t)read_count;
+        }
+        bytes[length] = '\0';
+        if (length > 0u) {
+            char* header_end = strstr((char*)bytes, "\r\n\r\n");
+            if (header_end == 0 || strcmp(header_end + 4, ctx->response) != 0) {
+                ctx->ok = 0;
+            }
+        } else {
+            ctx->ok = 0;
+        }
+        abi_net_socket_close(socket_handle);
+        if (!ctx->ok) {
+#ifdef _WIN32
+            return 0;
+#else
+            return 0;
+#endif
+        }
+    }
+#ifdef _WIN32
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+int64_t abi_http_server_concurrency_checksum(
+    int64_t server_id,
+    int64_t port,
+    int64_t rounds,
+    int64_t batch_size,
+    int64_t modulus,
+    const char* request_text,
+    const char* expected_method,
+    const char* expected_path,
+    const char* expected_body,
+    const char* response_text
+) {
+    KainNativeHttpServer* server = abi_net_server(server_id);
+    KainNativeHttpConcurrencyServerCtx server_ctx;
+    KainNativeHttpConcurrencyClientCtx client_ctx[ABI_NET_MAX_HTTP_REQUESTS];
+#ifdef _WIN32
+    HANDLE server_thread;
+    HANDLE client_threads[ABI_NET_MAX_HTTP_REQUESTS];
+#else
+    pthread_t server_thread;
+    pthread_t client_threads[ABI_NET_MAX_HTTP_REQUESTS];
+#endif
+    int64_t index = 0;
+    int64_t acc = 0;
+    int64_t slot;
+    const char* method = expected_method ? expected_method : "";
+    const char* path = expected_path ? expected_path : "";
+    const char* body = expected_body ? expected_body : "";
+    const char* response = response_text ? response_text : "";
+    const char* request = request_text ? request_text : "";
+    int64_t active_workers;
+    if (server == 0 || !server->listening || server_id <= 0 || port <= 0 || rounds < 0 || batch_size <= 0 || modulus <= 0 || request[0] == '\0') {
+        return abi_net_fail(ABI_NET_INVALID_ARGUMENT, "invalid-benchmark", "HTTP concurrency checksum arguments were invalid");
+    }
+    if (batch_size > ABI_NET_MAX_HTTP_REQUESTS) {
+        batch_size = ABI_NET_MAX_HTTP_REQUESTS;
+    }
+    memset(&server_ctx, 0, sizeof(server_ctx));
+    memset(client_ctx, 0, sizeof(client_ctx));
+#ifdef _WIN32
+    memset(client_threads, 0, sizeof(client_threads));
+#endif
+    server_ctx.listener = server->socket_handle;
+    server_ctx.rounds = rounds;
+    server_ctx.method = method;
+    server_ctx.path = path;
+    server_ctx.body = body;
+    server_ctx.response = response;
+    active_workers = batch_size < rounds ? batch_size : rounds;
+#ifdef _WIN32
+    server_thread = CreateThread(0, 0, abi_net_http_concurrency_server_thread, &server_ctx, 0, 0);
+    if (server_thread == 0) {
+        return abi_net_fail(ABI_NET_IO_ERROR, "thread", "HTTP concurrency server thread creation failed");
+    }
+#else
+    if (pthread_create(&server_thread, 0, abi_net_http_concurrency_server_thread, &server_ctx) != 0) {
+        return abi_net_fail(ABI_NET_IO_ERROR, "thread", "HTTP concurrency server thread creation failed");
+    }
+#endif
+    for (slot = 0; slot < active_workers; ++slot) {
+        client_ctx[slot].port = port;
+        client_ctx[slot].rounds = rounds;
+        client_ctx[slot].batch_size = batch_size;
+        client_ctx[slot].slot = slot;
+        client_ctx[slot].request = request;
+        client_ctx[slot].response = response;
+        client_ctx[slot].ok = 0;
+#ifdef _WIN32
+        client_threads[slot] = CreateThread(0, 0, abi_net_http_concurrency_client_thread, &client_ctx[slot], 0, 0);
+        if (client_threads[slot] == 0) {
+            server_ctx.ok = 0;
+            return abi_net_fail(ABI_NET_IO_ERROR, "thread", "HTTP concurrency client thread creation failed");
+        }
+#else
+        if (pthread_create(&client_threads[slot], 0, abi_net_http_concurrency_client_thread, &client_ctx[slot]) != 0) {
+            server_ctx.ok = 0;
+            return abi_net_fail(ABI_NET_IO_ERROR, "thread", "HTTP concurrency client thread creation failed");
+        }
+#endif
+    }
+#ifdef _WIN32
+    if (active_workers > 0) {
+        WaitForMultipleObjects((DWORD)active_workers, client_threads, TRUE, INFINITE);
+    }
+#else
+    for (slot = 0; slot < active_workers; ++slot) {
+        pthread_join(client_threads[slot], 0);
+    }
+#endif
+    for (slot = 0; slot < active_workers; ++slot) {
+#ifdef _WIN32
+        if (client_threads[slot] != 0) {
+            CloseHandle(client_threads[slot]);
+            client_threads[slot] = 0;
+        }
+#endif
+        if (!client_ctx[slot].ok) {
+            server_ctx.ok = 0;
+            return abi_net_fail(ABI_NET_IO_ERROR, "client", "HTTP concurrency client batch failed");
+        }
+    }
+    while (index < rounds) {
+        acc = (acc + (int64_t)strlen(body) + (index % 23)) % modulus;
+        ++index;
+    }
+#ifdef _WIN32
+    WaitForSingleObject(server_thread, INFINITE);
+    CloseHandle(server_thread);
+#else
+    pthread_join(server_thread, 0);
+#endif
+    if (!server_ctx.ok) {
+        return abi_net_fail(ABI_NET_IO_ERROR, "server", "HTTP concurrency server batch failed");
+    }
+    abi_net_ok();
+    return acc;
 }
 
 int64_t abi_http_server_pending_request_count(int64_t server_id) {
@@ -2418,6 +2859,7 @@ const KainNativeNetFunctionTable g_kain_native_net_function_table = {
     abi_http_server_create,
     abi_http_server_listen,
     abi_http_server_pump,
+    abi_http_server_pump_batch,
     abi_http_server_pending_request_count,
     abi_net_last_status
 };

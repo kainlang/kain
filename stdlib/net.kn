@@ -101,6 +101,9 @@ fn abi_http_server_route_actor(server_id: Int, method: String, path: String, act
 fn abi_http_server_pump(server_id: Int, timeout_ms: Int) -> Int
 
 @extern
+fn abi_http_server_pump_batch(server_id: Int, timeout_ms: Int, max_requests: Int) -> Int
+
+@extern
 fn abi_http_server_pending_request_count(server_id: Int) -> Int
 
 @extern
@@ -258,6 +261,9 @@ pub fn http_route_actor(server_id: Int, method: String, path: String, actor_id: 
 
 pub fn http_server_pump(server_id: Int, timeout_ms: Int) -> Int:
     return abi_http_server_pump(server_id, timeout_ms)
+
+pub fn http_server_pump_batch(server_id: Int, timeout_ms: Int, max_requests: Int) -> Int:
+    return abi_http_server_pump_batch(server_id, timeout_ms, max_requests)
 
 pub fn http_server_pending_request_count(server_id: Int) -> Int:
     return abi_http_server_pending_request_count(server_id)

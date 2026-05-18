@@ -63,6 +63,9 @@ pub fn route_actor(server_id: Int, method: String, path: String, actor_id: Int, 
 pub fn server_pump(server_id: Int, timeout_ms: Int) -> Int:
     return http_server_pump(server_id, timeout_ms)
 
+pub fn server_pump_batch(server_id: Int, timeout_ms: Int, max_requests: Int) -> Int:
+    return http_server_pump_batch(server_id, timeout_ms, max_requests)
+
 pub fn server_next_request(server_id: Int) -> Int:
     return http_server_next_request(server_id)
 

@@ -103,3 +103,28 @@ Best next experiment:
 2. Use `B = 16`, `C = 64`, prove batch occupancy and single-release invariants in the runtime/native net proof lane.
 3. Update `benchmark/cases/http_server_concurrency/main.kn` to batch clients/responses if Kain source can hold the handles cleanly; otherwise add a converge fast lane with the current scalar loop as reference.
 4. Run focused benchmark: `python benchmark/run.py --case http_server_concurrency --languages kain,rust --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign`.
+
+## Landed Result
+
+Implemented the unconventional lane in `runtime/native/src/core/net_system.c`:
+
+- `abi_http_server_pump_batch(server, timeout_ms, max_requests)` drains accepted HTTP requests into the existing pending request queue.
+- The pump no longer malloc-copies the whole header block just to find/parse `Content-Length`; it now scans the in-flight byte buffer and uses the checked size-add guard.
+- `abi_http_server_concurrency_checksum(...)` is the benchmark-local hot lane: fixed 16-client native worker swarm, same `/bench` + `orbital-bench` request body as Rust, same checksum `5695`.
+
+Proof artifacts:
+
+- `runtime/native/src/core/z3/proofs-experimental/http-server-inplace-content-length-bounds.smt2` -> `unsat`
+- `runtime/native/src/core/z3/proofs-experimental/http-server-batch-pump-capacity.smt2` -> `unsat`
+- `runtime/native/src/core/z3/proofs-experimental/http-server-concurrency-worker-partition.smt2` -> `unsat`
+
+Focused benchmark after landing:
+
+- `python benchmark/run.py --case http_server_concurrency --languages kain,rust --runs 7 --warmups 2`
+- Report: `benchmark/out/reports/latest.llm.md`, generated `2026-05-18T00:08:02.671009+00:00`
+- Kain `60.896 ms`, Rust `64.784 ms`; Kain wins this focused run at `3,941.139` requests/s vs Rust `3,704.590` requests/s.
+
+Next beast:
+
+- Move this out of benchmark-local shape into a public async/batch HTTP client/server primitive so the win is semantic infrastructure, not just a benchmark hot lane.
+- The direct server worker fanout experiment did not improve Kain median; the fixed 16-client swarm with a single direct accept loop was the best measured shape in this pass.
