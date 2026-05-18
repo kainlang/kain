@@ -93,3 +93,59 @@ Active thesis: Kain should not merely copy Zig's C interop. The winning architec
 4. `c_fused`: for APIs like Vulkan, compile apparent C calls into a Kain-owned typed command protocol and flush in batches through the C floor.
 
 The moonshot is plausible because Vulkan is already command-buffer shaped. Kain can make the authoring surface look like direct C while the compiler/runtime turns it into fused arena writes plus a handful of native calls.
+
+## 2026-05-18 - File-Local Header Ingestion
+
+User clarified the Zig comparison: the killer property is not only low call cost, but being able to use C headers from any source file without writing a bridge or manifest entry.
+
+Current Kain reality:
+
+- `use c::foo` can generate bindings, but resolution expects `[c_ffi]` / `[[c_ffi.libraries]]` metadata with a named header.
+- LLVM linking currently expects the active C import to declare an existing `shared_lib`/object path.
+- This means Kain has a bridge/config ceremony that Zig mostly hides behind `@cImport`.
+
+New thesis:
+
+- Add file-local C import syntax that creates an ephemeral c-ffi library config directly from the Kain source.
+- The existing `[c_ffi]` manifest stays as an override/cache/policy surface, not a required bridge.
+- The generated Rust bridge remains useful for interpreter/test/plugin lanes, but native LLVM should prefer static object, bitcode, or inline import lanes so no hot dynamic bridge exists.
+
+Candidate syntax:
+
+```kn
+use c::header("nuklear.h") as nk
+
+use c::header("nuklear.h") as nk with:
+    include "vendor/nuklear"
+    define "NK_INCLUDE_FIXED_TYPES"
+    define "NK_INCLUDE_DEFAULT_ALLOCATOR"
+    implementation define "NK_IMPLEMENTATION"
+    mode auto
+```
+
+Lowering:
+
+1. Parser records a `CHeaderImport` item before normal module resolution.
+2. `kain-c-ffi` resolves header/include/defines from the source file directory plus global defaults.
+3. It generates the same canonical `mod c::nk` declarations into `.kain/cache/c_ffi/<hash>/`.
+4. If implementation is requested, it generates a tiny C translation unit such as:
+   `#define NK_IMPLEMENTATION` then `#include "nuklear.h"`.
+5. Build picks the strongest legal lane:
+   - `inline`: static inline/header body imported into Kain IR.
+   - `bitcode`: C TU compiled to LLVM bitcode and linked in the same optimization unit.
+   - `static`: C TU compiled to object/static library.
+   - `dynamic`: fallback shared-library bridge.
+
+For `nuklear.h`, "do nothing" can mean:
+
+- If using declarations only: source-local `use c::header("nuklear.h") as nk` is enough when the header is discoverable.
+- If using Nuklear's single-header implementation: Kain should auto-own the one implementation TU from the source-local import, so the user does not write `nuklear_bridge.c`.
+
+Proof obligations:
+
+- Header import hash includes header bytes, transitive includes, defines, target triple, clang version, and selected mode.
+- Exactly one implementation TU is materialized per import hash when single-header implementation is requested.
+- Generated Kain declarations match C ABI layout/calling convention.
+- Inline/bitcode/static/dynamic lanes expose the same callable symbols.
+
+This is the direct answer to "nuklear.h in a Kain file and do absolutely nothing": make C headers first-class Kain imports, with bridge generation hidden and native lanes avoiding the bridge entirely when possible.
