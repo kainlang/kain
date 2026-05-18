@@ -2,7 +2,7 @@ load("//:tools/bazel/kain_rules.bzl", "kain_stdlib_map", "kain_stdlib_map_check"
 
 package(default_visibility = ["//visibility:public"])
 
-STDLIB_KAIN_SRCS = glob(["**/*.kn"])
+STDLIB_KAIN_SRCS = glob(["*.kn"])
 
 NATIVE_MANIFESTS = [
     "//runtime:native_core_runtime.toml",

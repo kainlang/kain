@@ -59,7 +59,7 @@ Use this skill when the task touches Bazel support for Rust workspace crates.
 - Binaries/tests in a package with a normal library target must depend on `:<package>` because Bazel does not inherit Cargo's implicit same-package library visibility.
 - Keep local path deps explicit and use `all_crate_deps(...)` for external crate-universe deps.
 - Keep build-script handling in the generator and crate annotations, not one-off edits in generated files.
-- The stdlib atlas lane is checked through `//stdlib:stdlib_map_check` and generated through `//stdlib:stdlib_map`; if `kain stdlib-map --check` passes but Bazel fails, compare path-sensitive generator fields first.
+- The stdlib atlas lane is checked through `//stdlib:stdlib_map_check` and generated through `//stdlib:stdlib_map`; it intentionally tracks only native root `stdlib/*.kn` files. If `kain stdlib-map --check` passes but Bazel fails, compare the Bazel glob and path-sensitive generator fields first.
 
 ## Known host notes
 

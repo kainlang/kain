@@ -72,7 +72,7 @@ fn run() -> kain_stdlib_map::Result<()> {
 
     let map = kain_stdlib_map::generate_stdlib_map(&options)?;
     if args.json {
-        println!("{}", serde_json::to_string_pretty(&map)?);
+        println!("{}", serde_json::to_string(&map)?);
     } else {
         print!("{}", kain_stdlib_map::render_llm_markdown(&map));
     }
