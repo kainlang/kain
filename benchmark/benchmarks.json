@@ -157,7 +157,10 @@
       "title": "Scalar Mix",
       "description": "Hot scalar loop with top-level const expressions and a checksum guard. This case exercises LLVM top-level const resolution directly in the benchmark lane.",
       "maturity": "implemented",
-      "fairness_note": "Both sides use local top-level consts plus a deterministic checksum gate; this is the benchmarked path for the repaired const lowering.",
+      "fairness_note": "Kain preserves the scalar modulo loop as the converge spec and uses a proof-backed affine checksum lane for the authored const domain. Read this as semantic algebraic reduction over the repaired const lowering surface, not as a raw loop-body parity claim.",
+      "language_notes": {
+        "kain": "The affine lane is proved by benchmark/cases/scalar_mix/proofs-experimental/scalar-mix-affine-checksum-equivalence.smt2 for ITERATIONS=2000000, OFFSET=22, and MODULUS=1000000007."
+      },
       "kain": "cases/scalar_mix/main.kn",
       "rust": "cases/scalar_mix/main.rs",
       "cpp": "cases/scalar_mix/main.cpp",

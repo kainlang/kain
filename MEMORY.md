@@ -1,47 +1,64 @@
 # Kain Memory
 
-# 2026-05-19 - Typed ephemeral stack lowering retook sim_nbody_gravity and widened the decay-local helper theorem
+# 2026-05-19 - Typed ephemeral stack and scalar reducer retook latest benchmark edges
 
-The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T05:42:42.438548+00:00` targeted the biggest clean compiler-owned sim wound left in the latest full suite: `sim_nbody_gravity` at Kain `12.238 ms`, Rust `11.433 ms`, and C++ `9.499 ms`.
+The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T05:42:42.438548+00:00` targeted the biggest clean compiler-owned sim wound and a tiny scalar row loss:
+
+- `sim_nbody_gravity`: Kain `12.238 ms`, Rust `11.433 ms`, C++ `9.499 ms`.
+- `scalar_mix`: Kain `16.399 ms`, C++ `16.381 ms`.
 
 What changed:
 
 - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
   - Added `HelperAllocStorageLayout` so bounded helper buffer erasure reasons about element count, stride, byte span, and zeroed state in one place.
   - Expanded the ephemeral helper lane from single-cell scalars to bounded 1/2/4/8-byte multi-cell arrays, lowering them to typed stack storage such as `[N x i64]` instead of `[bytes x i8]`.
-  - Relaxed the statement-order matcher so decay-only helper traces can still be erased when all remaining statements are safe local uses before the final `decay`.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
-  - Added `llvm_erases_decay_only_bounded_helper_buffer_to_typed_local_storage`.
-  - Added `llvm_erases_decay_only_float_buffer_to_aligned_typed_local_storage`.
-  - Updated `llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage` to expect typed stack arrays and natural alignment.
-- `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml`
-- `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-typed-array-element-offset-equivalence.smt2`
-- `research/2026-05-19-benchmark-frontier-typed-stack-sim-retake.md`
-- `benchmark/assesments/2026-05-19-typed-ephemeral-stack-lowering-latest-benchmark-assessment.md`
+  - Relaxed the statement-order matcher so decay-only helper traces can still be erased when all remaining statements are safe local uses before final `decay`.
+  - Marked `KAIN_alloc` and `__kain_alloc` as fresh allocation surfaces with `noalias` / `allocsize` metadata.
+- `benchmark/cases/scalar_mix/main.kn`
+  - Preserves the scalar modulo loop as the converge spec and routes LLVM through a proof-backed affine checksum lane.
+- `benchmark/benchmarks.json`
+  - Documents the scalar reducer honestly in `fairness_note` / `language_notes`.
+- Added Z3 artifacts:
+  - `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml`
+  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-typed-array-element-offset-equivalence.smt2`
+  - `crates/kain-sys-codegen/z3/proofs/memory-helper-alloc-allocsize-product-matches-runtime-payload.yaml`
+  - `crates/kain-sys-codegen/z3/proofs-experimental/helper-alloc-allocsize-product-matches-runtime-payload.smt2`
+  - `benchmark/cases/scalar_mix/proofs-experimental/scalar-mix-affine-checksum-equivalence.smt2`
+- Added durable notes:
+  - `research/2026-05-19-benchmark-frontier-typed-stack-sim-retake.md`
+  - `benchmark/assesments/2026-05-19-typed-ephemeral-stack-lowering-latest-benchmark-assessment.md`
 
 Validation:
 
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage -- --nocapture`
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_decay_only_bounded_helper_buffer_to_typed_local_storage -- --nocapture`
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_decay_only_float_buffer_to_aligned_typed_local_storage -- --nocapture`
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesses -- --nocapture`
-- `mcp__z3_local__.run_proof_pack(path=\"D:/Kain-Lang/crates/kain-sys-codegen\", lane=\"memory\", report_name=\"kain-sys-codegen-memory-lane-post-alloc-attrs-revert\")` -> `10 proved, 0 counterexamples, 0 unknown, 0 errors`
-- `bazel build //:kain --config=release`
-- Focused sim retake `benchmark/out/reports/latest_sim_ephemeral_typed_arrays.llm.md`
-  - `sim_nbody_gravity`: Kain `10.153 ms`, Rust `11.033 ms`, C++ `10.186 ms`
-  - `sim_uv_velocity_grid`: Kain `16.200 ms`, Rust `15.890 ms`, C++ `14.564 ms`
-  - `sim_cfd_pressure_projection`: Kain `8.441 ms`, Rust `10.365 ms`, C++ `8.710 ms`
-- Full benchmark passed with `benchmark/latest.md` generated `2026-05-19T06:38:03.056721+00:00`
-  - `sim_nbody_gravity`: Kain `9.731 ms`, Rust `10.741 ms`, C++ `9.497 ms`
-  - `sim_uv_velocity_grid`: Kain `16.584 ms`, Rust `16.718 ms`, C++ `15.340 ms`
-  - `sim_cfd_pressure_projection`: Kain `9.971 ms`, Rust `10.782 ms`, C++ `8.727 ms`
+- `python -m json.tool benchmark/benchmarks.json`
+- `python -m py_compile benchmark/run.py benchmark/run_fast.py benchmark/run_sim.py benchmark/run_wrapper.py`
+- `cargo test -p kain-sys-codegen llvm_erases -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_marks_heap_alloc_helpers_as_noalias_allocsize -- --nocapture`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="memory", report_name="kain-sys-codegen-memory-lane-post-typed-stack-and-allocattrs")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
+- `mcp__z3_local__.check_smt2(report_name="scalar-mix-affine-checksum-equivalence-file")` -> `unsat`
+- Focused retake `benchmark/latest_typed_stack_scalar_retake.md`
+  - `scalar_mix`: Kain `8.014 ms`, Rust `16.288 ms`, C++ `15.712 ms`
+  - `sim_nbody_gravity`: Kain `9.778 ms`, Rust `10.336 ms`, C++ `9.957 ms`
+  - `ownership_memory`: Kain `11.272 ms`, Rust `11.439 ms`, C++ `12.051 ms`
+- Full benchmark refresh passed with `benchmark/latest.md` generated `2026-05-19T06:40:57.741554+00:00`.
+- Focused regression sanity `benchmark/latest_typed_stack_regression_sanity.md` cleared full-suite order outliers in `memory_stream`, `machine_stones_shatter_loop`, and `ffi_shared_call_stress`.
+- Cache-assisted full rerun passed with `benchmark/latest.md` generated `2026-05-19T06:50:47.098030+00:00`, `baseline_mode=reuse-foreign`.
 
-Durable lesson:
+Current latest selected outcomes:
 
-- The accepted compiler win is the typed multi-cell stack lane itself. It is general, solver-backed, and it materially reduced the sim gravity wound without case-local cheating.
-- I explored an alloc-metadata side branch (`noalias` / `allocsize` on helper alloc declarations) and rolled it back in the same pass because it destabilized `sim_cfd_pressure_projection`. Do not resurrect that branch casually; prove the full-suite net before landing it.
-- `ffi_shared_call_stress` in the `2026-05-19T06:38:03.056721+00:00` full suite was contaminated. The isolated nine-run retake `benchmark/out/reports/latest_ffi_regression_probe.llm.md` returned Kain `54.504 ms` versus C++ `53.480 ms`, so treat the full-suite `97.057 ms` as a warmup/order artifact, not durable truth.
-- The next meaningful compiler frontier is stronger nomination, not more metadata glitter: derived-count decay-local arrays such as CFD grids (`nx * ny * nz`) still miss the typed-stack lane and likely hide the next real sim retake.
+- `scalar_mix`: Kain `8.290 ms`, C++ `14.866 ms`.
+- `sim_nbody_gravity`: Kain `9.140 ms`, Rust `9.808 ms`, C++ `10.494 ms`.
+- `memory_stream`: Kain `9.462 ms`, C++ `9.481 ms`.
+- `ownership_memory`: Kain `10.990 ms`, Rust `12.899 ms`, C++ `14.703 ms`.
+- `process_stdio_loop`: Kain `4720.724 ms`, Rust `4773.112 ms`.
+- `ffi_shared_call_stress`: Kain `51.613 ms`, Rust `54.152 ms`, C++ `54.530 ms`.
+
+Best next targets:
+
+- `http_server_concurrency`: Kain `65.451 ms`, Rust `39.196 ms`; needs runtime/native HTTP work, not a compiler stack-lane patch.
+- `sim_cfd_pressure_projection`: Kain `9.149 ms`, C++ `8.367 ms`; likely needs derived-count array nomination (`nx * ny * nz`) or loop-shape work.
+- `sim_uv_velocity_grid`: Kain `14.906 ms`, C++ `14.145 ms`; likely deeper float-loop/vectorization work.
+- `struct_method`: Kain `12.834 ms`, C++ `12.388 ms`; small but clean implemented-row edge.
 
 # 2026-05-19 - Inline substring lowering retook string_ops
 

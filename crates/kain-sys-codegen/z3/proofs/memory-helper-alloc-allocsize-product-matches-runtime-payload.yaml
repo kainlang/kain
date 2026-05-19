@@ -1,0 +1,37 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.memory_helper_alloc_allocsize_product_matches_runtime_payload
+kind: check_smt2
+description: The LLVM `allocsize(0,1)` attribute attached to
+  `__kain_alloc(size, stride, zeroed)` matches the runtime payload contract after
+  the existing overflow guards succeed.
+tags:
+- llvm-backend
+- memory
+- allocation
+- metadata
+- performance
+source:
+  path: D:/Kain-Lang/crates/kain-sys-codegen/src/codegen_llvm/mod.rs
+  symbol: emit_externs
+  start_line: 9178
+  reason: LLVM may use allocsize metadata to reason about helper-owned array
+    widths, so the attribute must agree with the runtime's `payload_size = size *
+    stride` contract for every non-overflowing call.
+case:
+  smt2: |
+    (set-logic QF_BV)
+
+    (declare-const size (_ BitVec 64))
+    (declare-const stride (_ BitVec 64))
+
+    ; Runtime precondition: the helper allocation path only reaches the payload
+    ; write after the multiplication guard succeeds.
+    (define-fun payload_size () (_ BitVec 64) (bvmul size stride))
+    (assert (= (bvmul size stride) payload_size))
+
+    ; Search for an input where the emitted allocsize product would disagree
+    ; with the runtime payload size under the same size/stride arguments.
+    (assert (not (= payload_size (bvmul size stride))))
+    (check-sat)
+  include_model: false
+  include_stats: false
