@@ -1,5 +1,51 @@
 # Kain Memory
 
+# 2026-05-19 - Multi-buffer ephemeral stack lowering activated the real sim hot paths
+
+The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T06:50:47.098030+00:00` targeted the cleanest remaining compiler-owned sim frontier:
+
+- `sim_cfd_pressure_projection`: Kain `9.149 ms`, C++ `8.367 ms`
+- `sim_uv_velocity_grid`: Kain `14.906 ms`, C++ `14.145 ms`
+- `struct_method`: Kain `12.834 ms`, C++ `12.388 ms`
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - The existing typed ephemeral helper-buffer lane already discovered fixed layouts for derived-count simulation buffers, but it still rejected sibling helper-buffer traffic expressed as `__kain_mem_load` / `__kain_mem_store` calls.
+  - Relaxed `expr_is_safe_for_ephemeral_local(...)` so those helper-call memory ops are accepted when they either target the active ephemeral buffer or touch another pointer expression that is otherwise side-effect-safe and non-escaping.
+  - This lets the remaining-statement contract survive real multi-buffer CFD and UV loops, so the backend can erase helper heap protocol from the hot path.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Added `llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage`.
+  - The regression uses sibling `ptr<Float>` helper buffers with `cell_count = nx * ny * nz` and nested loops, then asserts there are typed stack allocas plus raw `load double` / `store double` instructions and no helper alloc/decay calls.
+- Added durable notes:
+  - `research/2026-05-19-derived-typed-stack-cfd.md`
+  - `benchmark/assesments/2026-05-19-multibuffer-ephemeral-stack-lowering-latest-benchmark-assessment.md`
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage -- --nocapture`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="memory", report_name="20260519T-kain-sys-codegen-memory-after-multibuffer-ephemeral")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
+- `bazel build //:kain --config=release`
+- Full suite refresh:
+  - `py benchmark/run.py --runs 9 --warmups 3 --kain-exe D:/Kain-Bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-opt/bin/crates/cli/kain.exe --latest-stem latest`
+  - generated `benchmark/out/reports/latest.llm.md` at `2026-05-19T08:30:28.919652+00:00`
+- Focused post-suite sanity:
+  - `py benchmark/run.py --case sim_nbody_gravity,sim_uv_velocity_grid,sim_cfd_pressure_projection --languages kain,rust,cpp --runs 9 --warmups 3 --baseline-mode refresh-foreign --kain-exe D:/Kain-Bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-opt/bin/crates/cli/kain.exe --latest-stem latest_sim_multibuffer_postsuite_sanity`
+
+Current latest selected outcomes:
+
+- `struct_method`: Kain `12.918 ms`, Rust `14.859 ms`, C++ `13.592 ms`
+- `sim_nbody_gravity`: Kain `10.361 ms`, Rust `11.934 ms`, C++ `10.304 ms`
+- `sim_uv_velocity_grid`: Kain `17.175 ms`, Rust `22.117 ms`, C++ `15.834 ms`
+- `sim_cfd_pressure_projection`: Kain `10.962 ms`, Rust `11.158 ms`, C++ `9.938 ms`
+- `http_server_concurrency`: Kain `68.686 ms`, Rust `62.397 ms`
+
+Durable lesson:
+
+- The real blocker was not raw derived-count discovery anymore. The backend already had enough layout information; it was the sibling helper-call mem-op surface that poisoned the ephemeral theorem.
+- The hot sim rows now lower through typed stack storage in real benchmark IR, so the next honest gains are likely float-loop IR quality work rather than more ownership-protocol removal.
+- `http_server_concurrency` remains the biggest non-sim implemented gap and needs runtime/native HTTP work, not another sys-codegen stack-lowering patch.
+
 # 2026-05-19 - Typed ephemeral stack and scalar reducer retook latest benchmark edges
 
 The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T05:42:42.438548+00:00` targeted the biggest clean compiler-owned sim wound and a tiny scalar row loss:

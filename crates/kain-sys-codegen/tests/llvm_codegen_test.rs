@@ -1655,6 +1655,23 @@ fn llvm_erases_decay_only_float_buffer_to_aligned_typed_local_storage() {
 }
 
 #[test]
+fn llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage() {
+    let typed = typed_program_from_source(
+        "fn idx(x: Int, y: Int, z: Int, nx: Int, ny: Int) -> Int:\n    return z * nx * ny + y * nx + x\n\nfn main() -> Int:\n    let nx: Int = 8\n    let ny: Int = 6\n    let nz: Int = 5\n    let cell_count: Int = nx * ny * nz\n    let mut pressure: ptr<Float> = alloc_zeroed(cell_count, \"Float\")\n    let mut pressure_old: ptr<Float> = alloc_zeroed(cell_count, \"Float\")\n    var z0: Int = 1\n    while z0 < nz - 1:\n        var y0: Int = 1\n        while y0 < ny - 1:\n            var x0: Int = 1\n            while x0 < nx - 1:\n                let cell: Int = idx(x0, y0, z0, nx, ny)\n                mem_store(ptr_offset(pressure_old, cell, \"Float\"), 1.25, \"Float\")\n                let next_value: Float = mem_load(ptr_offset(pressure_old, cell, \"Float\"), \"Float\") + 0.5\n                mem_store(ptr_offset(pressure, cell, \"Float\"), next_value, \"Float\")\n                x0 = x0 + 1\n            y0 = y0 + 1\n        z0 = z0 + 1\n    let sample = mem_load(ptr_offset(pressure, idx(3, 2, 2, nx, ny), \"Float\"), \"Float\")\n    decay pressure\n    decay pressure_old\n    if sample > 0.0:\n        return 1\n    return 0\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(llvm.contains("alloca [240 x i64]"));
+    assert!(llvm.contains("load double, double*"));
+    assert!(llvm.contains("store double"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "sim-style-derived-float-buffer-typed-local-storage");
+}
+
+#[test]
 fn llvm_marks_heap_alloc_helpers_as_noalias_allocsize() {
     let typed = typed_program_from_source(
         "fn main() -> Int:\n    return 0\n",

@@ -2600,11 +2600,21 @@ impl LlvmGenerator {
             Expr::Call { callee, args, .. } => {
                 if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_load") {
                     args.len() == 1
-                        && Self::expr_is_ephemeral_target_address(&args[0].value, target)
+                        && (Self::expr_is_ephemeral_target_address(&args[0].value, target)
+                            || (!Self::expr_is_exact_target_pointer(&args[0].value, target)
+                                && Self::expr_is_safe_for_ephemeral_local(
+                                    &args[0].value,
+                                    target,
+                                )))
                 } else if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_store")
                 {
                     args.len() == 2
-                        && Self::expr_is_ephemeral_target_address(&args[0].value, target)
+                        && (Self::expr_is_ephemeral_target_address(&args[0].value, target)
+                            || (!Self::expr_is_exact_target_pointer(&args[0].value, target)
+                                && Self::expr_is_safe_for_ephemeral_local(
+                                    &args[0].value,
+                                    target,
+                                )))
                         && Self::expr_is_safe_for_ephemeral_local(&args[1].value, target)
                 } else {
                     Self::expr_is_safe_for_ephemeral_local(callee, target)
@@ -2693,9 +2703,13 @@ impl LlvmGenerator {
             }
             Expr::MemLoad { pointer, .. } => {
                 Self::expr_is_ephemeral_target_address(pointer, target)
+                    || (!Self::expr_is_exact_target_pointer(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(pointer, target))
             }
             Expr::MemStore { pointer, value, .. } => {
-                Self::expr_is_ephemeral_target_address(pointer, target)
+                (Self::expr_is_ephemeral_target_address(pointer, target)
+                    || (!Self::expr_is_exact_target_pointer(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(pointer, target)))
                     && Self::expr_is_safe_for_ephemeral_local(value, target)
             }
             Expr::Alloc { size, .. } => Self::expr_is_safe_for_ephemeral_local(size, target),
@@ -10371,8 +10385,8 @@ impl LlvmGenerator {
         self.known_i64_literal_scopes.push(HashMap::new());
         self.known_nonnegative_i64_scopes.push(HashSet::new());
         self.forwarded_mem_slot_scopes.push(HashMap::new());
-        for stmt in &block.stmts {
-            if let Err(err) = self.compile_stmt(stmt) {
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            if let Err(err) = self.compile_stmt(stmt, &block.stmts[index + 1..]) {
                 self.forwarded_mem_slot_scopes.pop();
                 self.known_nonnegative_i64_scopes.pop();
                 self.known_i64_literal_scopes.pop();
@@ -10439,7 +10453,7 @@ impl LlvmGenerator {
                         self.clear_current_forwarded_mem_slots();
                     }
                 } else {
-                    if let Err(err) = self.compile_stmt(stmt) {
+                    if let Err(err) = self.compile_stmt(stmt, &block.stmts[i + 1..]) {
                         self.forwarded_mem_slot_scopes.pop();
                         self.known_nonnegative_i64_scopes.pop();
                         self.known_i64_literal_scopes.pop();
@@ -10457,7 +10471,7 @@ impl LlvmGenerator {
                     }
                 }
             } else {
-                if let Err(err) = self.compile_stmt(stmt) {
+                if let Err(err) = self.compile_stmt(stmt, &block.stmts[i + 1..]) {
                     self.forwarded_mem_slot_scopes.pop();
                     self.known_nonnegative_i64_scopes.pop();
                     self.known_i64_literal_scopes.pop();
@@ -10738,7 +10752,7 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    fn compile_stmt(&mut self, stmt: &Stmt) -> KainResult<()> {
+    fn compile_stmt(&mut self, stmt: &Stmt, remaining_stmts: &[Stmt]) -> KainResult<()> {
         match stmt {
             Stmt::Let {
                 pattern, value, ty, ..
@@ -10799,18 +10813,32 @@ impl LlvmGenerator {
                             }
                         }
 
-                        if self.current_scope_marks_ephemeral_candidate(name) {
-                            let known_i64_bindings = self.current_known_i64_literals();
-                            if let Some(layout) =
-                                Self::helper_alloc_storage_layout_with_bindings(
-                                    val_expr,
-                                    &known_i64_bindings,
-                                )
-                            {
+                        let known_i64_bindings = self.current_known_i64_literals();
+                        if let Some(layout) =
+                            Self::helper_alloc_storage_layout_with_bindings(
+                                val_expr,
+                                &known_i64_bindings,
+                            )
+                        {
+                            let should_use_ephemeral_local =
+                                self.current_scope_marks_ephemeral_candidate(name)
+                                    || Self::remaining_statements_preserve_ephemeral_contract(
+                                        remaining_stmts,
+                                        name,
+                                    );
+                            if should_use_ephemeral_local {
+                                let known_llvm_types = self.current_known_llvm_types();
                                 let single_cell = layout.element_count == 1;
-                                let emit_initial_zero =
-                                    layout.zeroed
-                                        && !self.current_scope_elides_ephemeral_zero_init(name);
+                                let emit_initial_zero = layout.zeroed
+                                    && !(self.current_scope_elides_ephemeral_zero_init(name)
+                                        || (single_cell
+                                            && self
+                                                .remaining_statements_allow_ephemeral_zero_init_elision(
+                                                    remaining_stmts,
+                                                    name,
+                                                    layout.byte_len,
+                                                    &known_llvm_types,
+                                                )));
                                 let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                                 self.reg_count += 1;
                                 self.emit_entry_alloca(&addr_reg, "i64");
