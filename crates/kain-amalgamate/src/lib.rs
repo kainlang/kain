@@ -503,7 +503,10 @@ pub fn default_materialize_root(base: &Path) -> PathBuf {
     base.join(".kain").join("cache").join("amalgamate")
 }
 
-pub fn materialize_capsule(path: &Path, base_cache_root: &Path) -> CapsuleResult<MaterializedCapsule> {
+pub fn materialize_capsule(
+    path: &Path,
+    base_cache_root: &Path,
+) -> CapsuleResult<MaterializedCapsule> {
     let (_, metadata, archive) = read_capsule(path)?;
     let digest_folder = digest_folder_name(&metadata.digest)?;
     let cache_root = base_cache_root.join(digest_folder);
@@ -593,13 +596,15 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
             .unwrap_or_else(|| folder_name(&root))
     });
     let version = options.version.clone().or_else(|| {
-        manifest
-            .as_ref()
-            .and_then(|manifest| manifest.blade.version.clone().or(manifest.package.version.clone()))
+        manifest.as_ref().and_then(|manifest| {
+            manifest
+                .blade
+                .version
+                .clone()
+                .or(manifest.package.version.clone())
+        })
     });
-    let manifest_rel = manifest
-        .as_ref()
-        .map(|_| "KAIN.toml".to_string());
+    let manifest_rel = manifest.as_ref().map(|_| "KAIN.toml".to_string());
     let entry_rel = manifest
         .as_ref()
         .and_then(preferred_manifest_entry)
@@ -686,7 +691,13 @@ fn render_capsule_text(
 ) -> CapsuleResult<String> {
     let mut output = String::new();
     if header_style != CapsuleHeaderStyle::Off {
-        render_header(&mut output, metadata, archive, header_style, preview_symbol_limit);
+        render_header(
+            &mut output,
+            metadata,
+            archive,
+            header_style,
+            preview_symbol_limit,
+        );
     }
     render_metadata_block(&mut output, metadata)?;
     match metadata.storage {
@@ -744,14 +755,20 @@ fn render_header(
             metadata.file_count, metadata.module_count
         )),
     );
-    push_comment_line(output, Some("---------------------------------------------------------------------------"));
+    push_comment_line(
+        output,
+        Some("---------------------------------------------------------------------------"),
+    );
     if header_style == CapsuleHeaderStyle::Minimal {
         push_comment_line(output, None);
         return;
     }
     push_comment_line(output, None);
     if archive.preview.sections.is_empty() {
-        push_comment_line(output, Some("-- PROJECT STRUCTURE PREVIEW ------------------------------------------------"));
+        push_comment_line(
+            output,
+            Some("-- PROJECT STRUCTURE PREVIEW ------------------------------------------------"),
+        );
         push_comment_line(output, None);
         for path in archive.files.iter().take(8).map(|file| file.path.as_str()) {
             push_comment_line(output, Some(&format!("{path}")));
@@ -768,7 +785,10 @@ fn render_header(
         push_comment_line(output, None);
         return;
     }
-    push_comment_line(output, Some("-- PUBLIC INTERFACE DIRECTORY -----------------------------------------------"));
+    push_comment_line(
+        output,
+        Some("-- PUBLIC INTERFACE DIRECTORY -----------------------------------------------"),
+    );
     push_comment_line(output, None);
     let mut shown = 0usize;
     for section in &archive.preview.sections {
@@ -776,7 +796,8 @@ fn render_header(
             break;
         }
         push_comment_line(output, Some(&format!("[{}]", section.title)));
-        for row in render_symbol_rows(&section.symbols, preview_symbol_limit.saturating_sub(shown)) {
+        for row in render_symbol_rows(&section.symbols, preview_symbol_limit.saturating_sub(shown))
+        {
             shown += row.1;
             push_comment_line(output, Some(&format!("  {}", row.0)));
             if shown >= preview_symbol_limit {
@@ -828,7 +849,9 @@ fn render_editable_file_blocks(output: &mut String, files: &[SourceFile]) -> Cap
 }
 
 fn render_editable_file_block(output: &mut String, file: &SourceFile) -> CapsuleResult<()> {
-    let text = std::str::from_utf8(&file.bytes).ok().map(normalize_editable_text);
+    let text = std::str::from_utf8(&file.bytes)
+        .ok()
+        .map(normalize_editable_text);
     let file_metadata = EditableFileMetadata {
         path: file.rel_path.clone(),
         kind: if text.is_some() {
@@ -897,26 +920,23 @@ fn parse_capsule_metadata(text: &str) -> CapsuleResult<CapsuleMetadata> {
     Ok(metadata)
 }
 
-fn read_archive_capsule(text: &str, metadata: &CapsuleMetadata) -> CapsuleResult<ResolvedCapsuleArchive> {
+fn read_archive_capsule(
+    text: &str,
+    metadata: &CapsuleMetadata,
+) -> CapsuleResult<ResolvedCapsuleArchive> {
     let payload_text = extract_block_text(text, CAPSULE_PAYLOAD_START, CAPSULE_PAYLOAD_END)?;
     let payload_text = payload_text.lines().collect::<String>();
     let payload_bytes = BASE64_STANDARD.decode(payload_text.as_bytes())?;
     if metadata.payload_encoding.as_deref() != Some(CAPSULE_PAYLOAD_ENCODING) {
         return Err(CapsuleError::Format(format!(
             "unsupported capsule payload encoding '{}'",
-            metadata
-                .payload_encoding
-                .as_deref()
-                .unwrap_or("<missing>")
+            metadata.payload_encoding.as_deref().unwrap_or("<missing>")
         )));
     }
     if metadata.payload_format.as_deref() != Some(CAPSULE_PAYLOAD_FORMAT) {
         return Err(CapsuleError::Format(format!(
             "unsupported capsule payload format '{}'",
-            metadata
-                .payload_format
-                .as_deref()
-                .unwrap_or("<missing>")
+            metadata.payload_format.as_deref().unwrap_or("<missing>")
         )));
     }
     let payload_sha = format!("sha256:{}", hex_sha256(&payload_bytes));
@@ -935,7 +955,10 @@ fn read_archive_capsule(text: &str, metadata: &CapsuleMetadata) -> CapsuleResult
     Ok(resolved)
 }
 
-fn read_editable_capsule(text: &str, metadata: &CapsuleMetadata) -> CapsuleResult<ResolvedCapsuleArchive> {
+fn read_editable_capsule(
+    text: &str,
+    metadata: &CapsuleMetadata,
+) -> CapsuleResult<ResolvedCapsuleArchive> {
     let mut files = Vec::new();
     let mut lines = text.lines();
     while let Some(line) = lines.next() {
@@ -945,7 +968,9 @@ fn read_editable_capsule(text: &str, metadata: &CapsuleMetadata) -> CapsuleResul
         let mut metadata_body = String::new();
         loop {
             let line = lines.next().ok_or_else(|| {
-                CapsuleError::Format("editable capsule file block is missing content marker".to_string())
+                CapsuleError::Format(
+                    "editable capsule file block is missing content marker".to_string(),
+                )
             })?;
             let trimmed = line.trim();
             if trimmed == CAPSULE_FILE_CONTENT_START {
@@ -964,7 +989,9 @@ fn read_editable_capsule(text: &str, metadata: &CapsuleMetadata) -> CapsuleResul
         let mut content_lines = Vec::new();
         loop {
             let line = lines.next().ok_or_else(|| {
-                CapsuleError::Format("editable capsule file block is missing an end marker".to_string())
+                CapsuleError::Format(
+                    "editable capsule file block is missing an end marker".to_string(),
+                )
             })?;
             if line.trim() == CAPSULE_FILE_END {
                 break;
@@ -1046,13 +1073,16 @@ fn extract_block_text(text: &str, start_marker: &str, end_marker: &str) -> Capsu
 
 fn strip_comment_prefix(line: &str) -> CapsuleResult<&str> {
     let trimmed = line.trim_start();
-    let rest = trimmed
-        .strip_prefix("//")
-        .ok_or_else(|| CapsuleError::Format("capsule block lines must stay comment-prefixed".to_string()))?;
+    let rest = trimmed.strip_prefix("//").ok_or_else(|| {
+        CapsuleError::Format("capsule block lines must stay comment-prefixed".to_string())
+    })?;
     Ok(rest.strip_prefix(' ').unwrap_or(rest))
 }
 
-fn validate_archive_against_metadata(archive: &CapsuleArchive, metadata: &CapsuleMetadata) -> CapsuleResult<()> {
+fn validate_archive_against_metadata(
+    archive: &CapsuleArchive,
+    metadata: &CapsuleMetadata,
+) -> CapsuleResult<()> {
     if archive.schema != CAPSULE_SCHEMA_VERSION_V1 && archive.schema != CAPSULE_SCHEMA_VERSION {
         return Err(CapsuleError::Format(
             "capsule archive schema does not match a supported capsule version".to_string(),
@@ -1105,7 +1135,9 @@ fn validate_resolved_archive_against_metadata(
     Ok(())
 }
 
-fn resolved_archive_from_payload(archive: &CapsuleArchive) -> CapsuleResult<ResolvedCapsuleArchive> {
+fn resolved_archive_from_payload(
+    archive: &CapsuleArchive,
+) -> CapsuleResult<ResolvedCapsuleArchive> {
     let mut files = Vec::with_capacity(archive.files.len());
     for file in &archive.files {
         let bytes = BASE64_STANDARD.decode(file.bytes_base64.as_bytes())?;
@@ -1129,7 +1161,9 @@ fn resolved_archive_from_payload(archive: &CapsuleArchive) -> CapsuleResult<Reso
     })
 }
 
-fn build_capsule_archive_from_resolved(archive: &ResolvedCapsuleArchive) -> CapsuleResult<CapsuleArchive> {
+fn build_capsule_archive_from_resolved(
+    archive: &ResolvedCapsuleArchive,
+) -> CapsuleResult<CapsuleArchive> {
     let files = archive
         .files
         .iter()
@@ -1150,7 +1184,10 @@ fn build_capsule_archive_from_resolved(archive: &ResolvedCapsuleArchive) -> Caps
     })
 }
 
-fn unpack_resolved_archive(archive: &ResolvedCapsuleArchive, output_root: &Path) -> CapsuleResult<()> {
+fn unpack_resolved_archive(
+    archive: &ResolvedCapsuleArchive,
+    output_root: &Path,
+) -> CapsuleResult<()> {
     kfs::create_dir_all(output_root)?;
     for directory in &archive.directories {
         let rel = capsule_rel_to_path(directory);
@@ -1231,7 +1268,8 @@ fn build_preview(
     let module_count = if module_index == CapsuleIndexMode::Off {
         0
     } else {
-        files.iter()
+        files
+            .iter()
             .filter(|file| file.rel_path.ends_with(".kn"))
             .count()
     };
@@ -1507,12 +1545,13 @@ fn path_to_capsule_string(path: impl AsRef<Path>) -> String {
 }
 
 fn capsule_rel_to_path(path: &str) -> PathBuf {
-    path.split('/')
-        .filter(|segment| !segment.is_empty())
-        .fold(PathBuf::new(), |mut acc, segment| {
+    path.split('/').filter(|segment| !segment.is_empty()).fold(
+        PathBuf::new(),
+        |mut acc, segment| {
             acc.push(segment);
             acc
-        })
+        },
+    )
 }
 
 fn folder_name(path: &Path) -> String {

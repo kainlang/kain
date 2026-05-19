@@ -867,7 +867,8 @@ fn ambient_stdlib_modules_for_target(_target: CompileTarget) -> &'static [&'stat
 }
 
 fn resolve_frontend_import_file(import: &Use) -> Option<PathBuf> {
-    resolve_frontend_stdlib_module_file(import).or_else(|| resolve_frontend_filesystem_module_file(import))
+    resolve_frontend_stdlib_module_file(import)
+        .or_else(|| resolve_frontend_filesystem_module_file(import))
 }
 
 fn resolve_frontend_stdlib_module_file(import: &Use) -> Option<PathBuf> {
@@ -2269,13 +2270,15 @@ fn main() -> Int:
         )
         .expect("frontend bundle");
 
-        assert!(frontend.full_source.contains("pub fn vec3_length(value: Vec3) -> Float:"));
+        assert!(frontend
+            .full_source
+            .contains("pub fn vec3_length(value: Vec3) -> Float:"));
         assert!(frontend
             .full_source
             .contains("pub fn native_runtime_init() -> Int:"));
-        assert!(frontend
-            .full_source
-            .contains("pub fn native_actor_spawn(actor_name: String, init_payload: String) -> Int:"));
+        assert!(frontend.full_source.contains(
+            "pub fn native_actor_spawn(actor_name: String, init_payload: String) -> Int:"
+        ));
         assert!(!frontend.full_source.contains("actor GenServer:"));
     }
 

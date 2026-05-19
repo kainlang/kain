@@ -2189,7 +2189,11 @@ fn diagnostics_from_error(text: &str, error: &KainError) -> Vec<Diagnostic> {
                         .find(|label| label.primary)
                         .map(|label| label.span)
                 })
-                .or_else(|| report.location.map(|(line, column)| line_col_to_span(text, line, column)))
+                .or_else(|| {
+                    report
+                        .location
+                        .map(|(line, column)| line_col_to_span(text, line, column))
+                })
                 .unwrap_or_default();
             let mut lines = vec![report.message.clone()];
             for label in report
