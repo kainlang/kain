@@ -1034,6 +1034,7 @@ impl LlvmGenerator {
             }
             Expr::Paren(inner, _) => self.ownership_pointer_provenance_for_expr(inner),
             Expr::Cast { value, .. } => self.ownership_pointer_provenance_for_expr(value),
+            Expr::PtrOffset { pointer, .. } => self.ownership_pointer_provenance_for_expr(pointer),
             Expr::Call { callee, args, .. } => match callee.as_ref() {
                 Expr::Ident(name, _) if name == "__kain_alloc" => {
                     OwnershipPointerProvenance::HelperOwned
@@ -1047,6 +1048,12 @@ impl LlvmGenerator {
                         self.ownership_pointer_provenance_for_expr(&args[0].value)
                     }
                 }
+                Expr::Ident(name, _)
+                    if (name == "__kain_ptr_offset" || name == "__kain_index_ptr")
+                        && !args.is_empty() =>
+                {
+                    self.ownership_pointer_provenance_for_expr(&args[0].value)
+                }
                 _ => OwnershipPointerProvenance::ImportedOrUnknown,
             },
             _ => OwnershipPointerProvenance::ImportedOrUnknown,
@@ -1056,6 +1063,117 @@ impl LlvmGenerator {
     fn obvious_ast_type_byte_width(&self, ty: &Type) -> i64 {
         let mapped = self.map_type_from_ast(ty);
         Self::obvious_llvm_type_byte_width(&mapped).unwrap_or(8)
+    }
+
+    fn obvious_llvm_type_alignment(llvm_ty: &str) -> i64 {
+        match Self::obvious_llvm_type_byte_width(llvm_ty) {
+            Some(width @ 1) | Some(width @ 2) | Some(width @ 4) | Some(width @ 8) => width as i64,
+            _ => 1,
+        }
+    }
+
+    fn ptr_offset_stride_matches_llvm_type(
+        &self,
+        element_ty: Option<&Type>,
+        llvm_ty: &str,
+    ) -> bool {
+        let Some(access_width) = Self::obvious_llvm_type_byte_width(llvm_ty) else {
+            return false;
+        };
+        let stride_width = element_ty
+            .map(|ty| self.obvious_ast_type_byte_width(ty))
+            .unwrap_or(8);
+        stride_width == access_width as i64
+    }
+
+    fn safe_memory_access_alignment(&self, pointer: &Expr, llvm_ty: &str) -> i64 {
+        let natural = Self::obvious_llvm_type_alignment(llvm_ty);
+        if natural <= 1 {
+            return 1;
+        }
+        match self.ownership_pointer_provenance_for_expr(pointer) {
+            OwnershipPointerProvenance::HelperOwned => natural,
+            OwnershipPointerProvenance::EphemeralLocal
+            | OwnershipPointerProvenance::ImportedOrUnknown => 1,
+        }
+    }
+
+    fn compile_non_ephemeral_typed_memory_pointer(
+        &mut self,
+        pointer: &Expr,
+        llvm_ty: &str,
+    ) -> KainResult<(String, i64)> {
+        match pointer {
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                self.compile_non_ephemeral_typed_memory_pointer(inner, llvm_ty)
+            }
+            Expr::PtrOffset {
+                pointer: base,
+                offset,
+                element_ty,
+                ..
+            } if self.ptr_offset_stride_matches_llvm_type(element_ty.as_ref(), llvm_ty) => {
+                let (base_typed, alignment) =
+                    self.compile_non_ephemeral_typed_memory_pointer(base, llvm_ty)?;
+                let (offset_value, _) = self.compile_expr(offset)?;
+                let derived_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr {}, {}* {}, i64 {}",
+                    derived_ptr, llvm_ty, llvm_ty, base_typed, offset_value
+                ));
+                Ok((derived_ptr, alignment))
+            }
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_ptr_offset" || name == "__kain_index_ptr")
+                    && args.len() == 3 =>
+            {
+                let known_i64_bindings = self.current_known_i64_literals();
+                let stride_literal = Self::resolve_i64_literal(&args[2].value, &known_i64_bindings);
+                let Some(access_width) = Self::obvious_llvm_type_byte_width(llvm_ty) else {
+                    let (ptr, ptr_ty) = self.compile_expr(pointer)?;
+                    let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+                    let typed_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = inttoptr i64 {} to {}*",
+                        typed_ptr, ptr_i64, llvm_ty
+                    ));
+                    let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
+                    return Ok((typed_ptr, alignment));
+                };
+                if stride_literal == Some(access_width as i64) {
+                    let (base_typed, alignment) =
+                        self.compile_non_ephemeral_typed_memory_pointer(&args[0].value, llvm_ty)?;
+                    let (offset_value, _) = self.compile_expr(&args[1].value)?;
+                    let derived_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr {}, {}* {}, i64 {}",
+                        derived_ptr, llvm_ty, llvm_ty, base_typed, offset_value
+                    ));
+                    Ok((derived_ptr, alignment))
+                } else {
+                    let (ptr, ptr_ty) = self.compile_expr(pointer)?;
+                    let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+                    let typed_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = inttoptr i64 {} to {}*",
+                        typed_ptr, ptr_i64, llvm_ty
+                    ));
+                    let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
+                    Ok((typed_ptr, alignment))
+                }
+            }
+            _ => {
+                let (ptr, ptr_ty) = self.compile_expr(pointer)?;
+                let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to {}*",
+                    typed_ptr, ptr_i64, llvm_ty
+                ));
+                let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
+                Ok((typed_ptr, alignment))
+            }
+        }
     }
 
     fn compile_ephemeral_storage_i8_pointer(
@@ -1538,7 +1656,10 @@ impl LlvmGenerator {
         format!("{:?}", node).contains(&format!("\"{}\"", target))
     }
 
-    fn else_branch_has_loop_that_mentions_identifier(else_branch: &ElseBranch, target: &str) -> bool {
+    fn else_branch_has_loop_that_mentions_identifier(
+        else_branch: &ElseBranch,
+        target: &str,
+    ) -> bool {
         match else_branch {
             ElseBranch::Else(block) => Self::block_has_loop_that_mentions_identifier(block, target),
             ElseBranch::ElseIf(condition, block, nested) => {
@@ -1561,7 +1682,9 @@ impl LlvmGenerator {
             | Expr::Try(inner, _)
             | Expr::Await(inner, _)
             | Expr::AsyncBlock(inner, _)
-            | Expr::Comptime(inner, _) => Self::expr_has_loop_that_mentions_identifier(inner, target),
+            | Expr::Comptime(inner, _) => {
+                Self::expr_has_loop_that_mentions_identifier(inner, target)
+            }
             Expr::Block(block, _) => Self::block_has_loop_that_mentions_identifier(block, target),
             Expr::If {
                 then_branch,
@@ -1613,7 +1736,9 @@ impl LlvmGenerator {
                 Self::expr_has_loop_that_mentions_identifier(object, target)
                     || Self::expr_has_loop_that_mentions_identifier(index, target)
             }
-            Expr::Assign { target: lhs, value, .. } => {
+            Expr::Assign {
+                target: lhs, value, ..
+            } => {
                 Self::expr_has_loop_that_mentions_identifier(lhs, target)
                     || Self::expr_has_loop_that_mentions_identifier(value, target)
             }
@@ -1720,9 +1845,9 @@ impl LlvmGenerator {
             Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                 Self::expr_has_loop_that_mentions_identifier(expr, target)
             }
-            Stmt::Let { value: Some(expr), .. } => {
-                Self::expr_has_loop_that_mentions_identifier(expr, target)
-            }
+            Stmt::Let {
+                value: Some(expr), ..
+            } => Self::expr_has_loop_that_mentions_identifier(expr, target),
             Stmt::While {
                 condition, body, ..
             } => {
@@ -1730,9 +1855,7 @@ impl LlvmGenerator {
                     || Self::debug_mentions_identifier(body, target)
                     || Self::block_has_loop_that_mentions_identifier(body, target)
             }
-            Stmt::For {
-                iter, body, ..
-            } => {
+            Stmt::For { iter, body, .. } => {
                 Self::debug_mentions_identifier(iter, target)
                     || Self::debug_mentions_identifier(body, target)
                     || Self::block_has_loop_that_mentions_identifier(body, target)
@@ -4487,19 +4610,12 @@ impl LlvmGenerator {
                 return Ok((loaded, load_ty.to_string()));
             }
         }
-        let (ptr, ptr_ty) = self.compile_expr(pointer)?;
-        let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
-        let ptr_i8 = self.next_reg();
-        self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
-        let typed_ptr = self.next_reg();
-        self.emit(&format!(
-            "  {} = bitcast i8* {} to {}*",
-            typed_ptr, ptr_i8, load_ty
-        ));
+        let (typed_ptr, alignment) =
+            self.compile_non_ephemeral_typed_memory_pointer(pointer, load_ty)?;
         let loaded = self.next_reg();
         self.emit(&format!(
-            "  {} = load {}, {}* {}, align 1",
-            loaded, load_ty, load_ty, typed_ptr
+            "  {} = load {}, {}* {}, align {}",
+            loaded, load_ty, load_ty, typed_ptr, alignment
         ));
         Ok((loaded, load_ty.to_string()))
     }
@@ -4533,19 +4649,12 @@ impl LlvmGenerator {
                 return Ok((stored_value, stored_ty));
             }
         }
-        let (ptr, ptr_ty) = self.compile_expr(pointer)?;
-        let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
         let (stored_value, stored_ty) = self.compile_expr(value)?;
-        let ptr_i8 = self.next_reg();
-        self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
-        let typed_ptr = self.next_reg();
+        let (typed_ptr, alignment) =
+            self.compile_non_ephemeral_typed_memory_pointer(pointer, &stored_ty)?;
         self.emit(&format!(
-            "  {} = bitcast i8* {} to {}*",
-            typed_ptr, ptr_i8, stored_ty
-        ));
-        self.emit(&format!(
-            "  store {} {}, {}* {}, align 1",
-            stored_ty, stored_value, stored_ty, typed_ptr
+            "  store {} {}, {}* {}, align {}",
+            stored_ty, stored_value, stored_ty, typed_ptr, alignment
         ));
 
         Ok((stored_value, stored_ty))
@@ -10558,7 +10667,10 @@ impl LlvmGenerator {
                 }
                 if value_ty == "i8*" || value_ty.starts_with('%') {
                     let int_val = self.next_reg();
-                    self.emit(&format!("  {} = ptrtoint {} {} to i64", int_val, value_ty, value));
+                    self.emit(&format!(
+                        "  {} = ptrtoint {} {} to i64",
+                        int_val, value_ty, value
+                    ));
                     value = int_val;
                     value_ty = "i64".to_string();
                 }
@@ -10980,8 +11092,10 @@ impl LlvmGenerator {
                     })
                     .unwrap_or(8);
                 let base_i64 = self.coerce_to_i64_storage(&base, &base_ty);
-                let scaled = self.next_reg();
-                self.emit(&format!("  {} = mul i64 {}, {}", scaled, off, stride));
+                let stride_literal =
+                    Some(stride).filter(|_| self.expr_is_proven_nonnegative_i64(offset));
+                let scaled =
+                    self.emit_scaled_byte_offset(&off, &stride.to_string(), stride_literal);
                 let res = self.next_reg();
                 self.emit(&format!("  {} = add i64 {}, {}", res, base_i64, scaled));
                 Ok((res, "i64".into()))

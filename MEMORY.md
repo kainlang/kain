@@ -1,5 +1,55 @@
 # Kain Memory
 
+# 2026-05-18 - Typed helper-pointer lowering closed the honest memory_stream wound
+
+The latest full benchmark snapshot before this pass (`benchmark/latest.md` generated `2026-05-18T23:37:06.421184+00:00`) still had one very honest compiler-owned gap: `memory_stream` was Kain `37.481 ms` versus Rust `10.447 ms` and C++ `8.811 ms`. The row is only a sequential write/read over a helper-owned integer buffer, so the likely problem was not semantics but the LLVM shape of raw memory access.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - `ownership_pointer_provenance_for_expr(...)` now propagates helper-owned provenance through `PtrOffset` and canonical `__kain_ptr_offset` / `__kain_index_ptr` surfaces.
+  - Added `compile_non_ephemeral_typed_memory_pointer(...)` so helper-owned typed `mem_load` / `mem_store` accesses lower to typed `getelementptr <ty>` plus the strongest honest natural alignment instead of repeating byte-addressed integer pointer math.
+  - `Expr::PtrOffset` now uses the same power-of-two shift strength reduction path as the raw helper surface when the offset is proven non-negative.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Added `llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesses`.
+- `crates/kain-sys-codegen/z3/proofs-experimental/power-of-two-ptr-offset-shift-equivalence.smt2`
+  - Added the new exploratory proof that `offset * 8 == offset << 3` on the bounded non-negative 64-bit domain used by the strength reduction.
+- `research/2026-05-18-typed-pointer-memory-lowering.md`
+  - Captures the hypothesis lattice, rejected benchmark-specific cheat route, and final evidence.
+- `benchmark/assesments/2026-05-18-typed-pointer-memory-lowering-latest-benchmark-assessment.md`
+  - Records the benchmark-facing summary for this pass.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesses -- --nocapture`
+  - Result: PASS.
+- Z3 MCP report:
+  - `z3/reports/20260519T001145Z-power-of-two-ptr-offset-shift-equivalence.json`
+  - Result: `unsat`.
+- `bazel build //:kain --config=release`
+  - Result: PASS.
+- Focused benchmark:
+  - Command: `python benchmark/run.py --case memory_stream,ownership_memory,zero_copy_binary_wire,simd_lane_mix --languages kain,rust,cpp,zig,go --runs 5 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --latest-stem latest_typed_pointer_memory_probe --minimal-name latest_typed_pointer_memory_probe.md --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+  - Result: PASS.
+  - `memory_stream`: Kain `9.749 ms`, Rust `10.169 ms`, C++ `9.222 ms`.
+- Full benchmark:
+  - Command: `python benchmark/run.py --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+  - Result: PASS, refreshed 109 foreign baselines.
+  - Snapshot: `benchmark/latest.md` generated `2026-05-19T00:14:32.341687+00:00`.
+  - `memory_stream`: Kain `8.446 ms`, Rust `9.652 ms`, C++ `9.835 ms`.
+
+Durable benchmark lesson:
+
+- This was the right kind of win: no row-specific checksum collapse, no new benchmark-only runtime helper, and the full suite stayed green.
+- The generated Kain LLVM for `memory_stream` now shows a typed `getelementptr i64, i64*` walk with `align 8` loads/stores instead of the old byte-addressed `align 1` path.
+
+Best next targets from the new full snapshot:
+
+- `ownership_memory`: still likely scalarization / register-residency debt rather than raw pointer lowering.
+- `string_ops`: still wants a stronger `(ptr,len)` string search/subslice lane.
+- `dynamic_vtable_thrashing` and `sim_uv_velocity_grid`: still honest compute/runtime losses.
+- `http_server_concurrency` and `process_stdio_loop`: still real runtime/system rows, not simple benchmark-owned math.
+
 # 2026-05-18 - Array scan retaken by proof-backed periodic reducer
 
 The latest full benchmark snapshot (`benchmark/latest.md` generated `2026-05-18T22:34:45.521890+00:00`) showed `array_scan` as the cleanest high-value pure compute loss: Kain `46.189 ms` versus Rust `11.071 ms` and C++ `9.479 ms`. The row is a closed-domain nested scan over literal `values = [1,2,3,4,5,6,7,8]`, `500000` iterations, and modulus `1000000007`.

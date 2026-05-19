@@ -1619,6 +1619,21 @@ fn llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage() {
 }
 
 #[test]
+fn llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesses() {
+    let typed = typed_program_from_source(
+        "fn helper_buffer_probe() -> Int:\n    let cells: Int = 9000\n    let mut buffer: ptr<Int> = alloc_zeroed(cells, \"Int\")\n    collapse buffer:\n        mem_store(ptr_offset(buffer, 3, \"Int\"), 11, \"Int\")\n        0\n    let read = observe buffer:\n        mem_load(ptr_offset(buffer, 3, \"Int\"), \"Int\")\n    decay buffer\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("getelementptr i64, i64*"));
+    assert!(llvm.contains("store i64 11, i64*"));
+    assert!(llvm.contains("align 8"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "helper-owned-typed-gep-alignment");
+}
+
+#[test]
 fn llvm_lowers_safe_fixed_array_literal_to_stack_gep() {
     let typed = typed_program_from_source(
         "fn scan() -> Int:\n    let values = [1, 2, 3]\n    var acc: Int = 0\n    var index: Int = 0\n    while index < len(values):\n        acc = acc + values[index]\n        index = index + 1\n    return acc\n",
