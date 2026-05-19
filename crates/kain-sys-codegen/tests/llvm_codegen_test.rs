@@ -1379,8 +1379,7 @@ fn llvm_consumes_lowered_alloc_and_realloc_helpers() {
     assert!(llvm.contains(", i64 8, i32 1)"));
     assert!(llvm.contains("call i8* @__kain_realloc(i8*"));
     assert!(llvm.contains(", i64 8, i32 1)"));
-    assert!(llvm.contains("inttoptr i64"));
-    assert!(llvm.contains("ptrtoint i8*"));
+    assert!(llvm.contains("bitcast i8*"));
 }
 
 #[test]
@@ -1551,8 +1550,33 @@ fn llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path() {
     assert!(llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
     assert!(llvm.contains("call i32 @__kain_ownership_end_collapse_helper(i8*"));
     assert!(llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(llvm.contains("store i8* null, i8**"));
     assert!(!llvm.contains("call i32 @__kain_ownership_ensure_imported(i8*"));
+    assert!(!llvm.contains("call void @rc_release(i8*"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "ownership-helper-fast-path");
+}
+
+#[test]
+fn llvm_does_not_rc_retain_helper_owned_observe_arguments() {
+    let typed = typed_program_from_source(
+        "fn fold(cells: ptr<Int>) -> Int:\n    return mem_load(cells, \"Int\")\n\nfn helper_observe_call(count: Int) -> Int:\n    let mut cells: ptr<Int> = alloc_zeroed(count, \"Int\")\n    collapse cells:\n        mem_store(cells, 7, \"Int\")\n        0\n    let read = observe cells:\n        fold(cells)\n    decay cells\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("call i32 @__kain_ownership_begin_observe_helper(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_end_observe_helper(i8*"));
+    let call_index = llvm
+        .find("call i64 @fold(i8*")
+        .expect("observe body should pass helper-owned pointer to fold");
+    let window_start = call_index.saturating_sub(220);
+    let window = &llvm[window_start..call_index];
+    assert!(
+        !window.contains("call void @rc_retain(i8*"),
+        "helper-owned observe arguments must not retain raw helper buffers\n{window}"
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "helper-observe-arg-no-retain");
 }
 
 #[test]
@@ -1695,6 +1719,8 @@ fn llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesse
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("getelementptr i64, i64*"));
+    assert!(llvm.contains("load i8*, i8**"));
+    assert!(llvm.contains("bitcast i8*"));
     assert!(llvm.contains("store i64 11, i64*"));
     assert!(llvm.contains("align 8"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "helper-owned-typed-gep-alignment");

@@ -1,5 +1,46 @@
 # Kain Memory
 
+# 2026-05-19 - Helper-owned pointer retain bug fixed; full suite green again
+
+The latest benchmark automation pass started from a real LLVM/codegen win and almost shipped a fake regression: preserving helper-owned `alloc_zeroed` / `realloc_mem` pointers as typed LLVM pointers made `memory_stream` materially faster, but an abandoned HTTP runtime experiment and one remaining retain bug made the first full-suite rerun look worse than the landed compiler state. The final kept pass is the helper-pointer/codegen work only.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Kept the typed helper-owned pointer lane: helper alloc/realloc results now stay as real LLVM pointers, typed `ptr_offset` access lowers through typed `getelementptr`, and helper-owned cleanup/decay routes through `__kain_ownership_*_helper`.
+  - Added `expr_needs_rc_retain(...)` so helper-owned and ephemeral raw pointers never flow through `rc_retain` when passed into authored calls, returned, rebound, or reassigned through the normal `i8*` retain sites.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Added `llvm_does_not_rc_retain_helper_owned_observe_arguments`.
+  - Expanded the helper-owned ownership fast-path coverage so the retain/decode path stays locked to raw helper semantics instead of RC semantics.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test helper -- --nocapture`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="memory", report_name="helper-pointer-retain-regression-check")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
+- `bazel build //:kain --config=release`
+- Fresh native rebuild plus stress:
+  - `benchmark/cases/semantic_singularity/main.kn` compiled with the Bazel `kain.exe`
+  - repeated run result: `PASS 100/100`
+- Clean full suite refresh:
+  - `python benchmark/run.py --kain-exe D:/Kain-Bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-opt/bin/crates/cli/kain.exe --baseline-mode auto --latest-stem latest_ptrlane_full_green --minimal-name latest_ptrlane_full_green.md`
+  - report: `benchmark/out/reports/latest_ptrlane_full_green.llm.md`
+  - exit status: success
+
+Selected outcomes from `latest_ptrlane_full_green` versus the prior canonical `benchmark/latest.md` snapshot:
+
+- `memory_stream`: Kain `9.758 ms` vs old `12.252 ms` and now beats Rust `11.246 ms` and C++ `9.950 ms`
+- `ownership_memory`: Kain `11.191 ms` vs old `11.898 ms` and now beats Rust `11.427 ms` and C++ `12.512 ms`
+- `zero_copy_binary_wire`: Kain `9.189 ms` vs old `9.186 ms` (steady, still dominant)
+- `semantic_singularity`: Kain `81.455 ms` vs old `81.012 ms` and passes cleanly again
+- `option_result`: Kain `9.512 ms` vs old `9.331 ms` (small drift, still ahead of Rust `12.112 ms` and C++ `9.862 ms`)
+- `http_server_concurrency`: Kain `57.736 ms`, Rust `41.576 ms` (still an honest runtime frontier)
+
+Durable lesson:
+
+- The important bug was not in helper-owned decay anymore; it was the generic RC path. Once helper-owned raw buffers survive as real LLVM pointers, every shared `i8*` retain site must explicitly exclude helper-owned / ephemeral ownership provenance.
+- The earlier same-day HTTP worker experiment did not survive the validation bar and was reverted. Do not treat that runtime shape as landed state just because an older `MEMORY.md` entry mentions it.
+- The next honest benchmark frontier remains `http_server_concurrency`. Keep the pointer-lane/codegen win separate from future HTTP runtime work so benchmark evidence stays attributable.
+
 # 2026-05-19 - HTTP concurrency worker swarm retook the focused probe, but the canonical suite still needs another runtime pass
 
 The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T08:30:28.919652+00:00` targeted the biggest remaining runtime-owned implemented gap:

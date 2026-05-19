@@ -1084,6 +1084,12 @@ impl LlvmGenerator {
         }
     }
 
+    fn expr_needs_rc_retain(&self, expr: &Expr) -> bool {
+        !self.is_new_object(expr)
+            && self.ownership_pointer_provenance_for_expr(expr)
+                == OwnershipPointerProvenance::ImportedOrUnknown
+    }
+
     fn obvious_ast_type_byte_width(&self, ty: &Type) -> i64 {
         let mapped = self.map_type_from_ast(ty);
         Self::obvious_llvm_type_byte_width(&mapped).unwrap_or(8)
@@ -1122,6 +1128,33 @@ impl LlvmGenerator {
         }
     }
 
+    fn coerce_pointer_value_to_typed_memory_pointer(
+        &mut self,
+        ptr: &str,
+        ptr_ty: &str,
+        llvm_ty: &str,
+    ) -> String {
+        let target_ptr_ty = format!("{}*", llvm_ty);
+        if ptr_ty == target_ptr_ty {
+            return ptr.to_string();
+        }
+        if ptr_ty.ends_with('*') {
+            let typed_ptr = self.next_reg();
+            self.emit(&format!(
+                "  {} = bitcast {} {} to {}",
+                typed_ptr, ptr_ty, ptr, target_ptr_ty
+            ));
+            return typed_ptr;
+        }
+        let ptr_i64 = self.coerce_to_i64_storage(ptr, ptr_ty);
+        let typed_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = inttoptr i64 {} to {}",
+            typed_ptr, ptr_i64, target_ptr_ty
+        ));
+        typed_ptr
+    }
+
     fn compile_non_ephemeral_typed_memory_pointer(
         &mut self,
         pointer: &Expr,
@@ -1155,12 +1188,8 @@ impl LlvmGenerator {
                 let stride_literal = Self::resolve_i64_literal(&args[2].value, &known_i64_bindings);
                 let Some(access_width) = Self::obvious_llvm_type_byte_width(llvm_ty) else {
                     let (ptr, ptr_ty) = self.compile_expr(pointer)?;
-                    let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
-                    let typed_ptr = self.next_reg();
-                    self.emit(&format!(
-                        "  {} = inttoptr i64 {} to {}*",
-                        typed_ptr, ptr_i64, llvm_ty
-                    ));
+                    let typed_ptr =
+                        self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty);
                     let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
                     return Ok((typed_ptr, alignment));
                 };
@@ -1176,24 +1205,16 @@ impl LlvmGenerator {
                     Ok((derived_ptr, alignment))
                 } else {
                     let (ptr, ptr_ty) = self.compile_expr(pointer)?;
-                    let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
-                    let typed_ptr = self.next_reg();
-                    self.emit(&format!(
-                        "  {} = inttoptr i64 {} to {}*",
-                        typed_ptr, ptr_i64, llvm_ty
-                    ));
+                    let typed_ptr =
+                        self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty);
                     let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
                     Ok((typed_ptr, alignment))
                 }
             }
             _ => {
                 let (ptr, ptr_ty) = self.compile_expr(pointer)?;
-                let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
-                let typed_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = inttoptr i64 {} to {}*",
-                    typed_ptr, ptr_i64, llvm_ty
-                ));
+                let typed_ptr =
+                    self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty);
                 let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
                 Ok((typed_ptr, alignment))
             }
@@ -5515,11 +5536,18 @@ impl LlvmGenerator {
         let shift_safe_stride_literal =
             stride_literal.filter(|_| self.expr_is_proven_nonnegative_i64(offset_expr));
         let byte_offset = self.emit_scaled_byte_offset(&offset, &stride, shift_safe_stride_literal);
-        let base_ptr = self.next_reg();
-        self.emit(&format!(
-            "  {} = inttoptr i64 {} to i8*",
-            base_ptr, base_i64
-        ));
+        let base_ptr = if base_ty.ends_with('*') {
+            let cast = self.next_reg();
+            self.emit(&format!("  {} = bitcast {} {} to i8*", cast, base_ty, base));
+            cast
+        } else {
+            let cast = self.next_reg();
+            self.emit(&format!(
+                "  {} = inttoptr i64 {} to i8*",
+                cast, base_i64
+            ));
+            cast
+        };
         let raw_ptr = self.next_reg();
         self.emit(&format!(
             "  {} = getelementptr i8, i8* {}, i64 {}",
@@ -5536,9 +5564,18 @@ impl LlvmGenerator {
     ) -> KainResult<(String, OwnershipPointerProvenance)> {
         let provenance = self.ownership_pointer_provenance_for_expr(target);
         let (ptr, ptr_ty) = self.compile_expr(target)?;
-        let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
-        let ptr_i8 = self.next_reg();
-        self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
+        let ptr_i8 = if ptr_ty == "i8*" {
+            ptr
+        } else if ptr_ty.ends_with('*') {
+            let cast = self.next_reg();
+            self.emit(&format!("  {} = bitcast {} {} to i8*", cast, ptr_ty, ptr));
+            cast
+        } else {
+            let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+            let cast = self.next_reg();
+            self.emit(&format!("  {} = inttoptr i64 {} to i8*", cast, ptr_i64));
+            cast
+        };
         if provenance == OwnershipPointerProvenance::ImportedOrUnknown {
             self.emit_lazy_import_ownership_region(&ptr_i8);
         }
@@ -5589,6 +5626,39 @@ impl LlvmGenerator {
         self.emit_label(&continue_label);
     }
 
+    fn emit_helper_owned_local_decay_cleanup(&mut self, addr: &str) {
+        let ptr_i8 = self.next_reg();
+        self.emit(&format!("  {} = load i8*, i8** {}", ptr_i8, addr));
+        let is_non_null = self.next_reg();
+        self.emit(&format!("  {} = icmp ne i8* {}, null", is_non_null, ptr_i8));
+        let decay_label = self.next_label();
+        let merge_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            is_non_null, decay_label, merge_label
+        ));
+        self.emit_label(&decay_label);
+        self.emit_checked_ownership_call("__kain_ownership_decay_helper", &ptr_i8);
+        self.emit(&format!("  br label %{}", merge_label));
+        self.emit_label(&merge_label);
+    }
+
+    fn clear_decayed_helper_owned_local(&mut self, target: &Expr) {
+        let Expr::Ident(name, _) = target else {
+            return;
+        };
+        if !self.helper_owned_pointer_locals.contains_key(name) {
+            return;
+        }
+        let Some((addr, ty)) = self.locals.get(name).cloned() else {
+            return;
+        };
+        if !ty.ends_with('*') {
+            return;
+        }
+        self.emit(&format!("  store {} null, {}* {}", ty, ty, addr));
+    }
+
     fn compile_scoped_ownership_expr(
         &mut self,
         target: &Expr,
@@ -5633,6 +5703,9 @@ impl LlvmGenerator {
             "__kain_ownership_decay"
         };
         self.emit_checked_ownership_call(decay_fn, &ptr_i8);
+        if provenance == OwnershipPointerProvenance::HelperOwned {
+            self.clear_decayed_helper_owned_local(target);
+        }
         Ok(("0".to_string(), "void".to_string()))
     }
 
@@ -6173,6 +6246,19 @@ impl LlvmGenerator {
     ) -> KainResult<String> {
         if src_ty == dst_ty {
             return Ok(val);
+        }
+
+        if src_ty.ends_with('*') && matches!(dst_ty, "i64" | "i32" | "i8" | "i1") {
+            let ptr_bits = self.next_reg();
+            self.emit(&format!(
+                "  {} = ptrtoint {} {} to i64",
+                ptr_bits, src_ty, val
+            ));
+            return if dst_ty == "i64" {
+                Ok(ptr_bits)
+            } else {
+                self.cast_numeric_value(ptr_bits, "i64", dst_ty)
+            };
         }
 
         let reg = self.next_reg();
@@ -7509,11 +7595,7 @@ impl LlvmGenerator {
                     "  {} = call i8* @__kain_alloc(i64 {}, i64 {}, i32 {})",
                     result, size, stride, zeroed
                 ));
-
-                // Convert to i64
-                let res = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
-                Some(Ok((res, "i64".to_string())))
+                Some(Ok((result, "i8*".to_string())))
             }
             "__kain_realloc" => {
                 // Canonical ABI: i8* __kain_realloc(i8* ptr, i64 size, i64 stride, i32 zeroed_new)
@@ -7528,7 +7610,6 @@ impl LlvmGenerator {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
                 };
-                let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
                 let (size, _) = match self.compile_expr(&args[1].value) {
                     Ok(pair) => pair,
                     Err(err) => return Some(Err(err)),
@@ -7543,8 +7624,16 @@ impl LlvmGenerator {
                 };
 
                 // Cast to i8*
-                let ptr_i8 = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
+                let ptr_i8 = if ptr_ty.ends_with('*') {
+                    let cast = self.next_reg();
+                    self.emit(&format!("  {} = bitcast {} {} to i8*", cast, ptr_ty, ptr));
+                    cast
+                } else {
+                    let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+                    let cast = self.next_reg();
+                    self.emit(&format!("  {} = inttoptr i64 {} to i8*", cast, ptr_i64));
+                    cast
+                };
 
                 // Call canonical helper
                 let result = self.next_reg();
@@ -7552,11 +7641,7 @@ impl LlvmGenerator {
                     "  {} = call i8* @__kain_realloc(i8* {}, i64 {}, i64 {}, i32 {})",
                     result, ptr_i8, size, stride, zeroed_new
                 ));
-
-                // Convert to i64
-                let res = self.next_reg();
-                self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
-                Some(Ok((res, "i64".to_string())))
+                Some(Ok((result, "i8*".to_string())))
             }
             _ => None,
         }
@@ -8670,7 +8755,7 @@ impl LlvmGenerator {
         self.emit_label(&init_block);
         let (initial_value, initial_ty) =
             self.compile_expr_for_target_type(&constant.ast.value, &info.ty)?;
-        if initial_ty == "i8*" && !self.is_new_object(&constant.ast.value) {
+        if initial_ty == "i8*" && self.expr_needs_rc_retain(&constant.ast.value) {
             self.emit_rc_retain_if_heap_i8(&initial_value);
         }
         self.emit(&format!(
@@ -10621,6 +10706,11 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = load i64, i64* {}", tmp, addr));
                     self.emit(&format!("  call void @json_release(i64 {})", tmp));
                 }
+                if ty == "i8*" && self.helper_owned_pointer_locals.contains_key(var_name) {
+                    self.emit_helper_owned_local_decay_cleanup(&addr);
+                    self.json_handle_locals.remove(var_name);
+                    continue;
+                }
                 // Release if it's a pointer or struct
                 if ty == "i8*" || ty.starts_with("%") {
                     let tmp = self.next_reg();
@@ -10668,6 +10758,11 @@ impl LlvmGenerator {
                     let tmp = self.next_reg();
                     self.emit(&format!("  {} = load i64, i64* {}", tmp, addr));
                     self.emit(&format!("  call void @json_release(i64 {})", tmp));
+                }
+                if ty == "i8*" && self.helper_owned_pointer_locals.contains_key(&var_name) {
+                    self.emit_helper_owned_local_decay_cleanup(&addr);
+                    self.json_handle_locals.remove(&var_name);
+                    continue;
                 }
                 if ty == "i8*" || ty.starts_with("%") {
                     let tmp = self.next_reg();
@@ -10922,7 +11017,21 @@ impl LlvmGenerator {
 
                         let target_ty =
                             ty.as_ref().map(|declared| self.map_type_from_ast(declared));
-                        let (val_reg, val_ty) = if let Some(target_ty) = target_ty.as_deref() {
+                        let preserve_lowered_pointer_helper_result =
+                            matches!(target_ty.as_deref(), Some("i64"))
+                                && matches!(
+                                    val_expr,
+                                    Expr::Call { callee, .. }
+                                        if matches!(
+                                            callee.as_ref(),
+                                            Expr::Ident(name, _)
+                                                if name == "__kain_alloc"
+                                                    || name == "__kain_realloc"
+                                        )
+                                );
+                        let (val_reg, val_ty) = if preserve_lowered_pointer_helper_result {
+                            self.compile_expr(val_expr)?
+                        } else if let Some(target_ty) = target_ty.as_deref() {
                             self.compile_expr_for_target_type(val_expr, target_ty)?
                         } else {
                             self.compile_expr(val_expr)?
@@ -10939,7 +11048,7 @@ impl LlvmGenerator {
 
                         // Retain if RC type AND it's not a new object (which already has RC=1)
                         if val_ty == "i8*" {
-                            if !self.is_new_object(val_expr) {
+                            if self.expr_needs_rc_retain(val_expr) {
                                 self.emit_rc_retain_if_heap_i8(&val_reg);
                             }
                         }
@@ -11014,7 +11123,7 @@ impl LlvmGenerator {
                         self.compile_expr(e)?
                     };
 
-                    if ty == "i8*" && !self.is_new_object(e) {
+                    if ty == "i8*" && self.expr_needs_rc_retain(e) {
                         self.emit_rc_retain_if_heap_i8(&val);
                     }
 
@@ -11533,7 +11642,7 @@ impl LlvmGenerator {
                     value = self.cast_numeric_value(value, &value_ty, "i64")?;
                     value_ty = "i64".to_string();
                 }
-                if value_ty == "i8*" && !self.is_new_object(&args[2].value) {
+                if value_ty == "i8*" && self.expr_needs_rc_retain(&args[2].value) {
                     self.emit_rc_retain_if_heap_i8(&value);
                 }
                 if value_ty == "i8*" || value_ty.starts_with('%') {
@@ -11652,7 +11761,7 @@ impl LlvmGenerator {
 
             if !is_extern
                 && ty == "i8*"
-                && !self.is_new_object(&arg.value)
+                && self.expr_needs_rc_retain(&arg.value)
                 && !passes_borrowed_string
             {
                 self.emit_rc_retain_if_heap_i8(&val);
@@ -11890,6 +11999,10 @@ impl LlvmGenerator {
                 let (val, src_ty) = self.compile_expr(value)?;
                 if src_ty == dst_ty {
                     Ok((val, dst_ty))
+                } else if src_ty.ends_with('*') && dst_ty == "i64" {
+                    let res = self.next_reg();
+                    self.emit(&format!("  {} = ptrtoint {} {} to i64", res, src_ty, val));
+                    Ok((res, dst_ty))
                 } else if src_ty == "i64" && dst_ty == "double" {
                     let res = self.next_reg();
                     self.emit(&format!("  {} = sitofp i64 {} to double", res, val));
@@ -11909,10 +12022,6 @@ impl LlvmGenerator {
                 } else if src_ty == "i64" && dst_ty.ends_with('*') {
                     let res = self.next_reg();
                     self.emit(&format!("  {} = inttoptr i64 {} to {}", res, val, dst_ty));
-                    Ok((res, dst_ty))
-                } else if src_ty.ends_with('*') && dst_ty == "i64" {
-                    let res = self.next_reg();
-                    self.emit(&format!("  {} = ptrtoint {} {} to i64", res, src_ty, val));
                     Ok((res, dst_ty))
                 } else {
                     Ok((val, dst_ty))
@@ -12121,7 +12230,7 @@ impl LlvmGenerator {
                         self.string_length_values.remove(name);
                         let was_borrowed_local = self.borrowed_locals.remove(name);
                         if ty == "i8*" {
-                            if !self.is_new_object(value) {
+                            if self.expr_needs_rc_retain(value) {
                                 self.emit_rc_retain_if_heap_i8(&rhs);
                             }
                             if !was_borrowed_local {
