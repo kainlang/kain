@@ -109,8 +109,10 @@ enum OwnershipPointerProvenance {
 #[derive(Clone, Debug)]
 struct EphemeralOwnershipLocalWitness {
     storage_reg: String,
-    storage_array_ty: String,
+    storage_llvm_ty: String,
+    storage_element_ty: String,
     storage_byte_len: i64,
+    storage_alignment: i64,
 }
 
 #[derive(Clone, Debug)]
@@ -1186,13 +1188,25 @@ impl LlvmGenerator {
                     return Ok(None);
                 };
                 let storage_i8 = self.next_reg();
-                self.emit(&format!(
-                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
-                    storage_i8,
-                    witness.storage_array_ty,
-                    witness.storage_array_ty,
-                    witness.storage_reg
-                ));
+                if witness.storage_llvm_ty == witness.storage_element_ty {
+                    self.emit(&format!(
+                        "  {} = bitcast {}* {} to i8*",
+                        storage_i8, witness.storage_element_ty, witness.storage_reg
+                    ));
+                } else {
+                    let storage_base = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
+                        storage_base,
+                        witness.storage_llvm_ty,
+                        witness.storage_llvm_ty,
+                        witness.storage_reg
+                    ));
+                    self.emit(&format!(
+                        "  {} = bitcast {}* {} to i8*",
+                        storage_i8, witness.storage_element_ty, storage_base
+                    ));
+                }
                 Ok(Some((storage_i8, witness)))
             }
             Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
@@ -1519,6 +1533,16 @@ impl LlvmGenerator {
                 ) && Self::resolve_zeroed_literal(&args[2].value, known_i64_bindings).is_some()
             }
             _ => false,
+        }
+    }
+
+    fn ephemeral_single_cell_scalar_llvm_ty(storage_byte_len: i64) -> Option<&'static str> {
+        match storage_byte_len {
+            1 => Some("i8"),
+            2 => Some("i16"),
+            4 => Some("i32"),
+            8 => Some("i64"),
+            _ => None,
         }
     }
 
@@ -4597,6 +4621,8 @@ impl LlvmGenerator {
         if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
             let (load_size, _) = self.abi_layout_for_ty(load_ty, span)?;
             if load_size as i64 <= witness.storage_byte_len {
+                let alignment =
+                    Self::obvious_llvm_type_alignment(load_ty).min(witness.storage_alignment);
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = bitcast i8* {} to {}*",
@@ -4604,8 +4630,8 @@ impl LlvmGenerator {
                 ));
                 let loaded = self.next_reg();
                 self.emit(&format!(
-                    "  {} = load {}, {}* {}, align 1",
-                    loaded, load_ty, load_ty, typed_ptr
+                    "  {} = load {}, {}* {}, align {}",
+                    loaded, load_ty, load_ty, typed_ptr, alignment
                 ));
                 return Ok((loaded, load_ty.to_string()));
             }
@@ -4631,14 +4657,16 @@ impl LlvmGenerator {
             let (stored_value, stored_ty) = self.compile_expr(value)?;
             let (store_size, _) = self.abi_layout_for_ty(&stored_ty, span)?;
             if store_size as i64 <= witness.storage_byte_len {
+                let alignment =
+                    Self::obvious_llvm_type_alignment(&stored_ty).min(witness.storage_alignment);
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = bitcast i8* {} to {}*",
                     typed_ptr, ptr_i8, stored_ty
                 ));
                 self.emit(&format!(
-                    "  store {} {}, {}* {}, align 1",
-                    stored_ty, stored_value, stored_ty, typed_ptr
+                    "  store {} {}, {}* {}, align {}",
+                    stored_ty, stored_value, stored_ty, typed_ptr, alignment
                 ));
                 self.record_forwarded_mem_store(
                     pointer,
@@ -10004,29 +10032,65 @@ impl LlvmGenerator {
                                     &known_i64_bindings,
                                 )
                             {
+                                let single_cell =
+                                    Self::helper_alloc_is_single_cell(val_expr, &known_i64_bindings);
                                 let emit_initial_zero =
                                     zeroed && !self.current_scope_elides_ephemeral_zero_init(name);
                                 let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                                 self.reg_count += 1;
                                 self.emit_entry_alloca(&addr_reg, "i64");
 
-                                let storage_array_ty = format!("[{} x i8]", storage_byte_len);
+                                let (storage_llvm_ty, storage_element_ty, storage_alignment) =
+                                    if single_cell {
+                                        if let Some(scalar_ty) =
+                                            Self::ephemeral_single_cell_scalar_llvm_ty(storage_byte_len)
+                                        {
+                                            (
+                                                scalar_ty.to_string(),
+                                                scalar_ty.to_string(),
+                                                Self::obvious_llvm_type_alignment(scalar_ty),
+                                            )
+                                        } else {
+                                            (
+                                                format!("[{} x i8]", storage_byte_len),
+                                                "i8".to_string(),
+                                                1,
+                                            )
+                                        }
+                                    } else {
+                                        (
+                                            format!("[{} x i8]", storage_byte_len),
+                                            "i8".to_string(),
+                                            1,
+                                        )
+                                    };
                                 let storage_reg = self.next_reg();
-                                self.emit_entry_alloca(&storage_reg, &storage_array_ty);
+                                self.emit_entry_alloca(&storage_reg, &storage_llvm_ty);
                                 if emit_initial_zero {
-                                    self.emit(&format!(
-                                        "  store {} {}, {}* {}, align 1",
-                                        storage_array_ty,
-                                        "zeroinitializer",
-                                        storage_array_ty,
-                                        storage_reg
-                                    ));
+                                    if storage_llvm_ty == storage_element_ty {
+                                        self.emit(&format!(
+                                            "  store {} 0, {}* {}, align {}",
+                                            storage_element_ty,
+                                            storage_element_ty,
+                                            storage_reg,
+                                            storage_alignment
+                                        ));
+                                    } else {
+                                        self.emit(&format!(
+                                            "  store {} {}, {}* {}, align {}",
+                                            storage_llvm_ty,
+                                            "zeroinitializer",
+                                            storage_llvm_ty,
+                                            storage_reg,
+                                            storage_alignment
+                                        ));
+                                    }
                                 }
 
                                 let storage_ptr_i64 = self.next_reg();
                                 self.emit(&format!(
                                     "  {} = ptrtoint {}* {} to i64",
-                                    storage_ptr_i64, storage_array_ty, storage_reg
+                                    storage_ptr_i64, storage_llvm_ty, storage_reg
                                 ));
                                 self.emit(&format!(
                                     "  store i64 {}, i64* {}",
@@ -10042,8 +10106,10 @@ impl LlvmGenerator {
                                     name.clone(),
                                     EphemeralOwnershipLocalWitness {
                                         storage_reg,
-                                        storage_array_ty,
+                                        storage_llvm_ty,
+                                        storage_element_ty,
                                         storage_byte_len,
+                                        storage_alignment,
                                     },
                                 );
                                 if let Some(scope) = self.scopes.last_mut() {

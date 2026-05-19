@@ -6734,3 +6734,47 @@ Best next honest targets after this pass:
 - `string_ops`: still the best backend-owned cross-language gap; the right next move is a real `(ptr,len)` substring/search lane, not more benchmark-only source specialization.
 - `ownership_memory`: still mostly scalarization/register-residency debt.
 - `process_stdio_loop` and `http_server_concurrency`: bigger runtime/system tasks, not clean benchmark-owned collapses.
+
+# 2026-05-18 - Ownership-memory scalar slot lowering closed the real gap
+
+The next compiler-owned benchmark wound after the typed helper-pointer memory win was still `ownership_memory`. The ownership runtime had already been erased out of the hot loop, but Kain was still leaving the erased single cell behind as `[8 x i8]` with `align 1`, which pushed LLVM toward byte-lane codegen instead of the scalar integer loop the benchmark deserved.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Supported 1/2/4/8-byte single-cell ephemeral helper allocations now lower to typed scalar allocas (`i8` / `i16` / `i32` / `i64`) instead of `[N x i8]`.
+  - The ephemeral witness now carries storage type plus guaranteed alignment.
+  - `compile_ephemeral_storage_i8_pointer(...)` preserves the old `i8*` view through reversible bitcasts, so the scalar lane stays observationally compatible with the earlier byte-lane lowering.
+  - `compile_runtime_mem_load(...)` / `compile_runtime_mem_store(...)` now emit `align min(natural_alignment(access_ty), witness.storage_alignment)` for the ephemeral scalar lane instead of `align 1`.
+- Tests:
+  - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage -- --nocapture`
+  - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_keeps_ephemeral_zero_init_when_first_use_is_read -- --nocapture`
+  - Both PASS.
+- Proofs:
+  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-single-cell-scalar-storage-preserves-byte-lane.smt2`
+  - `z3/reports/20260519T011925Z-ownership_ephemeral_single_cell_scalar_storage_preserves_byte_lane.json` -> `unsat`
+  - `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-single-cell-scalar-storage-preserves-byte-lane-observation.yaml`
+  - `crates/kain-sys-codegen/z3/reports/20260519T011933Z-kain_sys_codegen_memory_lane_post_scalar_ephemeral.json` -> `9 proved, 0 counterexamples, 0 unknown, 0 errors`
+
+Measured impact:
+
+- Pre-pass full suite `benchmark/out/reports/20260519T005630Z.json`:
+  - `ownership_memory`: Kain `14.264 ms`, Rust `11.788 ms`, C++ `11.245 ms`
+- Focused rerun `benchmark/out/reports/latest_ownership_memory_scalar_ephemeral.llm.md`:
+  - `ownership_memory`: Kain `11.554 ms`, Rust `12.177 ms`, C++ `11.090 ms`
+- Latest canonical full suite `benchmark/out/reports/latest.llm.md`:
+  - `ownership_memory`: Kain `10.752 ms`, Rust `12.738 ms`, C++ `11.062 ms`
+- Focused regression sanity `benchmark/out/reports/latest_scalar_ephemeral_regression_sanity.llm.md`:
+  - `ownership_memory`: Kain `11.668 ms`, Rust `11.671 ms`, C++ `11.664 ms`
+
+Durable interpretation for future agents:
+
+- The improvement is real. Kain moved from a clear C++ loss to near-three-way tie territory, with some full-suite runs now classifying the row as a Kain win.
+- Do not overclaim the exact winner label yet. The focused sanity rerun says the row is basically in the noise band around `11.66 ms`.
+- The next honest `ownership_memory` step is not more ownership-helper surgery. It is deeper scalar replacement / register-residency work in `kain-sys-codegen`.
+
+Best next honest full-suite targets after this pass:
+
+- `http_server_concurrency`: still the largest real loss (`1.58x` behind Rust) and clearly a runtime/network/system mission.
+- `sim_uv_velocity_grid`: biggest remaining non-proxy C++ compute loss.
+- `string_ops`, `branch_dispatch`, `memory_stream`, `call_chain`, `option_result`, `machine_stones_shatter_loop`, and `ffi_shared_call_stress`: now the most attractive tight backend/codegen gaps.

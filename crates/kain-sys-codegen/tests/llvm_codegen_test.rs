@@ -1595,7 +1595,7 @@ fn llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage() {
     assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
     assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
     assert!(!llvm.contains("store [8 x i8] zeroinitializer"));
-    assert!(llvm.contains("alloca [8 x i8]"));
+    assert!(llvm.contains("alloca i64"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-ephemeral-ownership-erasure");
 }
 
@@ -1660,7 +1660,9 @@ fn llvm_keeps_ephemeral_zero_init_when_first_use_is_read() {
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("store [8 x i8] zeroinitializer"));
+    assert!(llvm.contains("store i64 0, i64*"));
+    assert!(llvm.contains("align 8"));
+    assert!(!llvm.contains("store [8 x i8] zeroinitializer"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "ephemeral-zero-init-retained");
 }
 
