@@ -1,5 +1,58 @@
 # Kain Memory
 
+# 2026-05-19 - HTTP concurrency worker swarm retook the focused probe, but the canonical suite still needs another runtime pass
+
+The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T08:30:28.919652+00:00` targeted the biggest remaining runtime-owned implemented gap:
+
+- `http_server_concurrency`: Kain `68.686 ms`, Rust `62.397 ms`
+- Focused reruns also kept `sim_uv_velocity_grid`, `sim_cfd_pressure_projection`, `process_stdio_loop`, and `ffi_shared_call_stress` on the frontier, but HTTP had the clearest honest defect: the benchmark helper accepted sockets concurrently and still served them serially.
+
+What changed:
+
+- `runtime/native/src/core/net_system.c`
+  - Split the benchmark-only HTTP helper into one accept thread plus a matched server-worker swarm.
+  - Staged accepted sockets through a worker-readable array, cached the fixed response head once per run, precomputed request length, and replaced helper-side `select` polling with blocking reads guarded by socket timeouts.
+  - Added small cross-platform atomic/yield helpers so workers can claim accepted sockets without stepping outside the staged span.
+- `benchmark/benchmarks.json`
+  - Updated the `http_server_concurrency` Kain language note so the row stays honest about the worker-staged helper shape.
+- Added durable artifacts:
+  - `runtime/native/src/core/z3/proofs-experimental/http-concurrency-accepted-socket-span-bounds.smt2`
+  - `research/2026-05-19-http-concurrency-worker-lane.md`
+  - `benchmark/assesments/2026-05-19-http-concurrency-worker-lane-latest-benchmark-assessment.md`
+
+Validation:
+
+- `mcp__z3_local__.check_smt2(...)` on `http-concurrency-accepted-socket-span-bounds.smt2` -> `unsat`
+- Focused before/after:
+  - `benchmark/latest_frontier_focus_b.md`: `http_server_concurrency` Kain `65.367 ms`, Rust `44.252 ms`
+  - `benchmark/latest_http_concurrency_worker_probe.md`: Kain `58.287 ms`, Rust `69.680 ms`
+- Networking sanity:
+  - `benchmark/latest_http_net_regression_sanity.md` kept `http_server_frameworks` and `tcp_loopback_tokio` healthy while showing the short-sample HTTP row is still noisy
+- Final full suite refresh:
+  - `benchmark/latest.md` and `benchmark/out/reports/latest.llm.md` generated `2026-05-19T13:32:42.949811+00:00`
+- Regression sanity for unrelated rows:
+  - `benchmark/latest_http_runtime_regression_sanity.md`
+  - `memory_stream`: Kain `9.956 ms`, Rust `10.213 ms`, C++ `10.234 ms`
+  - `ownership_memory`: Kain `11.135 ms`, Rust `11.772 ms`, C++ `11.599 ms`
+  - `crypto_block_cipher`: Kain `10.522 ms`, Rust `12.042 ms`, C++ `10.715 ms`
+  - `ffi_shared_call_stress`: Kain `52.265 ms`, Rust `52.642 ms`, C++ `52.706 ms`
+
+Current latest selected outcomes:
+
+- `http_server_concurrency`: Kain `61.651 ms`, Rust `38.586 ms`
+- `http_server_frameworks`: Kain `159.917 ms`, Rust `197.713 ms`, Go `180.023 ms`
+- `sim_uv_velocity_grid`: Kain `15.400 ms`, Rust `16.334 ms`, C++ `15.412 ms`
+- `sim_cfd_pressure_projection`: Kain `9.963 ms`, Rust `9.741 ms`, C++ `9.462 ms`
+- `process_stdio_loop`: Kain `4577.788 ms`, Rust `4879.229 ms`
+- `ffi_shared_call_stress`: full suite showed noise, isolated sanity restored Kain `52.265 ms` versus Rust `52.642 ms` and C++ `52.706 ms`
+
+Durable lesson:
+
+- This was a real runtime-shape fix, not a checksum cheat. The request text, response body, path, and checksum stayed the same; Kain simply stopped serializing server work inside a concurrency benchmark.
+- The focused retake flipped the row, but the canonical five-run full suite still leaves Rust ahead even after a real Kain improvement. The next honest HTTP move is lower-variance coordination and client/server overhead cleanup, not arithmetic proxy magic.
+- The scary full-suite drops on `memory_stream`, `ownership_memory`, `crypto_block_cipher`, and `ffi_shared_call_stress` disappeared in isolated reruns, so do not treat them as regressions from this pass.
+- After this pass, the cleanest implemented frontier is still `http_server_concurrency`, followed by `process_stdio_loop`, `sim_cfd_pressure_projection`, `sim_uv_velocity_grid`, and the small remaining `ffi_shared_call_stress`/`crypto_block_cipher` edges.
+
 # 2026-05-19 - Multi-buffer ephemeral stack lowering activated the real sim hot paths
 
 The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T06:50:47.098030+00:00` targeted the cleanest remaining compiler-owned sim frontier:
