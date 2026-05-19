@@ -2675,16 +2675,138 @@ fn main() -> Int:
     );
 
     assert!(
-        locate_ir.contains("call i64 @find_substring_from_known_lengths("),
-        "known-string search should lower to the length-aware fast helper:\n{}",
+        locate_ir.contains("call i8* @memchr("),
+        "known-string search should lower to an inline memchr-driven scan:\n{}",
+        locate_ir
+    );
+    assert!(
+        locate_ir.contains("call i32 @memcmp("),
+        "multi-byte known-string search should compare the tail inline too:\n{}",
+        locate_ir
+    );
+    assert!(
+        !locate_ir.contains("call i64 @find_substring_from_known_lengths("),
+        "known-string search should bypass the runtime wrapper once lengths are available:\n{}",
         locate_ir
     );
     assert!(
         !locate_ir.contains("call i64 @find_substring_from("),
-        "known-string search should bypass the generic helper that reloads lengths:\n{}",
+        "known-string search should still bypass the generic helper that reloads lengths:\n{}",
         locate_ir
     );
     verify_llvm_ir_with_repo_llvm_as(&llvm, "find-substring-known-lengths-fast-path");
+}
+
+#[test]
+fn llvm_lowers_manual_find_substring_helpers_with_len_on_miss_to_native_search() {
+    let source = r#"
+fn starts_with_at(text: String, index: Int, needle: String) -> Bool:
+    if index + len(needle) > len(text):
+        return false
+    let mut offset = 0
+    while offset < len(needle):
+        if char_at(text, index + offset) != char_at(needle, offset):
+            return false
+        offset = offset + 1
+    return true
+
+fn find_substring(text: String, needle: String, start: Int) -> Int:
+    let needle_len: Int = len(needle)
+    if needle_len == 0:
+        return start
+    let mut index = start
+    while index + needle_len <= len(text):
+        if starts_with_at(text, index, needle):
+            return index
+        index = index + 1
+    return len(text)
+
+fn locate(text: String, needle: String) -> Int:
+    return find_substring(text, needle, 0)
+
+fn main() -> Int:
+    return locate("ka0in0be0nch", "zz")
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let locate_ir = llvm_function_ir(&llvm, "define internal i64 @locate(i8* %arg0, i8* %arg1)");
+
+    assert!(
+        locate_ir.contains("call i8* @memchr("),
+        "manual substring helpers should collapse to the inline memchr-driven search path:\n{}",
+        locate_ir
+    );
+    assert!(
+        !locate_ir.contains("call i64 @find_substring("),
+        "call sites should bypass the user-authored loop helper once the pattern is recognized:\n{}",
+        locate_ir
+    );
+    assert!(
+        !locate_ir.contains("call i64 @find_substring_from_known_lengths("),
+        "recognized manual helpers should not bounce back through the runtime wrapper:\n{}",
+        locate_ir
+    );
+    assert!(
+        locate_ir.contains("icmp slt i64"),
+        "len-on-miss helpers should reshape the native -1 miss into haystack length:\n{}",
+        locate_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "manual-find-substring-len-on-miss-fast-path");
+}
+
+#[test]
+fn llvm_lowers_manual_find_substring_helpers_with_negative_one_miss_to_native_search() {
+    let source = r#"
+fn starts_with_at(text: String, index: Int, needle: String) -> Bool:
+    if index + len(needle) > len(text):
+        return false
+    let mut offset = 0
+    while offset < len(needle):
+        if char_at(text, index + offset) != char_at(needle, offset):
+            return false
+        offset = offset + 1
+    return true
+
+fn find_substring(text: String, needle: String, start: Int) -> Int:
+    if len(needle) == 0:
+        return start
+    let mut index = start
+    while index + len(needle) <= len(text):
+        if starts_with_at(text, index, needle):
+            return index
+        index = index + 1
+    return -1
+
+fn locate(text: String, needle: String) -> Int:
+    return find_substring(text, needle, 0)
+
+fn main() -> Int:
+    return locate("orbit-世界-кисть-مرحبا-🙂-flux", "世界")
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let locate_ir = llvm_function_ir(&llvm, "define internal i64 @locate(i8* %arg0, i8* %arg1)");
+
+    assert!(
+        locate_ir.contains("call i8* @memchr("),
+        "manual substring helpers should reuse the inline search path for unicode-heavy byte search too:\n{}",
+        locate_ir
+    );
+    assert!(
+        !locate_ir.contains("call i64 @find_substring("),
+        "negative-one miss helpers should bypass the user-authored loop helper at the call site:\n{}",
+        locate_ir
+    );
+    assert!(
+        !locate_ir.contains("call i64 @find_substring_from_known_lengths("),
+        "negative-one miss helpers should bypass the runtime wrapper once recognized:\n{}",
+        locate_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "manual-find-substring-negative-one-fast-path");
 }
 
 #[test]

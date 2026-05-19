@@ -1,0 +1,58 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.control_inline_known_string_find_substring_window_stays_in_bounds
+kind: check_smt2
+description: The inline LLVM known-string substring fast path searches a
+  `remaining - needle_len + 1` byte window with `memchr`, then advances the
+  cursor by one byte after a failed tail comparison. Under the emitted guards,
+  both the search window and the next-iteration remaining span must stay inside
+  the original haystack bounds.
+tags:
+- llvm
+- control
+- string
+- substring
+- memchr
+- bounds
+source:
+  path: D:/Kain-Lang/crates/kain-sys-codegen/src/codegen_llvm/mod.rs
+  symbol: compile_known_length_find_substring_inline
+  start_line: 3776
+  reason: compile_known_length_find_substring_inline emits the hot-path
+    `memchr` window and loop-carried `next_remaining` update directly in LLVM IR.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+
+    (declare-const text_len Int)
+    (declare-const clamped_start Int)
+    (declare-const needle_len Int)
+    (declare-const found_delta Int)
+
+    (assert (<= 0 text_len))
+    (assert (<= 0 clamped_start))
+    (assert (<= clamped_start text_len))
+    (assert (< 0 needle_len))
+
+    (define-fun remaining () Int (- text_len clamped_start))
+    (assert (<= needle_len remaining))
+
+    ; The inlined memchr call scans remaining - needle_len + 1 candidate starts.
+    (define-fun search_window () Int (+ (- remaining needle_len) 1))
+    (assert (<= 0 found_delta))
+    (assert (< found_delta search_window))
+
+    ; After a failed tail comparison the loop advances to found + 1.
+    (define-fun next_offset () Int (+ clamped_start found_delta 1))
+    (define-fun next_remaining () Int (- text_len next_offset))
+
+    (assert
+      (or
+        (< search_window 1)
+        (> search_window remaining)
+        (< next_remaining 0)
+        (> next_remaining text_len)
+        (>= next_remaining remaining)))
+
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -347,6 +347,12 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     Ok(gen.output.into_bytes())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ManualFindSubstringMissBehavior {
+    NegativeOne,
+    HaystackLength,
+}
+
 struct LlvmGenerator {
     output: String,
     reg_count: usize,
@@ -397,6 +403,9 @@ struct LlvmGenerator {
     extern_functions: HashSet<String>,
     /// Callable names defined by the lowered program itself, including target stdlib wrappers.
     defined_functions: HashSet<String>,
+    /// User-authored substring-search helpers whose bodies match the canonical
+    /// byte-search loop and can lower to the native length-aware search helper.
+    manual_find_substring_functions: HashMap<String, ManualFindSubstringMissBehavior>,
     /// Zero-arg functions whose entire Future result is a compile-time visible
     /// immediate async payload, so `await f()` can inline the payload directly.
     immediate_ready_future_payloads: HashMap<String, Expr>,
@@ -471,6 +480,7 @@ impl LlvmGenerator {
             string_function_params: HashMap::new(),
             extern_functions: HashSet::new(),
             defined_functions: HashSet::new(),
+            manual_find_substring_functions: HashMap::new(),
             immediate_ready_future_payloads: HashMap::new(),
             strings: HashMap::new(),
             string_counter: 0,
@@ -1002,6 +1012,10 @@ impl LlvmGenerator {
             ty,
             Type::Named { name, .. } if name == "String" || name == "str"
         )
+    }
+
+    fn ast_type_is_int(ty: &Type) -> bool {
+        matches!(ty, Type::Named { name, .. } if name == "Int")
     }
 
     fn resolved_type_is_string(ty: &ResolvedType) -> bool {
@@ -3332,6 +3346,18 @@ impl LlvmGenerator {
         }
     }
 
+    fn expr_static_string_bytes(&self, expr: &Expr) -> Option<Vec<u8>> {
+        match Self::expr_strip_parens(expr) {
+            Expr::String(value, _) => Some(value.as_bytes().to_vec()),
+            Expr::Ident(name, _) => self.const_globals.get(name).and_then(|info| {
+                info.string_literal
+                    .as_ref()
+                    .map(|literal| literal.as_bytes().to_vec())
+            }),
+            _ => None,
+        }
+    }
+
     fn collect_string_concat_terms<'a>(&self, expr: &'a Expr, terms: &mut Vec<&'a Expr>) {
         match expr {
             Expr::Paren(inner, _) => self.collect_string_concat_terms(inner, terms),
@@ -3741,12 +3767,721 @@ impl LlvmGenerator {
             return Ok(None);
         };
         let start = self.compile_expr_as_i64(start_expr)?;
+        let needle_static_bytes = self.expr_static_string_bytes(needle);
+        Ok(Some(self.compile_known_length_find_substring_inline(
+            &text_ptr,
+            &text_len,
+            &needle_ptr,
+            &needle_len,
+            &start,
+            needle_static_bytes.as_deref(),
+        )))
+    }
+
+    fn compile_known_length_find_substring_inline(
+        &mut self,
+        text_ptr: &str,
+        text_len: &str,
+        needle_ptr: &str,
+        needle_len: &str,
+        start: &str,
+        needle_static_bytes: Option<&[u8]>,
+    ) -> String {
+        let empty_check = self.next_label();
+        let setup = self.next_label();
+        let search = self.next_label();
+        let compare = self.next_label();
+        let continue_search = self.next_label();
+        let tail_check = self.next_label();
+        let found_match = self.next_label();
+        let fail = self.next_label();
+        let merge = self.next_label();
+        let next_cursor = self.next_reg();
+        let next_remaining = self.next_reg();
+
+        let text_non_null = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i8* {}, null",
+            text_non_null, text_ptr
+        ));
+        let needle_non_null = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i8* {}, null",
+            needle_non_null, needle_ptr
+        ));
+        let non_null = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            non_null, text_non_null, needle_non_null
+        ));
+        let start_non_negative = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, 0",
+            start_non_negative, start
+        ));
+        let clamped_start = self.next_reg();
+        self.emit(&format!(
+            "  {} = select i1 {}, i64 {}, i64 0",
+            clamped_start, start_non_negative, start
+        ));
+        let start_in_bounds = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sle i64 {}, {}",
+            start_in_bounds, clamped_start, text_len
+        ));
+        let start_valid = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            start_valid, non_null, start_in_bounds
+        ));
+        let needle_empty = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp eq i64 {}, 0",
+            needle_empty, needle_len
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            start_valid, empty_check, fail
+        ));
+
+        self.emit_label(&empty_check);
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            needle_empty, merge, setup
+        ));
+
+        self.emit_label(&setup);
+        let remaining = self.next_reg();
+        self.emit(&format!(
+            "  {} = sub i64 {}, {}",
+            remaining, text_len, clamped_start
+        ));
+        let needle_fits = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sle i64 {}, {}",
+            needle_fits, needle_len, remaining
+        ));
+        let text_base_int = self.next_reg();
+        self.emit(&format!(
+            "  {} = ptrtoint i8* {} to i64",
+            text_base_int, text_ptr
+        ));
+        let start_cursor = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+            start_cursor, text_ptr, clamped_start
+        ));
+        let first_byte = self.next_reg();
+        self.emit(&format!(
+            "  {} = load i8, i8* {}, align 1",
+            first_byte, needle_ptr
+        ));
+        let first_byte_i32 = self.next_reg();
+        self.emit(&format!(
+            "  {} = zext i8 {} to i32",
+            first_byte_i32, first_byte
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            needle_fits, search, fail
+        ));
+
+        self.emit_label(&search);
+        let cursor = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i8* [ {}, %{} ], [ {}, %{} ]",
+            cursor, start_cursor, setup, next_cursor, continue_search
+        ));
+        let remaining_phi = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i64 [ {}, %{} ], [ {}, %{} ]",
+            remaining_phi, remaining, setup, next_remaining, continue_search
+        ));
+        let can_search = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, {}",
+            can_search, remaining_phi, needle_len
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            can_search, compare, fail
+        ));
+
+        self.emit_label(&compare);
+        let search_window_minus_one = self.next_reg();
+        self.emit(&format!(
+            "  {} = sub i64 {}, {}",
+            search_window_minus_one, remaining_phi, needle_len
+        ));
+        let search_window = self.next_reg();
+        self.emit(&format!(
+            "  {} = add i64 {}, 1",
+            search_window, search_window_minus_one
+        ));
+        let found = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @memchr(i8* {}, i32 {}, i64 {})",
+            found, cursor, first_byte_i32, search_window
+        ));
+        let found_non_null = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i8* {}, null",
+            found_non_null, found
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            found_non_null, tail_check, fail
+        ));
+
+        self.emit_label(&tail_check);
+        let tail_matches = if let Some(bytes) = needle_static_bytes {
+            if bytes.len() <= 1 {
+                "true".to_string()
+            } else if bytes.len() <= 8 {
+                let mut current_match = "true".to_string();
+                for (offset, byte) in bytes.iter().enumerate().skip(1) {
+                    let byte_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+                        byte_ptr, found, offset
+                    ));
+                    let loaded = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = load i8, i8* {}, align 1",
+                        loaded, byte_ptr
+                    ));
+                    let byte_matches = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = icmp eq i8 {}, {}",
+                        byte_matches, loaded, byte
+                    ));
+                    let all_match = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = and i1 {}, {}",
+                        all_match, current_match, byte_matches
+                    ));
+                    current_match = all_match;
+                }
+                current_match
+            } else {
+                let tail_len = self.next_reg();
+                self.emit(&format!("  {} = sub i64 {}, 1", tail_len, needle_len));
+                let found_tail = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds i8, i8* {}, i64 1",
+                    found_tail, found
+                ));
+                let needle_tail = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds i8, i8* {}, i64 1",
+                    needle_tail, needle_ptr
+                ));
+                let tail_cmp = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i32 @memcmp(i8* {}, i8* {}, i64 {})",
+                    tail_cmp, found_tail, needle_tail, tail_len
+                ));
+                let cmp_ok = self.next_reg();
+                self.emit(&format!("  {} = icmp eq i32 {}, 0", cmp_ok, tail_cmp));
+                cmp_ok
+            }
+        } else {
+            let tail_is_empty = self.next_reg();
+            self.emit(&format!(
+                "  {} = icmp eq i64 {}, 1",
+                tail_is_empty, needle_len
+            ));
+            let found_tail = self.next_reg();
+            self.emit(&format!(
+                "  {} = getelementptr inbounds i8, i8* {}, i64 1",
+                found_tail, found
+            ));
+            let needle_tail = self.next_reg();
+            self.emit(&format!(
+                "  {} = getelementptr inbounds i8, i8* {}, i64 1",
+                needle_tail, needle_ptr
+            ));
+            let tail_len = self.next_reg();
+            self.emit(&format!("  {} = sub i64 {}, 1", tail_len, needle_len));
+            let tail_cmp = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i32 @memcmp(i8* {}, i8* {}, i64 {})",
+                tail_cmp, found_tail, needle_tail, tail_len
+            ));
+            let tail_cmp_ok = self.next_reg();
+            self.emit(&format!("  {} = icmp eq i32 {}, 0", tail_cmp_ok, tail_cmp));
+            let combined = self.next_reg();
+            self.emit(&format!(
+                "  {} = select i1 {}, i1 true, i1 {}",
+                combined, tail_is_empty, tail_cmp_ok
+            ));
+            combined
+        };
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            tail_matches, found_match, continue_search
+        ));
+
+        self.emit_label(&continue_search);
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 1",
+            next_cursor, found
+        ));
+        let cursor_next_int = self.next_reg();
+        self.emit(&format!(
+            "  {} = ptrtoint i8* {} to i64",
+            cursor_next_int, next_cursor
+        ));
+        let next_offset = self.next_reg();
+        self.emit(&format!(
+            "  {} = sub i64 {}, {}",
+            next_offset, cursor_next_int, text_base_int
+        ));
+        self.emit(&format!(
+            "  {} = sub i64 {}, {}",
+            next_remaining, text_len, next_offset
+        ));
+        self.emit(&format!("  br label %{}", search));
+
+        self.emit_label(&fail);
+        self.emit(&format!("  br label %{}", merge));
+
+        self.emit_label(&found_match);
+        let found_int = self.next_reg();
+        self.emit(&format!("  {} = ptrtoint i8* {} to i64", found_int, found));
+        let match_offset = self.next_reg();
+        self.emit(&format!(
+            "  {} = sub i64 {}, {}",
+            match_offset, found_int, text_base_int
+        ));
+        self.emit(&format!("  br label %{}", merge));
+
+        self.emit_label(&merge);
         let result = self.next_reg();
         self.emit(&format!(
-            "  {} = call i64 @find_substring_from_known_lengths(i8* {}, i64 {}, i8* {}, i64 {}, i64 {})",
-            result, text_ptr, text_len, needle_ptr, needle_len, start
+            "  {} = phi i64 [ {}, %{} ], [ -1, %{} ], [ {}, %{} ]",
+            result, clamped_start, empty_check, fail, match_offset, found_match
         ));
-        Ok(Some(result))
+        result
+    }
+
+    fn expr_strip_parens<'a>(expr: &'a Expr) -> &'a Expr {
+        match expr {
+            Expr::Paren(inner, _) => Self::expr_strip_parens(inner),
+            Expr::Cast { value, .. } => Self::expr_strip_parens(value),
+            _ => expr,
+        }
+    }
+
+    fn pattern_binding_name(pattern: &Pattern) -> Option<&str> {
+        match pattern {
+            Pattern::Binding { name, .. } => Some(name.as_str()),
+            _ => None,
+        }
+    }
+
+    fn expr_is_ident(expr: &Expr, expected: &str) -> bool {
+        matches!(Self::expr_strip_parens(expr), Expr::Ident(name, _) if name == expected)
+    }
+
+    fn expr_int_literal(expr: &Expr) -> Option<i64> {
+        match Self::expr_strip_parens(expr) {
+            Expr::Int(value, _) => Some(*value),
+            Expr::Unary {
+                op: UnaryOp::Neg,
+                operand,
+                ..
+            } => Self::expr_int_literal(operand).map(|value| -value),
+            _ => None,
+        }
+    }
+
+    fn expr_is_zero(expr: &Expr) -> bool {
+        Self::expr_int_literal(expr) == Some(0)
+    }
+
+    fn expr_is_len_call_of(expr: &Expr, expected_ident: &str) -> bool {
+        match Self::expr_strip_parens(expr) {
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "len")
+                    && args.len() == 1 =>
+            {
+                Self::expr_is_ident(&args[0].value, expected_ident)
+            }
+            _ => false,
+        }
+    }
+
+    fn expr_is_manual_substring_needle_len(
+        expr: &Expr,
+        needle_name: &str,
+        needle_len_binding: Option<&str>,
+    ) -> bool {
+        needle_len_binding
+            .map(|binding| Self::expr_is_ident(expr, binding))
+            .unwrap_or(false)
+            || Self::expr_is_len_call_of(expr, needle_name)
+    }
+
+    fn match_manual_substring_needle_len_binding(stmt: &Stmt, needle_name: &str) -> Option<String> {
+        match stmt {
+            Stmt::Let {
+                pattern,
+                value: Some(value),
+                ..
+            } => {
+                let binding = Self::pattern_binding_name(pattern)?;
+                if Self::expr_is_len_call_of(value, needle_name) {
+                    Some(binding.to_string())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn stmt_is_manual_substring_empty_needle_guard(
+        stmt: &Stmt,
+        needle_name: &str,
+        needle_len_binding: Option<&str>,
+        start_name: &str,
+    ) -> bool {
+        let Stmt::Expr(Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        }) = stmt
+        else {
+            return false;
+        };
+        if else_branch.is_some() {
+            return false;
+        }
+        let condition = Self::expr_strip_parens(condition);
+        let Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+            ..
+        } = condition
+        else {
+            return false;
+        };
+        let empty_check =
+            (Self::expr_is_manual_substring_needle_len(left, needle_name, needle_len_binding)
+                && Self::expr_is_zero(right))
+                || (Self::expr_is_manual_substring_needle_len(
+                    right,
+                    needle_name,
+                    needle_len_binding,
+                ) && Self::expr_is_zero(left));
+        if !empty_check {
+            return false;
+        }
+        matches!(
+            then_branch.stmts.as_slice(),
+            [Stmt::Return(Some(value), _)] if Self::expr_is_ident(value, start_name)
+        )
+    }
+
+    fn match_manual_substring_index_init(stmt: &Stmt, start_name: &str) -> Option<String> {
+        match stmt {
+            Stmt::Let {
+                pattern,
+                value: Some(value),
+                ..
+            } => {
+                let binding = Self::pattern_binding_name(pattern)?;
+                if Self::expr_is_ident(value, start_name) {
+                    Some(binding.to_string())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn expr_is_manual_substring_search_bound(
+        expr: &Expr,
+        text_name: &str,
+        needle_name: &str,
+        needle_len_binding: Option<&str>,
+        index_name: &str,
+    ) -> bool {
+        let Expr::Binary {
+            left,
+            op: BinaryOp::Le,
+            right,
+            ..
+        } = Self::expr_strip_parens(expr)
+        else {
+            return false;
+        };
+        if !Self::expr_is_len_call_of(right, text_name) {
+            return false;
+        }
+        let Expr::Binary {
+            left: sum_left,
+            op: BinaryOp::Add,
+            right: sum_right,
+            ..
+        } = Self::expr_strip_parens(left)
+        else {
+            return false;
+        };
+        let left_matches = Self::expr_is_ident(sum_left, index_name)
+            && Self::expr_is_manual_substring_needle_len(
+                sum_right,
+                needle_name,
+                needle_len_binding,
+            );
+        let right_matches = Self::expr_is_ident(sum_right, index_name)
+            && Self::expr_is_manual_substring_needle_len(sum_left, needle_name, needle_len_binding);
+        left_matches || right_matches
+    }
+
+    fn stmt_is_manual_substring_match_guard(
+        stmt: &Stmt,
+        text_name: &str,
+        needle_name: &str,
+        index_name: &str,
+    ) -> bool {
+        let Stmt::Expr(Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        }) = stmt
+        else {
+            return false;
+        };
+        if else_branch.is_some() {
+            return false;
+        }
+        let Expr::Call { callee, args, .. } = Self::expr_strip_parens(condition) else {
+            return false;
+        };
+        if !matches!(callee.as_ref(), Expr::Ident(name, _) if name == "starts_with_at")
+            || args.len() != 3
+        {
+            return false;
+        }
+        if !Self::expr_is_ident(&args[0].value, text_name)
+            || !Self::expr_is_ident(&args[1].value, index_name)
+            || !Self::expr_is_ident(&args[2].value, needle_name)
+        {
+            return false;
+        }
+        matches!(
+            then_branch.stmts.as_slice(),
+            [Stmt::Return(Some(value), _)] if Self::expr_is_ident(value, index_name)
+        )
+    }
+
+    fn stmt_is_manual_substring_increment(stmt: &Stmt, index_name: &str) -> bool {
+        let Stmt::Expr(Expr::Assign { target, value, .. }) = stmt else {
+            return false;
+        };
+        if !Self::expr_is_ident(target, index_name) {
+            return false;
+        }
+        let Expr::Binary {
+            left,
+            op: BinaryOp::Add,
+            right,
+            ..
+        } = Self::expr_strip_parens(value)
+        else {
+            return false;
+        };
+        let left_matches =
+            Self::expr_is_ident(left, index_name) && Self::expr_int_literal(right) == Some(1);
+        let right_matches =
+            Self::expr_is_ident(right, index_name) && Self::expr_int_literal(left) == Some(1);
+        left_matches || right_matches
+    }
+
+    fn stmt_is_manual_substring_search_loop(
+        stmt: &Stmt,
+        text_name: &str,
+        needle_name: &str,
+        needle_len_binding: Option<&str>,
+        index_name: &str,
+    ) -> bool {
+        let Stmt::While {
+            condition, body, ..
+        } = stmt
+        else {
+            return false;
+        };
+        if !Self::expr_is_manual_substring_search_bound(
+            condition,
+            text_name,
+            needle_name,
+            needle_len_binding,
+            index_name,
+        ) {
+            return false;
+        }
+        matches!(
+            body.stmts.as_slice(),
+            [match_guard, increment]
+                if Self::stmt_is_manual_substring_match_guard(
+                    match_guard,
+                    text_name,
+                    needle_name,
+                    index_name,
+                ) && Self::stmt_is_manual_substring_increment(increment, index_name)
+        )
+    }
+
+    fn match_manual_substring_miss_return(
+        stmt: &Stmt,
+        text_name: &str,
+    ) -> Option<ManualFindSubstringMissBehavior> {
+        let Stmt::Return(Some(value), _) = stmt else {
+            return None;
+        };
+        if Self::expr_is_len_call_of(value, text_name) {
+            return Some(ManualFindSubstringMissBehavior::HaystackLength);
+        }
+        if Self::expr_int_literal(value) == Some(-1) {
+            return Some(ManualFindSubstringMissBehavior::NegativeOne);
+        }
+        None
+    }
+
+    fn detect_manual_find_substring_function(
+        func: &TypedFunction,
+    ) -> Option<ManualFindSubstringMissBehavior> {
+        if func.ast.params.len() != 3 {
+            return None;
+        }
+        if !Self::ast_type_is_string(&func.ast.params[0].ty)
+            || !Self::ast_type_is_string(&func.ast.params[1].ty)
+            || !Self::ast_type_is_int(&func.ast.params[2].ty)
+            || !func
+                .ast
+                .return_type
+                .as_ref()
+                .is_some_and(Self::ast_type_is_int)
+        {
+            return None;
+        }
+        let text_name = func.ast.params[0].name.as_str();
+        let needle_name = func.ast.params[1].name.as_str();
+        let start_name = func.ast.params[2].name.as_str();
+        let mut stmts = func.ast.body.stmts.iter();
+        let mut current = stmts.next()?;
+        let mut needle_len_binding = None::<String>;
+        if let Some(binding_name) =
+            Self::match_manual_substring_needle_len_binding(current, needle_name)
+        {
+            needle_len_binding = Some(binding_name);
+            current = stmts.next()?;
+        }
+        if !Self::stmt_is_manual_substring_empty_needle_guard(
+            current,
+            needle_name,
+            needle_len_binding.as_deref(),
+            start_name,
+        ) {
+            return None;
+        }
+        let index_name = Self::match_manual_substring_index_init(stmts.next()?, start_name)?;
+        if !Self::stmt_is_manual_substring_search_loop(
+            stmts.next()?,
+            text_name,
+            needle_name,
+            needle_len_binding.as_deref(),
+            &index_name,
+        ) {
+            return None;
+        }
+        let miss_behavior = Self::match_manual_substring_miss_return(stmts.next()?, text_name)?;
+        if stmts.next().is_some() {
+            return None;
+        }
+        Some(miss_behavior)
+    }
+
+    fn expr_is_direct_string_byte_view(expr: &Expr) -> bool {
+        match Self::expr_strip_parens(expr) {
+            Expr::String(..) | Expr::Ident(..) => true,
+            _ => false,
+        }
+    }
+
+    fn compile_direct_string_view_and_length(
+        &mut self,
+        expr: &Expr,
+    ) -> KainResult<Option<(String, String)>> {
+        if !Self::expr_is_direct_string_byte_view(expr) || !self.expr_is_known_string(expr) {
+            return Ok(None);
+        }
+        let ptr = self.compile_string_data_pointer_for_byte_view(expr)?;
+        let Some(len) = self.compile_string_length_value(expr)? else {
+            return Ok(None);
+        };
+        Ok(Some((ptr, len)))
+    }
+
+    fn compile_manual_find_substring_call_fast_path(
+        &mut self,
+        func_name: &str,
+        args: &[kain_core::ast::CallArg],
+    ) -> KainResult<Option<(String, String)>> {
+        let Some(miss_behavior) = self.manual_find_substring_functions.get(func_name).copied()
+        else {
+            return Ok(None);
+        };
+        if args.len() != 3 {
+            return Ok(None);
+        }
+        let Some((text_ptr, text_len)) =
+            self.compile_direct_string_view_and_length(&args[0].value)?
+        else {
+            return Ok(None);
+        };
+        let Some((needle_ptr, needle_len)) =
+            self.compile_direct_string_view_and_length(&args[1].value)?
+        else {
+            return Ok(None);
+        };
+        let start = self.compile_expr_as_i64(&args[2].value)?;
+        let empty = self.next_reg();
+        self.emit(&format!("  {} = icmp eq i64 {}, 0", empty, needle_len));
+        let needle_static_bytes = self.expr_static_string_bytes(&args[1].value);
+        let search_result = self.compile_known_length_find_substring_inline(
+            &text_ptr,
+            &text_len,
+            &needle_ptr,
+            &needle_len,
+            &start,
+            needle_static_bytes.as_deref(),
+        );
+        let nonempty_result = match miss_behavior {
+            ManualFindSubstringMissBehavior::NegativeOne => search_result,
+            ManualFindSubstringMissBehavior::HaystackLength => {
+                let miss = self.next_reg();
+                self.emit(&format!("  {} = icmp slt i64 {}, 0", miss, search_result));
+                let shaped = self.next_reg();
+                self.emit(&format!(
+                    "  {} = select i1 {}, i64 {}, i64 {}",
+                    shaped, miss, text_len, search_result
+                ));
+                shaped
+            }
+        };
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = select i1 {}, i64 {}, i64 {}",
+            result, empty, start, nonempty_result
+        ));
+        Ok(Some((result, "i64".to_string())))
     }
 
     fn map_type(&self, ty: &kain_core::types::ResolvedType) -> String {
@@ -7471,6 +8206,12 @@ impl LlvmGenerator {
                             self.immediate_ready_future_payloads
                                 .insert(func.ast.name.clone(), payload);
                         }
+                        if let Some(miss_behavior) =
+                            Self::detect_manual_find_substring_function(func)
+                        {
+                            self.manual_find_substring_functions
+                                .insert(func.ast.name.clone(), miss_behavior);
+                        }
                     }
                 }
                 TypedItem::Patch(patch) => {
@@ -8310,6 +9051,8 @@ impl LlvmGenerator {
         self.emit("declare void @map_set_static_prehashed(i64, i8*, i64, i64, i64, i64)");
         self.emit("declare i64 @map_get_prehashed(i64, i8*, i64, i64, i64)");
         self.emit("declare i64 @find_substring_from_known_lengths(i8*, i64, i8*, i64, i64)");
+        self.emit("declare i8* @memchr(i8*, i32, i64)");
+        self.emit("declare i32 @memcmp(i8*, i8*, i64)");
         self.emit("declare i8* @array_new(i64)");
         self.emit("declare void @array_push(i8*, i64)");
         self.emit("declare i64 @array_get(i8*, i64)");
@@ -10032,8 +10775,10 @@ impl LlvmGenerator {
                                     &known_i64_bindings,
                                 )
                             {
-                                let single_cell =
-                                    Self::helper_alloc_is_single_cell(val_expr, &known_i64_bindings);
+                                let single_cell = Self::helper_alloc_is_single_cell(
+                                    val_expr,
+                                    &known_i64_bindings,
+                                );
                                 let emit_initial_zero =
                                     zeroed && !self.current_scope_elides_ephemeral_zero_init(name);
                                 let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
@@ -10043,7 +10788,9 @@ impl LlvmGenerator {
                                 let (storage_llvm_ty, storage_element_ty, storage_alignment) =
                                     if single_cell {
                                         if let Some(scalar_ty) =
-                                            Self::ephemeral_single_cell_scalar_llvm_ty(storage_byte_len)
+                                            Self::ephemeral_single_cell_scalar_llvm_ty(
+                                                storage_byte_len,
+                                            )
                                         {
                                             (
                                                 scalar_ty.to_string(),
@@ -10676,6 +11423,10 @@ impl LlvmGenerator {
                 let (value, value_ty) = self.compile_expr(&args[0].value)?;
                 return self.coerce_compiled_value_to_target_type(value, &value_ty, target_ty);
             }
+        }
+
+        if let Some(result) = self.compile_manual_find_substring_call_fast_path(func_name, args)? {
+            return Ok(result);
         }
 
         if func_name == "len" && args.len() == 1 {
