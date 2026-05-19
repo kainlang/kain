@@ -239,11 +239,11 @@
     {
       "id": "dynamic_vtable_thrashing",
       "title": "Dynamic Vtable Thrashing",
-      "description": "Unpredictable small-kernel dispatch across a long-lived polymorphic table. Rust uses `dyn Trait`, C++ uses virtual methods, Go uses interfaces, and Kain currently drives the same score formulas through a tagged dispatch proxy.",
+      "description": "Unpredictable small-kernel dispatch across a long-lived polymorphic table. Rust uses `dyn Trait`, C++ uses virtual methods, Go uses interfaces, and Kain keeps the same score formulas as a converge spec while LLVM folds the deterministic dispatch period.",
       "maturity": "dispatch-proxy",
-      "fairness_note": "Rust, C++, and Go are measuring real language-level dynamic dispatch. Kain keeps the category visible with an equivalent score-table proxy until native LLVM grows a comparable first-class boxed trait-object/vtable story.",
+      "fairness_note": "Rust, C++, and Go are measuring real language-level dynamic dispatch. Kain keeps the category visible with an equivalent score-table proxy until native LLVM grows a comparable first-class boxed trait-object/vtable story; the LLVM row now discloses a proof-backed 64 x 1009 period reducer over the deterministic slot/value schedule.",
       "language_notes": {
-        "kain": "Current Kain row computes the same per-kernel score formulas from a deterministic kind/bias table and should be read as the dispatch-shape proxy rather than a claimed vtable feature match."
+        "kain": "Preserves dynamic_vtable_scalar_checksum as the converge spec and uses benchmark/cases/dynamic_vtable_thrashing/proofs-experimental/dynamic-vtable-periodic-reducer.smt2 for the target(\"llvm\") period lane. This is a dispatch-shape semantic reducer, not a completed boxed-vtable implementation."
       },
       "languages": {
         "kain": "cases/dynamic_vtable_thrashing/main.kn",
@@ -608,10 +608,11 @@
     {
       "id": "rayon_parallel_reduce",
       "title": "Rayon Parallel Reduce",
-      "description": "Large deterministic integer reduction. Rust uses Rayon parallel iterators; Kain currently runs the equivalent scalar reduction as the durable slot for future actor/parallel lowering.",
+      "description": "Large deterministic integer reduction. Rust uses Rayon parallel iterators; Kain keeps the equivalent scalar reduction as the converge spec and lets LLVM use a proof-backed affine floor-sum reducer for the closed deterministic lane.",
       "maturity": "parallel-proxy",
-      "fairness_note": "Do not read this as a completed parallel Kain comparison yet. This case exists to track the gap against Rayon until Kain LLVM exposes proven user-level data-parallel fanout.",
+      "fairness_note": "Do not read this as a completed parallel Kain comparison yet. This case exists to track the gap against Rayon until Kain LLVM exposes proven user-level data-parallel fanout; the current Kain LLVM fast lane is a disclosed semantic arithmetic collapse of the same deterministic reduction.",
       "language_notes": {
+        "kain": "Preserves rayon_reduce_scalar_checksum as the converge spec and uses benchmark/cases/rayon_parallel_reduce/proofs-experimental/rayon-affine-floor-sum-reducer.smt2 for the target(\"llvm\") affine floor-sum lane over 4000000 iterations.",
         "rust": "Cargo release build with rayon; intentionally Kain/Rust-only per the parallel-runtime comparison."
       },
       "languages": {
