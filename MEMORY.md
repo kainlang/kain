@@ -1,5 +1,48 @@
 # Kain Memory
 
+# 2026-05-19 - Typed ephemeral stack lowering retook sim_nbody_gravity and widened the decay-local helper theorem
+
+The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T05:42:42.438548+00:00` targeted the biggest clean compiler-owned sim wound left in the latest full suite: `sim_nbody_gravity` at Kain `12.238 ms`, Rust `11.433 ms`, and C++ `9.499 ms`.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Added `HelperAllocStorageLayout` so bounded helper buffer erasure reasons about element count, stride, byte span, and zeroed state in one place.
+  - Expanded the ephemeral helper lane from single-cell scalars to bounded 1/2/4/8-byte multi-cell arrays, lowering them to typed stack storage such as `[N x i64]` instead of `[bytes x i8]`.
+  - Relaxed the statement-order matcher so decay-only helper traces can still be erased when all remaining statements are safe local uses before the final `decay`.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Added `llvm_erases_decay_only_bounded_helper_buffer_to_typed_local_storage`.
+  - Added `llvm_erases_decay_only_float_buffer_to_aligned_typed_local_storage`.
+  - Updated `llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage` to expect typed stack arrays and natural alignment.
+- `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml`
+- `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-typed-array-element-offset-equivalence.smt2`
+- `research/2026-05-19-benchmark-frontier-typed-stack-sim-retake.md`
+- `benchmark/assesments/2026-05-19-typed-ephemeral-stack-lowering-latest-benchmark-assessment.md`
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_decay_only_bounded_helper_buffer_to_typed_local_storage -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_decay_only_float_buffer_to_aligned_typed_local_storage -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesses -- --nocapture`
+- `mcp__z3_local__.run_proof_pack(path=\"D:/Kain-Lang/crates/kain-sys-codegen\", lane=\"memory\", report_name=\"kain-sys-codegen-memory-lane-post-alloc-attrs-revert\")` -> `10 proved, 0 counterexamples, 0 unknown, 0 errors`
+- `bazel build //:kain --config=release`
+- Focused sim retake `benchmark/out/reports/latest_sim_ephemeral_typed_arrays.llm.md`
+  - `sim_nbody_gravity`: Kain `10.153 ms`, Rust `11.033 ms`, C++ `10.186 ms`
+  - `sim_uv_velocity_grid`: Kain `16.200 ms`, Rust `15.890 ms`, C++ `14.564 ms`
+  - `sim_cfd_pressure_projection`: Kain `8.441 ms`, Rust `10.365 ms`, C++ `8.710 ms`
+- Full benchmark passed with `benchmark/latest.md` generated `2026-05-19T06:38:03.056721+00:00`
+  - `sim_nbody_gravity`: Kain `9.731 ms`, Rust `10.741 ms`, C++ `9.497 ms`
+  - `sim_uv_velocity_grid`: Kain `16.584 ms`, Rust `16.718 ms`, C++ `15.340 ms`
+  - `sim_cfd_pressure_projection`: Kain `9.971 ms`, Rust `10.782 ms`, C++ `8.727 ms`
+
+Durable lesson:
+
+- The accepted compiler win is the typed multi-cell stack lane itself. It is general, solver-backed, and it materially reduced the sim gravity wound without case-local cheating.
+- I explored an alloc-metadata side branch (`noalias` / `allocsize` on helper alloc declarations) and rolled it back in the same pass because it destabilized `sim_cfd_pressure_projection`. Do not resurrect that branch casually; prove the full-suite net before landing it.
+- `ffi_shared_call_stress` in the `2026-05-19T06:38:03.056721+00:00` full suite was contaminated. The isolated nine-run retake `benchmark/out/reports/latest_ffi_regression_probe.llm.md` returned Kain `54.504 ms` versus C++ `53.480 ms`, so treat the full-suite `97.057 ms` as a warmup/order artifact, not durable truth.
+- The next meaningful compiler frontier is stronger nomination, not more metadata glitter: derived-count decay-local arrays such as CFD grids (`nx * ny * nz`) still miss the typed-stack lane and likely hide the next real sim retake.
+
 # 2026-05-19 - Inline substring lowering retook string_ops
 
 The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T04:37:34.995550+00:00` targeted `string_ops`, the cleanest text-lowering loss left in the latest full suite: Kain `10.973 ms`, Rust `9.634 ms`, C++ `11.329 ms`.

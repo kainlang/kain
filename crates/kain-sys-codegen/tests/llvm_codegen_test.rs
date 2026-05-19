@@ -1613,9 +1613,59 @@ fn llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage() {
     assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
     assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
     assert!(!llvm.contains("call i8* @__kain_ptr_offset"));
-    assert!(llvm.contains("alloca [32 x i8]"));
+    assert!(llvm.contains("alloca [4 x i64]"));
+    assert!(llvm.contains("align 8"));
     assert!(llvm.contains("getelementptr i8"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "bounded-ephemeral-ptr-offset-buffer-erasure");
+}
+
+#[test]
+fn llvm_erases_decay_only_bounded_helper_buffer_to_typed_local_storage() {
+    let typed = typed_program_from_source(
+        "fn own_decay_only_buffer() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(4, \"Int\")\n    mem_store(ptr_offset(cell, 3, \"Int\"), 11, \"Int\")\n    let read = mem_load(ptr_offset(cell, 3, \"Int\"), \"Int\")\n    decay cell\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(!llvm.contains("call i8* @__kain_ptr_offset"));
+    assert!(llvm.contains("alloca [4 x i64]"));
+    assert!(llvm.contains("align 8"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "decay-only-bounded-helper-buffer-erasure");
+}
+
+#[test]
+fn llvm_erases_decay_only_float_buffer_to_aligned_typed_local_storage() {
+    let typed = typed_program_from_source(
+        "fn own_decay_only_float_buffer() -> Int:\n    let count: Int = 48\n    let mut cells: ptr<Float> = alloc_zeroed(count, \"Float\")\n    mem_store(ptr_offset(cells, 3, \"Float\"), 1.5, \"Float\")\n    let read = mem_load(ptr_offset(cells, 3, \"Float\"), \"Float\")\n    decay cells\n    if read > 1.0:\n        return 1\n    return 0\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(llvm.contains("alloca [48 x i64]"));
+    assert!(llvm.contains("load double, double*"));
+    assert!(llvm.contains("store double"));
+    assert!(llvm.contains("align 8"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "decay-only-float-buffer-typed-local-storage");
+}
+
+#[test]
+fn llvm_marks_heap_alloc_helpers_as_noalias_allocsize() {
+    let typed = typed_program_from_source(
+        "fn main() -> Int:\n    return 0\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare noalias i8* @KAIN_alloc(i64) allocsize(0)"));
+    assert!(llvm.contains("declare noalias i8* @__kain_alloc(i64, i64, i32) allocsize(0,1)"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "alloc-helper-noalias-allocsize-surface");
 }
 
 #[test]

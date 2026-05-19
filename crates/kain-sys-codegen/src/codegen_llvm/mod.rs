@@ -115,6 +115,14 @@ struct EphemeralOwnershipLocalWitness {
     storage_alignment: i64,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct HelperAllocStorageLayout {
+    element_count: i64,
+    stride_bytes: i64,
+    byte_len: i64,
+    zeroed: bool,
+}
+
 #[derive(Clone, Debug)]
 struct ForwardedMemSlot {
     value_reg: String,
@@ -362,10 +370,10 @@ struct LlvmGenerator {
     /// Pointer-like locals whose provenance is solver-proved helper-owned and may
     /// use the helper-header ownership fast path without imported registration.
     helper_owned_pointer_locals: HashMap<String, OwnershipPointerProvenance>,
-    /// Fresh single-cell helper locals whose ownership protocol can stay in the
-    /// compiler because the cell never escapes its local block.
+    /// Fresh bounded helper locals whose runtime protocol can stay in the
+    /// compiler because the buffer never escapes its local block.
     ephemeral_owned_pointer_locals: HashMap<String, EphemeralOwnershipLocalWitness>,
-    /// Precomputed block-local candidates for ephemeral-cell erasure.
+    /// Precomputed block-local candidates for ephemeral helper-buffer erasure.
     ephemeral_candidate_scopes: Vec<HashSet<String>>,
     /// Ephemeral locals whose fresh zero-fill is provably dead because the first
     /// ownership use is a full-width dominating store before any read.
@@ -1516,47 +1524,76 @@ impl LlvmGenerator {
     fn helper_alloc_storage_layout_with_bindings(
         expr: &Expr,
         known_i64_bindings: &HashMap<String, i64>,
-    ) -> Option<(i64, bool)> {
+    ) -> Option<HelperAllocStorageLayout> {
         match expr {
             Expr::Call { callee, args, .. }
                 if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_alloc")
                     && args.len() == 3 =>
             {
-                let size = Self::resolve_i64_literal(&args[0].value, known_i64_bindings)?;
-                let stride = Self::resolve_i64_literal(&args[1].value, known_i64_bindings)?;
+                let element_count =
+                    Self::resolve_i64_literal(&args[0].value, known_i64_bindings)?;
+                let stride_bytes =
+                    Self::resolve_i64_literal(&args[1].value, known_i64_bindings)?;
                 let zeroed = Self::resolve_zeroed_literal(&args[2].value, known_i64_bindings)?;
-                if size <= 0 || stride <= 0 {
+                if element_count <= 0 || stride_bytes <= 0 {
                     return None;
                 }
-                let byte_len = size.checked_mul(stride)?;
-                (byte_len > 0 && byte_len <= 65536).then_some((byte_len, zeroed))
+                let byte_len = element_count.checked_mul(stride_bytes)?;
+                (byte_len > 0 && byte_len <= 65536).then_some(HelperAllocStorageLayout {
+                    element_count,
+                    stride_bytes,
+                    byte_len,
+                    zeroed,
+                })
             }
             _ => None,
         }
     }
 
     fn helper_alloc_is_single_cell(expr: &Expr, known_i64_bindings: &HashMap<String, i64>) -> bool {
-        match expr {
-            Expr::Call { callee, args, .. }
-                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_alloc")
-                    && args.len() == 3 =>
-            {
-                matches!(
-                    Self::resolve_i64_literal(&args[0].value, known_i64_bindings),
-                    Some(1)
-                ) && Self::resolve_zeroed_literal(&args[2].value, known_i64_bindings).is_some()
-            }
-            _ => false,
-        }
+        matches!(
+            Self::helper_alloc_storage_layout_with_bindings(expr, known_i64_bindings),
+            Some(layout) if layout.element_count == 1
+        )
     }
 
-    fn ephemeral_single_cell_scalar_llvm_ty(storage_byte_len: i64) -> Option<&'static str> {
-        match storage_byte_len {
+    fn helper_alloc_scalar_llvm_ty(stride_bytes: i64) -> Option<&'static str> {
+        match stride_bytes {
             1 => Some("i8"),
             2 => Some("i16"),
             4 => Some("i32"),
             8 => Some("i64"),
             _ => None,
+        }
+    }
+
+    fn ephemeral_single_cell_scalar_llvm_ty(storage_byte_len: i64) -> Option<&'static str> {
+        Self::helper_alloc_scalar_llvm_ty(storage_byte_len)
+    }
+
+    fn helper_alloc_stack_storage_shape(
+        layout: HelperAllocStorageLayout,
+    ) -> (String, String, i64) {
+        if let Some(scalar_ty) = Self::helper_alloc_scalar_llvm_ty(layout.stride_bytes) {
+            if layout.element_count == 1 {
+                (
+                    scalar_ty.to_string(),
+                    scalar_ty.to_string(),
+                    Self::obvious_llvm_type_alignment(scalar_ty),
+                )
+            } else {
+                (
+                    format!("[{} x {}]", layout.element_count, scalar_ty),
+                    scalar_ty.to_string(),
+                    Self::obvious_llvm_type_alignment(scalar_ty),
+                )
+            }
+        } else {
+            (
+                format!("[{} x i8]", layout.byte_len),
+                "i8".to_string(),
+                1,
+            )
         }
     }
 
@@ -2758,7 +2795,6 @@ impl LlvmGenerator {
 
     fn remaining_statements_preserve_ephemeral_contract(stmts: &[Stmt], target: &str) -> bool {
         let mut saw_decay = false;
-        let mut saw_ownership_use = false;
 
         for stmt in stmts {
             if saw_decay {
@@ -2783,7 +2819,6 @@ impl LlvmGenerator {
                     if !Self::expr_is_safe_for_ephemeral_local(body, target) {
                         return false;
                     }
-                    saw_ownership_use = true;
                 }
                 Stmt::Expr(Expr::Observe {
                     target: ownership_target,
@@ -2793,7 +2828,6 @@ impl LlvmGenerator {
                     if !Self::expr_is_safe_for_ephemeral_local(body, target) {
                         return false;
                     }
-                    saw_ownership_use = true;
                 }
                 Stmt::Let {
                     value:
@@ -2807,7 +2841,6 @@ impl LlvmGenerator {
                     if !Self::expr_is_safe_for_ephemeral_local(body, target) {
                         return false;
                     }
-                    saw_ownership_use = true;
                 }
                 Stmt::Let {
                     value:
@@ -2821,17 +2854,16 @@ impl LlvmGenerator {
                     if !Self::expr_is_safe_for_ephemeral_local(body, target) {
                         return false;
                     }
-                    saw_ownership_use = true;
                 }
                 _ => {
-                    if Self::debug_mentions_identifier(stmt, target) {
+                    if !Self::stmt_is_safe_for_ephemeral_local(stmt, target) {
                         return false;
                     }
                 }
             }
         }
 
-        saw_decay && saw_ownership_use
+        saw_decay
     }
 
     fn collect_block_ephemeral_candidate_names(
@@ -2888,10 +2920,10 @@ impl LlvmGenerator {
                 ..
             } = stmt
             {
-                if let Some((storage_byte_len, zeroed)) =
+                if let Some(layout) =
                     Self::helper_alloc_storage_layout_with_bindings(value, &known_i64_bindings)
                 {
-                    if zeroed
+                    if layout.zeroed
                         && Self::helper_alloc_is_single_cell(value, &known_i64_bindings)
                         && Self::remaining_statements_preserve_ephemeral_contract(
                             &block.stmts[index + 1..],
@@ -2900,7 +2932,7 @@ impl LlvmGenerator {
                         && self.remaining_statements_allow_ephemeral_zero_init_elision(
                             &block.stmts[index + 1..],
                             name,
-                            storage_byte_len,
+                            layout.byte_len,
                             &known_llvm_types,
                         )
                     {
@@ -9042,7 +9074,7 @@ impl LlvmGenerator {
         self.emit("declare i8* @str_concat10(i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*)");
         self.emit("declare i64 @clock_wrapper()");
         self.emit("declare i64 @strlen(i8*)");
-        self.emit("declare i8* @KAIN_alloc(i64)");
+        self.emit("declare noalias i8* @KAIN_alloc(i64) allocsize(0)");
         self.emit("declare void @rc_retain(i8*)");
         self.emit("declare void @rc_release(i8*)");
         self.emit("declare i8* @string_new(i8*)");
@@ -9143,7 +9175,7 @@ impl LlvmGenerator {
         self.emit("declare void @__kain_mem_store(i8*, i8*, i64)");
         self.emit("");
         self.emit("; Category 3: Allocation Operations");
-        self.emit("declare i8* @__kain_alloc(i64, i64, i32)");
+        self.emit("declare noalias i8* @__kain_alloc(i64, i64, i32) allocsize(0,1)");
         self.emit("declare i8* @__kain_realloc(i8*, i64, i64, i32)");
         self.emit("");
         self.emit("; Category 4: Ownership State Operations");
@@ -10769,18 +10801,16 @@ impl LlvmGenerator {
 
                         if self.current_scope_marks_ephemeral_candidate(name) {
                             let known_i64_bindings = self.current_known_i64_literals();
-                            if let Some((storage_byte_len, zeroed)) =
+                            if let Some(layout) =
                                 Self::helper_alloc_storage_layout_with_bindings(
                                     val_expr,
                                     &known_i64_bindings,
                                 )
                             {
-                                let single_cell = Self::helper_alloc_is_single_cell(
-                                    val_expr,
-                                    &known_i64_bindings,
-                                );
+                                let single_cell = layout.element_count == 1;
                                 let emit_initial_zero =
-                                    zeroed && !self.current_scope_elides_ephemeral_zero_init(name);
+                                    layout.zeroed
+                                        && !self.current_scope_elides_ephemeral_zero_init(name);
                                 let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                                 self.reg_count += 1;
                                 self.emit_entry_alloca(&addr_reg, "i64");
@@ -10789,7 +10819,7 @@ impl LlvmGenerator {
                                     if single_cell {
                                         if let Some(scalar_ty) =
                                             Self::ephemeral_single_cell_scalar_llvm_ty(
-                                                storage_byte_len,
+                                                layout.byte_len,
                                             )
                                         {
                                             (
@@ -10799,17 +10829,13 @@ impl LlvmGenerator {
                                             )
                                         } else {
                                             (
-                                                format!("[{} x i8]", storage_byte_len),
+                                                format!("[{} x i8]", layout.byte_len),
                                                 "i8".to_string(),
                                                 1,
                                             )
                                         }
                                     } else {
-                                        (
-                                            format!("[{} x i8]", storage_byte_len),
-                                            "i8".to_string(),
-                                            1,
-                                        )
+                                        Self::helper_alloc_stack_storage_shape(layout)
                                     };
                                 let storage_reg = self.next_reg();
                                 self.emit_entry_alloca(&storage_reg, &storage_llvm_ty);
@@ -10855,7 +10881,7 @@ impl LlvmGenerator {
                                         storage_reg,
                                         storage_llvm_ty,
                                         storage_element_ty,
-                                        storage_byte_len,
+                                        storage_byte_len: layout.byte_len,
                                         storage_alignment,
                                     },
                                 );
