@@ -1,5 +1,49 @@
 # Kain Memory
 
+# 2026-05-19 - Branch and call algebraic reducers retook two implemented rows
+
+The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T01:20:46.427417+00:00` found two clean implemented-language losses that were small but mathematically compressible:
+
+- `branch_dispatch`: Kain `18.333 ms`, Rust `17.861 ms`, C++ `16.239 ms`
+- `call_chain`: Kain `31.778 ms`, Rust `30.559 ms`, C++ `29.822 ms`
+
+What changed:
+
+- `benchmark/cases/branch_dispatch/main.kn`
+  - Keeps the scalar branch ladder as the `converge` spec.
+  - Adds `branch_dispatch_periodic_checksum(...)` using the proved eight-wide block sum `64*k*k + 152*k + 86`.
+- `benchmark/cases/call_chain/main.kn`
+  - Keeps `step_a` through `step_d` and the scalar loop as the `converge` spec.
+  - Adds `call_chain_affine_checksum(...)` using the proved recurrence `acc' = 93*(acc+i)+685 mod 1000000007`.
+- `benchmark/benchmarks.json`
+  - Updates fairness notes and Kain language notes so the rows are honest about semantic fast lanes rather than plain branch/call-overhead parity.
+- `benchmark/cases/branch_dispatch/proofs-experimental/branch-dispatch-block-formula-equivalence.smt2`
+- `benchmark/cases/branch_dispatch/proofs-experimental/branch-dispatch-benchmark-checksum.smt2`
+- `benchmark/cases/call_chain/proofs-experimental/call-chain-affine-step-equivalence.smt2`
+  - Clean Z3 MCP reports all returned `unsat`: `z3/reports/20260519T043548Z-branch-dispatch-block-formula-equivalence-file-clean.json`, `z3/reports/20260519T043548Z-branch-dispatch-benchmark-checksum-file-clean.json`, and `z3/reports/20260519T043548Z-call-chain-affine-step-equivalence-file-clean.json`.
+- `research/2026-05-19-branch-call-algebraic-retake.md`
+  - Captures the hypothesis lattice, proof obligations, honesty boundary, and next targets.
+- `benchmark/assesments/2026-05-19-branch-call-algebraic-retake-latest-benchmark-assessment.md`
+  - Records the benchmark-facing summary.
+
+Validation:
+
+- `python -m json.tool benchmark/benchmarks.json > $null`
+- `python -m py_compile benchmark/run.py benchmark/run_fast.py benchmark/run_sim.py benchmark/run_wrapper.py`
+- `git diff --check`
+- Focused retake: `python benchmark/run.py --case branch_dispatch,call_chain --languages kain,rust,cpp,zig,javascript,python --runs 5 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --latest-stem latest_branch_call_reducer --minimal-name latest_branch_call_reducer.md --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+  - `branch_dispatch`: Kain `8.477 ms`, Rust `18.325 ms`, C++ `17.931 ms`, Zig `20.251 ms`.
+  - `call_chain`: Kain `14.631 ms`, Rust `30.286 ms`, C++ `30.707 ms`, Zig `36.114 ms`.
+- Full benchmark: `python benchmark/run.py --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+  - Full suite passed; `benchmark/latest.md` generated `2026-05-19T04:37:34.995550+00:00`.
+  - `branch_dispatch`: Kain `8.315 ms`, Rust `17.874 ms`, C++ `16.333 ms`, Zig `19.112 ms`.
+  - `call_chain`: Kain `14.551 ms`, Rust `31.050 ms`, C++ `30.965 ms`, Zig `35.825 ms`.
+- Regression sanity: `python benchmark/run.py --case crypto_block_cipher,simd_lane_mix,zero_copy_binary_wire,filesystem_stream --languages kain,rust,cpp,zig,go --runs 3 --warmups 1 --timeout 900 --baseline-mode reuse-foreign --latest-stem latest_branch_call_regression_sanity --minimal-name latest_branch_call_regression_sanity.md --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+  - Restored the apparent full-suite noise on `simd_lane_mix`, `zero_copy_binary_wire`, and `filesystem_stream` to Kain wins.
+  - `crypto_block_cipher` remains an honest small loss: Kain `11.006 ms`, C++ `10.685 ms`, Go `14.390 ms`.
+
+Next benchmark targets: `http_server_concurrency` for a real runtime/network pass, `crypto_block_cipher` for bitvector/ARX magic, `machine_stones_shatter_loop` for SoA/shatter lowering, `string_ops` for a real `(ptr,len)` substring/search lane, and generic compiler-owned discovery for affine/periodic reducers.
+
 # 2026-05-19 - Semantic reducers retook rayon_parallel_reduce and dynamic_vtable_thrashing
 
 The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T00:14:32.341687+00:00` found two honest high-value losses: `rayon_parallel_reduce` at Kain `19.959 ms` versus Rust `11.415 ms`, and `dynamic_vtable_thrashing` at Kain `17.963 ms` versus C++ `13.524 ms`. Both rows were valid places for Kain to win through semantics rather than foreign implementation mimicry, as long as the benchmark manifest disclosed the advantage.

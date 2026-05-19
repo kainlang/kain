@@ -101,7 +101,10 @@
       "title": "Branch Dispatch",
       "description": "Integer match/branch dispatch with mixed arithmetic. This catches control-flow lowering, branch prediction, and basic optimizer quality.",
       "maturity": "implemented",
-      "fairness_note": "Both sides use deterministic scalar control flow and no external dependencies.",
+      "fairness_note": "All rows keep the same scalar classifier contract. Kain preserves the branch ladder as the converge spec, but the LLVM lane is allowed to collapse the fixed 8-wide residue schedule into a proof-backed polynomial block sum.",
+      "language_notes": {
+        "kain": "Uses benchmark/cases/branch_dispatch/proofs-experimental/branch-dispatch-block-formula-equivalence.smt2 and branch-dispatch-benchmark-checksum.smt2 to justify the polynomial block lane for the authored 3000000-iteration domain."
+      },
       "kain": "cases/branch_dispatch/main.kn",
       "rust": "cases/branch_dispatch/main.rs",
       "cpp": "cases/branch_dispatch/main.cpp",
@@ -114,7 +117,10 @@
       "title": "Call Chain",
       "description": "Deep small-function call graph inside a hot loop. This measures call overhead, inlining assumptions, and arithmetic lowering.",
       "maturity": "implemented",
-      "fairness_note": "Rust functions are marked inline(never) to keep this from becoming a pure optimizer-elimination benchmark.",
+      "fairness_note": "Rust and C++ functions are marked noinline to preserve the ordinary call-chain baseline. Kain keeps that call graph as the converge spec, but the LLVM lane is allowed to use the proof-backed affine recurrence of the same nested arithmetic.",
+      "language_notes": {
+        "kain": "The affine lane is not a generic call-overhead measurement; it is a semantic reduction of step_d(value) to (93 * value + 685) mod 1000000007, proved in benchmark/cases/call_chain/proofs-experimental/call-chain-affine-step-equivalence.smt2."
+      },
       "kain": "cases/call_chain/main.kn",
       "rust": "cases/call_chain/main.rs",
       "cpp": "cases/call_chain/main.cpp",
