@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-19 - Inline substring lowering retook string_ops
+
+The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T04:37:34.995550+00:00` targeted `string_ops`, the cleanest text-lowering loss left in the latest full suite: Kain `10.973 ms`, Rust `9.634 ms`, C++ `11.329 ms`.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Recognizes canonical user-authored `starts_with_at` / `find_substring` helpers with signature `String, String, Int -> Int`.
+  - Lowers known-string call sites to inline `memchr` plus direct tail comparison instead of calling the runtime known-length wrapper or the authored helper loop.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Adds/updates LLVM regressions for wrapper-free inline substring lowering and manual helper recognition.
+- `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
+  - Durable `unsat` proof for the inline `memchr` search window and loop-carried `next_remaining` bounds.
+- `benchmark/benchmarks.json`
+  - Documents the compiler-owned string-loop recognizer in `string_ops` and `unicode_string_heavy` fairness notes.
+- `research/2026-05-19-benchmark-frontier-2026-05-19.md`
+- `benchmark/assesments/2026-05-19-inline-substring-lowering-latest-benchmark-assessment.md`
+
+Validation:
+
+- `cargo test -p kain-sys-codegen llvm_lowers_manual_find_substring -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_lowers_find_substring_from_on_known_strings_with_precomputed_lengths -- --nocapture`
+- Z3 MCP `run_proof_pack` on `crates/kain-sys-codegen` lane `control` returned all `unsat`.
+- `python -m json.tool benchmark/benchmarks.json > $null`
+- `python -m py_compile benchmark/run.py benchmark/run_fast.py benchmark/run_sim.py benchmark/run_wrapper.py`
+- Focused retake `benchmark/latest_manual_substring_inline.md`: `string_ops` Kain `9.191 ms`, Rust `10.389 ms`, C++ `12.619 ms`; `unicode_string_heavy` Kain `9.663 ms`, Rust `9.211 ms`, C++ `10.600 ms`.
+- Full benchmark passed with `benchmark/latest.md` generated `2026-05-19T05:42:42.438548+00:00`: `string_ops` Kain `10.003 ms`, Rust `10.240 ms`, C++ `10.928 ms`.
+
+Durable lesson:
+
+- This was a compiler-owned text lowering win, not a benchmark-source checksum collapse. Keep future string rows honest by disclosing helper recognition and proving any widened search window.
+- `unicode_string_heavy` remains a small C++/Rust edge in the latest full suite because most substring work happens before its hot accumulation loop.
+- Best next targets from the latest full suite: `sim_nbody_gravity`, `http_server_concurrency`, `process_stdio_loop`, `machine_stones_shatter_loop`, and `sim_uv_velocity_grid`. Rerun `crypto_block_cipher` focused before assuming it still loses; the latest full suite has Kain narrowly ahead.
+
 # 2026-05-19 - Branch and call algebraic reducers retook two implemented rows
 
 The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T01:20:46.427417+00:00` found two clean implemented-language losses that were small but mathematically compressible:

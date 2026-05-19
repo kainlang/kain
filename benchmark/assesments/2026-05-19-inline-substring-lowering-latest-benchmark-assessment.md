@@ -2,8 +2,8 @@
 
 The LLVM backend now recognizes the canonical user-authored manual substring
 helper and lowers known-string call sites into an inline `memchr`-driven search
-with direct tail comparison. This keeps the authored Kain source intact while
-removing the runtime wrapper call from the hot path.
+with direct tail comparison. This keeps authored Kain source intact while
+removing runtime wrapper/helper-call overhead from the hot `string_ops` path.
 
 What landed:
 
@@ -14,76 +14,68 @@ What landed:
     manual-helper lowering to the inline search path.
   - Specialized short static needles to direct byte-tail compares instead of a
     mandatory `memcmp`.
+  - Requires the recognized helper signature to be `String, String, Int -> Int`
+    before the call-site bypass can fire.
 - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
-  - Updated the substring fast-path tests to assert inline `memchr`/`memcmp`
+  - Updated substring fast-path tests to assert inline `memchr`/`memcmp`
     lowering rather than a runtime wrapper call.
 - `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
   - Added a durable proof case for the `search_window` and `next_remaining`
     arithmetic used by the inline search loop.
+- `benchmark/benchmarks.json`
+  - Documents the compiler-owned string-loop recognizer in `string_ops` and
+    `unicode_string_heavy` fairness notes.
 - `research/2026-05-19-benchmark-frontier-2026-05-19.md`
-  - Recorded the frontier question, solver claim, noise analysis, and next
+  - Records the frontier question, solver claim, noise analysis, and next
     targets.
 
 Validation:
 
-- `cargo test -p kain-sys-codegen --test llvm_codegen_test find_substring -- --nocapture`
-- `bazel build //:kain --config=release`
-- Z3 `check_smt2` report `D:\Kain-Lang\z3\reports\20260519T053356Z-inline-known-string-find-substring-window.json` returned `unsat`
-- `python benchmark/run.py --case string_ops,unicode_string_heavy --languages kain,rust,cpp --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --latest-stem latest_string_validation --minimal-name latest_string_validation.md --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
-- `python benchmark/run.py --timeout 900 --baseline-mode refresh-foreign --latest-stem latest --minimal-name latest.md --kain-exe D:\Kain-Bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe`
+- `cargo test -p kain-sys-codegen llvm_lowers_manual_find_substring -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_lowers_find_substring_from_on_known_strings_with_precomputed_lengths -- --nocapture`
+- Z3 proof pack: `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-sys-codegen", lane="control")`
+- `python -m json.tool benchmark/benchmarks.json > $null`
+- `python -m py_compile benchmark/run.py benchmark/run_fast.py benchmark/run_sim.py benchmark/run_wrapper.py`
+- Focused retake: `python benchmark/run.py --case string_ops,unicode_string_heavy --languages kain,rust,cpp --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign --latest-stem latest_manual_substring_inline --minimal-name latest_manual_substring_inline.md`
+- Full benchmark: `python benchmark/run.py --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign`
 
 Measured result:
 
-- Focused `string_ops` validation: Kain `9.668 ms`, Rust `11.125 ms`, C++ `11.488 ms`.
-- Focused `unicode_string_heavy` validation: Kain `10.814 ms`, Rust `10.037 ms`, C++ `10.055 ms`.
-- Latest full-suite `string_ops`: Kain `8.578 ms`, Rust `10.188 ms`, C++ `11.169 ms`.
-- Previous full-suite `string_ops` snapshot (`2026-05-19T04:37:34.995550+00:00`): Kain `10.973 ms`.
-- Net full-suite `string_ops` improvement for Kain: about `21.8%`, and the row flipped from a Rust win to a Kain win.
-- Latest full-suite `machine_stones_shatter_loop`: Kain `12.990 ms`, Rust `13.313 ms`, C++ `13.233 ms`.
-- Previous full-suite `machine_stones_shatter_loop` snapshot (`2026-05-19T04:37:34.995550+00:00`): Kain `14.114 ms`.
-- Net full-suite `machine_stones_shatter_loop` improvement for Kain: about `8.0%`, and the row also flipped into a Kain win.
+- Previous full-suite `string_ops` snapshot (`2026-05-19T04:37:34.995550+00:00`): Kain `10.973 ms`, Rust `9.634 ms`, C++ `11.329 ms`.
+- Focused `string_ops` retake (`benchmark/latest_manual_substring_inline.md`): Kain `9.191 ms`, Rust `10.389 ms`, C++ `12.619 ms`.
+- Canonical full-suite `string_ops` (`benchmark/latest.md`, generated `2026-05-19T05:42:42.438548+00:00`): Kain `10.003 ms`, Rust `10.240 ms`, C++ `10.928 ms`.
+- Net canonical full-suite `string_ops` improvement for Kain: about `8.8%`, and the row flipped from a Rust win to a Kain win.
+- Focused `unicode_string_heavy` retake: Kain `9.663 ms`, Rust `9.211 ms`, C++ `10.600 ms`.
+- Canonical full-suite `unicode_string_heavy`: Kain `9.528 ms`, Rust `9.501 ms`, C++ `8.942 ms`; still a small C++ edge, but Kain improved from the previous `9.907 ms` sample.
 
 Noise note:
 
-- The full-suite tail showed synchronized inflation across multiple late cases:
-  `unicode_string_heavy`, `ffi_shared_call_stress`, `gpu_graphics_submit`, and
-  `allocator_large_object_churn` all got slower for every language, not just
-  Kain.
-- The cooled focused rerun restored `unicode_string_heavy` to a near-parity
-  shape (`10.814 ms` Kain vs `10.037 ms` Rust vs `10.055 ms` C++), so the full
-  suite's `169.885 ms` Kain number is not the correct semantic read.
-- Treat the canonical `string_ops` and `machine_stones_shatter_loop` wins as
-  real, and treat the late `unicode_string_heavy` full-suite spike as machine
-  noise.
+- The string row improvement is real across focused and full-suite runs.
+- `unicode_string_heavy` is still near the noise band because the benchmark
+  computes `score_text(...)` before the hot accumulation loop. Do not spend the
+  next pass on benchmark-specific constant folding there unless the row is
+  redesigned to keep real substring work in the timed body.
+- `crypto_block_cipher` happened to flip to Kain in the newest full suite
+  (`11.336 ms` Kain vs `11.940 ms` C++), but earlier focused evidence still had
+  a small C++ edge. Treat it as noisy parity, not a solved architecture win.
 
-Current latest full-suite truth says the best remaining valuable implemented
-speedup targets are:
+Current latest full-suite truth says the best remaining valuable speedup targets
+are:
 
-- `crypto_block_cipher` (`1.231x` behind C++): the cleanest honest next target.
-  This wants alien bit-lane work, rotate/mix lowering scrutiny, and maybe a
-  solver-backed table or branchless substitution attack.
-- `sim_nbody_gravity` (`1.172x` behind C++): promising math/codegen territory,
-  but likely broader than the string lane.
-- `sim_cfd_pressure_projection` (`1.130x` behind C++): still a real numeric-core
-  deficit with no proxy caveat.
-- `ownership_memory` (`1.122x` behind C++): smells like scalarization or
-  register-residency debt.
-- `struct_method` (`1.089x` behind C++): small but honest call/lowering debt.
-- `native_map_lookup` is no longer a C++ problem; the real frontier is the
-  small `1.051x` gap to Zig.
-
-Rows that should stay out of the next "easy compiler win" bucket:
-
-- `http_server_concurrency` is still a `semantic-proxy` runtime/network lane.
-- `rayon_parallel_reduce` remains explicitly proxy-shaped.
-- `unicode_string_heavy` does not justify a new benchmark row yet; the focused
-  rerun says it is already near parity and most substring work sits outside the
-  timed inner loop.
+- `sim_nbody_gravity` (`12.238 ms` Kain vs `9.499 ms` C++): largest clean
+  implemented-language deficit left in the canonical full suite.
+- `http_server_concurrency` (`64.220 ms` Kain vs `55.075 ms` Rust): real
+  runtime/network work, but still a semantic-proxy row.
+- `process_stdio_loop` (`5186.868 ms` Kain vs `4901.306 ms` Rust): honest OS
+  process tax; likely runtime/stdio rather than compiler math.
+- `machine_stones_shatter_loop` (`14.145 ms` Kain vs `13.795 ms` C++): small
+  SoA/shatter-lowering gap.
+- `sim_uv_velocity_grid` (`15.625 ms` Kain vs `15.289 ms` C++): small numeric
+  kernel gap.
 
 Recommendation for the next automation pass:
 
-- Move from text lowering to `crypto_block_cipher` next; that row has the best
-  mix of honesty, remaining deficit, and plausible solver-backed upside.
-- If a new benchmark is added later, use `std::time::deadline_millis` /
-  `deadline_elapsed` inside the Kain row only as a symmetric guardrail for
-  long-running work, not as a measurement shortcut.
+- Attack `sim_nbody_gravity` first if the goal is the largest remaining
+  implemented-row speedup.
+- Keep `crypto_block_cipher` on the watch list for solver-guided ARX work, but
+  rerun it focused before assuming it is still losing.

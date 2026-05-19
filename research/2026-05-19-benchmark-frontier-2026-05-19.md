@@ -82,8 +82,8 @@ source, and does canonical manual-substring recognition unlock a real win for
 - Local:
   - `benchmark/latest.md` from `2026-05-19T04:37:34.995550+00:00`
   - `benchmark/latest_manual_substring_probe.md`
-  - `benchmark/latest_string_validation.md`
-  - `benchmark/latest.md` from `2026-05-19T05:34:03.782872+00:00`
+  - `benchmark/latest_manual_substring_inline.md`
+  - `benchmark/latest.md` from `2026-05-19T05:42:42.438548+00:00`
   - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
   - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
   - `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
@@ -96,10 +96,13 @@ source, and does canonical manual-substring recognition unlock a real win for
 - The first 5-run probe after the inline lowering showed `unicode_string_heavy`
   flipping around the noise band, which looked worse than the earlier 5-run
   probe despite the same code.
-- The subsequent full suite also showed late-run inflation across unrelated tail
-  cases (`unicode_string_heavy`, `ffi_shared_call_stress`,
-  `gpu_graphics_submit`, `allocator_large_object_churn`), so the correct read
-  was machine/thermal noise rather than a semantic regression.
+- A rotate-5 specialization probe for `crypto_block_cipher` was rejected after
+  the temporary Kain source failed to build; the row should be rerun focused
+  before any further ARX work because the newest canonical full suite already
+  has Kain narrowly ahead.
+- `unicode_string_heavy` does not justify benchmark-specific constant folding
+  yet. The newest full suite reports Kain `9.528 ms`, Rust `9.501 ms`, and C++
+  `8.942 ms`, and most substring work sits outside the timed accumulation loop.
 
 ## Conclusion
 
@@ -107,11 +110,12 @@ The honest frontier move was the compiler-owned substring lane, not a benchmark
 rewrite. The landed result replaces the known-string runtime wrapper call with
 inline `memchr` plus tail compare lowering, proves the hot window arithmetic
 with Z3, and flips `string_ops` into a real Kain win in both focused validation
-and the canonical full suite. `unicode_string_heavy` remains near parity in a
-cooled focused rerun, which is expected because most substring work happens
-outside the timed accumulation loop.
+and the canonical full suite. The current full-suite `string_ops` truth is Kain
+`10.003 ms`, Rust `10.240 ms`, and C++ `10.928 ms`, compared with the previous
+Kain `10.973 ms` sample.
 
-The next valuable implemented targets are now `crypto_block_cipher`,
-`sim_nbody_gravity`, `sim_cfd_pressure_projection`, and `ownership_memory`.
-Those are better 2026-05-19 follow-on attacks than inventing a new benchmark
-row, because the live matrix still has real, non-proxy deficits worth closing.
+The next valuable implemented targets are now `sim_nbody_gravity`,
+`process_stdio_loop`, `machine_stones_shatter_loop`, and `sim_uv_velocity_grid`,
+with `http_server_concurrency` as the runtime/proxy outlier. These are better
+2026-05-19 follow-on attacks than inventing a new benchmark row, because the
+live matrix still has real deficits worth closing.
