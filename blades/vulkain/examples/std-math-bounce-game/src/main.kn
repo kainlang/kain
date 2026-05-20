@@ -6,7 +6,7 @@ use std::runtime
 use std::intent
 use vulkain::vulkain_frames_presented
 use vulkain::vulkain_probe
-use vulkain::vulkain_run_authored_mesh_scene
+use vulkain::vulkain_run_mesh_scene_with_entrypoints
 use vulkain::vulkain_vertices_drawn
 use vulkain::vulkain_write_default_mesh_report
 
@@ -50,9 +50,19 @@ actor VoidRelay:
     on Resonance(reply_to: P, energy: Float):
         send reply_to.Reply(value = energy * self.echo_bias)
 
+patch commit_signal(authority: PhysicsAuthority, value: Int) -> Int:
+    authority.reality_hash = value
+    authority.anomaly_charge = Float(value % 1000) / 1000.0
+    return authority.reality_hash
+
 const GAME_FRAMES: Int = 360
 const PRESENT_FRAMES: Int = 240
-const RAYTRACE_FULLSCREEN_TRIANGLE_VERTICES: Int = 3
+const BOUNCE_GAME_MESH_VERTICES: Int = 36
+const BOUNCE_GAME_WINDOW_TITLE: String = "Std Math Bounce Game [Kain SPIR-V]"
+const BOUNCE_GAME_VERTEX_SHADER_PATH: String = "../../.kain/gpu/basic_window/vulkain_basic.vert.spv"
+const BOUNCE_GAME_FRAGMENT_SHADER_PATH: String = ".kain/gpu/std_math_bounce_game/bounce_game_mesh.frag.spv"
+const BOUNCE_GAME_VERTEX_ENTRY_POINT: String = "main"
+const BOUNCE_GAME_FRAGMENT_ENTRY_POINT: String = "BounceGameMeshSurface"
 
 struct GameState:
     position: Vec3
@@ -204,7 +214,7 @@ fn simulate_game() -> GameState:
     let session = input_session_create("vulkain.std.math.bounce")
     let _bind = bind_wasd(session)
 
-    let void_relay = native_actor_spawn("VoidRelay", "echo_bias=1.618")
+    let void_relay = spawn VoidRelay(echo_bias = 1.618)
 
     var game = GameState {
         position: vec3_xyz(0.0, 1.4, -0.4),
@@ -237,7 +247,7 @@ fn simulate_game() -> GameState:
             0
 
         let observed_anomaly: Float = observe trails:
-            return mem_load(ptr_offset(trails, frame % trail_count, "Float"), "Float")
+            mem_load(ptr_offset(trails, frame % trail_count, "Float"), "Float")
 
         decay trails
         # ---------------------------------
@@ -250,11 +260,13 @@ fn simulate_game() -> GameState:
 
         # Every 60 frames, teleport the memory payload to the RenderMirror (zero-copy)
         if frame % 60 == 0:
-            teleport reality_hash from PhysicsAuthority to RenderMirror
-
-        # Fire the jitter clock
-        if frame % 16 == 0:
-            let _pulse_fire = trigger_pulse(singularity_clock)
+            let handoff = EchoTrail {
+                drift_x: Float(patched_reality % 257) * 0.01,
+                drift_z: game.procedural_charge,
+                phase: resonated_charge,
+                alive: true
+            }
+            let _mirrored_handoff = teleport handoff from PhysicsAuthority to RenderMirror via bounce_mirror_bus
 
         game = advance_game(game, input_dir, frame, resonated_charge)
         frame = frame + 1
@@ -273,7 +285,8 @@ fn render_bounce_game(game: GameState) -> Int:
     let mesh_scale = milli(0.88 + saturate(game.procedural_charge) * 0.34)
     let twist = milli(vec3_length(game.velocity) * 0.16 + Float(game.bounce_count) * 0.025)
     let energy = milli(1.0 + game.ray_energy + saturate(Float(game.trace_score % 997) / 997.0))
-    return vulkain_run_authored_mesh_scene(
+    return vulkain_run_mesh_scene_with_entrypoints(
+        BOUNCE_GAME_WINDOW_TITLE,
         1280,
         720,
         PRESENT_FRAMES,
@@ -283,13 +296,17 @@ fn render_bounce_game(game: GameState) -> Int:
         color_u8(vec3_dot(tint, vec3_right())),
         color_u8(vec3_dot(tint, vec3_up())),
         color_u8(vec3_dot(tint, vec3_forward())),
-        RAYTRACE_FULLSCREEN_TRIANGLE_VERTICES,
+        BOUNCE_GAME_MESH_VERTICES,
         camera_yaw,
         camera_pitch,
         mesh_scale,
         twist,
-        -8000,
-        energy
+        180,
+        energy,
+        BOUNCE_GAME_VERTEX_SHADER_PATH,
+        BOUNCE_GAME_FRAGMENT_SHADER_PATH,
+        BOUNCE_GAME_VERTEX_ENTRY_POINT,
+        BOUNCE_GAME_FRAGMENT_ENTRY_POINT
     )
 
 fn main() -> Int:
@@ -302,7 +319,7 @@ fn main() -> Int:
         return 20
     if vulkain_frames_presented() != PRESENT_FRAMES:
         return 30
-    if vulkain_vertices_drawn() != PRESENT_FRAMES * RAYTRACE_FULLSCREEN_TRIANGLE_VERTICES:
+    if vulkain_vertices_drawn() != PRESENT_FRAMES * BOUNCE_GAME_MESH_VERTICES:
         return 31
     if game.bounce_count <= 0:
         return 40

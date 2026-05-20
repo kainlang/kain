@@ -29,7 +29,9 @@ VULKAIN_EXPORT int32_t vulkain_native_run_window(
     int32_t accent_green,
     int32_t accent_blue,
     const char* vertex_spv_path,
-    const char* fragment_spv_path
+    const char* fragment_spv_path,
+    const char* vertex_entry_point,
+    const char* fragment_entry_point
 );
 
 VULKAIN_EXPORT int32_t vulkain_native_run_mesh_scene(
@@ -51,7 +53,9 @@ VULKAIN_EXPORT int32_t vulkain_native_run_mesh_scene(
     int32_t depth_bias_milli,
     int32_t energy,
     const char* vertex_spv_path,
-    const char* fragment_spv_path
+    const char* fragment_spv_path,
+    const char* vertex_entry_point,
+    const char* fragment_entry_point
 );
 
 VULKAIN_EXPORT int32_t vulkain_native_run_authored_mesh_scene(

@@ -1,0 +1,8 @@
+shader fragment BounceGameMeshSurface(mesh_color: Vec3) -> Vec4:
+    let lift = (mesh_color.x + mesh_color.y + mesh_color.z) / 3.0
+    return vec4(
+        mesh_color.x * 0.72 + mesh_color.z * 0.16 + lift * 0.12,
+        mesh_color.y * 0.78 + mesh_color.x * 0.10 + lift * 0.08,
+        mesh_color.z * 0.82 + mesh_color.y * 0.14 + lift * 0.10,
+        1.0
+    )

@@ -24,6 +24,7 @@
 #define VKN_MAX_SWAPCHAIN_IMAGES 8u
 #define VKN_MAX_SHADER_BYTES (16u * 1024u * 1024u)
 #define VKN_MAX_TITLE_BYTES 256u
+#define VKN_MAX_ENTRY_POINT_BYTES 128u
 #define VKN_DEFAULT_DRAW_VERTICES 3u
 #define VKN_MAX_DRAW_VERTICES 4096u
 
@@ -57,6 +58,8 @@ typedef struct VulkainApp {
     float depth_bias;
     float energy;
     char title[VKN_MAX_TITLE_BYTES];
+    char vertex_entry_point[VKN_MAX_ENTRY_POINT_BYTES];
+    char fragment_entry_point[VKN_MAX_ENTRY_POINT_BYTES];
 
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -103,6 +106,8 @@ static int32_t g_last_mesh_scale_milli = 0;
 static int32_t g_last_mesh_twist_milli = 0;
 static int32_t g_last_depth_bias_milli = 0;
 static int32_t g_last_energy = 0;
+static char g_last_vertex_entry_point[VKN_MAX_ENTRY_POINT_BYTES] = "main";
+static char g_last_fragment_entry_point[VKN_MAX_ENTRY_POINT_BYTES] = "main";
 static int64_t g_frames_presented = 0;
 static int64_t g_vertices_drawn = 0;
 
@@ -875,11 +880,11 @@ static int32_t vkn_create_pipeline(VulkainApp* app) {
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
     stages[0].module = app->vertex_shader;
-    stages[0].pName = "main";
+    stages[0].pName = app->vertex_entry_point[0] ? app->vertex_entry_point : "main";
     stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     stages[1].module = app->fragment_shader;
-    stages[1].pName = "main";
+    stages[1].pName = app->fragment_entry_point[0] ? app->fragment_entry_point : "main";
 
     memset(&vertex_input, 0, sizeof(vertex_input));
     vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1309,7 +1314,9 @@ static int32_t vkn_run_scene(
     int32_t depth_bias_milli,
     int32_t energy,
     const char* vertex_spv_path,
-    const char* fragment_spv_path
+    const char* fragment_spv_path,
+    const char* vertex_entry_point,
+    const char* fragment_entry_point
 ) {
     VulkainApp app;
     uint32_t frame_index = 0u;
@@ -1344,7 +1351,27 @@ static int32_t vkn_run_scene(
     app.depth_bias = vkn_milli_to_float(depth_bias_milli);
     app.energy = vkn_milli_to_float(energy);
     vkn_copy_title(app.title, sizeof(app.title), title);
+    vkn_copy_title(
+        app.vertex_entry_point,
+        sizeof(app.vertex_entry_point),
+        vertex_entry_point && vertex_entry_point[0] ? vertex_entry_point : "main"
+    );
+    vkn_copy_title(
+        app.fragment_entry_point,
+        sizeof(app.fragment_entry_point),
+        fragment_entry_point && fragment_entry_point[0] ? fragment_entry_point : "main"
+    );
     vkn_copy_title(g_last_title, sizeof(g_last_title), app.title);
+    vkn_copy_title(
+        g_last_vertex_entry_point,
+        sizeof(g_last_vertex_entry_point),
+        app.vertex_entry_point
+    );
+    vkn_copy_title(
+        g_last_fragment_entry_point,
+        sizeof(g_last_fragment_entry_point),
+        app.fragment_entry_point
+    );
     g_last_width = app.width;
     g_last_height = app.height;
     g_last_frame_budget = app.frame_budget;
@@ -1396,7 +1423,9 @@ int32_t vulkain_native_run_window(
     int32_t accent_green,
     int32_t accent_blue,
     const char* vertex_spv_path,
-    const char* fragment_spv_path
+    const char* fragment_spv_path,
+    const char* vertex_entry_point,
+    const char* fragment_entry_point
 ) {
     return vkn_run_scene(
         title,
@@ -1417,7 +1446,9 @@ int32_t vulkain_native_run_window(
         0,
         1000,
         vertex_spv_path,
-        fragment_spv_path
+        fragment_spv_path,
+        vertex_entry_point,
+        fragment_entry_point
     );
 }
 
@@ -1440,7 +1471,9 @@ int32_t vulkain_native_run_mesh_scene(
     int32_t depth_bias_milli,
     int32_t energy,
     const char* vertex_spv_path,
-    const char* fragment_spv_path
+    const char* fragment_spv_path,
+    const char* vertex_entry_point,
+    const char* fragment_entry_point
 ) {
     return vkn_run_scene(
         title,
@@ -1461,7 +1494,9 @@ int32_t vulkain_native_run_mesh_scene(
         depth_bias_milli,
         energy,
         vertex_spv_path,
-        fragment_spv_path
+        fragment_spv_path,
+        vertex_entry_point,
+        fragment_entry_point
     );
 }
 
@@ -1506,7 +1541,9 @@ int32_t vulkain_native_run_authored_mesh_scene(
         depth_bias_milli,
         energy,
         vertex_spv_path,
-        fragment_spv_path
+        fragment_spv_path,
+        "main",
+        "main"
     );
 }
 
@@ -1532,6 +1569,8 @@ int32_t vulkain_native_write_report(const char* path) {
     fprintf(file, "mesh_twist_milli=%d\n", g_last_mesh_twist_milli);
     fprintf(file, "depth_bias_milli=%d\n", g_last_depth_bias_milli);
     fprintf(file, "energy=%d\n", g_last_energy);
+    fprintf(file, "vertex_entry_point=%s\n", g_last_vertex_entry_point);
+    fprintf(file, "fragment_entry_point=%s\n", g_last_fragment_entry_point);
     fprintf(file, "frames_presented=%lld\n", (long long)g_frames_presented);
     fprintf(file, "vertices_drawn=%lld\n", (long long)g_vertices_drawn);
     fprintf(file, "last_error=%s\n", g_last_error);

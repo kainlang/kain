@@ -63,7 +63,7 @@ For Vulkan or D3D-style bridges, dogfood the actual window path from Kain, then 
 - Z3 for fixed-array bounds, shader byte counts, draw-counter overflow, and cleanup-after-partial-init invariants.
 - A non-empty screenshot/report under `.kain/run/` and a blade-root exe left ready to launch.
 
-`blades/vulkain` is the current reference for the minimal raw package pattern: keep the Kain surface tiny, compile bridge/shader artifacts under `.kain/`, and let consuming blades own higher-level intent. On Windows, if the bridge is a blade-local DLL, stage that DLL beside the blade-root exe for direct testing even though link-time should prefer the sibling `.lib`.
+`blades/vulkain` is the current reference for the minimal raw package pattern: keep the Kain surface tiny, compile bridge/shader artifacts under `.kain/`, and let consuming blades own higher-level intent. If a consuming blade mixes GLSL and Kain-authored SPIR-V, verify the host bridge is not hardcoding `main` for every stage; Kain fragment/compute shaders export their authored function names unless the bridge explicitly passes stage entrypoints. On Windows, if the bridge is a blade-local DLL, stage that DLL beside the blade-root exe for direct testing even though link-time should prefer the sibling `.lib`.
 
 If a blade-local runner is written in PowerShell, prefer explicit `RuntimeInformation::IsOSPlatform(...)` checks over `$IsWindows` / `$IsMacOS`; strict hosts in this repo do not guarantee those convenience variables exist.
 

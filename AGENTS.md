@@ -498,7 +498,7 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 - Native LLVM and `runtime/native` are the priority. Rust remains the bootstrap and tooling substrate, but Kain must increasingly own its own semantics.
 - Prefer Bazel for serious compiler/runtime/CLI builds and for fresh `kain`, `kn`, and `blade` binaries. Cargo is still useful for local Rust iteration, but Bazel is the repo-scale proof lane.
 - Keep authored behavior in Kain when it belongs to Kain semantics. Use C/Rust/FFI/host bridges for OS, ABI, driver, GPU, platform, and ecosystem surfaces.
-- Use the root `stdlib/` surface aggressively. Prefer public root imports such as `std.actor`, `std.fs`, `std.http`, `std.net`, `std.process`, `std.graphics`, and `std.ui`. Do not recreate a parallel live `std.native.*` tree.
+- Use the root `stdlib/` surface aggressively. Prefer public root imports such as `std.actor`, `std.fs`, `std.http`, `std.net`, `std.process`, `std.graphics`, and `std.ui`. Do not recreate a parallel live `std.native.*` tree. -- `\stdlib\STDLIB_MAP.llm.md` for the full map
 - If Kain code hits a real compiler/runtime bug, patch the compiler or runtime. Do not just route around it in the demo.
 - If a pipeline is touched, dogfood it in `blades/` when practical.
 - If performance is part of the claim, prove it in `benchmark/`.
@@ -553,6 +553,7 @@ Read these before writing serious Kain:
 - `blades/network-domains/src/main.kn`: first-class networking stdlib proof
 - `blades/stdlib-domains/src/main.kn`: canonical `std.*` import shape
 - `blades/actor-ask-roundtrip/src/main.kn`: compact actor request/reply dogfood
+- `\stdlib\STDLIB_MAP.llm.md` : most importantly however is the stdlib map. this is regenerated with every build! 
 
 Do not let new Kain files collapse into plain `fn` and `let` soup when the problem calls for stronger language features. Push `world`, `converge`, `collapse`, `observe`, `decay`, `orchestrate`, `entangle`, `teleport`, `shatter`, `pulse`, `axiom`, `actor`, `law`, `patch`, and shader lanes when they fit.
 

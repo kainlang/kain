@@ -7147,3 +7147,43 @@ Best next honest full-suite targets after this pass:
 - `http_server_concurrency`: still the largest real loss (`1.58x` behind Rust) and clearly a runtime/network/system mission.
 - `sim_uv_velocity_grid`: biggest remaining non-proxy C++ compute loss.
 - `string_ops`, `branch_dispatch`, `memory_stream`, `call_chain`, `option_result`, `machine_stones_shatter_loop`, and `ffi_shared_call_stress`: now the most attractive tight backend/codegen gaps.
+
+# 2026-05-19 - `std-math-bounce-game` now proves mixed GLSL vertex + Kain fragment SPIR-V through Vulkain
+
+The Vulkain example under `blades/vulkain/examples/std-math-bounce-game` now compiles an example-local Kain fragment shader, validates it with `spirv-val`, feeds it through the live Win32/Vulkan bridge, and exits cleanly with real presentation telemetry.
+
+What changed:
+
+- Added `blades/vulkain/examples/std-math-bounce-game/src/bounce_game_mesh.frag.kn` as a shader-only Kain fragment entry.
+- Updated `blades/vulkain/examples/std-math-bounce-game/run.ps1` to:
+  - resolve a fresh `kain.exe`,
+  - compile `bounce_game_mesh.frag.kn` to `.kain/gpu/std_math_bounce_game/bounce_game_mesh.frag.spv`,
+  - validate that SPIR-V with `spirv-val --target-env vulkan1.3`,
+  - then compile the native LLVM executable.
+- Updated the bounce-game `main.kn` to use explicit shader paths and a real mesh scene instead of the authored fullscreen-raytrace path.
+- Upgraded `blades/vulkain/native/vulkain_bridge.{h,c}` plus `blades/vulkain/src/vulkain.kn` so Vulkain can accept explicit vertex/fragment entrypoint names. Existing callers still default to `"main"`, but mixed pipelines can now pass Kain-authored symbols such as `BounceGameMeshSurface`.
+- The bridge report now records `vertex_entry_point` and `fragment_entry_point` to make entrypoint mismatches visible.
+
+Hard-earned gotcha:
+
+- A valid Kain SPIR-V module is not enough for Vulkain if the bridge hardcodes `pName = "main"`. The first live failure here was `vkCreateGraphicsPipelines: VK_RESULT_UNKNOWN (-13)` because the fragment module exported `BounceGameMeshSurface`, not `main`.
+- `spirv-val` passed the fragment just fine; the bug was the host-side pipeline contract, not the shader binary.
+
+Runtime proof:
+
+- Native run command:
+  - `powershell -ExecutionPolicy Bypass -Command "$env:VULKAIN_BLADE_ROOT='D:/Kain-Lang/blades/vulkain'; $env:KAIN_RUNTIME_CACHE_DIR='D:/Kain-Lang/blades/vulkain/examples/std-math-bounce-game/.kain/native_runtime/cache'; & 'D:/Kain-Lang/blades/vulkain/examples/std-math-bounce-game/vulkain-math-bounce.exe'"`
+- Latest report:
+  - `blades/vulkain/examples/std-math-bounce-game/.kain/run/vulkain_mesh_scene_report.txt`
+  - `frames_presented=240`
+  - `vertices_drawn=8640`
+  - `vertex_entry_point=main`
+  - `fragment_entry_point=BounceGameMeshSurface`
+  - `last_error=ok`
+- Fresh live capture artifacts:
+  - `blades/vulkain/examples/std-math-bounce-game/.kain/run/vulkain_math_bounce_game_live_a.png`
+  - `blades/vulkain/examples/std-math-bounce-game/.kain/run/vulkain_math_bounce_game_live_b.png`
+
+Durable lesson:
+
+- For blade-local Vulkan bridges, treat entrypoint names as part of the ABI. GLSL references usually export `main`; Kain shader files export their authored function names unless a host shim rewrites them.
