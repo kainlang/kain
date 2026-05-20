@@ -140,33 +140,52 @@ fn main() -> Int:
                     let w_back: Float = mem_load(ptr_offset(velocity_z, w_back_slot, "Float"), "Float")
                     mem_store(ptr_offset(divergence, cell, "Float"), ((u_right - u_left) + (v_top - v_bottom) + (w_front - w_back)) * inv_cell_size, "Float")
                     mem_store(ptr_offset(pressure, cell, "Float"), 0.0, "Float")
+                    mem_store(ptr_offset(pressure_old, cell, "Float"), 0.0, "Float")
                     x_div = x_div + 1
                 y_div = y_div + 1
             z0 = z0 + 1
 
         var iter: Int = 0
         while iter < jacobi_iters:
+            if (iter % 2) == 0:
+                z0 = 1
+                while z0 < nz - 1:
+                    let z_base_cells: Int = z0 * plane
+                    var y_inner: Int = 1
+                    while y_inner < ny - 1:
+                        let row_base: Int = z_base_cells + y_inner * row
+                        var x_inner: Int = 1
+                        while x_inner < nx - 1:
+                            let cell: Int = row_base + x_inner
+                            let p_sum: Float = mem_load(ptr_offset(pressure, cell + 1, "Float"), "Float") + mem_load(ptr_offset(pressure, cell - 1, "Float"), "Float") + mem_load(ptr_offset(pressure, cell + row, "Float"), "Float") + mem_load(ptr_offset(pressure, cell - row, "Float"), "Float") + mem_load(ptr_offset(pressure, cell + plane, "Float"), "Float") + mem_load(ptr_offset(pressure, cell - plane, "Float"), "Float")
+                            let next_pressure: Float = (p_sum - pressure_scale * mem_load(ptr_offset(divergence, cell, "Float"), "Float")) * jacobi_inv_neighbors
+                            mem_store(ptr_offset(pressure_old, cell, "Float"), next_pressure, "Float")
+                            x_inner = x_inner + 1
+                        y_inner = y_inner + 1
+                    z0 = z0 + 1
+            else:
+                z0 = 1
+                while z0 < nz - 1:
+                    let z_base_cells: Int = z0 * plane
+                    var y_inner: Int = 1
+                    while y_inner < ny - 1:
+                        let row_base: Int = z_base_cells + y_inner * row
+                        var x_inner: Int = 1
+                        while x_inner < nx - 1:
+                            let cell: Int = row_base + x_inner
+                            let p_sum: Float = mem_load(ptr_offset(pressure_old, cell + 1, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - 1, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell + row, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - row, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell + plane, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - plane, "Float"), "Float")
+                            let next_pressure: Float = (p_sum - pressure_scale * mem_load(ptr_offset(divergence, cell, "Float"), "Float")) * jacobi_inv_neighbors
+                            mem_store(ptr_offset(pressure, cell, "Float"), next_pressure, "Float")
+                            x_inner = x_inner + 1
+                        y_inner = y_inner + 1
+                    z0 = z0 + 1
+            iter = iter + 1
+
+        if (jacobi_iters % 2) == 1:
             var copy_index: Int = 0
             while copy_index < cell_count:
-                mem_store(ptr_offset(pressure_old, copy_index, "Float"), mem_load(ptr_offset(pressure, copy_index, "Float"), "Float"), "Float")
+                mem_store(ptr_offset(pressure, copy_index, "Float"), mem_load(ptr_offset(pressure_old, copy_index, "Float"), "Float"), "Float")
                 copy_index = copy_index + 1
-
-            z0 = 1
-            while z0 < nz - 1:
-                let z_base_cells: Int = z0 * plane
-                var y_inner: Int = 1
-                while y_inner < ny - 1:
-                    let row_base: Int = z_base_cells + y_inner * row
-                    var x_inner: Int = 1
-                    while x_inner < nx - 1:
-                        let cell: Int = row_base + x_inner
-                        let p_sum: Float = mem_load(ptr_offset(pressure_old, cell + 1, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - 1, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell + row, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - row, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell + plane, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - plane, "Float"), "Float")
-                        let next_pressure: Float = (p_sum - pressure_scale * mem_load(ptr_offset(divergence, cell, "Float"), "Float")) * jacobi_inv_neighbors
-                        mem_store(ptr_offset(pressure, cell, "Float"), next_pressure, "Float")
-                        x_inner = x_inner + 1
-                    y_inner = y_inner + 1
-                z0 = z0 + 1
-            iter = iter + 1
 
         z0 = 1
         while z0 < nz - 1:
