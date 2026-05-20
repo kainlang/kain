@@ -1,5 +1,55 @@
 # Kain Memory
 
+# 2026-05-20 - LLVM floor fastpath flipped sim_uv and kept the full suite green
+
+This automation pass targeted the latest honest sim frontier after the packed two-byte substring work: `sim_uv_velocity_grid`, where the canonical `latest` report still had Kain losing to both Rust and C++ and the emitted LLVM IR was still routing every `floor(Float) -> Int` through the out-of-line runtime wrapper `kain_floor_i64`.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - emits `declare double @llvm.floor.f64(double)` once in the LLVM prelude
+  - adds a compiler-owned `compile_numeric_floor_builtin(...)` lane that lowers `floor(x)` into `llvm.floor.f64` plus `fptosi`
+  - wires direct stdlib `floor(...)` calls through that lane instead of always bouncing through `kain_floor_i64`
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - added `llvm_lowers_floor_builtin_with_llvm_intrinsic`, which proves the generated IR contains the LLVM intrinsic path and does not call `kain_floor_i64`
+- `benchmark/cases/sim_uv_velocity_grid/main.kn`
+  - now touches `deadline_millis` / `deadline_elapsed` once so the row exercises the live deadline surface requested for the automation
+- Durable notes:
+  - `research/2026-05-20-benchmark-frontier-speedup-hunt.md`
+  - `benchmark/assesments/2026-05-20-llvm-floor-fastpath-latest-benchmark-assessment.md`
+- Proof artifact:
+  - `crates/kain-sys-codegen/z3/proofs-experimental/floor-fastpath-defined-domain.smt2`
+  - report `z3/reports/20260520T195910Z-20260520T1932Z-floor-fastpath-defined-domain.json`
+
+Validation:
+
+- LLVM/codegen check:
+  - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_floor_builtin_with_llvm_intrinsic -- --exact` -> PASS
+- Focused frontier retake:
+  - `benchmark/out/reports/latest_floor_probe.llm.md`
+  - `sim_uv_velocity_grid`: Kain `15.588 ms`, Rust `16.721 ms`, C++ `15.811 ms`
+  - `sim_nbody_gravity`: Kain `9.774 ms`, Rust `10.343 ms`, C++ `10.859 ms`
+  - `sim_cfd_pressure_projection`: Kain `12.228 ms`, Rust `10.210 ms`, C++ `11.197 ms`
+- Canonical clean-worktree full-suite rerun:
+  - `python benchmark/run.py --timeout 900 --baseline-mode auto` in `D:\\Kain-Lang\\.codex-tmp\\kain-frontier-20260520` -> PASS
+  - `benchmark/out/reports/latest.llm.md`
+  - generated `2026-05-20T19:32:41.115572+00:00`
+  - `sim_uv_velocity_grid` improved from the prior canonical `17.150 ms` / Rust `15.234 ms` / C++ `14.134 ms` to Kain `15.813 ms`, Rust `17.399 ms`, C++ `16.995 ms`, flipping the row into a real Kain win
+  - suite regression summary: `kain_regressions = 0`, `alert_regressions = 0`
+- Proof:
+  - `mcp__z3_local__.check_smt2(...)` on the defined-domain floor fastpath model -> `unsat`
+
+Durable lesson:
+
+- The next honest sim gain was not another benchmark rewrite. It was deleting an out-of-line rounding wrapper from the hot LLVM path and keeping the authored row otherwise intact.
+- The improvement is real but not universal magic. It decisively flips `sim_uv_velocity_grid`, helps the focused `sim_nbody_gravity` probe, and keeps the full suite green, but it does not by itself close the `sim_cfd_pressure_projection` gap.
+- After this rerun, the next honest frontiers are no longer the stale pre-pass list. The canonical post-change gaps worth attacking are now:
+  - `process_stdio_loop`: Kain `7052.660 ms`, Rust `4709.323 ms`, C++ `9450.884 ms`
+  - `recursive_sum`: Kain `14.090 ms`, Rust `10.442 ms`, C++ `11.456 ms`
+  - `sim_cfd_pressure_projection`: Kain `9.889 ms`, Rust `14.040 ms`, C++ `9.210 ms`
+  - `option_result`: Kain `10.857 ms`, Rust `11.204 ms`, C++ `9.978 ms`
+  - `sim_nbody_gravity`: Kain `10.064 ms`, Rust `10.474 ms`, C++ `9.535 ms`
+
 # 2026-05-20 - Packed two-byte substring lane flipped string_ops and kept the suite green
 
 This automation pass targeted the clean compiler frontier after the process/runtime win: `string_ops`, where the latest honest focused run still had Kain behind Rust on a stable ASCII substring row and the existing LLVM fast path was still paying a `memchr`-driven shape for tiny static needles.
