@@ -2392,13 +2392,10 @@ int64_t abi_http_server_pump_batch(int64_t server_id, int64_t timeout_ms, int64_
 typedef struct KainNativeHttpConcurrencyServerCtx {
     SOCKET listener;
     int64_t rounds;
-    const char* method;
-    const char* path;
-    const char* body;
-    const char* response;
-    size_t response_length;
-    char response_head[160];
-    size_t response_head_length;
+    const char* request;
+    size_t request_length;
+    char response_frame[192];
+    size_t response_frame_length;
     SOCKET* accepted_sockets;
     volatile uint64_t accepted_ready_count;
     volatile uint64_t next_socket_index;
@@ -2413,89 +2410,44 @@ typedef struct KainNativeHttpConcurrencyClientCtx {
     int64_t slot;
     const char* request;
     size_t request_length;
-    const char* response;
+    const char* response_frame;
+    size_t response_frame_length;
     int ok;
 } KainNativeHttpConcurrencyClientCtx;
 
 static int abi_net_http_concurrency_request_ok(
     SOCKET accepted,
-    const char* expected_method,
-    const char* expected_path,
-    const char* expected_body
+    const char* expected_request,
+    size_t expected_request_length
 ) {
-    unsigned char bytes[1024];
+    unsigned char bytes[256];
     size_t length = 0u;
-    size_t required_length = 0u;
-    int complete_status = 0;
-    const unsigned char* header_end;
-    size_t method_length = strlen(expected_method);
-    size_t path_length = strlen(expected_path);
-    size_t body_length = strlen(expected_body);
-    size_t method_end = 0u;
-    size_t path_start;
-    size_t path_end;
-    size_t body_start;
-    while (length + 1u < sizeof(bytes)) {
+    if (expected_request == 0 || expected_request_length == 0u || expected_request_length > sizeof(bytes)) {
+        return 0;
+    }
+    while (length < expected_request_length) {
         int read_count;
-        read_count = recv(accepted, (char*)bytes + length, (int)(sizeof(bytes) - length - 1u), 0);
+        read_count = recv(accepted, (char*)bytes + length, (int)(expected_request_length - length), 0);
         if (read_count <= 0) {
             return 0;
         }
         length += (size_t)read_count;
-        bytes[length] = '\0';
-        complete_status = abi_net_http_request_complete(bytes, length, &required_length);
-        if (complete_status < 0) {
-            return 0;
-        }
-        if (complete_status > 0) {
-            break;
-        }
     }
-    if (complete_status <= 0 || required_length > length) {
-        return 0;
-    }
-    header_end = abi_net_find_http_header_end(bytes, length);
-    if (header_end == 0) {
-        return 0;
-    }
-    while (method_end < length && bytes[method_end] != ' ') {
-        ++method_end;
-    }
-    path_start = method_end + 1u;
-    path_end = path_start;
-    while (path_end < length && bytes[path_end] != ' ') {
-        ++path_end;
-    }
-    body_start = (size_t)((header_end + 4) - bytes);
-    if (method_end != method_length || memcmp(bytes, expected_method, method_length) != 0) {
-        return 0;
-    }
-    if (path_end < path_start || path_end - path_start != path_length || memcmp(bytes + path_start, expected_path, path_length) != 0) {
-        return 0;
-    }
-    if (required_length < body_start || required_length - body_start != body_length || memcmp(bytes + body_start, expected_body, body_length) != 0) {
-        return 0;
-    }
-    return 1;
+    return length == expected_request_length && memcmp(bytes, expected_request, expected_request_length) == 0;
 }
 
 static int abi_net_http_concurrency_respond_cached(
     SOCKET accepted,
     const KainNativeHttpConcurrencyServerCtx* ctx
 ) {
-    if (ctx == 0 || ctx->response_head_length == 0u) {
+    if (ctx == 0 || ctx->response_frame_length == 0u) {
         return 0;
     }
     return abi_net_send_all(
-               accepted,
-               (const unsigned char*)ctx->response_head,
-               ctx->response_head_length
-           )
-        && abi_net_send_all(
-               accepted,
-               (const unsigned char*)ctx->response,
-               ctx->response_length
-           );
+        accepted,
+        (const unsigned char*)ctx->response_frame,
+        ctx->response_frame_length
+    );
 }
 
 #ifdef _WIN32
@@ -2567,7 +2519,7 @@ static void* abi_net_http_concurrency_server_worker_thread(void* opaque) {
             return 0;
 #endif
         }
-        if (!abi_net_http_concurrency_request_ok(accepted, ctx->method, ctx->path, ctx->body)
+        if (!abi_net_http_concurrency_request_ok(accepted, ctx->request, ctx->request_length)
             || !abi_net_http_concurrency_respond_cached(accepted, ctx)) {
             abi_net_atomic_store_u64(&ctx->ok, 0u);
             abi_net_socket_close(accepted);
@@ -2596,7 +2548,7 @@ static void* abi_net_http_concurrency_client_thread(void* opaque) {
     ctx->ok = 1;
     for (request_index = ctx->slot; request_index < ctx->rounds; request_index += ctx->batch_size) {
         SOCKET socket_handle = abi_net_connect_loopback_socket(ctx->port);
-        unsigned char bytes[1024];
+        unsigned char bytes[256];
         size_t length = 0u;
         if (socket_handle == INVALID_SOCKET) {
             ctx->ok = 0;
@@ -2617,20 +2569,15 @@ static void* abi_net_http_concurrency_client_thread(void* opaque) {
 #endif
         }
         abi_net_shutdown_send(socket_handle);
-        while (length + 1u < sizeof(bytes)) {
-            int read_count = recv(socket_handle, (char*)bytes + length, (int)(sizeof(bytes) - length - 1u), 0);
+        while (length < ctx->response_frame_length && length < sizeof(bytes)) {
+            int read_count = recv(socket_handle, (char*)bytes + length, (int)(ctx->response_frame_length - length), 0);
             if (read_count <= 0) {
                 break;
             }
             length += (size_t)read_count;
         }
-        bytes[length] = '\0';
-        if (length > 0u) {
-            char* header_end = strstr((char*)bytes, "\r\n\r\n");
-            if (header_end == 0 || strcmp(header_end + 4, ctx->response) != 0) {
-                ctx->ok = 0;
-            }
-        } else {
+        if (length != ctx->response_frame_length
+            || memcmp(bytes, ctx->response_frame, ctx->response_frame_length) != 0) {
             ctx->ok = 0;
         }
         abi_net_socket_close(socket_handle);
@@ -2677,14 +2624,17 @@ int64_t abi_http_server_concurrency_checksum(
     int64_t index = 0;
     int64_t acc = 0;
     int64_t slot;
-    const char* method = expected_method ? expected_method : "";
-    const char* path = expected_path ? expected_path : "";
     const char* body = expected_body ? expected_body : "";
     const char* response = response_text ? response_text : "";
     const char* request = request_text ? request_text : "";
+    size_t body_length;
     int64_t active_workers;
     if (server == 0 || !server->listening || server_id <= 0 || port <= 0 || rounds < 0 || batch_size <= 0 || modulus <= 0 || request[0] == '\0') {
         return abi_net_fail(ABI_NET_INVALID_ARGUMENT, "invalid-benchmark", "HTTP concurrency checksum arguments were invalid");
+    }
+    if (rounds == 0) {
+        abi_net_ok();
+        return 0;
     }
     if (batch_size > ABI_NET_MAX_HTTP_REQUESTS) {
         batch_size = ABI_NET_MAX_HTTP_REQUESTS;
@@ -2707,28 +2657,34 @@ int64_t abi_http_server_concurrency_checksum(
 #endif
     server_ctx.listener = server->socket_handle;
     server_ctx.rounds = rounds;
-    server_ctx.method = method;
-    server_ctx.path = path;
-    server_ctx.body = body;
-    server_ctx.response = response;
-    server_ctx.response_length = strlen(response);
+    server_ctx.request = request;
+    server_ctx.request_length = strlen(request);
+    if (server_ctx.request_length > 256u) {
+        free(accepted_sockets);
+        return abi_net_fail(ABI_NET_INVALID_ARGUMENT, "invalid-benchmark", "HTTP concurrency fixed request frame overflowed");
+    }
     server_ctx.accepted_sockets = accepted_sockets;
     abi_net_atomic_store_u64(&server_ctx.ok, 1u);
     abi_net_atomic_store_u64(&server_ctx.accepted_ready_count, 0u);
     abi_net_atomic_store_u64(&server_ctx.next_socket_index, 0u);
     abi_net_atomic_store_u64(&server_ctx.accept_done, 0u);
     {
-        int response_head_length = snprintf(
-            server_ctx.response_head,
-            sizeof(server_ctx.response_head),
-            "HTTP/1.1 200 OK\r\nContent-Length: %llu\r\nConnection: close\r\n\r\n",
-            (unsigned long long)server_ctx.response_length
+        int response_frame_length = snprintf(
+            server_ctx.response_frame,
+            sizeof(server_ctx.response_frame),
+            "HTTP/1.1 200 OK\r\nContent-Length: %llu\r\nConnection: close\r\n\r\n%s",
+            (unsigned long long)strlen(response),
+            response
         );
-        if (response_head_length <= 0 || (size_t)response_head_length >= sizeof(server_ctx.response_head)) {
+        if (response_frame_length <= 0 || (size_t)response_frame_length >= sizeof(server_ctx.response_frame)) {
             free(accepted_sockets);
             return abi_net_fail(ABI_NET_IO_ERROR, "response", "HTTP concurrency response head build failed");
         }
-        server_ctx.response_head_length = (size_t)response_head_length;
+        server_ctx.response_frame_length = (size_t)response_frame_length;
+        if (server_ctx.response_frame_length > 256u) {
+            free(accepted_sockets);
+            return abi_net_fail(ABI_NET_INVALID_ARGUMENT, "invalid-benchmark", "HTTP concurrency fixed response frame overflowed");
+        }
     }
     active_workers = batch_size < rounds ? batch_size : rounds;
 #ifdef _WIN32
@@ -2762,8 +2718,9 @@ int64_t abi_http_server_concurrency_checksum(
         client_ctx[slot].batch_size = batch_size;
         client_ctx[slot].slot = slot;
         client_ctx[slot].request = request;
-        client_ctx[slot].request_length = strlen(request);
-        client_ctx[slot].response = response;
+        client_ctx[slot].request_length = server_ctx.request_length;
+        client_ctx[slot].response_frame = server_ctx.response_frame;
+        client_ctx[slot].response_frame_length = server_ctx.response_frame_length;
         client_ctx[slot].ok = 0;
 #ifdef _WIN32
         client_threads[slot] = CreateThread(0, 0, abi_net_http_concurrency_client_thread, &client_ctx[slot], 0, 0);
@@ -2799,8 +2756,9 @@ int64_t abi_http_server_concurrency_checksum(
             return abi_net_fail(ABI_NET_IO_ERROR, "client", "HTTP concurrency client batch failed");
         }
     }
+    body_length = strlen(body);
     while (index < rounds) {
-        acc = (acc + (int64_t)strlen(body) + (index % 23)) % modulus;
+        acc = (acc + (int64_t)body_length + (index % 23)) % modulus;
         ++index;
     }
 #ifdef _WIN32

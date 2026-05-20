@@ -1,5 +1,46 @@
 # Kain Memory
 
+# 2026-05-19 - HTTP exact-frame fast path landed; queue handoff rejected
+
+The latest benchmark automation pass stayed on the biggest honest implemented runtime gap, `http_server_concurrency`, but the first attempt proved the wrong lesson: a blocking socket queue plus bounded worker pool looked clever in isolation and then blew up under the canonical full suite. The kept result is smaller and real: exact fixed-frame request validation plus one cached full-response send on top of the original accept-thread + worker-swarm shape.
+
+What changed:
+
+- `runtime/native/src/core/net_system.c`
+  - Kept the benchmark-local staged accepted-socket worker swarm.
+  - Replaced helper-side HTTP reparsing with an exact fixed request-frame compare for the closed benchmark domain.
+  - Replaced cached response-head plus body sends with one cached full-response frame.
+  - Explicitly reverted the blocking queue / bounded-worker experiment after it regressed the canonical suite.
+- `benchmark/benchmarks.json`
+  - Updated the `http_server_concurrency` Kain language note so the row stays honest about the exact-frame fast path.
+- Added durable artifacts:
+  - `research/2026-05-19-http-concurrency-spinless-handoff.md`
+  - `runtime/native/src/core/z3/proofs-experimental/http-concurrency-fixed-frame-bounds-and-checksum.smt2`
+  - `benchmark/assesments/2026-05-19-http-concurrency-exact-frame-latest-benchmark-assessment.md`
+
+Validation:
+
+- syntax sanity:
+  - `clang -fsyntax-only runtime/native/src/core/net_system.c -I runtime/native/include`
+- focused HTTP retake:
+  - `benchmark/out/reports/latest_http_sanity.llm.md`
+  - `http_server_concurrency`: Kain `58.326 ms`, Rust `38.002 ms`
+- canonical full-suite refresh:
+  - `python benchmark/run.py --timeout 900 --baseline-mode refresh-foreign`
+  - `benchmark/out/reports/latest.llm.md`
+  - generated `2026-05-20T00:31:37.355712+00:00`
+  - suite status: `PASS`
+  - `http_server_concurrency`: Kain `68.832 ms`, Rust `44.327 ms`
+  - `http_server_frameworks`: Kain `204.417 ms`, Rust `221.048 ms`, Go `266.681 ms`
+  - `filesystem_stream`: Kain `88.187 ms`, Rust `125.956 ms`, C++ `105.770 ms`
+  - `string_ops`: Kain `9.624 ms`, Rust `9.822 ms`, C++ `10.096 ms`
+
+Durable lesson:
+
+- The bounded queue was the wrong abstraction for this micro-server lane. It added mutex/condvar wake cost to a benchmark dominated by very short loopback request lifetimes.
+- The surviving win came from shrinking per-request validation and response emission, not from changing worker topology.
+- `http_server_concurrency` remains the highest-value honest frontier, but the next pass should attack syscall/scheduler shape or connection lifecycle rather than queue geometry. Good secondary frontiers from the same suite are `sim_uv_velocity_grid`, `machine_stones_shatter_loop`, and `evolutionary_loop`.
+
 # 2026-05-19 - Helper-owned pointer retain bug fixed; full suite green again
 
 The latest benchmark automation pass started from a real LLVM/codegen win and almost shipped a fake regression: preserving helper-owned `alloc_zeroed` / `realloc_mem` pointers as typed LLVM pointers made `memory_stream` materially faster, but an abandoned HTTP runtime experiment and one remaining retain bug made the first full-suite rerun look worse than the landed compiler state. The final kept pass is the helper-pointer/codegen work only.
