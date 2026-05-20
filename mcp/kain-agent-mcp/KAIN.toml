@@ -1,0 +1,40 @@
+[package]
+name = "kain-agent-mcp"
+version = "0.1.0"
+description = "Repo-native Kain MCP transport scaffold. Permanent MCP workspace, not a proving-ground blade."
+
+[blade]
+name = "kain-agent-mcp"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = [
+  "src",
+  "src/protocol",
+  "src/server",
+  "src/tools/health",
+]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/protocol/http_probe_protocol.kn",
+  "src/server/http_probe_server.kn",
+  "src/tools/health/health_tool.kn",
+  "config/server.json",
+]

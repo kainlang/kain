@@ -1,0 +1,24 @@
+{
+  "server": {
+    "name": "kain-agent-mcp",
+    "version": "0.1.0",
+    "transport": "http-probe",
+    "mode": "self-test",
+    "host": "127.0.0.1",
+    "port": 0
+  },
+  "runtime_policy": {
+    "network_timeout_ms": 5000,
+    "max_probe_requests": 1,
+    "shutdown_after_self_test": true
+  },
+  "tools": [
+    {
+      "name": "health.ping",
+      "module": "tools/health/health_tool.kn",
+      "method": "GET",
+      "path": "/mcp/health",
+      "destructive": false
+    }
+  ]
+}

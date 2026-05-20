@@ -1,4 +1,3 @@
-use c::kaintana_desktop_bridge
 use std::text
 use types::KaintanaColor
 use types::KaintanaRect
@@ -33,3 +32,9 @@ pub fn kaintana_desktop_host_write_report(spec: KaintanaWindowSpec) -> Int:
 
 pub fn kaintana_desktop_host_write_screenshot(spec: KaintanaWindowSpec) -> Int:
     return kaintana_native_desktop_write_bmp(spec.screenshot_path)
+
+pub fn kaintana_desktop_host_write_report_path(path: String) -> Int:
+    return kaintana_native_desktop_write_report(path)
+
+pub fn kaintana_desktop_host_write_screenshot_path(path: String) -> Int:
+    return kaintana_native_desktop_write_bmp(path)

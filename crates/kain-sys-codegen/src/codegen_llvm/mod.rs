@@ -358,6 +358,7 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Llvm)?;
     validate_typed_program_memory_support(&lowered, CompileTarget::Llvm)?;
     let mut gen = LlvmGenerator::new();
+    gen.collect_original_pointer_let_type_hints(program);
     gen.compile_module(&lowered)?;
     Ok(gen.output.into_bytes())
 }
@@ -474,6 +475,10 @@ struct LlvmGenerator {
     /// Top-level const globals whose runtime init was already hoisted into the
     /// current function entry preamble.
     entry_hoisted_const_inits: HashSet<String>,
+    /// Original authored pointer/ref let declarations keyed by let-statement
+    /// span so LLVM-only post-lowering fast paths can recover pointee element
+    /// intent after low-level memory normalization erases ptr<T> into Int.
+    original_pointer_let_types: HashMap<Span, Type>,
 }
 
 impl LlvmGenerator {
@@ -532,6 +537,348 @@ impl LlvmGenerator {
             entry_alloca_insert_offset: None,
             entry_preamble_insert_offset: None,
             entry_hoisted_const_inits: HashSet::new(),
+            original_pointer_let_types: HashMap::new(),
+        }
+    }
+
+    fn collect_original_pointer_let_type_hints(&mut self, program: &TypedProgram) {
+        self.original_pointer_let_types.clear();
+        for item in &program.items {
+            self.collect_pointer_let_types_from_typed_item(item);
+        }
+    }
+
+    fn collect_pointer_let_types_from_typed_item(&mut self, item: &TypedItem) {
+        match item {
+            TypedItem::Function(function) => {
+                self.collect_pointer_let_types_from_block(&function.ast.body)
+            }
+            TypedItem::Patch(patch) => self.collect_pointer_let_types_from_block(&patch.ast.body),
+            TypedItem::Law(law) => self.collect_pointer_let_types_from_block(&law.ast.body),
+            TypedItem::Converge(converge) => {
+                self.collect_pointer_let_types_from_block(&converge.ast.spec_lane.body);
+                for lane in &converge.ast.fast_lanes {
+                    self.collect_pointer_let_types_from_block(&lane.body);
+                }
+            }
+            TypedItem::Orchestrate(orchestrate) => {
+                self.collect_pointer_let_types_from_block(&orchestrate.ast.body);
+            }
+            TypedItem::Pulse(pulse) => self.collect_pointer_let_types_from_block(&pulse.ast.body),
+            TypedItem::Component(component) => {
+                for method in &component.ast.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            TypedItem::Shader(shader) => {
+                self.collect_pointer_let_types_from_block(&shader.ast.body)
+            }
+            TypedItem::Actor(actor) => {
+                for handler in &actor.ast.handlers {
+                    self.collect_pointer_let_types_from_block(&handler.body);
+                }
+                for method in &actor.ast.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            TypedItem::Struct(struct_item) => {
+                for method in &struct_item.ast.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            TypedItem::Impl(imp) => {
+                for method in &imp.ast.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            TypedItem::Test(test) => self.collect_pointer_let_types_from_block(&test.ast.body),
+            TypedItem::Mod(module) => {
+                for child in &module.items {
+                    self.collect_pointer_let_types_from_typed_item(child);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_pointer_let_types_from_item(&mut self, item: &kain_core::ast::Item) {
+        match item {
+            kain_core::ast::Item::Function(function) => {
+                self.collect_pointer_let_types_from_block(&function.body);
+            }
+            kain_core::ast::Item::Patch(patch) => {
+                self.collect_pointer_let_types_from_block(&patch.body)
+            }
+            kain_core::ast::Item::Law(law) => self.collect_pointer_let_types_from_block(&law.body),
+            kain_core::ast::Item::Converge(converge) => {
+                self.collect_pointer_let_types_from_block(&converge.spec_lane.body);
+                for lane in &converge.fast_lanes {
+                    self.collect_pointer_let_types_from_block(&lane.body);
+                }
+            }
+            kain_core::ast::Item::Orchestrate(orchestrate) => {
+                self.collect_pointer_let_types_from_block(&orchestrate.body);
+            }
+            kain_core::ast::Item::Pulse(pulse) => {
+                self.collect_pointer_let_types_from_block(&pulse.body)
+            }
+            kain_core::ast::Item::Component(component) => {
+                for method in &component.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            kain_core::ast::Item::Shader(shader) => {
+                self.collect_pointer_let_types_from_block(&shader.body)
+            }
+            kain_core::ast::Item::Actor(actor) => {
+                for handler in &actor.handlers {
+                    self.collect_pointer_let_types_from_block(&handler.body);
+                }
+                for method in &actor.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            kain_core::ast::Item::Struct(struct_item) => {
+                for method in &struct_item.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            kain_core::ast::Item::Impl(imp) => {
+                for method in &imp.methods {
+                    self.collect_pointer_let_types_from_block(&method.body);
+                }
+            }
+            kain_core::ast::Item::Mod(module) => {
+                if let Some(items) = &module.inline {
+                    for child in items {
+                        self.collect_pointer_let_types_from_item(child);
+                    }
+                }
+            }
+            kain_core::ast::Item::Comptime(comptime) => {
+                self.collect_pointer_let_types_from_block(&comptime.body);
+            }
+            kain_core::ast::Item::Test(test) => {
+                self.collect_pointer_let_types_from_block(&test.body)
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_pointer_let_types_from_block(&mut self, block: &Block) {
+        for stmt in &block.stmts {
+            self.collect_pointer_let_types_from_stmt(stmt);
+        }
+    }
+
+    fn collect_pointer_let_types_from_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Let {
+                ty, value, span, ..
+            } => {
+                if let Some(original_ty) = ty {
+                    if matches!(original_ty, Type::Ptr { .. } | Type::Ref { .. }) {
+                        self.original_pointer_let_types
+                            .insert(*span, original_ty.clone());
+                    }
+                }
+                if let Some(value) = value {
+                    self.collect_pointer_let_types_from_expr(value);
+                }
+            }
+            Stmt::Expr(expr) => self.collect_pointer_let_types_from_expr(expr),
+            Stmt::Return(value, _) | Stmt::Break(value, _) => {
+                if let Some(value) = value {
+                    self.collect_pointer_let_types_from_expr(value);
+                }
+            }
+            Stmt::Continue(_) => {}
+            Stmt::For { iter, body, .. } => {
+                self.collect_pointer_let_types_from_expr(iter);
+                self.collect_pointer_let_types_from_block(body);
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                self.collect_pointer_let_types_from_expr(condition);
+                self.collect_pointer_let_types_from_block(body);
+            }
+            Stmt::Loop { body, .. } => self.collect_pointer_let_types_from_block(body),
+            Stmt::Item(item) => self.collect_pointer_let_types_from_item(item),
+        }
+    }
+
+    fn collect_pointer_let_types_from_else_branch(&mut self, else_branch: &ElseBranch) {
+        match else_branch {
+            ElseBranch::Else(block) => self.collect_pointer_let_types_from_block(block),
+            ElseBranch::ElseIf(condition, block, next) => {
+                self.collect_pointer_let_types_from_expr(condition);
+                self.collect_pointer_let_types_from_block(block);
+                if let Some(next) = next.as_deref() {
+                    self.collect_pointer_let_types_from_else_branch(next);
+                }
+            }
+        }
+    }
+
+    fn collect_pointer_let_types_from_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::FString(parts, _) | Expr::Array(parts, _) | Expr::Tuple(parts, _) => {
+                for part in parts {
+                    self.collect_pointer_let_types_from_expr(part);
+                }
+            }
+            Expr::MacroCall { args, .. } => {
+                for arg in args {
+                    self.collect_pointer_let_types_from_expr(arg);
+                }
+            }
+            Expr::Binary { left, right, .. } => {
+                self.collect_pointer_let_types_from_expr(left);
+                self.collect_pointer_let_types_from_expr(right);
+            }
+            Expr::Unary { operand, .. }
+            | Expr::Deref(operand, _)
+            | Expr::Try(operand, _)
+            | Expr::Await(operand, _)
+            | Expr::AsyncBlock(operand, _)
+            | Expr::Comptime(operand, _)
+            | Expr::Paren(operand, _) => self.collect_pointer_let_types_from_expr(operand),
+            Expr::Call { callee, args, .. } => {
+                self.collect_pointer_let_types_from_expr(callee);
+                for arg in args {
+                    self.collect_pointer_let_types_from_expr(&arg.value);
+                }
+            }
+            Expr::StageCall { args, .. } => {
+                for arg in args {
+                    self.collect_pointer_let_types_from_expr(&arg.value);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.collect_pointer_let_types_from_expr(receiver);
+                for arg in args {
+                    self.collect_pointer_let_types_from_expr(&arg.value);
+                }
+            }
+            Expr::Field { object, .. } => self.collect_pointer_let_types_from_expr(object),
+            Expr::Index { object, index, .. } => {
+                self.collect_pointer_let_types_from_expr(object);
+                self.collect_pointer_let_types_from_expr(index);
+            }
+            Expr::Assign { target, value, .. } => {
+                self.collect_pointer_let_types_from_expr(target);
+                self.collect_pointer_let_types_from_expr(value);
+            }
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    self.collect_pointer_let_types_from_expr(value);
+                }
+                if let Some(rest) = rest {
+                    self.collect_pointer_let_types_from_expr(rest);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    self.collect_pointer_let_types_from_expr(value);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => {}
+                kain_core::ast::EnumVariantFields::Tuple(values) => {
+                    for value in values {
+                        self.collect_pointer_let_types_from_expr(value);
+                    }
+                }
+                kain_core::ast::EnumVariantFields::Struct(fields) => {
+                    for (_, value) in fields {
+                        self.collect_pointer_let_types_from_expr(value);
+                    }
+                }
+            },
+            Expr::Range { start, end, .. } => {
+                if let Some(start) = start.as_deref() {
+                    self.collect_pointer_let_types_from_expr(start);
+                }
+                if let Some(end) = end.as_deref() {
+                    self.collect_pointer_let_types_from_expr(end);
+                }
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.collect_pointer_let_types_from_expr(condition);
+                self.collect_pointer_let_types_from_block(then_branch);
+                if let Some(else_branch) = else_branch.as_deref() {
+                    self.collect_pointer_let_types_from_else_branch(else_branch);
+                }
+            }
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                self.collect_pointer_let_types_from_expr(scrutinee);
+                for arm in arms {
+                    if let Some(guard) = &arm.guard {
+                        self.collect_pointer_let_types_from_expr(guard);
+                    }
+                    self.collect_pointer_let_types_from_expr(&arm.body);
+                }
+            }
+            Expr::Lambda { body, .. } => self.collect_pointer_let_types_from_expr(body),
+            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } | Expr::Cast { value, .. } => {
+                self.collect_pointer_let_types_from_expr(value)
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                self.collect_pointer_let_types_from_expr(pointer);
+                self.collect_pointer_let_types_from_expr(offset);
+            }
+            Expr::MemLoad { pointer, .. } => self.collect_pointer_let_types_from_expr(pointer),
+            Expr::MemStore { pointer, value, .. } => {
+                self.collect_pointer_let_types_from_expr(pointer);
+                self.collect_pointer_let_types_from_expr(value);
+            }
+            Expr::Alloc { size, .. } => self.collect_pointer_let_types_from_expr(size),
+            Expr::Realloc { pointer, size, .. } => {
+                self.collect_pointer_let_types_from_expr(pointer);
+                self.collect_pointer_let_types_from_expr(size);
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.collect_pointer_let_types_from_expr(target);
+                self.collect_pointer_let_types_from_expr(body);
+            }
+            Expr::Decay { target, .. } => self.collect_pointer_let_types_from_expr(target),
+            Expr::Teleport { value, .. } => self.collect_pointer_let_types_from_expr(value),
+            Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+                if let Expr::SendMsg { target, .. } = expr {
+                    self.collect_pointer_let_types_from_expr(target);
+                }
+                for (_, value) in init {
+                    self.collect_pointer_let_types_from_expr(value);
+                }
+            }
+            Expr::Block(block, _) => self.collect_pointer_let_types_from_block(block),
+            Expr::JSX(_, _)
+            | Expr::Int(_, _)
+            | Expr::Float(_, _)
+            | Expr::String(_, _)
+            | Expr::Bool(_, _)
+            | Expr::None(_)
+            | Expr::Ident(_, _)
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. }
+            | Expr::Continue(_) => {}
+            Expr::Return(value, _) | Expr::Break(value, _) => {
+                if let Some(value) = value.as_deref() {
+                    self.collect_pointer_let_types_from_expr(value);
+                }
+            }
         }
     }
 
@@ -1331,6 +1678,87 @@ impl LlvmGenerator {
         }
     }
 
+    fn compile_ephemeral_typed_memory_pointer(
+        &mut self,
+        pointer: &Expr,
+        llvm_ty: &str,
+    ) -> KainResult<Option<(String, i64)>> {
+        match pointer {
+            Expr::Ident(name, _) => {
+                let Some(witness) = self.ephemeral_owned_pointer_locals.get(name).cloned() else {
+                    return Ok(None);
+                };
+                if witness.storage_element_ty != llvm_ty {
+                    return Ok(None);
+                }
+                let typed_ptr = if witness.storage_llvm_ty == witness.storage_element_ty {
+                    witness.storage_reg
+                } else {
+                    let storage_base = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 0",
+                        storage_base,
+                        witness.storage_llvm_ty,
+                        witness.storage_llvm_ty,
+                        witness.storage_reg
+                    ));
+                    storage_base
+                };
+                let alignment =
+                    Self::obvious_llvm_type_alignment(llvm_ty).min(witness.storage_alignment);
+                Ok(Some((typed_ptr, alignment)))
+            }
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                self.compile_ephemeral_typed_memory_pointer(inner, llvm_ty)
+            }
+            Expr::PtrOffset {
+                pointer: base,
+                offset,
+                element_ty,
+                ..
+            } if self.ptr_offset_stride_matches_llvm_type(element_ty.as_ref(), llvm_ty) => {
+                let Some((base_typed, alignment)) =
+                    self.compile_ephemeral_typed_memory_pointer(base, llvm_ty)?
+                else {
+                    return Ok(None);
+                };
+                let (offset_value, _) = self.compile_expr(offset)?;
+                let derived_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr {}, {}* {}, i64 {}",
+                    derived_ptr, llvm_ty, llvm_ty, base_typed, offset_value
+                ));
+                Ok(Some((derived_ptr, alignment)))
+            }
+            Expr::Call { callee, args, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_ptr_offset" || name == "__kain_index_ptr")
+                    && args.len() == 3 =>
+            {
+                let Some(access_width) = Self::obvious_llvm_type_byte_width(llvm_ty) else {
+                    return Ok(None);
+                };
+                let known_i64_bindings = self.current_known_i64_literals();
+                let stride_literal = Self::resolve_i64_literal(&args[2].value, &known_i64_bindings);
+                if stride_literal != Some(access_width) {
+                    return Ok(None);
+                }
+                let Some((base_typed, alignment)) =
+                    self.compile_ephemeral_typed_memory_pointer(&args[0].value, llvm_ty)?
+                else {
+                    return Ok(None);
+                };
+                let (offset_value, _) = self.compile_expr(&args[1].value)?;
+                let derived_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr {}, {}* {}, i64 {}",
+                    derived_ptr, llvm_ty, llvm_ty, base_typed, offset_value
+                ));
+                Ok(Some((derived_ptr, alignment)))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn scalar_forward_key(&self, expr: &Expr) -> Option<String> {
         match expr {
             Expr::Int(value, _) => Some(format!("i:{value}")),
@@ -1605,12 +2033,47 @@ impl LlvmGenerator {
         }
     }
 
-    fn ephemeral_single_cell_scalar_llvm_ty(storage_byte_len: i64) -> Option<&'static str> {
-        Self::helper_alloc_scalar_llvm_ty(storage_byte_len)
+    fn preferred_ephemeral_storage_element_llvm_ty(
+        &self,
+        declared_ty: Option<&Type>,
+        layout: HelperAllocStorageLayout,
+    ) -> Option<String> {
+        let pointee_ty = match declared_ty {
+            Some(Type::Ptr { inner, .. }) | Some(Type::Ref { inner, .. }) => inner.as_ref(),
+            _ => return None,
+        };
+        let llvm_ty = self.map_type_from_ast(pointee_ty);
+        if !matches!(
+            llvm_ty.as_str(),
+            "i1" | "i8" | "i16" | "i32" | "i64" | "double"
+        ) {
+            return None;
+        }
+        (Self::obvious_llvm_type_byte_width(&llvm_ty) == Some(layout.stride_bytes))
+            .then_some(llvm_ty)
     }
 
-    fn helper_alloc_stack_storage_shape(layout: HelperAllocStorageLayout) -> (String, String, i64) {
-        if let Some(scalar_ty) = Self::helper_alloc_scalar_llvm_ty(layout.stride_bytes) {
+    fn preferred_ephemeral_storage_element_llvm_ty_for_let(
+        &self,
+        lowered_declared_ty: Option<&Type>,
+        stmt_span: Span,
+        layout: HelperAllocStorageLayout,
+    ) -> Option<String> {
+        let authored_declared_ty = match lowered_declared_ty {
+            Some(Type::Ptr { .. }) | Some(Type::Ref { .. }) => lowered_declared_ty,
+            _ => self.original_pointer_let_types.get(&stmt_span),
+        };
+        self.preferred_ephemeral_storage_element_llvm_ty(authored_declared_ty, layout)
+    }
+
+    fn helper_alloc_stack_storage_shape(
+        layout: HelperAllocStorageLayout,
+        preferred_scalar_llvm_ty: Option<&str>,
+    ) -> (String, String, i64) {
+        let scalar_ty = preferred_scalar_llvm_ty
+            .filter(|ty| Self::obvious_llvm_type_byte_width(ty) == Some(layout.stride_bytes))
+            .or_else(|| Self::helper_alloc_scalar_llvm_ty(layout.stride_bytes));
+        if let Some(scalar_ty) = scalar_ty {
             if layout.element_count == 1 {
                 (
                     scalar_ty.to_string(),
@@ -5629,6 +6092,16 @@ impl LlvmGenerator {
                 return Ok((slot.value_reg, slot.value_ty));
             }
         }
+        if let Some((typed_ptr, alignment)) =
+            self.compile_ephemeral_typed_memory_pointer(pointer, load_ty)?
+        {
+            let loaded = self.next_reg();
+            self.emit(&format!(
+                "  {} = load {}, {}* {}, align {}",
+                loaded, load_ty, load_ty, typed_ptr, alignment
+            ));
+            return Ok((loaded, load_ty.to_string()));
+        }
         if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
             let (load_size, _) = self.abi_layout_for_ty(load_ty, span)?;
             if load_size as i64 <= witness.storage_byte_len {
@@ -5664,8 +6137,23 @@ impl LlvmGenerator {
         span: Span,
     ) -> KainResult<(String, String)> {
         let stored_value_nonnegative = self.expr_is_proven_nonnegative_i64(value);
+        let (stored_value, stored_ty) = self.compile_expr(value)?;
+        if let Some((typed_ptr, alignment)) =
+            self.compile_ephemeral_typed_memory_pointer(pointer, &stored_ty)?
+        {
+            self.emit(&format!(
+                "  store {} {}, {}* {}, align {}",
+                stored_ty, stored_value, stored_ty, typed_ptr, alignment
+            ));
+            self.record_forwarded_mem_store(
+                pointer,
+                &stored_value,
+                &stored_ty,
+                stored_value_nonnegative,
+            );
+            return Ok((stored_value, stored_ty));
+        }
         if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
-            let (stored_value, stored_ty) = self.compile_expr(value)?;
             let (store_size, _) = self.abi_layout_for_ty(&stored_ty, span)?;
             if store_size as i64 <= witness.storage_byte_len {
                 let alignment =
@@ -5688,7 +6176,6 @@ impl LlvmGenerator {
                 return Ok((stored_value, stored_ty));
             }
         }
-        let (stored_value, stored_ty) = self.compile_expr(value)?;
         let (typed_ptr, alignment) =
             self.compile_non_ephemeral_typed_memory_pointer(pointer, &stored_ty)?;
         self.emit(&format!(
@@ -11122,7 +11609,10 @@ impl LlvmGenerator {
     fn compile_stmt(&mut self, stmt: &Stmt, remaining_stmts: &[Stmt]) -> KainResult<()> {
         match stmt {
             Stmt::Let {
-                pattern, value, ty, ..
+                pattern,
+                value,
+                ty,
+                span,
             } => {
                 if let Some(val_expr) = value {
                     // Allocate and Store
@@ -11270,35 +11760,30 @@ impl LlvmGenerator {
                                 self.reg_count += 1;
                                 self.emit_entry_alloca(&addr_reg, "i64");
 
+                                let preferred_storage_element_ty = self
+                                    .preferred_ephemeral_storage_element_llvm_ty_for_let(
+                                        ty.as_ref(),
+                                        *span,
+                                        layout,
+                                    );
                                 let (storage_llvm_ty, storage_element_ty, storage_alignment) =
-                                    if single_cell {
-                                        if let Some(scalar_ty) =
-                                            Self::ephemeral_single_cell_scalar_llvm_ty(
-                                                layout.byte_len,
-                                            )
-                                        {
-                                            (
-                                                scalar_ty.to_string(),
-                                                scalar_ty.to_string(),
-                                                Self::obvious_llvm_type_alignment(scalar_ty),
-                                            )
-                                        } else {
-                                            (
-                                                format!("[{} x i8]", layout.byte_len),
-                                                "i8".to_string(),
-                                                1,
-                                            )
-                                        }
-                                    } else {
-                                        Self::helper_alloc_stack_storage_shape(layout)
-                                    };
+                                    Self::helper_alloc_stack_storage_shape(
+                                        layout,
+                                        preferred_storage_element_ty.as_deref(),
+                                    );
                                 let storage_reg = self.next_reg();
                                 self.emit_entry_alloca(&storage_reg, &storage_llvm_ty);
                                 if emit_initial_zero {
                                     if storage_llvm_ty == storage_element_ty {
+                                        let zero_value = if storage_element_ty == "double" {
+                                            "0.000000e+00"
+                                        } else {
+                                            "0"
+                                        };
                                         self.emit(&format!(
-                                            "  store {} 0, {}* {}, align {}",
+                                            "  store {} {}, {}* {}, align {}",
                                             storage_element_ty,
+                                            zero_value,
                                             storage_element_ty,
                                             storage_reg,
                                             storage_alignment

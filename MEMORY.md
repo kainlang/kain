@@ -1,5 +1,52 @@
 # Kain Memory
 
+# 2026-05-20 - Kaintana split into modular stdlib-backed builder framework
+
+`blades/kaintana` is no longer a single god-file UI vocabulary. The framework is now split across `src/api/kaintana_ui.kn`, `src/api/widgets.kn`, `src/core/{types,reconciliation,layout,theme,input,render_commands}.kn`, `src/platform/desktop/desktop_adapter.kn`, and a tiny `src/kaintana.kn` prelude. The Kaintana v2 probe in `src/main.kn` creates a stdlib-backed context, builds panel/label/button/text-input/slider specs through explicit builder-stage functions, renders through `*_render(ctx, builder)`, emits passive `std::ui` draw state plus the desktop compatibility bridge, and writes package artifacts under `.kain/run/`.
+
+What changed:
+
+- `KaintanaContext.nodes` uses `std::collections::SlotMap` handles for renderer-neutral node ids; stable keys use `StringIntMap`.
+- Frame-local widget bookkeeping uses `std::alloc::ArenaAllocator`.
+- Public text/key inputs move through `std::text::StringView`; layout uses `std::math`; action/axis helpers wrap root `std::input`.
+- `platform/desktop/desktop_adapter.kn` owns the desktop PAL wrapper but intentionally does not import `c::kaintana_desktop_bridge`; the entrypoint owns that C bridge import so generated LLVM definitions are not duplicated.
+- Desktop report/screenshot output now uses direct path wrappers after `fs_create_dir_all(".kain/run")`, avoiding stale `KaintanaWindowSpec` string fields after heavy UI composition.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kaintana\run.ps1 -NoRun` -> PASS, generated `blades/kaintana/kaintana.exe`.
+- Direct smoke: `cmd /v:on /c "cd /d D:\Kain-Lang\blades\kaintana && kaintana.exe & echo EXIT:!ERRORLEVEL!"` -> `EXIT:0`.
+- Desktop proof artifacts: `.kain/run/kaintana_host_report.txt` reports `commands=13`, `last_error=ok`; `.kain/run/kaintana_host.bmp` is 2,073,654 bytes.
+- Z3 direct SMT checks: `kaintana-desktop-command-capacity` and `kaintana-layout-split-partition` both returned `unsat`; reports landed under `z3/reports/20260520T053638Z-*.json`.
+
+Durable caveats:
+
+- Native LLVM still rejects the prettier imported `impl Self_` dot-builder form with `Field address for .ctx requires a struct or struct pointer`; keep explicit builder-stage functions until the compiler path is fixed.
+- Avoid storing the full `KaintanaContext` inside builders. Pass context only to render, otherwise SlotMap/arena/native handles get copied through every shim.
+- `SlotMapInsert.map.free_head` currently comes back stale in this nested imported-module path, so Kaintana normalizes append-only node maps from `count` after inserts. Remove that shim only after a focused SlotMap/native LLVM proof.
+- The public builder module is `api/kaintana_ui.kn`, not `api/ui.kn`, to avoid collisions with root `std::ui`.
+
+# 2026-05-20 - Kain translation engineer skill landed
+
+Added `.agents/skills/kain-translation-engineer` for translating Rust, C++, TypeScript, JavaScript, and MCP/tooling donors into idiomatic Kain instead of mechanical `.kn` ports.
+
+Follow-up same day: added `references/example-atlas.md` as a deliberately lightweight pointer map for high-value Kain examples rather than overbuilding the skill into a static RAG dump. The atlas points future agents at `blades/network-domains` for `std::net`/`std::http`/`std::tls`/`std::http2`, `blades/vulkain` for `use c::...` plus `[c_ffi]`, `blades/kaintana` for authored UI framework composition, `blades/pong` for world/entangle/actor state lattice plus native presenter bridge, `blades/actor-ask-roundtrip` for minimal ask/reply, `blades/stdlib-domains` and `blades/stdlib-foundations` for root stdlib import and foundation coverage, and `blades/hash-domains` for focused `std::hash` primitives.
+
+Durable shape:
+
+- `SKILL.md` forces agents to search `ARCHITECTURE.md` / `MEMORY.md`, inspect `stdlib/STDLIB_MAP.llm.md`, inventory donor semantics, and choose Kain ownership surfaces such as blades, stdlib, runtime/native, benchmark, or attrition before writing code.
+- `references/translation-patterns.md` maps Rust/C++/TypeScript/MCP shapes into Kain constructs: actors/worlds/entangle, `collapse`/`observe`/`decay`, `converge`, `law`, root `std.*` domains, and proof-backed pointer/layout lanes.
+- `references/benchmark-translation-compass.md` records the current top Kain-vs-Rust/C++ benchmark exemplars from `benchmark/out/reports/20260520T005049Z.json`; it is intentionally a style compass, not frozen truth.
+- `references/example-atlas.md` is the non-benchmark example compass, with network/http and ABI examples called out as first-class translation donors.
+- `scripts/select_translation_examples.py` reranks live benchmark JSON reports so future agents can refresh the top examples from `latest.json` before a translation pass.
+- For `mcp/reference`, the skill treats the Rust files as donor/oracle material and points agents at `blades/kain-mcp` plus data-driven `config/*.json` as the Kain-owned direction.
+
+Validation:
+
+- `py .agents\skills\kain-translation-engineer\scripts\select_translation_examples.py --repo . --report benchmark\out\reports\20260520T005049Z.json --top 10`
+- `py -m py_compile .agents\skills\kain-translation-engineer\scripts\select_translation_examples.py`
+- `py C:\Users\Admin\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\Kain-Lang\.agents\skills\kain-translation-engineer` -> `Skill is valid!`
+
 # 2026-05-20 - Kloner split shell now drives a Vulkain 3D preview lane
 
 `blades/kloner` is now a modular Kain clone workstation instead of a flat monolithic desktop shell. The entrypoint owns orchestration, while helper modules own state/config (`kloner_state.kn`), the single-import world/entangle lattice (`kloner_lattice.kn`), projected clone scene math plus Vulkain mesh preview (`kloner_scene.kn`), and Kaintana UI composition (`kloner_ui.kn`).

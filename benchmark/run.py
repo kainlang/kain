@@ -38,6 +38,8 @@ FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
 DEFAULT_MINIMAL_REPORT_NAME = "latest.md"
 DEFAULT_LATEST_REPORT_STEM = "latest"
 BASELINE_CACHE_SCHEMA_VERSION = 1
+MEASUREMENT_INSTABILITY_MAX_TO_MEDIAN = 1.75
+MEASUREMENT_INSTABILITY_COEFF_VAR = 0.35
 CASE_WORKLOAD_FINGERPRINT_IGNORED_KEYS = {"default_enabled"}
 
 LANGUAGE_ORDER = ["kain", "rust", "cpp", "zig", "go", "erlang", "javascript", "python"]
@@ -837,6 +839,37 @@ def copy_runtime_sidecar(sidecar: Path, exe_path: Path) -> None:
     shutil.copyfile(sidecar, target)
 
 
+def sidecar_paths_for_executable(exe_path: Path) -> list[Path]:
+    paths = [exe_path]
+    if os.name == "nt":
+        paths.extend(
+            [
+                exe_path.with_suffix(".pdb"),
+                exe_path.with_suffix(".ilk"),
+                exe_path.with_suffix(".lib"),
+                exe_path.with_suffix(".exp"),
+            ]
+        )
+    return paths
+
+
+def purge_build_outputs(paths: list[Path]) -> None:
+    retries = 6 if os.name == "nt" else 1
+    for path in paths:
+        for attempt in range(retries):
+            if not path.exists():
+                break
+            try:
+                path.unlink()
+                break
+            except FileNotFoundError:
+                break
+            except PermissionError:
+                if attempt + 1 >= retries:
+                    break
+                time.sleep(0.25)
+
+
 def missing_tool_build(language: str, command: list[str], error: str) -> dict[str, Any]:
     return {
         "ok": False,
@@ -904,6 +937,7 @@ def build_kain_case(
             "error": f"missing Kain runtime manifest {runtime_manifest}",
         }
 
+    purge_build_outputs(sidecar_paths_for_executable(exe_path) + [ll_path])
     result = run_command(command, timeout=timeout, cwd=source_path.parent, env_overrides=env_overrides)
     produced_exe = ll_path.with_suffix(".exe" if os.name == "nt" else "")
     if produced_exe.exists() and produced_exe != exe_path:
@@ -1016,6 +1050,7 @@ def build_rust_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
+    purge_build_outputs(sidecar_paths_for_executable(exe_path))
     result = run_command(command, timeout=timeout)
     if support_artifacts:
         copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
@@ -1094,6 +1129,7 @@ def build_cpp_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
+    purge_build_outputs(sidecar_paths_for_executable(exe_path))
     result = run_command(command, timeout=timeout)
     if support_artifacts:
         copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
@@ -1167,6 +1203,7 @@ def build_go_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
+    purge_build_outputs(sidecar_paths_for_executable(exe_path))
     result = run_command(command, timeout=timeout, cwd=command_cwd)
     ok = result.returncode == 0 and exe_path.exists()
     return {
@@ -1221,6 +1258,7 @@ def build_zig_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
+    purge_build_outputs(sidecar_paths_for_executable(exe_path))
     result = run_command(command, timeout=timeout, cwd=source.parent)
     ok = result.returncode == 0 and exe_path.exists()
     return {
@@ -1426,8 +1464,14 @@ def measure_program(
             "samples_ms": [],
             "warmups": [],
             "min_ms": None,
+            "max_ms": None,
             "median_ms": None,
             "mean_ms": None,
+            "stdev_ms": None,
+            "coefficient_of_variation": None,
+            "max_to_median_ratio": None,
+            "unstable": False,
+            "stability_note": "",
             "error": build["error"],
         }
 
@@ -1446,14 +1490,52 @@ def measure_program(
         if result.returncode != 0:
             return failed_run_result(result, warmup_results, samples)
 
+    stability = summarize_samples(samples)
     return {
         "ok": True,
         "samples_ms": samples,
         "warmups": warmup_results,
         "min_ms": min(samples),
+        "max_ms": stability["max_ms"],
         "median_ms": statistics.median(samples),
         "mean_ms": statistics.fmean(samples),
+        "stdev_ms": stability["stdev_ms"],
+        "coefficient_of_variation": stability["coefficient_of_variation"],
+        "max_to_median_ratio": stability["max_to_median_ratio"],
+        "unstable": stability["unstable"],
+        "stability_note": stability["stability_note"],
         "error": "",
+    }
+
+
+def summarize_samples(samples: list[float]) -> dict[str, Any]:
+    if not samples:
+        return {
+            "max_ms": None,
+            "stdev_ms": None,
+            "coefficient_of_variation": None,
+            "max_to_median_ratio": None,
+            "unstable": False,
+            "stability_note": "",
+        }
+    max_ms = max(samples)
+    median_ms = statistics.median(samples)
+    mean_ms = statistics.fmean(samples)
+    stdev_ms = statistics.pstdev(samples) if len(samples) > 1 else 0.0
+    coefficient_of_variation = (stdev_ms / mean_ms) if mean_ms > 0.0 else None
+    max_to_median_ratio = (max_ms / median_ms) if median_ms > 0.0 else None
+    reasons: list[str] = []
+    if max_to_median_ratio is not None and max_to_median_ratio >= MEASUREMENT_INSTABILITY_MAX_TO_MEDIAN:
+        reasons.append(f"max {max_to_median_ratio:.2f}x median")
+    if coefficient_of_variation is not None and coefficient_of_variation >= MEASUREMENT_INSTABILITY_COEFF_VAR:
+        reasons.append(f"stdev/mean {coefficient_of_variation:.2f}")
+    return {
+        "max_ms": max_ms,
+        "stdev_ms": stdev_ms,
+        "coefficient_of_variation": coefficient_of_variation,
+        "max_to_median_ratio": max_to_median_ratio,
+        "unstable": bool(reasons),
+        "stability_note": f"unstable samples - {', '.join(reasons)}" if reasons else "",
     }
 
 
@@ -1467,8 +1549,14 @@ def failed_run_result(
         "samples_ms": samples or [],
         "warmups": warmups,
         "min_ms": None,
+        "max_ms": None,
         "median_ms": None,
         "mean_ms": None,
+        "stdev_ms": None,
+        "coefficient_of_variation": None,
+        "max_to_median_ratio": None,
+        "unstable": False,
+        "stability_note": "",
         "error": (
             f"Executable failed with exit code {result.returncode}.\n"
             f"command:\n{display_command(result.command)}\n"
@@ -1806,6 +1894,32 @@ def render_telemetry_table(report: dict[str, Any]) -> str:
     return "\n".join(rows)
 
 
+def render_stability_table(report: dict[str, Any]) -> str:
+    header = ["case", "language", "median ms", "max ms", "stability"]
+    divider = ["---"] * len(header)
+    rows = [markdown_table_row(header), markdown_table_row(divider)]
+    added = False
+    for case in report.get("cases", []):
+        case_languages = case.get("languages", report.get("languages", []))
+        for language in case_languages:
+            run = case.get("run", {}).get(language)
+            if not isinstance(run, dict) or not run.get("unstable"):
+                continue
+            rows.append(
+                markdown_table_row(
+                    [
+                        case["id"],
+                        language,
+                        fmt_ms(run.get("median_ms")),
+                        fmt_ms(run.get("max_ms")),
+                        run.get("stability_note", ""),
+                    ]
+                )
+            )
+            added = True
+    return "\n".join(rows) if added else ""
+
+
 def render_toolchain(report: dict[str, Any]) -> str:
     toolchain = report.get("toolchain", {})
     kain_native_env = toolchain.get("kain_native_env", {})
@@ -1892,6 +2006,7 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
                 f"  - run_ok: `{status_text(run['ok'])}`",
                 f"  - build_ms: `{fmt_ms(build['build_ms'])}`",
                 f"  - min_ms: `{fmt_ms(run['min_ms'])}`",
+                f"  - max_ms: `{fmt_ms(run.get('max_ms'))}`",
                 f"  - median_ms: `{fmt_ms(run['median_ms'])}`",
                 f"  - mean_ms: `{fmt_ms(run['mean_ms'])}`",
                 f"  - relative_to_fastest: `{fmt_ratio(case['relative_to_fastest'][language])}`",
@@ -1900,6 +2015,8 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
                 f"  - run_command: `{display_command(build.get('run_command'))}`",
             ]
         )
+        if run.get("stability_note"):
+            lines.append(f"  - stability: `{run['stability_note']}`")
         cache_info = build.get("baseline_cache")
         if isinstance(cache_info, dict):
             reason = str(cache_info.get("reason", "")).strip()
@@ -1939,6 +2056,9 @@ def render_llm_report(report: dict[str, Any]) -> str:
     telemetry_table = render_telemetry_table(report)
     if telemetry_table:
         lines.extend(["## Telemetry", "", telemetry_table, ""])
+    stability_table = render_stability_table(report)
+    if stability_table:
+        lines.extend(["## Stability Alerts", "", stability_table, ""])
     lines.extend(["## Case Details", ""])
     for case in report.get("cases", []):
         lines.extend([render_case_detail(case, languages), ""])
@@ -1977,6 +2097,9 @@ def render_minimal_report(report: dict[str, Any], minimal_name: str, latest_stem
     telemetry_table = render_telemetry_table(report)
     if telemetry_table:
         lines.extend(["", "## Telemetry", "", telemetry_table])
+    stability_table = render_stability_table(report)
+    if stability_table:
+        lines.extend(["", "## Stability Alerts", "", stability_table])
     return "\n".join(lines).rstrip() + "\n"
 
 

@@ -1,7 +1,7 @@
 {
   "suite": "kain-multi-language-benchmarks",
-  "default_warmups": 2,
-  "default_runs": 7,
+  "default_warmups": 3,
+  "default_runs": 9,
   "cases": [
     {
       "id": "contention_wall",
@@ -390,7 +390,7 @@
       "maturity": "implemented",
       "fairness_note": "This is the projection core, not a full Navier-Stokes application shell. The benchmark intentionally isolates the divergence/Jacobi/gradient-subtract loop on one fixed staggered grid.",
       "language_notes": {
-        "kain": "Current Kain row uses raw Float buffers for the staggered X/Y/Z velocity fields plus pressure/divergence work arrays, matching the original solver shape closely enough to make the runtime/codegen story honest."
+        "kain": "Current Kain row keeps the staggered X/Y/Z velocity fields plus pressure/divergence work arrays in raw Float buffers, but flattens the hot stencil into explicit row/plane arithmetic so LLVM sees the honest solver walk directly instead of index-helper indirection."
       },
       "telemetry": {
         "primary_metric_id": "pressure_relaxations_per_second",

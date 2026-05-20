@@ -16,6 +16,7 @@ The contract is intentionally simple:
 - The runner prefers a release-built `kain.exe`, pins Kain benchmark links to `runtime/native_core_runtime.toml`, and passes a benchmark-native tuning profile into the Kain compiler unless you override it.
 - Foreign baseline caching is now part of the normal inner loop. `python benchmark/run.py` defaults to `--baseline-mode auto`, which means: when Kain is in the selected language set, rerun Kain fresh and reuse cached non-Kain baselines from `benchmark/out/baselines/<case>/<language>.json` when the machine/tool/source/flags/workload key still matches. Use `--baseline-mode refresh-foreign` for a true cross-language refresh, `--baseline-mode reuse-foreign` to force cached foreign baselines even without Kain selected, or `--baseline-mode off` to disable caching completely.
 - Every normal run writes `benchmark/latest.md` as the compact root snapshot, plus `out/reports/latest.llm.md`, a timestamped `.llm.md` report, and `out/reports/latest.json`. Stale `latest.html` is removed.
+- The canonical default measurement profile is now `3` warmups plus `9` timed runs. Reports also surface `Stability Alerts` when a language lands outlier-heavy samples so future benchmark triage does not confuse machine jitter with a real frontier gap.
 - Wrapper plugins now live under `benchmark/wrappers/*.json`. Use `python benchmark/run_wrapper.py --list` to discover fire-and-forget suites without touching `run.py`.
 - `python benchmark/run_fast.py` or `python benchmark/run_wrapper.py fast` locks the suite to `kain,rust,cpp,erlang` and writes `benchmark/latest_fast.md` plus `benchmark/out/reports/latest_fast.llm.md` / `latest_fast.json`.
 - `python benchmark/run_sim.py` or `python benchmark/run_wrapper.py sim` runs the extracted simulation pack and writes `benchmark/latest_sim.md` plus `benchmark/out/reports/latest_sim.llm.md` / `latest_sim.json`.
@@ -96,7 +97,7 @@ python benchmark/run_wrapper.py sim
 Useful variants:
 
 ```powershell
-python benchmark/run.py --runs 9 --warmups 2
+python benchmark/run.py --runs 9 --warmups 3
 python benchmark/run.py --case ownership_memory
 python benchmark/run.py --case native_map_lookup --baseline-mode auto
 python benchmark/run.py --case native_map_lookup --baseline-mode refresh-foreign

@@ -1,29 +1,15 @@
-use std::actor
 use std::alloc
 use std::collections
-use std::crypto
-use std::diagnostics
 use std::fs
-use std::gen_server
 use std::graphics
-use std::hash
-use std::http
-use std::http2
 use std::input
-use std::intent
 use std::math
-use std::net
-use std::process
-use std::result
-use std::runtime
 use std::text
-use std::time
-use std::tls
 use std::ui
 use c::kaintana_desktop_bridge
 use desktop_adapter::kaintana_desktop_host_geometry_count
-use desktop_adapter::kaintana_desktop_host_write_report
-use desktop_adapter::kaintana_desktop_host_write_screenshot
+use desktop_adapter::kaintana_desktop_host_write_report_path
+use desktop_adapter::kaintana_desktop_host_write_screenshot_path
 use desktop_adapter::kaintana_desktop_probe
 use layout::kaintana_column_slot
 use layout::kaintana_inset
@@ -35,10 +21,7 @@ use types::kaintana_backend_desktop
 use types::kaintana_default_window_spec
 use types::kaintana_rect
 use types::kaintana_window_rect
-use kaintana_ui::kaintana_begin
-use kaintana_ui::kaintana_commit
-use kaintana_ui::kaintana_context
-use kaintana_ui::ui
+use kaintana_ui::*
 
 fn main() -> Int:
     let boot = native_runtime_init()
@@ -59,23 +42,45 @@ fn main() -> Int:
     let rail = kaintana_split_left(bounds, 0.30, 20.0)
     let stage = kaintana_split_right(bounds, 0.30, 20.0)
 
-    let panel = ui(ctx).panel("KAINTANA V2").key("shell.panel").rect(bounds).font(title_font, 36.0).render()
+    let panel0 = kaintana_panel(ui(ctx), "KAINTANA V2")
+    let panel1 = kaintana_panel_key(panel0, "shell.panel")
+    let panel2 = kaintana_panel_rect(panel1, bounds)
+    let panel3 = kaintana_panel_font(panel2, title_font, 36.0)
+    let panel = kaintana_panel_render(ctx, panel3)
     ctx = panel.ctx
-    let label = ui(ctx).label("SlotMap handles // arena frame state // desktop adapter").key("shell.summary").rect(kaintana_column_slot(rail, 1.0, 32.0, 12.0)).font(body_font, 20.0).muted().render()
+    let label0 = kaintana_label(ui(ctx), "SlotMap handles // arena frame state // desktop adapter")
+    let label1 = kaintana_label_key(label0, "shell.summary")
+    let label2 = kaintana_label_rect(label1, kaintana_column_slot(rail, 1.0, 32.0, 12.0))
+    let label3 = kaintana_label_font(label2, body_font, 20.0)
+    let label4 = kaintana_label_muted(label3)
+    let label = kaintana_label_render(ctx, label4)
     ctx = label.ctx
-    let button = ui(ctx).button("Ignite Renderer").key("action.ignite").rect(kaintana_column_slot(rail, 3.0, 44.0, 12.0)).font(body_font, 26.0).render()
+    let button0 = kaintana_button(ui(ctx), "Ignite Renderer")
+    let button1 = kaintana_button_key(button0, "action.ignite")
+    let button2 = kaintana_button_rect(button1, kaintana_column_slot(rail, 3.0, 44.0, 12.0))
+    let button3 = kaintana_button_font(button2, body_font, 26.0)
+    let button = kaintana_button_render(ctx, button3)
     ctx = button.ctx
-    let input = ui(ctx).text_input("Command", "converge desktop + gpu command stream").key("input.command").rect(kaintana_column_slot(stage, 1.0, 52.0, 14.0)).font(body_font, 28.0).render()
+    let input0 = kaintana_text_input(ui(ctx), "Command", "converge desktop + gpu command stream")
+    let input1 = kaintana_text_input_key(input0, "input.command")
+    let input2 = kaintana_text_input_rect(input1, kaintana_column_slot(stage, 1.0, 52.0, 14.0))
+    let input3 = kaintana_text_input_font(input2, body_font, 28.0)
+    let input = kaintana_text_input_render(ctx, input3)
     ctx = input.ctx
-    let slider = ui(ctx).slider("GPU UI Readiness", 72.0, 0.0, 100.0).key("slider.gpu.readiness").rect(kaintana_column_slot(stage, 3.0, 84.0, 14.0)).font(body_font, 28.0).render()
+    let slider0 = kaintana_slider(ui(ctx), "GPU UI Readiness", 72.0, 0.0, 100.0)
+    let slider1 = kaintana_slider_key(slider0, "slider.gpu.readiness")
+    let slider2 = kaintana_slider_rect(slider1, kaintana_column_slot(stage, 3.0, 84.0, 14.0))
+    let slider3 = kaintana_slider_font(slider2, body_font, 28.0)
+    let slider = kaintana_slider_render(ctx, slider3)
     ctx = slider.ctx
 
     ctx = kaintana_commit(ctx)
     let draw_count = ctx.draw_count
     let checksum = ctx.command_checksum
     let status = ctx.status
-    let _report = kaintana_desktop_host_write_report(spec)
-    let _bmp = kaintana_desktop_host_write_screenshot(spec)
+    fs_create_dir_all(".kain/run")
+    let _report = kaintana_desktop_host_write_report_path(".kain/run/kaintana_host_report.txt")
+    let _bmp = kaintana_desktop_host_write_screenshot_path(".kain/run/kaintana_host.bmp")
     let _destroy = kaintana_context_destroy(ctx)
     let shutdown = native_runtime_shutdown()
     if shutdown != 0:

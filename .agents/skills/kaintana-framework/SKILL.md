@@ -28,15 +28,29 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
 ## Current Shape
 
 - `blades/kaintana/src/kaintana.kn`
-  - public framework API
-  - `KaintanaWindowSpec`, `KaintanaTheme`, rect/split/row/column helpers plus `kaintana_split_top`, `kaintana_split_bottom`, and `kaintana_grid_cell`
-  - retained helpers: `kaintana_retained_region`, `kaintana_retained_surface`, `kaintana_retained_label`
-  - immediate helpers: `kaintana_immediate_panel`, `kaintana_immediate_badge`, `kaintana_immediate_toolbar_button`, `kaintana_immediate_button`, `kaintana_immediate_metric`, `kaintana_immediate_slider`, `kaintana_immediate_chart_bar`
-  - raw primitive helpers: `kaintana_primitive_fill`, `kaintana_primitive_text`
-  - action/input wrappers over `stdlib/native/input.kn`
-  - focus/clipboard/IME/menu/dialog/popover wrappers over `stdlib/native/ui.kn`
-  - snapshot/input-trace harness helpers
-  - desktop-default host wrappers: `kaintana_session_create`, `kaintana_begin_frame`, `kaintana_commit_frame`, `kaintana_host_run_window`, `kaintana_host_write_report`
+  - tiny public prelude only: framework name/version/surface score
+- `blades/kaintana/src/api/kaintana_ui.kn`
+  - public builder surface. Builders are lightweight widget specs; pass the heavy `KaintanaContext` only to `*_render(ctx, builder)`.
+  - current widgets: panel, label, button, text input, slider
+- `blades/kaintana/src/api/widgets.kn`
+  - component wrappers that reconcile nodes and record renderer-neutral-ish fill/text commands
+- `blades/kaintana/src/core/types.kn`
+  - window spec, theme, rect/color, context, render result, input binding types
+  - imports root `std::alloc`, `std::collections`, and `std::text`
+  - `KaintanaContext.nodes` is a stdlib `SlotMap`; text-facing helpers use `StringView`
+- `blades/kaintana/src/core/reconciliation.kn`
+  - passive UI session creation, frame begin/commit/destroy, stable key map, SlotMap handles, and arena-backed frame widget cells
+  - normalizes append-only SlotMap `free_head` from `count` after inserts because nested `SlotMapInsert.map.free_head` currently comes back stale under native LLVM
+- `blades/kaintana/src/core/layout.kn`
+  - rect/inset/split/row/column/grid math over root `std::math`
+- `blades/kaintana/src/core/theme.kn`
+  - named theme packs: solar-broadcast, marine-terminal, kawaii-voltage, oxide-dcc
+- `blades/kaintana/src/core/input.kn`
+  - action/axis/session wrappers over root `std::input`
+- `blades/kaintana/src/core/render_commands.kn`
+  - command checksum/counting, passive `std::ui` draw calls, and optional desktop bridge emission
+- `blades/kaintana/src/platform/desktop/desktop_adapter.kn`
+  - desktop PAL wrapper over the blade-local compatibility bridge. Do not import `c::kaintana_desktop_bridge` here; keep that import in the entrypoint that owns linking.
 - `blades/kaintana/native/kaintana_desktop_bridge.c`
   - Win32/GDI compatibility host
   - fixed rect/text command buffer with client-size scaling and sized text fallback
@@ -63,16 +77,32 @@ Desktop and Vulkan showcase entrypoints are intentionally self-contained right n
 Minimal Kaintana desktop usage pattern:
 
 ```kn
-use kaintana::kaintana_backend_desktop
-use kaintana::kaintana_default_window_spec
-use kaintana::kaintana_session_create
+use std::alloc
+use std::collections
+use std::graphics
+use std::input
+use std::math
+use std::text
+use std::ui
+use c::kaintana_desktop_bridge
+use desktop_adapter::kaintana_desktop_probe
+use reconciliation::kaintana_context_destroy
+use theme::kaintana_theme_named
+use types::kaintana_backend_desktop
+use types::kaintana_default_window_spec
+use kaintana_ui::*
 
 fn main() -> Int:
+    if kaintana_desktop_probe() != 1:
+        return 20
     let spec = kaintana_default_window_spec("My Window", 1280, 720, kaintana_backend_desktop())
-    let session = kaintana_session_create("my-app", spec)
-    let _frame = kaintana_begin_frame(session, "rev-1", 16.0)
-    let _commit = kaintana_commit_frame(session)
-    return kaintana_host_run_window(spec)
+    var ctx = kaintana_context("my-app", spec, kaintana_theme_named("oxide-dcc"), true)
+    ctx = kaintana_begin(ctx, "rev-1", 16.0)
+    let b0 = kaintana_button(ui(ctx), "Ignite")
+    let b1 = kaintana_button_key(b0, "action.ignite")
+    let result = kaintana_button_render(ctx, b1)
+    ctx = kaintana_commit(result.ctx)
+    return kaintana_context_destroy(ctx)
 ```
 
 For richer desktop apps, follow `blades/kaintana-test/src/main.kn`:
@@ -115,6 +145,8 @@ powershell -ExecutionPolicy Bypass -File .\blades\kaintana-vulkan-test\run.ps1
 
 Proof artifacts:
 
+- framework package host report: `blades/kaintana/.kain/run/kaintana_host_report.txt`
+- framework package screenshot: `blades/kaintana/.kain/run/kaintana_host.bmp`
 - desktop frame report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_frame.txt`
 - desktop host report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_host.txt`
 - desktop screenshot: `blades/kaintana-test/.kain/run/kaintana_test_desktop.bmp`
@@ -127,11 +159,18 @@ Current Z3 checks:
 
 - `z3/reports/20260516T015051Z-kaintana-desktop-command-capacity.json`
 - `z3/reports/20260516T015051Z-kaintana-layout-split-partition.json`
+- latest rerun observed: `z3/reports/20260520T053638Z-kaintana-desktop-command-capacity.json` and `z3/reports/20260520T053638Z-kaintana-layout-split-partition.json`
 
 ## Gotchas
 
 - Imported local Kain modules that contain `world` / `entangle` are supported again after the `crates/kain-driver` staging fix. If `entangle endpoint '...' participates in more than one binding` ever returns, re-check realtime/native UI staging before assuming the app structure is wrong.
 - `[c_ffi]` bindings are not transitive through a library blade yet. If `blades/kaintana` or `blades/kaintana-vulkan` wraps a native bridge, consumer blades such as `blades/kaintana-test` or `blades/kaintana-vulkan-test` still need their own matching `[[c_ffi.libraries]]` entries for `use c::...`.
+- Inside `blades/kaintana`, keep `use c::kaintana_desktop_bridge` in `src/main.kn` or another entrypoint that owns linking. Importing the C bridge from `platform/desktop/desktop_adapter.kn` can duplicate generated LLVM definitions; omitting it from the entrypoint can leave unresolved externals.
+- `api/ui.kn` collides too easily with root `std::ui`; the public builder module is `api/kaintana_ui.kn`.
+- Native LLVM currently mislowers imported `impl Self_` builder methods when they touch struct fields (`Field address for .ctx requires a struct or struct pointer`). Keep builders as explicit stage functions until that compiler path is fixed.
+- Keep builder structs lightweight. Do not store the full `KaintanaContext` inside every builder stage; pass context to `*_render(ctx, builder)` so SlotMap, arena, and native handles do not get copied through every shim.
+- `SlotMapInsert.map.free_head` currently returns stale in this nested native LLVM path. Kaintana normalizes append-only node maps from `count`; remove that shim only after a focused compiler/stdlib proof says nested SlotMap returns preserve `free_head`.
+- For desktop reports/screenshots, prefer direct path wrappers such as `kaintana_desktop_host_write_report_path(".kain/run/...")` and create `.kain/run` first. Passing large window spec structs back into host-write wrappers after many UI calls can surface stale String fields.
 - Do not put desktop and Vulkan acceptance entrypoints back into one consuming blade unless per-entry manifests become real. A shared manifest/output path can silently reintroduce `vulkain_bridge.dll` into the desktop executable or overwrite the user-facing root exe with the Vulkan proof build.
 - `kaintana_split_right(rect, fraction, gap)` uses `fraction` as the left-hand share. If you want a 25% right inspector rail, pass about `0.75`, not `0.25`, or the right panel will silently eat most of the shell.
 - `ui_host_session_create(..., "software")` is still passive. It records authored session/draw state; it does not open a live OS window by itself.

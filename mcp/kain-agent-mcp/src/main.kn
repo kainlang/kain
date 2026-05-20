@@ -1,0 +1,14 @@
+use std::runtime
+use http_probe_server::run_mcp_http_probe
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let status = run_mcp_http_probe()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return status

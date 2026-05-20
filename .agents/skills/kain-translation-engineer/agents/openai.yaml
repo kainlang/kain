@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kain Translation Engineer"
+  short_description: "Translate foreign code into idiomatic Kain"
+  default_prompt: "Use $kain-translation-engineer to translate this Rust, C++, or TypeScript code into idiomatic Kain."

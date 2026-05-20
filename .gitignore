@@ -33,7 +33,13 @@ zender/
 *.so
 *.dylib
 *.dll
-/mcp
+/mcp/*
+!/mcp/kain-agent-mcp/
+!/mcp/kain-agent-mcp/KAIN.toml
+!/mcp/kain-agent-mcp/config/
+!/mcp/kain-agent-mcp/config/*.json
+!/mcp/kain-agent-mcp/src/
+!/mcp/kain-agent-mcp/src/**/*.kn
 /testing
 /projects
 /target_selfhost_probe

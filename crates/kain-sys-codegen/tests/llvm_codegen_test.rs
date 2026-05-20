@@ -1673,7 +1673,8 @@ fn llvm_erases_decay_only_float_buffer_to_aligned_typed_local_storage() {
 
     assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
     assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
-    assert!(llvm.contains("alloca [48 x i64]"));
+    assert!(llvm.contains("alloca [48 x double]"));
+    assert!(llvm.contains("getelementptr double, double*"));
     assert!(llvm.contains("load double, double*"));
     assert!(llvm.contains("store double"));
     assert!(llvm.contains("align 8"));
@@ -1691,7 +1692,8 @@ fn llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage() {
 
     assert!(!llvm.contains("call i8* @__kain_alloc(i64"));
     assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
-    assert!(llvm.contains("alloca [240 x i64]"));
+    assert!(llvm.contains("alloca [240 x double]"));
+    assert!(llvm.contains("getelementptr double, double*"));
     assert!(llvm.contains("load double, double*"));
     assert!(llvm.contains("store double"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "sim-style-derived-float-buffer-typed-local-storage");
