@@ -53,6 +53,7 @@ inputs = [
   "src/core/render_commands.kn",
   "src/core/theme.kn",
   "src/core/types.kn",
+  "src/core/widget_events.kn",
   "src/platform/desktop/desktop_adapter.kn",
   "src/platform/vulkan/vulkan_adapter.kn",
   "src/platform/winit/winit_adapter.kn",

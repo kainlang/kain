@@ -1,0 +1,177 @@
+use kloner_state::*
+use std::math
+use types::KaintanaContext
+
+pub struct KlonerUiFrame:
+    ctx: KaintanaContext
+    clone_count_value: Float
+    layout_mode_value: Float
+    spacing_value: Float
+    radial_radius_value: Float
+    sphere_radius_value: Float
+    wave_value: Float
+    speed_value: Float
+    timeline_time_value: Float
+    density_value: Float
+    mode_grid_activated: Int
+    mode_radial_activated: Int
+    mode_honey_activated: Int
+    mode_helix_activated: Int
+    commit_activated: Int
+
+pub struct KlonerSession:
+    settings: KlonerSettings
+    controls: KlonerControls
+    runtime: KlonerRuntimeState
+    reference: KlonerReferenceInfo
+    platform_vulkan_locked: Int
+    transport_ms: Int
+
+fn kloner_env_string_or_default(name: String, default_value: String) -> String:
+    let value = env(name)
+    if len(value) == 0:
+        return default_value
+    return value
+
+fn kloner_env_int_or_default(name: String, default_value: Int) -> Int:
+    let value = env(name)
+    if len(value) == 0:
+        return default_value
+    return kloner_parse_int_text(value)
+
+fn kloner_env_milli_or_default(name: String, default_value: Float) -> Float:
+    let value = env(name)
+    if len(value) == 0:
+        return default_value
+    return Float(kloner_parse_int_text(value)) / 1000.0
+
+fn kloner_settings_apply_env(base: KlonerSettings) -> KlonerSettings:
+    let width = math_int_clamp(kloner_env_int_or_default("KLONER_WIDTH", base.width), 960, 4096)
+    let height = math_int_clamp(kloner_env_int_or_default("KLONER_HEIGHT", base.height), 640, 2160)
+    let target_fps = math_int_clamp(kloner_env_int_or_default("KLONER_TARGET_FPS", base.target_fps), 1, 240)
+    return KlonerSettings {
+        title: kloner_env_string_or_default("KLONER_TITLE", base.title),
+        theme_name: kloner_env_string_or_default("KLONER_THEME", base.theme_name),
+        width: width,
+        height: height,
+        frame_budget: base.frame_budget,
+        target_fps: target_fps,
+        revision_key: base.revision_key,
+        clear_red: base.clear_red,
+        clear_green: base.clear_green,
+        clear_blue: base.clear_blue,
+        accent_red: base.accent_red,
+        accent_green: base.accent_green,
+        accent_blue: base.accent_blue,
+        frame_report_path: base.frame_report_path,
+        host_report_path: base.host_report_path,
+        screenshot_path: base.screenshot_path,
+        snapshot_path: base.snapshot_path,
+        export_preview_path: base.export_preview_path,
+        scene_report_path: base.scene_report_path,
+        vulkain_report_path: base.vulkain_report_path,
+        vulkain_vertex_shader_path: base.vulkain_vertex_shader_path,
+        vulkain_fragment_shader_path: base.vulkain_fragment_shader_path,
+        reference_root: base.reference_root,
+        reference_spec_path: base.reference_spec_path,
+    }
+
+fn kloner_controls_apply_env(base: KlonerControls) -> KlonerControls:
+    let clone_count = kloner_env_int_or_default("KLONER_CLONE_COUNT", base.clone_count)
+    let layout_mode = kloner_env_int_or_default("KLONER_LAYOUT_MODE", base.layout_mode)
+    return kloner_controls_with_derived_grid(KlonerControls {
+        clone_count: kloner_clamp_clone_count(clone_count),
+        layout_mode: math_int_clamp(layout_mode, KLONER_MODE_GRID, KLONER_MODE_HELIX),
+        grid_width: base.grid_width,
+        grid_rows: base.grid_rows,
+        spacing: math_clamp(kloner_env_milli_or_default("KLONER_SPACING_MILLI", base.spacing), 0.10, 2.20),
+        radial_radius: math_clamp(kloner_env_milli_or_default("KLONER_RADIAL_RADIUS_MILLI", base.radial_radius), 2.0, 80.0),
+        sphere_radius: math_clamp(kloner_env_milli_or_default("KLONER_SPHERE_RADIUS_MILLI", base.sphere_radius), 0.04, 0.75),
+        wave_amount: math_clamp(kloner_env_milli_or_default("KLONER_WAVE_MILLI", base.wave_amount), 0.0, 1.20),
+        animation_speed: math_clamp(kloner_env_milli_or_default("KLONER_SPEED_MILLI", base.animation_speed), 0.10, 4.0),
+        camera_yaw: kloner_env_milli_or_default("KLONER_CAMERA_YAW_MILLI", base.camera_yaw),
+        camera_pitch: kloner_env_milli_or_default("KLONER_CAMERA_PITCH_MILLI", base.camera_pitch),
+    })
+
+pub fn kloner_session_open() -> KlonerSession:
+    let settings = kloner_settings_apply_env(kloner_settings())
+    let controls = kloner_controls_apply_env(kloner_default_controls())
+    let reference = kloner_reference_info(settings)
+    let transport_ms = math_int_clamp(kloner_env_int_or_default("KLONER_TIME_MS", 1333), 0, 600000)
+    let runtime = kloner_runtime_state_from_controls(controls, transport_ms, 0, 0)
+    let loader = env("KAIN_PLATFORM_VULKAN_DLL")
+    let include_root = env("KAIN_PLATFORM_VULKAN_INCLUDE")
+    var locked = 0
+    if len(loader) > 0 or len(include_root) > 0:
+        locked = 1
+    return KlonerSession {
+        settings: settings,
+        controls: controls,
+        runtime: runtime,
+        reference: reference,
+        platform_vulkan_locked: locked,
+        transport_ms: transport_ms,
+    }
+
+pub fn kloner_session_platform_status(session: KlonerSession) -> String:
+    if session.platform_vulkan_locked == 1:
+        return "platform::vulkan(system) // locked"
+    return "platform::vulkan(system) // pending"
+
+pub fn kloner_session_lane_summary(session: KlonerSession) -> String:
+    return "kain.session -> kaintana.frame -> vulkain.packet // same-window.foreground-overlay"
+
+pub fn kloner_session_apply_ui_frame(session: KlonerSession, frame: KlonerUiFrame) -> KlonerSession:
+    let slider_clone_count = kloner_clamp_clone_count(Int(frame.clone_count_value + 0.5))
+    let density_clone_count = kloner_clamp_clone_count(Int(frame.density_value + 0.5))
+    var next_clone_count = slider_clone_count
+    if frame.commit_activated != 0:
+        next_clone_count = density_clone_count
+    let next_transport_ms = math_int_clamp(Int(frame.timeline_time_value + 0.5), 0, 600000)
+    var next_layout_mode = math_int_clamp(Int(frame.layout_mode_value + 0.5), KLONER_MODE_GRID, KLONER_MODE_HELIX)
+    if frame.mode_grid_activated != 0:
+        next_layout_mode = KLONER_MODE_GRID
+    if frame.mode_radial_activated != 0:
+        next_layout_mode = KLONER_MODE_RADIAL
+    if frame.mode_honey_activated != 0:
+        next_layout_mode = KLONER_MODE_HONEYCOMB
+    if frame.mode_helix_activated != 0:
+        next_layout_mode = KLONER_MODE_HELIX
+    let next_controls = kloner_controls_with_derived_grid(KlonerControls {
+        clone_count: next_clone_count,
+        layout_mode: next_layout_mode,
+        grid_width: session.controls.grid_width,
+        grid_rows: session.controls.grid_rows,
+        spacing: math_clamp(frame.spacing_value, 0.10, 2.20),
+        radial_radius: math_clamp(frame.radial_radius_value, 2.0, 80.0),
+        sphere_radius: math_clamp(frame.sphere_radius_value, 0.04, 0.75),
+        wave_amount: math_clamp(frame.wave_value, 0.0, 1.20),
+        animation_speed: math_clamp(frame.speed_value, 0.10, 4.0),
+        camera_yaw: session.controls.camera_yaw,
+        camera_pitch: session.controls.camera_pitch,
+    })
+    return KlonerSession {
+        settings: session.settings,
+        controls: next_controls,
+        runtime: session.runtime,
+        reference: session.reference,
+        platform_vulkan_locked: session.platform_vulkan_locked,
+        transport_ms: next_transport_ms,
+    }
+
+pub fn kloner_session_capture_ui(session: KlonerSession, ctx: KaintanaContext, current_time_ms: Int) -> KlonerSession:
+    let runtime = kloner_runtime_state_from_controls(session.controls, current_time_ms, ctx.draw_count, ctx.command_checksum)
+    return KlonerSession {
+        settings: session.settings,
+        controls: session.controls,
+        runtime: runtime,
+        reference: session.reference,
+        platform_vulkan_locked: session.platform_vulkan_locked,
+        transport_ms: current_time_ms,
+    }
+
+pub fn kloner_session_frame_report_text(session: KlonerSession, presenter_status: Int) -> String:
+    return kloner_frame_report_text(session.settings, session.controls, session.runtime, session.reference, presenter_status)
+
+pub fn kloner_session_export_preview_json(session: KlonerSession) -> String:
+    return kloner_export_preview_json(session.settings, session.controls, session.runtime, session.reference)

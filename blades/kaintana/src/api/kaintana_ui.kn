@@ -2,6 +2,7 @@ use std::text
 use reconciliation::kaintana_context_begin_frame
 use reconciliation::kaintana_context_commit_frame
 use reconciliation::kaintana_context_create
+use reconciliation::kaintana_context_sync_events
 use types::KaintanaContext
 use types::KaintanaRect
 use types::KaintanaRenderResult
@@ -63,6 +64,9 @@ pub fn kaintana_context(app_name: String, spec: KaintanaWindowSpec, theme: Kaint
 
 pub fn kaintana_begin(ctx: KaintanaContext, revision_key: String, delta_ms: Float) -> KaintanaContext:
     return kaintana_context_begin_frame(ctx, revision_key, delta_ms)
+
+pub fn kaintana_sync(ctx: KaintanaContext) -> KaintanaContext:
+    return kaintana_context_sync_events(ctx)
 
 pub fn kaintana_commit(ctx: KaintanaContext) -> KaintanaContext:
     return kaintana_context_commit_frame(ctx)

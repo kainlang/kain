@@ -104,6 +104,16 @@ def display_command(command: list[str] | None) -> str:
     return " ".join(str(part) for part in command)
 
 
+def find_line_that_looks_like_path(output: str) -> str | None:
+    for raw_line in reversed(output.splitlines()):
+        line = raw_line.strip()
+        if not line:
+            continue
+        if ":" in line or line.startswith("/") or line.startswith("\\"):
+            return line
+    return None
+
+
 def run_command(
     command: list[str],
     *,
@@ -161,16 +171,39 @@ def resolve_tool(explicit: str | None, env_key: str, names: list[str], known: li
     return None
 
 
-def resolve_kain(explicit: str | None) -> str | None:
-    return resolve_tool(
-        explicit,
-        "KAIN_EXE",
-        ["kain"],
+def resolve_kain(explicit: str | None, timeout: int) -> str | None:
+    candidates: list[Path] = []
+    if explicit:
+        candidates.append(Path(explicit))
+    env_value = os.environ.get("KAIN_EXE")
+    if env_value:
+        candidates.append(Path(env_value))
+
+    bazel = shutil.which("bazel")
+    compiler_timeout = max(timeout, 1200)
+    if bazel:
+        build = run_command([bazel, "build", "//:kain", "--config=release"], timeout=compiler_timeout)
+        info = run_command([bazel, "info", "bazel-bin", "--config=release"], timeout=compiler_timeout)
+        info_line = find_line_that_looks_like_path(info.stdout)
+        if info_line:
+            candidates.append(Path(info_line) / "crates" / "cli" / executable_name("kain"))
+        if build.returncode != 0 and not any(candidate.exists() for candidate in candidates):
+            return None
+
+    candidates.extend(
         [
             REPO_ROOT / "target" / "release" / executable_name("kain"),
             REPO_ROOT / "target" / "debug" / executable_name("kain"),
-        ],
+        ]
     )
+    found = shutil.which("kain")
+    if found:
+        candidates.append(Path(found))
+
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate.resolve())
+    return None
 
 
 def resolve_spirv_tool(explicit: str | None, env_key: str, stem: str) -> str | None:
@@ -1193,7 +1226,7 @@ def main() -> int:
         return 0
     languages = parse_languages(args.languages)
     tools = {
-        "kain": resolve_kain(args.kain_exe),
+        "kain": resolve_kain(args.kain_exe, args.timeout),
         "cxx": resolve_tool(
             args.cxx,
             "CXX",

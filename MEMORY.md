@@ -227,17 +227,45 @@ Proof/validation:
 - `cargo test -p kain-commands --target-dir target\codex-platform-package`, `cargo check -p cli --target-dir target\codex-platform-package`, `bazel test //runtime:native_test_platform_library`, `cargo run -q -p cli --bin kain --target-dir target\codex-platform-package -- check blades\platform-package-smoke\src\main.kn --target llvm`, and full `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\platform-package-smoke\run.ps1` passed. The full smoke generated `.kain/run/platform_package_smoke.txt` with `status=0`, while the executable still prints the existing native runtime `[MEMORY] ERROR: RC release underflow` shutdown diagnostic on stderr.
 - Full `bazel test //runtime:native_runtime_tests` is still red because existing `//runtime:native_test_ownership_memory` fails `generic observe uses imported registry path expected 0, got -6`; the new platform-library test passes inside and outside that suite.
 
+# 2026-05-20 - Kaintana builder widgets now own interaction semantics in Kain
+
+`blades/kaintana` just crossed an important boundary: the builder-framework widgets are no longer static visuals that always return `activated=0` and pass through slider input verbatim. Interaction semantics now live in Kain:
+
+- `src/core/widget_events.kn` is the new framework-owned event lane. It pumps `std::ui` events at frame begin, tracks pointer hover/capture/drag through generic UI state cells on the root/node ids, and records cumulative per-node counters (`pointer.down`, `pointer.move`, `pointer.up`, `pointer.activate`) instead of inventing another bridge-local widget runtime.
+- `src/core/reconciliation.kn` now calls that sync lane from `kaintana_context_begin_frame(...)`, and `src/api/kaintana_ui.kn` exposes `kaintana_sync(ctx)` so authored code can explicitly resync after synthetic or future presenter-fed event injection.
+- `src/api/widgets.kn` now consumes those Kain-side counters/flags directly: buttons return real `activated` pulses, sliders return live dragged values, and text inputs at least reflect focus state visually through the underline color instead of being pure paint.
+- `src/main.kn` gained a headless two-frame probe that renders a button + slider, pushes synthetic `pointer.down/move/up` events into the session, rerenders, and asserts `activated == 1` plus a dragged slider value near 75%. This keeps the interaction lane validated without waiting on the desktop compatibility presenter.
+
+Boundary truth:
+
+- The current `native/kaintana_desktop_bridge.c` path is still mostly a draw host. `ui_host_pump()` on `software` / `headless` backends does not magically invent OS pointer traffic, and the desktop bridge is not yet feeding raw Win32 pointer events back into the passive `std::ui` queue.
+- That is okay architecturally. The important inversion already happened: event interpretation, capture, activation, slider math, and widget state policy are now Kain-owned. Any future live backend only needs to inject `pointer.*` events into the session instead of re-implementing widget logic in C or Rust.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kaintana\run.ps1 -NoRun` -> PASS, generated `kaintana.exe`.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kaintana\run.ps1 -FrameBudget 3` -> PASS, exit `0`; `.kain/run/kaintana_host_report.txt` still reports `commands=169`, `frames=3`, `last_error=ok`, which means the new headless widget probe passed before the live examples-tour window launched.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kloner\run.ps1 -NoRun` -> PASS after importing the new `widget_events.kn` dependency.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kloner\run.ps1 -FrameBudget 2 -SkipShaderCompile` -> PASS, exit `0`; `.kain/run/kloner_frame.txt` still reports `ui_draw_count=95` and `.kain/run/kloner_vulkain_report.txt` still reports `frames_presented=2`, `last_error=ok`.
+
 # 2026-05-20 - Kloner same-window Kaintana x Vulkain mograph blade
 
 `blades/kloner` is now the KCloner recreation lane for a same-window Kaintana + Vulkain 3D mograph/cloner scene, superseding the earlier flat/static sidecar-style UI attempt. The authored Kain side is intentionally modular:
 
 - `src/kloner_state.kn`: settings, reference metadata, layout naming, report/export text, and data-driven clone/runtime defaults.
-- `src/kloner_ui.kn`: Kaintana builder UI over the refactored SlotMap framework, including clone count, grid/radial/honeycomb/helix controls, camera/animation/density panels, and Kaintana command checksums.
-- `src/kloner_scene.kn`: std::math-backed scene probes and the Vulkain same-window presenter call.
+- `src/kloner_session.kn`: Kain-owned app session/config lane. It applies env overrides, tracks transport/platform-lock state, accepts a `KlonerUiFrame`, and regenerates runtime/export/report state without pushing app policy back into C.
+- `src/kloner_ui.kn`: Kaintana builder UI over the refactored SlotMap framework. It now returns a full `KlonerUiFrame` result with slider/button values plus activation slots, so the future live Kaintana interaction lane can land without Kloner re-architecting again.
+- `src/kloner_scene.kn`: std::math-backed scene probes plus Kain-side packetization into `vulkain::VulkainKlonerPacket` before the same-window presenter call.
 - `src/kloner_lattice.kn`: Kain worlds, entangle links, laws, and patches for clone/layout authority state.
 - `src/main.kn`: runtime boot, Kaintana composition/commit, report/export writes, same-window Vulkain presentation, and validation gates.
 
 `blades/vulkain` now has a Kloner-specific reusable bridge entrypoint (`vulkain_run_kloner_same_window`) plus shader/C support for instanced sphere impostors in one Vulkan window with a procedural Kaintana-style overlay. The bridge clamps logical instances to `1..1_000_000`, draws a fullscreen background pass, draws six billboard vertices per instance for grid/radial/honeycomb/helix layouts, then draws a foreground overlay pass so the UI docks sit on top of the 3D scene. Keep app policy in Kloner/Kaintana; keep native window/GPU substrate in Vulkain.
+
+Kloner now dogfoods the platform-package lane directly instead of only borrowing Vulkain's build assumptions:
+
+- `blades/kloner/build.kn` requires `platform_package("vulkan").provider("system")`.
+- `blades/kloner/KAIN.toml` mirrors that requirement through `[[platform.packages]]`.
+- `blades/kloner/run.ps1` gained `-SkipShaderCompile` passthrough so finite smokes can reuse validated SPIR-V while still syncing the lock-backed Vulkan package through `blades/vulkain/build-vulkain.ps1`.
 
 Kloner launch semantics:
 
@@ -245,12 +273,14 @@ Kloner launch semantics:
 - Automated validation still uses `blades/kloner/run.ps1 -FrameBudget N`, which sets `KLONER_FRAME_BUDGET` and forces a finite run.
 - Native viewport controls live in `vulkain_bridge.c`: RMB drag or `A/D` orbits, `W/S` dollies, arrows and `Q/E` pan, `1/2/3/4` switch grid/radial/honeycomb/helix, `Z/X` adjusts sphere size, `C/V` spacing, `F/G` wave amount, `[ / ]` clone count, `R` resets camera, and `Esc` closes.
 
-Important gotcha: imported Kain `String` fields can still stale/corrupt after heavy Kaintana composition. Kloner report/export code uses explicit string helpers/literals (`KCloner.tsx`, fixed Vulkain title) instead of trusting nested reference/spec string fields across module/native boundaries.
+Important gotcha: imported Kain `String` fields can still stale/corrupt after heavy Kaintana composition. During the session refactor, storing `authoring_lane` / `platform_provider` strings inside `KlonerSession` produced corrupted scene-report output (`platform=kaintana.slider.fill.color.g // locked`). The durable fix is to keep volatile app/session state numeric or structural where possible and regenerate report labels from fixed helper literals (`platform::vulkan(system) // locked`, `kain.session -> kaintana.frame -> vulkain.packet // same-window.foreground-overlay`) at write time.
 
 Validation:
 
-- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kloner\run.ps1 -FrameBudget 2` -> PASS, generated `blades/kloner/kloner.exe`, exit `0`.
-- `.kain/run/kloner_frame.txt`: `target_fps=120`, `layout=HONEYCOMB`, `clones=1000000`, `ui_draw_count=89`, `reference=KCloner.tsx`.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kloner\run.ps1 -NoRun` -> PASS, generated `blades/kloner/kloner.exe`, exit `0`.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kloner\run.ps1 -FrameBudget 2 -SkipShaderCompile` -> PASS, exit `0`.
+- `.kain/run/kloner_frame.txt`: `target_fps=120`, `layout=HONEYCOMB`, `clones=1000000`, `ui_draw_count=95`, `reference=KCloner.tsx`.
+- `.kain/run/kloner_scene.txt`: `platform=platform::vulkan(system) // locked`, `authoring_lane=kain.session -> kaintana.frame -> vulkain.packet // same-window.foreground-overlay`, `frames_presented=2`, `status=0`.
 - `.kain/run/kloner_vulkain_report.txt`: finite smoke reports `frame_budget=2`, `interactive_mode=0`, `instance_count=1000000`, `frames_presented=2`, `vertices_drawn=12000012`, `last_error=ok`.
 - Default live launch sanity check: `Start-Process .\kloner.exe`, wait 5s -> process still alive; close main window -> report records `frame_budget=0`, `interactive_mode=1`, `frames_presented=460`, `last_error=ok`.
 - Visual sanity: MCP window capture showed the foreground overlay docks/sliders/layout strip/crosshair drawn over the million-sphere honeycomb field.

@@ -1,0 +1,77 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, std430) readonly buffer SrcPackets {
+    vec4 values[];
+} src_packets;
+
+layout(set = 0, binding = 1, std430) writeonly buffer DstPackets {
+    vec4 values[];
+} dst_packets;
+
+layout(set = 0, binding = 2) uniform CountBlock {
+    uint value;
+} count_block;
+
+layout(set = 0, binding = 3) uniform WidthBlock {
+    uint value;
+} width_block;
+
+layout(set = 0, binding = 4) uniform BiasBlock {
+    uint value;
+} bias_block;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x + (gl_GlobalInvocationID.y * width_block.value);
+    if (idx >= count_block.value) {
+        return;
+    }
+
+    vec4 packet = src_packets.values[idx];
+    int lane = int((idx + bias_block.value) % 6u);
+    float bias_value = float(bias_block.value);
+    float step = float((idx % 97u) + 1u);
+    float a = packet.x + step + bias_value;
+    float b = packet.y + step + 17.0;
+    float c = packet.z + packet.x + 23.0;
+    float d = packet.w + packet.y + 31.0;
+
+    float out0 = a;
+    float out1 = b;
+    float out2 = c;
+    float out3 = d;
+    if (lane == 0) {
+        out0 = a + b;
+        out1 = b + d;
+        out2 = c + a;
+        out3 = d + step;
+    } else if (lane == 1) {
+        out0 = a + c;
+        out1 = b + packet.x + 29.0;
+        out2 = c + d;
+        out3 = d + packet.z;
+    } else if (lane == 2) {
+        out0 = a + d + 7.0;
+        out1 = b + a + 31.0;
+        out2 = c + packet.y + 3.0;
+        out3 = d + c + 5.0;
+    } else if (lane == 3) {
+        out0 = a + packet.w + step;
+        out1 = b + c + 43.0;
+        out2 = c + packet.x + 11.0;
+        out3 = d + a + 13.0;
+    } else if (lane == 4) {
+        out0 = a + packet.y + 59.0;
+        out1 = b + d + 61.0;
+        out2 = c + packet.w + 15.0;
+        out3 = d + packet.x + 19.0;
+    } else {
+        out0 = a + b + 71.0;
+        out1 = b + packet.z + 73.0;
+        out2 = c + d + 79.0;
+        out3 = d + packet.y + 83.0;
+    }
+
+    dst_packets.values[idx] = vec4(out0, out1, out2, out3);
+}

@@ -85,6 +85,48 @@
         }
       },
       "fairness_note": "Kain and C++ still use different shader frontends, but both execute the same rebound contract through the same C++ Vulkan host, descriptor bindings, repeated ping-pong dispatch schedule, CPU-side oracle, timestamp accumulation, and telemetry sidecar. Process medians include host verification; sidecar duration is pure GPU time summed across rounds."
+    },
+    {
+      "id": "packed_route_scatter",
+      "title": "Packed route scatter",
+      "description": "Branchy packet-transform compute row: each invocation reads one Vec4 packet, routes it through six exact-float semantic branches, and writes the transformed packet back through a shared Vulkan dispatcher with exact CPU-oracle verification.",
+      "maturity": "vulkan-runtime-proof",
+      "work_items": 262144,
+      "width": 1024,
+      "runner_env": {
+        "KAIN_GPU_BIAS": 19
+      },
+      "languages": {
+        "kain": {
+          "shader": "cases/packed_route_scatter/kain.kn",
+          "target": "spirv",
+          "stage": "comp",
+          "entry_point": "packed_route_scatter",
+          "runner": "cases/packed_route_scatter/vulkan_packed_route_scatter.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        },
+        "cpp": {
+          "shader": "cases/packed_route_scatter/reference.comp",
+          "shader_compiler": "glslang",
+          "stage": "comp",
+          "entry_point": "main",
+          "runner": "cases/packed_route_scatter/vulkan_packed_route_scatter.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        }
+      },
+      "fairness_note": "Kain and C++ still use different shader frontends, but both run the same branchy Vec4 packet-transform contract through the same C++ Vulkan dispatcher, descriptor layout, exact CPU oracle, timestamp query, and telemetry sidecar. This fills the current GPU-lane blind spot around semantic packet-routing kernels rather than pure copy or ping-pong-only work."
     }
   ]
 }

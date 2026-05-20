@@ -17,6 +17,7 @@ use reconciliation::kaintana_context_destroy
 use theme::kaintana_theme_named
 use types::KaintanaWindowSpec
 use types::kaintana_backend_desktop
+use types::kaintana_backend_headless
 use types::kaintana_rect
 use types::kaintana_window_spec
 use types::kaintana_window_rect
@@ -98,10 +99,90 @@ fn kaintana_examples_window_spec() -> KaintanaWindowSpec:
         ".kain/run/kaintana_host.bmp"
     )
 
+fn kaintana_widget_interaction_probe() -> Int:
+    let spec = kaintana_window_spec(
+        "Kaintana // Widget Probe",
+        640,
+        360,
+        2,
+        kaintana_backend_headless(),
+        "headless",
+        6,
+        10,
+        18,
+        255,
+        112,
+        68,
+        "",
+        "",
+        ".kain/run/kaintana_widget_probe_frame.txt",
+        ".kain/run/kaintana_widget_probe_host.txt",
+        ".kain/run/kaintana_widget_probe.bmp"
+    )
+    let theme = kaintana_theme_named("oxide-dcc")
+    var ctx = kaintana_context("kaintana-widget-probe", spec, theme, false)
+    let font = native_ui_font_create(ctx.session_id, "font.kaintana.probe", "Consolas", 14.0)
+    let button_rect = kaintana_rect(24.0, 28.0, 200.0, 48.0)
+    let slider_rect = kaintana_rect(24.0, 96.0, 320.0, 62.0)
+
+    ctx = kaintana_begin(ctx, "kaintana-widget-probe.f0", 16.0)
+    var button_builder = kaintana_button(ui(ctx), "Probe Button")
+    button_builder = kaintana_button_key(button_builder, "probe.button")
+    button_builder = kaintana_button_rect(button_builder, button_rect)
+    button_builder = kaintana_button_font(button_builder, font, 18.0)
+    let button_frame0 = kaintana_button_render(ctx, button_builder)
+    ctx = button_frame0.ctx
+
+    var slider_builder = kaintana_slider(ui(ctx), "Probe Slider", 10.0, 0.0, 100.0)
+    slider_builder = kaintana_slider_key(slider_builder, "probe.slider")
+    slider_builder = kaintana_slider_rect(slider_builder, slider_rect)
+    slider_builder = kaintana_slider_font(slider_builder, font, 18.0)
+    let slider_frame0 = kaintana_slider_render(ctx, slider_builder)
+    ctx = kaintana_commit(slider_frame0.ctx)
+
+    let button_center_x = button_rect.x + (button_rect.width * 0.5)
+    let button_center_y = button_rect.y + (button_rect.height * 0.5)
+    let slider_track_x = slider_rect.x + 16.0
+    let slider_track_width = math_max(8.0, slider_rect.width - 32.0)
+    let slider_pointer_y = slider_rect.y + slider_rect.height - 15.0
+    let slider_start_x = slider_track_x + (slider_track_width * 0.25)
+    let slider_end_x = slider_track_x + (slider_track_width * 0.75)
+    let _button_down = ui_push_event(ctx.session_id, "pointer.down", button_frame0.native_node_id, button_center_x, button_center_y, 0, "primary")
+    let _button_up = ui_push_event(ctx.session_id, "pointer.up", button_frame0.native_node_id, button_center_x, button_center_y, 0, "primary")
+    let _slider_down = ui_push_event(ctx.session_id, "pointer.down", slider_frame0.native_node_id, slider_start_x, slider_pointer_y, 0, "primary")
+    let _slider_move = ui_push_event(ctx.session_id, "pointer.move", slider_frame0.native_node_id, slider_end_x, slider_pointer_y, 0, "primary")
+    let _slider_up = ui_push_event(ctx.session_id, "pointer.up", slider_frame0.native_node_id, slider_end_x, slider_pointer_y, 0, "primary")
+
+    ctx = kaintana_begin(ctx, "kaintana-widget-probe.f1", 16.0)
+    button_builder = kaintana_button(ui(ctx), "Probe Button")
+    button_builder = kaintana_button_key(button_builder, "probe.button")
+    button_builder = kaintana_button_rect(button_builder, button_rect)
+    button_builder = kaintana_button_font(button_builder, font, 18.0)
+    let button_frame1 = kaintana_button_render(ctx, button_builder)
+    ctx = button_frame1.ctx
+
+    slider_builder = kaintana_slider(ui(ctx), "Probe Slider", 10.0, 0.0, 100.0)
+    slider_builder = kaintana_slider_key(slider_builder, "probe.slider")
+    slider_builder = kaintana_slider_rect(slider_builder, slider_rect)
+    slider_builder = kaintana_slider_font(slider_builder, font, 18.0)
+    let slider_frame1 = kaintana_slider_render(ctx, slider_builder)
+    let activated = button_frame1.activated
+    let slider_value = slider_frame1.value
+    ctx = kaintana_commit(slider_frame1.ctx)
+    let _destroy = kaintana_context_destroy(ctx)
+    if activated != 1:
+        return 0
+    if slider_value < 70.0 or slider_value > 80.0:
+        return 0
+    return 1
+
 fn main() -> Int:
     let boot = native_runtime_init()
     if boot != 0:
         return 100 + boot
+
+    if kaintana_widget_interaction_probe() != 1:
+        return 21
 
     if kaintana_desktop_probe() != 1:
         return 20

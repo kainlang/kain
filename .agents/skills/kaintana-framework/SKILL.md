@@ -33,14 +33,16 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
   - public builder surface. Builders are lightweight widget specs; pass the heavy `KaintanaContext` only to `*_render(ctx, builder)`.
   - current widgets: panel, label, button, text input, slider
 - `blades/kaintana/src/api/widgets.kn`
-  - component wrappers that reconcile nodes and record renderer-neutral-ish fill/text commands
+  - component wrappers that reconcile nodes, record renderer-neutral-ish fill/text commands, and now return real builder-widget interaction results (`activated`, dragged slider value) from Kain-owned event/state logic
 - `blades/kaintana/src/core/types.kn`
   - window spec, theme, rect/color, context, render result, input binding types
   - imports root `std::alloc`, `std::collections`, and `std::text`
   - `KaintanaContext.nodes` is a stdlib `SlotMap`; text-facing helpers use `StringView`
 - `blades/kaintana/src/core/reconciliation.kn`
-  - passive UI session creation, frame begin/commit/destroy, stable key map, SlotMap handles, and arena-backed frame widget cells
+  - passive UI session creation, frame begin/commit/destroy, stable key map, SlotMap handles, arena-backed frame widget cells, and the frame-begin event sync hook
   - normalizes append-only SlotMap `free_head` from `count` after inserts because nested `SlotMapInsert.map.free_head` currently comes back stale under native LLVM
+- `blades/kaintana/src/core/widget_events.kn`
+  - Kain-owned pointer hover/capture/drag/activation lane over root `std::ui` state cells and `pointer.*` events
 - `blades/kaintana/src/core/layout.kn`
   - rect/inset/split/row/column/grid math over root `std::math`
 - `blades/kaintana/src/core/theme.kn`
@@ -76,6 +78,7 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
 - `blades/kaintana/run.ps1`
   - base framework/examples runner
   - `-FrameBudget` overrides the examples tour live window budget through `KAINTANA_EXAMPLES_FRAME_BUDGET`
+  - `src/main.kn` now runs a headless two-frame button/slider interaction probe before the live desktop tour, so builder-widget semantics stay proved even when the active host is still mostly draw-only
 - `blades/kaintana-vulkan-test/run.ps1`
   - Vulkan-only acceptance runner
   - `-FrameBudget` overrides the foreign-presenter pressure count through `KAINTANA_VULKAN_TEST_FRAME_BUDGET`
@@ -159,6 +162,7 @@ Proof artifacts:
 - framework package host report: `blades/kaintana/.kain/run/kaintana_host_report.txt`
 - framework package screenshot: `blades/kaintana/.kain/run/kaintana_host.bmp`
 - framework package examples tour currently renders `commands=169`; a short live smoke with `KAINTANA_EXAMPLES_FRAME_BUDGET=3` reports `frames=3`, `last_error=ok`
+- that short live smoke now also implies the headless widget probe passed first, because `src/main.kn` returns nonzero before launching the desktop host if button activation or slider dragging regresses
 - desktop frame report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_frame.txt`
 - desktop host report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_host.txt`
 - desktop screenshot: `blades/kaintana-test/.kain/run/kaintana_test_desktop.bmp`
@@ -182,6 +186,7 @@ Current Z3 checks:
 - Native LLVM currently mislowers imported `impl Self_` builder methods when they touch struct fields (`Field address for .ctx requires a struct or struct pointer`). Keep builders as explicit stage functions until that compiler path is fixed.
 - Keep builder structs lightweight. Do not store the full `KaintanaContext` inside every builder stage; pass context to `*_render(ctx, builder)` so SlotMap, arena, and native handles do not get copied through every shim.
 - `SlotMapInsert.map.free_head` currently returns stale in this nested native LLVM path. Kaintana normalizes append-only node maps from `count`; remove that shim only after a focused compiler/stdlib proof says nested SlotMap returns preserve `free_head`.
+- The new builder interaction lane is Kain-owned, but the current desktop compatibility host is still mostly draw-only. If a widget looks static in a live window, first check whether the active presenter is actually injecting `pointer.down` / `pointer.move` / `pointer.up` into the `std::ui` session before blaming `widget_events.kn`.
 - For desktop reports/screenshots, prefer direct path wrappers such as `kaintana_desktop_host_write_report_path(".kain/run/...")` and create `.kain/run` first. Passing large window spec structs back into host-write wrappers after many UI calls can surface stale String fields.
 - Do not put desktop and Vulkan acceptance entrypoints back into one consuming blade unless per-entry manifests become real. A shared manifest/output path can silently reintroduce `vulkain_bridge.dll` into the desktop executable or overwrite the user-facing root exe with the Vulkan proof build.
 - The base `platform/vulkan/vulkan_adapter.kn` is only the stdlib graphics/SPIR-V adapter seam. The real foreign-presenter Vulkan window remains `blades/kaintana-vulkan` over `blades/vulkain`.

@@ -1,9 +1,11 @@
+use kloner_session::*
 use kloner_state::*
 use std::fs
 use std::math
+use vulkain::VulkainKlonerPacket
 use vulkain::vulkain_frames_presented
 use vulkain::vulkain_probe
-use vulkain::vulkain_run_kloner_same_window
+use vulkain::vulkain_run_kloner_packet
 use vulkain::vulkain_vertices_drawn
 use vulkain::vulkain_write_report
 
@@ -59,7 +61,44 @@ pub fn kloner_math_probe_score(controls: KlonerControls) -> Int:
     let score = vec3_length(point) + vec3_length(color) + noise + controls.radial_radius
     return Int(score * 1000.0)
 
-pub fn kloner_present_same_window(settings: KlonerSettings, controls: KlonerControls, snapshot: KlonerRuntimeState) -> KlonerPresenterResult:
+pub fn kloner_presenter_packet(session: KlonerSession) -> VulkainKlonerPacket:
+    let settings = session.settings
+    let controls = session.controls
+    let snapshot = session.runtime
+    return VulkainKlonerPacket {
+        title: kloner_window_title(),
+        width: settings.width,
+        height: settings.height,
+        frame_budget: settings.frame_budget,
+        clear_red: settings.clear_red,
+        clear_green: settings.clear_green,
+        clear_blue: settings.clear_blue,
+        accent_red: settings.accent_red,
+        accent_green: settings.accent_green,
+        accent_blue: settings.accent_blue,
+        clone_count: controls.clone_count,
+        layout_mode: controls.layout_mode,
+        grid_width: controls.grid_width,
+        grid_rows: controls.grid_rows,
+        spacing_milli: kloner_to_milli(controls.spacing),
+        radial_radius_milli: kloner_to_milli(controls.radial_radius),
+        sphere_radius_milli: kloner_to_milli(controls.sphere_radius),
+        wave_milli: kloner_to_milli(controls.wave_amount),
+        speed_milli: kloner_to_milli(controls.animation_speed),
+        target_fps: settings.target_fps,
+        camera_yaw_milli: kloner_to_milli(controls.camera_yaw),
+        camera_pitch_milli: kloner_to_milli(controls.camera_pitch),
+        ui_draw_count: snapshot.ui_draw_count,
+        ui_checksum: snapshot.ui_checksum,
+        vertex_shader_path: settings.vulkain_vertex_shader_path,
+        fragment_shader_path: settings.vulkain_fragment_shader_path,
+        vertex_entry_point: "main",
+        fragment_entry_point: "main",
+    }
+
+pub fn kloner_present_same_window(session: KlonerSession) -> KlonerPresenterResult:
+    let settings = session.settings
+    let controls = session.controls
     let available = vulkain_probe()
     if available != 1:
         return KlonerPresenterResult {
@@ -69,34 +108,7 @@ pub fn kloner_present_same_window(settings: KlonerSettings, controls: KlonerCont
             vertices_drawn: 0,
             math_score: kloner_math_probe_score(controls),
         }
-    let status = vulkain_run_kloner_same_window(
-        "Kloner // Kaintana x Vulkain 3D MoGraph",
-        settings.width,
-        settings.height,
-        settings.frame_budget,
-        settings.clear_red,
-        settings.clear_green,
-        settings.clear_blue,
-        settings.accent_red,
-        settings.accent_green,
-        settings.accent_blue,
-        controls.clone_count,
-        controls.layout_mode,
-        controls.grid_width,
-        controls.grid_rows,
-        kloner_to_milli(controls.spacing),
-        kloner_to_milli(controls.radial_radius),
-        kloner_to_milli(controls.sphere_radius),
-        kloner_to_milli(controls.wave_amount),
-        kloner_to_milli(controls.animation_speed),
-        settings.target_fps,
-        kloner_to_milli(controls.camera_yaw),
-        kloner_to_milli(controls.camera_pitch),
-        snapshot.ui_draw_count,
-        snapshot.ui_checksum,
-        settings.vulkain_vertex_shader_path,
-        settings.vulkain_fragment_shader_path
-    )
+    let status = vulkain_run_kloner_packet(kloner_presenter_packet(session))
     let _report = vulkain_write_report(settings.vulkain_report_path)
     return KlonerPresenterResult {
         status: status,
@@ -106,6 +118,9 @@ pub fn kloner_present_same_window(settings: KlonerSettings, controls: KlonerCont
         math_score: kloner_math_probe_score(controls),
     }
 
-pub fn kloner_scene_report_text(settings: KlonerSettings, controls: KlonerControls, snapshot: KlonerRuntimeState, presenter: KlonerPresenterResult) -> String:
+pub fn kloner_scene_report_text(session: KlonerSession, presenter: KlonerPresenterResult) -> String:
+    let settings = session.settings
+    let controls = session.controls
+    let snapshot = session.runtime
     let probe = kloner_layout_probe(controls)
-    return "scene=kloner.same_window\nbackend=vulkan\nkaintana_overlay=1\nlayout=" + kloner_layout_name(controls.layout_mode) + "\nlogical_clone_count=" + str(controls.clone_count) + "\ngrid_width=" + str(controls.grid_width) + "\ngrid_rows=" + str(controls.grid_rows) + "\ntarget_fps=" + str(settings.target_fps) + "\nframes_presented=" + str(presenter.frames_presented) + "\nvertices_drawn=" + str(presenter.vertices_drawn) + "\nmath_score=" + str(presenter.math_score) + "\nui_draw_count=" + str(snapshot.ui_draw_count) + "\nui_checksum=" + str(snapshot.ui_checksum) + "\nfirst_probe=" + str(probe.first_x) + "," + str(probe.first_y) + "," + str(probe.first_z) + "\nfar_probe=" + str(probe.far_x) + "," + str(probe.far_y) + "," + str(probe.far_z) + "\nstatus=" + str(presenter.status) + "\n"
+    return "scene=kloner.same_window\nbackend=vulkan\nkaintana_overlay=1\nplatform=" + kloner_session_platform_status(session) + "\nauthoring_lane=" + kloner_session_lane_summary(session) + "\nlayout=" + kloner_layout_name(controls.layout_mode) + "\nlogical_clone_count=" + str(controls.clone_count) + "\ngrid_width=" + str(controls.grid_width) + "\ngrid_rows=" + str(controls.grid_rows) + "\ntarget_fps=" + str(settings.target_fps) + "\ntransport_ms=" + str(session.transport_ms) + "\nframes_presented=" + str(presenter.frames_presented) + "\nvertices_drawn=" + str(presenter.vertices_drawn) + "\nmath_score=" + str(presenter.math_score) + "\nui_draw_count=" + str(snapshot.ui_draw_count) + "\nui_checksum=" + str(snapshot.ui_checksum) + "\nfirst_probe=" + str(probe.first_x) + "," + str(probe.first_y) + "," + str(probe.first_z) + "\nfar_probe=" + str(probe.far_x) + "," + str(probe.far_y) + "," + str(probe.far_z) + "\nstatus=" + str(presenter.status) + "\n"

@@ -1,5 +1,6 @@
 param(
     [switch]$NoRun,
+    [switch]$SkipShaderCompile,
     [ValidateSet("dev", "release")]
     [string]$BazelConfig = "dev",
     [int]$FrameBudget = 0,
@@ -21,7 +22,11 @@ $runtimeCacheRoot = Join-Path $bladeRoot ".kain\native_runtime\cache"
 $runOut = Join-Path $bladeRoot ".kain\run"
 
 & $kaintanaDesktopBuild
-& $vulkainBuild
+if ($SkipShaderCompile) {
+    & $vulkainBuild -SkipShaderCompile -KainBin $KainBin
+} else {
+    & $vulkainBuild -KainBin $KainBin
+}
 
 $env:KAIN_RUNTIME_CACHE_DIR = $runtimeCacheRoot
 New-Item -ItemType Directory -Force -Path $runtimeCacheRoot | Out-Null

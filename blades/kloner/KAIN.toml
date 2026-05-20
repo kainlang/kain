@@ -46,6 +46,11 @@ artifact_root = ".kain/out"
 cache_root = ".kain/cache/build"
 profile = "debug"
 
+[[platform.packages]]
+name = "vulkan"
+provider = "system"
+dispatch_model = "vulkan-loader-dispatch"
+
 [[build.tasks]]
 id = "check-llvm"
 kind = "check"
@@ -54,9 +59,11 @@ target = "llvm"
 inputs = [
   "src/main.kn",
   "src/kloner_lattice.kn",
+  "src/kloner_session.kn",
   "src/kloner_state.kn",
   "src/kloner_scene.kn",
   "src/kloner_ui.kn",
+  "build.kn",
   "../kaintana/src/api/kaintana_ui.kn",
   "../kaintana/src/api/widgets.kn",
   "../kaintana/src/core/layout.kn",
@@ -64,6 +71,7 @@ inputs = [
   "../kaintana/src/core/render_commands.kn",
   "../kaintana/src/core/theme.kn",
   "../kaintana/src/core/types.kn",
+  "../kaintana/src/core/widget_events.kn",
   "../kaintana/src/platform/vulkan/vulkan_adapter.kn",
   "../vulkain/src/vulkain.kn",
   "../vulkain/native/vulkain_bridge.h",

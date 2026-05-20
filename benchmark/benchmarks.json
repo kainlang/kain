@@ -85,6 +85,28 @@
       "python": "cases/evolutionary_loop/main.py"
     },
     {
+      "id": "semantic_fabric_relay",
+      "title": "Semantic Fabric Relay",
+      "description": "Integrated semantic-state hot loop: Kain threads actor ask/reply, world entangle, patch/law validation, teleport handoff, converge/orchestrate staging, and owned raw memory through one checksum path, while C++ manually spells out the same state machine.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is intentionally not a literal feature-parity claim. C++ emulates the same deterministic state graph with direct structs and method calls, while Kain measures the owned language semantics directly.",
+      "telemetry": {
+        "primary_metric_id": "semantic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "semantic_rounds_per_second",
+            "label": "semantic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 60000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/semantic_fabric_relay/main.kn",
+        "cpp": "cases/semantic_fabric_relay/main.cpp"
+      }
+    },
+    {
       "id": "ownership_memory",
       "title": "Scoped Ownership Memory Cell",
       "description": "A smaller first-class ownership smoke benchmark: Kain uses collapse/observe/decay over a helper-owned heap cell; Rust uses an owned Box mutation and drop.",

@@ -15,6 +15,7 @@ use types::KaintanaRect
 use types::KaintanaTheme
 use types::KaintanaWindowSpec
 use types::kaintana_node_invalid
+use widget_events::kaintana_widget_sync_events
 
 pub fn kaintana_slot_map_append_normalize(map: SlotMap) -> SlotMap:
     var next_free = map.count
@@ -61,7 +62,7 @@ pub fn kaintana_context_begin_frame(ctx: KaintanaContext, revision_key: String, 
     let _frame = ui_frame_begin(ctx.session_id, delta_ms)
     if ctx.desktop_enabled:
         let _desktop = kaintana_desktop_scene_begin(ctx.spec)
-    return KaintanaContext {
+    let next = KaintanaContext {
         session_id: ctx.session_id,
         root: ctx.root,
         root_native_id: ctx.root_native_id,
@@ -76,6 +77,11 @@ pub fn kaintana_context_begin_frame(ctx: KaintanaContext, revision_key: String, 
         command_checksum: 0,
         status: KAINTANA_OK,
     }
+    return kaintana_context_sync_events(next)
+
+pub fn kaintana_context_sync_events(ctx: KaintanaContext) -> KaintanaContext:
+    let _events = kaintana_widget_sync_events(ctx.session_id, ctx.root_native_id)
+    return ctx
 
 pub fn kaintana_context_commit_frame(ctx: KaintanaContext) -> KaintanaContext:
     let _reload = native_ui_hot_reload_commit(ctx.session_id)
