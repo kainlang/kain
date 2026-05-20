@@ -36,6 +36,7 @@ fn probe_collections() -> Int:
         return 10
     if typed_map_get(metrics, "priority") != 99:
         return 11
+    let _metrics_destroy = typed_map_destroy(metrics)
 
     var queue = queue_create(4)
     queue = queue_push(queue, 10)

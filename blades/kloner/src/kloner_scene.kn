@@ -1,5 +1,7 @@
 use kaintana::KaintanaRect
 use kaintana::KaintanaTheme
+use kaintana::kaintana_action_event_count
+use kaintana::kaintana_action_frame_index
 use kaintana::kaintana_immediate_metric
 use kaintana::kaintana_primitive_fill
 use kaintana::kaintana_primitive_text
@@ -272,7 +274,7 @@ fn kloner_projected_width(camera: KlonerViewportCamera, pose: KlonerClonePose) -
 fn kloner_projected_height_units(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
     return kloner_float_max(12.0, pose.scale * kloner_projected_scale(camera, pose) * 0.24)
 
-pub fn kloner_draw_viewport_grid(session: Int, parent: Int, plot_rect: KaintanaRect, theme: KaintanaTheme, camera: KlonerViewportCamera) -> Int:
+pub fn kloner_draw_viewport_grid(session: Int, parent: Int, plot_rect: KaintanaRect, theme: KaintanaTheme, camera: KlonerViewportCamera, micro_font: Int) -> Int:
     let _back = kaintana_primitive_fill(session, parent, "viewport.plot.back", plot_rect, 18, 22, 28)
     let horizon_y = plot_rect.y + (plot_rect.height * 0.64)
     let _horizon = kaintana_primitive_fill(session, parent, "viewport.plot.horizon", kaintana_rect(plot_rect.x + 14.0, horizon_y, plot_rect.width - 28.0, 2.0), theme.muted_red, theme.muted_green, theme.muted_blue)
@@ -291,7 +293,7 @@ pub fn kloner_draw_viewport_grid(session: Int, parent: Int, plot_rect: KaintanaR
         let _line = kaintana_primitive_fill(session, parent, "viewport.grid.v." + str(lane), kaintana_rect(line_x, plot_rect.y + 18.0, 1.0, plot_rect.height - 36.0), theme.shell_red + 10, theme.shell_green + 12, theme.shell_blue + 16)
         lane = lane + 1
     let orbit_text = "camera yaw=" + str(Int(camera.yaw * 1000.0)) + " pitch=" + str(Int(camera.pitch * 1000.0))
-    let _camera = kaintana_primitive_text(session, parent, "viewport.camera.label", orbit_text, kaintana_rect(plot_rect.x + 14.0, plot_rect.y + plot_rect.height - 22.0, 280.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, 0, 12.0)
+    let _camera = kaintana_primitive_text(session, parent, "viewport.camera.label", orbit_text, kaintana_rect(plot_rect.x + 14.0, plot_rect.y + plot_rect.height - 22.0, 280.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, micro_font, 12.0)
     return 1
 
 pub fn kloner_draw_clone(session: Int, parent: Int, plot_rect: KaintanaRect, camera: KlonerViewportCamera, index: Int, pose: KlonerClonePose, theme: KaintanaTheme, micro_font: Int) -> Int:
@@ -360,10 +362,10 @@ pub fn kloner_export_preview_json(reference: KlonerReferenceInfo, state: KlonerR
     output = output + "}\n"
     return output
 
-pub fn kloner_frame_report_text(settings: KlonerSettings, theme: KaintanaTheme, headline: String, state: KlonerRuntimeState, action_session: Int) -> String:
+pub fn kloner_frame_report_text(theme_name: String, vulkain_report_path: String, theme: KaintanaTheme, headline: String, state: KlonerRuntimeState, action_session: Int) -> String:
     var output = "framework=kloner\n"
     output = output + "headline=" + headline + "\n"
-    output = output + "theme=" + theme.name + "\n"
+    output = output + "theme=" + theme_name + "\n"
     output = output + "status=" + state.status_text + "\n"
     output = output + "mode=" + kloner_mode_name(state.active_mode) + "\n"
     output = output + "active_chain=" + kloner_chain_name(state.active_chain) + "\n"
@@ -378,7 +380,7 @@ pub fn kloner_frame_report_text(settings: KlonerSettings, theme: KaintanaTheme, 
     output = output + "action_frame_index=" + str(kaintana_action_frame_index(action_session)) + "\n"
     output = output + "action_event_count=" + str(kaintana_action_event_count(action_session)) + "\n"
     output = output + "viewport=projected-3d\n"
-    output = output + "vulkain_report=" + settings.vulkain_report_path + "\n"
+    output = output + "vulkain_report=" + vulkain_report_path + "\n"
     return output
 
 pub fn kloner_scene_report_text(state: KlonerRuntimeState, scene: KlonerSceneConfig, camera: KlonerViewportCamera, vulkain_available: Int, vulkain_status: Int) -> String:
@@ -408,7 +410,7 @@ pub fn kloner_run_vulkain_preview(settings: KlonerSettings, state: KlonerRuntime
     let mesh_twist_milli = 260 + (state.active_chain * 180) + (state.active_mode * 70)
     let depth_bias_milli = 960 + (state.export_mode * 120) + (state.target_engine * 80)
     let energy = 1000 + (hash_bucket_mod(state.preview_hash + state.export_signature, 1200))
-    let preview_title = settings.title + " // Vulkain Preview"
+    let preview_title = kloner_headline(state.active_mode, state.active_chain, state.active_export, state.clone_total) + " // Vulkain Preview"
     let status = vulkain_run_mesh_scene(
         preview_title,
         1320,

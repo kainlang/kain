@@ -14,6 +14,10 @@ build_targets = ["llvm"]
 name = "kaintana"
 kind = "kain"
 
+[[blade.dependencies]]
+name = "vulkain"
+kind = "kain"
+
 [run]
 entry = "src/main.kn"
 target = "llvm"
@@ -31,6 +35,10 @@ entry = "src/main.kn"
 target = "llvm"
 inputs = [
   "src/main.kn",
+  "src/kloner_lattice.kn",
+  "src/kloner_state.kn",
+  "src/kloner_scene.kn",
+  "src/kloner_ui.kn",
   "run.ps1",
   "reference/KCloner.tsx",
 ]
@@ -42,3 +50,8 @@ name = "kaintana_desktop_bridge"
 header = "../kaintana/native/kaintana_desktop_bridge.h"
 shared_lib = "../kaintana/.kain/native/kaintana_desktop_bridge.obj"
 link_libs = ["user32", "gdi32"]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+header = "../vulkain/native/vulkain_bridge.h"
+shared_lib = "../vulkain/.kain/native/${kain_dynlib:vulkain_bridge}"

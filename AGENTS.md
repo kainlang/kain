@@ -333,6 +333,7 @@ fn stdlib_probe_lane() -> Int:
     queue = queue_push(queue, typed_map_get(map, "route"))
     let queue_score = queue_peek(queue) + queue_len(queue)
     let _queue_destroy = queue_destroy(queue)
+    let _map_destroy = typed_map_destroy(map)
     let arena = arena_create(8)
     let chunk = arena_alloc(arena, 3)
     let alloc_score = bool_to_int(chunk.ok) + chunk.offset + chunk.arena.high_water

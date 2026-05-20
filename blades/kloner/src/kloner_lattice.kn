@@ -1,0 +1,99 @@
+use kloner_state::*
+
+component KlonerPanel():
+    render <panel title="Kloner" />
+
+world KlonerAuthority:
+    state active_mode: Int = KLONER_MODE_GRID
+    state active_chain: Int = 0
+    state active_export: Int = KLONER_EXPORT_FORMAT_GLB
+    state clone_total: Int = 1
+    state preview_hash: Int = 1
+    surface native_ui => KlonerPanel
+
+world KlonerMirror:
+    state mode_copy: Int = KLONER_MODE_GRID
+    state chain_copy: Int = 0
+    state export_copy: Int = KLONER_EXPORT_FORMAT_GLB
+    state clone_total_copy: Int = 1
+    state preview_hash_copy: Int = 1
+    surface web => KlonerPanel
+
+entangle KlonerAuthority.active_mode <-> KlonerMirror.mode_copy with single_writer
+entangle KlonerAuthority.active_chain <-> KlonerMirror.chain_copy with single_writer
+entangle KlonerAuthority.active_export <-> KlonerMirror.export_copy with single_writer
+entangle KlonerAuthority.clone_total <-> KlonerMirror.clone_total_copy with single_writer
+entangle KlonerAuthority.preview_hash <-> KlonerMirror.preview_hash_copy with single_writer
+
+patch set_active_mode(authority: KlonerAuthority, value: Int) -> Int:
+    authority.active_mode = value
+    return authority.active_mode
+
+patch set_active_chain(authority: KlonerAuthority, value: Int) -> Int:
+    authority.active_chain = value
+    return authority.active_chain
+
+patch set_active_export(authority: KlonerAuthority, value: Int) -> Int:
+    authority.active_export = value
+    return authority.active_export
+
+patch set_clone_total(authority: KlonerAuthority, value: Int) -> Int:
+    authority.clone_total = value
+    return authority.clone_total
+
+patch set_preview_hash(authority: KlonerAuthority, value: Int) -> Int:
+    authority.preview_hash = value
+    return authority.preview_hash
+
+law kloner_mode_valid(value: Int) -> Bool:
+    return value >= KLONER_MODE_SINGLE and value <= KLONER_MODE_LINEAR
+
+law kloner_clone_budget_valid(value: Int) -> Bool:
+    return value >= 1 and value <= 4096
+
+law kloner_preview_hash_valid(value: Int) -> Bool:
+    return value != 0
+
+pub fn kloner_commit_active_mode(authority: KlonerAuthority, value: Int) -> Int:
+    return set_active_mode(authority, value)
+
+pub fn kloner_commit_active_chain(authority: KlonerAuthority, value: Int) -> Int:
+    return set_active_chain(authority, value)
+
+pub fn kloner_commit_active_export(authority: KlonerAuthority, value: Int) -> Int:
+    return set_active_export(authority, value)
+
+pub fn kloner_commit_clone_total(authority: KlonerAuthority, value: Int) -> Int:
+    return set_clone_total(authority, value)
+
+pub fn kloner_commit_preview_hash(authority: KlonerAuthority, value: Int) -> Int:
+    return set_preview_hash(authority, value)
+
+pub fn kloner_validate_mode(value: Int) -> Bool:
+    return kloner_mode_valid(value)
+
+pub fn kloner_validate_clone_budget(value: Int) -> Bool:
+    return kloner_clone_budget_valid(value)
+
+pub fn kloner_validate_preview_hash(value: Int) -> Bool:
+    return kloner_preview_hash_valid(value)
+
+pub fn kloner_initial_runtime_state(authority: KlonerAuthority) -> KlonerRuntimeState:
+    return KlonerRuntimeState {
+        active_mode: set_active_mode(authority, KLONER_MODE_GRID),
+        active_chain: set_active_chain(authority, 0),
+        active_export: set_active_export(authority, KLONER_EXPORT_FORMAT_GLB),
+        distribution_mode: KLONER_DISTRIBUTION_RANDOM,
+        export_mode: KLONER_EXPORT_MODE_ANIM,
+        target_engine: KLONER_TARGET_GENERIC,
+        normalize_scale: 1,
+        show_reference_browser: 0,
+        show_settings_deck: 0,
+        dialog_result: 0,
+        current_time_ms: 320,
+        status_text: "boot // awaiting reference uplift",
+        clone_total: set_clone_total(authority, 1),
+        preview_hash: set_preview_hash(authority, 1),
+        export_signature: 1,
+        orbit_value: 0.0,
+    }

@@ -1,5 +1,35 @@
 # Kain Memory
 
+# 2026-05-20 - Stdlib foundations lane now covers text, collections, crypto, and alloc
+
+Kain now has a root stdlib foundation suite for the 2026 essentials: zero-copy text views, safe collection wrappers, crypto primitives, and allocator helpers. The public surfaces are `std.text`, `std.collections`, `std.crypto`, and `std.alloc`; `kain stdlib-map --write` regenerated the root atlas to 22 modules / 1305 public symbols / 1712 total symbols.
+
+What changed:
+
+- `stdlib/text.kn` owns `TextSlice` and `StringView` as clamped zero-copy string views, with byte/char lookup, find/contains/starts-with, trim, subslice, equality, and explicit materialization.
+- `stdlib/collections.kn` now exposes `StringIntMap` / `typed_map_*`, `IntQueue`, `IntDeque`, and `IntPriorityQueue`; `typed_map_destroy` releases the native map RC handle through `abi_map_release`.
+- `stdlib/crypto.kn` exposes `random_bytes` / `random_bytes_hex`, `sha256`, `hmac_sha256`, and unkeyed `blake3`; the native C ABI in `runtime/native/src/core/stdlib_abi.c` now backs SHA-256, HMAC-SHA256, CSPRNG hex bytes, and BLAKE3 digest hex.
+- `stdlib/alloc.kn` exposes bump, arena, and pool allocators over Kain-owned low-level cells with explicit destroy/reset helpers.
+- `blades/stdlib-foundations`, `benchmark/cases/stdlib_foundations`, and `attrition/cases/kain_stdlib_foundations` are the integrated proof surfaces.
+- Durable SMT cases live under `crates/kain-core/z3/proofs/stdlib-*-bounds.yaml` for text slice bounds, ring-buffer modulo bounds, allocator span bounds, and priority queue heap-index bounds.
+
+Validation:
+
+- `kain check blades/stdlib-foundations/src/main.kn -t llvm`
+- `kain run blades/stdlib-foundations/src/main.kn --target llvm` -> `exit=0`
+- `kain run benchmark/cases/stdlib_foundations/main.kn --target llvm` -> `exit=0`
+- `py -3 benchmark/run.py --case stdlib_foundations --languages kain --runs 5 --warmups 1 --timeout 240` -> PASS, median `14.079 ms`
+- `kain check attrition/cases/kain_stdlib_foundations/main.kn -t llvm`
+- `py -3 attrition/run.py --case kain_stdlib_foundations --scale small --timeout 120` -> PASS, 16 ops, `400.021 ops/s`, checksum `5877`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/stdlib_abi.c`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `kain stdlib-map --check`
+- Direct Z3 `check_smt2` reports for the four stdlib bounds claims all returned `unsat`.
+
+Durable caveat:
+
+- The attrition lane is functional and resource-handle clean, but not RC closure-clean yet: latest small run ends with `live_rc_objects=145` and `live_runtime_bytes=11725`. `typed_map_destroy` reduced the map-owned drift, but digest/random/string return values still need a broader Kain string/extern-result release policy before this lane can honestly require closure groups.
+
 # 2026-05-20 - Closed-lane shatter stack lowering flipped the machine-stones frontier
 
 The latest benchmark automation pass moved off HTTP long enough to kill a cleaner compiler-owned wound: fixed local `shatter struct` array literals were still paying `kain_machine_shatter_alloc/free` overhead even when the whole use stayed inside one block as `len(...)` plus `particles[i].field` projections. That runtime shape is gone now for the closed local lane.

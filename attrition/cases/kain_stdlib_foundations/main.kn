@@ -111,6 +111,7 @@ fn exercise_foundations(iteration: Int) -> Int:
             return -8
 
     let map_score = typed_map_get(metrics, "iteration") + typed_map_get(metrics, "text")
+    let _metrics_destroy = typed_map_destroy(metrics)
     let text_score = text_byte_at(text, iteration % text_len(text))
     return (map_score + queue_score + pq_score + bump_score + pool_score + text_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
 

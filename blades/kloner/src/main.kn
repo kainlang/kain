@@ -1,801 +1,186 @@
-// style: reference-faithful clone workbench
+// style: split 3d clone workstation
 use c::kaintana_desktop_bridge
+use c::vulkain_bridge
 use kaintana::*
+use kloner_lattice::*
+use kloner_scene::*
+use kloner_state::*
+use kloner_ui::*
 use std::collections
 use std::fs
 use std::hash
 use std::input
 use std::intent
 use std::math
+use std::runtime
 use std::ui
+use vulkain::vulkain_probe
 
-const KLONER_MODE_SINGLE: Int = 0
-const KLONER_MODE_GRID: Int = 1
-const KLONER_MODE_RADIAL: Int = 2
-const KLONER_MODE_LINEAR: Int = 3
-
-const KLONER_DISTRIBUTION_ROUND_ROBIN: Int = 0
-const KLONER_DISTRIBUTION_RANDOM: Int = 1
-
-const KLONER_EXPORT_FORMAT_GLB: Int = 0
-const KLONER_EXPORT_FORMAT_OBJ: Int = 1
-const KLONER_EXPORT_FORMAT_USDZ: Int = 2
-const KLONER_EXPORT_FORMAT_VAT: Int = 3
-
-const KLONER_EXPORT_MODE_ANIM: Int = 0
-const KLONER_EXPORT_MODE_INSTANCE: Int = 1
-const KLONER_EXPORT_MODE_SEPARATED: Int = 2
-
-const KLONER_TARGET_GENERIC: Int = 0
-const KLONER_TARGET_UNREAL: Int = 1
-const KLONER_TARGET_UNITY: Int = 2
-
-const KLONER_MOD_ORBIT: Int = 0
-const KLONER_MOD_FLOAT: Int = 1
-const KLONER_MOD_PULSE: Int = 2
-const KLONER_MOD_ELASTIC: Int = 3
-const KLONER_MOD_FIGURE8: Int = 4
-const KLONER_MOD_WOBBLE: Int = 5
-const KLONER_MOD_HEARTBEAT: Int = 6
-const KLONER_MOD_STEP: Int = 7
-const KLONER_MOD_BOUNCE: Int = 8
-const KLONER_MOD_TUMBLE: Int = 9
-const KLONER_MOD_SWAY: Int = 10
-const KLONER_MOD_TWIST: Int = 11
-const KLONER_MOD_SPIRAL: Int = 12
-const KLONER_MOD_NOISE_FLOW: Int = 13
-const KLONER_MOD_BREATHE: Int = 14
-const KLONER_MOD_CODE: Int = 15
-
-const KLONER_FAMILY_BASIC: Int = 0
-const KLONER_FAMILY_RHYTHMIC: Int = 1
-const KLONER_FAMILY_PHYSICS: Int = 2
-const KLONER_FAMILY_ADVANCED: Int = 3
-const KLONER_FAMILY_SCRIPT: Int = 4
-
-const KLONER_MAX_PREVIEW_CLONES: Int = 72
-const KLONER_CHAIN_COUNT: Int = 3
-const KLONER_SEGMENT_COUNT: Int = 16
-
-component KlonerPanel():
-    render <panel title="Kloner" />
-
-world KlonerAuthority:
-    state active_mode: Int = KLONER_MODE_GRID
-    state active_chain: Int = 0
-    state active_export: Int = KLONER_EXPORT_FORMAT_GLB
-    state clone_total: Int = 1
-    state preview_hash: Int = 1
-    surface native_ui => KlonerPanel
-
-world KlonerMirror:
-    state mode_copy: Int = KLONER_MODE_GRID
-    state chain_copy: Int = 0
-    state export_copy: Int = KLONER_EXPORT_FORMAT_GLB
-    state clone_total_copy: Int = 1
-    state preview_hash_copy: Int = 1
-    surface web => KlonerPanel
-
-entangle KlonerAuthority.active_mode <-> KlonerMirror.mode_copy with single_writer
-entangle KlonerAuthority.active_chain <-> KlonerMirror.chain_copy with single_writer
-entangle KlonerAuthority.active_export <-> KlonerMirror.export_copy with single_writer
-entangle KlonerAuthority.clone_total <-> KlonerMirror.clone_total_copy with single_writer
-entangle KlonerAuthority.preview_hash <-> KlonerMirror.preview_hash_copy with single_writer
-
-patch set_active_mode(authority: KlonerAuthority, value: Int) -> Int:
-    authority.active_mode = value
-    return authority.active_mode
-
-patch set_active_chain(authority: KlonerAuthority, value: Int) -> Int:
-    authority.active_chain = value
-    return authority.active_chain
-
-patch set_active_export(authority: KlonerAuthority, value: Int) -> Int:
-    authority.active_export = value
-    return authority.active_export
-
-patch set_clone_total(authority: KlonerAuthority, value: Int) -> Int:
-    authority.clone_total = value
-    return authority.clone_total
-
-patch set_preview_hash(authority: KlonerAuthority, value: Int) -> Int:
-    authority.preview_hash = value
-    return authority.preview_hash
-
-law kloner_mode_valid(value: Int) -> Bool:
-    return value >= KLONER_MODE_SINGLE and value <= KLONER_MODE_LINEAR
-
-law kloner_clone_budget_valid(value: Int) -> Bool:
-    return value >= 1 and value <= 4096
-
-law kloner_preview_hash_valid(value: Int) -> Bool:
-    return value != 0
-
-converge kloner_hash_lane(value: Int) -> Int:
-    spec reference:
-        return hash_mix32(17, value)
-    fast llvm_lane when target("llvm"):
-        return hash_mix32(17, value)
-    verify random(8)
-
-fn kloner_bias(value: Int) -> Int:
-    return hash_pair32(value, 31)
-
-orchestrate kloner_export_signature(seed: Int) -> Int:
-    let mixed: Int = kain kloner_hash_lane(seed)
-    let biased: Int = rust kloner_bias(mixed)
-    return biased
-
-struct KlonerSettings:
-    title: String
-    theme_name: String
-    width: Int
-    height: Int
-    frame_budget: Int
-    revision_key: String
-    clear_red: Int
-    clear_green: Int
-    clear_blue: Int
-    accent_red: Int
-    accent_green: Int
-    accent_blue: Int
-    frame_report_path: String
-    host_report_path: String
-    screenshot_path: String
-    snapshot_path: String
-    input_trace_path: String
-    state_path: String
-    export_preview_path: String
-    scene_report_path: String
-    reference_root: String
-    reference_spec_path: String
-
-struct KlonerClonePose:
-    x: Float
-    y: Float
-    z: Float
-    scale: Float
-    yaw: Float
-    variant: Int
-
-fn kloner_is_digit_char(ch: String) -> Bool:
-    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
-
-fn kloner_digit_value(ch: String) -> Int:
-    if ch == "0":
-        return 0
-    if ch == "1":
-        return 1
-    if ch == "2":
-        return 2
-    if ch == "3":
-        return 3
-    if ch == "4":
-        return 4
-    if ch == "5":
-        return 5
-    if ch == "6":
-        return 6
-    if ch == "7":
-        return 7
-    if ch == "8":
-        return 8
-    return 9
-
-fn kloner_parse_int_text(text: String) -> Int:
-    if len(text) == 0:
-        return 0
-    let sign = 1
-    let index = 0
-    if char_at(text, 0) == "-":
-        sign = -1
-        index = 1
-    let value = 0
-    while index < len(text):
-        if !kloner_is_digit_char(char_at(text, index)):
-            return value * sign
-        value = value * 10 + kloner_digit_value(char_at(text, index))
-        index = index + 1
-    return value * sign
-
-fn kloner_frame_budget_or_default(default_value: Int) -> Int:
-    let override_text = env("KLONER_FRAME_BUDGET")
-    if len(override_text) == 0:
-        return default_value
-    let override_value = kloner_parse_int_text(override_text)
-    if override_value <= 0:
-        return default_value
-    return override_value
-
-fn kloner_settings_desktop() -> KlonerSettings:
-    let run_root = fs_path_join(".kain", "run")
-    let reference_root = "reference"
-    return KlonerSettings {
-        title: "Kloner // Kain Native Clone Workstation",
-        theme_name: "oxide-dcc",
-        width: 1700,
-        height: 1040,
-        frame_budget: kloner_frame_budget_or_default(180),
-        revision_key: "kloner-desktop-v1-reference-faithful",
-        clear_red: 18,
-        clear_green: 20,
-        clear_blue: 24,
-        accent_red: 255,
-        accent_green: 156,
-        accent_blue: 74,
-        frame_report_path: fs_path_join(run_root, "kloner_frame.txt"),
-        host_report_path: fs_path_join(run_root, "kloner_host.txt"),
-        screenshot_path: fs_path_join(run_root, "kloner.bmp"),
-        snapshot_path: fs_path_join(run_root, "kloner_snapshot.txt"),
-        input_trace_path: fs_path_join(run_root, "kloner_input_trace.txt"),
-        state_path: fs_path_join(run_root, "kloner_state_snapshot.txt"),
-        export_preview_path: fs_path_join(run_root, "kloner_export_preview.json"),
-        scene_report_path: fs_path_join(run_root, "kloner_scene.txt"),
-        reference_root: reference_root,
-        reference_spec_path: fs_path_join(reference_root, "KCloner.tsx"),
+fn kloner_make_fonts(session: Int) -> KlonerUiFonts:
+    return KlonerUiFonts {
+        body_font: native_ui_font_create(session, "font.kloner.body", "Consolas", 16.0),
+        title_font: native_ui_font_create(session, "font.kloner.title", "Segoe UI", 28.0),
+        badge_font: native_ui_font_create(session, "font.kloner.badge", "Segoe UI", 13.0),
+        micro_font: native_ui_font_create(session, "font.kloner.micro", "Consolas", 12.0),
     }
 
-fn kloner_build_window_spec(settings: KlonerSettings) -> KaintanaWindowSpec:
-    return kaintana_window_spec(
-        settings.title,
-        settings.width,
-        settings.height,
-        settings.frame_budget,
-        kaintana_backend_desktop(),
-        "software",
-        settings.clear_red,
-        settings.clear_green,
-        settings.clear_blue,
-        settings.accent_red,
-        settings.accent_green,
-        settings.accent_blue,
-        "",
-        "",
-        settings.frame_report_path,
-        settings.host_report_path,
-        settings.screenshot_path,
-    )
+fn kloner_open_service_surfaces(session: Int, controls: KlonerControlNodes, layout: KlonerLayout) -> Int:
+    let menu = kaintana_menu_create(session, "menu.kloner.settings")
+    let _item_a = kaintana_menu_add_item(session, menu, kaintana_menu_item("settings.vulkain", "Open Vulkain Preview", 301))
+    let _item_b = kaintana_menu_add_item(session, menu, kaintana_menu_item("settings.snapshot", "Write Clone Snapshot", 302))
+    let _item_c = kaintana_menu_add_item(session, menu, kaintana_menu_item("settings.export", "Commit Export Preview", 303))
+    let _open = kaintana_menu_open_below_node(session, menu, controls.settings_button, 8.0)
+    return menu
 
-fn kloner_build_harness_spec(settings: KlonerSettings) -> KaintanaHarnessSpec:
-    return kaintana_harness_spec(settings.snapshot_path, settings.input_trace_path)
+fn kloner_apply_proof_inputs(authority: KlonerAuthority, session: Int, action_session: Int, controls: KlonerControlNodes, seed: KlonerRuntimeState) -> KlonerRuntimeState:
+    let active_mode = seed.active_mode
+    let active_chain = seed.active_chain
+    let active_export = seed.active_export
+    let distribution_mode = seed.distribution_mode
+    let export_mode = seed.export_mode
+    let target_engine = seed.target_engine
+    let normalize_scale = seed.normalize_scale
+    let show_reference_browser = seed.show_reference_browser
+    let show_settings_deck = seed.show_settings_deck
+    let current_time_ms = seed.current_time_ms
+    let status_text = seed.status_text
+    let orbit_value = seed.orbit_value
 
-fn kloner_mode_name(mode_id: Int) -> String:
-    let names = ["SINGLE", "GRID", "RADIAL", "LINEAR"]
-    return names[int_clamp(mode_id, 0, len(names) - 1)]
+    let _focus = kaintana_focus_node(session, controls.export_commit_button)
+    let _single_click = kaintana_click_node(session, controls.mode_single_button)
+    while native_ui_poll_event(session) == 1:
+        if kaintana_button_activated(session, controls.mode_single_button) == 1:
+            active_mode = kloner_commit_active_mode(authority, KLONER_MODE_SINGLE)
+            status_text = "pointer // single mode selected"
 
-fn kloner_distribution_name(distribution_id: Int) -> String:
-    let names = ["ROUND_ROBIN", "RANDOM"]
-    return names[int_clamp(distribution_id, 0, len(names) - 1)]
+    let _grid_down = kloner_press_key(action_session, "KeyG")
+    if kaintana_action_pressed(action_session, "mode.grid") == 1:
+        active_mode = kloner_commit_active_mode(authority, KLONER_MODE_GRID)
+        status_text = "keyboard // grid distribution restored"
+    let _grid_up = kloner_release_key(action_session, "KeyG")
 
-fn kloner_export_format_name(format_id: Int) -> String:
-    let names = ["GLB", "OBJ", "USDZ", "VAT"]
-    return names[int_clamp(format_id, 0, len(names) - 1)]
+    let _radial_down = kloner_press_key(action_session, "KeyR")
+    if kaintana_action_pressed(action_session, "mode.radial") == 1:
+        active_mode = kloner_commit_active_mode(authority, KLONER_MODE_RADIAL)
+        status_text = "keyboard // radial preview engaged"
+    let _radial_up = kloner_release_key(action_session, "KeyR")
 
-fn kloner_export_mode_name(mode_id: Int) -> String:
-    let names = ["ANIM", "INSTANCE", "SEPARATED"]
-    return names[int_clamp(mode_id, 0, len(names) - 1)]
+    let _chain_down = kloner_press_key(action_session, "Digit2")
+    if kaintana_action_pressed(action_session, "chain.crown") == 1:
+        active_chain = kloner_commit_active_chain(authority, 1)
+        status_text = "chain // crown swarm active"
+    let _chain_up = kloner_release_key(action_session, "Digit2")
 
-fn kloner_target_name(target_id: Int) -> String:
-    let names = ["GENERIC", "UNREAL", "UNITY"]
-    return names[int_clamp(target_id, 0, len(names) - 1)]
+    let _browse_down = kloner_press_key(action_session, "KeyB")
+    if kaintana_action_pressed(action_session, "library.browse") == 1:
+        show_reference_browser = 1
+        status_text = "reference // browser mounted"
+    let _browse_up = kloner_release_key(action_session, "KeyB")
 
-fn kloner_modifier_name(kind: Int) -> String:
-    let names = [
-        "ORBIT", "FLOAT", "PULSE", "ELASTIC",
-        "FIGURE8", "WOBBLE", "HEARTBEAT", "STEP",
-        "BOUNCE", "TUMBLE", "SWAY", "TWIST",
-        "SPIRAL", "NOISE_FLOW", "BREATHE", "K-SCRIPT"
-    ]
-    return names[int_clamp(kind, 0, len(names) - 1)]
+    let _vat_down = kloner_press_key(action_session, "KeyV")
+    if kaintana_action_pressed(action_session, "export.vat") == 1:
+        active_export = kloner_commit_active_export(authority, KLONER_EXPORT_FORMAT_VAT)
+        status_text = "export // VAT lane selected"
+    let _vat_up = kloner_release_key(action_session, "KeyV")
 
-fn kloner_modifier_family(kind: Int) -> Int:
-    let families = [
-        KLONER_FAMILY_BASIC, KLONER_FAMILY_BASIC, KLONER_FAMILY_BASIC, KLONER_FAMILY_BASIC,
-        KLONER_FAMILY_RHYTHMIC, KLONER_FAMILY_RHYTHMIC, KLONER_FAMILY_RHYTHMIC, KLONER_FAMILY_RHYTHMIC,
-        KLONER_FAMILY_PHYSICS, KLONER_FAMILY_PHYSICS, KLONER_FAMILY_PHYSICS, KLONER_FAMILY_PHYSICS,
-        KLONER_FAMILY_ADVANCED, KLONER_FAMILY_ADVANCED, KLONER_FAMILY_ADVANCED, KLONER_FAMILY_SCRIPT
-    ]
-    return families[int_clamp(kind, 0, len(families) - 1)]
+    let _instance_down = kloner_press_key(action_session, "KeyI")
+    if kaintana_action_pressed(action_session, "export.instance") == 1:
+        export_mode = KLONER_EXPORT_MODE_INSTANCE
+        status_text = "export // instance mode"
+    let _instance_up = kloner_release_key(action_session, "KeyI")
 
-fn kloner_family_name(family: Int) -> String:
-    let names = ["BASIC", "RHYTHMIC", "PHYSICS", "ADVANCED", "SCRIPT"]
-    return names[int_clamp(family, 0, len(names) - 1)]
+    let _unreal_down = kloner_press_key(action_session, "KeyU")
+    if kaintana_action_pressed(action_session, "target.unreal") == 1:
+        target_engine = KLONER_TARGET_UNREAL
+        status_text = "target // unreal posture"
+    let _unreal_up = kloner_release_key(action_session, "KeyU")
 
-fn kloner_modifier_speed(kind: Int) -> Float:
-    let values = [0.60, 1.15, 3.20, 2.40, 1.05, 1.70, 2.10, 8.00, 2.25, 1.60, 0.95, 1.90, 1.10, 0.70, 0.50, 1.35]
-    return values[int_clamp(kind, 0, len(values) - 1)]
+    let _settings_down = kloner_press_key(action_session, "KeyS")
+    if kaintana_action_pressed(action_session, "service.settings") == 1:
+        show_settings_deck = 1
+        status_text = "services // settings deck armed"
+    let _settings_up = kloner_release_key(action_session, "KeyS")
 
-fn kloner_modifier_amount(kind: Int) -> Float:
-    let values = [0.85, 0.42, 0.18, 0.22, 0.92, 0.28, 0.16, 0.12, 0.62, 0.40, 0.25, 0.36, 0.95, 0.52, 0.24, 0.44]
-    return values[int_clamp(kind, 0, len(values) - 1)]
+    let _play_down = kloner_press_key(action_session, "Enter")
+    if kaintana_action_pressed(action_session, "transport.play") == 1:
+        current_time_ms = 4180
+        status_text = "transport // proof frame sampled"
+    let _play_up = kloner_release_key(action_session, "Enter")
 
-fn kloner_modifier_axis(kind: Int) -> String:
-    let values = ["y", "y", "y", "y", "xz", "y", "y", "fps", "y", "xyz", "z", "y", "xyz", "xyz", "all", "code"]
-    return values[int_clamp(kind, 0, len(values) - 1)]
+    let _axis_frame = kloner_pump_axis(action_session, 0.72)
+    orbit_value = kaintana_action_axis_value(action_session, "preview.orbit")
 
-fn kloner_modifier_accent_r(kind: Int) -> Int:
-    let values = [92, 92, 92, 92, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 74]
-    return values[int_clamp(kind, 0, len(values) - 1)]
-
-fn kloner_modifier_accent_g(kind: Int) -> Int:
-    let values = [208, 208, 208, 208, 196, 196, 196, 196, 156, 156, 156, 156, 110, 110, 110, 255]
-    return values[int_clamp(kind, 0, len(values) - 1)]
-
-fn kloner_modifier_accent_b(kind: Int) -> Int:
-    let values = [255, 255, 255, 255, 255, 255, 255, 255, 74, 74, 74, 74, 196, 196, 196, 132]
-    return values[int_clamp(kind, 0, len(values) - 1)]
-
-fn kloner_chain_name(chain_index: Int) -> String:
-    let names = ["GRID LIFT", "CROWN SWARM", "EXPORT DRIFT"]
-    return names[int_clamp(chain_index, 0, len(names) - 1)]
-
-fn kloner_chain_duration_ms(chain_index: Int) -> Int:
-    let durations = [2200, 2500, 2100]
-    return durations[int_clamp(chain_index, 0, len(durations) - 1)]
-
-fn kloner_chain_modifier_count(chain_index: Int) -> Int:
-    let counts = [4, 4, 4]
-    return counts[int_clamp(chain_index, 0, len(counts) - 1)]
-
-fn kloner_chain_modifier_kind(chain_index: Int, slot: Int) -> Int:
-    if chain_index == 0:
-        let kinds = [KLONER_MOD_ORBIT, KLONER_MOD_PULSE, KLONER_MOD_FLOAT, KLONER_MOD_STEP]
-        return kinds[int_clamp(slot, 0, len(kinds) - 1)]
-    if chain_index == 1:
-        let kinds = [KLONER_MOD_FIGURE8, KLONER_MOD_TWIST, KLONER_MOD_BREATHE, KLONER_MOD_NOISE_FLOW]
-        return kinds[int_clamp(slot, 0, len(kinds) - 1)]
-    let kinds = [KLONER_MOD_SPIRAL, KLONER_MOD_BOUNCE, KLONER_MOD_TUMBLE, KLONER_MOD_CODE]
-    return kinds[int_clamp(slot, 0, len(kinds) - 1)]
-
-fn kloner_chain_step_interval_ms(chain_index: Int) -> Int:
-    if chain_index == 0:
-        return 125
-    return 0
-
-fn kloner_total_duration_ms() -> Int:
-    return kloner_chain_duration_ms(0) + kloner_chain_duration_ms(1) + kloner_chain_duration_ms(2)
-
-fn kloner_active_chain_for_time(current_time_ms: Int) -> Int:
-    if current_time_ms < kloner_chain_duration_ms(0):
-        return 0
-    if current_time_ms < kloner_chain_duration_ms(0) + kloner_chain_duration_ms(1):
-        return 1
-    return 2
-
-fn kloner_local_chain_time_ms(current_time_ms: Int, chain_index: Int) -> Int:
-    if chain_index == 0:
-        return current_time_ms
-    if chain_index == 1:
-        return current_time_ms - kloner_chain_duration_ms(0)
-    return current_time_ms - kloner_chain_duration_ms(0) - kloner_chain_duration_ms(1)
-
-fn kloner_clamp01(value: Float) -> Float:
-    if value < 0.0:
-        return 0.0
-    if value > 1.0:
-        return 1.0
-    return value
-
-fn kloner_lerp(a: Float, b: Float, t: Float) -> Float:
-    return a + ((b - a) * kloner_clamp01(t))
-
-fn kloner_float_max(left: Float, right: Float) -> Float:
-    if left >= right:
-        return left
-    return right
-
-fn kloner_abs_int(value: Int) -> Int:
-    if value < 0:
-        return 0 - value
-    return value
-
-fn kloner_string_slice(text: String, start: Int, finish: Int) -> String:
-    let result = ""
-    let index = int_max(start, 0)
-    let safe_finish = int_min(finish, len(text))
-    while index < safe_finish:
-        result = result + char_at(text, index)
-        index = index + 1
-    return result
-
-fn kloner_sample_track4(current_time_ms: Int, t0: Int, v0: Float, t1: Int, v1: Float, t2: Int, v2: Float, t3: Int, v3: Float) -> Float:
-    if current_time_ms <= t0:
-        return v0
-    if current_time_ms < t1:
-        return kloner_lerp(v0, v1, Float(current_time_ms - t0) / Float(t1 - t0))
-    if current_time_ms < t2:
-        return kloner_lerp(v1, v2, Float(current_time_ms - t1) / Float(t2 - t1))
-    if current_time_ms < t3:
-        return kloner_lerp(v2, v3, Float(current_time_ms - t2) / Float(t3 - t2))
-    return v3
-
-fn kloner_key_sample(track_id: Int, current_time_ms: Int, default_value: Float) -> Float:
-    if track_id == 0:
-        return kloner_sample_track4(current_time_ms, 0, 4.0, 2200, 7.2, 4700, 5.8, 6800, 8.4)
-    if track_id == 1:
-        return kloner_sample_track4(current_time_ms, 0, 1.4, 2200, 1.9, 4700, 1.2, 6800, 1.6)
-    if track_id == 2:
-        return kloner_sample_track4(current_time_ms, 0, 0.18, 2200, 0.36, 4700, 0.22, 6800, 0.30)
-    if track_id == 3:
-        return kloner_sample_track4(current_time_ms, 0, 0.42, 2200, 0.74, 4700, 0.38, 6800, 0.66)
-    return default_value
-
-fn kloner_noise_unit(seed: Int) -> Float:
-    let bucket = hash_bucket_mod(hash_mix32(97, seed), 1000)
-    return Float(bucket) / 999.0
-
-fn kloner_variant_for_index(distribution_mode: Int, chain_index: Int, clone_index: Int) -> Int:
-    if distribution_mode == KLONER_DISTRIBUTION_RANDOM:
-        return hash_bucket_mod(hash_triple32(chain_index, clone_index, 77), 3)
-    return clone_index % 3
-
-fn kloner_variant_red(variant: Int) -> Int:
-    let values = [theme_signal_red(), theme_accent_red(), 255]
-    return values[int_clamp(variant, 0, len(values) - 1)]
-
-fn kloner_variant_green(variant: Int) -> Int:
-    let values = [theme_signal_green(), theme_accent_green(), 214]
-    return values[int_clamp(variant, 0, len(values) - 1)]
-
-fn kloner_variant_blue(variant: Int) -> Int:
-    let values = [theme_signal_blue(), theme_accent_blue(), 132]
-    return values[int_clamp(variant, 0, len(values) - 1)]
-
-fn theme_signal_red() -> Int:
-    return 92
-
-fn theme_signal_green() -> Int:
-    return 208
-
-fn theme_signal_blue() -> Int:
-    return 255
-
-fn theme_accent_red() -> Int:
-    return 255
-
-fn theme_accent_green() -> Int:
-    return 156
-
-fn theme_accent_blue() -> Int:
-    return 74
-
-fn kloner_reference_line_count(text: String) -> Int:
-    if len(text) == 0:
-        return 0
-    let count = 1
-    let index = 0
-    while index < len(text):
-        if char_at(text, index) == "\n":
-            count = count + 1
-        index = index + 1
-    return count
-
-fn kloner_first_line(text: String) -> String:
-    if len(text) == 0:
-        return ""
-    let index = 0
-    while index < len(text) and char_at(text, index) != "\n":
-        index = index + 1
-    return kloner_string_slice(text, 0, index)
-
-fn kloner_path_leaf(path: String) -> String:
-    if len(path) == 0:
-        return ""
-    let last = 0
-    let index = 0
-    while index < len(path):
-        let ch = char_at(path, index)
-        if ch == "/" or ch == "\\":
-            last = index + 1
-        index = index + 1
-    return kloner_string_slice(path, last, len(path))
-
-fn kloner_headline(mode_id: Int, chain_index: Int, export_format: Int, clone_total: Int) -> String:
-    return "KLONER // " + kloner_mode_name(mode_id) + " // " + kloner_chain_name(chain_index) + " // " + kloner_export_format_name(export_format) + " // clones=" + str(clone_total)
-
-fn kloner_bind_action_map(action_session: Int) -> Int:
-    let _play = kaintana_action_bind(action_session, kaintana_key_down_binding("Enter", "transport.play"))
-    let _play_release = kaintana_action_bind(action_session, kaintana_key_up_binding("Enter", "transport.play"))
-    let _mode_grid = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyG", "mode.grid"))
-    let _mode_grid_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyG", "mode.grid"))
-    let _mode_radial = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyR", "mode.radial"))
-    let _mode_radial_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyR", "mode.radial"))
-    let _browse = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyB", "library.browse"))
-    let _browse_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyB", "library.browse"))
-    let _vat = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyV", "export.vat"))
-    let _vat_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyV", "export.vat"))
-    let _instance = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyI", "export.instance"))
-    let _instance_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyI", "export.instance"))
-    let _unreal = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyU", "target.unreal"))
-    let _unreal_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyU", "target.unreal"))
-    let _chain = kaintana_action_bind(action_session, kaintana_key_down_binding("Digit2", "chain.crown"))
-    let _chain_release = kaintana_action_bind(action_session, kaintana_key_up_binding("Digit2", "chain.crown"))
-    let _settings = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyS", "service.settings"))
-    let _settings_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyS", "service.settings"))
-    let _axis = kaintana_axis_bind(action_session, kaintana_axis_binding("human.pointer", "axis", "orbit_x", "preview.orbit", 0.25))
-    return 1
-
-fn kloner_press_key(action_session: Int, code: String) -> Int:
-    let _down = kaintana_action_push_key_down(action_session, "keyboard.proof", code)
-    return kaintana_action_begin_frame(action_session, 16.0)
-
-fn kloner_release_key(action_session: Int, code: String) -> Int:
-    let _up = kaintana_action_push_key_up(action_session, "keyboard.proof", code)
-    return kaintana_action_begin_frame(action_session, 16.0)
-
-fn kloner_pump_axis(action_session: Int, value: Float) -> Int:
-    let _axis = kaintana_action_push_axis(action_session, "human.pointer", "pointer.proof", "orbit_x", value)
-    return kaintana_action_begin_frame(action_session, 16.0)
-
-fn kloner_pump_agent_intent(action_session: Int, action: String, command_text: String) -> Int:
-    let _intent = kaintana_action_push_agent_intent(action_session, "codex", action, command_text, 0.99)
-    return kaintana_action_begin_frame(action_session, 16.0)
-
-fn kloner_clone_total(mode_id: Int, grid_x: Int, grid_y: Int, grid_z: Int, radial_count: Int, linear_count: Int) -> Int:
-    if mode_id == KLONER_MODE_SINGLE:
-        return 1
-    if mode_id == KLONER_MODE_GRID:
-        return grid_x * grid_y * grid_z
-    if mode_id == KLONER_MODE_RADIAL:
-        return radial_count
-    return linear_count
-
-fn kloner_base_pose(mode_id: Int, clone_index: Int, grid_x: Int, grid_y: Int, grid_z: Int, spacing_x: Float, spacing_y: Float, spacing_z: Float, radial_count: Int, radial_radius: Float, linear_count: Int) -> KlonerClonePose:
-    let x = 0.0
-    let y = 0.0
-    let z = 0.0
-    let yaw = 0.0
-    if mode_id == KLONER_MODE_GRID:
-        let offset_x = (Float(grid_x) - 1.0) * spacing_x * 0.5
-        let offset_y = (Float(grid_y) - 1.0) * spacing_y * 0.5
-        let offset_z = (Float(grid_z) - 1.0) * spacing_z * 0.5
-        let remaining = clone_index
-        let iz = remaining % grid_z
-        remaining = remaining / grid_z
-        let iy = remaining % grid_y
-        remaining = remaining / grid_y
-        let ix = remaining
-        return KlonerClonePose {
-            x: Float(ix) * spacing_x - offset_x,
-            y: Float(iy) * spacing_y - offset_y,
-            z: Float(iz) * spacing_z - offset_z,
-            scale: 1.0,
-            yaw: 0.0,
-            variant: 0,
-        }
-    if mode_id == KLONER_MODE_RADIAL:
-        let angle = (TAU / Float(radial_count)) * Float(clone_index)
-        return KlonerClonePose {
-            x: cos(angle) * radial_radius,
-            y: 0.0,
-            z: sin(angle) * radial_radius,
-            scale: 1.0,
-            yaw: -angle,
-            variant: 0,
-        }
-    if mode_id == KLONER_MODE_LINEAR:
-        let offset = (Float(linear_count) - 1.0) * spacing_y * 0.5
-        return KlonerClonePose {
-            x: 0.0,
-            y: Float(clone_index) * spacing_y - offset,
-            z: 0.0,
-            scale: 1.0,
-            yaw: 0.0,
-            variant: 0,
-        }
-    return KlonerClonePose {
-        x: x,
-        y: y,
-        z: z,
-        scale: 1.0,
-        yaw: yaw,
-        variant: 0,
+    return KlonerRuntimeState {
+        active_mode: active_mode,
+        active_chain: active_chain,
+        active_export: active_export,
+        distribution_mode: distribution_mode,
+        export_mode: export_mode,
+        target_engine: target_engine,
+        normalize_scale: normalize_scale,
+        show_reference_browser: show_reference_browser,
+        show_settings_deck: show_settings_deck,
+        dialog_result: seed.dialog_result,
+        current_time_ms: current_time_ms,
+        status_text: status_text,
+        clone_total: seed.clone_total,
+        preview_hash: seed.preview_hash,
+        export_signature: seed.export_signature,
+        orbit_value: orbit_value,
     }
 
-fn kloner_apply_modifier(pose: KlonerClonePose, kind: Int, local_time_ms: Int, clone_index: Int, chain_index: Int) -> KlonerClonePose:
-    let t = Float(local_time_ms) / 1000.0
-    let x = pose.x
-    let y = pose.y
-    let z = pose.z
-    let scale = pose.scale
-    let yaw = pose.yaw
-    let speed = kloner_modifier_speed(kind)
-    let amount = kloner_modifier_amount(kind)
-    let phase = Float(clone_index) * 0.19
-    if kind == KLONER_MOD_ORBIT:
-        x = x + cos(t * speed + phase) * amount
-        z = z + sin(t * speed + phase) * amount
-        yaw = yaw + (t * speed * 0.75)
-    elif kind == KLONER_MOD_FLOAT:
-        y = y + sin(t * speed + phase) * amount
-    elif kind == KLONER_MOD_PULSE:
-        scale = scale + sin(t * speed) * kloner_key_sample(2, local_time_ms, amount)
-    elif kind == KLONER_MOD_ELASTIC:
-        let envelope = sin(t * speed + phase)
-        y = y + abs(envelope) * 0.22
-        scale = scale + envelope * amount
-    elif kind == KLONER_MOD_FIGURE8:
-        x = x + sin(t * speed + phase) * amount
-        z = z + sin((t * speed * 2.0) + phase) * amount * 0.54
-    elif kind == KLONER_MOD_WOBBLE:
-        x = x + sin(t * speed + phase) * amount * 0.35
-        yaw = yaw + sin(t * speed + phase) * amount * 0.65
-    elif kind == KLONER_MOD_HEARTBEAT:
-        let beat = abs(sin(t * speed + phase))
-        scale = scale + beat * amount
-        y = y + beat * 0.12
-    elif kind == KLONER_MOD_BOUNCE:
-        let arc = abs(sin(t * speed + phase))
-        y = y + arc * amount * 1.8
-        scale = scale - arc * 0.08
-    elif kind == KLONER_MOD_TUMBLE:
-        yaw = yaw + (t * speed) + (Float(clone_index % 5) * 0.06)
-        x = x + sin(t * speed * 0.5 + phase) * 0.22
-    elif kind == KLONER_MOD_SWAY:
-        x = x + sin(t * speed + phase) * 0.18
-        yaw = yaw + sin(t * speed + phase) * amount
-    elif kind == KLONER_MOD_TWIST:
-        yaw = yaw + (t * speed * 0.9) + (Float(chain_index) * 0.16)
-        scale = scale + sin(t * speed + phase) * 0.08
-    elif kind == KLONER_MOD_SPIRAL:
-        let angle = (t * speed) + (Float(clone_index) * 0.22)
-        let radius = amount + Float(clone_index % 4) * 0.14
-        x = x + cos(angle) * radius
-        z = z + sin(angle) * radius
-        y = y + sin(angle * 0.5) * 0.32
-    elif kind == KLONER_MOD_NOISE_FLOW:
-        let drift_a = kloner_noise_unit((chain_index * 8192) + clone_index + local_time_ms)
-        let drift_b = kloner_noise_unit((chain_index * 16384) + clone_index * 3 + local_time_ms)
-        x = x + (drift_a - 0.5) * amount * 2.0
-        z = z + (drift_b - 0.5) * amount * 2.0
-        y = y + sin(t * 0.7 + phase) * 0.16
-    elif kind == KLONER_MOD_BREATHE:
-        let breath = sin(t * speed)
-        scale = scale + breath * amount
-        y = y + breath * 0.10
-    elif kind == KLONER_MOD_CODE:
-        x = x + cos((t * speed * 1.3) + phase) * 0.16
-        y = y + sin((t * speed * 1.9) + phase) * 0.28
-        scale = scale + kloner_key_sample(3, local_time_ms, amount) * 0.18
-    return KlonerClonePose {
-        x: x,
-        y: y,
-        z: z,
-        scale: scale,
-        yaw: yaw,
-        variant: pose.variant,
+fn kloner_state_with_scene(authority: KlonerAuthority, state: KlonerRuntimeState, scene: KlonerSceneConfig) -> KlonerRuntimeState:
+    let clone_total = kloner_commit_clone_total(authority, kloner_clone_total(state.active_mode, scene))
+    let preview_seed = hash_quad32(state.active_mode + 17, state.active_chain + 31, clone_total + 43, state.current_time_ms + 59)
+    let preview_hash = kloner_commit_preview_hash(authority, kloner_hash_lane(preview_seed))
+    let export_signature = kloner_export_signature(hash_pair32(preview_hash, state.active_export + state.export_mode + state.target_engine + 101))
+    return KlonerRuntimeState {
+        active_mode: state.active_mode,
+        active_chain: state.active_chain,
+        active_export: state.active_export,
+        distribution_mode: state.distribution_mode,
+        export_mode: state.export_mode,
+        target_engine: state.target_engine,
+        normalize_scale: state.normalize_scale,
+        show_reference_browser: state.show_reference_browser,
+        show_settings_deck: state.show_settings_deck,
+        dialog_result: state.dialog_result,
+        current_time_ms: state.current_time_ms,
+        status_text: state.status_text,
+        clone_total: clone_total,
+        preview_hash: preview_hash,
+        export_signature: export_signature,
+        orbit_value: state.orbit_value,
     }
 
-fn kloner_clone_pose(mode_id: Int, distribution_mode: Int, chain_index: Int, current_time_ms: Int, clone_index: Int, grid_x: Int, grid_y: Int, grid_z: Int, spacing_x: Float, spacing_y: Float, spacing_z: Float, radial_count: Int, radial_radius: Float, linear_count: Int) -> KlonerClonePose:
-    let local_time_ms = kloner_local_chain_time_ms(current_time_ms, chain_index)
-    let step_interval_ms = kloner_chain_step_interval_ms(chain_index)
-    let effective_time_ms = local_time_ms
-    if step_interval_ms > 0:
-        effective_time_ms = local_time_ms - (local_time_ms % step_interval_ms)
-    let base = kloner_base_pose(mode_id, clone_index, grid_x, grid_y, grid_z, spacing_x, spacing_y, spacing_z, radial_count, radial_radius, linear_count)
-    let variant = kloner_variant_for_index(distribution_mode, chain_index, clone_index)
-    let mut current = KlonerClonePose {
-        x: base.x,
-        y: base.y,
-        z: base.z,
-        scale: base.scale,
-        yaw: base.yaw,
-        variant: variant,
+fn kloner_state_with_dialog(state: KlonerRuntimeState, dialog_result: Int, status_text: String) -> KlonerRuntimeState:
+    return KlonerRuntimeState {
+        active_mode: state.active_mode,
+        active_chain: state.active_chain,
+        active_export: state.active_export,
+        distribution_mode: state.distribution_mode,
+        export_mode: state.export_mode,
+        target_engine: state.target_engine,
+        normalize_scale: state.normalize_scale,
+        show_reference_browser: state.show_reference_browser,
+        show_settings_deck: state.show_settings_deck,
+        dialog_result: dialog_result,
+        current_time_ms: state.current_time_ms,
+        status_text: status_text,
+        clone_total: state.clone_total,
+        preview_hash: state.preview_hash,
+        export_signature: state.export_signature,
+        orbit_value: state.orbit_value,
     }
-    let slot = 0
-    while slot < kloner_chain_modifier_count(chain_index):
-        current = kloner_apply_modifier(current, kloner_chain_modifier_kind(chain_index, slot), effective_time_ms, clone_index, chain_index)
-        slot = slot + 1
-    return current
 
-fn kloner_preview_x(plot_rect: KaintanaRect, pose: KlonerClonePose) -> Float:
-    return plot_rect.x + (plot_rect.width * 0.5) + (pose.x * 28.0) + (pose.z * 8.0)
-
-fn kloner_preview_y(plot_rect: KaintanaRect, pose: KlonerClonePose) -> Float:
-    return plot_rect.y + (plot_rect.height * 0.62) - (pose.y * 38.0) + (pose.z * 6.0)
-
-fn kloner_preview_width(pose: KlonerClonePose) -> Float:
-    return kloner_float_max(8.0, 10.0 + (pose.scale * 8.0))
-
-fn kloner_preview_height(pose: KlonerClonePose) -> Float:
-    return kloner_float_max(10.0, 14.0 + (pose.scale * 12.0))
-
-fn kloner_draw_viewport_grid(session: Int, parent: Int, plot_rect: KaintanaRect, theme: KaintanaTheme) -> Int:
-    let _back = kaintana_primitive_fill(session, parent, "viewport.plot.back", plot_rect, theme.panel_red, theme.panel_green, theme.panel_blue)
-    let horizon_y = plot_rect.y + (plot_rect.height * 0.62)
-    let _horizon = kaintana_primitive_fill(session, parent, "viewport.plot.horizon", kaintana_rect(plot_rect.x + 12.0, horizon_y, plot_rect.width - 24.0, 2.0), theme.muted_red, theme.muted_green, theme.muted_blue)
-    let lane = 0
-    while lane < 6:
-        let x = plot_rect.x + 24.0 + (Float(lane) * ((plot_rect.width - 48.0) / 5.0))
-        let _line = kaintana_primitive_fill(session, parent, "viewport.grid.v." + str(lane), kaintana_rect(x, plot_rect.y + 16.0, 1.0, plot_rect.height - 32.0), theme.shell_red + 12, theme.shell_green + 12, theme.shell_blue + 12)
-        lane = lane + 1
-    lane = 0
-    while lane < 5:
-        let y = plot_rect.y + 22.0 + (Float(lane) * ((plot_rect.height - 44.0) / 4.0))
-        let _line = kaintana_primitive_fill(session, parent, "viewport.grid.h." + str(lane), kaintana_rect(plot_rect.x + 18.0, y, plot_rect.width - 36.0, 1.0), theme.shell_red + 12, theme.shell_green + 12, theme.shell_blue + 12)
-        lane = lane + 1
-    return 1
-
-fn kloner_draw_clone(session: Int, parent: Int, plot_rect: KaintanaRect, index: Int, pose: KlonerClonePose, theme: KaintanaTheme, micro_font: Int) -> Int:
-    let center_x = kloner_preview_x(plot_rect, pose)
-    let center_y = kloner_preview_y(plot_rect, pose)
-    let width = kloner_preview_width(pose)
-    let height = kloner_preview_height(pose)
-    let shadow = kaintana_rect(center_x - (width * 0.5), center_y + (height * 0.42), width, 4.0)
-    let body = kaintana_rect(center_x - (width * 0.5), center_y - (height * 0.5), width, height)
-    let rule = kaintana_rect(body.x, body.y, body.width, 3.0)
-    let glow = kaintana_rect(body.x - 1.0, body.y - 1.0, body.width + 2.0, body.height + 2.0)
-    let label_rect = kaintana_rect(body.x + 3.0, body.y + 2.0, body.width - 6.0, 10.0)
-    let red = kloner_variant_red(pose.variant)
-    let green = kloner_variant_green(pose.variant)
-    let blue = kloner_variant_blue(pose.variant)
-    let _shadow = kaintana_primitive_fill(session, parent, "clone.shadow." + str(index), shadow, theme.shell_red, theme.shell_green, theme.shell_blue)
-    let _glow = kaintana_primitive_fill(session, parent, "clone.glow." + str(index), glow, theme.shell_red + 10, theme.shell_green + 10, theme.shell_blue + 10)
-    let _body = kaintana_primitive_fill(session, parent, "clone.body." + str(index), body, red, green, blue)
-    let _rule = kaintana_primitive_fill(session, parent, "clone.rule." + str(index), rule, theme.accent_red, theme.accent_green, theme.accent_blue)
-    if index < 12:
-        let _label = kaintana_primitive_text(session, parent, "clone.label." + str(index), str(index), label_rect, theme.shell_red, theme.shell_green, theme.shell_blue, micro_font, 10.0)
-    return 1
-
-fn kloner_state_snapshot_text(headline: String, distribution_mode: Int, export_mode: Int, target_engine: Int, orbit_value: Float, reference_lines: Int, reference_bytes: Int, dialog_result: Int, preview_hash: Int, export_signature: Int) -> String:
-    var output = ""
-    output = output + headline + "\n"
-    output = output + "distribution=" + kloner_distribution_name(distribution_mode) + "\n"
-    output = output + "export_mode=" + kloner_export_mode_name(export_mode) + "\n"
-    output = output + "target_engine=" + kloner_target_name(target_engine) + "\n"
-    output = output + "orbit_axis=" + str(orbit_value) + "\n"
-    output = output + "reference_lines=" + str(reference_lines) + "\n"
-    output = output + "reference_bytes=" + str(reference_bytes) + "\n"
-    output = output + "dialog_result=" + str(dialog_result) + "\n"
-    output = output + "preview_hash=" + str(preview_hash) + "\n"
-    output = output + "export_signature=" + str(export_signature) + "\n"
-    return output
-
-fn kloner_export_preview_json(reference_asset_label: String, mode_id: Int, distribution_mode: Int, export_format: Int, export_mode: Int, target_engine: Int, chain_index: Int, clone_total: Int, current_time_ms: Int, preview_hash: Int, export_signature: Int, grid_x: Int, grid_y: Int, grid_z: Int, spacing_x: Float, spacing_y: Float, spacing_z: Float, radial_count: Int, radial_radius: Float, linear_count: Int) -> String:
-    var output = "{\n"
-    output = output + "  \"reference\": \"" + reference_asset_label + "\",\n"
-    output = output + "  \"mode\": \"" + kloner_mode_name(mode_id) + "\",\n"
-    output = output + "  \"distribution\": \"" + kloner_distribution_name(distribution_mode) + "\",\n"
-    output = output + "  \"export_format\": \"" + kloner_export_format_name(export_format) + "\",\n"
-    output = output + "  \"export_mode\": \"" + kloner_export_mode_name(export_mode) + "\",\n"
-    output = output + "  \"target_engine\": \"" + kloner_target_name(target_engine) + "\",\n"
-    output = output + "  \"active_chain\": \"" + kloner_chain_name(chain_index) + "\",\n"
-    output = output + "  \"clone_total\": " + str(clone_total) + ",\n"
-    output = output + "  \"time_ms\": " + str(current_time_ms) + ",\n"
-    output = output + "  \"preview_hash\": " + str(preview_hash) + ",\n"
-    output = output + "  \"export_signature\": " + str(export_signature) + ",\n"
-    output = output + "  \"samples\": [\n"
-    let sample_count = int_min(clone_total, 8)
-    let sample_index = 0
-    while sample_index < sample_count:
-        let pose = kloner_clone_pose(mode_id, distribution_mode, chain_index, current_time_ms, sample_index, grid_x, grid_y, grid_z, spacing_x, spacing_y, spacing_z, radial_count, radial_radius, linear_count)
-        output = output + "    {\"index\": " + str(sample_index) + ", \"x\": " + str(pose.x) + ", \"y\": " + str(pose.y) + ", \"z\": " + str(pose.z) + ", \"scale\": " + str(pose.scale) + ", \"variant\": " + str(pose.variant) + "}"
-        if sample_index + 1 < sample_count:
-            output = output + ","
-        output = output + "\n"
-        sample_index = sample_index + 1
-    output = output + "  ]\n"
-    output = output + "}\n"
-    return output
-
-fn kloner_frame_report_text(settings: KlonerSettings, theme: KaintanaTheme, headline: String, status_text: String, active_mode: Int, active_chain: Int, active_export: Int, export_mode: Int, target_engine: Int, clone_total: Int, current_time_ms: Int, preview_hash: Int, export_signature: Int, dialog_result: Int, action_session: Int) -> String:
-    var output = "framework=kloner\n"
-    output = output + "headline=" + headline + "\n"
-    output = output + "theme=" + theme.name + "\n"
-    output = output + "status=" + status_text + "\n"
-    output = output + "mode=" + kloner_mode_name(active_mode) + "\n"
-    output = output + "active_chain=" + kloner_chain_name(active_chain) + "\n"
-    output = output + "export_format=" + kloner_export_format_name(active_export) + "\n"
-    output = output + "export_mode=" + kloner_export_mode_name(export_mode) + "\n"
-    output = output + "target=" + kloner_target_name(target_engine) + "\n"
-    output = output + "clone_total=" + str(clone_total) + "\n"
-    output = output + "current_time_ms=" + str(current_time_ms) + "\n"
-    output = output + "preview_hash=" + str(preview_hash) + "\n"
-    output = output + "export_signature=" + str(export_signature) + "\n"
-    output = output + "dialog_result=" + str(dialog_result) + "\n"
-    output = output + "action_frame_index=" + str(kaintana_action_frame_index(action_session)) + "\n"
-    output = output + "action_event_count=" + str(kaintana_action_event_count(action_session)) + "\n"
-    return output
+fn kloner_draw_preview_clones(session: Int, parent: Int, plot_rect: KaintanaRect, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState, scene: KlonerSceneConfig, camera: KlonerViewportCamera) -> Int:
+    let preview_count = int_min(state.clone_total, KLONER_MAX_PREVIEW_CLONES)
+    let clone_index = 0
+    while clone_index < preview_count:
+        let pose = kloner_clone_pose(state.active_mode, state.distribution_mode, state.active_chain, state.current_time_ms, clone_index, scene)
+        let _draw = kloner_draw_clone(session, parent, plot_rect, camera, clone_index, pose, theme, fonts.micro_font)
+        clone_index = clone_index + 1
+    return preview_count
 
 fn main() -> Int:
     let runtime_status = native_runtime_init()
@@ -803,360 +188,89 @@ fn main() -> Int:
         println("runtime init failed")
         return 10
 
+    fs_create_dir_all(".kain")
+    fs_create_dir_all(fs_path_join(".kain", "run"))
+
     let settings = kloner_settings_desktop()
-    let harness = kloner_build_harness_spec(settings)
     let theme: KaintanaTheme = kaintana_theme_named(settings.theme_name)
     let spec = kloner_build_window_spec(settings)
     let authority = KlonerAuthority
+    let _reset = kaintana_action_reset()
 
-    let _action_reset = kaintana_action_reset()
-    if kaintana_desktop_probe() != 1:
-        println("desktop host unavailable")
+    let desktop_begin = kaintana_desktop_scene_begin(spec)
+    if desktop_begin != 0:
+        println("desktop scene begin failed")
         return 11
 
-    fs_create_dir_all(".kain")
-    fs_create_dir_all(fs_path_join(".kain", "run"))
-    let _scene = kaintana_desktop_scene_begin(spec)
-
     let session = kaintana_session_create("kloner", spec)
-    let action_session = kaintana_action_session_create("kloner-actions")
+    let action_session = kaintana_action_session_create("kloner.actions")
     let _bindings = kloner_bind_action_map(action_session)
-    let body_font = native_ui_font_create(session, "font.kloner.body", "Segoe UI", 15.0)
-    let title_font = native_ui_font_create(session, "font.kloner.title", "Bahnschrift SemiBold", 24.0)
-    let badge_font = native_ui_font_create(session, "font.kloner.badge", "Consolas", 12.0)
-    let micro_font = native_ui_font_create(session, "font.kloner.micro", "Segoe UI", 11.0)
+    let fonts = kloner_make_fonts(session)
     let _frame = kaintana_begin_frame(session, settings.revision_key, 16.0)
 
-    let reference_listing = ""
-    if fs_exists(settings.reference_root):
-        reference_listing = fs_read_dir_paths_text(settings.reference_root)
-    let reference_source = ""
-    if fs_exists(settings.reference_spec_path):
-        reference_source = fs_read_text(settings.reference_spec_path)
-    let reference_lines = kloner_reference_line_count(reference_listing)
-    if len(reference_source) > 0:
-        reference_lines = kloner_reference_line_count(reference_source)
-    let reference_asset_label = kloner_path_leaf(settings.reference_spec_path)
-    if len(reference_listing) > 0:
-        reference_asset_label = kloner_path_leaf(kloner_first_line(reference_listing))
-    let reference_bytes = len(reference_source)
+    let reference = kloner_reference_info(settings)
+    var scene = kloner_default_scene_config()
+    let seed_state = kloner_initial_runtime_state(authority)
+    let layout = kloner_build_layout(spec)
+    let nodes = kloner_build_shell(session, theme, fonts.badge_font, layout)
+    let controls = kloner_render_controls(session, nodes, layout, theme, fonts, settings)
+    let settings_menu = kloner_open_service_surfaces(session, controls, layout)
+    let settings_popover = kaintana_popover_spec("settings", 290.0, 118.0, -292.0, 10.0)
+    let browser_popover = kaintana_popover_spec("browser", 360.0, 154.0, -360.0, 10.0)
 
-    var active_mode = set_active_mode(authority, KLONER_MODE_GRID)
-    var active_chain = set_active_chain(authority, 0)
-    var active_export = set_active_export(authority, KLONER_EXPORT_FORMAT_GLB)
-    var distribution_mode = KLONER_DISTRIBUTION_RANDOM
-    var export_mode = KLONER_EXPORT_MODE_ANIM
-    var target_engine = KLONER_TARGET_GENERIC
-    var normalize_scale = 1
-    var show_reference_browser = 0
-    var dialog_id = 0
-    var dialog_result = 0
-    var current_time_ms = 320
-    var status_text = "boot // awaiting reference uplift"
+    var state = kloner_apply_proof_inputs(authority, session, action_session, controls, seed_state)
+    if state.show_settings_deck != 0:
+        let _open_settings = kaintana_popover_open(session, controls.settings_button, settings_popover)
+    if state.show_reference_browser != 0:
+        let _open_browser = kaintana_popover_open(session, controls.browse_button, browser_popover)
 
-    let grid_x = 6
-    let grid_y = 2
-    let grid_z = 6
-    let spacing_x = 1.45
-    let spacing_y = 1.4
-    let spacing_z = 1.45
-    let radial_count = 18
-    let linear_count = 16
-    let radial_radius = 6.0
-
-    let window_rect = kaintana_window_rect(spec)
-    let shell_rect = kaintana_inset(window_rect, 14.0, 14.0, 14.0, 14.0)
-    let top_bar_rect = kaintana_rect(shell_rect.x, shell_rect.y, shell_rect.width, 58.0)
-    let footer_rect = kaintana_rect(shell_rect.x, shell_rect.y + shell_rect.height - 98.0, shell_rect.width, 98.0)
-    let work_rect = kaintana_rect(shell_rect.x, top_bar_rect.y + top_bar_rect.height + 12.0, shell_rect.width, footer_rect.y - (top_bar_rect.y + top_bar_rect.height + 24.0))
-    let left_rect = kaintana_split_left(work_rect, 0.20, 14.0)
-    let right_rect = kaintana_split_right(work_rect, 0.78, 14.0)
-    let center_rect = kaintana_rect(left_rect.x + left_rect.width + 14.0, work_rect.y, right_rect.x - (left_rect.x + left_rect.width + 28.0), work_rect.height)
-    let viewport_rect = kaintana_split_top(center_rect, 0.66, 12.0)
-    let sequencer_rect = kaintana_split_bottom(center_rect, 0.66, 12.0)
-    let right_top_rect = kaintana_split_top(right_rect, 0.44, 12.0)
-    let right_bottom_rect = kaintana_split_bottom(right_rect, 0.44, 12.0)
-
-    let shell_node = kaintana_retained_region(session, 0, "shell", "kloner.shell", shell_rect, theme)
-    let top_bar = kaintana_immediate_panel(session, shell_node, "panel.topbar", "", top_bar_rect, theme, badge_font, 24.0)
-    let left_panel = kaintana_retained_region(session, shell_node, "panel.left", "kloner.left", left_rect, theme)
-    let viewport_surface = kaintana_retained_surface(session, shell_node, "surface.viewport", "surface.viewport.kloner", "CLONE VIEWPORT", viewport_rect, theme, badge_font, 20.0)
-    let sequencer_panel = kaintana_retained_region(session, shell_node, "panel.sequencer", "kloner.sequencer", sequencer_rect, theme)
-    let chains_panel = kaintana_retained_region(session, shell_node, "panel.chains", "kloner.chains", right_top_rect, theme)
-    let inspector_panel = kaintana_retained_region(session, shell_node, "panel.inspector", "kloner.inspector", right_bottom_rect, theme)
-    let footer_panel = kaintana_immediate_panel(session, shell_node, "panel.footer", "", footer_rect, theme, badge_font, 24.0)
-
-    let top_inner = kaintana_inset(top_bar_rect, 14.0, 10.0, 14.0, 10.0)
-    let left_inner = kaintana_inset(left_rect, 16.0, 18.0, 16.0, 18.0)
-    let viewport_inner = kaintana_inset(viewport_rect, 20.0, 20.0, 20.0, 20.0)
-    let sequencer_inner = kaintana_inset(sequencer_rect, 18.0, 18.0, 18.0, 18.0)
-    let chains_inner = kaintana_inset(right_top_rect, 18.0, 18.0, 18.0, 18.0)
-    let inspector_inner = kaintana_inset(right_bottom_rect, 18.0, 18.0, 18.0, 18.0)
-    let footer_inner = kaintana_inset(footer_rect, 16.0, 14.0, 16.0, 14.0)
-
-    let _brand = kaintana_immediate_badge(session, top_bar, "badge.brand", "K-CLONER", kaintana_rect(top_inner.x, top_inner.y + 2.0, 144.0, 30.0), theme, badge_font, 18.0)
-    let _version = kaintana_immediate_badge(session, top_bar, "badge.version", "0.5 ALPHA", kaintana_rect(top_inner.x + 154.0, top_inner.y + 2.0, 118.0, 30.0), theme, badge_font, 18.0)
-    let browse_button = kaintana_immediate_toolbar_button(session, top_bar, "toolbar.browse", "Browse", kaintana_rect(top_inner.x + 296.0, top_inner.y, 96.0, 34.0), theme, micro_font, 22.0)
-    let play_button = kaintana_immediate_toolbar_button(session, top_bar, "toolbar.play", "Play", kaintana_rect(top_inner.x + 400.0, top_inner.y, 88.0, 34.0), theme, micro_font, 22.0)
-    let export_commit_button = kaintana_immediate_toolbar_button(session, top_bar, "toolbar.export", "Export", kaintana_rect(top_inner.x + 496.0, top_inner.y, 96.0, 34.0), theme, micro_font, 22.0)
-    let settings_button = kaintana_immediate_toolbar_button(session, top_bar, "toolbar.settings", "Settings", kaintana_rect(top_inner.x + top_inner.width - 354.0, top_inner.y, 112.0, 34.0), theme, micro_font, 22.0)
-    let _theme_badge = kaintana_immediate_badge(session, top_bar, "badge.theme", settings.theme_name, kaintana_rect(top_inner.x + top_inner.width - 228.0, top_inner.y + 2.0, 116.0, 30.0), theme, badge_font, 18.0)
-    let _reload_badge = kaintana_immediate_badge(session, top_bar, "badge.reload", "reload " + str(kaintana_hot_reload_generation(session)), kaintana_rect(top_inner.x + top_inner.width - 102.0, top_inner.y + 2.0, 88.0, 30.0), theme, badge_font, 18.0)
-
-    let mode_band = kaintana_rect(left_inner.x, left_inner.y + 42.0, left_inner.width, 42.0)
-    let mode_single_button = kaintana_immediate_toolbar_button(session, left_panel, "mode.single", "SINGLE", kaintana_grid_cell(mode_band, 4.0, 1.0, 0.0, 0.0, 8.0, 0.0), theme, micro_font, 24.0)
-    let mode_grid_button = kaintana_immediate_toolbar_button(session, left_panel, "mode.grid", "GRID", kaintana_grid_cell(mode_band, 4.0, 1.0, 1.0, 0.0, 8.0, 0.0), theme, micro_font, 24.0)
-    let mode_radial_button = kaintana_immediate_toolbar_button(session, left_panel, "mode.radial", "RADIAL", kaintana_grid_cell(mode_band, 4.0, 1.0, 2.0, 0.0, 8.0, 0.0), theme, micro_font, 24.0)
-    let mode_linear_button = kaintana_immediate_toolbar_button(session, left_panel, "mode.linear", "LINEAR", kaintana_grid_cell(mode_band, 4.0, 1.0, 3.0, 0.0, 8.0, 0.0), theme, micro_font, 24.0)
-
-    let library_band = kaintana_rect(left_inner.x, left_inner.y + 154.0, left_inner.width, 208.0)
-    let modifier_orbit = kaintana_immediate_toolbar_button(session, left_panel, "mod.orbit", kloner_modifier_name(KLONER_MOD_ORBIT), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 0.0, 10.0, 10.0), theme, micro_font, 24.0)
-    let modifier_float = kaintana_immediate_toolbar_button(session, left_panel, "mod.float", kloner_modifier_name(KLONER_MOD_FLOAT), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 0.0, 10.0, 10.0), theme, micro_font, 24.0)
-    let modifier_figure8 = kaintana_immediate_toolbar_button(session, left_panel, "mod.figure8", kloner_modifier_name(KLONER_MOD_FIGURE8), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 1.0, 10.0, 10.0), theme, micro_font, 24.0)
-    let modifier_step = kaintana_immediate_toolbar_button(session, left_panel, "mod.step", kloner_modifier_name(KLONER_MOD_STEP), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 1.0, 10.0, 10.0), theme, micro_font, 24.0)
-    let modifier_bounce = kaintana_immediate_toolbar_button(session, left_panel, "mod.bounce", kloner_modifier_name(KLONER_MOD_BOUNCE), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 2.0, 10.0, 10.0), theme, micro_font, 24.0)
-    let modifier_twist = kaintana_immediate_toolbar_button(session, left_panel, "mod.twist", kloner_modifier_name(KLONER_MOD_TWIST), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 2.0, 10.0, 10.0), theme, micro_font, 24.0)
-    let modifier_spiral = kaintana_immediate_toolbar_button(session, left_panel, "mod.spiral", kloner_modifier_name(KLONER_MOD_SPIRAL), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 3.0, 10.0, 10.0), theme, micro_font, 24.0)
-    let modifier_code = kaintana_immediate_toolbar_button(session, left_panel, "mod.code", kloner_modifier_name(KLONER_MOD_CODE), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 3.0, 10.0, 10.0), theme, micro_font, 24.0)
-
-    let chain_band = kaintana_rect(chains_inner.x, chains_inner.y + 44.0, chains_inner.width, 48.0)
-    let chain_grid_lift = kaintana_immediate_toolbar_button(session, chains_panel, "chain.gridlift", kloner_chain_name(0), kaintana_column_slot(chain_band, 0.0, 40.0, 8.0), theme, micro_font, 24.0)
-    let chain_crown_swarm = kaintana_immediate_toolbar_button(session, chains_panel, "chain.crown", kloner_chain_name(1), kaintana_column_slot(chain_band, 1.0, 40.0, 8.0), theme, micro_font, 24.0)
-    let chain_export_drift = kaintana_immediate_toolbar_button(session, chains_panel, "chain.exportdrift", kloner_chain_name(2), kaintana_column_slot(chain_band, 2.0, 40.0, 8.0), theme, micro_font, 24.0)
-
-    let export_format_band = kaintana_rect(footer_inner.x + 520.0, footer_inner.y, 262.0, 34.0)
-    let export_glb_button = kaintana_immediate_toolbar_button(session, footer_panel, "export.glb", "GLB", kaintana_grid_cell(export_format_band, 4.0, 1.0, 0.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let export_obj_button = kaintana_immediate_toolbar_button(session, footer_panel, "export.obj", "OBJ", kaintana_grid_cell(export_format_band, 4.0, 1.0, 1.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let export_usdz_button = kaintana_immediate_toolbar_button(session, footer_panel, "export.usdz", "USDZ", kaintana_grid_cell(export_format_band, 4.0, 1.0, 2.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let export_vat_button = kaintana_immediate_toolbar_button(session, footer_panel, "export.vat", "VAT", kaintana_grid_cell(export_format_band, 4.0, 1.0, 3.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let export_mode_band = kaintana_rect(footer_inner.x + 792.0, footer_inner.y, 220.0, 34.0)
-    let export_anim_button = kaintana_immediate_toolbar_button(session, footer_panel, "export.anim", "ANIM", kaintana_grid_cell(export_mode_band, 3.0, 1.0, 0.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let export_instance_button = kaintana_immediate_toolbar_button(session, footer_panel, "export.instance", "INSTANCE", kaintana_grid_cell(export_mode_band, 3.0, 1.0, 1.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let export_split_button = kaintana_immediate_toolbar_button(session, footer_panel, "export.split", "SEPARATED", kaintana_grid_cell(export_mode_band, 3.0, 1.0, 2.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let target_band = kaintana_rect(footer_inner.x + 1026.0, footer_inner.y, 220.0, 34.0)
-    let target_generic_button = kaintana_immediate_toolbar_button(session, footer_panel, "target.generic", "GENERIC", kaintana_grid_cell(target_band, 3.0, 1.0, 0.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let target_unreal_button = kaintana_immediate_toolbar_button(session, footer_panel, "target.unreal", "UNREAL", kaintana_grid_cell(target_band, 3.0, 1.0, 1.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-    let target_unity_button = kaintana_immediate_toolbar_button(session, footer_panel, "target.unity", "UNITY", kaintana_grid_cell(target_band, 3.0, 1.0, 2.0, 0.0, 8.0, 0.0), theme, micro_font, 22.0)
-
-    let settings_menu = kaintana_menu_create(session, "menu.kloner.settings")
-    let _menu_write = kaintana_menu_add_item(session, settings_menu, kaintana_menu_item("menu.write", "Write Export Preview", 701))
-    let _menu_reference = kaintana_menu_add_item(session, settings_menu, kaintana_menu_item("menu.reference", "Inspect Reference Spec", 702))
-    let _menu_theme = kaintana_menu_add_item(session, settings_menu, kaintana_menu_item("menu.theme", "Keep Oxide Theme", 703))
-    let settings_popover = kaintana_popover_spec("popover.kloner.settings", 274.0, 108.0, -12.0, 10.0)
-    let browser_popover = kaintana_popover_spec("popover.kloner.browser", 360.0, 150.0, -18.0, 12.0)
-
-    let _proof_click = kaintana_click_node(session, mode_single_button)
-    while kaintana_poll_event(session) == 1:
-        if kaintana_button_activated(session, mode_single_button) == 1:
-            active_mode = set_active_mode(authority, KLONER_MODE_SINGLE)
-            status_text = "pointer // single seed armed"
-
-    let _focus_play = kaintana_focus_node(session, play_button)
-    let _play_press = kloner_press_key(action_session, "Enter")
-    if kaintana_action_activated(session, action_session, play_button, "transport.play") == 1:
-        current_time_ms = 4180
-        status_text = "transport // timeline engaged"
-    let _play_release = kloner_release_key(action_session, "Enter")
-
-    let _focus_grid = kaintana_focus_node(session, mode_grid_button)
-    let _grid_press = kloner_press_key(action_session, "KeyG")
-    if kaintana_action_activated(session, action_session, mode_grid_button, "mode.grid") == 1:
-        active_mode = set_active_mode(authority, KLONER_MODE_GRID)
-    let _grid_release = kloner_release_key(action_session, "KeyG")
-
-    let _focus_radial = kaintana_focus_node(session, mode_radial_button)
-    let _radial_press = kloner_press_key(action_session, "KeyR")
-    if kaintana_action_activated(session, action_session, mode_radial_button, "mode.radial") == 1:
-        active_mode = set_active_mode(authority, KLONER_MODE_RADIAL)
-        status_text = "mode // radial crown from reference rhythm"
-    let _radial_release = kloner_release_key(action_session, "KeyR")
-
-    let _focus_chain = kaintana_focus_node(session, chain_crown_swarm)
-    let _chain_press = kloner_press_key(action_session, "Digit2")
-    if kaintana_action_activated(session, action_session, chain_crown_swarm, "chain.crown") == 1:
-        active_chain = set_active_chain(authority, 1)
-    let _chain_release = kloner_release_key(action_session, "Digit2")
-
-    let _focus_browse = kaintana_focus_node(session, browse_button)
-    let _browse_press = kloner_press_key(action_session, "KeyB")
-    if kaintana_action_activated(session, action_session, browse_button, "library.browse") == 1:
-        show_reference_browser = 1
-        status_text = "reference // mounted " + reference_asset_label
-        let _popover_open = kaintana_popover_open(session, browse_button, browser_popover)
-    let _browse_release = kloner_release_key(action_session, "KeyB")
-
-    let _focus_vat = kaintana_focus_node(session, export_vat_button)
-    let _vat_press = kloner_press_key(action_session, "KeyV")
-    if kaintana_action_activated(session, action_session, export_vat_button, "export.vat") == 1:
-        active_export = set_active_export(authority, KLONER_EXPORT_FORMAT_VAT)
-    let _vat_release = kloner_release_key(action_session, "KeyV")
-
-    let _focus_instance = kaintana_focus_node(session, export_instance_button)
-    let _instance_press = kloner_press_key(action_session, "KeyI")
-    if kaintana_action_activated(session, action_session, export_instance_button, "export.instance") == 1:
-        export_mode = KLONER_EXPORT_MODE_INSTANCE
-    let _instance_release = kloner_release_key(action_session, "KeyI")
-
-    let _focus_unreal = kaintana_focus_node(session, target_unreal_button)
-    let _unreal_press = kloner_press_key(action_session, "KeyU")
-    if kaintana_action_activated(session, action_session, target_unreal_button, "target.unreal") == 1:
-        target_engine = KLONER_TARGET_UNREAL
-    let _unreal_release = kloner_release_key(action_session, "KeyU")
-
-    let _focus_settings = kaintana_focus_node(session, settings_button)
-    let _settings_press = kloner_press_key(action_session, "KeyS")
-    if kaintana_action_activated(session, action_session, settings_button, "service.settings") == 1:
-        let _menu_open = kaintana_menu_open_below_node(session, settings_menu, settings_button, 10.0)
-        let _popover_open = kaintana_popover_open(session, settings_button, settings_popover)
-        status_text = "settings // export deck live"
-    let _settings_release = kloner_release_key(action_session, "KeyS")
-
-    let _focus_export = kaintana_focus_node(session, export_commit_button)
-    let _export_intent = kloner_pump_agent_intent(action_session, "export.commit", "bake vat preview from KCloner reference shell")
-    if kaintana_action_activated(session, action_session, export_commit_button, "export.commit") == 1:
-        dialog_id = kaintana_dialog_request(session, "confirm", "Commit Export Preview", "Write a VAT-oriented preview artifact from the faithful Kain deck.")
-        let _dialog_response = kaintana_dialog_respond(session, dialog_id, 207, "export-preview-written")
-        dialog_result = kaintana_dialog_poll_response(session)
-        status_text = "export // preview synthesized"
-    let _axis = kloner_pump_axis(action_session, 6.0)
-    let orbit_value = kaintana_action_axis_value(action_session, "preview.orbit")
-
-    spacing_y = kloner_key_sample(1, current_time_ms, 1.4)
-    radial_radius = kloner_key_sample(0, current_time_ms, 6.0)
-
-    let clone_total = kloner_clone_total(active_mode, grid_x, grid_y, grid_z, radial_count, linear_count)
-    let _clone_total = set_clone_total(authority, clone_total)
-    let headline = kloner_headline(active_mode, active_chain, active_export, clone_total)
-    let preview_hash_seed = hash_quad32(active_mode, active_chain, active_export, clone_total)
-    let preview_hash = set_preview_hash(authority, kloner_hash_lane(preview_hash_seed))
-    let export_signature = kloner_export_signature(hash_pair32(preview_hash, dialog_result + 19))
-    let _clipboard = kaintana_clipboard_copy_text(session, settings.export_preview_path)
-
-    let state_text = kloner_state_snapshot_text(headline, distribution_mode, export_mode, target_engine, orbit_value, reference_lines, reference_bytes, dialog_result, preview_hash, export_signature)
-    let export_preview = kloner_export_preview_json(reference_asset_label, active_mode, distribution_mode, active_export, export_mode, target_engine, active_chain, clone_total, current_time_ms, preview_hash, export_signature, grid_x, grid_y, grid_z, spacing_x, spacing_y, spacing_z, radial_count, radial_radius, linear_count)
-    fs_write_text(settings.state_path, state_text)
+    scene.spacing_y = kloner_key_sample(1, state.current_time_ms, scene.spacing_y)
+    scene.radial_radius = kloner_key_sample(0, state.current_time_ms, scene.radial_radius)
+    state = kloner_state_with_scene(authority, state, scene)
+    let headline = kloner_headline(state.active_mode, state.active_chain, state.active_export, state.clone_total)
+    let export_preview = kloner_export_preview_json(reference, state, scene)
+    fs_write_text(settings.state_path, kloner_state_snapshot_text(headline, state, reference))
     fs_atomic_write_text(settings.export_preview_path, export_preview)
 
-    let _left_title = kaintana_retained_label(session, left_panel, "left.title", "CLONER STRUCTURE", kaintana_rect(left_inner.x, left_inner.y, left_inner.width, 22.0), theme, badge_font, 18.0)
-    let _left_copy = kaintana_retained_muted_label(session, left_panel, "left.copy", "Reference faithful: mode rail, modifier library, asset intake, export posture.", kaintana_rect(left_inner.x, left_inner.y + 90.0, left_inner.width, 46.0), theme, micro_font, 14.0)
-    let _library_title = kaintana_retained_label(session, left_panel, "left.library", "MODIFIER LIBRARY", kaintana_rect(left_inner.x, left_inner.y + 122.0, left_inner.width, 22.0), theme, badge_font, 18.0)
-    let _asset_title = kaintana_retained_label(session, left_panel, "left.asset", "REFERENCE ASSET", kaintana_rect(left_inner.x, left_inner.y + 378.0, left_inner.width, 22.0), theme, badge_font, 18.0)
-    let _asset_card = kaintana_primitive_fill(session, left_panel, "left.asset.card", kaintana_rect(left_inner.x, left_inner.y + 406.0, left_inner.width, 126.0), theme.shell_red, theme.shell_green, theme.shell_blue)
-    let _asset_name = kaintana_primitive_text(session, left_panel, "left.asset.name", reference_asset_label, kaintana_rect(left_inner.x + 12.0, left_inner.y + 420.0, left_inner.width - 24.0, 18.0), theme.ink_red, theme.ink_green, theme.ink_blue, body_font, 16.0)
-    let _asset_ref = kaintana_primitive_text(session, left_panel, "left.asset.ref", "source_lines=" + str(reference_lines) + " // bytes=" + str(reference_bytes), kaintana_rect(left_inner.x + 12.0, left_inner.y + 444.0, left_inner.width - 24.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, micro_font, 12.0)
-    let _asset_dist = kaintana_primitive_text(session, left_panel, "left.asset.dist", "distribution=" + kloner_distribution_name(distribution_mode) + " // auto_scale=" + str(normalize_scale), kaintana_rect(left_inner.x + 12.0, left_inner.y + 466.0, left_inner.width - 24.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, micro_font, 12.0)
-    let _asset_status = kaintana_primitive_text(session, left_panel, "left.asset.status", status_text, kaintana_rect(left_inner.x + 12.0, left_inner.y + 492.0, left_inner.width - 24.0, 24.0), theme.signal_red, theme.signal_green, theme.signal_blue, micro_font, 13.0)
+    let dialog_id = kaintana_dialog_request(session, "export", "Commit Kloner Export", "Write preview payload for " + kloner_export_format_name(state.active_export))
+    let _dialog_response = kaintana_dialog_respond(session, dialog_id, 207, "export committed")
+    let dialog_result = kaintana_dialog_poll_response(session)
+    state = kloner_state_with_dialog(state, dialog_result, "export // preview payload committed")
+    fs_write_text(settings.state_path, kloner_state_snapshot_text(headline, state, reference))
+    let _clipboard = kaintana_clipboard_copy_text(session, settings.export_preview_path)
+    let _agent_export = kloner_pump_agent_intent(action_session, "export.commit", "commit kloner export preview")
 
-    let _viewport_title = kaintana_retained_label(session, viewport_surface, "viewport.title", "FAITHFUL WORKSTATION PREVIEW", kaintana_rect(viewport_inner.x, viewport_inner.y, viewport_inner.width, 30.0), theme, title_font, 24.0)
-    let _viewport_subtitle = kaintana_retained_muted_label(session, viewport_surface, "viewport.subtitle", "The viewport is Kain-authored: clone math, chain timing, variant spread, and export bias all live in source.", kaintana_rect(viewport_inner.x, viewport_inner.y + 36.0, viewport_inner.width, 32.0), theme, micro_font, 15.0)
-    let _viewport_headline = kaintana_retained_label(session, viewport_surface, "viewport.headline", headline, kaintana_rect(viewport_inner.x, viewport_inner.y + 80.0, viewport_inner.width, 24.0), theme, body_font, 18.0)
-    let plot_rect = kaintana_rect(viewport_inner.x, viewport_inner.y + 118.0, viewport_inner.width, viewport_inner.height - 164.0)
-    let _grid = kloner_draw_viewport_grid(session, viewport_surface, plot_rect, theme)
-    let preview_count = int_min(clone_total, KLONER_MAX_PREVIEW_CLONES)
-    let clone_index = 0
-    while clone_index < preview_count:
-        let pose = kloner_clone_pose(active_mode, distribution_mode, active_chain, current_time_ms, clone_index, grid_x, grid_y, grid_z, spacing_x, spacing_y, spacing_z, radial_count, radial_radius, linear_count)
-        let _draw = kloner_draw_clone(session, viewport_surface, plot_rect, clone_index, pose, theme, micro_font)
-        clone_index = clone_index + 1
-    let _viewport_metric = kaintana_immediate_metric(session, viewport_surface, "viewport.metric", "preview.clones", str(preview_count) + " / " + str(clone_total), kaintana_rect(viewport_inner.x, viewport_inner.y + viewport_inner.height - 28.0, 240.0, 18.0), theme, micro_font, 13.0)
-    let _viewport_hash = kaintana_immediate_metric(session, viewport_surface, "viewport.hash", "preview.hash", str(preview_hash), kaintana_rect(viewport_inner.x + 254.0, viewport_inner.y + viewport_inner.height - 28.0, 240.0, 18.0), theme, micro_font, 13.0)
-    let _viewport_signature = kaintana_immediate_metric(session, viewport_surface, "viewport.sig", "export.sig", str(export_signature), kaintana_rect(viewport_inner.x + 508.0, viewport_inner.y + viewport_inner.height - 28.0, 240.0, 18.0), theme, micro_font, 13.0)
-
-    let _seq_title = kaintana_retained_label(session, sequencer_panel, "seq.title", "CHAIN TIMELINE", kaintana_rect(sequencer_inner.x, sequencer_inner.y, sequencer_inner.width, 22.0), theme, badge_font, 18.0)
-    let _seq_copy = kaintana_retained_muted_label(session, sequencer_panel, "seq.copy", "KCloner parity lane: chained durations, keyed radius/scale tracks, transport owner, and split export intent.", kaintana_rect(sequencer_inner.x, sequencer_inner.y + 28.0, sequencer_inner.width, 24.0), theme, micro_font, 13.0)
-    let timeline_rect = kaintana_rect(sequencer_inner.x, sequencer_inner.y + 72.0, sequencer_inner.width, 72.0)
-    let _timeline_back = kaintana_primitive_fill(session, sequencer_panel, "seq.timeline.back", timeline_rect, theme.shell_red, theme.shell_green, theme.shell_blue)
-    let total_duration_ms = kloner_total_duration_ms()
-    let cursor_x = timeline_rect.x + (timeline_rect.width * (Float(current_time_ms) / Float(total_duration_ms)))
-    let segment_index = 0
-    while segment_index < KLONER_SEGMENT_COUNT:
-        let key_x = timeline_rect.x + 14.0 + (Float(segment_index) * ((timeline_rect.width - 28.0) / Float(KLONER_SEGMENT_COUNT - 1)))
-        let _tick = kaintana_primitive_fill(session, sequencer_panel, "seq.tick." + str(segment_index), kaintana_rect(key_x, timeline_rect.y + 8.0, 1.0, timeline_rect.height - 16.0), theme.panel_red + 12, theme.panel_green + 12, theme.panel_blue + 12)
-        segment_index = segment_index + 1
-    let chain_a_rect = kaintana_rect(timeline_rect.x + 12.0, timeline_rect.y + 16.0, (timeline_rect.width - 24.0) * (Float(kloner_chain_duration_ms(0)) / Float(total_duration_ms)), 14.0)
-    let chain_b_rect = kaintana_rect(chain_a_rect.x + chain_a_rect.width + 6.0, timeline_rect.y + 16.0, (timeline_rect.width - 30.0) * (Float(kloner_chain_duration_ms(1)) / Float(total_duration_ms)), 14.0)
-    let chain_c_rect = kaintana_rect(chain_b_rect.x + chain_b_rect.width + 6.0, timeline_rect.y + 16.0, timeline_rect.x + timeline_rect.width - (chain_b_rect.x + chain_b_rect.width + 18.0), 14.0)
-    let _chain_a = kaintana_primitive_fill(session, sequencer_panel, "seq.chain.a", chain_a_rect, theme.signal_red, theme.signal_green, theme.signal_blue)
-    let _chain_b = kaintana_primitive_fill(session, sequencer_panel, "seq.chain.b", chain_b_rect, theme.accent_red, theme.accent_green, theme.accent_blue)
-    let _chain_c = kaintana_primitive_fill(session, sequencer_panel, "seq.chain.c", chain_c_rect, 214, 132, 255)
-    let _playhead = kaintana_primitive_fill(session, sequencer_panel, "seq.playhead", kaintana_rect(cursor_x, timeline_rect.y + 6.0, 3.0, timeline_rect.height - 12.0), theme.ink_red, theme.ink_green, theme.ink_blue)
-    let _time_text = kaintana_primitive_text(session, sequencer_panel, "seq.time", str(Float(current_time_ms) / 1000.0) + "s / " + str(Float(total_duration_ms) / 1000.0) + "s", kaintana_rect(timeline_rect.x + 12.0, timeline_rect.y + 42.0, 240.0, 18.0), theme.ink_red, theme.ink_green, theme.ink_blue, micro_font, 12.0)
-    let _key_text = kaintana_primitive_text(session, sequencer_panel, "seq.keys", "keys: radius=" + str(4) + " pulse=" + str(4) + " code=" + str(4), kaintana_rect(timeline_rect.x + 268.0, timeline_rect.y + 42.0, 240.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, micro_font, 12.0)
-    let _seq_metric_chain = kaintana_immediate_metric(session, sequencer_panel, "seq.metric.chain", "active.chain", kloner_chain_name(active_chain), kaintana_rect(sequencer_inner.x, sequencer_inner.y + 160.0, 280.0, 18.0), theme, micro_font, 13.0)
-    let _seq_metric_track = kaintana_immediate_metric(session, sequencer_panel, "seq.metric.track", "radial.radius", str(radial_radius), kaintana_rect(sequencer_inner.x + 294.0, sequencer_inner.y + 160.0, 220.0, 18.0), theme, micro_font, 13.0)
-    let _seq_metric_orbit = kaintana_immediate_metric(session, sequencer_panel, "seq.metric.orbit", "orbit.axis", str(orbit_value), kaintana_rect(sequencer_inner.x + 528.0, sequencer_inner.y + 160.0, 220.0, 18.0), theme, micro_font, 13.0)
-
-    let _chains_title = kaintana_retained_label(session, chains_panel, "chains.title", "CHAIN STACK", kaintana_rect(chains_inner.x, chains_inner.y, chains_inner.width, 22.0), theme, badge_font, 18.0)
-    let _chains_copy = kaintana_retained_muted_label(session, chains_panel, "chains.copy", "The original operator lives on duration-aware stacks. This Kain version keeps the same idea but makes the logic inspectable in-source.", kaintana_rect(chains_inner.x, chains_inner.y + 104.0, chains_inner.width, 44.0), theme, micro_font, 14.0)
-    let slot_rect = kaintana_rect(chains_inner.x, chains_inner.y + 162.0, chains_inner.width, 146.0)
-    let chain_slot = 0
-    while chain_slot < kloner_chain_modifier_count(active_chain):
-        let modifier_kind = kloner_chain_modifier_kind(active_chain, chain_slot)
-        let card = kaintana_column_slot(slot_rect, Float(chain_slot), 30.0, 8.0)
-        let _card = kaintana_primitive_fill(session, chains_panel, "chains.card." + str(chain_slot), card, theme.shell_red, theme.shell_green, theme.shell_blue)
-        let _card_rule = kaintana_primitive_fill(session, chains_panel, "chains.card.rule." + str(chain_slot), kaintana_rect(card.x, card.y, 4.0, card.height), kloner_modifier_accent_r(modifier_kind), kloner_modifier_accent_g(modifier_kind), kloner_modifier_accent_b(modifier_kind))
-        let _card_label = kaintana_primitive_text(session, chains_panel, "chains.card.label." + str(chain_slot), "0" + str(chain_slot + 1) + " // " + kloner_modifier_name(modifier_kind), kaintana_rect(card.x + 12.0, card.y + 4.0, card.width - 24.0, 18.0), theme.ink_red, theme.ink_green, theme.ink_blue, micro_font, 13.0)
-        chain_slot = chain_slot + 1
-    let _chains_metric_duration = kaintana_immediate_metric(session, chains_panel, "chains.duration", "duration.ms", str(kloner_chain_duration_ms(active_chain)), kaintana_rect(chains_inner.x, chains_inner.y + 320.0, chains_inner.width, 18.0), theme, micro_font, 13.0)
-
-    let selected_modifier_kind = kloner_chain_modifier_kind(active_chain, 1)
-    let _inspector_title = kaintana_retained_label(session, inspector_panel, "inspector.title", "PARAMETERS", kaintana_rect(inspector_inner.x, inspector_inner.y, inspector_inner.width, 22.0), theme, badge_font, 18.0)
-    let _inspector_mod = kaintana_retained_label(session, inspector_panel, "inspector.mod", kloner_modifier_name(selected_modifier_kind), kaintana_rect(inspector_inner.x, inspector_inner.y + 34.0, inspector_inner.width, 24.0), theme, body_font, 18.0)
-    let _inspector_family = kaintana_retained_muted_label(session, inspector_panel, "inspector.family", "family=" + kloner_family_name(kloner_modifier_family(selected_modifier_kind)) + " // axis=" + kloner_modifier_axis(selected_modifier_kind), kaintana_rect(inspector_inner.x, inspector_inner.y + 60.0, inspector_inner.width, 22.0), theme, micro_font, 13.0)
-    let _slider_speed = kaintana_immediate_slider(session, inspector_panel, "inspector.speed", "speed", kloner_modifier_speed(selected_modifier_kind) * 100.0, 0.0, 400.0, kaintana_rect(inspector_inner.x, inspector_inner.y + 104.0, inspector_inner.width, 62.0), theme, body_font, 16.0)
-    let _slider_amount = kaintana_immediate_slider(session, inspector_panel, "inspector.amount", "amount", kloner_modifier_amount(selected_modifier_kind) * 100.0, 0.0, 150.0, kaintana_rect(inspector_inner.x, inspector_inner.y + 176.0, inspector_inner.width, 62.0), theme, body_font, 16.0)
-    let _slider_key = kaintana_immediate_slider(session, inspector_panel, "inspector.key", "key.track", kloner_key_sample(3, current_time_ms, 0.44) * 100.0, 0.0, 100.0, kaintana_rect(inspector_inner.x, inspector_inner.y + 248.0, inspector_inner.width, 62.0), theme, body_font, 16.0)
-    let _chart_total = kaintana_immediate_chart_bar(session, inspector_panel, "inspector.chart.total", "clone_total", Float(clone_total), 128.0, kaintana_rect(inspector_inner.x, inspector_inner.y + 326.0, inspector_inner.width, 54.0), theme, body_font, 16.0, theme.signal_red, theme.signal_green, theme.signal_blue)
-    let _chart_signature = kaintana_immediate_chart_bar(session, inspector_panel, "inspector.chart.sig", "export_sig", Float(kloner_abs_int(export_signature % 1000)), 1000.0, kaintana_rect(inspector_inner.x, inspector_inner.y + 388.0, inspector_inner.width, 54.0), theme, body_font, 16.0, theme.accent_red, theme.accent_green, theme.accent_blue)
-    let _metric_mode = kaintana_immediate_metric(session, inspector_panel, "inspector.metric.mode", "mode", kloner_mode_name(active_mode), kaintana_rect(inspector_inner.x, inspector_inner.y + 456.0, inspector_inner.width, 18.0), theme, micro_font, 13.0)
-    let _metric_export = kaintana_immediate_metric(session, inspector_panel, "inspector.metric.export", "export", kloner_export_format_name(active_export) + " / " + kloner_export_mode_name(export_mode), kaintana_rect(inspector_inner.x, inspector_inner.y + 482.0, inspector_inner.width, 18.0), theme, micro_font, 13.0)
-    let _metric_target = kaintana_immediate_metric(session, inspector_panel, "inspector.metric.target", "target", kloner_target_name(target_engine), kaintana_rect(inspector_inner.x, inspector_inner.y + 508.0, inspector_inner.width, 18.0), theme, micro_font, 13.0)
-    let _metric_ref = kaintana_immediate_metric(session, inspector_panel, "inspector.metric.ref", "reference", reference_asset_label, kaintana_rect(inspector_inner.x, inspector_inner.y + 534.0, inspector_inner.width, 18.0), theme, micro_font, 13.0)
-
-    let _footer_status = kaintana_retained_muted_label(session, footer_panel, "footer.status", status_text, kaintana_rect(footer_inner.x, footer_inner.y + 4.0, 490.0, 18.0), theme, micro_font, 13.0)
-    let _footer_transport = kaintana_immediate_metric(session, footer_panel, "footer.transport", "transport.ms", str(current_time_ms), kaintana_rect(footer_inner.x, footer_inner.y + 34.0, 170.0, 18.0), theme, micro_font, 13.0)
-    let _footer_dialog = kaintana_immediate_metric(session, footer_panel, "footer.dialog", "dialog", str(dialog_result), kaintana_rect(footer_inner.x + 184.0, footer_inner.y + 34.0, 120.0, 18.0), theme, micro_font, 13.0)
-    let _footer_menu = kaintana_immediate_metric(session, footer_panel, "footer.menu", "menu.items", str(kaintana_menu_item_count(session, settings_menu)), kaintana_rect(footer_inner.x + 318.0, footer_inner.y + 34.0, 140.0, 18.0), theme, micro_font, 13.0)
-    let _footer_trace = kaintana_immediate_metric(session, footer_panel, "footer.trace", "input.events", str(kaintana_action_event_count(action_session)), kaintana_rect(footer_inner.x + 472.0, footer_inner.y + 34.0, 160.0, 18.0), theme, micro_font, 13.0)
-    let _footer_clip = kaintana_immediate_metric(session, footer_panel, "footer.clip", "clipboard", str(len(kaintana_clipboard_text(session))), kaintana_rect(footer_inner.x + 646.0, footer_inner.y + 34.0, 140.0, 18.0), theme, micro_font, 13.0)
-    let _footer_file = kaintana_immediate_metric(session, footer_panel, "footer.file", "preview.file", kloner_path_leaf(settings.export_preview_path), kaintana_rect(footer_inner.x + 800.0, footer_inner.y + 34.0, 240.0, 18.0), theme, micro_font, 13.0)
-
-    if kaintana_popover_is_open(session, settings_button, settings_popover) == 1:
-        let popover_bounds = kaintana_rect(top_inner.x + top_inner.width - 314.0, top_inner.y + 44.0, 274.0, 108.0)
-        let settings_region = kaintana_popover_region(session, top_bar, settings_button, "SETTINGS", popover_bounds, settings_popover, theme, badge_font, 18.0)
-        let _popover_a = kaintana_retained_muted_label(session, settings_region, "popover.a", "target=" + kloner_target_name(target_engine) + " // format=" + kloner_export_format_name(active_export), kaintana_rect(popover_bounds.x + 14.0, popover_bounds.y + 36.0, popover_bounds.width - 28.0, 18.0), theme, micro_font, 13.0)
-        let _popover_b = kaintana_retained_muted_label(session, settings_region, "popover.b", "export_path=" + kloner_path_leaf(settings.export_preview_path), kaintana_rect(popover_bounds.x + 14.0, popover_bounds.y + 58.0, popover_bounds.width - 28.0, 18.0), theme, micro_font, 13.0)
-        let _popover_c = kaintana_retained_muted_label(session, settings_region, "popover.c", "entangle.mode=" + str(active_mode) + " // menu.command0=" + str(kaintana_menu_item_command(session, settings_menu, 0)), kaintana_rect(popover_bounds.x + 14.0, popover_bounds.y + 80.0, popover_bounds.width - 28.0, 18.0), theme, micro_font, 13.0)
-
-    if show_reference_browser == 1 and kaintana_popover_is_open(session, browse_button, browser_popover) == 1:
-        let browser_bounds = kaintana_rect(viewport_inner.x + viewport_inner.width - 370.0, viewport_inner.y + 18.0, 350.0, 150.0)
-        let browser_region = kaintana_popover_region(session, viewport_surface, browse_button, "REFERENCE BROWSER", browser_bounds, browser_popover, theme, badge_font, 18.0)
-        let _browser_a = kaintana_retained_label(session, browser_region, "browser.file", reference_asset_label, kaintana_rect(browser_bounds.x + 14.0, browser_bounds.y + 34.0, browser_bounds.width - 28.0, 20.0), theme, body_font, 16.0)
-        let _browser_b = kaintana_retained_muted_label(session, browser_region, "browser.lines", "lines=" + str(reference_lines) + " // bytes=" + str(reference_bytes), kaintana_rect(browser_bounds.x + 14.0, browser_bounds.y + 58.0, browser_bounds.width - 28.0, 18.0), theme, micro_font, 13.0)
-        let _browser_c = kaintana_retained_muted_label(session, browser_region, "browser.note", "The legacy TSX stays the source of truth while the authored Kain lane absorbs the same operator vocabulary.", kaintana_rect(browser_bounds.x + 14.0, browser_bounds.y + 84.0, browser_bounds.width - 28.0, 40.0), theme, micro_font, 13.0)
-
-    let _focus_ring = kaintana_render_focus_ring(session, export_commit_button, theme, 4.0)
+    let _left = kloner_render_left_panel(session, nodes, layout, theme, fonts, state, reference)
+    let camera = kloner_viewport_camera(state, scene)
+    let plot_rect = kloner_render_viewport_scaffold(session, nodes, layout, theme, fonts, headline, state, camera)
+    let _grid = kloner_draw_viewport_grid(session, nodes.viewport_surface, plot_rect, theme, camera, fonts.micro_font)
+    let _clones = kloner_draw_preview_clones(session, nodes.viewport_surface, plot_rect, theme, fonts, state, scene, camera)
+    let _sequence = kloner_render_sequencer_panel(session, nodes, layout, theme, fonts, state, scene)
+    let _chains = kloner_render_chain_panel(session, nodes, layout, theme, fonts, state)
+    let _inspector = kloner_render_inspector_panel(session, nodes, layout, theme, fonts, state, scene, reference, camera)
+    let _footer = kloner_render_footer(session, nodes, layout, theme, fonts, state)
+    let _overlays = kloner_render_overlays(session, nodes, layout, theme, fonts, state, reference, settings)
+    let _focus_ring = kaintana_render_focus_ring(session, controls.export_commit_button, theme, 4.0)
     let _commit = kaintana_commit_frame(session)
-    let frame_report = kloner_frame_report_text(settings, theme, headline, status_text, active_mode, active_chain, active_export, export_mode, target_engine, clone_total, current_time_ms, preview_hash, export_signature, dialog_result, action_session)
-    fs_write_text(settings.frame_report_path, frame_report)
-    fs_write_text(settings.snapshot_path, state_text)
-    fs_write_text(settings.input_trace_path, kaintana_action_trace_text(action_session))
-    let _scene_report = kaintana_desktop_scene_write_report(settings.scene_report_path)
-    let _popover_close = kaintana_popover_close(session, settings_button, settings_popover)
 
-    if !kloner_mode_valid(active_mode):
+    fs_write_text(settings.frame_report_path, kloner_frame_report_text(settings.theme_name, settings.vulkain_report_path, theme, headline, state, action_session))
+    fs_write_text(settings.snapshot_path, kloner_state_snapshot_text(headline, state, reference))
+    fs_write_text(settings.input_trace_path, kaintana_action_trace_text(action_session))
+    let _desktop_report = kaintana_desktop_scene_write_report(settings.scene_report_path)
+
+    if !kloner_validate_mode(state.active_mode):
         return 20
-    if !kloner_clone_budget_valid(clone_total):
+    if !kloner_validate_clone_budget(state.clone_total):
         return 21
-    if !kloner_preview_hash_valid(preview_hash):
+    if !kloner_validate_preview_hash(state.preview_hash):
         return 22
-    if dialog_id <= 0 or dialog_result != 207:
+    if dialog_id <= 0 or state.dialog_result != 207:
         return 23
     if kaintana_active_menu(session) != settings_menu:
         return 24
     if kaintana_menu_item_count(session, settings_menu) != 3:
         return 25
-    if show_reference_browser != 1 or kaintana_popover_is_open(session, browse_button, browser_popover) != 1:
+    if state.show_reference_browser != 1 or kaintana_popover_is_open(session, controls.browse_button, browser_popover) != 1:
         return 26
     if kaintana_action_event_count(action_session) < 1:
         return 27
@@ -1168,7 +282,6 @@ fn main() -> Int:
     let host_status = kaintana_host_run_window(spec)
     let _host_report = kaintana_host_write_report(spec)
     let _host_shot = kaintana_host_write_screenshot(spec)
-    let _action_destroy = kaintana_action_session_destroy(action_session)
 
     if host_status != 0:
         return 30
@@ -1178,4 +291,20 @@ fn main() -> Int:
         return 32
     if !fs_exists(settings.screenshot_path):
         return 33
+
+    let vulkain_available = vulkain_probe()
+    if vulkain_available != 1:
+        fs_write_text(settings.scene_report_path, kloner_scene_report_text(state, scene, camera, vulkain_available, 0))
+        return 34
+    let vulkain_status = kloner_run_vulkain_preview(settings, state, scene, camera)
+    fs_write_text(settings.scene_report_path, kloner_scene_report_text(state, scene, camera, vulkain_available, vulkain_status))
+    if vulkain_status != 0:
+        return 35
+    if !fs_exists(settings.vulkain_report_path):
+        return 36
+
+    let _action_destroy = kaintana_action_session_destroy(action_session)
+    let shutdown_status = native_runtime_shutdown()
+    if shutdown_status != 0:
+        return 40
     return 0

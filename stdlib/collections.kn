@@ -1,3 +1,6 @@
+@extern
+fn abi_map_release(handle: Int) -> Int
+
 pub fn native_int_min(left: Int, right: Int) -> Int:
     if left < right:
         return left
@@ -124,6 +127,9 @@ pub fn string_int_map_get_or(map: StringIntMap, key: String, fallback: Int) -> I
         return fallback
     return value
 
+pub fn string_int_map_destroy(map: StringIntMap) -> Int:
+    return abi_map_release(map.handle)
+
 pub fn typed_map_new() -> StringIntMap:
     return string_int_map_new()
 
@@ -132,6 +138,9 @@ pub fn typed_map_set(map: StringIntMap, key: String, value: Int) -> StringIntMap
 
 pub fn typed_map_get(map: StringIntMap, key: String) -> Int:
     return string_int_map_get(map, key)
+
+pub fn typed_map_destroy(map: StringIntMap) -> Int:
+    return string_int_map_destroy(map)
 
 pub fn queue_create(capacity: Int) -> IntQueue:
     let safe_capacity = int_max(capacity, 1)

@@ -152,6 +152,7 @@ const char* abi_crypto_random_bytes_hex(int64_t length);
 const char* abi_crypto_sha256_text(const char* text, int64_t text_length);
 const char* abi_crypto_hmac_sha256_text(const char* key, int64_t key_length, const char* message, int64_t message_length);
 const char* abi_crypto_blake3_text(const char* text, int64_t text_length);
+int64_t abi_map_release(int64_t handle);
 
 #ifdef __cplusplus
 }

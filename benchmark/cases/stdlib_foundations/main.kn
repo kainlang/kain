@@ -43,6 +43,7 @@ fn main() -> Int:
     let _queue_destroy = queue_destroy(queue)
     let _pq_destroy = priority_queue_destroy(pq)
     let _bump_destroy = bump_allocator_destroy(bump)
+    let _metrics_destroy = typed_map_destroy(metrics)
 
     if acc != STDLIB_FOUNDATIONS_EXPECTED:
         return 1

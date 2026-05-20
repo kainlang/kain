@@ -3084,6 +3084,14 @@ const char* abi_crypto_blake3_text(const char* text, int64_t text_length) {
     return abi_crypto_hex_string_from_bytes(digest, ABI_BLAKE3_OUT_LEN);
 }
 
+int64_t abi_map_release(int64_t handle) {
+    if (handle == 0) {
+        return 0;
+    }
+    rc_release((void*)(intptr_t)handle);
+    return 0;
+}
+
 const char* abi_fs_hash_file(const char* path) {
     FILE* file = 0;
     KainNativeSha256 sha;
