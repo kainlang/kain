@@ -10242,6 +10242,9 @@ impl LlvmGenerator {
         self.emit("declare i32 @__kain_ownership_decay_helper(i8*)");
         self.emit("declare i32 @__kain_ownership_state(i8*)");
 
+        // LLVM math intrinsics used by compiler-owned numeric fast paths.
+        self.emit("declare double @llvm.floor.f64(double)");
+
         // StdLib
         self.emit_stdlib_externs();
         self.emit("");
@@ -12450,6 +12453,33 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    fn compile_numeric_floor_builtin(&mut self, arg: &Expr) -> KainResult<(String, String)> {
+        let (value, value_ty) = self.compile_expr(arg)?;
+        if !matches!(value_ty.as_str(), "double" | "i64" | "i32" | "i8" | "i1") {
+            return Err(KainError::codegen(
+                format!("floor expects numeric argument, found {}", value_ty),
+                arg.span(),
+            ));
+        }
+
+        let float_value = if value_ty == "double" {
+            value
+        } else {
+            self.cast_numeric_value(value, &value_ty, "double")?
+        };
+        let floored_float = self.next_reg();
+        self.emit(&format!(
+            "  {} = call double @llvm.floor.f64(double {})",
+            floored_float, float_value
+        ));
+        let floored_int = self.next_reg();
+        self.emit(&format!(
+            "  {} = fptosi double {} to i64",
+            floored_int, floored_float
+        ));
+        Ok((floored_int, "i64".to_string()))
+    }
+
     fn compile_numeric_abs_builtin(&mut self, arg: &Expr) -> KainResult<(String, String)> {
         let (value, value_ty) = self.compile_expr(arg)?;
         if value_ty == "double" {
@@ -12735,6 +12765,10 @@ impl LlvmGenerator {
             )? {
                 return Ok((result, "i64".to_string()));
             }
+        }
+
+        if func_name == "floor" && args.len() == 1 {
+            return self.compile_numeric_floor_builtin(&args[0].value);
         }
 
         if func_name == "abs" && args.len() == 1 {

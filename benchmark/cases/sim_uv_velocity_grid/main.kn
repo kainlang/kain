@@ -1,3 +1,5 @@
+use std::time
+
 fn snap(value: Float) -> Float:
     return (floor((value + 32.0) * 4096.0) / 4096.0) - 32.0
 
@@ -14,6 +16,7 @@ fn main() -> Int:
     let influence_radius: Float = cell_size * 3.0
     let influence_radius_sq: Float = influence_radius * influence_radius
     let inv_influence: Float = 1.0 / influence_radius
+    let benchmark_deadline: Int = deadline_millis(0)
 
     let mut px: ptr<Float> = alloc_zeroed(particle_count, "Float")
     let mut py: ptr<Float> = alloc_zeroed(particle_count, "Float")
@@ -106,6 +109,9 @@ fn main() -> Int:
                 gx = gx + 1
             gy = gy + 1
         step = step + 1
+
+    if deadline_elapsed(benchmark_deadline) == false:
+        return 2
 
     decay px
     decay py

@@ -1974,6 +1974,24 @@ fn probe() -> Float:
 }
 
 #[test]
+fn llvm_lowers_floor_builtin_with_llvm_intrinsic() {
+    let source = r#"
+fn probe(value: Float) -> Int:
+    return floor((value + 32.0) * 4096.0)
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare double @llvm.floor.f64(double)"));
+    assert!(llvm.contains("call double @llvm.floor.f64(double"));
+    assert!(llvm.contains("fptosi double"));
+    assert!(!llvm.contains("call i64 @kain_floor_i64"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "floor-builtin-lowering");
+}
+
+#[test]
 fn llvm_generates_integer_mod_and_bitwise_ops() {
     let source = r#"
 fn bit_ops(a: Int, b: Int) -> Int:
