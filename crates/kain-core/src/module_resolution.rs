@@ -2,6 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
+const STDLIB_FLAT_NESTED_ALIAS_PAIRS: &[(&str, &str)] = &[("graphics/shared", "graphics_shared")];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemModuleResolution {
     pub file_path: PathBuf,
@@ -39,12 +41,39 @@ pub fn find_stdlib_roots() -> Vec<PathBuf> {
     roots
 }
 
-pub fn resolve_stdlib_module_file(module_name: &str) -> Option<PathBuf> {
+pub fn canonical_stdlib_module_name(module_name: &str) -> String {
     let normalized_module_name = module_name.strip_prefix("native/").unwrap_or(module_name);
-    find_stdlib_roots()
-        .into_iter()
-        .map(|root| root.join(format!("{normalized_module_name}.kn")))
-        .find(|candidate| candidate.exists())
+    for (canonical_name, flat_name) in STDLIB_FLAT_NESTED_ALIAS_PAIRS {
+        if normalized_module_name == *flat_name {
+            return (*canonical_name).to_string();
+        }
+    }
+    normalized_module_name.to_string()
+}
+
+pub fn stdlib_module_lookup_names(module_name: &str) -> Vec<String> {
+    let normalized_module_name = module_name.strip_prefix("native/").unwrap_or(module_name);
+    let mut candidates = Vec::new();
+    push_unique_module_name(&mut candidates, normalized_module_name);
+    for (canonical_name, flat_name) in STDLIB_FLAT_NESTED_ALIAS_PAIRS {
+        if normalized_module_name == *canonical_name {
+            push_unique_module_name(&mut candidates, flat_name);
+        }
+    }
+    candidates
+}
+
+pub fn resolve_stdlib_module_file(module_name: &str) -> Option<PathBuf> {
+    let candidate_names = stdlib_module_lookup_names(module_name);
+    for root in find_stdlib_roots() {
+        for candidate_name in &candidate_names {
+            let candidate = root.join(format!("{candidate_name}.kn"));
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
 }
 
 pub fn resolve_filesystem_module_file(
@@ -158,6 +187,12 @@ fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
     }
 }
 
+fn push_unique_module_name(names: &mut Vec<String>, name: &str) {
+    if !names.iter().any(|existing| existing == name) {
+        names.push(name.to_string());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,5 +230,32 @@ mod tests {
         }
 
         assert_eq!(resolved, Some(actor_path));
+    }
+
+    #[test]
+    fn stdlib_flat_nested_alias_resolves_to_root_module_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let stdlib_dir = temp_dir.path().join("stdlib");
+        fs::create_dir_all(&stdlib_dir).unwrap();
+        let shared_path = stdlib_dir.join("graphics_shared.kn");
+        fs::write(
+            &shared_path,
+            "pub fn graphics_shared_ping() -> Int:\n    return 1\n",
+        )
+        .unwrap();
+
+        let previous_stdlib_path = env::var_os("KAIN_STDLIB_PATH");
+        env::set_var("KAIN_STDLIB_PATH", &stdlib_dir);
+
+        let resolved = resolve_stdlib_module_file("graphics/shared");
+        let canonical = canonical_stdlib_module_name("graphics_shared");
+
+        match previous_stdlib_path {
+            Some(previous) => env::set_var("KAIN_STDLIB_PATH", previous),
+            None => env::remove_var("KAIN_STDLIB_PATH"),
+        }
+
+        assert_eq!(resolved, Some(shared_path));
+        assert_eq!(canonical, "graphics/shared");
     }
 }

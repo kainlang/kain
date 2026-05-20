@@ -30,8 +30,7 @@ header = "../../native/vulkain_bridge.h"
 sources = ["../../native/vulkain_bridge.c"]
 include_paths = [
   "../../native",
-  "${env:VULKAN_SDK}/Include",
+  "${env:KAIN_PLATFORM_VULKAN_INCLUDE}",
 ]
 defines = ["_CRT_SECURE_NO_WARNINGS"]
 link_libs = ["user32"]
-

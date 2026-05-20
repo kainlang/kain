@@ -90,9 +90,9 @@ function Resolve-KainBinary {
 }
 
 if ($SkipShaderCompile) {
-    & $prebuildScript -SkipShaderCompile
+    & $prebuildScript -SkipShaderCompile -KainBin $KainBin
 } else {
-    & $prebuildScript
+    & $prebuildScript -KainBin $KainBin
 }
 
 $env:VULKAIN_BLADE_ROOT = $vulkainRoot
@@ -102,7 +102,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $exampleRoot ".kain\run") |
 New-Item -ItemType Directory -Force -Path $shaderOutDir | Out-Null
 $entry = Join-Path $exampleRoot "src\main.kn"
 $resolvedKain = Resolve-KainBinary -Requested $KainBin
-$spirvVal = Join-Path $env:VULKAN_SDK "Bin\spirv-val.exe"
+$spirvVal = $env:KAIN_PLATFORM_VULKAN_SPIRV_VAL
 
 if ($SkipShaderCompile) {
     if (!(Test-Path $fragmentSpv)) {

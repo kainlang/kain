@@ -1,5 +1,6 @@
 param(
     [string]$VulkanSdk = $env:VULKAN_SDK,
+    [string]$KainBin = $env:KAIN_BIN,
     [string]$Clang = "",
     [switch]$SkipShaderCompile
 )
@@ -14,6 +15,9 @@ $shaderRoot = Join-Path $nativeRoot "shaders"
 $gpuOut = Join-Path $bladeRoot ".kain\gpu\basic_window"
 $nativeOut = Join-Path $bladeRoot ".kain\native"
 $runOut = Join-Path $bladeRoot ".kain\run"
+$platformScript = Join-Path $bladeRoot "scripts\vulkan-platform.ps1"
+
+. $platformScript
 
 function Test-VulkainHostWindows {
     return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
@@ -37,16 +41,7 @@ function Get-VulkainDynamicLibraryName([string]$BaseName) {
     return "lib$BaseName.so"
 }
 
-if (!$VulkanSdk -or !(Test-Path $VulkanSdk)) {
-    $candidate = "C:\VulkanSDK\1.4.341.1"
-    if (Test-Path $candidate) {
-        $VulkanSdk = $candidate
-    } else {
-        throw "VULKAN_SDK is not set and no fallback Vulkan SDK was found."
-    }
-}
-$VulkanSdk = (Resolve-Path $VulkanSdk).Path
-$env:VULKAN_SDK = $VulkanSdk
+$platform = Sync-VulkainPlatformPackage -BladeRoot $bladeRoot -KainBin $KainBin -VulkanSdk $VulkanSdk
 
 if (!$Clang) {
     $bundled = Join-Path $repoRoot "toolchain\llvm\bin\clang.exe"
@@ -61,9 +56,9 @@ if (!$Clang) {
     }
 }
 
-$glslang = Join-Path $VulkanSdk "Bin\glslangValidator.exe"
-$spirvVal = Join-Path $VulkanSdk "Bin\spirv-val.exe"
-$vulkanInclude = Join-Path $VulkanSdk "Include"
+$glslang = $platform.GlslangPath
+$spirvVal = $platform.SpirvValPath
+$vulkanInclude = $platform.IncludeRoot
 
 New-Item -ItemType Directory -Force -Path $gpuOut | Out-Null
 New-Item -ItemType Directory -Force -Path $nativeOut | Out-Null
@@ -132,3 +127,4 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "[PASS] Vulkain vertex SPIR-V: $vertexSpv"
 Write-Host "[PASS] Vulkain fragment SPIR-V: $fragmentSpv"
 Write-Host "[PASS] Vulkain shared library: $sharedLibraryPath"
+Write-Host "[PASS] Vulkain platform lock: $($platform.LockPath)"

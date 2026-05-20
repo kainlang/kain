@@ -52,9 +52,9 @@ function Resolve-ExistingBazelKainBinary {
 }
 
 if ($SkipShaderCompile) {
-    & $prebuildScript -SkipShaderCompile
+    & $prebuildScript -SkipShaderCompile -KainBin $KainBin
 } else {
-    & $prebuildScript
+    & $prebuildScript -KainBin $KainBin
 }
 
 $env:VULKAIN_BLADE_ROOT = $vulkainRoot

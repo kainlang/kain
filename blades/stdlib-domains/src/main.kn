@@ -12,7 +12,9 @@ use std::http
 use std::tls
 use std::http2
 use std::process
+use std::gpu
 use std::graphics
+use std::graphics::shared
 use std::ui
 
 actor StdDomainActor:
@@ -104,22 +106,77 @@ fn main() -> Int:
         return 25
     let _graphics_destroy = graphics_session_destroy(graphics_session)
 
+    let compute_policy = gpu_resource_policy(
+        gpu_shared_memory_policy(
+            GPU_ACCESS_READ_WRITE,
+            GPU_QUEUE_COMPUTE | GPU_QUEUE_TRANSFER | GPU_QUEUE_HOST,
+            GPU_LAYOUT_STD430,
+            GPU_DESCRIPTOR_STORAGE_BUFFER
+        ),
+        GPU_BUFFER_USAGE_STORAGE | GPU_BUFFER_USAGE_TRANSFER_SRC | GPU_BUFFER_USAGE_TRANSFER_DST,
+        "stdlib.gpu.compute"
+    )
+    let compute_buffer = gpu_shared_buffer_zeroed(
+        "f32",
+        [4],
+        "f32",
+        "application/octet-stream",
+        compute_policy
+    )
+    if compute_buffer.byte_length != 16:
+        return 26
+    if gpu_has_flags(compute_buffer.policy.memory.residency_flags, GPU_RESIDENCY_ZERO_COPY) == false:
+        return 27
+    let compute_descriptor = gpu_buffer_descriptor(compute_buffer)
+    if json_get_string(compute_descriptor, "descriptor_kind") != GPU_DESCRIPTOR_STORAGE_BUFFER:
+        return 28
+
+    let vertex_resource = gpu_shared_buffer_zeroed(
+        "u32",
+        [4],
+        "u32",
+        "application/octet-stream",
+        graphics_shared_vertex_policy("stdlib.graphics.shared.vertex")
+    )
+    let vertex_buffer = graphics_shared_vertex_buffer(vertex_resource, 4)
+    if vertex_buffer.ready == false:
+        return 29
+
+    let image_resource = gpu_shared_image_zeroed(
+        2,
+        2,
+        4,
+        "HWC",
+        "rgba8",
+        "image/raw",
+        graphics_shared_sampled_image_policy("stdlib.graphics.shared.image")
+    )
+    let sampled_image = graphics_shared_sampled_image(image_resource, 0, GPU_STAGE_FRAGMENT)
+    if sampled_image.ready == false:
+        return 30
+
+    let preferred_backend = graphics_shared_preferred_backend()
+    if preferred_backend.backend.id == "":
+        return 31
+    if gpu_has_flags(preferred_backend.shared_residency_flags, GPU_RESIDENCY_SHARED) == false:
+        return 32
+
     let _ui_reset = ui_reset()
     let ui_session = ui_session_create("stdlib-domains", 320, 180)
     if ui_session <= 0:
-        return 26
+        return 33
     let node = ui_node_create(ui_session, "panel")
     if node <= 0:
-        return 27
+        return 34
     let _node_rect = ui_node_set_rect(ui_session, node, 8.0, 9.0, 120.0, 32.0)
     let _node_text = ui_node_set_text(ui_session, node, "std.ui")
     if ui_node_text(ui_session, node) != "std.ui":
-        return 28
+        return 35
     let _ui_destroy = ui_session_destroy(ui_session)
 
     if runtime_heap_validate() < 0:
-        return 29
+        return 36
     let shutdown = runtime_shutdown()
     if shutdown < 0:
-        return 30
+        return 37
     return 0

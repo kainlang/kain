@@ -166,6 +166,8 @@ What changed:
 - `fixtures/platform_sdk/tiny_math` is the tiny SDK proof fixture for header scan, lock determinism, generated typed thunk metadata, and stable negative-surface reasons before touching real Vulkan installs.
 - `blades/platform-package-smoke` is the tiny proof blade for the lane. Its script stages `tiny_math`, imports twice, byte-compares lock/report output, checks relocatable path rendering, verifies blocked callback/opaque/unsupported reasons, checks no public `call_typed` leak, then runs the Kain `std::platform` open/resolve/close smoke.
 - `blades/vulkain` now declares Vulkan as a platform package graph requirement in both `build.kn` and `KAIN.toml`; dispatch remains package metadata owned by `platform::vulkan`, not `runtime/native`.
+- `blades/vulkain` is now the first real dogfood consumer of that lane: `build-vulkain.ps1` imports `vulkan.lock`, derives headers/tools/loader DLL from the lock, exports `KAIN_PLATFORM_VULKAN_*` env, and the bridge now prefers the lock-derived loader path instead of hardcoding only `vulkan-1.dll`.
+- `crates/kain-run` now exports package-derived env such as `KAIN_PLATFORM_<PKG>_SDK_ROOT`, `_HEADER`, `_INCLUDE`, `_DLL`, `_IMPORT_LIB`, and `_REGISTRY`, so platform package facts can feed manifests and run units directly instead of living only in ad hoc scripts.
 
 Proof/validation:
 

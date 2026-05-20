@@ -531,10 +531,14 @@ static void vkn_free_shader_bytes(VulkainApp* app) {
     } while (0)
 
 static int32_t vkn_load_vulkan_loader(void) {
+    const char* loader_path = getenv("KAIN_PLATFORM_VULKAN_DLL");
+    if (!loader_path || !loader_path[0]) {
+        loader_path = "vulkan-1.dll";
+    }
     if (!g_vulkan_module) {
-        g_vulkan_module = LoadLibraryA("vulkan-1.dll");
+        g_vulkan_module = LoadLibraryA(loader_path);
         if (!g_vulkan_module) {
-            return vkn_fail_text("LoadLibraryA", "vulkan-1.dll");
+            return vkn_fail_text("LoadLibraryA", loader_path);
         }
     }
     VKN_LOAD_GLOBAL(vkGetInstanceProcAddr);

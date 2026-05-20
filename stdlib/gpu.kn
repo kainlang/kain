@@ -1,0 +1,440 @@
+use std::graphics
+use std::interop::bridge
+use std::math
+
+pub const GPU_STAGE_VERTEX: Int = 1
+pub const GPU_STAGE_FRAGMENT: Int = 2
+pub const GPU_STAGE_COMPUTE: Int = 4
+pub const GPU_STAGE_TASK: Int = 8
+pub const GPU_STAGE_MESH: Int = 16
+pub const GPU_STAGE_RAYGEN: Int = 32
+pub const GPU_STAGE_ANY_HIT: Int = 64
+pub const GPU_STAGE_CLOSEST_HIT: Int = 128
+pub const GPU_STAGE_MISS: Int = 256
+pub const GPU_STAGE_INTERSECTION: Int = 512
+pub const GPU_STAGE_CALLABLE: Int = 1024
+pub const GPU_STAGE_COPY: Int = 2048
+pub const GPU_STAGE_RESOLVE: Int = 4096
+pub const GPU_STAGE_ALL_GRAPHICS: Int = GPU_STAGE_VERTEX | GPU_STAGE_FRAGMENT | GPU_STAGE_TASK | GPU_STAGE_MESH
+pub const GPU_STAGE_ALL_RAYTRACING: Int = GPU_STAGE_RAYGEN | GPU_STAGE_ANY_HIT | GPU_STAGE_CLOSEST_HIT | GPU_STAGE_MISS | GPU_STAGE_INTERSECTION | GPU_STAGE_CALLABLE
+pub const GPU_STAGE_ALL: Int = GPU_STAGE_ALL_GRAPHICS | GPU_STAGE_COMPUTE | GPU_STAGE_ALL_RAYTRACING | GPU_STAGE_COPY | GPU_STAGE_RESOLVE
+
+pub const GPU_QUEUE_GRAPHICS: Int = 1
+pub const GPU_QUEUE_COMPUTE: Int = 2
+pub const GPU_QUEUE_TRANSFER: Int = 4
+pub const GPU_QUEUE_PRESENT: Int = 8
+pub const GPU_QUEUE_HOST: Int = 16
+pub const GPU_QUEUE_ASYNC: Int = 32
+
+pub const GPU_ACCESS_READ: Int = 1
+pub const GPU_ACCESS_WRITE: Int = 2
+pub const GPU_ACCESS_ATOMIC: Int = 4
+pub const GPU_ACCESS_PERSISTENT_MAP: Int = 8
+pub const GPU_ACCESS_READ_WRITE: Int = GPU_ACCESS_READ | GPU_ACCESS_WRITE
+
+pub const GPU_RESIDENCY_HOST_VISIBLE: Int = 1
+pub const GPU_RESIDENCY_HOST_COHERENT: Int = 2
+pub const GPU_RESIDENCY_DEVICE_LOCAL: Int = 4
+pub const GPU_RESIDENCY_SHARED: Int = 8
+pub const GPU_RESIDENCY_IMPORTED: Int = 16
+pub const GPU_RESIDENCY_READBACK: Int = 32
+pub const GPU_RESIDENCY_UPLOAD: Int = 64
+pub const GPU_RESIDENCY_PERSISTENT: Int = 128
+pub const GPU_RESIDENCY_ZERO_COPY: Int = 256
+pub const GPU_RESIDENCY_LAZILY_ALLOCATED: Int = 512
+pub const GPU_RESIDENCY_SPARSE: Int = 1024
+
+pub const GPU_BUFFER_USAGE_TRANSFER_SRC: Int = 1
+pub const GPU_BUFFER_USAGE_TRANSFER_DST: Int = 2
+pub const GPU_BUFFER_USAGE_STORAGE: Int = 4
+pub const GPU_BUFFER_USAGE_UNIFORM: Int = 8
+pub const GPU_BUFFER_USAGE_VERTEX: Int = 16
+pub const GPU_BUFFER_USAGE_INDEX: Int = 32
+pub const GPU_BUFFER_USAGE_INDIRECT: Int = 64
+pub const GPU_BUFFER_USAGE_ACCELERATION_STRUCTURE: Int = 128
+pub const GPU_BUFFER_USAGE_SHADER_BINDING_TABLE: Int = 256
+
+pub const GPU_IMAGE_USAGE_TRANSFER_SRC: Int = 1
+pub const GPU_IMAGE_USAGE_TRANSFER_DST: Int = 2
+pub const GPU_IMAGE_USAGE_SAMPLED: Int = 4
+pub const GPU_IMAGE_USAGE_STORAGE: Int = 8
+pub const GPU_IMAGE_USAGE_COLOR_ATTACHMENT: Int = 16
+pub const GPU_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT: Int = 32
+pub const GPU_IMAGE_USAGE_INPUT_ATTACHMENT: Int = 64
+pub const GPU_IMAGE_USAGE_PRESENT: Int = 128
+pub const GPU_IMAGE_USAGE_TRANSIENT: Int = 256
+
+pub const GPU_DESCRIPTOR_RAW_BUFFER: String = "raw_buffer"
+pub const GPU_DESCRIPTOR_RAW_IMAGE: String = "raw_image"
+pub const GPU_DESCRIPTOR_STORAGE_BUFFER: String = "storage_buffer"
+pub const GPU_DESCRIPTOR_UNIFORM_BUFFER: String = "uniform_buffer"
+pub const GPU_DESCRIPTOR_SAMPLED_IMAGE: String = "sampled_image"
+pub const GPU_DESCRIPTOR_STORAGE_IMAGE: String = "storage_image"
+pub const GPU_DESCRIPTOR_ACCELERATION_STRUCTURE: String = "acceleration_structure"
+
+pub const GPU_LAYOUT_TIGHT: String = "tight"
+pub const GPU_LAYOUT_PACKED: String = "packed"
+pub const GPU_LAYOUT_STD140: String = "std140"
+pub const GPU_LAYOUT_STD430: String = "std430"
+pub const GPU_LAYOUT_CBUFFER: String = "cbuffer"
+pub const GPU_LAYOUT_RASTER_HWC: String = "raster_hwc"
+
+pub struct GpuBackendState:
+    id: String
+    supported: Int
+    available: Int
+    status: String
+
+pub struct GpuMemoryPolicy:
+    residency_flags: Int
+    access_flags: Int
+    queue_flags: Int
+    layout_kind: String
+    descriptor_kind: String
+
+pub struct GpuResourcePolicy:
+    memory: GpuMemoryPolicy
+    usage_flags: Int
+    debug_name: String
+
+pub struct GpuBindingPlan:
+    binding: Int
+    descriptor_kind: String
+    stage_flags: Int
+    access_flags: Int
+    queue_flags: Int
+
+pub struct GpuBuffer:
+    handle: Any
+    info: Any
+    byte_length: Int
+    element_type: String
+    element_size: Int
+    element_count: Int
+    policy: GpuResourcePolicy
+
+pub struct GpuImage:
+    handle: Any
+    info: Any
+    byte_length: Int
+    width: Int
+    height: Int
+    channels: Int
+    policy: GpuResourcePolicy
+
+pub fn gpu_has_flags(value: Int, flags: Int) -> Bool:
+    return (value & flags) == flags
+
+pub fn gpu_align_up_bytes(value: Int, alignment_bytes: Int) -> Int:
+    return align_up_int(value, alignment_bytes)
+
+pub fn gpu_layout(size_bytes: Int, alignment_bytes: Int) -> GpuLayoutInfo:
+    return gpu_layout_info(size_bytes, alignment_bytes)
+
+pub fn gpu_std140_vec3(value: Vec3) -> Std140<Std140Vec3>:
+    return std140_vec3(value)
+
+pub fn gpu_std140_vec4(value: Vec4) -> Std140<Vec4>:
+    return std140_vec4(value)
+
+pub fn gpu_std140_mat3(value: Mat3) -> Std140<Std140Mat3>:
+    return std140_mat3(value)
+
+pub fn gpu_std140_mat4(value: Mat4) -> Std140<Mat4>:
+    return std140_mat4(value)
+
+pub fn gpu_std430_vec3a(value: Vec3A) -> Std430<Vec3A>:
+    return std430_vec3a(value)
+
+pub fn gpu_std430_vec4(value: Vec4) -> Std430<Vec4>:
+    return std430_vec4(value)
+
+pub fn gpu_cbuffer_mat4(value: Mat4) -> CBuffer<Mat4>:
+    return cbuffer_mat4(value)
+
+pub fn gpu_std140_mat4_alignment_bytes(value: Std140<Mat4>) -> Int:
+    return std140_mat4_alignment_bytes(value)
+
+pub fn gpu_std140_mat4_stride_bytes(value: Std140<Mat4>) -> Int:
+    return std140_mat4_stride_bytes(value)
+
+pub fn gpu_memory_policy(residency_flags: Int, access_flags: Int, queue_flags: Int, layout_kind: String, descriptor_kind: String) -> GpuMemoryPolicy:
+    return GpuMemoryPolicy {
+        residency_flags: residency_flags,
+        access_flags: access_flags,
+        queue_flags: queue_flags,
+        layout_kind: layout_kind,
+        descriptor_kind: descriptor_kind
+    }
+
+pub fn gpu_shared_memory_policy(access_flags: Int, queue_flags: Int, layout_kind: String, descriptor_kind: String) -> GpuMemoryPolicy:
+    return gpu_memory_policy(
+        GPU_RESIDENCY_HOST_VISIBLE | GPU_RESIDENCY_HOST_COHERENT | GPU_RESIDENCY_SHARED | GPU_RESIDENCY_ZERO_COPY,
+        access_flags,
+        queue_flags,
+        layout_kind,
+        descriptor_kind
+    )
+
+pub fn gpu_device_local_memory_policy(access_flags: Int, queue_flags: Int, layout_kind: String, descriptor_kind: String) -> GpuMemoryPolicy:
+    return gpu_memory_policy(
+        GPU_RESIDENCY_DEVICE_LOCAL,
+        access_flags,
+        queue_flags,
+        layout_kind,
+        descriptor_kind
+    )
+
+pub fn gpu_upload_memory_policy(access_flags: Int, queue_flags: Int, layout_kind: String, descriptor_kind: String) -> GpuMemoryPolicy:
+    return gpu_memory_policy(
+        GPU_RESIDENCY_HOST_VISIBLE | GPU_RESIDENCY_HOST_COHERENT | GPU_RESIDENCY_UPLOAD,
+        access_flags,
+        queue_flags,
+        layout_kind,
+        descriptor_kind
+    )
+
+pub fn gpu_readback_memory_policy(access_flags: Int, queue_flags: Int, layout_kind: String, descriptor_kind: String) -> GpuMemoryPolicy:
+    return gpu_memory_policy(
+        GPU_RESIDENCY_HOST_VISIBLE | GPU_RESIDENCY_HOST_COHERENT | GPU_RESIDENCY_READBACK,
+        access_flags,
+        queue_flags,
+        layout_kind,
+        descriptor_kind
+    )
+
+pub fn gpu_resource_policy(memory: GpuMemoryPolicy, usage_flags: Int, debug_name: String) -> GpuResourcePolicy:
+    return GpuResourcePolicy {
+        memory: memory,
+        usage_flags: usage_flags,
+        debug_name: debug_name
+    }
+
+pub fn gpu_binding_plan(binding: Int, descriptor_kind: String, stage_flags: Int, access_flags: Int, queue_flags: Int) -> GpuBindingPlan:
+    return GpuBindingPlan {
+        binding: binding,
+        descriptor_kind: descriptor_kind,
+        stage_flags: stage_flags,
+        access_flags: access_flags,
+        queue_flags: queue_flags
+    }
+
+pub fn gpu_storage_buffer_binding(binding: Int, stage_flags: Int, access_flags: Int, queue_flags: Int) -> GpuBindingPlan:
+    return gpu_binding_plan(binding, GPU_DESCRIPTOR_STORAGE_BUFFER, stage_flags, access_flags, queue_flags)
+
+pub fn gpu_uniform_buffer_binding(binding: Int, stage_flags: Int, queue_flags: Int) -> GpuBindingPlan:
+    return gpu_binding_plan(binding, GPU_DESCRIPTOR_UNIFORM_BUFFER, stage_flags, GPU_ACCESS_READ, queue_flags)
+
+pub fn gpu_sampled_image_binding(binding: Int, stage_flags: Int, queue_flags: Int) -> GpuBindingPlan:
+    return gpu_binding_plan(binding, GPU_DESCRIPTOR_SAMPLED_IMAGE, stage_flags, GPU_ACCESS_READ, queue_flags)
+
+pub fn gpu_storage_image_binding(binding: Int, stage_flags: Int, access_flags: Int, queue_flags: Int) -> GpuBindingPlan:
+    return gpu_binding_plan(binding, GPU_DESCRIPTOR_STORAGE_IMAGE, stage_flags, access_flags, queue_flags)
+
+pub fn gpu_descriptor_requires_read_only(descriptor_kind: String) -> Bool:
+    return descriptor_kind == GPU_DESCRIPTOR_UNIFORM_BUFFER or descriptor_kind == GPU_DESCRIPTOR_SAMPLED_IMAGE
+
+pub fn gpu_policy_valid(policy: GpuResourcePolicy) -> Bool:
+    if gpu_descriptor_requires_read_only(policy.memory.descriptor_kind):
+        return gpu_has_flags(policy.memory.access_flags, GPU_ACCESS_WRITE) == false
+    return true
+
+pub fn gpu_binding_plan_valid(plan: GpuBindingPlan) -> Bool:
+    if gpu_descriptor_requires_read_only(plan.descriptor_kind):
+        return gpu_has_flags(plan.access_flags, GPU_ACCESS_WRITE) == false
+    return true
+
+pub fn gpu_backend_state(backend_id: String) -> GpuBackendState:
+    return GpuBackendState {
+        id: backend_id,
+        supported: graphics_backend_supported(backend_id),
+        available: graphics_backend_available(backend_id),
+        status: graphics_backend_status(backend_id)
+    }
+
+pub fn gpu_backend_preferred() -> GpuBackendState:
+    let vulkan = gpu_backend_state("vulkan")
+    if vulkan.available != 0:
+        return vulkan
+    let d3d12 = gpu_backend_state("d3d12")
+    if d3d12.available != 0:
+        return d3d12
+    let auto_backend = gpu_backend_state("auto")
+    if auto_backend.available != 0:
+        return auto_backend
+    let software = gpu_backend_state("software")
+    if software.available != 0:
+        return software
+    if vulkan.supported != 0:
+        return vulkan
+    if d3d12.supported != 0:
+        return d3d12
+    if auto_backend.supported != 0:
+        return auto_backend
+    return software
+
+pub fn gpu_element_size_bytes(element_type: String) -> Int:
+    if element_type == "bool" or element_type == "u8" or element_type == "uint8" or element_type == "i8" or element_type == "int8":
+        return 1
+    if element_type == "u16" or element_type == "uint16" or element_type == "i16" or element_type == "int16":
+        return 2
+    if element_type == "u32" or element_type == "uint32" or element_type == "i32" or element_type == "int32" or element_type == "f32" or element_type == "float32":
+        return 4
+    if element_type == "u64" or element_type == "uint64" or element_type == "i64" or element_type == "int64" or element_type == "f64" or element_type == "float64":
+        return 8
+    return 0
+
+pub fn gpu_element_count(shape: Any) -> Int:
+    if len(shape) <= 0:
+        return 0
+    let index = 0
+    let count = 1
+    while index < len(shape):
+        count = count * shape[index]
+        index = index + 1
+    return count
+
+pub fn gpu_required_byte_length(element_type: String, shape: Any) -> Int:
+    return gpu_element_size_bytes(element_type) * gpu_element_count(shape)
+
+pub fn gpu_raster_byte_length(width: Int, height: Int, channels: Int) -> Int:
+    if width <= 0 or height <= 0 or channels <= 0:
+        return 0
+    return width * height * channels
+
+pub fn gpu_zero_bytes(byte_length: Int) -> Array<Int>:
+    let bytes = []
+    let index = 0
+    while index < byte_length:
+        bytes.push(0)
+        index = index + 1
+    return bytes
+
+pub fn gpu_import_shared_buffer(handle: Any, policy: GpuResourcePolicy) -> GpuBuffer:
+    let info = interop_shared_buffer_info(handle)
+    return GpuBuffer {
+        handle: handle,
+        info: info,
+        byte_length: info.byte_length,
+        element_type: info.element_type,
+        element_size: info.element_size,
+        element_count: info.element_count,
+        policy: policy
+    }
+
+pub fn gpu_shared_buffer_from_bytes(bytes: Any, element_type: String, shape: Any, format: String, mime_type: String, policy: GpuResourcePolicy) -> GpuBuffer:
+    let handle = interop_shared_buffer_from_bytes(bytes, element_type, shape, format, mime_type)
+    return gpu_import_shared_buffer(handle, policy)
+
+pub fn gpu_shared_buffer_zeroed(element_type: String, shape: Any, format: String, mime_type: String, policy: GpuResourcePolicy) -> GpuBuffer:
+    return gpu_shared_buffer_from_bytes(
+        gpu_zero_bytes(gpu_required_byte_length(element_type, shape)),
+        element_type,
+        shape,
+        format,
+        mime_type,
+        policy
+    )
+
+pub fn gpu_shared_buffer_bytes(buffer: GpuBuffer) -> Any:
+    return interop_shared_buffer_bytes(buffer.handle)
+
+pub fn gpu_shared_buffer_replace_bytes(buffer: GpuBuffer, bytes: Any) -> GpuBuffer:
+    let _replace = interop_shared_buffer_replace_bytes(buffer.handle, bytes)
+    return gpu_import_shared_buffer(buffer.handle, buffer.policy)
+
+pub fn gpu_import_shared_image(handle: Any, policy: GpuResourcePolicy) -> GpuImage:
+    let info = interop_shared_image_info(handle)
+    return GpuImage {
+        handle: handle,
+        info: info,
+        byte_length: info.byte_length,
+        width: info.width,
+        height: info.height,
+        channels: info.channels,
+        policy: policy
+    }
+
+pub fn gpu_shared_image_from_bytes(bytes: Any, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String, policy: GpuResourcePolicy) -> GpuImage:
+    let handle = interop_shared_image_from_bytes(bytes, width, height, channels, layout, pixel_format, mime_type)
+    return gpu_import_shared_image(handle, policy)
+
+pub fn gpu_shared_image_zeroed(width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String, policy: GpuResourcePolicy) -> GpuImage:
+    return gpu_shared_image_from_bytes(
+        gpu_zero_bytes(gpu_raster_byte_length(width, height, channels)),
+        width,
+        height,
+        channels,
+        layout,
+        pixel_format,
+        mime_type,
+        policy
+    )
+
+pub fn gpu_shared_image_bytes(image: GpuImage) -> Any:
+    return interop_shared_image_bytes(image.handle)
+
+pub fn gpu_shared_image_replace_bytes(image: GpuImage, bytes: Any) -> GpuImage:
+    let _replace = interop_shared_image_replace_bytes(image.handle, bytes)
+    return gpu_import_shared_image(image.handle, image.policy)
+
+pub fn gpu_buffer_descriptor(buffer: GpuBuffer) -> Any:
+    let payload = json_object_new()
+    json_object_set(payload, "kind", "buffer")
+    json_object_set(payload, "debug_name", buffer.policy.debug_name)
+    json_object_set(payload, "byte_length", buffer.byte_length)
+    json_object_set(payload, "element_type", buffer.element_type)
+    json_object_set(payload, "element_size", buffer.element_size)
+    json_object_set(payload, "element_count", buffer.element_count)
+    json_object_set(payload, "shape", buffer.info.shape)
+    json_object_set(payload, "strides", buffer.info.strides)
+    json_object_set(payload, "format", buffer.info.format)
+    json_object_set(payload, "mime_type", buffer.info.mime_type)
+    json_object_set(payload, "source_runtime", buffer.info.source_runtime)
+    json_object_set(payload, "source_backend", buffer.info.source_backend)
+    json_object_set(payload, "ownership", buffer.info.ownership)
+    json_object_set(payload, "labels", buffer.info.labels)
+    json_object_set(payload, "descriptor_kind", buffer.policy.memory.descriptor_kind)
+    json_object_set(payload, "layout_kind", buffer.policy.memory.layout_kind)
+    json_object_set(payload, "usage_flags", buffer.policy.usage_flags)
+    json_object_set(payload, "access_flags", buffer.policy.memory.access_flags)
+    json_object_set(payload, "queue_flags", buffer.policy.memory.queue_flags)
+    json_object_set(payload, "residency_flags", buffer.policy.memory.residency_flags)
+    json_object_set(payload, "policy_valid", gpu_policy_valid(buffer.policy))
+    return payload
+
+pub fn gpu_image_descriptor(image: GpuImage) -> Any:
+    let payload = json_object_new()
+    json_object_set(payload, "kind", "image")
+    json_object_set(payload, "debug_name", image.policy.debug_name)
+    json_object_set(payload, "byte_length", image.byte_length)
+    json_object_set(payload, "width", image.width)
+    json_object_set(payload, "height", image.height)
+    json_object_set(payload, "channels", image.channels)
+    json_object_set(payload, "layout", image.info.layout)
+    json_object_set(payload, "pixel_format", image.info.pixel_format)
+    json_object_set(payload, "mime_type", image.info.mime_type)
+    json_object_set(payload, "source_runtime", image.info.source_runtime)
+    json_object_set(payload, "source_backend", image.info.source_backend)
+    json_object_set(payload, "ownership", image.info.ownership)
+    json_object_set(payload, "labels", image.info.labels)
+    json_object_set(payload, "shape", image.info.shape)
+    json_object_set(payload, "strides", image.info.strides)
+    json_object_set(payload, "descriptor_kind", image.policy.memory.descriptor_kind)
+    json_object_set(payload, "layout_kind", image.policy.memory.layout_kind)
+    json_object_set(payload, "usage_flags", image.policy.usage_flags)
+    json_object_set(payload, "access_flags", image.policy.memory.access_flags)
+    json_object_set(payload, "queue_flags", image.policy.memory.queue_flags)
+    json_object_set(payload, "residency_flags", image.policy.memory.residency_flags)
+    json_object_set(payload, "policy_valid", gpu_policy_valid(image.policy))
+    return payload
+
+pub fn gpu_binding_descriptor(binding: GpuBindingPlan) -> Any:
+    let payload = json_object_new()
+    json_object_set(payload, "binding", binding.binding)
+    json_object_set(payload, "descriptor_kind", binding.descriptor_kind)
+    json_object_set(payload, "stage_flags", binding.stage_flags)
+    json_object_set(payload, "access_flags", binding.access_flags)
+    json_object_set(payload, "queue_flags", binding.queue_flags)
+    json_object_set(payload, "binding_valid", gpu_binding_plan_valid(binding))
+    return payload

@@ -3,6 +3,7 @@ use kain_core::ast::{
     TypeAlias, Visibility,
 };
 use kain_core::diagnostics::SpanMapper;
+use kain_core::module_resolution::canonical_stdlib_module_name;
 use kain_core::{Lexer, Parser, Span};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -1063,6 +1064,8 @@ fn build_cookbook(modules: &[StdlibModule]) -> Vec<CookbookEntry> {
         ("Build deterministic hashes and fingerprints", "std::hash"),
         ("Use actors and mailbox helpers", "std::actor"),
         ("Create native graphics sessions", "std::graphics"),
+        ("Use GPU shared-residency contracts", "std::gpu"),
+        ("Author graphics-shared bindings", "std::graphics::shared"),
         ("Author UI handles and component helpers", "std::ui"),
         (
             "Use math vectors, matrices, quaternions, and colors",
@@ -1201,7 +1204,7 @@ fn visibility_name(visibility: Visibility) -> String {
 fn module_name(options: &StdlibMapOptions, path: &Path) -> String {
     let relative = path.strip_prefix(&options.stdlib_root).unwrap_or(path);
     let without_ext = relative.with_extension("");
-    without_ext.to_string_lossy().replace('\\', "/")
+    canonical_stdlib_module_name(&without_ext.to_string_lossy().replace('\\', "/"))
 }
 
 fn qualify(module: &str, name: &str) -> String {

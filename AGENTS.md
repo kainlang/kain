@@ -21,7 +21,9 @@ use std::tls
 use std::http2
 use std::process
 use std::platform
+use std::gpu
 use std::graphics
+use std::graphics::shared
 use std::ui
 use std::math
 use c::quantum_native_bridge

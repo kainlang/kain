@@ -200,6 +200,8 @@ pub struct RunPlatformLock {
     pub symbol_source: String,
     pub discovered_symbol_count: usize,
     pub blocked_symbol_count: usize,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -617,6 +619,7 @@ fn prepare_run_platform_locks(
             },
             &prepare,
         )?;
+        let platform_env = build_platform_env_exports(workspace_root, &output.lock);
         locks.push(RunPlatformLock {
             package: output.lock.package_name.clone(),
             provider: output.lock.provider.clone(),
@@ -632,6 +635,7 @@ fn prepare_run_platform_locks(
             symbol_source: output.lock.chosen_symbol_source,
             discovered_symbol_count: output.lock.discovered_symbols.len(),
             blocked_symbol_count: output.lock.blocked_symbols.len(),
+            env: platform_env,
         });
     }
     Ok(locks)
@@ -665,6 +669,119 @@ fn attach_platform_run_inputs(unit: &mut RunUnit, locks: &[RunPlatformLock]) {
         unit.env
             .insert("KAIN_PLATFORM_GENERATED_ROOTS".to_string(), value);
     }
+    for lock in locks {
+        for (key, value) in &lock.env {
+            unit.env.insert(key.clone(), value.clone());
+        }
+    }
+}
+
+fn build_platform_env_exports(
+    workspace_root: &Path,
+    lock: &kain_c_ffi::PlatformPackageLock,
+) -> BTreeMap<String, String> {
+    let mut env = BTreeMap::new();
+    let prefix = format!(
+        "KAIN_PLATFORM_{}",
+        sanitize_platform_env_segment(&lock.package_name)
+    );
+    if let Some(root) = lock
+        .roots_searched
+        .first()
+        .and_then(|path| platform_lock_path_value(workspace_root, path))
+    {
+        env.insert(format!("{prefix}_SDK_ROOT"), root);
+    }
+    if let Some(header) = lock
+        .resolved_headers
+        .first()
+        .and_then(|path| platform_lock_path_value(workspace_root, &path.path))
+    {
+        env.insert(format!("{prefix}_HEADER"), header.clone());
+        if let Some(include_root) = derive_platform_include_root(&header) {
+            env.insert(format!("{prefix}_INCLUDE"), include_root);
+        }
+    }
+    if let Some(library) = lock
+        .resolved_libraries
+        .first()
+        .and_then(|path| platform_lock_path_value(workspace_root, &path.path))
+    {
+        env.insert(format!("{prefix}_DLL"), library);
+    }
+    if let Some(import_library) = lock
+        .resolved_import_libraries
+        .first()
+        .and_then(|path| platform_lock_path_value(workspace_root, &path.path))
+    {
+        env.insert(format!("{prefix}_IMPORT_LIB"), import_library);
+    }
+    if let Some(registry) = lock
+        .registry_files
+        .first()
+        .and_then(|path| platform_lock_path_value(workspace_root, &path.path))
+    {
+        env.insert(format!("{prefix}_REGISTRY"), registry);
+    }
+    env
+}
+
+fn sanitize_platform_env_segment(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_uppercase());
+        } else {
+            out.push('_');
+        }
+    }
+    out
+}
+
+fn platform_lock_path_value(workspace_root: &Path, raw: &str) -> Option<String> {
+    let path = decode_platform_lock_path(workspace_root, raw)?;
+    Some(path.to_string_lossy().into_owned())
+}
+
+fn decode_platform_lock_path(workspace_root: &Path, raw: &str) -> Option<PathBuf> {
+    if raw.is_empty() {
+        return None;
+    }
+    if raw == "." {
+        return Some(workspace_root.to_path_buf());
+    }
+    if let Some(rest) = raw.strip_prefix("//?/") {
+        let normalized = if cfg!(windows) {
+            rest.replace('/', "\\")
+        } else {
+            rest.to_string()
+        };
+        return Some(PathBuf::from(normalized));
+    }
+    let candidate = PathBuf::from(raw);
+    if candidate.is_absolute() {
+        Some(candidate)
+    } else {
+        Some(workspace_root.join(candidate))
+    }
+}
+
+fn derive_platform_include_root(header: &str) -> Option<String> {
+    let header_path = PathBuf::from(header);
+    let parent = header_path.parent()?;
+    let stem = header_path.file_stem()?.to_string_lossy();
+    let parent_leaf = parent.file_name().map(|value| value.to_string_lossy());
+    if parent_leaf
+        .as_ref()
+        .is_some_and(|leaf| leaf.eq_ignore_ascii_case(&stem))
+    {
+        return parent
+            .parent()
+            .unwrap_or(parent)
+            .to_str()
+            .map(|value| value.to_string());
+    }
+    parent.to_str().map(|value| value.to_string())
 }
 
 fn push_unique_unit_input(unit: &mut RunUnit, input: PathBuf) {
@@ -2018,6 +2135,43 @@ mod tests {
         LOCK.get_or_init(|| Mutex::new(()))
     }
 
+    fn write_tiny_math_fixture_sdk(root: &Path) {
+        let sdk = root.join("fixtures").join("platform_sdk").join("tiny_math");
+        let header = sdk.join("include").join("tiny_math.h");
+        let library_name = if cfg!(windows) {
+            "tiny_math.dll"
+        } else if cfg!(target_os = "macos") {
+            "libtiny_math.dylib"
+        } else {
+            "libtiny_math.so"
+        };
+        let library = sdk.join("bin").join(library_name);
+        kfs::create_dir_all(header.parent().unwrap()).unwrap();
+        kfs::create_dir_all(library.parent().unwrap()).unwrap();
+        kfs::write_text(
+            &header,
+            r#"
+typedef struct TinyPair {
+    int left;
+    int right;
+} TinyPair;
+typedef struct TinyOpaque TinyOpaque;
+typedef int (*tiny_math_callback)(int value);
+int tiny_add(int left, int right);
+double tiny_gain(double value);
+int tiny_apply_callback(int value, tiny_math_callback callback);
+TinyOpaque* tiny_context(void);
+TinyPair tiny_make_pair(int left, int right);
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &library,
+            b"fake dynamic library bytes for run-plan platform env tests",
+        )
+        .unwrap();
+    }
+
     #[test]
     fn parses_run_targets() {
         assert_eq!(RunTarget::parse("auto").unwrap(), RunTarget::Auto);
@@ -2183,6 +2337,7 @@ KAIN_RUN_TEST_FLAG = "enabled"
     #[test]
     fn run_plan_reports_build_graph_platform_locks() {
         let temp = tempfile::tempdir().unwrap();
+        write_tiny_math_fixture_sdk(temp.path());
         let entry = temp.path().join("src").join("main.kn");
         kfs::create_dir_all(entry.parent().unwrap()).unwrap();
         kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
@@ -2235,6 +2390,15 @@ fn build(ctx: BuildContext) -> BuildGraph:
             .iter()
             .any(|path| path.ends_with("build.kn")));
         assert!(plan.units[0].env.contains_key("KAIN_PLATFORM_LOCKS"));
+        assert!(plan.units[0]
+            .env
+            .contains_key("KAIN_PLATFORM_TINY_MATH_INCLUDE"));
+        assert!(plan.units[0]
+            .env
+            .get("KAIN_PLATFORM_TINY_MATH_INCLUDE")
+            .is_some_and(|value| value
+                .replace('\\', "/")
+                .ends_with("fixtures/platform_sdk/tiny_math/include")));
     }
 
     #[test]

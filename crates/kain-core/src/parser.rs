@@ -623,6 +623,82 @@ impl<'a> Parser<'a> {
         Ok(name)
     }
 
+    fn parse_use_path_segment(&mut self) -> KainResult<String> {
+        let span = self.current_span();
+        let segment = match self.peek_kind() {
+            TokenKind::Ident(s) => Some(s),
+            TokenKind::SelfLower => Some("self".to_string()),
+            TokenKind::SelfUpper => Some("Self".to_string()),
+            TokenKind::Fn => Some("fn".to_string()),
+            TokenKind::Let => Some("let".to_string()),
+            TokenKind::Mut => Some("mut".to_string()),
+            TokenKind::Var => Some("var".to_string()),
+            TokenKind::Const => Some("const".to_string()),
+            TokenKind::If => Some("if".to_string()),
+            TokenKind::Else => Some("else".to_string()),
+            TokenKind::Elif => Some("elif".to_string()),
+            TokenKind::Match => Some("match".to_string()),
+            TokenKind::For => Some("for".to_string()),
+            TokenKind::While => Some("while".to_string()),
+            TokenKind::Loop => Some("loop".to_string()),
+            TokenKind::Break => Some("break".to_string()),
+            TokenKind::Continue => Some("continue".to_string()),
+            TokenKind::Return => Some("return".to_string()),
+            TokenKind::Await => Some("await".to_string()),
+            TokenKind::In => Some("in".to_string()),
+            TokenKind::With => Some("with".to_string()),
+            TokenKind::As => Some("as".to_string()),
+            TokenKind::TypeKw => Some("type".to_string()),
+            TokenKind::Struct => Some("struct".to_string()),
+            TokenKind::Enum => Some("enum".to_string()),
+            TokenKind::Trait => Some("trait".to_string()),
+            TokenKind::Impl => Some("impl".to_string()),
+            TokenKind::Pub => Some("pub".to_string()),
+            TokenKind::Mod => Some("mod".to_string()),
+            TokenKind::Use => Some("use".to_string()),
+            TokenKind::True => Some("true".to_string()),
+            TokenKind::False => Some("false".to_string()),
+            TokenKind::None => Some("none".to_string()),
+            TokenKind::Component => Some("component".to_string()),
+            TokenKind::Shader => Some("shader".to_string()),
+            TokenKind::Actor => Some("actor".to_string()),
+            TokenKind::State => Some("state".to_string()),
+            TokenKind::Spawn => Some("spawn".to_string()),
+            TokenKind::Send => Some("send".to_string()),
+            TokenKind::Receive => Some("receive".to_string()),
+            TokenKind::Emit => Some("emit".to_string()),
+            TokenKind::Comptime => Some("comptime".to_string()),
+            TokenKind::Macro => Some("macro".to_string()),
+            TokenKind::Vertex => Some("vertex".to_string()),
+            TokenKind::Fragment => Some("fragment".to_string()),
+            TokenKind::Collapse => Some("collapse".to_string()),
+            TokenKind::Observe => Some("observe".to_string()),
+            TokenKind::Decay => Some("decay".to_string()),
+            TokenKind::Test => Some("test".to_string()),
+            TokenKind::Pure => Some("Pure".to_string()),
+            TokenKind::Io => Some("IO".to_string()),
+            TokenKind::AsyncKw => Some("async".to_string()),
+            TokenKind::Async => Some("Async".to_string()),
+            TokenKind::Gpu => Some("GPU".to_string()),
+            TokenKind::Reactive => Some("Reactive".to_string()),
+            TokenKind::Unsafe => Some("Unsafe".to_string()),
+            _ => None,
+        };
+
+        if let Some(segment) = segment {
+            self.advance();
+            return Ok(segment);
+        }
+
+        Err(self.parser_error(
+            format!(
+                "Expected import path segment, got {}",
+                crate::error::token_kind_to_user_string(&self.peek_kind())
+            ),
+            span,
+        ))
+    }
+
     fn parse_path_segments_after(&mut self, first: String) -> KainResult<Vec<String>> {
         let mut segments = vec![first];
         while self.check(TokenKind::ColonColon) {
@@ -1148,7 +1224,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Use)?;
 
         let mut path = Vec::new();
-        path.push(self.parse_ident()?);
+        path.push(self.parse_use_path_segment()?);
 
         // Parse path: use foo::bar::baz OR use foo/bar/baz
         while self.check(TokenKind::ColonColon) || self.check(TokenKind::Slash) {
@@ -1165,7 +1241,7 @@ impl<'a> Parser<'a> {
                 }));
             }
 
-            path.push(self.parse_ident()?);
+            path.push(self.parse_use_path_segment()?);
         }
 
         // Check for alias: use foo::bar as baz
