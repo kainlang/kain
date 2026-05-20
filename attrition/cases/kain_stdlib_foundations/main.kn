@@ -82,6 +82,26 @@ fn exercise_foundations(iteration: Int) -> Int:
     let pq_score = priority_queue_peek_value(pq) + priority_queue_peek_priority(pq)
     let _pq_destroy = priority_queue_destroy(pq)
 
+    var slots = slot_map_create(2)
+    let slot_a = slot_map_insert(slots, iteration + 101)
+    if slot_a.ok == false:
+        return -9
+    slots = slot_a.map
+    let slot_removed = slot_map_remove(slots, slot_a.key)
+    if slot_removed.ok == false:
+        return -10
+    slots = slot_removed.map
+    if slot_map_contains(slots, slot_a.key):
+        return -11
+    let slot_b = slot_map_insert(slots, iteration + 202)
+    if slot_b.ok == false:
+        return -12
+    slots = slot_b.map
+    if slot_map_key_generation(slot_b.key) == slot_map_key_generation(slot_a.key):
+        return -13
+    let slot_score = slot_removed.value + slot_map_get_or(slots, slot_b.key, 0) + slot_map_key_generation(slot_b.key)
+    let _slots_destroy = slot_map_destroy(slots)
+
     var bump = bump_create(4)
     let bump_cell = bump_alloc(bump, 1)
     if bump_cell.ok == false:
@@ -113,7 +133,7 @@ fn exercise_foundations(iteration: Int) -> Int:
     let map_score = typed_map_get(metrics, "iteration") + typed_map_get(metrics, "text")
     let _metrics_destroy = typed_map_destroy(metrics)
     let text_score = text_byte_at(text, iteration % text_len(text))
-    return (map_score + queue_score + pq_score + bump_score + pool_score + text_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
+    return (map_score + queue_score + pq_score + slot_score + bump_score + pool_score + text_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
 
 fn main() -> Int:
     let boot = runtime_init()

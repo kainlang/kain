@@ -75,75 +75,111 @@ fn probe_collections() -> Int:
     if priority_queue_peek_value(pq) != 300:
         return 19
     let _pq_destroy = priority_queue_destroy(pq)
+
+    var slots = slot_map_create(3)
+    let first_slot = slot_map_insert(slots, 111)
+    if first_slot.ok == false:
+        return 20
+    slots = first_slot.map
+    let second_slot = slot_map_insert(slots, 222)
+    if second_slot.ok == false:
+        return 21
+    slots = second_slot.map
+    if slot_map_get_or(slots, first_slot.key, 0) != 111:
+        return 22
+    slots = slot_map_set(slots, second_slot.key, 333)
+    if slot_map_get_or(slots, second_slot.key, 0) != 333:
+        return 23
+    let removed = slot_map_remove(slots, first_slot.key)
+    if removed.ok == false:
+        return 24
+    if removed.value != 111:
+        return 25
+    slots = removed.map
+    if slot_map_contains(slots, first_slot.key):
+        return 26
+    let reused = slot_map_insert(slots, 444)
+    if reused.ok == false:
+        return 27
+    slots = reused.map
+    if slot_map_key_index(reused.key) != slot_map_key_index(first_slot.key):
+        return 28
+    if slot_map_key_generation(reused.key) == slot_map_key_generation(first_slot.key):
+        return 29
+    if slot_map_get_or(slots, first_slot.key, 999) != 999:
+        return 30
+    if slot_map_get_or(slots, reused.key, 0) != 444:
+        return 31
+    let _slots_destroy = slot_map_destroy(slots)
     return 0
 
 fn probe_crypto() -> Int:
     if sha256("") != SHA256_EMPTY:
-        return 30
+        return 40
     if hmac_sha256("key", "The quick brown fox jumps over the lazy dog") != HMAC_SHA256_QUICK:
-        return 31
+        return 41
     if blake3("") != BLAKE3_EMPTY:
-        return 32
+        return 42
     if blake3("abc") != BLAKE3_ABC:
-        return 34
+        return 44
     let token = random_bytes(16)
     if len(token) != 32:
-        return 33
+        return 43
     return 0
 
 fn probe_allocators() -> Int:
     var bump = bump_create(8)
     let bump_first = bump_alloc(bump, 2)
     if bump_first.ok == false:
-        return 40
+        return 50
     bump = bump_first.allocator
     mem_store(bump_first.ptr, 11, "Int")
     mem_store(ptr_offset(bump_first.ptr, 1, "Int"), 13, "Int")
     let bump_second = bump_alloc(bump, 6)
     if bump_second.ok == false:
-        return 41
+        return 51
     let bump_fail = bump_alloc(bump_second.allocator, 1)
     if bump_fail.ok:
-        return 42
+        return 52
     if mem_load(bump_first.ptr, "Int") + mem_load(ptr_offset(bump_first.ptr, 1, "Int"), "Int") != 24:
-        return 43
+        return 53
     let _bump_destroy = bump_allocator_destroy(bump_second.allocator)
 
     var arena = arena_create(6)
     let arena_first = arena_alloc(arena, 3)
     if arena_first.ok == false:
-        return 44
+        return 54
     arena = arena_first.arena
     mem_store(arena_first.ptr, 21, "Int")
     let arena_second = arena_alloc(arena, 3)
     if arena_second.ok == false:
-        return 45
+        return 55
     let arena_fail = arena_alloc(arena_second.arena, 1)
     if arena_fail.ok:
-        return 46
+        return 56
     if mem_load(arena_first.ptr, "Int") != 21:
-        return 47
+        return 57
     let _arena_destroy = arena_allocator_destroy(arena_second.arena)
 
     var pool = pool_create(2, 2)
     let pool_a = pool_alloc(pool)
     if pool_a.ok == false:
-        return 48
+        return 58
     pool = pool_a.pool
     mem_store(pool_a.ptr, 31, "Int")
     let pool_b = pool_alloc(pool)
     if pool_b.ok == false:
-        return 49
+        return 59
     pool = pool_b.pool
     let pool_fail = pool_alloc(pool)
     if pool_fail.ok:
-        return 50
+        return 60
     pool = pool_free_block(pool, pool_a.block_index)
     let pool_c = pool_alloc(pool)
     if pool_c.ok == false:
-        return 51
+        return 61
     if mem_load(pool_c.ptr, "Int") != 31:
-        return 52
+        return 62
     let _pool_destroy = pool_allocator_destroy(pool_c.pool)
     return 0
 

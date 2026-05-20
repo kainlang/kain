@@ -9553,11 +9553,6 @@
         "size_hint": null,
         "fields": [
           {
-            "name": "asset_label",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
             "name": "line_count",
             "type_name": "Int",
             "offset_hint": null
@@ -9565,6 +9560,11 @@
           {
             "name": "byte_count",
             "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "asset_label",
+            "type_name": "String",
             "offset_hint": null
           }
         ]

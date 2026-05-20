@@ -334,6 +334,11 @@ fn stdlib_probe_lane() -> Int:
     let queue_score = queue_peek(queue) + queue_len(queue)
     let _queue_destroy = queue_destroy(queue)
     let _map_destroy = typed_map_destroy(map)
+    var slots = slot_map_create(2)
+    let slot = slot_map_insert(slots, queue_score)
+    slots = slot.map
+    let slot_score = slot_map_get_or(slots, slot.key, 0) + slot_map_key_generation(slot.key)
+    let _slots_destroy = slot_map_destroy(slots)
     let arena = arena_create(8)
     let chunk = arena_alloc(arena, 3)
     let alloc_score = bool_to_int(chunk.ok) + chunk.offset + chunk.arena.high_water
@@ -354,7 +359,7 @@ fn stdlib_probe_lane() -> Int:
 
     let process_score = process_platform_available()
     let diagnostic_score = bool_to_status(status_ok(0)) + result_ok()
-    return fs_text_score + view_score + crypto_score + queue_score + alloc_score + input_score + net_score + process_score + diagnostic_score
+    return fs_text_score + view_score + crypto_score + queue_score + slot_score + alloc_score + input_score + net_score + process_score + diagnostic_score
 
 fn graphics_ui_lane() -> Int:
     let _graphics_reset = graphics_reset()

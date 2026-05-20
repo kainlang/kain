@@ -5,7 +5,7 @@ use std::alloc
 
 const STDLIB_FOUNDATIONS_ITERATIONS: Int = 20000
 const STDLIB_FOUNDATIONS_MODULUS: Int = 1000000007
-const STDLIB_FOUNDATIONS_EXPECTED: Int = 38362101
+const STDLIB_FOUNDATIONS_EXPECTED: Int = 248311071
 
 fn stdlib_foundation_text_score(text: TextSlice, iteration: Int) -> Int:
     return text_len(text) + text_find(text, "priority") + text_byte_at(text, iteration % text_len(text))
@@ -16,6 +16,7 @@ fn main() -> Int:
     metrics = typed_map_set(metrics, "base", 17)
     var queue = queue_create(8)
     var pq = priority_queue_create(8)
+    var slots = slot_map_create(8)
     var bump = bump_create(STDLIB_FOUNDATIONS_ITERATIONS)
     var acc = len(sha256("foundation")) + len(hmac_sha256("key", "foundation")) + len(blake3("abc"))
     var iteration = 0
@@ -36,12 +37,23 @@ fn main() -> Int:
             acc = (acc + priority_queue_peek_value(pq) + priority_queue_peek_priority(pq)) % STDLIB_FOUNDATIONS_MODULUS
             pq = priority_queue_pop(pq)
 
-        let loop_score = stdlib_foundation_text_score(base, iteration) + mem_load(allocated.ptr, "Int") + typed_map_get(metrics, "base")
+        let slot = slot_map_insert(slots, (iteration * 5) % 997)
+        if slot.ok == false:
+            return 3
+        slots = slot.map
+        let slot_removed = slot_map_remove(slots, slot.key)
+        if slot_removed.ok == false:
+            return 4
+        slots = slot_removed.map
+
+        let text_loop_score = stdlib_foundation_text_score(base, iteration)
+        let loop_score = text_loop_score + mem_load(allocated.ptr, "Int") + typed_map_get(metrics, "base") + slot_removed.value + slot_map_key_generation(slot.key)
         acc = (acc + loop_score) % STDLIB_FOUNDATIONS_MODULUS
         iteration = iteration + 1
 
     let _queue_destroy = queue_destroy(queue)
     let _pq_destroy = priority_queue_destroy(pq)
+    let _slots_destroy = slot_map_destroy(slots)
     let _bump_destroy = bump_allocator_destroy(bump)
     let _metrics_destroy = typed_map_destroy(metrics)
 

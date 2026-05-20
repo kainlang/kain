@@ -137,9 +137,9 @@ pub struct KlonerRuntimeState:
     orbit_value: Float
 
 pub struct KlonerReferenceInfo:
-    asset_label: String
     line_count: Int
     byte_count: Int
+    asset_label: String
 
 pub struct KlonerUiFonts:
     body_font: Int
@@ -496,21 +496,19 @@ pub fn kloner_pump_agent_intent(action_session: Int, action: String, command_tex
     let _intent = kaintana_action_push_agent_intent(action_session, "codex", action, command_text, 0.99)
     return kaintana_action_begin_frame(action_session, 16.0)
 
-pub fn kloner_reference_info(settings: KlonerSettings) -> KlonerReferenceInfo:
+pub fn kloner_reference_info(reference_root: String, reference_spec_path: String) -> KlonerReferenceInfo:
     let reference_listing = ""
-    if fs_exists(settings.reference_root):
-        reference_listing = fs_read_dir_paths_text(settings.reference_root)
+    if fs_exists(reference_root):
+        reference_listing = fs_read_dir_paths_text(reference_root)
     let reference_source = ""
-    if fs_exists(settings.reference_spec_path):
-        reference_source = fs_read_text(settings.reference_spec_path)
+    if fs_exists(reference_spec_path):
+        reference_source = fs_read_text(reference_spec_path)
     let line_count = kloner_reference_line_count(reference_listing)
     if len(reference_source) > 0:
         line_count = kloner_reference_line_count(reference_source)
-    let asset_label = kloner_path_leaf(settings.reference_spec_path)
-    if len(reference_listing) > 0:
-        asset_label = kloner_path_leaf(kloner_first_line(reference_listing))
+    let asset_label = "KCloner.tsx"
     return KlonerReferenceInfo {
-        asset_label: asset_label,
         line_count: line_count,
         byte_count: len(reference_source),
+        asset_label: asset_label,
     }

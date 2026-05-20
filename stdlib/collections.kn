@@ -111,6 +111,34 @@ pub struct PriorityEntry:
     value: Int
     priority: Int
 
+const SLOT_MAP_KEY_INDEX_BASE: Int = 1000000000
+const SLOT_MAP_INITIAL_GENERATION: Int = 1
+const SLOT_MAP_EMPTY: Int = 0
+const SLOT_MAP_OCCUPIED: Int = 1
+const SLOT_MAP_INVALID_INDEX: Int = -1
+
+pub struct SlotMapKey:
+    raw: Int
+
+pub struct SlotMap:
+    values: ptr<Int>
+    generations: ptr<Int>
+    occupied: ptr<Int>
+    next_free: ptr<Int>
+    capacity: Int
+    count: Int
+    free_head: Int
+
+pub struct SlotMapInsert:
+    map: SlotMap
+    key: SlotMapKey
+    ok: Bool
+
+pub struct SlotMapRemove:
+    map: SlotMap
+    value: Int
+    ok: Bool
+
 pub fn string_int_map_new() -> StringIntMap:
     return StringIntMap { handle: map_new() }
 
@@ -355,4 +383,106 @@ pub fn priority_queue_pop(queue: IntPriorityQueue) -> IntPriorityQueue:
 
 pub fn priority_queue_destroy(queue: IntPriorityQueue) -> Int:
     decay queue.buffer
+    return 0
+
+pub fn slot_map_key(index: Int, generation: Int) -> SlotMapKey:
+    if index < 0:
+        return SlotMapKey { raw: SLOT_MAP_INVALID_INDEX }
+    if index >= SLOT_MAP_KEY_INDEX_BASE:
+        return SlotMapKey { raw: SLOT_MAP_INVALID_INDEX }
+    if generation <= 0:
+        return SlotMapKey { raw: SLOT_MAP_INVALID_INDEX }
+    return SlotMapKey { raw: (generation * SLOT_MAP_KEY_INDEX_BASE) + index }
+
+pub fn slot_map_invalid_key() -> SlotMapKey:
+    return SlotMapKey { raw: SLOT_MAP_INVALID_INDEX }
+
+pub fn slot_map_key_index(key: SlotMapKey) -> Int:
+    if key.raw < 0:
+        return SLOT_MAP_INVALID_INDEX
+    return key.raw % SLOT_MAP_KEY_INDEX_BASE
+
+pub fn slot_map_key_generation(key: SlotMapKey) -> Int:
+    if key.raw < 0:
+        return 0
+    return key.raw / SLOT_MAP_KEY_INDEX_BASE
+
+pub fn slot_map_key_is_valid(key: SlotMapKey) -> Bool:
+    return slot_map_key_index(key) >= 0 and slot_map_key_generation(key) > 0
+
+pub fn slot_map_create(capacity: Int) -> SlotMap:
+    let safe_capacity = int_clamp(capacity, 1, SLOT_MAP_KEY_INDEX_BASE - 1)
+    let values = alloc_zeroed(safe_capacity, "Int")
+    let generations = alloc_zeroed(safe_capacity, "Int")
+    let occupied = alloc_zeroed(safe_capacity, "Int")
+    let next_free = alloc_zeroed(safe_capacity, "Int")
+    var index = 0
+    while index < safe_capacity:
+        mem_store(ptr_offset(generations, index, "Int"), SLOT_MAP_INITIAL_GENERATION, "Int")
+        mem_store(ptr_offset(occupied, index, "Int"), SLOT_MAP_EMPTY, "Int")
+        if index + 1 < safe_capacity:
+            mem_store(ptr_offset(next_free, index, "Int"), index + 1, "Int")
+        else:
+            mem_store(ptr_offset(next_free, index, "Int"), SLOT_MAP_INVALID_INDEX, "Int")
+        index = index + 1
+    return SlotMap { values: values, generations: generations, occupied: occupied, next_free: next_free, capacity: safe_capacity, count: 0, free_head: 0 }
+
+pub fn slot_map_len(map: SlotMap) -> Int:
+    return map.count
+
+pub fn slot_map_capacity(map: SlotMap) -> Int:
+    return map.capacity
+
+pub fn slot_map_is_full(map: SlotMap) -> Bool:
+    return map.free_head < 0 or map.count >= map.capacity
+
+pub fn slot_map_contains(map: SlotMap, key: SlotMapKey) -> Bool:
+    let index = slot_map_key_index(key)
+    if index < 0:
+        return false
+    if index >= map.capacity:
+        return false
+    if mem_load(ptr_offset(map.occupied, index, "Int"), "Int") != SLOT_MAP_OCCUPIED:
+        return false
+    return mem_load(ptr_offset(map.generations, index, "Int"), "Int") == slot_map_key_generation(key)
+
+pub fn slot_map_get_or(map: SlotMap, key: SlotMapKey, fallback: Int) -> Int:
+    if slot_map_contains(map, key) == false:
+        return fallback
+    return mem_load(ptr_offset(map.values, slot_map_key_index(key), "Int"), "Int")
+
+pub fn slot_map_insert(map: SlotMap, value: Int) -> SlotMapInsert:
+    if slot_map_is_full(map):
+        return SlotMapInsert { map: map, key: slot_map_invalid_key(), ok: false }
+    let index = map.free_head
+    let next_head = mem_load(ptr_offset(map.next_free, index, "Int"), "Int")
+    let generation = mem_load(ptr_offset(map.generations, index, "Int"), "Int")
+    mem_store(ptr_offset(map.values, index, "Int"), value, "Int")
+    mem_store(ptr_offset(map.occupied, index, "Int"), SLOT_MAP_OCCUPIED, "Int")
+    mem_store(ptr_offset(map.next_free, index, "Int"), SLOT_MAP_INVALID_INDEX, "Int")
+    let next_map = SlotMap { values: map.values, generations: map.generations, occupied: map.occupied, next_free: map.next_free, capacity: map.capacity, count: map.count + 1, free_head: next_head }
+    return SlotMapInsert { map: next_map, key: slot_map_key(index, generation), ok: true }
+
+pub fn slot_map_set(map: SlotMap, key: SlotMapKey, value: Int) -> SlotMap:
+    if slot_map_contains(map, key):
+        mem_store(ptr_offset(map.values, slot_map_key_index(key), "Int"), value, "Int")
+    return map
+
+pub fn slot_map_remove(map: SlotMap, key: SlotMapKey) -> SlotMapRemove:
+    if slot_map_contains(map, key) == false:
+        return SlotMapRemove { map: map, value: 0, ok: false }
+    let index = slot_map_key_index(key)
+    let value = mem_load(ptr_offset(map.values, index, "Int"), "Int")
+    let generation = mem_load(ptr_offset(map.generations, index, "Int"), "Int")
+    mem_store(ptr_offset(map.generations, index, "Int"), generation + 1, "Int")
+    mem_store(ptr_offset(map.occupied, index, "Int"), SLOT_MAP_EMPTY, "Int")
+    mem_store(ptr_offset(map.next_free, index, "Int"), map.free_head, "Int")
+    let next_map = SlotMap { values: map.values, generations: map.generations, occupied: map.occupied, next_free: map.next_free, capacity: map.capacity, count: map.count - 1, free_head: index }
+    return SlotMapRemove { map: next_map, value: value, ok: true }
+
+pub fn slot_map_destroy(map: SlotMap) -> Int:
+    decay map.next_free
+    decay map.occupied
+    decay map.generations
+    decay map.values
     return 0

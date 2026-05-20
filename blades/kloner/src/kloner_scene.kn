@@ -335,9 +335,9 @@ pub fn kloner_state_snapshot_text(headline: String, state: KlonerRuntimeState, r
     output = output + "viewport_mode=projected-3d + vulkain-sidecar\n"
     return output
 
-pub fn kloner_export_preview_json(reference: KlonerReferenceInfo, state: KlonerRuntimeState, scene: KlonerSceneConfig) -> String:
+pub fn kloner_export_preview_json(reference_label: String, reference: KlonerReferenceInfo, state: KlonerRuntimeState, scene: KlonerSceneConfig) -> String:
     var output = "{\n"
-    output = output + "  \"reference\": \"" + reference.asset_label + "\",\n"
+    output = output + "  \"reference\": \"" + reference_label + "\",\n"
     output = output + "  \"mode\": \"" + kloner_mode_name(state.active_mode) + "\",\n"
     output = output + "  \"distribution\": \"" + kloner_distribution_name(state.distribution_mode) + "\",\n"
     output = output + "  \"export_format\": \"" + kloner_export_format_name(state.active_export) + "\",\n"

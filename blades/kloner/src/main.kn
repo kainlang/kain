@@ -192,7 +192,11 @@ fn main() -> Int:
     fs_create_dir_all(fs_path_join(".kain", "run"))
 
     let settings = kloner_settings_desktop()
-    let theme: KaintanaTheme = kaintana_theme_named(settings.theme_name)
+    let theme_name = "oxide-dcc"
+    let reference_root = "reference"
+    let reference_spec_path = fs_path_join(reference_root, "KCloner.tsx")
+    let reference_label = "KCloner.tsx"
+    let theme: KaintanaTheme = kaintana_theme_named(theme_name)
     let spec = kloner_build_window_spec(settings)
     let authority = KlonerAuthority
     let _reset = kaintana_action_reset()
@@ -208,12 +212,12 @@ fn main() -> Int:
     let fonts = kloner_make_fonts(session)
     let _frame = kaintana_begin_frame(session, settings.revision_key, 16.0)
 
-    let reference = kloner_reference_info(settings)
+    let reference = kloner_reference_info(reference_root, reference_spec_path)
     var scene = kloner_default_scene_config()
     let seed_state = kloner_initial_runtime_state(authority)
     let layout = kloner_build_layout(spec)
     let nodes = kloner_build_shell(session, theme, fonts.badge_font, layout)
-    let controls = kloner_render_controls(session, nodes, layout, theme, fonts, settings)
+    let controls = kloner_render_controls(session, nodes, layout, theme, fonts, theme_name)
     let settings_menu = kloner_open_service_surfaces(session, controls, layout)
     let settings_popover = kaintana_popover_spec("settings", 290.0, 118.0, -292.0, 10.0)
     let browser_popover = kaintana_popover_spec("browser", 360.0, 154.0, -360.0, 10.0)
@@ -228,7 +232,7 @@ fn main() -> Int:
     scene.radial_radius = kloner_key_sample(0, state.current_time_ms, scene.radial_radius)
     state = kloner_state_with_scene(authority, state, scene)
     let headline = kloner_headline(state.active_mode, state.active_chain, state.active_export, state.clone_total)
-    let export_preview = kloner_export_preview_json(reference, state, scene)
+    let export_preview = kloner_export_preview_json(reference_label, reference, state, scene)
     fs_write_text(settings.state_path, kloner_state_snapshot_text(headline, state, reference))
     fs_atomic_write_text(settings.export_preview_path, export_preview)
 
@@ -240,20 +244,20 @@ fn main() -> Int:
     let _clipboard = kaintana_clipboard_copy_text(session, settings.export_preview_path)
     let _agent_export = kloner_pump_agent_intent(action_session, "export.commit", "commit kloner export preview")
 
-    let _left = kloner_render_left_panel(session, nodes, layout, theme, fonts, state, reference)
+    let _left = kloner_render_left_panel(session, nodes, layout, theme, fonts, state, reference_label, reference)
     let camera = kloner_viewport_camera(state, scene)
     let plot_rect = kloner_render_viewport_scaffold(session, nodes, layout, theme, fonts, headline, state, camera)
     let _grid = kloner_draw_viewport_grid(session, nodes.viewport_surface, plot_rect, theme, camera, fonts.micro_font)
     let _clones = kloner_draw_preview_clones(session, nodes.viewport_surface, plot_rect, theme, fonts, state, scene, camera)
     let _sequence = kloner_render_sequencer_panel(session, nodes, layout, theme, fonts, state, scene)
     let _chains = kloner_render_chain_panel(session, nodes, layout, theme, fonts, state)
-    let _inspector = kloner_render_inspector_panel(session, nodes, layout, theme, fonts, state, scene, reference, camera)
+    let _inspector = kloner_render_inspector_panel(session, nodes, layout, theme, fonts, state, scene, reference_label, reference, camera)
     let _footer = kloner_render_footer(session, nodes, layout, theme, fonts, state)
-    let _overlays = kloner_render_overlays(session, nodes, layout, theme, fonts, state, reference, settings)
+    let _overlays = kloner_render_overlays(session, nodes, layout, theme, fonts, state, reference_label, reference, settings)
     let _focus_ring = kaintana_render_focus_ring(session, controls.export_commit_button, theme, 4.0)
     let _commit = kaintana_commit_frame(session)
 
-    fs_write_text(settings.frame_report_path, kloner_frame_report_text(settings.theme_name, settings.vulkain_report_path, theme, headline, state, action_session))
+    fs_write_text(settings.frame_report_path, kloner_frame_report_text(theme_name, settings.vulkain_report_path, theme, headline, state, action_session))
     fs_write_text(settings.snapshot_path, kloner_state_snapshot_text(headline, state, reference))
     fs_write_text(settings.input_trace_path, kaintana_action_trace_text(action_session))
     let _desktop_report = kaintana_desktop_scene_write_report(settings.scene_report_path)

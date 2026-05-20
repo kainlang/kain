@@ -1,0 +1,31 @@
+version: 1
+id: kain.core.proofs.stdlib_slot_map_stale_key_rejected
+kind: check_smt2
+description: std::collections SlotMap remove increments the slot generation, so
+  a stale key from before removal cannot satisfy the contains predicate after
+  the slot is reused.
+tags:
+- stdlib
+- collections
+- slot-map
+- generation
+- stale-handle
+source:
+  path: D:\Kain-Lang\stdlib\collections.kn
+  symbol: slot_map_remove
+  start_line: 471
+  reason: SlotMap stale-handle rejection depends on monotonic per-slot generations.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const old_generation Int)
+    (declare-const stored_generation_after_reuse Int)
+    (assert (> old_generation 0))
+    (assert (= stored_generation_after_reuse (+ old_generation 1)))
+    (define-fun stale_key_generation () Int old_generation)
+    (define-fun contains_with_stale_key () Bool
+      (= stored_generation_after_reuse stale_key_generation))
+    (assert contains_with_stale_key)
+    (check-sat)
+  include_model: false
+  include_stats: false

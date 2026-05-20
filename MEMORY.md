@@ -1,5 +1,51 @@
 # Kain Memory
 
+# 2026-05-20 - Kloner split shell now drives a Vulkain 3D preview lane
+
+`blades/kloner` is now a modular Kain clone workstation instead of a flat monolithic desktop shell. The entrypoint owns orchestration, while helper modules own state/config (`kloner_state.kn`), the single-import world/entangle lattice (`kloner_lattice.kn`), projected clone scene math plus Vulkain mesh preview (`kloner_scene.kn`), and Kaintana UI composition (`kloner_ui.kn`).
+
+Durable lessons:
+
+- Keep `world` / `entangle` definitions for this blade in `kloner_lattice.kn`, imported only by `src/main.kn`. Importing a module with the same entangle endpoints through multiple helpers can still duplicate native realtime staging and fail with `entangle endpoint 'KlonerAuthority.active_mode' participates in more than one binding`.
+- For human-facing labels crossing several imported Kain modules, prefer explicit entrypoint strings over string fields inside small telemetry structs until the native/module string-field path is hardened. The byte/line telemetry for `reference/KCloner.tsx` is correct, but the visible reference label is passed separately as `KCloner.tsx`.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kloner\run.ps1 -FrameBudget 5` -> PASS.
+- Desktop artifact: `.kain/run/kloner.bmp`, 7,155,254 bytes; host report `frames=5`, `commands=315`, `last_error=ok`.
+- Vulkain artifact: `.kain/run/kloner_vulkain_report.txt`, `frames_presented=5`, `draw_vertices=648`, `vertices_drawn=3240`, `last_error=ok`.
+- Frame/export reports identify `theme=oxide-dcc`, `mode=RADIAL`, `active_chain=CROWN SWARM`, `export_format=VAT`, `target_engine=UNREAL`, and `reference=KCloner.tsx`.
+
+# 2026-05-20 - std.collections SlotMap landed for renderer-neutral Kaintana handles
+
+`std::collections` now owns a universal `SlotMap` primitive instead of leaving Kaintana to invent a blade-local raw-Int handle scheme. The public API is `SlotMapKey`, `SlotMap`, `SlotMapInsert`, `SlotMapRemove`, `slot_map_create`, `slot_map_insert`, `slot_map_contains`, `slot_map_get_or`, `slot_map_set`, `slot_map_remove`, `slot_map_destroy`, and key helpers for packed index/generation decoding. Keys are generational, stale keys are rejected after removal/reuse, and the value payload is currently `Int`, which is the right handle/value currency for Kaintana node ids until Kain grows generic stdlib containers.
+
+What changed:
+
+- `stdlib/collections.kn` added four-buffer SlotMap storage: values, generations, occupancy, and free-list next pointers.
+- `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json` were regenerated; the atlas now reports 22 modules / 1736 symbols and includes `slot_map_*`.
+- `blades/stdlib-foundations`, `benchmark/cases/stdlib_foundations`, and `attrition/cases/kain_stdlib_foundations` now exercise insert, set, remove, reuse, generation advance, and stale-key rejection.
+- `AGENTS.md` Ultimate Kain Specimen now calls SlotMap in `stdlib_probe_lane`.
+- Durable Z3 cases live at `crates/kain-core/z3/proofs/stdlib-slot-map-key-decode-bounds.yaml` and `crates/kain-core/z3/proofs/stdlib-slot-map-stale-key-rejected.yaml`.
+
+Validation:
+
+- `kain check blades/stdlib-foundations/src/main.kn -t llvm`
+- `kain run blades/stdlib-foundations/src/main.kn --target llvm` -> `exit=0`
+- `kain run benchmark/cases/stdlib_foundations/main.kn --target llvm` -> `exit=0`
+- `py -3 benchmark/run.py --case stdlib_foundations --languages kain --runs 5 --warmups 1 --timeout 240` -> PASS, median `13.182 ms`
+- `kain check attrition/cases/kain_stdlib_foundations/main.kn -t llvm`
+- `py -3 attrition/run.py --case kain_stdlib_foundations --scale small --timeout 120` -> PASS, 16 ops, `385.494 ops/s`, checksum `10997`
+- `kain stdlib-map --check`
+- `py -3 -m json.tool benchmark/benchmarks.json`
+- `py -3 -m json.tool attrition/attritions.json`
+- `mcp__z3_local__.run_proof_pack(path="crates/kain-core/z3", pattern="proofs/stdlib-slot-map*.yaml")` -> 2 proved, both `unsat`
+
+Durable caveat:
+
+- SlotMap is functional and Kaintana-ready as an `Int` payload handle store, but not generic yet. When generic stdlib containers land, migrate `SlotMap<Int>` into a typed `SlotMap<T>` without changing the generational-key contract.
+- The broader stdlib attrition lane still has existing RC/string-result closure drift (`live_rc_objects=145`, `live_runtime_bytes=11725`); SlotMap itself destroys its four owned buffers and does not add runtime resource handles.
+
 # 2026-05-20 - Stdlib foundations lane now covers text, collections, crypto, and alloc
 
 Kain now has a root stdlib foundation suite for the 2026 essentials: zero-copy text views, safe collection wrappers, crypto primitives, and allocator helpers. The public surfaces are `std.text`, `std.collections`, `std.crypto`, and `std.alloc`; `kain stdlib-map --write` regenerated the root atlas to 22 modules / 1305 public symbols / 1712 total symbols.

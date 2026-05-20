@@ -1,0 +1,39 @@
+version: 1
+id: kain.core.proofs.stdlib_slot_map_key_decode_bounds
+kind: check_smt2
+description: std::collections SlotMap packed keys decode to their original index
+  and generation while the index remains inside the table capacity.
+tags:
+- stdlib
+- collections
+- slot-map
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\collections.kn
+  symbol: slot_map_key
+  start_line: 388
+  reason: SlotMapKey is the public generational handle used by SlotMap clients.
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const base Int)
+    (declare-const capacity Int)
+    (declare-const index Int)
+    (declare-const generation Int)
+    (assert (= base 1000000000))
+    (assert (> capacity 0))
+    (assert (< capacity base))
+    (assert (>= index 0))
+    (assert (< index capacity))
+    (assert (> generation 0))
+    (define-fun raw () Int (+ (* generation base) index))
+    (define-fun decoded_index () Int (mod raw base))
+    (define-fun decoded_generation () Int (div raw base))
+    (assert (not (and
+      (= decoded_index index)
+      (= decoded_generation generation)
+      (>= decoded_index 0)
+      (< decoded_index capacity))))
+    (check-sat)
+  include_model: false
+  include_stats: false
