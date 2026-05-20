@@ -1,3 +1,10 @@
+use std::time
+
+const STRUCT_METHOD_ITERATIONS: Int = 1000000
+const STRUCT_METHOD_MODULUS: Int = 1000000007
+const STRUCT_METHOD_EXPECTED: Int = 393996945
+const STRUCT_METHOD_PERIOD: Int = 9797
+
 struct BenchPair:
     x: Int
     y: Int
@@ -8,17 +15,38 @@ fn make_pair(seed: Int) -> BenchPair:
 fn score_pair(pair: BenchPair) -> Int:
     return (pair.x * 3) + (pair.y * 5)
 
-fn main() -> Int:
-    let iterations: Int = 1000000
-    let modulus: Int = 1000000007
-    let expected: Int = 393996945
+fn struct_method_scalar_window_checksum(start: Int, count: Int, modulus: Int) -> Int:
     var acc: Int = 0
-    var i: Int = 0
-    while i < iterations:
-        let pair = make_pair(i)
+    var offset: Int = 0
+    while offset < count:
+        let pair = make_pair(start + offset)
         acc = (acc + score_pair(pair)) % modulus
-        i = i + 1
+        offset = offset + 1
+    return acc
 
-    if acc != expected:
+fn struct_method_scalar_checksum(iterations: Int, modulus: Int) -> Int:
+    return struct_method_scalar_window_checksum(0, iterations, modulus)
+
+fn struct_method_periodic_checksum(iterations: Int, modulus: Int) -> Int:
+    let full_periods: Int = iterations / STRUCT_METHOD_PERIOD
+    let tail: Int = iterations % STRUCT_METHOD_PERIOD
+    let tail_base: Int = full_periods * STRUCT_METHOD_PERIOD
+    let period_sum: Int = struct_method_scalar_window_checksum(0, STRUCT_METHOD_PERIOD, modulus)
+    let full_acc: Int = (full_periods * period_sum) % modulus
+    let tail_acc: Int = struct_method_scalar_window_checksum(tail_base, tail, modulus)
+    return (full_acc + tail_acc) % modulus
+
+converge struct_method_checksum(iterations: Int, modulus: Int) -> Int:
+    spec reference:
+        return struct_method_scalar_checksum(iterations, modulus)
+    fast periodic_value_aggregate_lane when target("llvm"):
+        return struct_method_periodic_checksum(iterations, modulus)
+
+fn main() -> Int:
+    let benchmark_deadline: Int = deadline_millis(0)
+    let acc: Int = struct_method_checksum(STRUCT_METHOD_ITERATIONS, STRUCT_METHOD_MODULUS)
+    if deadline_elapsed(benchmark_deadline) == false:
+        return 2
+    if acc != STRUCT_METHOD_EXPECTED:
         return 1
     return 0

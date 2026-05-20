@@ -7,8 +7,18 @@ description = "Blade-owned Kain UI framework with immediate, retained, theme, ho
 name = "kaintana"
 kind = "kain_library"
 entry = "src/main.kn"
-source_roots = ["src"]
-module_roots = ["src"]
+source_roots = [
+  "src",
+  "src/api",
+  "src/core",
+  "src/platform/desktop",
+]
+module_roots = [
+  "src",
+  "src/api",
+  "src/core",
+  "src/platform/desktop",
+]
 build_targets = ["llvm"]
 
 [run]
@@ -29,6 +39,15 @@ target = "llvm"
 inputs = [
   "src/main.kn",
   "src/kaintana.kn",
+  "src/api/kaintana_ui.kn",
+  "src/api/widgets.kn",
+  "src/core/input.kn",
+  "src/core/layout.kn",
+  "src/core/reconciliation.kn",
+  "src/core/render_commands.kn",
+  "src/core/theme.kn",
+  "src/core/types.kn",
+  "src/platform/desktop/desktop_adapter.kn",
   "native/kaintana_desktop_bridge.h",
   "native/kaintana_desktop_bridge.c",
   "build-desktop.ps1",

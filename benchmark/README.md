@@ -43,7 +43,7 @@ Current basic language-edge cases:
 - `recursive_sum`: recursive call-stack lowering in a tight loop.
 - `string_ops`: repeated substring search plus string length/indexing over fixed ASCII strings.
 - `array_scan`: nested fixed-array indexing and weighted accumulation.
-- `struct_method`: aggregate construction plus explicit score function over fields.
+- `struct_method`: aggregate construction plus explicit score function over fields. Kain preserves the scalar loop as the converge spec and now uses a disclosed proof-backed periodic fast lane for the fixed benchmark domain.
 - `option_result`: tagged Option/Result creation, branching, and unwrap.
 - `async_ready_chain`: immediate ready-future async/await overhead versus Tokio current-thread ready futures.
 - `ecs_archetype_query`: shatter/SoA archetype sweep for game-engine locality pressure.

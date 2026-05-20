@@ -1,17 +1,91 @@
-// style: solar broadcast framework probe
+use std::actor
+use std::alloc
+use std::collections
+use std::crypto
+use std::diagnostics
+use std::fs
+use std::gen_server
+use std::graphics
+use std::hash
+use std::http
+use std::http2
+use std::input
+use std::intent
+use std::math
+use std::net
+use std::process
+use std::result
+use std::runtime
+use std::text
+use std::time
+use std::tls
+use std::ui
 use c::kaintana_desktop_bridge
-use kaintana::kaintana_backend_desktop
-use kaintana::kaintana_default_window_spec
-use kaintana::kaintana_desktop_probe
-use kaintana::kaintana_theme_named
+use desktop_adapter::kaintana_desktop_host_geometry_count
+use desktop_adapter::kaintana_desktop_host_write_report
+use desktop_adapter::kaintana_desktop_host_write_screenshot
+use desktop_adapter::kaintana_desktop_probe
+use layout::kaintana_column_slot
+use layout::kaintana_inset
+use layout::kaintana_split_left
+use layout::kaintana_split_right
+use reconciliation::kaintana_context_destroy
+use theme::kaintana_theme_named
+use types::kaintana_backend_desktop
+use types::kaintana_default_window_spec
+use types::kaintana_rect
+use types::kaintana_window_rect
+use kaintana_ui::kaintana_begin
+use kaintana_ui::kaintana_commit
+use kaintana_ui::kaintana_context
+use kaintana_ui::ui
 
 fn main() -> Int:
-    let spec = kaintana_default_window_spec("Kaintana // Framework Probe", 960, 540, kaintana_backend_desktop())
-    let theme = kaintana_theme_named("solar-broadcast")
-    println("kaintana.theme=" + theme.name)
-    println("kaintana.desktop=" + str(kaintana_desktop_probe()))
-    if spec.width != 960:
-        return 10
+    let boot = native_runtime_init()
+    if boot != 0:
+        return 100 + boot
+
     if kaintana_desktop_probe() != 1:
         return 20
+
+    let spec = kaintana_default_window_spec("Kaintana // Builder Probe", 960, 540, kaintana_backend_desktop())
+    let theme = kaintana_theme_named("oxide-dcc")
+    var ctx = kaintana_context("kaintana-builder-probe", spec, theme, true)
+    let body_font = native_ui_font_create(ctx.session_id, "font.kaintana.body", "Consolas", 16.0)
+    let title_font = native_ui_font_create(ctx.session_id, "font.kaintana.title", "Segoe UI", 28.0)
+    ctx = kaintana_begin(ctx, "kaintana-v2-builder-probe", 16.0)
+
+    let bounds = kaintana_inset(kaintana_window_rect(spec), 24.0, 24.0, 24.0, 24.0)
+    let rail = kaintana_split_left(bounds, 0.30, 20.0)
+    let stage = kaintana_split_right(bounds, 0.30, 20.0)
+
+    let panel = ui(ctx).panel("KAINTANA V2").key("shell.panel").rect(bounds).font(title_font, 36.0).render()
+    ctx = panel.ctx
+    let label = ui(ctx).label("SlotMap handles // arena frame state // desktop adapter").key("shell.summary").rect(kaintana_column_slot(rail, 1.0, 32.0, 12.0)).font(body_font, 20.0).muted().render()
+    ctx = label.ctx
+    let button = ui(ctx).button("Ignite Renderer").key("action.ignite").rect(kaintana_column_slot(rail, 3.0, 44.0, 12.0)).font(body_font, 26.0).render()
+    ctx = button.ctx
+    let input = ui(ctx).text_input("Command", "converge desktop + gpu command stream").key("input.command").rect(kaintana_column_slot(stage, 1.0, 52.0, 14.0)).font(body_font, 28.0).render()
+    ctx = input.ctx
+    let slider = ui(ctx).slider("GPU UI Readiness", 72.0, 0.0, 100.0).key("slider.gpu.readiness").rect(kaintana_column_slot(stage, 3.0, 84.0, 14.0)).font(body_font, 28.0).render()
+    ctx = slider.ctx
+
+    ctx = kaintana_commit(ctx)
+    let draw_count = ctx.draw_count
+    let checksum = ctx.command_checksum
+    let status = ctx.status
+    let _report = kaintana_desktop_host_write_report(spec)
+    let _bmp = kaintana_desktop_host_write_screenshot(spec)
+    let _destroy = kaintana_context_destroy(ctx)
+    let shutdown = native_runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if status != 0:
+        return 30
+    if draw_count < 9:
+        return 31
+    if checksum <= 0:
+        return 32
+    if kaintana_desktop_host_geometry_count(spec) < draw_count:
+        return 33
     return 0

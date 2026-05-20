@@ -1,0 +1,38 @@
+use std::math
+use std::text
+use std::graphics
+use std::ui
+use desktop_adapter::kaintana_desktop_emit_fill
+use desktop_adapter::kaintana_desktop_emit_text
+use reconciliation::kaintana_context_mark_command
+use types::KaintanaColor
+use types::KaintanaContext
+use types::KaintanaRect
+
+pub const KAINTANA_COMMAND_FILL: Int = 1
+pub const KAINTANA_COMMAND_TEXT: Int = 2
+pub const KAINTANA_COMMAND_SIGNAL: Int = 3
+
+pub fn kaintana_channel_float(value: Int) -> Float:
+    return Float(math_int_clamp(value, 0, 255)) / 255.0
+
+pub fn kaintana_text_size_from_baseline(baseline_y: Float) -> Int:
+    return math_int_clamp(Int(baseline_y - 4.0), 10, 42)
+
+pub fn kaintana_apply_color(ctx: KaintanaContext, native_node_id: Int, style_key: String, color: KaintanaColor) -> Int:
+    return ui_style_color_rgba(ctx.session_id, native_node_id, style_key, kaintana_channel_float(color.red), kaintana_channel_float(color.green), kaintana_channel_float(color.blue), kaintana_channel_float(color.alpha))
+
+pub fn kaintana_record_fill(ctx: KaintanaContext, native_node_id: Int, rect: KaintanaRect, style_key: String, color: KaintanaColor) -> KaintanaContext:
+    let _style = kaintana_apply_color(ctx, native_node_id, style_key, color)
+    let _draw = ui_render_box_at(ctx.session_id, native_node_id, rect.x, rect.y, rect.width, rect.height, style_key)
+    if ctx.desktop_enabled:
+        let _desktop = kaintana_desktop_emit_fill(rect, color)
+    return kaintana_context_mark_command(ctx, native_node_id, KAINTANA_COMMAND_FILL)
+
+pub fn kaintana_record_text(ctx: KaintanaContext, native_node_id: Int, font_resource_id: Int, text: StringView, x: Float, y: Float, style_key: String, color: KaintanaColor, font_size: Int) -> KaintanaContext:
+    let _style = kaintana_apply_color(ctx, native_node_id, style_key, color)
+    let materialized = string_view_materialize(text)
+    let _draw = ui_render_text_value(ctx.session_id, native_node_id, font_resource_id, materialized, x, y, style_key)
+    if ctx.desktop_enabled:
+        let _desktop = kaintana_desktop_emit_text(text, x, y, color, font_size)
+    return kaintana_context_mark_command(ctx, native_node_id, KAINTANA_COMMAND_TEXT)

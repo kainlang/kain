@@ -1,0 +1,154 @@
+use std::alloc
+use std::collections
+use std::text
+
+pub const KAINTANA_BACKEND_DESKTOP: String = "desktop"
+pub const KAINTANA_BACKEND_VULKAN: String = "vulkan"
+pub const KAINTANA_BACKEND_HEADLESS: String = "headless"
+pub const KAINTANA_NODE_CAPACITY: Int = 4096
+pub const KAINTANA_FRAME_ARENA_CELLS: Int = 16384
+pub const KAINTANA_OK: Int = 0
+pub const KAINTANA_ERR_NODE_CAPACITY: Int = -10
+pub const KAINTANA_ERR_ARENA_EXHAUSTED: Int = -11
+
+pub struct KaintanaRect:
+    x: Float
+    y: Float
+    width: Float
+    height: Float
+
+pub struct KaintanaColor:
+    red: Int
+    green: Int
+    blue: Int
+    alpha: Int
+
+pub struct KaintanaTheme:
+    name: String
+    shell: KaintanaColor
+    panel: KaintanaColor
+    accent: KaintanaColor
+    ink: KaintanaColor
+    muted: KaintanaColor
+    signal: KaintanaColor
+
+pub struct KaintanaWindowSpec:
+    title: String
+    width: Int
+    height: Int
+    frame_budget: Int
+    backend_id: String
+    passive_backend_id: String
+    clear: KaintanaColor
+    accent: KaintanaColor
+    vertex_shader_path: String
+    fragment_shader_path: String
+    frame_report_path: String
+    host_report_path: String
+    screenshot_path: String
+
+pub struct KaintanaNodeId:
+    key: SlotMapKey
+
+pub struct KaintanaContext:
+    session_id: Int
+    root: KaintanaNodeId
+    root_native_id: Int
+    parent_native_id: Int
+    spec: KaintanaWindowSpec
+    theme: KaintanaTheme
+    nodes: SlotMap
+    stable_keys: StringIntMap
+    frame_arena: ArenaAllocator
+    desktop_enabled: Bool
+    draw_count: Int
+    command_checksum: Int
+    status: Int
+
+pub struct KaintanaRenderResult:
+    ctx: KaintanaContext
+    node: KaintanaNodeId
+    native_node_id: Int
+    activated: Int
+    value: Float
+
+pub struct KaintanaActionBinding:
+    source_kind: String
+    event_kind: String
+    code: String
+    action: String
+
+pub struct KaintanaAxisBinding:
+    source_kind: String
+    event_kind: String
+    code: String
+    axis: String
+    scale: Float
+
+pub fn kaintana_backend_desktop() -> String:
+    return KAINTANA_BACKEND_DESKTOP
+
+pub fn kaintana_backend_vulkan() -> String:
+    return KAINTANA_BACKEND_VULKAN
+
+pub fn kaintana_backend_headless() -> String:
+    return KAINTANA_BACKEND_HEADLESS
+
+pub fn kaintana_color(red: Int, green: Int, blue: Int, alpha: Int) -> KaintanaColor:
+    return KaintanaColor { red: red, green: green, blue: blue, alpha: alpha }
+
+pub fn kaintana_rect(x: Float, y: Float, width: Float, height: Float) -> KaintanaRect:
+    return KaintanaRect { x: x, y: y, width: width, height: height }
+
+pub fn kaintana_text(value: String) -> StringView:
+    return string_view_from(value)
+
+pub fn kaintana_text_string(value: StringView) -> String:
+    return string_view_materialize(value)
+
+pub fn kaintana_node_invalid() -> KaintanaNodeId:
+    return KaintanaNodeId { key: slot_map_invalid_key() }
+
+pub fn kaintana_node_is_valid(node: KaintanaNodeId) -> Bool:
+    return slot_map_key_is_valid(node.key)
+
+pub fn kaintana_window_spec(title: String, width: Int, height: Int, frame_budget: Int, backend_id: String, passive_backend_id: String, clear_red: Int, clear_green: Int, clear_blue: Int, accent_red: Int, accent_green: Int, accent_blue: Int, vertex_shader_path: String, fragment_shader_path: String, frame_report_path: String, host_report_path: String, screenshot_path: String) -> KaintanaWindowSpec:
+    return KaintanaWindowSpec {
+        title: title,
+        width: width,
+        height: height,
+        frame_budget: frame_budget,
+        backend_id: backend_id,
+        passive_backend_id: passive_backend_id,
+        clear: kaintana_color(clear_red, clear_green, clear_blue, 255),
+        accent: kaintana_color(accent_red, accent_green, accent_blue, 255),
+        vertex_shader_path: vertex_shader_path,
+        fragment_shader_path: fragment_shader_path,
+        frame_report_path: frame_report_path,
+        host_report_path: host_report_path,
+        screenshot_path: screenshot_path,
+    }
+
+pub fn kaintana_default_window_spec(title: String, width: Int, height: Int, backend_id: String) -> KaintanaWindowSpec:
+    return kaintana_window_spec(
+        title,
+        width,
+        height,
+        180,
+        backend_id,
+        "software",
+        8,
+        14,
+        26,
+        255,
+        112,
+        68,
+        "",
+        "",
+        ".kain/run/kaintana_frame_report.txt",
+        ".kain/run/kaintana_host_report.txt",
+        ".kain/run/kaintana_host.bmp"
+    )
+
+pub fn kaintana_window_rect(spec: KaintanaWindowSpec) -> KaintanaRect:
+    return kaintana_rect(0.0, 0.0, Float(spec.width), Float(spec.height))
