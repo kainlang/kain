@@ -870,6 +870,74 @@ def purge_build_outputs(paths: list[Path]) -> None:
                 time.sleep(0.25)
 
 
+def should_retry_output_lock(stderr: str) -> bool:
+    text = stderr.lower()
+    return (
+        "permission denied" in text
+        or "fatal error lnk1104" in text
+        or "cannot open file" in text
+        or "unable to remove file" in text
+    )
+
+
+def run_build_command_with_retries(
+    command: list[str],
+    timeout: int,
+    cwd: Path = REPO_ROOT,
+    env_overrides: dict[str, str] | None = None,
+    output_paths: list[Path] | None = None,
+) -> CommandResult:
+    attempts = 4 if os.name == "nt" and output_paths else 1
+    total_elapsed_ms = 0.0
+    last_result: CommandResult | None = None
+    for attempt in range(attempts):
+        if output_paths:
+            purge_build_outputs(output_paths)
+        result = run_command(command, timeout=timeout, cwd=cwd, env_overrides=env_overrides)
+        total_elapsed_ms += result.elapsed_ms
+        last_result = result
+        if result.returncode == 0:
+            return CommandResult(
+                command=result.command,
+                returncode=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                elapsed_ms=total_elapsed_ms,
+            )
+        if attempt + 1 >= attempts or not should_retry_output_lock(result.stderr):
+            break
+        time.sleep(0.35 * (attempt + 1))
+    assert last_result is not None
+    return CommandResult(
+        command=last_result.command,
+        returncode=last_result.returncode,
+        stdout=last_result.stdout,
+        stderr=last_result.stderr,
+        elapsed_ms=total_elapsed_ms,
+    )
+
+
+def kain_generated_runtime_root(case: dict[str, Any]) -> Path | None:
+    languages = case.get("languages")
+    if not isinstance(languages, dict) or "kain" not in languages:
+        return None
+    return case_source_path(case, "kain").parent / "generated" / "native_runtime"
+
+
+def should_retry_after_generated_runtime_error(case_languages: list[str], exc: Exception) -> bool:
+    if "kain" not in case_languages:
+        return False
+    text = str(exc).replace("\\", "/").lower()
+    return "generated/native_runtime" in text and text.endswith(".tmp'")
+
+
+def purge_kain_generated_runtime(case: dict[str, Any]) -> None:
+    generated_root = kain_generated_runtime_root(case)
+    if not generated_root or not generated_root.exists():
+        return
+    shutil.rmtree(generated_root, ignore_errors=True)
+
+
 def missing_tool_build(language: str, command: list[str], error: str) -> dict[str, Any]:
     return {
         "ok": False,
@@ -937,8 +1005,13 @@ def build_kain_case(
             "error": f"missing Kain runtime manifest {runtime_manifest}",
         }
 
-    purge_build_outputs(sidecar_paths_for_executable(exe_path) + [ll_path])
-    result = run_command(command, timeout=timeout, cwd=source_path.parent, env_overrides=env_overrides)
+    result = run_build_command_with_retries(
+        command,
+        timeout=timeout,
+        cwd=source_path.parent,
+        env_overrides=env_overrides,
+        output_paths=sidecar_paths_for_executable(exe_path) + [ll_path],
+    )
     produced_exe = ll_path.with_suffix(".exe" if os.name == "nt" else "")
     if produced_exe.exists() and produced_exe != exe_path:
         shutil.copyfile(produced_exe, exe_path)
@@ -1003,7 +1076,11 @@ def build_rust_case(
                 "stderr": "",
                 "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
             }
-        result = run_command(command, timeout=timeout)
+        result = run_build_command_with_retries(
+            command,
+            timeout=timeout,
+            output_paths=sidecar_paths_for_executable(exe_path),
+        )
         ok = result.returncode == 0 and exe_path.exists()
         return {
             "ok": ok,
@@ -1050,8 +1127,11 @@ def build_rust_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
-    purge_build_outputs(sidecar_paths_for_executable(exe_path))
-    result = run_command(command, timeout=timeout)
+    result = run_build_command_with_retries(
+        command,
+        timeout=timeout,
+        output_paths=sidecar_paths_for_executable(exe_path),
+    )
     if support_artifacts:
         copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
     ok = result.returncode == 0 and exe_path.exists()
@@ -1129,8 +1209,11 @@ def build_cpp_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
-    purge_build_outputs(sidecar_paths_for_executable(exe_path))
-    result = run_command(command, timeout=timeout)
+    result = run_build_command_with_retries(
+        command,
+        timeout=timeout,
+        output_paths=sidecar_paths_for_executable(exe_path),
+    )
     if support_artifacts:
         copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
     ok = result.returncode == 0 and exe_path.exists()
@@ -1203,8 +1286,12 @@ def build_go_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
-    purge_build_outputs(sidecar_paths_for_executable(exe_path))
-    result = run_command(command, timeout=timeout, cwd=command_cwd)
+    result = run_build_command_with_retries(
+        command,
+        timeout=timeout,
+        cwd=command_cwd,
+        output_paths=sidecar_paths_for_executable(exe_path),
+    )
     ok = result.returncode == 0 and exe_path.exists()
     return {
         "ok": ok,
@@ -1258,8 +1345,12 @@ def build_zig_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
-    purge_build_outputs(sidecar_paths_for_executable(exe_path))
-    result = run_command(command, timeout=timeout, cwd=source.parent)
+    result = run_build_command_with_retries(
+        command,
+        timeout=timeout,
+        cwd=source.parent,
+        output_paths=sidecar_paths_for_executable(exe_path),
+    )
     ok = result.returncode == 0 and exe_path.exists()
     return {
         "ok": ok,
@@ -2258,17 +2349,34 @@ def main() -> int:
         for case in selected_cases(manifest, args.only_case):
             case_languages = selected_case_languages(case, languages)
             print(f"[bench] {case['id']} ({', '.join(case_languages)})")
-            result = benchmark_case(
-                case=case,
-                languages=languages,
-                tools=tools,
-                warmups=warmups,
-                runs=runs,
-                timeout=args.timeout,
-                no_build=args.no_build,
-                kain_native_env=kain_native_env,
-                baseline_mode=args.baseline_mode,
-            )
+            try:
+                result = benchmark_case(
+                    case=case,
+                    languages=languages,
+                    tools=tools,
+                    warmups=warmups,
+                    runs=runs,
+                    timeout=args.timeout,
+                    no_build=args.no_build,
+                    kain_native_env=kain_native_env,
+                    baseline_mode=args.baseline_mode,
+                )
+            except FileNotFoundError as exc:
+                if not should_retry_after_generated_runtime_error(case_languages, exc):
+                    raise
+                purge_kain_generated_runtime(case)
+                print(f"[bench] retry {case['id']} after purging generated/native_runtime cache")
+                result = benchmark_case(
+                    case=case,
+                    languages=languages,
+                    tools=tools,
+                    warmups=warmups,
+                    runs=runs,
+                    timeout=args.timeout,
+                    no_build=args.no_build,
+                    kain_native_env=kain_native_env,
+                    baseline_mode=args.baseline_mode,
+                )
             report["cases"].append(result)
         report["ok"] = all(
             case["run"][language]["ok"]

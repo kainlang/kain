@@ -1,5 +1,76 @@
 # Kain Memory
 
+# 2026-05-20 - Benchmark latest truth hardened; CFD frontier collapsed back to near parity
+
+This automation pass started from a false frontier: the canonical `benchmark/latest.md` snapshot was making `sim_cfd_pressure_projection` look like a catastrophic Kain regression even though focused retakes kept landing near parity. The durable fix was not only the already-tracked CFD row linearization, but also hardening `benchmark/run.py` so the suite stops failing or lying under Windows churn.
+
+What changed in this pass:
+
+- `benchmark/run.py`
+  - manifest default latest profile now lands at `3` warmups / `9` timed runs instead of `2` / `7`
+  - reports emit `Stability Alerts` for outlier-heavy samples, so future agents can tell noisy rows from real regressions
+  - direct build outputs now purge `.exe` / linker sidecars before rebuild and retry Windows permission-denied linker failures
+  - Kain case runs retry once after purging case-local `generated/native_runtime` cache when a transient `.tmp` miss blows up a build
+- Durable assessment note:
+  - `benchmark/assesments/2026-05-20-benchmark-stability-and-cfd-linearization-latest-benchmark-assessment.md`
+
+Validation:
+
+- focused build-lock fixes:
+  - `benchmark/out/reports/latest_contention_lockfix.llm.md`
+  - `benchmark/out/reports/latest_process_lockfix.llm.md`
+- focused CFD checkpoints:
+  - before: `benchmark/out/reports/latest_sim_cfd_probe_before.llm.md` -> Kain `11.041 ms`, Rust `10.667 ms`, C++ `9.657 ms`
+  - after linearized row/plane shape: `benchmark/out/reports/latest_sim_cfd_linearized.llm.md` -> Kain `10.334 ms`, Rust `10.336 ms`, C++ `9.870 ms`
+- Z3 bounds proof for the linearized CFD lane:
+  - `benchmark/cases/sim_cfd_pressure_projection/proofs-experimental/sim-cfd-linearized-bounds.smt2`
+  - report `z3/reports/20260520T051221Z-sim-cfd-linearized-bounds.json` -> `unsat`
+- canonical full-suite rerun:
+  - `python benchmark/run.py --timeout 900 --baseline-mode auto`
+  - `benchmark/out/reports/latest.llm.md`
+  - generated `2026-05-20T05:49:15.103727+00:00`
+  - suite status: `PASS`
+
+Latest frontier truth after the hardening pass:
+
+- `process_stdio_loop`: Kain `6809.287 ms`, Rust `5174.384 ms` -> biggest remaining honest implemented gap
+- `http_server_concurrency`: Kain `57.447 ms`, Rust `48.491 ms` -> still the highest-value runtime/native HTTP gap
+- `recursive_sum`: Kain `10.566 ms`, Rust `9.465 ms`
+- `ownership_memory`: Kain `13.178 ms`, C++ `12.117 ms`
+- `memory_stream`: Kain `11.727 ms`, C++ `10.862 ms`
+- `sim_cfd_pressure_projection`: Kain `12.736 ms`, Rust `12.471 ms`, C++ `12.054 ms`
+- `ffi_shared_call_stress`: Kain `55.757 ms`, C++ `53.392 ms`
+
+Durable lesson:
+
+- The benchmark lane needed measurement truth and build hygiene more than another speculative optimizer pass. Once the suite was allowed to speak honestly, the fake CFD cliff disappeared and the real frontier shrank back to `process_stdio_loop`, `http_server_concurrency`, and a few single-digit-percent C++ deltas.
+
+# 2026-05-20 - Permanent /mcp Kain agent MCP network scaffold
+
+Started the successor repo-MCP workspace under `mcp/kain-agent-mcp` instead of expanding the old `blades/kain-mcp` proving-ground lane.
+
+What landed:
+
+- `mcp/kain-agent-mcp/KAIN.toml` with manifest-root module roots for `src`, `src/protocol`, `src/server`, and `src/tools/health`.
+- `config/server.json` as the first data-driven server/tool policy surface.
+- `src/main.kn`, `src/server/http_probe_server.kn`, `src/protocol/http_probe_protocol.kn`, and `src/tools/health/health_tool.kn`.
+- The network scaffold proves Kain native LLVM can do a localhost HTTP server self-test: listen on port `0`, route `/mcp/health` to an actor, self-connect through raw TCP, parse method/path/query/protocol/body, construct TLS and HTTP/2 request handles, emit a JSON-ish health response, close handles, and exit `0`.
+- `.gitignore` now keeps the old ignored `/mcp/*` behavior but explicitly unignores `mcp/kain-agent-mcp` source/config so the permanent workspace can be tracked while generated `.exe`, `.ll`, `.kain`, and sidecars remain ignored.
+
+Validation:
+
+- Direct Bazel-built compiler path: `D:\kain-bazel\output-user-root\ccujd7ry\execroot\_main\bazel-out\x64_windows-dbg\bin\crates\cli\kain.exe`.
+- `kain check src\main.kn --target llvm` from `mcp/kain-agent-mcp` -> PASS.
+- `kain build --target llvm` from `mcp/kain-agent-mcp` -> PASS, artifacts under `.kain/out`.
+- `kain run . --target llvm --keep-artifacts --json` from `mcp/kain-agent-mcp` -> PASS, native exe exit code `0`.
+- Staged and directly ran `mcp/kain-agent-mcp/kain-agent-mcp.exe` from the workspace root -> exit code `0`.
+
+Compiler/build caveats discovered:
+
+- The PowerShell `kain` launcher still mis-handles `-o` as an ambiguous PowerShell parameter; use the direct Bazel-built `kain.exe` for explicit output paths.
+- Direct file LLVM compile of `src/main.kn` linked with `undefined value '@run_mcp_http_probe'` even though `check` passed. The manifest-root module path used by `kain run . --target llvm` is the validated route for this modular MCP workspace.
+- Current Kain module imports should follow the Kaintana pattern: put nested folders in `module_roots` and import by module name (`use http_probe_server::...`) rather than nested filesystem module paths (`use server::http_probe_server::...`) until nested LLVM module emission is hardened.
+
 # 2026-05-20 - Kaintana split into modular stdlib-backed builder framework
 
 `blades/kaintana` is no longer a single god-file UI vocabulary. The framework is now split across `src/api/kaintana_ui.kn`, `src/api/widgets.kn`, `src/core/{types,reconciliation,layout,theme,input,render_commands}.kn`, `src/platform/desktop/desktop_adapter.kn`, and a tiny `src/kaintana.kn` prelude. The Kaintana v2 probe in `src/main.kn` creates a stdlib-backed context, builds panel/label/button/text-input/slider specs through explicit builder-stage functions, renders through `*_render(ctx, builder)`, emits passive `std::ui` draw state plus the desktop compatibility bridge, and writes package artifacts under `.kain/run/`.
