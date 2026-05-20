@@ -212,9 +212,9 @@
     {
       "id": "machine_stones_shatter_loop",
       "title": "Machine Stones Shatter Loop",
-      "description": "Hot field iteration over a fixed particle set. Kain authors a clean array of `shatter struct` particles and LLVM lowers proven loop indexes to cached SoA lane bases; Rust and C++ hand-author the equivalent SoA arrays.",
+      "description": "Hot field iteration over a fixed particle set. Kain authors a clean array of `shatter struct` particles and LLVM lowers closed local use to stack-backed SoA lane buffers; Rust and C++ hand-author the equivalent SoA arrays.",
       "maturity": "implemented",
-      "fairness_note": "This isolates shatter memory-layout lowering rather than pulse or teleport. Kain's row uses compiler-owned shatter SoA lane bases; Rust/C++ use explicit structure-of-arrays source, while JavaScript/Python mirror the same field arrays without native layout control.",
+      "fairness_note": "This isolates shatter memory-layout lowering rather than pulse or teleport. Kain's row uses compiler-owned stack-backed shatter lane buffers for a closed local field-projection loop; Rust/C++ use explicit structure-of-arrays source, while JavaScript/Python mirror the same field arrays without native layout control.",
       "kain": "cases/machine_stones_shatter_loop/main.kn",
       "rust": "cases/machine_stones_shatter_loop/main.rs",
       "cpp": "cases/machine_stones_shatter_loop/main.cpp",

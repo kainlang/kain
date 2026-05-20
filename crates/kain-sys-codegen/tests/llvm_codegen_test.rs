@@ -1417,7 +1417,7 @@ fn llvm_lowers_ownership_keywords_to_runtime_guards() {
 }
 
 #[test]
-fn llvm_lowers_machine_stones_to_native_runtime_abi() {
+fn llvm_lowers_closed_lane_machine_stones_to_stack_backed_shatter_lanes() {
     let typed = typed_program_from_source(
         r#"
 axiom native_atomic_mask_truth:
@@ -1485,17 +1485,18 @@ fn main() -> Int:
     assert!(llvm.contains("define void @__kain_pulse_fire_agent_sinus()"));
     assert!(llvm.contains("call i64 @kain_machine_pulse_start(i64"));
     assert!(llvm.contains("void ()* @__kain_pulse_fire_agent_sinus"));
-    assert!(llvm.contains("call i8* @kain_machine_shatter_alloc(i64 3, i64 2)"));
-    assert!(llvm.contains("call i8* @kain_machine_shatter_lane_base"));
+    assert!(!llvm.contains("call i8* @kain_machine_shatter_alloc(i64 3, i64 2)"));
+    assert!(!llvm.contains("call i8* @kain_machine_shatter_lane_base"));
+    assert_eq!(llvm.matches("alloca [2 x i64]").count(), 3);
     assert!(llvm.contains("shl i64"));
     assert!(!llvm.contains("call i8* @kain_machine_shatter_lane_ptr"));
-    assert!(llvm.contains("call i8* @kain_machine_teleport_ptr"));
+    assert!(!llvm.contains("call void @kain_machine_shatter_free(i8*"));
     assert!(!llvm.contains("call i8* @array_new(i64 4)"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "machine-stones-native-runtime");
 }
 
 #[test]
-fn llvm_cleans_shattered_array_locals_on_each_return_path() {
+fn llvm_keeps_closed_lane_shattered_array_locals_off_runtime_cleanup_paths() {
     let typed = typed_program_from_source(
         r#"
 shatter struct PairShard:
@@ -1520,10 +1521,11 @@ fn main() -> Int:
         .expect("llvm output should be utf8");
 
     let shatter_free_count = llvm.matches("call void @kain_machine_shatter_free").count();
-    assert!(
-        shatter_free_count >= 3,
-        "each return path should free the shatter handle, saw {shatter_free_count}\n{llvm}"
+    assert_eq!(
+        shatter_free_count, 0,
+        "stack-backed shattered locals must not route through runtime free\n{llvm}"
     );
+    assert_eq!(llvm.matches("alloca [2 x i64]").count(), 3);
     assert!(
         !llvm.contains("call void @rc_release(i8*"),
         "shatter handles are not RC allocations and must not be released with rc_release\n{llvm}"
@@ -1697,9 +1699,7 @@ fn llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage() {
 
 #[test]
 fn llvm_marks_heap_alloc_helpers_as_noalias_allocsize() {
-    let typed = typed_program_from_source(
-        "fn main() -> Int:\n    return 0\n",
-    );
+    let typed = typed_program_from_source("fn main() -> Int:\n    return 0\n");
 
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");

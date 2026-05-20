@@ -1,5 +1,55 @@
 # Kain Memory
 
+# 2026-05-20 - Closed-lane shatter stack lowering flipped the machine-stones frontier
+
+The latest benchmark automation pass moved off HTTP long enough to kill a cleaner compiler-owned wound: fixed local `shatter struct` array literals were still paying `kain_machine_shatter_alloc/free` overhead even when the whole use stayed inside one block as `len(...)` plus `particles[i].field` projections. That runtime shape is gone now for the closed local lane.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Added a closed-lane candidate analysis for shattered array locals.
+  - Lowered eligible local shattered literals to entry-block stack-backed SoA lane buffers (`[N x i64]` per field lane) instead of runtime shatter handles.
+  - Kept the old runtime-backed shatter path for non-closed shapes.
+  - Taught shattered field lowering to use direct lane-base math for the stack-backed lane and skip runtime free on scope exit.
+  - Added `len(...)` fast-path support for shattered locals with compiler-known element counts.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Added coverage that closed-lane machine-stones lowering uses stack lane allocas and avoids `kain_machine_shatter_alloc`, `kain_machine_shatter_lane_base`, `kain_machine_shatter_lane_ptr`, and `kain_machine_shatter_free`.
+- `crates/kain-sys-codegen/z3/proofs-experimental/shatter-stack-slot-span.smt2`
+  - Proves the new 8-byte slot addressing stays within the per-lane stack buffer for all valid indices and field widths up to 8 bytes.
+- `benchmark/benchmarks.json`
+  - Updated `machine_stones_shatter_loop` description/fairness note so the benchmark now honestly says Kain uses compiler-owned stack-backed shatter lane buffers for the closed local loop.
+- `research/2026-05-19-benchmark-frontier-speedup-hunt.md`
+  - Recorded the frontier ranking, proof, focused benchmark flip, and the new alloc-churn warning.
+
+Validation:
+
+- formatting:
+  - repo-wide `cargo fmt --all` is still blocked by pre-existing trailing whitespace in `crates/ue5-shaders/src/validation.rs`
+  - formatted touched files directly with `rustfmt crates/kain-sys-codegen/src/codegen_llvm/mod.rs crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- focused codegen tests:
+  - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_closed_lane_machine_stones_to_stack_backed_shatter_lanes -- --exact`
+  - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_keeps_closed_lane_shattered_array_locals_off_runtime_cleanup_paths -- --exact`
+- proof:
+  - `mcp__z3_local__.check_smt2(report_name="shatter-stack-slot-span")` -> `unsat`
+- focused benchmark retake:
+  - `python benchmark/run.py --case machine_stones_shatter_loop --languages kain,rust,cpp --runs 5 --warmups 2 --timeout 900`
+  - generated `2026-05-20T02:16:21.084251+00:00`
+  - `machine_stones_shatter_loop`: Kain `12.797 ms`, Rust `13.332 ms`, C++ `13.232 ms`
+- canonical full-suite refresh:
+  - `python benchmark/run.py --timeout 900`
+  - generated `2026-05-20T02:19:06.967886+00:00`
+  - suite status: `PASS`
+  - `machine_stones_shatter_loop`: Kain `13.765 ms`, Rust `14.004 ms`, C++ `13.742 ms`
+  - `http_server_concurrency`: Kain `58.143 ms`, Rust `40.170 ms`
+  - `alloc_churn`: Kain `61.489 ms`, Rust `11.352 ms`, C++ `11.969 ms`
+
+Durable lesson:
+
+- The machine-stones row was not fundamentally missing SoA semantics anymore; it was still paying the wrong ownership/storage abstraction. Once the array stayed closed to local field projections, the runtime handle could be deleted honestly.
+- The focused machine-stones retake is the real signal: this compiler pass flipped the row from the prior canonical `19.082 ms` Kain loss into a `12.797 ms` Kain win. The full suite now shows an effective Kain/C++ tie with one large Kain outlier, so the frontier moved from "structural lowering deficit" to "noise-sensitive finish line."
+- The next highest-value implemented frontier is no longer `machine_stones_shatter_loop`. It is `alloc_churn`, but not as a plain loop-speed problem: the emitted LLVM already uses a stack-local cell and the samples are bimodal (`10.812/11.287 ms` fast mode vs `61-67 ms` slow mode). Treat it as runtime/startup jitter forensics.
+- `http_server_concurrency` remains the biggest absolute honest gap and still needs runtime/native HTTP work after this compiler pass.
+
 # 2026-05-19 - HTTP exact-frame fast path landed; queue handoff rejected
 
 The latest benchmark automation pass stayed on the biggest honest implemented runtime gap, `http_server_concurrency`, but the first attempt proved the wrong lesson: a blocking socket queue plus bounded worker pool looked clever in isolation and then blew up under the canonical full suite. The kept result is smaller and real: exact fixed-frame request validation plus one cached full-response send on top of the original accept-thread + worker-swarm shape.

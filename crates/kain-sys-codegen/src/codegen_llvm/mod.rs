@@ -74,10 +74,17 @@ struct NativePulseInfo {
 }
 
 #[derive(Clone, Debug)]
+enum ShatteredArrayBacking {
+    RuntimeHandle,
+    StackLaneBuffers,
+}
+
+#[derive(Clone, Debug)]
 struct ShatteredArrayLocal {
     struct_name: String,
     element_count: usize,
     lane_base_values: Vec<String>,
+    backing: ShatteredArrayBacking,
 }
 
 #[derive(Clone, Debug)]
@@ -392,6 +399,10 @@ struct LlvmGenerator {
     /// Locals whose array literal can stay as an LLVM fixed array because every
     /// remaining use is a len() query or an index load.
     fixed_array_candidate_scopes: Vec<HashSet<String>>,
+    /// Locals whose shattered array literal never escapes field-projection /
+    /// len-only use, so LLVM can keep each shatter lane as an entry-block stack
+    /// buffer instead of routing through the runtime heap handle.
+    stack_shatter_candidate_scopes: Vec<HashSet<String>>,
     /// Locals whose `map_new` seed and all remaining uses stay inside a closed
     /// literal-key / literal-value lane, so `map_get` can collapse to direct
     /// constants without changing runtime-visible semantics.
@@ -480,6 +491,7 @@ impl LlvmGenerator {
             known_nonnegative_i64_scopes: Vec::new(),
             forwarded_mem_slot_scopes: Vec::new(),
             fixed_array_candidate_scopes: Vec::new(),
+            stack_shatter_candidate_scopes: Vec::new(),
             literal_map_candidate_scopes: Vec::new(),
             borrowed_locals: HashSet::new(),
             json_handle_locals: HashSet::new(),
@@ -1528,6 +1540,13 @@ impl LlvmGenerator {
             .unwrap_or(false)
     }
 
+    fn current_scope_marks_stack_shatter_candidate(&self, name: &str) -> bool {
+        self.stack_shatter_candidate_scopes
+            .last()
+            .map(|candidates| candidates.contains(name))
+            .unwrap_or(false)
+    }
+
     fn current_scope_marks_literal_map_candidate(&self, name: &str) -> bool {
         self.literal_map_candidate_scopes
             .last()
@@ -1551,10 +1570,8 @@ impl LlvmGenerator {
                 if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_alloc")
                     && args.len() == 3 =>
             {
-                let element_count =
-                    Self::resolve_i64_literal(&args[0].value, known_i64_bindings)?;
-                let stride_bytes =
-                    Self::resolve_i64_literal(&args[1].value, known_i64_bindings)?;
+                let element_count = Self::resolve_i64_literal(&args[0].value, known_i64_bindings)?;
+                let stride_bytes = Self::resolve_i64_literal(&args[1].value, known_i64_bindings)?;
                 let zeroed = Self::resolve_zeroed_literal(&args[2].value, known_i64_bindings)?;
                 if element_count <= 0 || stride_bytes <= 0 {
                     return None;
@@ -1592,9 +1609,7 @@ impl LlvmGenerator {
         Self::helper_alloc_scalar_llvm_ty(storage_byte_len)
     }
 
-    fn helper_alloc_stack_storage_shape(
-        layout: HelperAllocStorageLayout,
-    ) -> (String, String, i64) {
+    fn helper_alloc_stack_storage_shape(layout: HelperAllocStorageLayout) -> (String, String, i64) {
         if let Some(scalar_ty) = Self::helper_alloc_scalar_llvm_ty(layout.stride_bytes) {
             if layout.element_count == 1 {
                 (
@@ -1610,11 +1625,7 @@ impl LlvmGenerator {
                 )
             }
         } else {
-            (
-                format!("[{} x i8]", layout.byte_len),
-                "i8".to_string(),
-                1,
-            )
+            (format!("[{} x i8]", layout.byte_len), "i8".to_string(), 1)
         }
     }
 
@@ -2623,19 +2634,13 @@ impl LlvmGenerator {
                     args.len() == 1
                         && (Self::expr_is_ephemeral_target_address(&args[0].value, target)
                             || (!Self::expr_is_exact_target_pointer(&args[0].value, target)
-                                && Self::expr_is_safe_for_ephemeral_local(
-                                    &args[0].value,
-                                    target,
-                                )))
+                                && Self::expr_is_safe_for_ephemeral_local(&args[0].value, target)))
                 } else if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_store")
                 {
                     args.len() == 2
                         && (Self::expr_is_ephemeral_target_address(&args[0].value, target)
                             || (!Self::expr_is_exact_target_pointer(&args[0].value, target)
-                                && Self::expr_is_safe_for_ephemeral_local(
-                                    &args[0].value,
-                                    target,
-                                )))
+                                && Self::expr_is_safe_for_ephemeral_local(&args[0].value, target)))
                         && Self::expr_is_safe_for_ephemeral_local(&args[1].value, target)
                 } else {
                     Self::expr_is_safe_for_ephemeral_local(callee, target)
@@ -3172,6 +3177,210 @@ impl LlvmGenerator {
                     && block.stmts[index + 1..]
                         .iter()
                         .all(|stmt| Self::stmt_is_safe_fixed_array_use(stmt, name))
+                {
+                    candidates.insert(name.clone());
+                }
+            }
+        }
+        candidates
+    }
+
+    fn expr_is_direct_shattered_array_literal(&self, expr: &Expr) -> bool {
+        self.shattered_array_expr_struct_name(expr).is_some()
+    }
+
+    fn expr_matches_closed_shatter_field_projection(expr: &Expr, target: &str) -> bool {
+        match expr {
+            Expr::Field { object, .. } => match object.as_ref() {
+                Expr::Index {
+                    object: indexed_object,
+                    index,
+                    ..
+                } if Self::expr_is_exact_target_pointer(indexed_object, target) => {
+                    !Self::debug_mentions_identifier(index, target)
+                }
+                Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                    Self::expr_matches_closed_shatter_field_projection(inner, target)
+                }
+                _ => false,
+            },
+            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                Self::expr_matches_closed_shatter_field_projection(inner, target)
+            }
+            _ => false,
+        }
+    }
+
+    fn expr_is_safe_stack_shatter_use(expr: &Expr, target: &str) -> bool {
+        if Self::expr_matches_closed_shatter_field_projection(expr, target) {
+            return true;
+        }
+        match expr {
+            Expr::Ident(name, _) => name != target,
+            Expr::Call { callee, args, .. } => {
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "len")
+                    && args.len() == 1
+                    && Self::expr_is_exact_target_pointer(&args[0].value, target)
+                {
+                    return true;
+                }
+                Self::expr_is_safe_stack_shatter_use(callee, target)
+                    && args
+                        .iter()
+                        .all(|arg| Self::expr_is_safe_stack_shatter_use(&arg.value, target))
+            }
+            Expr::Index { object, index, .. } => {
+                if Self::expr_is_exact_target_pointer(object, target) {
+                    false
+                } else {
+                    Self::expr_is_safe_stack_shatter_use(object, target)
+                        && Self::expr_is_safe_stack_shatter_use(index, target)
+                }
+            }
+            Expr::Assign {
+                target: assign_target,
+                value,
+                ..
+            } => {
+                !Self::debug_mentions_identifier(assign_target, target)
+                    && Self::expr_is_safe_stack_shatter_use(assign_target, target)
+                    && Self::expr_is_safe_stack_shatter_use(value, target)
+            }
+            Expr::Binary { left, right, .. } => {
+                Self::expr_is_safe_stack_shatter_use(left, target)
+                    && Self::expr_is_safe_stack_shatter_use(right, target)
+            }
+            Expr::Unary { operand, .. }
+            | Expr::Paren(operand, _)
+            | Expr::Deref(operand, _)
+            | Expr::Try(operand, _)
+            | Expr::Await(operand, _)
+            | Expr::AsyncBlock(operand, _)
+            | Expr::Comptime(operand, _)
+            | Expr::Return(Some(operand), _)
+            | Expr::Break(Some(operand), _) => {
+                Self::expr_is_safe_stack_shatter_use(operand, target)
+            }
+            Expr::Return(None, _) | Expr::Break(None, _) => true,
+            Expr::FString(parts, _) | Expr::Array(parts, _) | Expr::Tuple(parts, _) => parts
+                .iter()
+                .all(|part| Self::expr_is_safe_stack_shatter_use(part, target)),
+            Expr::MacroCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_stack_shatter_use(arg, target)),
+            Expr::StageCall { args, .. } => args
+                .iter()
+                .all(|arg| Self::expr_is_safe_stack_shatter_use(&arg.value, target)),
+            Expr::MethodCall { receiver, args, .. } => {
+                Self::expr_is_safe_stack_shatter_use(receiver, target)
+                    && args
+                        .iter()
+                        .all(|arg| Self::expr_is_safe_stack_shatter_use(&arg.value, target))
+            }
+            Expr::Field { object, .. } => Self::expr_is_safe_stack_shatter_use(object, target),
+            Expr::Struct { fields, rest, .. } => {
+                fields
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_stack_shatter_use(value, target))
+                    && rest
+                        .as_ref()
+                        .map(|value| Self::expr_is_safe_stack_shatter_use(value, target))
+                        .unwrap_or(true)
+            }
+            Expr::AggregateInit { fields, .. } => fields
+                .iter()
+                .all(|(_, value)| Self::expr_is_safe_stack_shatter_use(value, target)),
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => true,
+                kain_core::ast::EnumVariantFields::Tuple(values) => values
+                    .iter()
+                    .all(|value| Self::expr_is_safe_stack_shatter_use(value, target)),
+                kain_core::ast::EnumVariantFields::Struct(values) => values
+                    .iter()
+                    .all(|(_, value)| Self::expr_is_safe_stack_shatter_use(value, target)),
+            },
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::expr_is_safe_stack_shatter_use(condition, target)
+                    && Self::block_is_safe_stack_shatter_use(then_branch, target)
+                    && else_branch
+                        .as_ref()
+                        .map(|branch| match branch.as_ref() {
+                            ElseBranch::Else(block) => {
+                                Self::block_is_safe_stack_shatter_use(block, target)
+                            }
+                            ElseBranch::ElseIf(condition, block, next) => {
+                                Self::expr_is_safe_stack_shatter_use(condition, target)
+                                    && Self::block_is_safe_stack_shatter_use(block, target)
+                                    && next
+                                        .as_ref()
+                                        .map(|nested| match nested.as_ref() {
+                                            ElseBranch::Else(block) => {
+                                                Self::block_is_safe_stack_shatter_use(block, target)
+                                            }
+                                            ElseBranch::ElseIf(..) => {
+                                                !Self::debug_mentions_identifier(nested, target)
+                                            }
+                                        })
+                                        .unwrap_or(true)
+                            }
+                        })
+                        .unwrap_or(true)
+            }
+            Expr::Block(block, _) => Self::block_is_safe_stack_shatter_use(block, target),
+            other => !Self::debug_mentions_identifier(other, target),
+        }
+    }
+
+    fn stmt_is_safe_stack_shatter_use(stmt: &Stmt, target: &str) -> bool {
+        match stmt {
+            Stmt::Let { value, .. } => value
+                .as_ref()
+                .map(|expr| Self::expr_is_safe_stack_shatter_use(expr, target))
+                .unwrap_or(true),
+            Stmt::Expr(expr) => Self::expr_is_safe_stack_shatter_use(expr, target),
+            Stmt::Return(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
+            Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
+            Stmt::Break(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
+            Stmt::For { iter, body, .. } => {
+                Self::expr_is_safe_stack_shatter_use(iter, target)
+                    && Self::block_is_safe_stack_shatter_use(body, target)
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                Self::expr_is_safe_stack_shatter_use(condition, target)
+                    && Self::block_is_safe_stack_shatter_use(body, target)
+            }
+            Stmt::Loop { body, .. } => Self::block_is_safe_stack_shatter_use(body, target),
+            Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+        }
+    }
+
+    fn block_is_safe_stack_shatter_use(block: &Block, target: &str) -> bool {
+        block
+            .stmts
+            .iter()
+            .all(|stmt| Self::stmt_is_safe_stack_shatter_use(stmt, target))
+    }
+
+    fn collect_block_stack_shatter_candidate_names(&self, block: &Block) -> HashSet<String> {
+        let mut candidates = HashSet::new();
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            if let Stmt::Let {
+                pattern: Pattern::Binding { name, .. },
+                value: Some(value),
+                ..
+            } = stmt
+            {
+                if self.expr_is_direct_shattered_array_literal(value)
+                    && block.stmts[index + 1..]
+                        .iter()
+                        .all(|stmt| Self::stmt_is_safe_stack_shatter_use(stmt, name))
                 {
                     candidates.insert(name.clone());
                 }
@@ -5542,10 +5751,7 @@ impl LlvmGenerator {
             cast
         } else {
             let cast = self.next_reg();
-            self.emit(&format!(
-                "  {} = inttoptr i64 {} to i8*",
-                cast, base_i64
-            ));
+            self.emit(&format!("  {} = inttoptr i64 {} to i8*", cast, base_i64));
             cast
         };
         let raw_ptr = self.next_reg();
@@ -6936,6 +7142,88 @@ impl LlvmGenerator {
             .collect()
     }
 
+    fn emit_stack_shatter_lane_bases(
+        &mut self,
+        local_name: &str,
+        lane_count: usize,
+        element_count: usize,
+    ) -> Vec<String> {
+        let lane_storage_ty = format!("[{} x i64]", element_count);
+        (0..lane_count)
+            .map(|lane_index| {
+                let storage_reg = format!(
+                    "%{}.shatter_lane{}_{}",
+                    local_name, lane_index, self.reg_count
+                );
+                self.reg_count += 1;
+                self.emit_entry_alloca(&storage_reg, &lane_storage_ty);
+                let base = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast {}* {} to i8*",
+                    base, lane_storage_ty, storage_reg
+                ));
+                base
+            })
+            .collect()
+    }
+
+    fn populate_shattered_array_literal_lanes(
+        &mut self,
+        struct_name: &str,
+        fields: &[(String, String)],
+        items: &[Expr],
+        lane_bases: &[String],
+    ) -> KainResult<()> {
+        for (element_index, item) in items.iter().enumerate() {
+            let Expr::Struct {
+                name,
+                fields: authored_fields,
+                ..
+            } = item
+            else {
+                return Err(KainError::codegen(
+                    "shatter arrays require direct struct literals in LLVM lowering",
+                    item.span(),
+                ));
+            };
+            if name != struct_name {
+                return Err(KainError::codegen(
+                    format!("shatter array expected {}, found {}", struct_name, name),
+                    item.span(),
+                ));
+            }
+            for (lane_index, (field_name, field_ty)) in fields.iter().enumerate() {
+                let (value, value_ty) = if let Some((_, authored_value)) =
+                    authored_fields.iter().find(|(name, _)| name == field_name)
+                {
+                    self.compile_expr_for_target_type(authored_value, field_ty)?
+                } else {
+                    (self.zero_value_for_ty(field_ty), field_ty.clone())
+                };
+                let raw_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+                    raw_ptr,
+                    lane_bases
+                        .get(lane_index)
+                        .map(String::as_str)
+                        .unwrap_or("null"),
+                    element_index * 8
+                ));
+                let typed_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    typed_ptr, raw_ptr, field_ty
+                ));
+                self.emit(&format!(
+                    "  store {} {}, {}* {}",
+                    value_ty, value, field_ty, typed_ptr
+                ));
+            }
+        }
+        Ok(())
+    }
+
     fn shattered_index_is_proven_in_bounds(&self, index: &Expr, element_count: usize) -> bool {
         let element_count = element_count as i64;
         let known_i64_bindings = self.current_known_i64_literals();
@@ -7008,7 +7296,11 @@ impl LlvmGenerator {
             Err(error) => return Some(Err(error)),
         };
         if let Some(lane_base) = local.lane_base_values.get(field_index) {
-            if self.shattered_index_is_proven_in_bounds(index, local.element_count) {
+            let index_is_proven_in_bounds =
+                self.shattered_index_is_proven_in_bounds(index, local.element_count);
+            let can_use_direct_lane_base = index_is_proven_in_bounds
+                || matches!(local.backing, ShatteredArrayBacking::StackLaneBuffers);
+            if can_use_direct_lane_base {
                 let byte_offset =
                     if let Some(literal_offset) = self.shattered_literal_byte_offset(index) {
                         literal_offset.to_string()
@@ -7018,9 +7310,14 @@ impl LlvmGenerator {
                         scaled
                     };
                 let raw_ptr = self.next_reg();
+                let gep_opcode = if index_is_proven_in_bounds {
+                    "getelementptr inbounds"
+                } else {
+                    "getelementptr"
+                };
                 self.emit(&format!(
-                    "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
-                    raw_ptr, lane_base, byte_offset
+                    "  {} = {} i8, i8* {}, i64 {}",
+                    raw_ptr, gep_opcode, lane_base, byte_offset
                 ));
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
@@ -7029,6 +7326,16 @@ impl LlvmGenerator {
                 ));
                 return Some(Ok((typed_ptr, field_ty)));
             }
+        }
+
+        if matches!(local.backing, ShatteredArrayBacking::StackLaneBuffers) {
+            return Some(Err(KainError::codegen(
+                format!(
+                    "stack-backed shattered local '{}' escaped closed field-projection lowering",
+                    array_name
+                ),
+                span,
+            )));
         }
 
         let (handle_addr, handle_ty) = match self.locals.get(array_name).cloned() {
@@ -7172,54 +7479,7 @@ impl LlvmGenerator {
             items.len()
         ));
         let lane_bases = self.emit_shatter_lane_bases(&handle, fields.len());
-
-        for (element_index, item) in items.iter().enumerate() {
-            let Expr::Struct {
-                name,
-                fields: authored_fields,
-                ..
-            } = item
-            else {
-                return Err(KainError::codegen(
-                    "shatter arrays require direct struct literals in LLVM lowering",
-                    item.span(),
-                ));
-            };
-            if name != struct_name {
-                return Err(KainError::codegen(
-                    format!("shatter array expected {}, found {}", struct_name, name),
-                    item.span(),
-                ));
-            }
-            for (lane_index, (field_name, field_ty)) in fields.iter().enumerate() {
-                let (value, value_ty) = if let Some((_, authored_value)) =
-                    authored_fields.iter().find(|(name, _)| name == field_name)
-                {
-                    self.compile_expr_for_target_type(authored_value, field_ty)?
-                } else {
-                    (self.zero_value_for_ty(field_ty), field_ty.clone())
-                };
-                let raw_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
-                    raw_ptr,
-                    lane_bases
-                        .get(lane_index)
-                        .map(String::as_str)
-                        .unwrap_or("null"),
-                    element_index * 8
-                ));
-                let typed_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = bitcast i8* {} to {}*",
-                    typed_ptr, raw_ptr, field_ty
-                ));
-                self.emit(&format!(
-                    "  store {} {}, {}* {}",
-                    value_ty, value, field_ty, typed_ptr
-                ));
-            }
-        }
+        self.populate_shattered_array_literal_lanes(struct_name, &fields, items, &lane_bases)?;
 
         Ok((handle, "i8*".to_string()))
     }
@@ -10465,6 +10725,8 @@ impl LlvmGenerator {
         );
         self.fixed_array_candidate_scopes
             .push(Self::collect_block_fixed_array_candidate_names(block));
+        self.stack_shatter_candidate_scopes
+            .push(self.collect_block_stack_shatter_candidate_names(block));
         self.literal_map_candidate_scopes
             .push(Self::collect_block_literal_map_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
@@ -10476,6 +10738,7 @@ impl LlvmGenerator {
                 self.known_nonnegative_i64_scopes.pop();
                 self.known_i64_literal_scopes.pop();
                 self.literal_map_candidate_scopes.pop();
+                self.stack_shatter_candidate_scopes.pop();
                 self.fixed_array_candidate_scopes.pop();
                 self.ephemeral_zero_init_elision_scopes.pop();
                 self.ephemeral_candidate_scopes.pop();
@@ -10493,6 +10756,7 @@ impl LlvmGenerator {
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
         self.literal_map_candidate_scopes.pop();
+        self.stack_shatter_candidate_scopes.pop();
         self.fixed_array_candidate_scopes.pop();
         self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
@@ -10517,6 +10781,8 @@ impl LlvmGenerator {
         );
         self.fixed_array_candidate_scopes
             .push(Self::collect_block_fixed_array_candidate_names(block));
+        self.stack_shatter_candidate_scopes
+            .push(self.collect_block_stack_shatter_candidate_names(block));
         self.literal_map_candidate_scopes
             .push(Self::collect_block_literal_map_candidate_names(block));
         self.known_i64_literal_scopes.push(HashMap::new());
@@ -10543,6 +10809,7 @@ impl LlvmGenerator {
                         self.known_nonnegative_i64_scopes.pop();
                         self.known_i64_literal_scopes.pop();
                         self.literal_map_candidate_scopes.pop();
+                        self.stack_shatter_candidate_scopes.pop();
                         self.fixed_array_candidate_scopes.pop();
                         self.ephemeral_zero_init_elision_scopes.pop();
                         self.ephemeral_candidate_scopes.pop();
@@ -10561,6 +10828,7 @@ impl LlvmGenerator {
                     self.known_nonnegative_i64_scopes.pop();
                     self.known_i64_literal_scopes.pop();
                     self.literal_map_candidate_scopes.pop();
+                    self.stack_shatter_candidate_scopes.pop();
                     self.fixed_array_candidate_scopes.pop();
                     self.ephemeral_zero_init_elision_scopes.pop();
                     self.ephemeral_candidate_scopes.pop();
@@ -10590,6 +10858,7 @@ impl LlvmGenerator {
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
         self.literal_map_candidate_scopes.pop();
+        self.stack_shatter_candidate_scopes.pop();
         self.fixed_array_candidate_scopes.pop();
         self.ephemeral_zero_init_elision_scopes.pop();
         self.ephemeral_candidate_scopes.pop();
@@ -10688,14 +10957,15 @@ impl LlvmGenerator {
                 if self.borrowed_locals.contains(var_name) {
                     continue;
                 }
-                if self.shattered_array_locals.contains_key(var_name) {
-                    let tmp = self.next_reg();
-                    self.emit(&format!("  {} = load i8*, i8** {}", tmp, addr));
-                    self.emit(&format!(
-                        "  call void @kain_machine_shatter_free(i8* {})",
-                        tmp
-                    ));
-                    self.shattered_array_locals.remove(var_name);
+                if let Some(local) = self.shattered_array_locals.remove(var_name) {
+                    if matches!(local.backing, ShatteredArrayBacking::RuntimeHandle) {
+                        let tmp = self.next_reg();
+                        self.emit(&format!("  {} = load i8*, i8** {}", tmp, addr));
+                        self.emit(&format!(
+                            "  call void @kain_machine_shatter_free(i8* {})",
+                            tmp
+                        ));
+                    }
                     continue;
                 }
                 if self.fixed_array_locals.remove(var_name).is_some() {
@@ -10742,13 +11012,15 @@ impl LlvmGenerator {
                 if self.borrowed_locals.contains(&var_name) {
                     continue;
                 }
-                if self.shattered_array_locals.contains_key(&var_name) {
-                    let tmp = self.next_reg();
-                    self.emit(&format!("  {} = load i8*, i8** {}", tmp, addr));
-                    self.emit(&format!(
-                        "  call void @kain_machine_shatter_free(i8* {})",
-                        tmp
-                    ));
+                if let Some(local) = self.shattered_array_locals.get(&var_name) {
+                    if matches!(local.backing, ShatteredArrayBacking::RuntimeHandle) {
+                        let tmp = self.next_reg();
+                        self.emit(&format!("  {} = load i8*, i8** {}", tmp, addr));
+                        self.emit(&format!(
+                            "  call void @kain_machine_shatter_free(i8* {})",
+                            tmp
+                        ));
+                    }
                     continue;
                 }
                 if self.fixed_array_locals.contains_key(&var_name) {
@@ -10908,19 +11180,79 @@ impl LlvmGenerator {
                             }
                         }
 
-                        let known_i64_bindings = self.current_known_i64_literals();
-                        if let Some(layout) =
-                            Self::helper_alloc_storage_layout_with_bindings(
-                                val_expr,
-                                &known_i64_bindings,
-                            )
-                        {
-                            let should_use_ephemeral_local =
-                                self.current_scope_marks_ephemeral_candidate(name)
-                                    || Self::remaining_statements_preserve_ephemeral_contract(
-                                        remaining_stmts,
+                        if self.current_scope_marks_stack_shatter_candidate(name) {
+                            let shattered_items = match val_expr {
+                                Expr::Array(items, _) => Some(items),
+                                _ => None,
+                            };
+                            if let Some(items) = shattered_items {
+                                if let Some(struct_name) =
+                                    self.shattered_array_expr_struct_name(val_expr)
+                                {
+                                    let fields =
+                                        self.struct_defs.get(&struct_name).cloned().ok_or_else(
+                                            || {
+                                                KainError::codegen(
+                                                    format!(
+                                                        "Unknown shattered struct: {}",
+                                                        struct_name
+                                                    ),
+                                                    val_expr.span(),
+                                                )
+                                            },
+                                        )?;
+                                    let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
+                                    self.reg_count += 1;
+                                    self.emit_entry_alloca(&addr_reg, "i8*");
+                                    self.emit(&format!("  store i8* null, i8** {}", addr_reg));
+                                    let lane_base_values = self.emit_stack_shatter_lane_bases(
                                         name,
+                                        fields.len(),
+                                        items.len(),
                                     );
+                                    self.populate_shattered_array_literal_lanes(
+                                        &struct_name,
+                                        &fields,
+                                        items,
+                                        &lane_base_values,
+                                    )?;
+                                    self.string_length_values.remove(name);
+                                    self.locals.insert(
+                                        name.clone(),
+                                        (addr_reg.clone(), "i8*".to_string()),
+                                    );
+                                    self.helper_owned_pointer_locals.remove(name);
+                                    self.ephemeral_owned_pointer_locals.remove(name);
+                                    self.json_handle_locals.remove(name);
+                                    self.fixed_array_locals.remove(name);
+                                    self.shattered_array_locals.insert(
+                                        name.clone(),
+                                        ShatteredArrayLocal {
+                                            struct_name,
+                                            element_count: items.len(),
+                                            lane_base_values,
+                                            backing: ShatteredArrayBacking::StackLaneBuffers,
+                                        },
+                                    );
+                                    if let Some(scope) = self.scopes.last_mut() {
+                                        scope.push(name.clone());
+                                    }
+                                    return Ok(());
+                                }
+                            }
+                        }
+
+                        let known_i64_bindings = self.current_known_i64_literals();
+                        if let Some(layout) = Self::helper_alloc_storage_layout_with_bindings(
+                            val_expr,
+                            &known_i64_bindings,
+                        ) {
+                            let should_use_ephemeral_local = self
+                                .current_scope_marks_ephemeral_candidate(name)
+                                || Self::remaining_statements_preserve_ephemeral_contract(
+                                    remaining_stmts,
+                                    name,
+                                );
                             if should_use_ephemeral_local {
                                 let known_llvm_types = self.current_known_llvm_types();
                                 let single_cell = layout.element_count == 1;
@@ -11081,6 +11413,7 @@ impl LlvmGenerator {
                                     struct_name,
                                     element_count,
                                     lane_base_values,
+                                    backing: ShatteredArrayBacking::RuntimeHandle,
                                 },
                             );
                         } else {
@@ -11594,6 +11927,9 @@ impl LlvmGenerator {
 
         if func_name == "len" && args.len() == 1 {
             if let Expr::Ident(name, _) = &args[0].value {
+                if let Some(local) = self.shattered_array_locals.get(name) {
+                    return Ok((local.element_count.to_string(), "i64".to_string()));
+                }
                 if let Some(local) = self.fixed_array_locals.get(name) {
                     return Ok((local.element_count.to_string(), "i64".to_string()));
                 }
