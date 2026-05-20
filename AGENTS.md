@@ -6,6 +6,9 @@ This is the injected north-star example. It is intentionally dense: it teaches a
 use std::runtime
 use std::actor
 use std::collections
+use std::text
+use std::crypto
+use std::alloc
 use std::diagnostics
 use std::result
 use std::time
@@ -319,8 +322,21 @@ fn stdlib_probe_lane() -> Int:
     let temp = fs_temp_file("mythic-specimen")
     fs_write_text(temp, "kain")
     fs_append_text(temp, "-mythic")
-    let text_score = len(fs_read_text(temp))
+    let fs_text_score = len(fs_read_text(temp))
     fs_remove_file(temp)
+
+    let wire_view = text_trim(text_slice("  route:zero-copy  ", 2, 15))
+    let view_score = text_len(wire_view) + text_find(wire_view, "zero") + len(text_materialize(wire_view))
+    let crypto_score = len(sha256("kain")) + len(hmac_sha256("kain-key", "payload")) + len(blake3("kain")) + len(random_bytes_hex(8))
+    let map = typed_map_set(typed_map_new(), "route", 41)
+    var queue = queue_create(4)
+    queue = queue_push(queue, typed_map_get(map, "route"))
+    let queue_score = queue_peek(queue) + queue_len(queue)
+    let _queue_destroy = queue_destroy(queue)
+    let arena = arena_create(8)
+    let chunk = arena_alloc(arena, 3)
+    let alloc_score = bool_to_int(chunk.ok) + chunk.offset + chunk.arena.high_water
+    let _arena_destroy = arena_allocator_destroy(chunk.arena)
 
     let input_session = input_session_create("mythic-input")
     let _bind = input_bind_action(input_session, "agent.intent", "intent", "ignite", "ignite")
@@ -337,7 +353,7 @@ fn stdlib_probe_lane() -> Int:
 
     let process_score = process_platform_available()
     let diagnostic_score = bool_to_status(status_ok(0)) + result_ok()
-    return text_score + input_score + net_score + process_score + diagnostic_score
+    return fs_text_score + view_score + crypto_score + queue_score + alloc_score + input_score + net_score + process_score + diagnostic_score
 
 fn graphics_ui_lane() -> Int:
     let _graphics_reset = graphics_reset()

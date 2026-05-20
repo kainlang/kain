@@ -1,0 +1,136 @@
+use std::collections
+
+pub struct TextSlice:
+    source: String
+    start: Int
+    length: Int
+
+pub struct StringView:
+    source: String
+    start: Int
+    length: Int
+
+pub fn text_slice(source: String, start: Int, length: Int) -> TextSlice:
+    let source_len = len(source)
+    let safe_start = int_clamp(start, 0, source_len)
+    let safe_length = int_clamp(length, 0, source_len - safe_start)
+    return TextSlice { source: source, start: safe_start, length: safe_length }
+
+pub fn text_from(source: String) -> TextSlice:
+    return text_slice(source, 0, len(source))
+
+pub fn text_view(source: String, start: Int, length: Int) -> TextSlice:
+    return text_slice(source, start, length)
+
+pub fn text_len(view: TextSlice) -> Int:
+    return view.length
+
+pub fn text_start(view: TextSlice) -> Int:
+    return view.start
+
+pub fn text_end(view: TextSlice) -> Int:
+    return view.start + view.length
+
+pub fn text_is_empty(view: TextSlice) -> Bool:
+    return view.length == 0
+
+pub fn text_byte_at(view: TextSlice, index: Int) -> Int:
+    if index < 0:
+        return 0
+    if index >= view.length:
+        return 0
+    return byte_at(view.source, view.start + index)
+
+pub fn text_char_at(view: TextSlice, index: Int) -> String:
+    if index < 0:
+        return ""
+    if index >= view.length:
+        return ""
+    return char_at(view.source, view.start + index)
+
+pub fn text_find(view: TextSlice, needle: String) -> Int:
+    if len(needle) == 0:
+        return 0
+    if len(needle) > view.length:
+        return -1
+    let found = find_substring_from(view.source, needle, view.start)
+    if found < view.start:
+        return -1
+    if found + len(needle) > text_end(view):
+        return -1
+    return found - view.start
+
+pub fn text_contains(view: TextSlice, needle: String) -> Bool:
+    return text_find(view, needle) >= 0
+
+pub fn text_starts_with(view: TextSlice, needle: String) -> Bool:
+    if len(needle) > view.length:
+        return false
+    return text_find(text_slice(view.source, view.start, len(needle)), needle) == 0
+
+pub fn text_equals_string(view: TextSlice, other: String) -> Bool:
+    if view.length != len(other):
+        return false
+    var index = 0
+    while index < view.length:
+        if text_byte_at(view, index) != byte_at(other, index):
+            return false
+        index = index + 1
+    return true
+
+pub fn text_equals(left: TextSlice, right: TextSlice) -> Bool:
+    if left.length != right.length:
+        return false
+    var index = 0
+    while index < left.length:
+        if text_byte_at(left, index) != text_byte_at(right, index):
+            return false
+        index = index + 1
+    return true
+
+pub fn text_subslice(view: TextSlice, start: Int, length: Int) -> TextSlice:
+    let safe_start = int_clamp(start, 0, view.length)
+    let safe_length = int_clamp(length, 0, view.length - safe_start)
+    return text_slice(view.source, view.start + safe_start, safe_length)
+
+pub fn text_trim_left(view: TextSlice) -> TextSlice:
+    var offset = 0
+    while offset < view.length:
+        let byte = text_byte_at(view, offset)
+        if byte != 32 and byte != 9 and byte != 10 and byte != 13:
+            return text_subslice(view, offset, view.length - offset)
+        offset = offset + 1
+    return text_subslice(view, view.length, 0)
+
+pub fn text_trim_right(view: TextSlice) -> TextSlice:
+    var remaining = view.length
+    while remaining > 0:
+        let byte = text_byte_at(view, remaining - 1)
+        if byte != 32 and byte != 9 and byte != 10 and byte != 13:
+            return text_subslice(view, 0, remaining)
+        remaining = remaining - 1
+    return text_subslice(view, 0, 0)
+
+pub fn text_trim(view: TextSlice) -> TextSlice:
+    return text_trim_right(text_trim_left(view))
+
+pub fn text_materialize(view: TextSlice) -> String:
+    return substring(view.source, view.start, text_end(view))
+
+pub fn string_view(source: String, start: Int, length: Int) -> StringView:
+    let source_len = len(source)
+    let safe_start = int_clamp(start, 0, source_len)
+    let safe_length = int_clamp(length, 0, source_len - safe_start)
+    return StringView { source: source, start: safe_start, length: safe_length }
+
+pub fn string_view_from(source: String) -> StringView:
+    return string_view(source, 0, len(source))
+
+pub fn string_view_len(view: StringView) -> Int:
+    return view.length
+
+pub fn string_view_to_text(view: StringView) -> TextSlice:
+    return text_slice(view.source, view.start, view.length)
+
+pub fn string_view_materialize(view: StringView) -> String:
+    return text_materialize(string_view_to_text(view))

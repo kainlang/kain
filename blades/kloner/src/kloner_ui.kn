@@ -1,0 +1,299 @@
+use kaintana::KaintanaRect
+use kaintana::KaintanaTheme
+use kaintana::KaintanaWindowSpec
+use kaintana::kaintana_column_slot
+use kaintana::kaintana_grid_cell
+use kaintana::kaintana_immediate_badge
+use kaintana::kaintana_immediate_metric
+use kaintana::kaintana_immediate_panel
+use kaintana::kaintana_immediate_toolbar_button
+use kaintana::kaintana_inset
+use kaintana::kaintana_primitive_fill
+use kaintana::kaintana_primitive_text
+use kaintana::kaintana_rect
+use kaintana::kaintana_retained_label
+use kaintana::kaintana_retained_muted_label
+use kaintana::kaintana_retained_region
+use kaintana::kaintana_retained_surface
+use kaintana::kaintana_split_bottom
+use kaintana::kaintana_split_left
+use kaintana::kaintana_split_right
+use kaintana::kaintana_split_top
+use kaintana::kaintana_window_rect
+use kloner_scene::KlonerViewportCamera
+use kloner_state::*
+
+pub struct KlonerLayout:
+    shell_rect: KaintanaRect
+    top_bar_rect: KaintanaRect
+    footer_rect: KaintanaRect
+    work_rect: KaintanaRect
+    left_rect: KaintanaRect
+    right_rect: KaintanaRect
+    center_rect: KaintanaRect
+    viewport_rect: KaintanaRect
+    sequencer_rect: KaintanaRect
+    right_top_rect: KaintanaRect
+    right_bottom_rect: KaintanaRect
+    top_inner: KaintanaRect
+    left_inner: KaintanaRect
+    viewport_inner: KaintanaRect
+    sequencer_inner: KaintanaRect
+    chains_inner: KaintanaRect
+    inspector_inner: KaintanaRect
+    footer_inner: KaintanaRect
+
+pub struct KlonerShellNodes:
+    shell_node: Int
+    top_bar: Int
+    left_panel: Int
+    viewport_surface: Int
+    sequencer_panel: Int
+    chains_panel: Int
+    inspector_panel: Int
+    footer_panel: Int
+
+pub struct KlonerControlNodes:
+    browse_button: Int
+    play_button: Int
+    export_commit_button: Int
+    settings_button: Int
+    mode_single_button: Int
+    mode_grid_button: Int
+    mode_radial_button: Int
+    mode_linear_button: Int
+    chain_grid_lift_button: Int
+    chain_crown_button: Int
+    chain_export_drift_button: Int
+    export_glb_button: Int
+    export_obj_button: Int
+    export_usdz_button: Int
+    export_vat_button: Int
+    export_anim_button: Int
+    export_instance_button: Int
+    export_split_button: Int
+    target_generic_button: Int
+    target_unreal_button: Int
+    target_unity_button: Int
+
+pub fn kloner_build_layout(spec: KaintanaWindowSpec) -> KlonerLayout:
+    let window_rect = kaintana_window_rect(spec)
+    let shell_rect = kaintana_inset(window_rect, 14.0, 14.0, 14.0, 14.0)
+    let top_bar_rect = kaintana_rect(shell_rect.x, shell_rect.y, shell_rect.width, 58.0)
+    let footer_rect = kaintana_rect(shell_rect.x, shell_rect.y + shell_rect.height - 108.0, shell_rect.width, 108.0)
+    let work_rect = kaintana_rect(shell_rect.x, top_bar_rect.y + top_bar_rect.height + 12.0, shell_rect.width, footer_rect.y - (top_bar_rect.y + top_bar_rect.height + 24.0))
+    let left_rect = kaintana_split_left(work_rect, 0.22, 14.0)
+    let right_rect = kaintana_split_right(work_rect, 0.76, 14.0)
+    let center_rect = kaintana_rect(left_rect.x + left_rect.width + 14.0, work_rect.y, right_rect.x - (left_rect.x + left_rect.width + 28.0), work_rect.height)
+    let viewport_rect = kaintana_split_top(center_rect, 0.66, 12.0)
+    let sequencer_rect = kaintana_split_bottom(center_rect, 0.66, 12.0)
+    let right_top_rect = kaintana_split_top(right_rect, 0.48, 12.0)
+    let right_bottom_rect = kaintana_split_bottom(right_rect, 0.48, 12.0)
+    return KlonerLayout {
+        shell_rect: shell_rect,
+        top_bar_rect: top_bar_rect,
+        footer_rect: footer_rect,
+        work_rect: work_rect,
+        left_rect: left_rect,
+        right_rect: right_rect,
+        center_rect: center_rect,
+        viewport_rect: viewport_rect,
+        sequencer_rect: sequencer_rect,
+        right_top_rect: right_top_rect,
+        right_bottom_rect: right_bottom_rect,
+        top_inner: kaintana_inset(top_bar_rect, 14.0, 10.0, 14.0, 10.0),
+        left_inner: kaintana_inset(left_rect, 16.0, 18.0, 16.0, 18.0),
+        viewport_inner: kaintana_inset(viewport_rect, 20.0, 20.0, 20.0, 20.0),
+        sequencer_inner: kaintana_inset(sequencer_rect, 18.0, 18.0, 18.0, 18.0),
+        chains_inner: kaintana_inset(right_top_rect, 18.0, 18.0, 18.0, 18.0),
+        inspector_inner: kaintana_inset(right_bottom_rect, 18.0, 18.0, 18.0, 18.0),
+        footer_inner: kaintana_inset(footer_rect, 16.0, 14.0, 16.0, 14.0),
+    }
+
+pub fn kloner_build_shell(session: Int, theme: KaintanaTheme, badge_font: Int, layout: KlonerLayout) -> KlonerShellNodes:
+    let shell_node = kaintana_retained_region(session, 0, "shell", "kloner.shell", layout.shell_rect, theme)
+    return KlonerShellNodes {
+        shell_node: shell_node,
+        top_bar: kaintana_immediate_panel(session, shell_node, "panel.topbar", "", layout.top_bar_rect, theme, badge_font, 24.0),
+        left_panel: kaintana_retained_region(session, shell_node, "panel.left", "kloner.left", layout.left_rect, theme),
+        viewport_surface: kaintana_retained_surface(session, shell_node, "surface.viewport", "surface.viewport.kloner", "CLONE VIEWPORT", layout.viewport_rect, theme, badge_font, 20.0),
+        sequencer_panel: kaintana_retained_region(session, shell_node, "panel.sequencer", "kloner.sequencer", layout.sequencer_rect, theme),
+        chains_panel: kaintana_retained_region(session, shell_node, "panel.chains", "kloner.chains", layout.right_top_rect, theme),
+        inspector_panel: kaintana_retained_region(session, shell_node, "panel.inspector", "kloner.inspector", layout.right_bottom_rect, theme),
+        footer_panel: kaintana_immediate_panel(session, shell_node, "panel.footer", "", layout.footer_rect, theme, badge_font, 24.0),
+    }
+
+pub fn kloner_render_controls(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, settings: KlonerSettings) -> KlonerControlNodes:
+    let _brand = kaintana_immediate_badge(session, nodes.top_bar, "badge.brand", "K-CLONER", kaintana_rect(layout.top_inner.x, layout.top_inner.y + 2.0, 144.0, 30.0), theme, fonts.badge_font, 18.0)
+    let _version = kaintana_immediate_badge(session, nodes.top_bar, "badge.version", "3D DECK", kaintana_rect(layout.top_inner.x + 154.0, layout.top_inner.y + 2.0, 112.0, 30.0), theme, fonts.badge_font, 18.0)
+    let browse_button = kaintana_immediate_toolbar_button(session, nodes.top_bar, "toolbar.browse", "Browse", kaintana_rect(layout.top_inner.x + 288.0, layout.top_inner.y, 92.0, 34.0), theme, fonts.micro_font, 22.0)
+    let play_button = kaintana_immediate_toolbar_button(session, nodes.top_bar, "toolbar.play", "Play", kaintana_rect(layout.top_inner.x + 388.0, layout.top_inner.y, 88.0, 34.0), theme, fonts.micro_font, 22.0)
+    let export_commit_button = kaintana_immediate_toolbar_button(session, nodes.top_bar, "toolbar.export", "Export", kaintana_rect(layout.top_inner.x + 484.0, layout.top_inner.y, 96.0, 34.0), theme, fonts.micro_font, 22.0)
+    let settings_button = kaintana_immediate_toolbar_button(session, nodes.top_bar, "toolbar.settings", "Settings", kaintana_rect(layout.top_inner.x + layout.top_inner.width - 356.0, layout.top_inner.y, 116.0, 34.0), theme, fonts.micro_font, 22.0)
+    let _theme_badge = kaintana_immediate_badge(session, nodes.top_bar, "badge.theme", settings.theme_name, kaintana_rect(layout.top_inner.x + layout.top_inner.width - 230.0, layout.top_inner.y + 2.0, 116.0, 30.0), theme, fonts.badge_font, 18.0)
+    let _reload_badge = kaintana_immediate_badge(session, nodes.top_bar, "badge.reload", "reload", kaintana_rect(layout.top_inner.x + layout.top_inner.width - 104.0, layout.top_inner.y + 2.0, 90.0, 30.0), theme, fonts.badge_font, 18.0)
+
+    let mode_band = kaintana_rect(layout.left_inner.x, layout.left_inner.y + 42.0, layout.left_inner.width, 72.0)
+    let mode_single_button = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mode.single", "SINGLE", kaintana_grid_cell(mode_band, 2.0, 2.0, 0.0, 0.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let mode_grid_button = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mode.grid", "GRID", kaintana_grid_cell(mode_band, 2.0, 2.0, 1.0, 0.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let mode_radial_button = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mode.radial", "RADIAL", kaintana_grid_cell(mode_band, 2.0, 2.0, 0.0, 1.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let mode_linear_button = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mode.linear", "LINEAR", kaintana_grid_cell(mode_band, 2.0, 2.0, 1.0, 1.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+
+    let chain_band = kaintana_rect(layout.chains_inner.x, layout.chains_inner.y + 44.0, layout.chains_inner.width, 118.0)
+    let chain_grid_lift_button = kaintana_immediate_toolbar_button(session, nodes.chains_panel, "chain.gridlift", kloner_chain_name(0), kaintana_column_slot(chain_band, 0.0, 32.0, 10.0), theme, fonts.micro_font, 20.0)
+    let chain_crown_button = kaintana_immediate_toolbar_button(session, nodes.chains_panel, "chain.crown", kloner_chain_name(1), kaintana_column_slot(chain_band, 1.0, 32.0, 10.0), theme, fonts.micro_font, 20.0)
+    let chain_export_drift_button = kaintana_immediate_toolbar_button(session, nodes.chains_panel, "chain.exportdrift", kloner_chain_name(2), kaintana_column_slot(chain_band, 2.0, 32.0, 10.0), theme, fonts.micro_font, 20.0)
+
+    let export_format_band = kaintana_rect(layout.footer_inner.x + 436.0, layout.footer_inner.y + 4.0, 280.0, 30.0)
+    let export_glb_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "export.glb", "GLB", kaintana_grid_cell(export_format_band, 4.0, 1.0, 0.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+    let export_obj_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "export.obj", "OBJ", kaintana_grid_cell(export_format_band, 4.0, 1.0, 1.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+    let export_usdz_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "export.usdz", "USDZ", kaintana_grid_cell(export_format_band, 4.0, 1.0, 2.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+    let export_vat_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "export.vat", "VAT", kaintana_grid_cell(export_format_band, 4.0, 1.0, 3.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+
+    let export_mode_band = kaintana_rect(layout.footer_inner.x + 730.0, layout.footer_inner.y + 4.0, 238.0, 30.0)
+    let export_anim_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "export.anim", "ANIM", kaintana_grid_cell(export_mode_band, 3.0, 1.0, 0.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+    let export_instance_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "export.instance", "INSTANCE", kaintana_grid_cell(export_mode_band, 3.0, 1.0, 1.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+    let export_split_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "export.split", "SEPARATE", kaintana_grid_cell(export_mode_band, 3.0, 1.0, 2.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+
+    let target_band = kaintana_rect(layout.footer_inner.x + 980.0, layout.footer_inner.y + 4.0, 244.0, 30.0)
+    let target_generic_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "target.generic", "GENERIC", kaintana_grid_cell(target_band, 3.0, 1.0, 0.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+    let target_unreal_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "target.unreal", "UNREAL", kaintana_grid_cell(target_band, 3.0, 1.0, 1.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+    let target_unity_button = kaintana_immediate_toolbar_button(session, nodes.footer_panel, "target.unity", "UNITY", kaintana_grid_cell(target_band, 3.0, 1.0, 2.0, 0.0, 8.0, 0.0), theme, fonts.micro_font, 20.0)
+
+    return KlonerControlNodes {
+        browse_button: browse_button,
+        play_button: play_button,
+        export_commit_button: export_commit_button,
+        settings_button: settings_button,
+        mode_single_button: mode_single_button,
+        mode_grid_button: mode_grid_button,
+        mode_radial_button: mode_radial_button,
+        mode_linear_button: mode_linear_button,
+        chain_grid_lift_button: chain_grid_lift_button,
+        chain_crown_button: chain_crown_button,
+        chain_export_drift_button: chain_export_drift_button,
+        export_glb_button: export_glb_button,
+        export_obj_button: export_obj_button,
+        export_usdz_button: export_usdz_button,
+        export_vat_button: export_vat_button,
+        export_anim_button: export_anim_button,
+        export_instance_button: export_instance_button,
+        export_split_button: export_split_button,
+        target_generic_button: target_generic_button,
+        target_unreal_button: target_unreal_button,
+        target_unity_button: target_unity_button,
+    }
+
+pub fn kloner_render_left_panel(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState, reference: KlonerReferenceInfo) -> Int:
+    let _left_title = kaintana_retained_label(session, nodes.left_panel, "left.title", "CLONER STRUCTURE", kaintana_rect(layout.left_inner.x, layout.left_inner.y, layout.left_inner.width, 22.0), theme, fonts.badge_font, 18.0)
+    let _left_copy = kaintana_retained_muted_label(session, nodes.left_panel, "left.copy", "State, export posture, and reference intake are now split out of the viewport math.", kaintana_rect(layout.left_inner.x, layout.left_inner.y + 126.0, layout.left_inner.width, 40.0), theme, fonts.micro_font, 14.0)
+    let _library_title = kaintana_retained_label(session, nodes.left_panel, "left.library", "MODIFIER LIBRARY", kaintana_rect(layout.left_inner.x, layout.left_inner.y + 172.0, layout.left_inner.width, 22.0), theme, fonts.badge_font, 18.0)
+    let library_band = kaintana_rect(layout.left_inner.x, layout.left_inner.y + 204.0, layout.left_inner.width, 178.0)
+    let _orbit = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.orbit", kloner_modifier_name(KLONER_MOD_ORBIT), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 0.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let _float = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.float", kloner_modifier_name(KLONER_MOD_FLOAT), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 0.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let _figure8 = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.figure8", kloner_modifier_name(KLONER_MOD_FIGURE8), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 1.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let _step = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.step", kloner_modifier_name(KLONER_MOD_STEP), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 1.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let _bounce = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.bounce", kloner_modifier_name(KLONER_MOD_BOUNCE), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 2.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let _twist = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.twist", kloner_modifier_name(KLONER_MOD_TWIST), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 2.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let _spiral = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.spiral", kloner_modifier_name(KLONER_MOD_SPIRAL), kaintana_grid_cell(library_band, 2.0, 4.0, 0.0, 3.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+    let _code = kaintana_immediate_toolbar_button(session, nodes.left_panel, "mod.code", kloner_modifier_name(KLONER_MOD_CODE), kaintana_grid_cell(library_band, 2.0, 4.0, 1.0, 3.0, 10.0, 10.0), theme, fonts.micro_font, 22.0)
+
+    let _asset_title = kaintana_retained_label(session, nodes.left_panel, "left.asset", "REFERENCE ASSET", kaintana_rect(layout.left_inner.x, layout.left_inner.y + 402.0, layout.left_inner.width, 22.0), theme, fonts.badge_font, 18.0)
+    let asset_card = kaintana_rect(layout.left_inner.x, layout.left_inner.y + 432.0, layout.left_inner.width, 144.0)
+    let _asset_card = kaintana_primitive_fill(session, nodes.left_panel, "left.asset.card", asset_card, theme.shell_red, theme.shell_green, theme.shell_blue)
+    let _asset_name = kaintana_primitive_text(session, nodes.left_panel, "left.asset.name", reference.asset_label, kaintana_rect(asset_card.x + 12.0, asset_card.y + 12.0, asset_card.width - 24.0, 18.0), theme.ink_red, theme.ink_green, theme.ink_blue, fonts.body_font, 16.0)
+    let _asset_ref = kaintana_primitive_text(session, nodes.left_panel, "left.asset.ref", "source_lines=" + str(reference.line_count) + " // bytes=" + str(reference.byte_count), kaintana_rect(asset_card.x + 12.0, asset_card.y + 36.0, asset_card.width - 24.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, fonts.micro_font, 12.0)
+    let _asset_dist = kaintana_primitive_text(session, nodes.left_panel, "left.asset.dist", "distribution=" + kloner_distribution_name(state.distribution_mode) + " // auto_scale=" + str(state.normalize_scale), kaintana_rect(asset_card.x + 12.0, asset_card.y + 60.0, asset_card.width - 24.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, fonts.micro_font, 12.0)
+    let _asset_status = kaintana_primitive_text(session, nodes.left_panel, "left.asset.status", state.status_text, kaintana_rect(asset_card.x + 12.0, asset_card.y + 92.0, asset_card.width - 24.0, 24.0), theme.signal_red, theme.signal_green, theme.signal_blue, fonts.micro_font, 13.0)
+    return 1
+
+pub fn kloner_render_viewport_scaffold(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, headline: String, state: KlonerRuntimeState, camera: KlonerViewportCamera) -> KaintanaRect:
+    let _viewport_title = kaintana_retained_label(session, nodes.viewport_surface, "viewport.title", "FAITHFUL CLONE VIEWPORT", kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y, layout.viewport_inner.width, 30.0), theme, fonts.title_font, 24.0)
+    let _viewport_subtitle = kaintana_retained_muted_label(session, nodes.viewport_surface, "viewport.subtitle", "The shell now shows projected depth, while a Vulkain sidecar uses the same scene state for a real mesh presenter.", kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 36.0, layout.viewport_inner.width, 36.0), theme, fonts.micro_font, 15.0)
+    let _viewport_headline = kaintana_retained_label(session, nodes.viewport_surface, "viewport.headline", headline, kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 82.0, layout.viewport_inner.width, 24.0), theme, fonts.body_font, 18.0)
+    let plot_rect = kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 122.0, layout.viewport_inner.width, layout.viewport_inner.height - 170.0)
+    let _metric_preview = kaintana_immediate_metric(session, nodes.viewport_surface, "viewport.metric.preview", "preview.clones", str(int_min(state.clone_total, KLONER_MAX_PREVIEW_CLONES)) + " / " + str(state.clone_total), kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + layout.viewport_inner.height - 28.0, 232.0, 18.0), theme, fonts.micro_font, 13.0)
+    let _metric_hash = kaintana_immediate_metric(session, nodes.viewport_surface, "viewport.metric.hash", "preview.hash", str(state.preview_hash), kaintana_rect(layout.viewport_inner.x + 246.0, layout.viewport_inner.y + layout.viewport_inner.height - 28.0, 224.0, 18.0), theme, fonts.micro_font, 13.0)
+    let _metric_sig = kaintana_immediate_metric(session, nodes.viewport_surface, "viewport.metric.sig", "export.sig", str(state.export_signature), kaintana_rect(layout.viewport_inner.x + 484.0, layout.viewport_inner.y + layout.viewport_inner.height - 28.0, 232.0, 18.0), theme, fonts.micro_font, 13.0)
+    let _metric_cam = kaintana_immediate_metric(session, nodes.viewport_surface, "viewport.metric.cam", "camera", "yaw=" + str(Int(camera.yaw * 1000.0)) + " pitch=" + str(Int(camera.pitch * 1000.0)), kaintana_rect(layout.viewport_inner.x + 730.0, layout.viewport_inner.y + layout.viewport_inner.height - 28.0, 280.0, 18.0), theme, fonts.micro_font, 13.0)
+    return plot_rect
+
+pub fn kloner_render_sequencer_panel(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState, scene: KlonerSceneConfig) -> Int:
+    let _seq_title = kaintana_retained_label(session, nodes.sequencer_panel, "seq.title", "CHAIN TIMELINE", kaintana_rect(layout.sequencer_inner.x, layout.sequencer_inner.y, layout.sequencer_inner.width, 22.0), theme, fonts.badge_font, 18.0)
+    let _seq_copy = kaintana_retained_muted_label(session, nodes.sequencer_panel, "seq.copy", "Chain duration, keyed radius/spacing tracks, and transport ownership are isolated from the viewport renderer now.", kaintana_rect(layout.sequencer_inner.x, layout.sequencer_inner.y + 28.0, layout.sequencer_inner.width, 24.0), theme, fonts.micro_font, 13.0)
+    let timeline_rect = kaintana_rect(layout.sequencer_inner.x, layout.sequencer_inner.y + 72.0, layout.sequencer_inner.width, 72.0)
+    let _timeline_back = kaintana_primitive_fill(session, nodes.sequencer_panel, "seq.timeline.back", timeline_rect, theme.shell_red, theme.shell_green, theme.shell_blue)
+    let total_duration_ms = kloner_total_duration_ms()
+    let cursor_x = timeline_rect.x + (timeline_rect.width * (Float(state.current_time_ms) / Float(total_duration_ms)))
+    let segment_index = 0
+    while segment_index < KLONER_SEGMENT_COUNT:
+        let key_x = timeline_rect.x + 14.0 + (Float(segment_index) * ((timeline_rect.width - 28.0) / Float(KLONER_SEGMENT_COUNT - 1)))
+        let _tick = kaintana_primitive_fill(session, nodes.sequencer_panel, "seq.tick." + str(segment_index), kaintana_rect(key_x, timeline_rect.y + 8.0, 1.0, timeline_rect.height - 16.0), theme.panel_red + 12, theme.panel_green + 12, theme.panel_blue + 12)
+        segment_index = segment_index + 1
+    let chain_a_rect = kaintana_rect(timeline_rect.x + 12.0, timeline_rect.y + 16.0, (timeline_rect.width - 24.0) * (Float(kloner_chain_duration_ms(0)) / Float(total_duration_ms)), 14.0)
+    let chain_b_rect = kaintana_rect(chain_a_rect.x + chain_a_rect.width + 6.0, timeline_rect.y + 16.0, (timeline_rect.width - 30.0) * (Float(kloner_chain_duration_ms(1)) / Float(total_duration_ms)), 14.0)
+    let chain_c_rect = kaintana_rect(chain_b_rect.x + chain_b_rect.width + 6.0, timeline_rect.y + 16.0, timeline_rect.x + timeline_rect.width - (chain_b_rect.x + chain_b_rect.width + 18.0), 14.0)
+    let _chain_a = kaintana_primitive_fill(session, nodes.sequencer_panel, "seq.chain.a", chain_a_rect, theme.signal_red, theme.signal_green, theme.signal_blue)
+    let _chain_b = kaintana_primitive_fill(session, nodes.sequencer_panel, "seq.chain.b", chain_b_rect, theme.accent_red, theme.accent_green, theme.accent_blue)
+    let _chain_c = kaintana_primitive_fill(session, nodes.sequencer_panel, "seq.chain.c", chain_c_rect, 214, 132, 255)
+    let _playhead = kaintana_primitive_fill(session, nodes.sequencer_panel, "seq.playhead", kaintana_rect(cursor_x, timeline_rect.y + 6.0, 3.0, timeline_rect.height - 12.0), theme.ink_red, theme.ink_green, theme.ink_blue)
+    let _time_text = kaintana_primitive_text(session, nodes.sequencer_panel, "seq.time", str(Float(state.current_time_ms) / 1000.0) + "s / " + str(Float(total_duration_ms) / 1000.0) + "s", kaintana_rect(timeline_rect.x + 12.0, timeline_rect.y + 42.0, 220.0, 18.0), theme.ink_red, theme.ink_green, theme.ink_blue, fonts.micro_font, 12.0)
+    let _key_text = kaintana_primitive_text(session, nodes.sequencer_panel, "seq.keys", "tracks: radius / spacing / pulse / code", kaintana_rect(timeline_rect.x + 246.0, timeline_rect.y + 42.0, 280.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, fonts.micro_font, 12.0)
+    let _seq_metric_chain = kaintana_immediate_metric(session, nodes.sequencer_panel, "seq.metric.chain", "active.chain", kloner_chain_name(state.active_chain), kaintana_rect(layout.sequencer_inner.x, layout.sequencer_inner.y + 160.0, 284.0, 18.0), theme, fonts.micro_font, 13.0)
+    let _seq_metric_track = kaintana_immediate_metric(session, nodes.sequencer_panel, "seq.metric.track", "radial.radius", str(scene.radial_radius), kaintana_rect(layout.sequencer_inner.x + 298.0, layout.sequencer_inner.y + 160.0, 224.0, 18.0), theme, fonts.micro_font, 13.0)
+    let _seq_metric_orbit = kaintana_immediate_metric(session, nodes.sequencer_panel, "seq.metric.orbit", "orbit.axis", str(state.orbit_value), kaintana_rect(layout.sequencer_inner.x + 536.0, layout.sequencer_inner.y + 160.0, 224.0, 18.0), theme, fonts.micro_font, 13.0)
+    return 1
+
+pub fn kloner_render_chain_panel(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState) -> Int:
+    let _chains_title = kaintana_retained_label(session, nodes.chains_panel, "chains.title", "CHAIN STACK", kaintana_rect(layout.chains_inner.x, layout.chains_inner.y, layout.chains_inner.width, 22.0), theme, fonts.badge_font, 18.0)
+    let _chains_copy = kaintana_retained_muted_label(session, nodes.chains_panel, "chains.copy", "Duration-aware stacks stay inspectable in source and are shared by the projected shell plus the Vulkain preview.", kaintana_rect(layout.chains_inner.x, layout.chains_inner.y + 170.0, layout.chains_inner.width, 40.0), theme, fonts.micro_font, 14.0)
+    let slot_rect = kaintana_rect(layout.chains_inner.x, layout.chains_inner.y + 224.0, layout.chains_inner.width, 148.0)
+    let chain_slot = 0
+    while chain_slot < kloner_chain_modifier_count(state.active_chain):
+        let modifier_kind = kloner_chain_modifier_kind(state.active_chain, chain_slot)
+        let card = kaintana_column_slot(slot_rect, Float(chain_slot), 30.0, 8.0)
+        let _card = kaintana_primitive_fill(session, nodes.chains_panel, "chains.card." + str(chain_slot), card, theme.shell_red, theme.shell_green, theme.shell_blue)
+        let _card_rule = kaintana_primitive_fill(session, nodes.chains_panel, "chains.card.rule." + str(chain_slot), kaintana_rect(card.x, card.y, 4.0, card.height), kloner_modifier_accent_r(modifier_kind), kloner_modifier_accent_g(modifier_kind), kloner_modifier_accent_b(modifier_kind))
+        let _card_label = kaintana_primitive_text(session, nodes.chains_panel, "chains.card.label." + str(chain_slot), "0" + str(chain_slot + 1) + " // " + kloner_modifier_name(modifier_kind), kaintana_rect(card.x + 12.0, card.y + 4.0, card.width - 24.0, 18.0), theme.ink_red, theme.ink_green, theme.ink_blue, fonts.micro_font, 13.0)
+        let _card_meta = kaintana_primitive_text(session, nodes.chains_panel, "chains.card.meta." + str(chain_slot), kloner_family_name(kloner_modifier_family(modifier_kind)) + " // " + kloner_modifier_axis(modifier_kind), kaintana_rect(card.x + 12.0, card.y + 16.0, card.width - 24.0, 12.0), theme.muted_red, theme.muted_green, theme.muted_blue, fonts.micro_font, 10.0)
+        chain_slot = chain_slot + 1
+    let _chains_metric_duration = kaintana_immediate_metric(session, nodes.chains_panel, "chains.duration", "duration.ms", str(kloner_chain_duration_ms(state.active_chain)), kaintana_rect(layout.chains_inner.x, layout.chains_inner.y + 386.0, layout.chains_inner.width, 18.0), theme, fonts.micro_font, 13.0)
+    return 1
+
+pub fn kloner_render_inspector_panel(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState, scene: KlonerSceneConfig, reference: KlonerReferenceInfo, camera: KlonerViewportCamera) -> Int:
+    let _title = kaintana_retained_label(session, nodes.inspector_panel, "inspector.title", "PARAM INSPECTOR", kaintana_rect(layout.inspector_inner.x, layout.inspector_inner.y, layout.inspector_inner.width, 22.0), theme, fonts.badge_font, 18.0)
+    let _copy = kaintana_retained_muted_label(session, nodes.inspector_panel, "inspector.copy", "Scene policy and presenter policy are isolated now, so camera, clone spacing, and export pressure can be debugged independently.", kaintana_rect(layout.inspector_inner.x, layout.inspector_inner.y + 30.0, layout.inspector_inner.width, 42.0), theme, fonts.micro_font, 14.0)
+    let metrics_rect = kaintana_rect(layout.inspector_inner.x, layout.inspector_inner.y + 92.0, layout.inspector_inner.width, 186.0)
+    let _metric_mode = kaintana_immediate_metric(session, nodes.inspector_panel, "inspector.mode", "mode", kloner_mode_name(state.active_mode), kaintana_column_slot(metrics_rect, 0.0, 22.0, 8.0), theme, fonts.micro_font, 13.0)
+    let _metric_grid = kaintana_immediate_metric(session, nodes.inspector_panel, "inspector.grid", "grid", str(scene.grid_x) + "x" + str(scene.grid_y) + "x" + str(scene.grid_z), kaintana_column_slot(metrics_rect, 1.0, 22.0, 8.0), theme, fonts.micro_font, 13.0)
+    let _metric_radial = kaintana_immediate_metric(session, nodes.inspector_panel, "inspector.radial", "radial", str(scene.radial_count) + " @ " + str(scene.radial_radius), kaintana_column_slot(metrics_rect, 2.0, 22.0, 8.0), theme, fonts.micro_font, 13.0)
+    let _metric_camera = kaintana_immediate_metric(session, nodes.inspector_panel, "inspector.camera", "camera", str(Int(camera.yaw * 1000.0)) + " / " + str(Int(camera.pitch * 1000.0)), kaintana_column_slot(metrics_rect, 3.0, 22.0, 8.0), theme, fonts.micro_font, 13.0)
+    let _metric_clone = kaintana_immediate_metric(session, nodes.inspector_panel, "inspector.clone", "clone_total", str(state.clone_total), kaintana_column_slot(metrics_rect, 4.0, 22.0, 8.0), theme, fonts.micro_font, 13.0)
+    let _metric_ref = kaintana_immediate_metric(session, nodes.inspector_panel, "inspector.ref", "reference", reference.asset_label, kaintana_column_slot(metrics_rect, 5.0, 22.0, 8.0), theme, fonts.micro_font, 13.0)
+    let _metric_export = kaintana_immediate_metric(session, nodes.inspector_panel, "inspector.export", "export_mode", kloner_export_mode_name(state.export_mode), kaintana_column_slot(metrics_rect, 6.0, 22.0, 8.0), theme, fonts.micro_font, 13.0)
+    return 1
+
+pub fn kloner_render_footer(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState) -> Int:
+    let _left_tag = kaintana_retained_label(session, nodes.footer_panel, "footer.left.title", "EXPORT RAIL", kaintana_rect(layout.footer_inner.x, layout.footer_inner.y + 4.0, 120.0, 18.0), theme, fonts.badge_font, 14.0)
+    let _left_copy = kaintana_retained_muted_label(session, nodes.footer_panel, "footer.left.copy", "Commit preview JSON, target engine posture, and preview hash stay aligned.", kaintana_rect(layout.footer_inner.x, layout.footer_inner.y + 28.0, 384.0, 24.0), theme, fonts.micro_font, 12.0)
+    let _metric_format = kaintana_immediate_metric(session, nodes.footer_panel, "footer.metric.format", "format", kloner_export_format_name(state.active_export), kaintana_rect(layout.footer_inner.x, layout.footer_inner.y + 58.0, 180.0, 18.0), theme, fonts.micro_font, 13.0)
+    let _metric_mode = kaintana_immediate_metric(session, nodes.footer_panel, "footer.metric.mode", "mode", kloner_export_mode_name(state.export_mode), kaintana_rect(layout.footer_inner.x + 194.0, layout.footer_inner.y + 58.0, 180.0, 18.0), theme, fonts.micro_font, 13.0)
+    let _metric_target = kaintana_immediate_metric(session, nodes.footer_panel, "footer.metric.target", "target", kloner_target_name(state.target_engine), kaintana_rect(layout.footer_inner.x + 388.0, layout.footer_inner.y + 58.0, 180.0, 18.0), theme, fonts.micro_font, 13.0)
+    return 1
+
+pub fn kloner_render_overlays(session: Int, nodes: KlonerShellNodes, layout: KlonerLayout, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState, reference: KlonerReferenceInfo, settings: KlonerSettings) -> Int:
+    if state.show_reference_browser != 0:
+        let browser_rect = kaintana_rect(layout.viewport_rect.x + layout.viewport_rect.width - 388.0, layout.viewport_rect.y + 54.0, 360.0, 154.0)
+        let _browser = kaintana_retained_region(session, nodes.shell_node, "overlay.reference", "overlay.reference", browser_rect, theme)
+        let _title = kaintana_retained_label(session, nodes.shell_node, "overlay.reference.title", "REFERENCE BROWSER", kaintana_rect(browser_rect.x + 16.0, browser_rect.y + 12.0, browser_rect.width - 32.0, 18.0), theme, fonts.badge_font, 14.0)
+        let _copy = kaintana_retained_muted_label(session, nodes.shell_node, "overlay.reference.copy", "Mounted from " + settings.reference_spec_path, kaintana_rect(browser_rect.x + 16.0, browser_rect.y + 34.0, browser_rect.width - 32.0, 18.0), theme, fonts.micro_font, 12.0)
+        let _name = kaintana_primitive_text(session, nodes.shell_node, "overlay.reference.name", reference.asset_label, kaintana_rect(browser_rect.x + 16.0, browser_rect.y + 70.0, browser_rect.width - 32.0, 18.0), theme.signal_red, theme.signal_green, theme.signal_blue, fonts.body_font, 16.0)
+        let _meta = kaintana_primitive_text(session, nodes.shell_node, "overlay.reference.meta", "lines=" + str(reference.line_count) + " // bytes=" + str(reference.byte_count), kaintana_rect(browser_rect.x + 16.0, browser_rect.y + 96.0, browser_rect.width - 32.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, fonts.micro_font, 12.0)
+    if state.show_settings_deck != 0:
+        let settings_rect = kaintana_rect(layout.top_bar_rect.x + layout.top_bar_rect.width - 318.0, layout.top_bar_rect.y + 54.0, 290.0, 118.0)
+        let _settings = kaintana_retained_region(session, nodes.shell_node, "overlay.settings", "overlay.settings", settings_rect, theme)
+        let _title = kaintana_retained_label(session, nodes.shell_node, "overlay.settings.title", "SETTINGS DECK", kaintana_rect(settings_rect.x + 16.0, settings_rect.y + 12.0, settings_rect.width - 32.0, 18.0), theme, fonts.badge_font, 14.0)
+        let _copy = kaintana_retained_muted_label(session, nodes.shell_node, "overlay.settings.copy", "Desktop shell + Vulkain preview share one state lattice.", kaintana_rect(settings_rect.x + 16.0, settings_rect.y + 34.0, settings_rect.width - 32.0, 20.0), theme, fonts.micro_font, 12.0)
+        let _line_a = kaintana_immediate_metric(session, nodes.shell_node, "overlay.settings.backend", "backend", "desktop + vulkain", kaintana_rect(settings_rect.x + 16.0, settings_rect.y + 62.0, settings_rect.width - 32.0, 18.0), theme, fonts.micro_font, 13.0)
+        let _line_b = kaintana_immediate_metric(session, nodes.shell_node, "overlay.settings.frame", "frame_budget", str(settings.frame_budget), kaintana_rect(settings_rect.x + 16.0, settings_rect.y + 82.0, settings_rect.width - 32.0, 18.0), theme, fonts.micro_font, 13.0)
+    return 1

@@ -1,0 +1,46 @@
+version: 1
+id: kain.core.proofs.stdlib_allocator_cell_bounds
+kind: check_smt2
+description: std::alloc bump/arena and pool allocation offsets stay inside their
+  backing cell spans whenever the public success guards pass.
+tags:
+- stdlib
+- alloc
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\alloc.kn
+  symbol: bump_alloc_cells
+  start_line: 43
+  reason: std::alloc exposes raw pointer slices through safe result wrappers.
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const capacity Int)
+    (declare-const cursor Int)
+    (declare-const cells Int)
+    (declare-const block_count Int)
+    (declare-const block_cells Int)
+    (declare-const block_index Int)
+    (assert (>= capacity 1))
+    (assert (>= cursor 0))
+    (assert (<= cursor capacity))
+    (assert (>= cells 1))
+    (assert (<= (+ cursor cells) capacity))
+    (assert (>= block_count 1))
+    (assert (>= block_cells 1))
+    (assert (>= block_index 0))
+    (assert (< block_index block_count))
+    (define-fun bump_offset () Int cursor)
+    (define-fun bump_last () Int (+ cursor cells (- 1)))
+    (define-fun next_cursor () Int (+ cursor cells))
+    (define-fun total_pool_cells () Int (* block_count block_cells))
+    (define-fun pool_offset () Int (* block_index block_cells))
+    (assert (not (and
+      (>= bump_offset 0)
+      (< bump_last capacity)
+      (<= next_cursor capacity)
+      (>= pool_offset 0)
+      (<= (+ pool_offset block_cells) total_pool_cells))))
+    (check-sat)
+  include_model: false
+  include_stats: false

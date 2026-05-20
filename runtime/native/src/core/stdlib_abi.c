@@ -2,6 +2,12 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
+#ifdef _WIN32
+#ifndef _CRT_RAND_S
+#define _CRT_RAND_S
+#endif
+#endif
+
 #include "../../include/stdlib_abi.h"
 #include "../../include/attrition.h"
 
@@ -2673,6 +2679,409 @@ static void abi_sha256_final(KainNativeSha256* ctx, unsigned char digest[32]) {
         digest[state_index * 4 + 2] = (unsigned char)(ctx->state[state_index] >> 8);
         digest[state_index * 4 + 3] = (unsigned char)(ctx->state[state_index]);
     }
+}
+
+static const char ABI_CRYPTO_HEX[] = "0123456789abcdef";
+
+static void abi_crypto_sha256_bytes(const unsigned char* data, size_t length, unsigned char digest[32]) {
+    KainNativeSha256 sha;
+    abi_sha256_init(&sha);
+    if (data != 0 && length > 0) {
+        abi_sha256_update(&sha, data, length);
+    }
+    abi_sha256_final(&sha, digest);
+}
+
+static const char* abi_crypto_hex_string_from_bytes(const unsigned char* bytes, size_t length) {
+    char* output;
+    const char* result;
+    size_t index;
+    if (bytes == 0 && length > 0) {
+        return string_new("");
+    }
+    if (length > ((SIZE_MAX - 1u) / 2u)) {
+        return string_new("");
+    }
+    output = (char*)malloc((length * 2u) + 1u);
+    if (output == 0) {
+        return string_new("");
+    }
+    for (index = 0; index < length; index++) {
+        output[index * 2u] = ABI_CRYPTO_HEX[bytes[index] >> 4u];
+        output[index * 2u + 1u] = ABI_CRYPTO_HEX[bytes[index] & 0x0fu];
+    }
+    output[length * 2u] = '\0';
+    result = string_new(output);
+    free(output);
+    return result;
+}
+
+static int abi_crypto_fill_random(unsigned char* buffer, size_t length) {
+    size_t offset = 0;
+    if (buffer == 0 && length > 0) {
+        return -1;
+    }
+#ifdef _WIN32
+    while (offset < length) {
+        unsigned int word = 0;
+        size_t remaining = length - offset;
+        size_t take = remaining < sizeof(word) ? remaining : sizeof(word);
+        if (rand_s(&word) != 0) {
+            return -1;
+        }
+        memcpy(buffer + offset, &word, take);
+        offset += take;
+    }
+    return 0;
+#else
+    FILE* random_file = fopen("/dev/urandom", "rb");
+    if (random_file == 0) {
+        return -1;
+    }
+    while (offset < length) {
+        size_t read_count = fread(buffer + offset, 1, length - offset, random_file);
+        if (read_count == 0) {
+            int failed = ferror(random_file);
+            fclose(random_file);
+            return failed ? -1 : -1;
+        }
+        offset += read_count;
+    }
+    fclose(random_file);
+    return 0;
+#endif
+}
+
+const char* abi_crypto_random_bytes_hex(int64_t length) {
+    unsigned char* buffer;
+    const char* result;
+    if (length < 0 || length > (int64_t)(16 * 1024 * 1024)) {
+        return string_new("");
+    }
+    if (length == 0) {
+        return string_new("");
+    }
+    buffer = (unsigned char*)malloc((size_t)length);
+    if (buffer == 0) {
+        return string_new("");
+    }
+    if (abi_crypto_fill_random(buffer, (size_t)length) != 0) {
+        free(buffer);
+        return string_new("");
+    }
+    result = abi_crypto_hex_string_from_bytes(buffer, (size_t)length);
+    free(buffer);
+    return result;
+}
+
+const char* abi_crypto_sha256_text(const char* text, int64_t text_length) {
+    unsigned char digest[32];
+    size_t length;
+    if (text_length < 0) {
+        return string_new("");
+    }
+    length = (size_t)text_length;
+    if (text == 0 && length > 0) {
+        return string_new("");
+    }
+    abi_crypto_sha256_bytes((const unsigned char*)text, length, digest);
+    return abi_crypto_hex_string_from_bytes(digest, sizeof(digest));
+}
+
+const char* abi_crypto_hmac_sha256_text(const char* key, int64_t key_length, const char* message, int64_t message_length) {
+    unsigned char key_block[64];
+    unsigned char inner_pad[64];
+    unsigned char outer_pad[64];
+    unsigned char inner_digest[32];
+    unsigned char digest[32];
+    size_t key_len;
+    size_t message_len;
+    size_t index;
+    KainNativeSha256 sha;
+    if (key_length < 0 || message_length < 0) {
+        return string_new("");
+    }
+    key_len = (size_t)key_length;
+    message_len = (size_t)message_length;
+    if ((key == 0 && key_len > 0) || (message == 0 && message_len > 0)) {
+        return string_new("");
+    }
+    memset(key_block, 0, sizeof(key_block));
+    if (key_len > sizeof(key_block)) {
+        abi_crypto_sha256_bytes((const unsigned char*)key, key_len, key_block);
+        key_len = 32;
+    } else if (key_len > 0) {
+        memcpy(key_block, key, key_len);
+    }
+    for (index = 0; index < sizeof(key_block); index++) {
+        inner_pad[index] = (unsigned char)(key_block[index] ^ 0x36u);
+        outer_pad[index] = (unsigned char)(key_block[index] ^ 0x5cu);
+    }
+    abi_sha256_init(&sha);
+    abi_sha256_update(&sha, inner_pad, sizeof(inner_pad));
+    if (message_len > 0) {
+        abi_sha256_update(&sha, (const unsigned char*)message, message_len);
+    }
+    abi_sha256_final(&sha, inner_digest);
+
+    abi_sha256_init(&sha);
+    abi_sha256_update(&sha, outer_pad, sizeof(outer_pad));
+    abi_sha256_update(&sha, inner_digest, sizeof(inner_digest));
+    abi_sha256_final(&sha, digest);
+    return abi_crypto_hex_string_from_bytes(digest, sizeof(digest));
+}
+
+#define ABI_BLAKE3_OUT_LEN 32u
+#define ABI_BLAKE3_BLOCK_LEN 64u
+#define ABI_BLAKE3_CHUNK_LEN 1024u
+#define ABI_BLAKE3_CHUNK_START 1u
+#define ABI_BLAKE3_CHUNK_END 2u
+#define ABI_BLAKE3_PARENT 4u
+#define ABI_BLAKE3_ROOT 8u
+
+typedef struct KainNativeBlake3Output {
+    uint32_t input_cv[8];
+    uint32_t block_words[16];
+    uint64_t counter;
+    uint32_t block_len;
+    uint32_t flags;
+} KainNativeBlake3Output;
+
+static const uint32_t ABI_BLAKE3_IV[8] = {
+    0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au,
+    0x510E527Fu, 0x9B05688Cu, 0x1F83D9ABu, 0x5BE0CD19u,
+};
+
+static const uint8_t ABI_BLAKE3_MSG_PERMUTATION[16] = {
+    2u, 6u, 3u, 10u, 7u, 0u, 4u, 13u,
+    1u, 11u, 12u, 5u, 9u, 14u, 15u, 8u,
+};
+
+static uint32_t abi_blake3_rotr32(uint32_t value, uint32_t count) {
+    return (value >> count) | (value << (32u - count));
+}
+
+static uint32_t abi_blake3_load32_le(const unsigned char* bytes) {
+    return ((uint32_t)bytes[0]) |
+        ((uint32_t)bytes[1] << 8u) |
+        ((uint32_t)bytes[2] << 16u) |
+        ((uint32_t)bytes[3] << 24u);
+}
+
+static void abi_blake3_store32_le(unsigned char* bytes, uint32_t word) {
+    bytes[0] = (unsigned char)word;
+    bytes[1] = (unsigned char)(word >> 8u);
+    bytes[2] = (unsigned char)(word >> 16u);
+    bytes[3] = (unsigned char)(word >> 24u);
+}
+
+static void abi_blake3_block_words(const unsigned char* block, size_t block_len, uint32_t words[16]) {
+    unsigned char padded[ABI_BLAKE3_BLOCK_LEN];
+    size_t index;
+    memset(padded, 0, sizeof(padded));
+    if (block != 0 && block_len > 0) {
+        memcpy(padded, block, block_len);
+    }
+    for (index = 0; index < 16; index++) {
+        words[index] = abi_blake3_load32_le(padded + (index * 4u));
+    }
+}
+
+static void abi_blake3_g(uint32_t state[16], size_t a, size_t b, size_t c, size_t d, uint32_t mx, uint32_t my) {
+    state[a] = state[a] + state[b] + mx;
+    state[d] = abi_blake3_rotr32(state[d] ^ state[a], 16u);
+    state[c] = state[c] + state[d];
+    state[b] = abi_blake3_rotr32(state[b] ^ state[c], 12u);
+    state[a] = state[a] + state[b] + my;
+    state[d] = abi_blake3_rotr32(state[d] ^ state[a], 8u);
+    state[c] = state[c] + state[d];
+    state[b] = abi_blake3_rotr32(state[b] ^ state[c], 7u);
+}
+
+static void abi_blake3_round(uint32_t state[16], const uint32_t msg[16]) {
+    abi_blake3_g(state, 0, 4, 8, 12, msg[0], msg[1]);
+    abi_blake3_g(state, 1, 5, 9, 13, msg[2], msg[3]);
+    abi_blake3_g(state, 2, 6, 10, 14, msg[4], msg[5]);
+    abi_blake3_g(state, 3, 7, 11, 15, msg[6], msg[7]);
+    abi_blake3_g(state, 0, 5, 10, 15, msg[8], msg[9]);
+    abi_blake3_g(state, 1, 6, 11, 12, msg[10], msg[11]);
+    abi_blake3_g(state, 2, 7, 8, 13, msg[12], msg[13]);
+    abi_blake3_g(state, 3, 4, 9, 14, msg[14], msg[15]);
+}
+
+static void abi_blake3_permute(uint32_t msg[16]) {
+    uint32_t permuted[16];
+    size_t index;
+    for (index = 0; index < 16; index++) {
+        permuted[index] = msg[ABI_BLAKE3_MSG_PERMUTATION[index]];
+    }
+    memcpy(msg, permuted, sizeof(permuted));
+}
+
+static void abi_blake3_compress_words(
+    const uint32_t cv[8],
+    const uint32_t block_words[16],
+    uint64_t counter,
+    uint32_t block_len,
+    uint32_t flags,
+    uint32_t out[16]
+) {
+    uint32_t state[16];
+    uint32_t msg[16];
+    size_t index;
+    memcpy(state, cv, 8u * sizeof(uint32_t));
+    memcpy(state + 8, ABI_BLAKE3_IV, 4u * sizeof(uint32_t));
+    state[12] = (uint32_t)counter;
+    state[13] = (uint32_t)(counter >> 32u);
+    state[14] = block_len;
+    state[15] = flags;
+    memcpy(msg, block_words, 16u * sizeof(uint32_t));
+    for (index = 0; index < 7; index++) {
+        abi_blake3_round(state, msg);
+        abi_blake3_permute(msg);
+    }
+    for (index = 0; index < 8; index++) {
+        out[index] = state[index] ^ state[index + 8u];
+        out[index + 8u] = state[index + 8u] ^ cv[index];
+    }
+}
+
+static void abi_blake3_output_chaining_value(const KainNativeBlake3Output* output, uint32_t cv[8]) {
+    uint32_t words[16];
+    abi_blake3_compress_words(
+        output->input_cv,
+        output->block_words,
+        output->counter,
+        output->block_len,
+        output->flags,
+        words
+    );
+    memcpy(cv, words, 8u * sizeof(uint32_t));
+}
+
+static void abi_blake3_output_bytes(const KainNativeBlake3Output* output, unsigned char digest[ABI_BLAKE3_OUT_LEN]) {
+    uint32_t words[16];
+    size_t index;
+    abi_blake3_compress_words(
+        output->input_cv,
+        output->block_words,
+        output->counter,
+        output->block_len,
+        output->flags | ABI_BLAKE3_ROOT,
+        words
+    );
+    for (index = 0; index < 8; index++) {
+        abi_blake3_store32_le(digest + (index * 4u), words[index]);
+    }
+}
+
+static void abi_blake3_chunk_output(
+    const unsigned char* input,
+    size_t length,
+    uint64_t chunk_counter,
+    KainNativeBlake3Output* output
+) {
+    uint32_t cv[8];
+    uint32_t words[16];
+    uint32_t compressed[16];
+    size_t offset = 0;
+    size_t blocks_compressed = 0;
+    memcpy(cv, ABI_BLAKE3_IV, sizeof(cv));
+    while ((length - offset) > ABI_BLAKE3_BLOCK_LEN) {
+        uint32_t flags = blocks_compressed == 0 ? ABI_BLAKE3_CHUNK_START : 0u;
+        abi_blake3_block_words(input + offset, ABI_BLAKE3_BLOCK_LEN, words);
+        abi_blake3_compress_words(cv, words, chunk_counter, ABI_BLAKE3_BLOCK_LEN, flags, compressed);
+        memcpy(cv, compressed, 8u * sizeof(uint32_t));
+        offset += ABI_BLAKE3_BLOCK_LEN;
+        blocks_compressed++;
+    }
+    memcpy(output->input_cv, cv, sizeof(output->input_cv));
+    abi_blake3_block_words(input == 0 ? 0 : input + offset, length - offset, output->block_words);
+    output->counter = chunk_counter;
+    output->block_len = (uint32_t)(length - offset);
+    output->flags = ABI_BLAKE3_CHUNK_END | (blocks_compressed == 0 ? ABI_BLAKE3_CHUNK_START : 0u);
+}
+
+static void abi_blake3_parent_output(
+    const uint32_t left_cv[8],
+    const uint32_t right_cv[8],
+    KainNativeBlake3Output* output
+) {
+    memcpy(output->input_cv, ABI_BLAKE3_IV, sizeof(output->input_cv));
+    memcpy(output->block_words, left_cv, 8u * sizeof(uint32_t));
+    memcpy(output->block_words + 8, right_cv, 8u * sizeof(uint32_t));
+    output->counter = 0;
+    output->block_len = ABI_BLAKE3_BLOCK_LEN;
+    output->flags = ABI_BLAKE3_PARENT;
+}
+
+static void abi_blake3_parent_cv(const uint32_t left_cv[8], const uint32_t right_cv[8], uint32_t out_cv[8]) {
+    KainNativeBlake3Output output;
+    abi_blake3_parent_output(left_cv, right_cv, &output);
+    abi_blake3_output_chaining_value(&output, out_cv);
+}
+
+static void abi_crypto_blake3_bytes(const unsigned char* input, size_t length, unsigned char digest[ABI_BLAKE3_OUT_LEN]) {
+    size_t chunk_count = length == 0 ? 1u : ((length + ABI_BLAKE3_CHUNK_LEN - 1u) / ABI_BLAKE3_CHUNK_LEN);
+    size_t chunk_index;
+    uint32_t* cvs;
+    KainNativeBlake3Output single_output;
+    if (chunk_count == 1u) {
+        abi_blake3_chunk_output(input, length, 0, &single_output);
+        abi_blake3_output_bytes(&single_output, digest);
+        return;
+    }
+    if (chunk_count > (SIZE_MAX / (8u * sizeof(uint32_t)))) {
+        memset(digest, 0, ABI_BLAKE3_OUT_LEN);
+        return;
+    }
+    cvs = (uint32_t*)malloc(chunk_count * 8u * sizeof(uint32_t));
+    if (cvs == 0) {
+        memset(digest, 0, ABI_BLAKE3_OUT_LEN);
+        return;
+    }
+    for (chunk_index = 0; chunk_index < chunk_count; chunk_index++) {
+        KainNativeBlake3Output output;
+        size_t offset = chunk_index * ABI_BLAKE3_CHUNK_LEN;
+        size_t remaining = length - offset;
+        size_t chunk_len = remaining > ABI_BLAKE3_CHUNK_LEN ? ABI_BLAKE3_CHUNK_LEN : remaining;
+        abi_blake3_chunk_output(input + offset, chunk_len, (uint64_t)chunk_index, &output);
+        abi_blake3_output_chaining_value(&output, cvs + (chunk_index * 8u));
+    }
+    while (chunk_count > 2u) {
+        size_t read_index = 0;
+        size_t write_index = 0;
+        while ((read_index + 1u) < chunk_count) {
+            abi_blake3_parent_cv(cvs + (read_index * 8u), cvs + ((read_index + 1u) * 8u), cvs + (write_index * 8u));
+            read_index += 2u;
+            write_index++;
+        }
+        if (read_index < chunk_count) {
+            memmove(cvs + (write_index * 8u), cvs + (read_index * 8u), 8u * sizeof(uint32_t));
+            write_index++;
+        }
+        chunk_count = write_index;
+    }
+    {
+        KainNativeBlake3Output root_output;
+        abi_blake3_parent_output(cvs, cvs + 8u, &root_output);
+        abi_blake3_output_bytes(&root_output, digest);
+    }
+    free(cvs);
+}
+
+const char* abi_crypto_blake3_text(const char* text, int64_t text_length) {
+    unsigned char digest[ABI_BLAKE3_OUT_LEN];
+    size_t length;
+    if (text_length < 0) {
+        return string_new("");
+    }
+    length = (size_t)text_length;
+    if (text == 0 && length > 0) {
+        return string_new("");
+    }
+    abi_crypto_blake3_bytes((const unsigned char*)text, length, digest);
+    return abi_crypto_hex_string_from_bytes(digest, ABI_BLAKE3_OUT_LEN);
 }
 
 const char* abi_fs_hash_file(const char* path) {

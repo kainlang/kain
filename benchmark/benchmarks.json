@@ -153,6 +153,14 @@
       "python": "cases/alloc_churn/main.py"
     },
     {
+      "id": "stdlib_foundations",
+      "title": "Stdlib Foundations",
+      "description": "Integrated Kain-only pressure over std.text zero-copy slices, std.collections queue/priority queue/map handles, std.crypto digest calls, and std.alloc bump allocation.",
+      "maturity": "kain-stdlib-proof",
+      "fairness_note": "This is a Kain foundation-row, not a cross-language contest. It guards the public stdlib API shape and native LLVM/runtime ABI for the new text, collection, crypto, and allocator surfaces.",
+      "kain": "cases/stdlib_foundations/main.kn"
+    },
+    {
       "id": "scalar_mix",
       "title": "Scalar Mix",
       "description": "Hot scalar loop with top-level const expressions and a checksum guard. This case exercises LLVM top-level const resolution directly in the benchmark lane.",

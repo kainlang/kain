@@ -148,6 +148,11 @@ int64_t abi_fs_last_status(void);
 const char* abi_fs_last_error_kind(void);
 const char* abi_fs_last_error_message(void);
 
+const char* abi_crypto_random_bytes_hex(int64_t length);
+const char* abi_crypto_sha256_text(const char* text, int64_t text_length);
+const char* abi_crypto_hmac_sha256_text(const char* key, int64_t key_length, const char* message, int64_t message_length);
+const char* abi_crypto_blake3_text(const char* text, int64_t text_length);
+
 #ifdef __cplusplus
 }
 #endif

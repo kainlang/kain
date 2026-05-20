@@ -1,0 +1,38 @@
+@extern
+fn abi_crypto_random_bytes_hex(length: Int) -> String
+
+@extern
+fn abi_crypto_sha256_text(text: String, text_len: Int) -> String
+
+@extern
+fn abi_crypto_hmac_sha256_text(key: String, key_len: Int, message: String, message_len: Int) -> String
+
+@extern
+fn abi_crypto_blake3_text(text: String, text_len: Int) -> String
+
+pub fn crypto_random_bytes_hex(length: Int) -> String:
+    return abi_crypto_random_bytes_hex(length)
+
+pub fn crypto_sha256(text: String) -> String:
+    return abi_crypto_sha256_text(text, len(text))
+
+pub fn crypto_hmac_sha256(key: String, message: String) -> String:
+    return abi_crypto_hmac_sha256_text(key, len(key), message, len(message))
+
+pub fn crypto_blake3(text: String) -> String:
+    return abi_crypto_blake3_text(text, len(text))
+
+pub fn random_bytes(length: Int) -> String:
+    return crypto_random_bytes_hex(length)
+
+pub fn random_bytes_hex(length: Int) -> String:
+    return crypto_random_bytes_hex(length)
+
+pub fn sha256(text: String) -> String:
+    return crypto_sha256(text)
+
+pub fn hmac_sha256(key: String, message: String) -> String:
+    return crypto_hmac_sha256(key, message)
+
+pub fn blake3(text: String) -> String:
+    return crypto_blake3(text)

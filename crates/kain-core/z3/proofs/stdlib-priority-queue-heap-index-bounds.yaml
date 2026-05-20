@@ -1,0 +1,41 @@
+version: 1
+id: kain.core.proofs.stdlib_priority_queue_heap_index_bounds
+kind: check_smt2
+description: std::collections PriorityQueue heap insertion/pop indices stay
+  inside capacity whenever the code gates child accesses by count.
+tags:
+- stdlib
+- collections
+- priority-queue
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\collections.kn
+  symbol: priority_queue_push
+  start_line: 264
+  reason: PriorityQueue is the first public heap structure in std::collections.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const capacity Int)
+    (declare-const count Int)
+    (declare-const parent Int)
+    (assert (> capacity 0))
+    (assert (>= count 0))
+    (assert (< count capacity))
+    (assert (> count 1))
+    (assert (>= parent 0))
+    (assert (< parent (- count 1)))
+    (define-fun insert_slot () Int count)
+    (define-fun last_index () Int (- count 1))
+    (define-fun left () Int (+ (* parent 2) 1))
+    (define-fun right () Int (+ left 1))
+    (assert (not (and
+      (>= insert_slot 0)
+      (< insert_slot capacity)
+      (>= last_index 0)
+      (< last_index capacity)
+      (=> (< left count) (and (>= left 0) (< left capacity)))
+      (=> (< right count) (and (>= right 0) (< right capacity))))))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -1,0 +1,170 @@
+use std::runtime
+use std::text
+use std::collections
+use std::crypto
+use std::alloc
+
+const SHA256_EMPTY: String = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+const HMAC_SHA256_QUICK: String = "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+const BLAKE3_EMPTY: String = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+const BLAKE3_ABC: String = "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85"
+
+fn probe_text() -> Int:
+    let raw = "  alpha:beta:gamma  "
+    let view = text_trim(text_from(raw))
+    if text_len(view) != 16:
+        return 1
+    if text_find(view, "beta") != 6:
+        return 2
+    let beta = text_subslice(view, 6, 4)
+    if text_equals_string(beta, "beta") == false:
+        return 3
+    if text_byte_at(beta, 0) != 98:
+        return 4
+    if text_materialize(beta) != "beta":
+        return 5
+    let alias = string_view(raw, 2, 5)
+    if string_view_materialize(alias) != "alpha":
+        return 6
+    return 0
+
+fn probe_collections() -> Int:
+    var metrics = typed_map_new()
+    metrics = typed_map_set(metrics, "route", 17)
+    metrics = typed_map_set(metrics, "priority", 99)
+    if typed_map_get(metrics, "route") != 17:
+        return 10
+    if typed_map_get(metrics, "priority") != 99:
+        return 11
+
+    var queue = queue_create(4)
+    queue = queue_push(queue, 10)
+    queue = queue_push(queue, 20)
+    queue = queue_push(queue, 30)
+    if queue_peek(queue) != 10:
+        return 12
+    queue = queue_pop(queue)
+    if queue_peek(queue) != 20:
+        return 13
+    let _queue_destroy = queue_destroy(queue)
+
+    var deque = deque_create(4)
+    deque = deque_push_back(deque, 2)
+    deque = deque_push_front(deque, 1)
+    deque = deque_push_back(deque, 3)
+    if deque_peek_front(deque) != 1:
+        return 14
+    if deque_peek_back(deque) != 3:
+        return 15
+    deque = deque_pop_front(deque)
+    deque = deque_pop_back(deque)
+    if deque_peek_front(deque) != 2:
+        return 16
+    let _deque_destroy = deque_destroy(deque)
+
+    var pq = priority_queue_create(8)
+    pq = priority_queue_push(pq, 100, 2)
+    pq = priority_queue_push(pq, 200, 9)
+    pq = priority_queue_push(pq, 300, 5)
+    if priority_queue_peek_value(pq) != 200:
+        return 17
+    if priority_queue_peek_priority(pq) != 9:
+        return 18
+    pq = priority_queue_pop(pq)
+    if priority_queue_peek_value(pq) != 300:
+        return 19
+    let _pq_destroy = priority_queue_destroy(pq)
+    return 0
+
+fn probe_crypto() -> Int:
+    if sha256("") != SHA256_EMPTY:
+        return 30
+    if hmac_sha256("key", "The quick brown fox jumps over the lazy dog") != HMAC_SHA256_QUICK:
+        return 31
+    if blake3("") != BLAKE3_EMPTY:
+        return 32
+    if blake3("abc") != BLAKE3_ABC:
+        return 34
+    let token = random_bytes(16)
+    if len(token) != 32:
+        return 33
+    return 0
+
+fn probe_allocators() -> Int:
+    var bump = bump_create(8)
+    let bump_first = bump_alloc(bump, 2)
+    if bump_first.ok == false:
+        return 40
+    bump = bump_first.allocator
+    mem_store(bump_first.ptr, 11, "Int")
+    mem_store(ptr_offset(bump_first.ptr, 1, "Int"), 13, "Int")
+    let bump_second = bump_alloc(bump, 6)
+    if bump_second.ok == false:
+        return 41
+    let bump_fail = bump_alloc(bump_second.allocator, 1)
+    if bump_fail.ok:
+        return 42
+    if mem_load(bump_first.ptr, "Int") + mem_load(ptr_offset(bump_first.ptr, 1, "Int"), "Int") != 24:
+        return 43
+    let _bump_destroy = bump_allocator_destroy(bump_second.allocator)
+
+    var arena = arena_create(6)
+    let arena_first = arena_alloc(arena, 3)
+    if arena_first.ok == false:
+        return 44
+    arena = arena_first.arena
+    mem_store(arena_first.ptr, 21, "Int")
+    let arena_second = arena_alloc(arena, 3)
+    if arena_second.ok == false:
+        return 45
+    let arena_fail = arena_alloc(arena_second.arena, 1)
+    if arena_fail.ok:
+        return 46
+    if mem_load(arena_first.ptr, "Int") != 21:
+        return 47
+    let _arena_destroy = arena_allocator_destroy(arena_second.arena)
+
+    var pool = pool_create(2, 2)
+    let pool_a = pool_alloc(pool)
+    if pool_a.ok == false:
+        return 48
+    pool = pool_a.pool
+    mem_store(pool_a.ptr, 31, "Int")
+    let pool_b = pool_alloc(pool)
+    if pool_b.ok == false:
+        return 49
+    pool = pool_b.pool
+    let pool_fail = pool_alloc(pool)
+    if pool_fail.ok:
+        return 50
+    pool = pool_free_block(pool, pool_a.block_index)
+    let pool_c = pool_alloc(pool)
+    if pool_c.ok == false:
+        return 51
+    if mem_load(pool_c.ptr, "Int") != 31:
+        return 52
+    let _pool_destroy = pool_allocator_destroy(pool_c.pool)
+    return 0
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot < 0:
+        return 100
+    let text_status = probe_text()
+    if text_status != 0:
+        return text_status
+    let collections_status = probe_collections()
+    if collections_status != 0:
+        return collections_status
+    let crypto_status = probe_crypto()
+    if crypto_status != 0:
+        return crypto_status
+    let alloc_status = probe_allocators()
+    if alloc_status != 0:
+        return alloc_status
+    if runtime_heap_validate() < 0:
+        return 90
+    let shutdown = runtime_shutdown()
+    if shutdown < 0:
+        return 91
+    return 0

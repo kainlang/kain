@@ -1,0 +1,134 @@
+use std::runtime
+use std::text
+use std::collections
+use std::crypto
+use std::alloc
+
+const STDLIB_FOUNDATIONS_ATTRITION_MODULUS: Int = 1000000007
+const SHA256_EMPTY: String = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+const HMAC_SHA256_QUICK: String = "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+const BLAKE3_EMPTY: String = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+
+fn digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    var index = 0
+    var sign = 1
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    var value = 0
+    while index < len(text):
+        value = value * 10 + digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn attrition_env_int(key: String, fallback: Int) -> Int:
+    let text = env(key)
+    if len(text) == 0:
+        return fallback
+    return parse_int_text(text)
+
+fn attrition_complete(status: Int, checksum: Int, message: String) -> Int:
+    let _result = runtime_attrition_result_set(checksum, status, message)
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        if status != 0:
+            return status
+        return 200 + shutdown_status
+    return status
+
+fn exercise_foundations(iteration: Int) -> Int:
+    let text = text_trim(text_from("  attrition:foundation priority:hot  "))
+    if text_contains(text, "foundation") == false:
+        return -1
+    if text_contains(text, "priority") == false:
+        return -2
+
+    var metrics = typed_map_new()
+    metrics = typed_map_set(metrics, "iteration", iteration + 3)
+    metrics = typed_map_set(metrics, "text", text_len(text))
+
+    var queue = queue_create(4)
+    queue = queue_push(queue, iteration + 1)
+    queue = queue_push(queue, iteration + 2)
+    let queue_score = queue_peek(queue)
+    let _queue_destroy = queue_destroy(queue)
+
+    var pq = priority_queue_create(4)
+    pq = priority_queue_push(pq, iteration + 10, 2)
+    pq = priority_queue_push(pq, iteration + 20, 9)
+    let pq_score = priority_queue_peek_value(pq) + priority_queue_peek_priority(pq)
+    let _pq_destroy = priority_queue_destroy(pq)
+
+    var bump = bump_create(4)
+    let bump_cell = bump_alloc(bump, 1)
+    if bump_cell.ok == false:
+        return -3
+    bump = bump_cell.allocator
+    mem_store(bump_cell.ptr, iteration % 997, "Int")
+    let bump_score = mem_load(bump_cell.ptr, "Int")
+    let _bump_destroy = bump_allocator_destroy(bump)
+
+    var pool = pool_create(1, 2)
+    let block = pool_alloc(pool)
+    if block.ok == false:
+        return -4
+    pool = block.pool
+    mem_store(block.ptr, iteration + 31, "Int")
+    let pool_score = mem_load(block.ptr, "Int")
+    let _pool_destroy = pool_allocator_destroy(pool)
+
+    if sha256("") != SHA256_EMPTY:
+        return -5
+    if hmac_sha256("key", "The quick brown fox jumps over the lazy dog") != HMAC_SHA256_QUICK:
+        return -6
+    if blake3("") != BLAKE3_EMPTY:
+        return -7
+    if iteration % 8 == 0:
+        if len(random_bytes(8)) != 16:
+            return -8
+
+    let map_score = typed_map_get(metrics, "iteration") + typed_map_get(metrics, "text")
+    let text_score = text_byte_at(text, iteration % text_len(text))
+    return (map_score + queue_score + pq_score + bump_score + pool_score + text_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot < 0:
+        return 100 + boot
+    let ops = attrition_env_int("KAIN_ATTRITION_OPS", 8)
+    var index = 0
+    var checksum = 0
+    while index < ops:
+        let score = exercise_foundations(index)
+        if score < 0:
+            return attrition_complete(10 - score, checksum, "stdlib foundation exercise failed")
+        checksum = (checksum + score + index * 17) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
+        if index % 4 == 0:
+            let _progress = runtime_attrition_note_progress(index, checksum)
+        index = index + 1
+    if runtime_heap_validate() < 0:
+        return attrition_complete(90, checksum, "runtime heap validate failed")
+    return attrition_complete(0, checksum, "")

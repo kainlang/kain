@@ -244,6 +244,29 @@
       "expected_fail_sabotages": []
     },
     {
+      "id": "kain_stdlib_foundations",
+      "title": "Kain Stdlib Foundations",
+      "description": "Real Kain LLVM attrition lane for std.text zero-copy slices, std.collections queues/maps/priority queues, std.crypto hashes/CSPRNG shape, and std.alloc bump/pool cleanup.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_stdlib_foundations/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 16,
+        "medium": 128,
+        "full": 1024
+      },
+      "validation": {
+        "closure_groups": []
+      },
+      "invariants": [
+        "rc.no_underflow",
+        "rc.no_overflow"
+      ],
+      "expected_fail_sabotages": []
+    },
+    {
       "id": "kain_float_array_literal_indexing",
       "title": "Kain Float Array Literal Indexing",
       "description": "Dedicated Kain LLVM attrition lane for literal Float array construction and indexed reads so float-array parity becomes a first-class release blocker instead of a benchmark caveat.",

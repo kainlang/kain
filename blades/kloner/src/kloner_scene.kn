@@ -1,0 +1,434 @@
+use kaintana::KaintanaRect
+use kaintana::KaintanaTheme
+use kaintana::kaintana_immediate_metric
+use kaintana::kaintana_primitive_fill
+use kaintana::kaintana_primitive_text
+use kaintana::kaintana_rect
+use kloner_state::*
+use std::collections
+use std::hash
+use std::math
+use vulkain::vulkain_probe
+use vulkain::vulkain_run_mesh_scene
+use vulkain::vulkain_vertices_drawn
+use vulkain::vulkain_write_report
+
+pub struct KlonerClonePose:
+    x: Float
+    y: Float
+    z: Float
+    scale: Float
+    yaw: Float
+    variant: Int
+
+pub struct KlonerViewportCamera:
+    yaw: Float
+    pitch: Float
+    distance: Float
+    lift: Float
+    perspective: Float
+
+fn kloner_sample_track4(current_time_ms: Int, t0: Int, v0: Float, t1: Int, v1: Float, t2: Int, v2: Float, t3: Int, v3: Float) -> Float:
+    if current_time_ms <= t0:
+        return v0
+    if current_time_ms < t1:
+        return kloner_lerp(v0, v1, Float(current_time_ms - t0) / Float(t1 - t0))
+    if current_time_ms < t2:
+        return kloner_lerp(v1, v2, Float(current_time_ms - t1) / Float(t2 - t1))
+    if current_time_ms < t3:
+        return kloner_lerp(v2, v3, Float(current_time_ms - t2) / Float(t3 - t2))
+    return v3
+
+pub fn kloner_key_sample(track_id: Int, current_time_ms: Int, default_value: Float) -> Float:
+    if track_id == 0:
+        return kloner_sample_track4(current_time_ms, 0, 4.0, 2200, 7.2, 4700, 5.8, 6800, 8.4)
+    if track_id == 1:
+        return kloner_sample_track4(current_time_ms, 0, 1.4, 2200, 1.9, 4700, 1.2, 6800, 1.6)
+    if track_id == 2:
+        return kloner_sample_track4(current_time_ms, 0, 0.18, 2200, 0.36, 4700, 0.22, 6800, 0.30)
+    if track_id == 3:
+        return kloner_sample_track4(current_time_ms, 0, 0.42, 2200, 0.74, 4700, 0.38, 6800, 0.66)
+    return default_value
+
+fn kloner_noise_unit(seed: Int) -> Float:
+    let bucket = hash_bucket_mod(hash_mix32(97, seed), 1000)
+    return Float(bucket) / 999.0
+
+fn kloner_variant_for_index(distribution_mode: Int, chain_index: Int, clone_index: Int) -> Int:
+    if distribution_mode == KLONER_DISTRIBUTION_RANDOM:
+        return hash_bucket_mod(hash_triple32(chain_index, clone_index, 77), 3)
+    return clone_index % 3
+
+fn kloner_variant_red(variant: Int) -> Int:
+    let values = [kloner_theme_signal_red(), kloner_theme_accent_red(), 255]
+    return values[int_clamp(variant, 0, len(values) - 1)]
+
+fn kloner_variant_green(variant: Int) -> Int:
+    let values = [kloner_theme_signal_green(), kloner_theme_accent_green(), 214]
+    return values[int_clamp(variant, 0, len(values) - 1)]
+
+fn kloner_variant_blue(variant: Int) -> Int:
+    let values = [kloner_theme_signal_blue(), kloner_theme_accent_blue(), 132]
+    return values[int_clamp(variant, 0, len(values) - 1)]
+
+pub fn kloner_clone_total(mode_id: Int, scene: KlonerSceneConfig) -> Int:
+    if mode_id == KLONER_MODE_SINGLE:
+        return 1
+    if mode_id == KLONER_MODE_GRID:
+        return scene.grid_x * scene.grid_y * scene.grid_z
+    if mode_id == KLONER_MODE_RADIAL:
+        return scene.radial_count
+    return scene.linear_count
+
+fn kloner_base_pose(mode_id: Int, clone_index: Int, scene: KlonerSceneConfig) -> KlonerClonePose:
+    let x = 0.0
+    let y = 0.0
+    let z = 0.0
+    let yaw = 0.0
+    if mode_id == KLONER_MODE_GRID:
+        let offset_x = (Float(scene.grid_x) - 1.0) * scene.spacing_x * 0.5
+        let offset_y = (Float(scene.grid_y) - 1.0) * scene.spacing_y * 0.5
+        let offset_z = (Float(scene.grid_z) - 1.0) * scene.spacing_z * 0.5
+        let remaining = clone_index
+        let iz = remaining % scene.grid_z
+        remaining = remaining / scene.grid_z
+        let iy = remaining % scene.grid_y
+        remaining = remaining / scene.grid_y
+        let ix = remaining
+        return KlonerClonePose {
+            x: Float(ix) * scene.spacing_x - offset_x,
+            y: Float(iy) * scene.spacing_y - offset_y,
+            z: Float(iz) * scene.spacing_z - offset_z,
+            scale: 1.0,
+            yaw: 0.0,
+            variant: 0,
+        }
+    if mode_id == KLONER_MODE_RADIAL:
+        let angle = (TAU / Float(scene.radial_count)) * Float(clone_index)
+        return KlonerClonePose {
+            x: cos(angle) * scene.radial_radius,
+            y: 0.0,
+            z: sin(angle) * scene.radial_radius,
+            scale: 1.0,
+            yaw: -angle,
+            variant: 0,
+        }
+    if mode_id == KLONER_MODE_LINEAR:
+        let offset = (Float(scene.linear_count) - 1.0) * scene.spacing_y * 0.5
+        return KlonerClonePose {
+            x: 0.0,
+            y: Float(clone_index) * scene.spacing_y - offset,
+            z: 0.0,
+            scale: 1.0,
+            yaw: 0.0,
+            variant: 0,
+        }
+    return KlonerClonePose {
+        x: x,
+        y: y,
+        z: z,
+        scale: 1.0,
+        yaw: yaw,
+        variant: 0,
+    }
+
+fn kloner_apply_modifier(pose: KlonerClonePose, kind: Int, local_time_ms: Int, clone_index: Int, chain_index: Int) -> KlonerClonePose:
+    let t = Float(local_time_ms) / 1000.0
+    let x = pose.x
+    let y = pose.y
+    let z = pose.z
+    let scale = pose.scale
+    let yaw = pose.yaw
+    let speed = kloner_modifier_speed(kind)
+    let amount = kloner_modifier_amount(kind)
+    let phase = Float(clone_index) * 0.19
+    if kind == KLONER_MOD_ORBIT:
+        x = x + cos(t * speed + phase) * amount
+        z = z + sin(t * speed + phase) * amount
+        yaw = yaw + (t * speed * 0.75)
+    elif kind == KLONER_MOD_FLOAT:
+        y = y + sin(t * speed + phase) * amount
+    elif kind == KLONER_MOD_PULSE:
+        scale = scale + sin(t * speed) * kloner_key_sample(2, local_time_ms, amount)
+    elif kind == KLONER_MOD_ELASTIC:
+        let envelope = sin(t * speed + phase)
+        y = y + abs(envelope) * 0.22
+        scale = scale + envelope * amount
+    elif kind == KLONER_MOD_FIGURE8:
+        x = x + sin(t * speed + phase) * amount
+        z = z + sin((t * speed * 2.0) + phase) * amount * 0.54
+    elif kind == KLONER_MOD_WOBBLE:
+        x = x + sin(t * speed + phase) * amount * 0.35
+        yaw = yaw + sin(t * speed + phase) * amount * 0.65
+    elif kind == KLONER_MOD_HEARTBEAT:
+        let beat = abs(sin(t * speed + phase))
+        scale = scale + beat * amount
+        y = y + beat * 0.12
+    elif kind == KLONER_MOD_BOUNCE:
+        let arc = abs(sin(t * speed + phase))
+        y = y + arc * amount * 1.8
+        scale = scale - arc * 0.08
+    elif kind == KLONER_MOD_TUMBLE:
+        yaw = yaw + (t * speed) + (Float(clone_index % 5) * 0.06)
+        x = x + sin(t * speed * 0.5 + phase) * 0.22
+    elif kind == KLONER_MOD_SWAY:
+        x = x + sin(t * speed + phase) * 0.18
+        yaw = yaw + sin(t * speed + phase) * amount
+    elif kind == KLONER_MOD_TWIST:
+        yaw = yaw + (t * speed * 0.9) + (Float(chain_index) * 0.16)
+        scale = scale + sin(t * speed + phase) * 0.08
+    elif kind == KLONER_MOD_SPIRAL:
+        let angle = (t * speed) + (Float(clone_index) * 0.22)
+        let radius = amount + Float(clone_index % 4) * 0.14
+        x = x + cos(angle) * radius
+        z = z + sin(angle) * radius
+        y = y + sin(angle * 0.5) * 0.32
+    elif kind == KLONER_MOD_NOISE_FLOW:
+        let drift_a = kloner_noise_unit((chain_index * 8192) + clone_index + local_time_ms)
+        let drift_b = kloner_noise_unit((chain_index * 16384) + clone_index * 3 + local_time_ms)
+        x = x + (drift_a - 0.5) * amount * 2.0
+        z = z + (drift_b - 0.5) * amount * 2.0
+        y = y + sin(t * 0.7 + phase) * 0.16
+    elif kind == KLONER_MOD_BREATHE:
+        let breath = sin(t * speed)
+        scale = scale + breath * amount
+        y = y + breath * 0.10
+    elif kind == KLONER_MOD_CODE:
+        x = x + cos((t * speed * 1.3) + phase) * 0.16
+        y = y + sin((t * speed * 1.9) + phase) * 0.28
+        scale = scale + kloner_key_sample(3, local_time_ms, amount) * 0.18
+    return KlonerClonePose {
+        x: x,
+        y: y,
+        z: z,
+        scale: scale,
+        yaw: yaw,
+        variant: pose.variant,
+    }
+
+pub fn kloner_clone_pose(mode_id: Int, distribution_mode: Int, chain_index: Int, current_time_ms: Int, clone_index: Int, scene: KlonerSceneConfig) -> KlonerClonePose:
+    let local_time_ms = kloner_local_chain_time_ms(current_time_ms, chain_index)
+    let step_interval_ms = kloner_chain_step_interval_ms(chain_index)
+    let effective_time_ms = local_time_ms
+    if step_interval_ms > 0:
+        effective_time_ms = local_time_ms - (local_time_ms % step_interval_ms)
+    let base = kloner_base_pose(mode_id, clone_index, scene)
+    let variant = kloner_variant_for_index(distribution_mode, chain_index, clone_index)
+    let current = KlonerClonePose {
+        x: base.x,
+        y: base.y,
+        z: base.z,
+        scale: base.scale,
+        yaw: base.yaw,
+        variant: variant,
+    }
+    let slot = 0
+    while slot < kloner_chain_modifier_count(chain_index):
+        current = kloner_apply_modifier(current, kloner_chain_modifier_kind(chain_index, slot), effective_time_ms, clone_index, chain_index)
+        slot = slot + 1
+    return current
+
+pub fn kloner_viewport_camera(state: KlonerRuntimeState, scene: KlonerSceneConfig) -> KlonerViewportCamera:
+    let clone_bias = Float(int_min(state.clone_total, 96))
+    let mode_pitch_bias = Float(state.active_mode) * 0.03
+    let radial_bias = scene.radial_radius * 0.05
+    return KlonerViewportCamera {
+        yaw: 0.68 + (state.orbit_value * 0.01) + (Float(state.active_chain) * 0.16),
+        pitch: -0.44 + mode_pitch_bias,
+        distance: 18.0 + radial_bias + (clone_bias * 0.02),
+        lift: 1.8 + (Float(state.active_mode) * 0.15),
+        perspective: 620.0,
+    }
+
+fn kloner_camera_space_x(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    return (pose.x * cos(camera.yaw)) - (pose.z * sin(camera.yaw))
+
+fn kloner_camera_space_z(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    return (pose.x * sin(camera.yaw)) + (pose.z * cos(camera.yaw))
+
+fn kloner_projected_height(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    let lifted = pose.y + camera.lift
+    let depth_lane = kloner_camera_space_z(camera, pose)
+    return (lifted * cos(camera.pitch)) - (depth_lane * sin(camera.pitch))
+
+fn kloner_projected_depth(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    let lifted = pose.y + camera.lift
+    let depth_lane = kloner_camera_space_z(camera, pose)
+    return camera.distance + (depth_lane * cos(camera.pitch)) + (lifted * sin(camera.pitch))
+
+fn kloner_projected_scale(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    let safe_depth = kloner_float_max(4.0, kloner_projected_depth(camera, pose))
+    return camera.perspective / safe_depth
+
+fn kloner_projected_x(plot_rect: KaintanaRect, camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    return plot_rect.x + (plot_rect.width * 0.5) + (kloner_camera_space_x(camera, pose) * kloner_projected_scale(camera, pose))
+
+fn kloner_projected_y(plot_rect: KaintanaRect, camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    return plot_rect.y + (plot_rect.height * 0.64) - (kloner_projected_height(camera, pose) * kloner_projected_scale(camera, pose))
+
+fn kloner_projected_width(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    return kloner_float_max(8.0, pose.scale * kloner_projected_scale(camera, pose) * 0.16)
+
+fn kloner_projected_height_units(camera: KlonerViewportCamera, pose: KlonerClonePose) -> Float:
+    return kloner_float_max(12.0, pose.scale * kloner_projected_scale(camera, pose) * 0.24)
+
+pub fn kloner_draw_viewport_grid(session: Int, parent: Int, plot_rect: KaintanaRect, theme: KaintanaTheme, camera: KlonerViewportCamera) -> Int:
+    let _back = kaintana_primitive_fill(session, parent, "viewport.plot.back", plot_rect, 18, 22, 28)
+    let horizon_y = plot_rect.y + (plot_rect.height * 0.64)
+    let _horizon = kaintana_primitive_fill(session, parent, "viewport.plot.horizon", kaintana_rect(plot_rect.x + 14.0, horizon_y, plot_rect.width - 28.0, 2.0), theme.muted_red, theme.muted_green, theme.muted_blue)
+    let lane = 0
+    while lane < 7:
+        let depth = Float(lane) / 6.0
+        let inset = 18.0 + (depth * 74.0)
+        let band_width = plot_rect.width - (inset * 2.0)
+        let band_y = horizon_y + 18.0 + (depth * (plot_rect.height * 0.20))
+        let _line = kaintana_primitive_fill(session, parent, "viewport.grid.h." + str(lane), kaintana_rect(plot_rect.x + inset, band_y, band_width, 1.0), theme.shell_red + 12, theme.shell_green + 12, theme.shell_blue + 16)
+        lane = lane + 1
+    lane = 0
+    while lane < 6:
+        let pct = Float(lane) / 5.0
+        let line_x = plot_rect.x + 24.0 + (pct * (plot_rect.width - 48.0))
+        let _line = kaintana_primitive_fill(session, parent, "viewport.grid.v." + str(lane), kaintana_rect(line_x, plot_rect.y + 18.0, 1.0, plot_rect.height - 36.0), theme.shell_red + 10, theme.shell_green + 12, theme.shell_blue + 16)
+        lane = lane + 1
+    let orbit_text = "camera yaw=" + str(Int(camera.yaw * 1000.0)) + " pitch=" + str(Int(camera.pitch * 1000.0))
+    let _camera = kaintana_primitive_text(session, parent, "viewport.camera.label", orbit_text, kaintana_rect(plot_rect.x + 14.0, plot_rect.y + plot_rect.height - 22.0, 280.0, 18.0), theme.muted_red, theme.muted_green, theme.muted_blue, 0, 12.0)
+    return 1
+
+pub fn kloner_draw_clone(session: Int, parent: Int, plot_rect: KaintanaRect, camera: KlonerViewportCamera, index: Int, pose: KlonerClonePose, theme: KaintanaTheme, micro_font: Int) -> Int:
+    let center_x = kloner_projected_x(plot_rect, camera, pose)
+    let center_y = kloner_projected_y(plot_rect, camera, pose)
+    let width = kloner_projected_width(camera, pose)
+    let height = kloner_projected_height_units(camera, pose)
+    let depth = kloner_projected_depth(camera, pose)
+    let shade_bias = int_clamp(Int(depth * 4.0), 0, 72)
+    let red = int_clamp(kloner_variant_red(pose.variant) - shade_bias, 18, 255)
+    let green = int_clamp(kloner_variant_green(pose.variant) - shade_bias, 18, 255)
+    let blue = int_clamp(kloner_variant_blue(pose.variant) - shade_bias, 18, 255)
+    let shadow = kaintana_rect(center_x - (width * 0.54), center_y + (height * 0.42), width * 1.08, 4.0)
+    let glow = kaintana_rect(center_x - (width * 0.56), center_y - (height * 0.56), width * 1.12, height * 1.12)
+    let body = kaintana_rect(center_x - (width * 0.5), center_y - (height * 0.5), width, height)
+    let cap = kaintana_rect(body.x + 2.0, body.y + 2.0, body.width - 4.0, 3.0)
+    let spine = kaintana_rect(body.x + body.width - 4.0, body.y + 3.0, 2.0, body.height - 6.0)
+    let _shadow = kaintana_primitive_fill(session, parent, "clone.shadow." + str(index), shadow, theme.shell_red, theme.shell_green, theme.shell_blue)
+    let _glow = kaintana_primitive_fill(session, parent, "clone.glow." + str(index), glow, int_clamp(red + 10, 0, 255), int_clamp(green + 10, 0, 255), int_clamp(blue + 10, 0, 255))
+    let _body = kaintana_primitive_fill(session, parent, "clone.body." + str(index), body, red, green, blue)
+    let _cap = kaintana_primitive_fill(session, parent, "clone.cap." + str(index), cap, theme.accent_red, theme.accent_green, theme.accent_blue)
+    let _spine = kaintana_primitive_fill(session, parent, "clone.spine." + str(index), spine, theme.shell_red + 18, theme.shell_green + 18, theme.shell_blue + 18)
+    if index < 16:
+        let _label = kaintana_primitive_text(session, parent, "clone.label." + str(index), str(index), kaintana_rect(body.x + 3.0, body.y + 2.0, body.width - 6.0, 12.0), theme.shell_red, theme.shell_green, theme.shell_blue, micro_font, 10.0)
+    return 1
+
+pub fn kloner_state_snapshot_text(headline: String, state: KlonerRuntimeState, reference: KlonerReferenceInfo) -> String:
+    var output = ""
+    output = output + headline + "\n"
+    output = output + "distribution=" + kloner_distribution_name(state.distribution_mode) + "\n"
+    output = output + "export_mode=" + kloner_export_mode_name(state.export_mode) + "\n"
+    output = output + "target_engine=" + kloner_target_name(state.target_engine) + "\n"
+    output = output + "orbit_axis=" + str(state.orbit_value) + "\n"
+    output = output + "reference_lines=" + str(reference.line_count) + "\n"
+    output = output + "reference_bytes=" + str(reference.byte_count) + "\n"
+    output = output + "dialog_result=" + str(state.dialog_result) + "\n"
+    output = output + "preview_hash=" + str(state.preview_hash) + "\n"
+    output = output + "export_signature=" + str(state.export_signature) + "\n"
+    output = output + "viewport_mode=projected-3d + vulkain-sidecar\n"
+    return output
+
+pub fn kloner_export_preview_json(reference: KlonerReferenceInfo, state: KlonerRuntimeState, scene: KlonerSceneConfig) -> String:
+    var output = "{\n"
+    output = output + "  \"reference\": \"" + reference.asset_label + "\",\n"
+    output = output + "  \"mode\": \"" + kloner_mode_name(state.active_mode) + "\",\n"
+    output = output + "  \"distribution\": \"" + kloner_distribution_name(state.distribution_mode) + "\",\n"
+    output = output + "  \"export_format\": \"" + kloner_export_format_name(state.active_export) + "\",\n"
+    output = output + "  \"export_mode\": \"" + kloner_export_mode_name(state.export_mode) + "\",\n"
+    output = output + "  \"target_engine\": \"" + kloner_target_name(state.target_engine) + "\",\n"
+    output = output + "  \"active_chain\": \"" + kloner_chain_name(state.active_chain) + "\",\n"
+    output = output + "  \"clone_total\": " + str(state.clone_total) + ",\n"
+    output = output + "  \"time_ms\": " + str(state.current_time_ms) + ",\n"
+    output = output + "  \"preview_hash\": " + str(state.preview_hash) + ",\n"
+    output = output + "  \"export_signature\": " + str(state.export_signature) + ",\n"
+    output = output + "  \"samples\": [\n"
+    let sample_count = int_min(state.clone_total, 8)
+    let sample_index = 0
+    while sample_index < sample_count:
+        let pose = kloner_clone_pose(state.active_mode, state.distribution_mode, state.active_chain, state.current_time_ms, sample_index, scene)
+        output = output + "    {\"index\": " + str(sample_index) + ", \"x\": " + str(pose.x) + ", \"y\": " + str(pose.y) + ", \"z\": " + str(pose.z) + ", \"scale\": " + str(pose.scale) + ", \"variant\": " + str(pose.variant) + "}"
+        if sample_index + 1 < sample_count:
+            output = output + ","
+        output = output + "\n"
+        sample_index = sample_index + 1
+    output = output + "  ]\n"
+    output = output + "}\n"
+    return output
+
+pub fn kloner_frame_report_text(settings: KlonerSettings, theme: KaintanaTheme, headline: String, state: KlonerRuntimeState, action_session: Int) -> String:
+    var output = "framework=kloner\n"
+    output = output + "headline=" + headline + "\n"
+    output = output + "theme=" + theme.name + "\n"
+    output = output + "status=" + state.status_text + "\n"
+    output = output + "mode=" + kloner_mode_name(state.active_mode) + "\n"
+    output = output + "active_chain=" + kloner_chain_name(state.active_chain) + "\n"
+    output = output + "export_format=" + kloner_export_format_name(state.active_export) + "\n"
+    output = output + "export_mode=" + kloner_export_mode_name(state.export_mode) + "\n"
+    output = output + "target=" + kloner_target_name(state.target_engine) + "\n"
+    output = output + "clone_total=" + str(state.clone_total) + "\n"
+    output = output + "current_time_ms=" + str(state.current_time_ms) + "\n"
+    output = output + "preview_hash=" + str(state.preview_hash) + "\n"
+    output = output + "export_signature=" + str(state.export_signature) + "\n"
+    output = output + "dialog_result=" + str(state.dialog_result) + "\n"
+    output = output + "action_frame_index=" + str(kaintana_action_frame_index(action_session)) + "\n"
+    output = output + "action_event_count=" + str(kaintana_action_event_count(action_session)) + "\n"
+    output = output + "viewport=projected-3d\n"
+    output = output + "vulkain_report=" + settings.vulkain_report_path + "\n"
+    return output
+
+pub fn kloner_scene_report_text(state: KlonerRuntimeState, scene: KlonerSceneConfig, camera: KlonerViewportCamera, vulkain_available: Int, vulkain_status: Int) -> String:
+    var output = "renderer.projected=yes\n"
+    output = output + "renderer.vulkain.available=" + str(vulkain_available) + "\n"
+    output = output + "renderer.vulkain.status=" + str(vulkain_status) + "\n"
+    output = output + "mode=" + kloner_mode_name(state.active_mode) + "\n"
+    output = output + "chain=" + kloner_chain_name(state.active_chain) + "\n"
+    output = output + "camera_yaw_milli=" + str(Int(camera.yaw * 1000.0)) + "\n"
+    output = output + "camera_pitch_milli=" + str(Int(camera.pitch * 1000.0)) + "\n"
+    output = output + "camera_distance_milli=" + str(Int(camera.distance * 1000.0)) + "\n"
+    output = output + "clone_total=" + str(state.clone_total) + "\n"
+    output = output + "grid=" + str(scene.grid_x) + "x" + str(scene.grid_y) + "x" + str(scene.grid_z) + "\n"
+    output = output + "radial_count=" + str(scene.radial_count) + "\n"
+    output = output + "radial_radius=" + str(scene.radial_radius) + "\n"
+    output = output + "vulkain_vertices_drawn=" + str(vulkain_vertices_drawn()) + "\n"
+    return output
+
+pub fn kloner_run_vulkain_preview(settings: KlonerSettings, state: KlonerRuntimeState, scene: KlonerSceneConfig, camera: KlonerViewportCamera) -> Int:
+    let available = vulkain_probe()
+    if available != 1:
+        return 0
+    let draw_vertices = int_clamp(36 * int_min(state.clone_total, 96), 36, 4096)
+    let camera_yaw_milli = Int(camera.yaw * 1000.0)
+    let camera_pitch_milli = Int(camera.pitch * 1000.0)
+    let mesh_scale_milli = 960 + (int_min(state.clone_total, 128) * 4)
+    let mesh_twist_milli = 260 + (state.active_chain * 180) + (state.active_mode * 70)
+    let depth_bias_milli = 960 + (state.export_mode * 120) + (state.target_engine * 80)
+    let energy = 1000 + (hash_bucket_mod(state.preview_hash + state.export_signature, 1200))
+    let preview_title = settings.title + " // Vulkain Preview"
+    let status = vulkain_run_mesh_scene(
+        preview_title,
+        1320,
+        820,
+        settings.frame_budget,
+        6,
+        10,
+        14,
+        settings.accent_red,
+        settings.accent_green,
+        settings.accent_blue,
+        draw_vertices,
+        camera_yaw_milli,
+        camera_pitch_milli,
+        mesh_scale_milli,
+        mesh_twist_milli,
+        depth_bias_milli,
+        energy,
+        settings.vulkain_vertex_shader_path,
+        settings.vulkain_fragment_shader_path
+    )
+    let _report = vulkain_write_report(settings.vulkain_report_path)
+    return status

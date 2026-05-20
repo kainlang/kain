@@ -81,3 +81,269 @@ pub fn bool_to_int(value: Bool) -> Int:
 pub fn int_to_bool(value: Int) -> Bool:
     return native_int_to_bool(value)
 # end root-domain aliases
+
+pub struct StringIntMap:
+    handle: Int
+
+pub struct IntQueue:
+    buffer: ptr<Int>
+    capacity: Int
+    head: Int
+    tail: Int
+    count: Int
+
+pub struct IntDeque:
+    buffer: ptr<Int>
+    capacity: Int
+    head: Int
+    tail: Int
+    count: Int
+
+pub struct IntPriorityQueue:
+    buffer: ptr<Int>
+    capacity: Int
+    count: Int
+
+pub struct PriorityEntry:
+    value: Int
+    priority: Int
+
+pub fn string_int_map_new() -> StringIntMap:
+    return StringIntMap { handle: map_new() }
+
+pub fn string_int_map_set(map: StringIntMap, key: String, value: Int) -> StringIntMap:
+    map_set(map.handle, key, value)
+    return map
+
+pub fn string_int_map_get(map: StringIntMap, key: String) -> Int:
+    return map_get(map.handle, key)
+
+pub fn string_int_map_get_or(map: StringIntMap, key: String, fallback: Int) -> Int:
+    let value = map_get(map.handle, key)
+    if value == 0:
+        return fallback
+    return value
+
+pub fn typed_map_new() -> StringIntMap:
+    return string_int_map_new()
+
+pub fn typed_map_set(map: StringIntMap, key: String, value: Int) -> StringIntMap:
+    return string_int_map_set(map, key, value)
+
+pub fn typed_map_get(map: StringIntMap, key: String) -> Int:
+    return string_int_map_get(map, key)
+
+pub fn queue_create(capacity: Int) -> IntQueue:
+    let safe_capacity = int_max(capacity, 1)
+    return IntQueue { buffer: alloc_zeroed(safe_capacity, "Int"), capacity: safe_capacity, head: 0, tail: 0, count: 0 }
+
+pub fn queue_len(queue: IntQueue) -> Int:
+    return queue.count
+
+pub fn queue_capacity(queue: IntQueue) -> Int:
+    return queue.capacity
+
+pub fn queue_is_empty(queue: IntQueue) -> Bool:
+    return queue.count == 0
+
+pub fn queue_is_full(queue: IntQueue) -> Bool:
+    return queue.count >= queue.capacity
+
+pub fn queue_push(queue: IntQueue, value: Int) -> IntQueue:
+    if queue_is_full(queue):
+        return queue
+    mem_store(ptr_offset(queue.buffer, queue.tail, "Int"), value, "Int")
+    return IntQueue {
+        buffer: queue.buffer,
+        capacity: queue.capacity,
+        head: queue.head,
+        tail: (queue.tail + 1) % queue.capacity,
+        count: queue.count + 1
+    }
+
+pub fn queue_peek(queue: IntQueue) -> Int:
+    if queue_is_empty(queue):
+        return 0
+    return mem_load(ptr_offset(queue.buffer, queue.head, "Int"), "Int")
+
+pub fn queue_pop(queue: IntQueue) -> IntQueue:
+    if queue_is_empty(queue):
+        return queue
+    return IntQueue {
+        buffer: queue.buffer,
+        capacity: queue.capacity,
+        head: (queue.head + 1) % queue.capacity,
+        tail: queue.tail,
+        count: queue.count - 1
+    }
+
+pub fn queue_destroy(queue: IntQueue) -> Int:
+    decay queue.buffer
+    return 0
+
+pub fn deque_create(capacity: Int) -> IntDeque:
+    let safe_capacity = int_max(capacity, 1)
+    return IntDeque { buffer: alloc_zeroed(safe_capacity, "Int"), capacity: safe_capacity, head: 0, tail: 0, count: 0 }
+
+pub fn deque_len(deque: IntDeque) -> Int:
+    return deque.count
+
+pub fn deque_is_empty(deque: IntDeque) -> Bool:
+    return deque.count == 0
+
+pub fn deque_is_full(deque: IntDeque) -> Bool:
+    return deque.count >= deque.capacity
+
+pub fn deque_push_back(deque: IntDeque, value: Int) -> IntDeque:
+    if deque_is_full(deque):
+        return deque
+    mem_store(ptr_offset(deque.buffer, deque.tail, "Int"), value, "Int")
+    return IntDeque {
+        buffer: deque.buffer,
+        capacity: deque.capacity,
+        head: deque.head,
+        tail: (deque.tail + 1) % deque.capacity,
+        count: deque.count + 1
+    }
+
+pub fn deque_push_front(deque: IntDeque, value: Int) -> IntDeque:
+    if deque_is_full(deque):
+        return deque
+    let next_head = (deque.head + deque.capacity - 1) % deque.capacity
+    mem_store(ptr_offset(deque.buffer, next_head, "Int"), value, "Int")
+    return IntDeque {
+        buffer: deque.buffer,
+        capacity: deque.capacity,
+        head: next_head,
+        tail: deque.tail,
+        count: deque.count + 1
+    }
+
+pub fn deque_peek_front(deque: IntDeque) -> Int:
+    if deque_is_empty(deque):
+        return 0
+    return mem_load(ptr_offset(deque.buffer, deque.head, "Int"), "Int")
+
+pub fn deque_peek_back(deque: IntDeque) -> Int:
+    if deque_is_empty(deque):
+        return 0
+    let slot = (deque.tail + deque.capacity - 1) % deque.capacity
+    return mem_load(ptr_offset(deque.buffer, slot, "Int"), "Int")
+
+pub fn deque_pop_front(deque: IntDeque) -> IntDeque:
+    if deque_is_empty(deque):
+        return deque
+    return IntDeque {
+        buffer: deque.buffer,
+        capacity: deque.capacity,
+        head: (deque.head + 1) % deque.capacity,
+        tail: deque.tail,
+        count: deque.count - 1
+    }
+
+pub fn deque_pop_back(deque: IntDeque) -> IntDeque:
+    if deque_is_empty(deque):
+        return deque
+    return IntDeque {
+        buffer: deque.buffer,
+        capacity: deque.capacity,
+        head: deque.head,
+        tail: (deque.tail + deque.capacity - 1) % deque.capacity,
+        count: deque.count - 1
+    }
+
+pub fn deque_destroy(deque: IntDeque) -> Int:
+    decay deque.buffer
+    return 0
+
+pub fn priority_entry_pack(value: Int, priority: Int) -> Int:
+    return (priority * 1000000000) + (value & 999999999)
+
+pub fn priority_entry_value(entry: Int) -> Int:
+    return entry % 1000000000
+
+pub fn priority_entry_priority(entry: Int) -> Int:
+    return entry / 1000000000
+
+pub fn priority_queue_create(capacity: Int) -> IntPriorityQueue:
+    let safe_capacity = int_max(capacity, 1)
+    return IntPriorityQueue { buffer: alloc_zeroed(safe_capacity, "Int"), capacity: safe_capacity, count: 0 }
+
+pub fn priority_queue_len(queue: IntPriorityQueue) -> Int:
+    return queue.count
+
+pub fn priority_queue_is_empty(queue: IntPriorityQueue) -> Bool:
+    return queue.count == 0
+
+pub fn priority_queue_is_full(queue: IntPriorityQueue) -> Bool:
+    return queue.count >= queue.capacity
+
+pub fn priority_queue_swap(queue: IntPriorityQueue, left: Int, right: Int) -> IntPriorityQueue:
+    let left_value = mem_load(ptr_offset(queue.buffer, left, "Int"), "Int")
+    let right_value = mem_load(ptr_offset(queue.buffer, right, "Int"), "Int")
+    mem_store(ptr_offset(queue.buffer, left, "Int"), right_value, "Int")
+    mem_store(ptr_offset(queue.buffer, right, "Int"), left_value, "Int")
+    return queue
+
+pub fn priority_queue_push(queue: IntPriorityQueue, value: Int, priority: Int) -> IntPriorityQueue:
+    if priority_queue_is_full(queue):
+        return queue
+    let entry = priority_entry_pack(value, priority)
+    mem_store(ptr_offset(queue.buffer, queue.count, "Int"), entry, "Int")
+    var next = IntPriorityQueue { buffer: queue.buffer, capacity: queue.capacity, count: queue.count + 1 }
+    var child = queue.count
+    while child > 0:
+        let parent = (child - 1) / 2
+        let child_value = mem_load(ptr_offset(next.buffer, child, "Int"), "Int")
+        let parent_value = mem_load(ptr_offset(next.buffer, parent, "Int"), "Int")
+        if priority_entry_priority(child_value) <= priority_entry_priority(parent_value):
+            return next
+        next = priority_queue_swap(next, child, parent)
+        child = parent
+    return next
+
+pub fn priority_queue_peek_entry(queue: IntPriorityQueue) -> PriorityEntry:
+    if priority_queue_is_empty(queue):
+        return PriorityEntry { value: 0, priority: 0 }
+    let entry = mem_load(queue.buffer, "Int")
+    return PriorityEntry { value: priority_entry_value(entry), priority: priority_entry_priority(entry) }
+
+pub fn priority_queue_peek_value(queue: IntPriorityQueue) -> Int:
+    return priority_queue_peek_entry(queue).value
+
+pub fn priority_queue_peek_priority(queue: IntPriorityQueue) -> Int:
+    return priority_queue_peek_entry(queue).priority
+
+pub fn priority_queue_pop(queue: IntPriorityQueue) -> IntPriorityQueue:
+    if priority_queue_is_empty(queue):
+        return queue
+    if queue.count == 1:
+        return IntPriorityQueue { buffer: queue.buffer, capacity: queue.capacity, count: 0 }
+    let last_index = queue.count - 1
+    let last_value = mem_load(ptr_offset(queue.buffer, last_index, "Int"), "Int")
+    mem_store(queue.buffer, last_value, "Int")
+    var next = IntPriorityQueue { buffer: queue.buffer, capacity: queue.capacity, count: last_index }
+    var parent = 0
+    while true:
+        let left = (parent * 2) + 1
+        let right = left + 1
+        var best = parent
+        if left < next.count:
+            let left_value = mem_load(ptr_offset(next.buffer, left, "Int"), "Int")
+            let best_value = mem_load(ptr_offset(next.buffer, best, "Int"), "Int")
+            if priority_entry_priority(left_value) > priority_entry_priority(best_value):
+                best = left
+        if right < next.count:
+            let right_value = mem_load(ptr_offset(next.buffer, right, "Int"), "Int")
+            let best_value = mem_load(ptr_offset(next.buffer, best, "Int"), "Int")
+            if priority_entry_priority(right_value) > priority_entry_priority(best_value):
+                best = right
+        if best == parent:
+            return next
+        next = priority_queue_swap(next, parent, best)
+        parent = best
+    return next
+
+pub fn priority_queue_destroy(queue: IntPriorityQueue) -> Int:
+    decay queue.buffer
+    return 0

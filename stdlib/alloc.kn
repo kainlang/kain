@@ -1,0 +1,144 @@
+use std::collections
+
+pub struct BumpAllocator:
+    buffer: ptr<Int>
+    capacity: Int
+    cursor: Int
+
+pub struct BumpAllocation:
+    allocator: BumpAllocator
+    ptr: ptr<Int>
+    offset: Int
+    cells: Int
+    ok: Bool
+
+pub struct ArenaAllocator:
+    buffer: ptr<Int>
+    capacity: Int
+    cursor: Int
+    high_water: Int
+
+pub struct ArenaAllocation:
+    arena: ArenaAllocator
+    ptr: ptr<Int>
+    offset: Int
+    cells: Int
+    ok: Bool
+
+pub struct PoolAllocator:
+    buffer: ptr<Int>
+    free_stack: ptr<Int>
+    block_cells: Int
+    block_count: Int
+    free_count: Int
+
+pub struct PoolAllocation:
+    pool: PoolAllocator
+    ptr: ptr<Int>
+    block_index: Int
+    ok: Bool
+
+pub fn bump_allocator_create(cells: Int) -> BumpAllocator:
+    let safe_cells = int_max(cells, 1)
+    return BumpAllocator { buffer: alloc_zeroed(safe_cells, "Int"), capacity: safe_cells, cursor: 0 }
+
+pub fn bump_allocator_remaining(allocator: BumpAllocator) -> Int:
+    return int_max(allocator.capacity - allocator.cursor, 0)
+
+pub fn bump_allocator_reset(allocator: BumpAllocator) -> BumpAllocator:
+    return BumpAllocator { buffer: allocator.buffer, capacity: allocator.capacity, cursor: 0 }
+
+pub fn bump_alloc_cells(allocator: BumpAllocator, cells: Int) -> BumpAllocation:
+    let safe_cells = int_max(cells, 0)
+    if safe_cells == 0:
+        return BumpAllocation { allocator: allocator, ptr: allocator.buffer, offset: allocator.cursor, cells: 0, ok: true }
+    if allocator.cursor + safe_cells > allocator.capacity:
+        return BumpAllocation { allocator: allocator, ptr: allocator.buffer, offset: allocator.cursor, cells: 0, ok: false }
+    let offset = allocator.cursor
+    let next_allocator = BumpAllocator { buffer: allocator.buffer, capacity: allocator.capacity, cursor: allocator.cursor + safe_cells }
+    return BumpAllocation { allocator: next_allocator, ptr: ptr_offset(allocator.buffer, offset, "Int"), offset: offset, cells: safe_cells, ok: true }
+
+pub fn bump_allocator_destroy(allocator: BumpAllocator) -> Int:
+    decay allocator.buffer
+    return 0
+
+pub fn arena_allocator_create(cells: Int) -> ArenaAllocator:
+    let safe_cells = int_max(cells, 1)
+    return ArenaAllocator { buffer: alloc_zeroed(safe_cells, "Int"), capacity: safe_cells, cursor: 0, high_water: 0 }
+
+pub fn arena_allocator_remaining(arena: ArenaAllocator) -> Int:
+    return int_max(arena.capacity - arena.cursor, 0)
+
+pub fn arena_allocator_reset(arena: ArenaAllocator) -> ArenaAllocator:
+    return ArenaAllocator { buffer: arena.buffer, capacity: arena.capacity, cursor: 0, high_water: arena.high_water }
+
+pub fn arena_alloc_cells(arena: ArenaAllocator, cells: Int) -> ArenaAllocation:
+    let safe_cells = int_max(cells, 0)
+    if safe_cells == 0:
+        return ArenaAllocation { arena: arena, ptr: arena.buffer, offset: arena.cursor, cells: 0, ok: true }
+    if arena.cursor + safe_cells > arena.capacity:
+        return ArenaAllocation { arena: arena, ptr: arena.buffer, offset: arena.cursor, cells: 0, ok: false }
+    let offset = arena.cursor
+    let next_cursor = arena.cursor + safe_cells
+    let next_high_water = int_max(arena.high_water, next_cursor)
+    let next_arena = ArenaAllocator { buffer: arena.buffer, capacity: arena.capacity, cursor: next_cursor, high_water: next_high_water }
+    return ArenaAllocation { arena: next_arena, ptr: ptr_offset(arena.buffer, offset, "Int"), offset: offset, cells: safe_cells, ok: true }
+
+pub fn arena_allocator_destroy(arena: ArenaAllocator) -> Int:
+    decay arena.buffer
+    return 0
+
+pub fn pool_allocator_create(block_count: Int, block_cells: Int) -> PoolAllocator:
+    let safe_blocks = int_max(block_count, 1)
+    let safe_block_cells = int_max(block_cells, 1)
+    let buffer = alloc_zeroed(safe_blocks * safe_block_cells, "Int")
+    let free_stack = alloc_zeroed(safe_blocks, "Int")
+    var index = 0
+    while index < safe_blocks:
+        mem_store(ptr_offset(free_stack, index, "Int"), safe_blocks - index - 1, "Int")
+        index = index + 1
+    return PoolAllocator { buffer: buffer, free_stack: free_stack, block_cells: safe_block_cells, block_count: safe_blocks, free_count: safe_blocks }
+
+pub fn pool_allocator_available(pool: PoolAllocator) -> Int:
+    return pool.free_count
+
+pub fn pool_alloc_block(pool: PoolAllocator) -> PoolAllocation:
+    if pool.free_count <= 0:
+        return PoolAllocation { pool: pool, ptr: pool.buffer, block_index: -1, ok: false }
+    let stack_slot = pool.free_count - 1
+    let block_index = mem_load(ptr_offset(pool.free_stack, stack_slot, "Int"), "Int")
+    let next_pool = PoolAllocator { buffer: pool.buffer, free_stack: pool.free_stack, block_cells: pool.block_cells, block_count: pool.block_count, free_count: stack_slot }
+    return PoolAllocation { pool: next_pool, ptr: ptr_offset(pool.buffer, block_index * pool.block_cells, "Int"), block_index: block_index, ok: true }
+
+pub fn pool_free_block(pool: PoolAllocator, block_index: Int) -> PoolAllocator:
+    if block_index < 0:
+        return pool
+    if block_index >= pool.block_count:
+        return pool
+    if pool.free_count >= pool.block_count:
+        return pool
+    mem_store(ptr_offset(pool.free_stack, pool.free_count, "Int"), block_index, "Int")
+    return PoolAllocator { buffer: pool.buffer, free_stack: pool.free_stack, block_cells: pool.block_cells, block_count: pool.block_count, free_count: pool.free_count + 1 }
+
+pub fn pool_allocator_destroy(pool: PoolAllocator) -> Int:
+    decay pool.free_stack
+    decay pool.buffer
+    return 0
+
+pub fn arena_create(cells: Int) -> ArenaAllocator:
+    return arena_allocator_create(cells)
+
+pub fn arena_alloc(arena: ArenaAllocator, cells: Int) -> ArenaAllocation:
+    return arena_alloc_cells(arena, cells)
+
+pub fn bump_create(cells: Int) -> BumpAllocator:
+    return bump_allocator_create(cells)
+
+pub fn bump_alloc(allocator: BumpAllocator, cells: Int) -> BumpAllocation:
+    return bump_alloc_cells(allocator, cells)
+
+pub fn pool_create(block_count: Int, block_cells: Int) -> PoolAllocator:
+    return pool_allocator_create(block_count, block_cells)
+
+pub fn pool_alloc(pool: PoolAllocator) -> PoolAllocation:
+    return pool_alloc_block(pool)

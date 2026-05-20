@@ -1,0 +1,40 @@
+version: 1
+id: kain.core.proofs.stdlib_ring_buffer_index_bounds
+kind: check_smt2
+description: std::collections queue/deque ring arithmetic keeps next head/tail
+  positions inside a positive capacity ring and cannot overfill when push is gated.
+tags:
+- stdlib
+- collections
+- ring-buffer
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\collections.kn
+  symbol: queue_push
+  start_line: 142
+  reason: Queue and deque share modulo ring cursor arithmetic.
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const capacity Int)
+    (declare-const head Int)
+    (declare-const tail Int)
+    (declare-const count Int)
+    (assert (> capacity 0))
+    (assert (>= head 0))
+    (assert (< head capacity))
+    (assert (>= tail 0))
+    (assert (< tail capacity))
+    (assert (>= count 0))
+    (assert (< count capacity))
+    (define-fun next_tail () Int (mod (+ tail 1) capacity))
+    (define-fun next_head () Int (mod (+ head 1) capacity))
+    (assert (not (and
+      (>= next_tail 0)
+      (< next_tail capacity)
+      (<= (+ count 1) capacity)
+      (>= next_head 0)
+      (< next_head capacity))))
+    (check-sat)
+  include_model: false
+  include_stats: false

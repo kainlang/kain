@@ -1,0 +1,34 @@
+version: 1
+id: kain.core.proofs.stdlib_text_slice_clamp_bounds
+kind: check_smt2
+description: std::text TextSlice construction clamps start/length so materialization
+  can only request a substring within the source string bounds.
+tags:
+- stdlib
+- text
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\text.kn
+  symbol: text_slice
+  start_line: 8
+  reason: TextSlice is the public zero-copy string-view primitive.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const source_len Int)
+    (declare-const start_in Int)
+    (declare-const length_in Int)
+    (assert (>= source_len 0))
+    (define-fun safe_start () Int
+      (ite (< start_in 0) 0 (ite (> start_in source_len) source_len start_in)))
+    (define-fun remaining () Int (- source_len safe_start))
+    (define-fun safe_length () Int
+      (ite (< length_in 0) 0 (ite (> length_in remaining) remaining length_in)))
+    (define-fun slice_end () Int (+ safe_start safe_length))
+    (assert (not (and
+      (>= safe_start 0)
+      (<= safe_start slice_end)
+      (<= slice_end source_len))))
+    (check-sat)
+  include_model: false
+  include_stats: false

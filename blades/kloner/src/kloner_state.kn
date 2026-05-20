@@ -1,0 +1,591 @@
+use kaintana::KaintanaTheme
+use kaintana::KaintanaUiFonts
+use kaintana::KaintanaWindowSpec
+use kaintana::kaintana_action_begin_frame
+use kaintana::kaintana_action_bind
+use kaintana::kaintana_action_push_agent_intent
+use kaintana::kaintana_action_push_axis
+use kaintana::kaintana_action_push_key_down
+use kaintana::kaintana_action_push_key_up
+use kaintana::kaintana_axis_bind
+use kaintana::kaintana_axis_binding
+use kaintana::kaintana_backend_desktop
+use kaintana::kaintana_harness_spec
+use kaintana::kaintana_key_down_binding
+use kaintana::kaintana_key_up_binding
+use kaintana::kaintana_window_spec
+use std::collections
+use std::fs
+use std::hash
+
+const KLONER_MODE_SINGLE: Int = 0
+const KLONER_MODE_GRID: Int = 1
+const KLONER_MODE_RADIAL: Int = 2
+const KLONER_MODE_LINEAR: Int = 3
+
+const KLONER_DISTRIBUTION_ROUND_ROBIN: Int = 0
+const KLONER_DISTRIBUTION_RANDOM: Int = 1
+
+const KLONER_EXPORT_FORMAT_GLB: Int = 0
+const KLONER_EXPORT_FORMAT_OBJ: Int = 1
+const KLONER_EXPORT_FORMAT_USDZ: Int = 2
+const KLONER_EXPORT_FORMAT_VAT: Int = 3
+
+const KLONER_EXPORT_MODE_ANIM: Int = 0
+const KLONER_EXPORT_MODE_INSTANCE: Int = 1
+const KLONER_EXPORT_MODE_SEPARATED: Int = 2
+
+const KLONER_TARGET_GENERIC: Int = 0
+const KLONER_TARGET_UNREAL: Int = 1
+const KLONER_TARGET_UNITY: Int = 2
+
+const KLONER_MOD_ORBIT: Int = 0
+const KLONER_MOD_FLOAT: Int = 1
+const KLONER_MOD_PULSE: Int = 2
+const KLONER_MOD_ELASTIC: Int = 3
+const KLONER_MOD_FIGURE8: Int = 4
+const KLONER_MOD_WOBBLE: Int = 5
+const KLONER_MOD_HEARTBEAT: Int = 6
+const KLONER_MOD_STEP: Int = 7
+const KLONER_MOD_BOUNCE: Int = 8
+const KLONER_MOD_TUMBLE: Int = 9
+const KLONER_MOD_SWAY: Int = 10
+const KLONER_MOD_TWIST: Int = 11
+const KLONER_MOD_SPIRAL: Int = 12
+const KLONER_MOD_NOISE_FLOW: Int = 13
+const KLONER_MOD_BREATHE: Int = 14
+const KLONER_MOD_CODE: Int = 15
+
+const KLONER_FAMILY_BASIC: Int = 0
+const KLONER_FAMILY_RHYTHMIC: Int = 1
+const KLONER_FAMILY_PHYSICS: Int = 2
+const KLONER_FAMILY_ADVANCED: Int = 3
+const KLONER_FAMILY_SCRIPT: Int = 4
+
+const KLONER_MAX_PREVIEW_CLONES: Int = 96
+const KLONER_CHAIN_COUNT: Int = 3
+const KLONER_SEGMENT_COUNT: Int = 16
+
+component KlonerPanel():
+    render <panel title="Kloner" />
+
+world KlonerAuthority:
+    state active_mode: Int = KLONER_MODE_GRID
+    state active_chain: Int = 0
+    state active_export: Int = KLONER_EXPORT_FORMAT_GLB
+    state clone_total: Int = 1
+    state preview_hash: Int = 1
+    surface native_ui => KlonerPanel
+
+world KlonerMirror:
+    state mode_copy: Int = KLONER_MODE_GRID
+    state chain_copy: Int = 0
+    state export_copy: Int = KLONER_EXPORT_FORMAT_GLB
+    state clone_total_copy: Int = 1
+    state preview_hash_copy: Int = 1
+    surface web => KlonerPanel
+
+entangle KlonerAuthority.active_mode <-> KlonerMirror.mode_copy with single_writer
+entangle KlonerAuthority.active_chain <-> KlonerMirror.chain_copy with single_writer
+entangle KlonerAuthority.active_export <-> KlonerMirror.export_copy with single_writer
+entangle KlonerAuthority.clone_total <-> KlonerMirror.clone_total_copy with single_writer
+entangle KlonerAuthority.preview_hash <-> KlonerMirror.preview_hash_copy with single_writer
+
+patch set_active_mode(authority: KlonerAuthority, value: Int) -> Int:
+    authority.active_mode = value
+    return authority.active_mode
+
+patch set_active_chain(authority: KlonerAuthority, value: Int) -> Int:
+    authority.active_chain = value
+    return authority.active_chain
+
+patch set_active_export(authority: KlonerAuthority, value: Int) -> Int:
+    authority.active_export = value
+    return authority.active_export
+
+patch set_clone_total(authority: KlonerAuthority, value: Int) -> Int:
+    authority.clone_total = value
+    return authority.clone_total
+
+patch set_preview_hash(authority: KlonerAuthority, value: Int) -> Int:
+    authority.preview_hash = value
+    return authority.preview_hash
+
+law kloner_mode_valid(value: Int) -> Bool:
+    return value >= KLONER_MODE_SINGLE and value <= KLONER_MODE_LINEAR
+
+law kloner_clone_budget_valid(value: Int) -> Bool:
+    return value >= 1 and value <= 4096
+
+law kloner_preview_hash_valid(value: Int) -> Bool:
+    return value != 0
+
+converge kloner_hash_lane(value: Int) -> Int:
+    spec reference:
+        return hash_mix32(17, value)
+    fast llvm_lane when target("llvm"):
+        return hash_mix32(17, value)
+    verify random(8)
+
+fn kloner_bias(value: Int) -> Int:
+    return hash_pair32(value, 31)
+
+orchestrate kloner_export_signature(seed: Int) -> Int:
+    let mixed: Int = kain kloner_hash_lane(seed)
+    let biased: Int = rust kloner_bias(mixed)
+    return biased
+
+pub struct KlonerSettings:
+    title: String
+    theme_name: String
+    width: Int
+    height: Int
+    frame_budget: Int
+    revision_key: String
+    clear_red: Int
+    clear_green: Int
+    clear_blue: Int
+    accent_red: Int
+    accent_green: Int
+    accent_blue: Int
+    frame_report_path: String
+    host_report_path: String
+    screenshot_path: String
+    snapshot_path: String
+    input_trace_path: String
+    state_path: String
+    export_preview_path: String
+    scene_report_path: String
+    vulkain_report_path: String
+    vulkain_vertex_shader_path: String
+    vulkain_fragment_shader_path: String
+    reference_root: String
+    reference_spec_path: String
+
+pub struct KlonerSceneConfig:
+    grid_x: Int
+    grid_y: Int
+    grid_z: Int
+    radial_count: Int
+    linear_count: Int
+    spacing_x: Float
+    spacing_y: Float
+    spacing_z: Float
+    radial_radius: Float
+
+pub struct KlonerRuntimeState:
+    active_mode: Int
+    active_chain: Int
+    active_export: Int
+    distribution_mode: Int
+    export_mode: Int
+    target_engine: Int
+    normalize_scale: Int
+    show_reference_browser: Int
+    show_settings_deck: Int
+    dialog_result: Int
+    current_time_ms: Int
+    status_text: String
+    clone_total: Int
+    preview_hash: Int
+    export_signature: Int
+    orbit_value: Float
+
+pub struct KlonerReferenceInfo:
+    asset_label: String
+    line_count: Int
+    byte_count: Int
+
+pub struct KlonerUiFonts:
+    body_font: Int
+    title_font: Int
+    badge_font: Int
+    micro_font: Int
+
+fn kloner_is_digit_char(ch: String) -> Bool:
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+
+fn kloner_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn kloner_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let sign = 1
+    let index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let value = 0
+    while index < len(text):
+        if !kloner_is_digit_char(char_at(text, index)):
+            return value * sign
+        value = value * 10 + kloner_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn kloner_frame_budget_or_default(default_value: Int) -> Int:
+    let override_text = env("KLONER_FRAME_BUDGET")
+    if len(override_text) == 0:
+        return default_value
+    let override_value = kloner_parse_int_text(override_text)
+    if override_value <= 0:
+        return default_value
+    return override_value
+
+pub fn kloner_settings_desktop() -> KlonerSettings:
+    let run_root = fs_path_join(".kain", "run")
+    let reference_root = "reference"
+    let vulkain_root = "../vulkain/.kain/gpu/basic_window"
+    return KlonerSettings {
+        title: "Kloner // 3D Clone Workstation",
+        theme_name: "oxide-dcc",
+        width: 1720,
+        height: 1040,
+        frame_budget: kloner_frame_budget_or_default(160),
+        revision_key: "kloner-desktop-v2-vulkain-sidecar",
+        clear_red: 18,
+        clear_green: 20,
+        clear_blue: 24,
+        accent_red: 255,
+        accent_green: 156,
+        accent_blue: 74,
+        frame_report_path: fs_path_join(run_root, "kloner_frame.txt"),
+        host_report_path: fs_path_join(run_root, "kloner_host.txt"),
+        screenshot_path: fs_path_join(run_root, "kloner.bmp"),
+        snapshot_path: fs_path_join(run_root, "kloner_snapshot.txt"),
+        input_trace_path: fs_path_join(run_root, "kloner_input_trace.txt"),
+        state_path: fs_path_join(run_root, "kloner_state_snapshot.txt"),
+        export_preview_path: fs_path_join(run_root, "kloner_export_preview.json"),
+        scene_report_path: fs_path_join(run_root, "kloner_scene.txt"),
+        vulkain_report_path: fs_path_join(run_root, "kloner_vulkain_report.txt"),
+        vulkain_vertex_shader_path: fs_path_join(vulkain_root, "vulkain_basic.vert.spv"),
+        vulkain_fragment_shader_path: fs_path_join(vulkain_root, "vulkain_basic.frag.spv"),
+        reference_root: reference_root,
+        reference_spec_path: fs_path_join(reference_root, "KCloner.tsx"),
+    }
+
+pub fn kloner_default_scene_config() -> KlonerSceneConfig:
+    return KlonerSceneConfig {
+        grid_x: 6,
+        grid_y: 2,
+        grid_z: 6,
+        radial_count: 18,
+        linear_count: 16,
+        spacing_x: 1.45,
+        spacing_y: 1.40,
+        spacing_z: 1.45,
+        radial_radius: 6.0,
+    }
+
+pub fn kloner_build_window_spec(settings: KlonerSettings) -> KaintanaWindowSpec:
+    return kaintana_window_spec(
+        settings.title,
+        settings.width,
+        settings.height,
+        settings.frame_budget,
+        kaintana_backend_desktop(),
+        "software",
+        settings.clear_red,
+        settings.clear_green,
+        settings.clear_blue,
+        settings.accent_red,
+        settings.accent_green,
+        settings.accent_blue,
+        "",
+        "",
+        settings.frame_report_path,
+        settings.host_report_path,
+        settings.screenshot_path
+    )
+
+pub fn kloner_mode_name(mode_id: Int) -> String:
+    let names = ["SINGLE", "GRID", "RADIAL", "LINEAR"]
+    return names[int_clamp(mode_id, 0, len(names) - 1)]
+
+pub fn kloner_distribution_name(distribution_id: Int) -> String:
+    let names = ["ROUND_ROBIN", "RANDOM"]
+    return names[int_clamp(distribution_id, 0, len(names) - 1)]
+
+pub fn kloner_export_format_name(format_id: Int) -> String:
+    let names = ["GLB", "OBJ", "USDZ", "VAT"]
+    return names[int_clamp(format_id, 0, len(names) - 1)]
+
+pub fn kloner_export_mode_name(mode_id: Int) -> String:
+    let names = ["ANIM", "INSTANCE", "SEPARATED"]
+    return names[int_clamp(mode_id, 0, len(names) - 1)]
+
+pub fn kloner_target_name(target_id: Int) -> String:
+    let names = ["GENERIC", "UNREAL", "UNITY"]
+    return names[int_clamp(target_id, 0, len(names) - 1)]
+
+pub fn kloner_modifier_name(kind: Int) -> String:
+    let names = [
+        "ORBIT", "FLOAT", "PULSE", "ELASTIC",
+        "FIGURE8", "WOBBLE", "HEARTBEAT", "STEP",
+        "BOUNCE", "TUMBLE", "SWAY", "TWIST",
+        "SPIRAL", "NOISE_FLOW", "BREATHE", "K-SCRIPT"
+    ]
+    return names[int_clamp(kind, 0, len(names) - 1)]
+
+pub fn kloner_modifier_family(kind: Int) -> Int:
+    let families = [
+        KLONER_FAMILY_BASIC, KLONER_FAMILY_BASIC, KLONER_FAMILY_BASIC, KLONER_FAMILY_BASIC,
+        KLONER_FAMILY_RHYTHMIC, KLONER_FAMILY_RHYTHMIC, KLONER_FAMILY_RHYTHMIC, KLONER_FAMILY_RHYTHMIC,
+        KLONER_FAMILY_PHYSICS, KLONER_FAMILY_PHYSICS, KLONER_FAMILY_PHYSICS, KLONER_FAMILY_PHYSICS,
+        KLONER_FAMILY_ADVANCED, KLONER_FAMILY_ADVANCED, KLONER_FAMILY_ADVANCED, KLONER_FAMILY_SCRIPT
+    ]
+    return families[int_clamp(kind, 0, len(families) - 1)]
+
+pub fn kloner_family_name(family: Int) -> String:
+    let names = ["BASIC", "RHYTHMIC", "PHYSICS", "ADVANCED", "SCRIPT"]
+    return names[int_clamp(family, 0, len(names) - 1)]
+
+pub fn kloner_modifier_speed(kind: Int) -> Float:
+    let values = [0.60, 1.15, 3.20, 2.40, 1.05, 1.70, 2.10, 8.00, 2.25, 1.60, 0.95, 1.90, 1.10, 0.70, 0.50, 1.35]
+    return values[int_clamp(kind, 0, len(values) - 1)]
+
+pub fn kloner_modifier_amount(kind: Int) -> Float:
+    let values = [0.85, 0.42, 0.18, 0.22, 0.92, 0.28, 0.16, 0.12, 0.62, 0.40, 0.25, 0.36, 0.95, 0.52, 0.24, 0.44]
+    return values[int_clamp(kind, 0, len(values) - 1)]
+
+pub fn kloner_modifier_axis(kind: Int) -> String:
+    let values = ["y", "y", "y", "y", "xz", "y", "y", "fps", "y", "xyz", "z", "y", "xyz", "xyz", "all", "code"]
+    return values[int_clamp(kind, 0, len(values) - 1)]
+
+pub fn kloner_modifier_accent_r(kind: Int) -> Int:
+    let values = [92, 92, 92, 92, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 74]
+    return values[int_clamp(kind, 0, len(values) - 1)]
+
+pub fn kloner_modifier_accent_g(kind: Int) -> Int:
+    let values = [208, 208, 208, 208, 196, 196, 196, 196, 156, 156, 156, 156, 110, 110, 110, 255]
+    return values[int_clamp(kind, 0, len(values) - 1)]
+
+pub fn kloner_modifier_accent_b(kind: Int) -> Int:
+    let values = [255, 255, 255, 255, 255, 255, 255, 255, 74, 74, 74, 74, 196, 196, 196, 132]
+    return values[int_clamp(kind, 0, len(values) - 1)]
+
+pub fn kloner_chain_name(chain_index: Int) -> String:
+    let names = ["GRID LIFT", "CROWN SWARM", "EXPORT DRIFT"]
+    return names[int_clamp(chain_index, 0, len(names) - 1)]
+
+pub fn kloner_chain_duration_ms(chain_index: Int) -> Int:
+    let durations = [2200, 2500, 2100]
+    return durations[int_clamp(chain_index, 0, len(durations) - 1)]
+
+pub fn kloner_chain_modifier_count(chain_index: Int) -> Int:
+    let counts = [4, 4, 4]
+    return counts[int_clamp(chain_index, 0, len(counts) - 1)]
+
+pub fn kloner_chain_modifier_kind(chain_index: Int, slot: Int) -> Int:
+    if chain_index == 0:
+        let kinds = [KLONER_MOD_ORBIT, KLONER_MOD_PULSE, KLONER_MOD_FLOAT, KLONER_MOD_STEP]
+        return kinds[int_clamp(slot, 0, len(kinds) - 1)]
+    if chain_index == 1:
+        let kinds = [KLONER_MOD_FIGURE8, KLONER_MOD_TWIST, KLONER_MOD_BREATHE, KLONER_MOD_NOISE_FLOW]
+        return kinds[int_clamp(slot, 0, len(kinds) - 1)]
+    let kinds = [KLONER_MOD_SPIRAL, KLONER_MOD_BOUNCE, KLONER_MOD_TUMBLE, KLONER_MOD_CODE]
+    return kinds[int_clamp(slot, 0, len(kinds) - 1)]
+
+pub fn kloner_chain_step_interval_ms(chain_index: Int) -> Int:
+    if chain_index == 0:
+        return 125
+    return 0
+
+pub fn kloner_total_duration_ms() -> Int:
+    return kloner_chain_duration_ms(0) + kloner_chain_duration_ms(1) + kloner_chain_duration_ms(2)
+
+pub fn kloner_active_chain_for_time(current_time_ms: Int) -> Int:
+    if current_time_ms < kloner_chain_duration_ms(0):
+        return 0
+    if current_time_ms < kloner_chain_duration_ms(0) + kloner_chain_duration_ms(1):
+        return 1
+    return 2
+
+pub fn kloner_local_chain_time_ms(current_time_ms: Int, chain_index: Int) -> Int:
+    if chain_index == 0:
+        return current_time_ms
+    if chain_index == 1:
+        return current_time_ms - kloner_chain_duration_ms(0)
+    return current_time_ms - kloner_chain_duration_ms(0) - kloner_chain_duration_ms(1)
+
+pub fn kloner_clamp01(value: Float) -> Float:
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+pub fn kloner_lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + ((b - a) * kloner_clamp01(t))
+
+pub fn kloner_float_max(left: Float, right: Float) -> Float:
+    if left >= right:
+        return left
+    return right
+
+pub fn kloner_abs_int(value: Int) -> Int:
+    if value < 0:
+        return 0 - value
+    return value
+
+pub fn kloner_string_slice(text: String, start: Int, finish: Int) -> String:
+    let result = ""
+    let index = int_max(start, 0)
+    let safe_finish = int_min(finish, len(text))
+    while index < safe_finish:
+        result = result + char_at(text, index)
+        index = index + 1
+    return result
+
+pub fn kloner_first_line(text: String) -> String:
+    if len(text) == 0:
+        return ""
+    let index = 0
+    while index < len(text) and char_at(text, index) != "\n":
+        index = index + 1
+    return kloner_string_slice(text, 0, index)
+
+pub fn kloner_path_leaf(path: String) -> String:
+    if len(path) == 0:
+        return ""
+    let last = 0
+    let index = 0
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            last = index + 1
+        index = index + 1
+    return kloner_string_slice(path, last, len(path))
+
+pub fn kloner_reference_line_count(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let count = 1
+    let index = 0
+    while index < len(text):
+        if char_at(text, index) == "\n":
+            count = count + 1
+        index = index + 1
+    return count
+
+pub fn kloner_headline(mode_id: Int, chain_index: Int, export_format: Int, clone_total: Int) -> String:
+    return "KLONER // " + kloner_mode_name(mode_id) + " // " + kloner_chain_name(chain_index) + " // " + kloner_export_format_name(export_format) + " // clones=" + str(clone_total)
+
+pub fn kloner_bool_word(value: Bool) -> String:
+    if value:
+        return "yes"
+    return "no"
+
+pub fn kloner_theme_signal_red() -> Int:
+    return 92
+
+pub fn kloner_theme_signal_green() -> Int:
+    return 208
+
+pub fn kloner_theme_signal_blue() -> Int:
+    return 255
+
+pub fn kloner_theme_accent_red() -> Int:
+    return 255
+
+pub fn kloner_theme_accent_green() -> Int:
+    return 156
+
+pub fn kloner_theme_accent_blue() -> Int:
+    return 74
+
+pub fn kloner_bind_action_map(action_session: Int) -> Int:
+    let _play = kaintana_action_bind(action_session, kaintana_key_down_binding("Enter", "transport.play"))
+    let _play_release = kaintana_action_bind(action_session, kaintana_key_up_binding("Enter", "transport.play"))
+    let _mode_grid = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyG", "mode.grid"))
+    let _mode_grid_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyG", "mode.grid"))
+    let _mode_radial = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyR", "mode.radial"))
+    let _mode_radial_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyR", "mode.radial"))
+    let _browse = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyB", "library.browse"))
+    let _browse_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyB", "library.browse"))
+    let _vat = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyV", "export.vat"))
+    let _vat_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyV", "export.vat"))
+    let _instance = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyI", "export.instance"))
+    let _instance_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyI", "export.instance"))
+    let _unreal = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyU", "target.unreal"))
+    let _unreal_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyU", "target.unreal"))
+    let _chain = kaintana_action_bind(action_session, kaintana_key_down_binding("Digit2", "chain.crown"))
+    let _chain_release = kaintana_action_bind(action_session, kaintana_key_up_binding("Digit2", "chain.crown"))
+    let _settings = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyS", "service.settings"))
+    let _settings_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyS", "service.settings"))
+    let _axis = kaintana_axis_bind(action_session, kaintana_axis_binding("human.pointer", "axis", "orbit_x", "preview.orbit", 0.25))
+    return 1
+
+pub fn kloner_press_key(action_session: Int, code: String) -> Int:
+    let _down = kaintana_action_push_key_down(action_session, "keyboard.proof", code)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+pub fn kloner_release_key(action_session: Int, code: String) -> Int:
+    let _up = kaintana_action_push_key_up(action_session, "keyboard.proof", code)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+pub fn kloner_pump_axis(action_session: Int, value: Float) -> Int:
+    let _axis = kaintana_action_push_axis(action_session, "human.pointer", "pointer.proof", "orbit_x", value)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+pub fn kloner_pump_agent_intent(action_session: Int, action: String, command_text: String) -> Int:
+    let _intent = kaintana_action_push_agent_intent(action_session, "codex", action, command_text, 0.99)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+pub fn kloner_reference_info(settings: KlonerSettings) -> KlonerReferenceInfo:
+    let reference_listing = ""
+    if fs_exists(settings.reference_root):
+        reference_listing = fs_read_dir_paths_text(settings.reference_root)
+    let reference_source = ""
+    if fs_exists(settings.reference_spec_path):
+        reference_source = fs_read_text(settings.reference_spec_path)
+    let line_count = kloner_reference_line_count(reference_listing)
+    if len(reference_source) > 0:
+        line_count = kloner_reference_line_count(reference_source)
+    let asset_label = kloner_path_leaf(settings.reference_spec_path)
+    if len(reference_listing) > 0:
+        asset_label = kloner_path_leaf(kloner_first_line(reference_listing))
+    return KlonerReferenceInfo {
+        asset_label: asset_label,
+        line_count: line_count,
+        byte_count: len(reference_source),
+    }
+
+pub fn kloner_initial_runtime_state(authority: KlonerAuthority) -> KlonerRuntimeState:
+    return KlonerRuntimeState {
+        active_mode: set_active_mode(authority, KLONER_MODE_GRID),
+        active_chain: set_active_chain(authority, 0),
+        active_export: set_active_export(authority, KLONER_EXPORT_FORMAT_GLB),
+        distribution_mode: KLONER_DISTRIBUTION_RANDOM,
+        export_mode: KLONER_EXPORT_MODE_ANIM,
+        target_engine: KLONER_TARGET_GENERIC,
+        normalize_scale: 1,
+        show_reference_browser: 0,
+        show_settings_deck: 0,
+        dialog_result: 0,
+        current_time_ms: 320,
+        status_text: "boot // awaiting reference uplift",
+        clone_total: set_clone_total(authority, 1),
+        preview_hash: set_preview_hash(authority, 1),
+        export_signature: 1,
+        orbit_value: 0.0,
+    }
