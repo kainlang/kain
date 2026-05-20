@@ -16,6 +16,7 @@ import os
 import platform
 import re
 import shutil
+import sqlite3
 import statistics
 import subprocess
 import sys
@@ -32,14 +33,21 @@ OUT_ROOT = BENCHMARK_ROOT / "out"
 BUILD_ROOT = OUT_ROOT / "build"
 REPORT_ROOT = OUT_ROOT / "reports"
 BASELINE_ROOT = OUT_ROOT / "baselines"
+HISTORY_ROOT = OUT_ROOT / "history"
 NATIVE_CORE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
 DEFAULT_MINIMAL_REPORT_NAME = "latest.md"
 DEFAULT_LATEST_REPORT_STEM = "latest"
+DEFAULT_HISTORY_DB_PATH = HISTORY_ROOT / "benchmark_history.sqlite3"
 BASELINE_CACHE_SCHEMA_VERSION = 1
+BENCHMARK_HISTORY_SCHEMA_VERSION = 1
 MEASUREMENT_INSTABILITY_MAX_TO_MEDIAN = 1.75
 MEASUREMENT_INSTABILITY_COEFF_VAR = 0.35
+HISTORY_FLAT_DELTA_RATIO = 0.005
+HISTORY_FLAT_DELTA_MS = 0.05
+HISTORY_ALERT_DELTA_RATIO = 0.05
+HISTORY_ALERT_DELTA_MS = 10.0
 CASE_WORKLOAD_FINGERPRINT_IGNORED_KEYS = {"default_enabled"}
 
 LANGUAGE_ORDER = ["kain", "rust", "cpp", "zig", "go", "erlang", "javascript", "python"]
@@ -1870,6 +1878,18 @@ def fmt_ratio(value: Any) -> str:
     return f"{ratio:.2f}x slower"
 
 
+def fmt_signed_ms(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):+.3f}"
+
+
+def fmt_signed_pct(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):+.2f}%"
+
+
 def render_samples(samples: list[float]) -> str:
     if not samples:
         return "[]"
@@ -1950,6 +1970,654 @@ def baseline_cache_summary(report: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def resolve_history_db_path(raw: str | None) -> Path | None:
+    if raw is None:
+        return DEFAULT_HISTORY_DB_PATH.resolve()
+    text = str(raw).strip()
+    if not text:
+        return DEFAULT_HISTORY_DB_PATH.resolve()
+    if text.lower() in {"off", "none", "disable", "disabled"}:
+        return None
+    candidate = Path(text)
+    if not candidate.is_absolute():
+        candidate = (REPO_ROOT / candidate).resolve()
+    return candidate
+
+
+def optional_command_output(command: list[str], cwd: Path = REPO_ROOT, timeout: int = 15) -> str:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(cwd),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return ""
+    return strip_ansi(completed.stdout).strip()
+
+
+def git_metadata() -> dict[str, Any]:
+    git = shutil.which("git")
+    if not git:
+        return {
+            "available": False,
+            "branch": "",
+            "commit": "",
+            "dirty": False,
+            "dirty_entries": 0,
+            "status_sample": [],
+        }
+    branch = optional_command_output([git, "rev-parse", "--abbrev-ref", "HEAD"])
+    commit = optional_command_output([git, "rev-parse", "HEAD"])
+    status_output = optional_command_output([git, "status", "--porcelain=v1"])
+    status_lines = [line for line in status_output.splitlines() if line.strip()]
+    return {
+        "available": bool(commit),
+        "branch": branch,
+        "commit": commit,
+        "dirty": bool(status_lines),
+        "dirty_entries": len(status_lines),
+        "status_sample": status_lines[:20],
+    }
+
+
+def history_machine_key() -> str:
+    return sha256_text(stable_json_text(machine_fingerprint()))
+
+
+def history_comparison_payload(report: dict[str, Any]) -> dict[str, Any]:
+    selected = [
+        {
+            "id": str(case.get("id", "")),
+            "languages": list(case.get("languages", [])),
+        }
+        for case in report.get("cases", [])
+    ]
+    selected.sort(key=lambda entry: entry["id"])
+    return {
+        "suite": report.get("suite", ""),
+        "latest_stem": report.get("latest_stem", DEFAULT_LATEST_REPORT_STEM),
+        "platform": report.get("platform", ""),
+        "machine_key": history_machine_key(),
+        "warmups": report.get("warmups"),
+        "runs": report.get("runs"),
+        "languages": list(report.get("languages", [])),
+        "selected_cases": selected,
+        "kain_native_tuning": report.get("toolchain", {}).get("kain_native_tuning", {}),
+    }
+
+
+def history_comparison_key(report: dict[str, Any]) -> str:
+    return sha256_text(stable_json_text(history_comparison_payload(report)))
+
+
+def coerce_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def history_primary_metric(case: dict[str, Any], language: str) -> dict[str, Any]:
+    telemetry = case.get("telemetry")
+    if not isinstance(telemetry, dict):
+        return {"id": "", "label": "", "unit": "", "value": None}
+    metric_id = str(telemetry.get("primary_metric_id", "")).strip()
+    metrics = telemetry.get("metrics", [])
+    if not isinstance(metrics, list):
+        return {"id": metric_id, "label": "", "unit": "", "value": None}
+    for entry in metrics:
+        if not isinstance(entry, dict):
+            continue
+        entry_id = str(entry.get("id", "")).strip()
+        if metric_id and entry_id != metric_id:
+            continue
+        values = entry.get("values", {})
+        value = values.get(language) if isinstance(values, dict) else None
+        return {
+            "id": entry_id,
+            "label": str(entry.get("label", entry_id)),
+            "unit": str(entry.get("unit", "")),
+            "value": coerce_float(value),
+        }
+    return {"id": metric_id, "label": "", "unit": "", "value": None}
+
+
+def classify_time_delta(current_ms: float, previous_ms: float) -> dict[str, Any]:
+    delta_ms = current_ms - previous_ms
+    delta_pct = (delta_ms / previous_ms) * 100.0 if previous_ms > 0.0 else None
+    flat_threshold_ms = max(HISTORY_FLAT_DELTA_MS, previous_ms * HISTORY_FLAT_DELTA_RATIO)
+    if abs(delta_ms) <= flat_threshold_ms:
+        direction = "flat"
+    elif delta_ms < 0.0:
+        direction = "faster"
+    else:
+        direction = "slower"
+    alert = direction == "slower" and (
+        abs(delta_ms) >= HISTORY_ALERT_DELTA_MS
+        or (delta_pct is not None and delta_pct >= (HISTORY_ALERT_DELTA_RATIO * 100.0))
+    )
+    return {
+        "delta_ms": delta_ms,
+        "delta_pct": delta_pct,
+        "direction": direction,
+        "alert": alert,
+    }
+
+
+def classify_rate_delta(current_value: float, previous_value: float) -> dict[str, Any]:
+    delta_value = current_value - previous_value
+    delta_pct = (delta_value / previous_value) * 100.0 if previous_value > 0.0 else None
+    flat_threshold = abs(previous_value) * HISTORY_FLAT_DELTA_RATIO
+    if abs(delta_value) <= flat_threshold:
+        direction = "flat"
+    elif delta_value > 0.0:
+        direction = "higher"
+    else:
+        direction = "lower"
+    return {
+        "delta_value": delta_value,
+        "delta_pct": delta_pct,
+        "direction": direction,
+    }
+
+
+def open_history_database(path: Path) -> sqlite3.Connection:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA journal_mode = WAL")
+    connection.execute("PRAGMA synchronous = NORMAL")
+    ensure_history_schema(connection)
+    return connection
+
+
+def ensure_history_schema(connection: sqlite3.Connection) -> None:
+    version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+    if version not in {0, BENCHMARK_HISTORY_SCHEMA_VERSION}:
+        raise RuntimeError(
+            f"benchmark history schema version mismatch: found {version}, expected {BENCHMARK_HISTORY_SCHEMA_VERSION}"
+        )
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS benchmark_runs (
+            run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            suite TEXT NOT NULL,
+            generated_at TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            latest_stem TEXT NOT NULL,
+            minimal_name TEXT NOT NULL,
+            manifest_path TEXT NOT NULL,
+            only_case TEXT NOT NULL,
+            baseline_mode TEXT NOT NULL,
+            warmups INTEGER NOT NULL,
+            timed_runs INTEGER NOT NULL,
+            timeout_seconds INTEGER NOT NULL,
+            ok INTEGER NOT NULL,
+            comparison_key TEXT NOT NULL,
+            machine_key TEXT NOT NULL,
+            machine_json TEXT NOT NULL,
+            git_json TEXT NOT NULL,
+            toolchain_json TEXT NOT NULL,
+            languages_json TEXT NOT NULL,
+            report_latest_json TEXT NOT NULL,
+            report_latest_llm TEXT NOT NULL,
+            report_timestamped_json TEXT NOT NULL,
+            report_timestamped_llm TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_benchmark_runs_comparison
+            ON benchmark_runs (comparison_key, generated_at DESC, run_id DESC);
+        CREATE INDEX IF NOT EXISTS idx_benchmark_runs_suite
+            ON benchmark_runs (suite, latest_stem, generated_at DESC, run_id DESC);
+
+        CREATE TABLE IF NOT EXISTS benchmark_case_results (
+            run_id INTEGER NOT NULL,
+            case_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            maturity TEXT NOT NULL,
+            fairness_note TEXT NOT NULL,
+            winner TEXT NOT NULL,
+            fastest_median_ms REAL,
+            languages_json TEXT NOT NULL,
+            source_json TEXT NOT NULL,
+            telemetry_json TEXT NOT NULL,
+            PRIMARY KEY (run_id, case_id),
+            FOREIGN KEY (run_id) REFERENCES benchmark_runs(run_id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_benchmark_case_results_case
+            ON benchmark_case_results (case_id, run_id DESC);
+
+        CREATE TABLE IF NOT EXISTS benchmark_language_results (
+            run_id INTEGER NOT NULL,
+            case_id TEXT NOT NULL,
+            language TEXT NOT NULL,
+            label TEXT NOT NULL,
+            build_ok INTEGER NOT NULL,
+            run_ok INTEGER NOT NULL,
+            build_ms REAL,
+            min_ms REAL,
+            max_ms REAL,
+            median_ms REAL,
+            mean_ms REAL,
+            stdev_ms REAL,
+            coefficient_of_variation REAL,
+            max_to_median_ratio REAL,
+            unstable INTEGER NOT NULL,
+            stability_note TEXT NOT NULL,
+            error_text TEXT NOT NULL,
+            relative_to_fastest REAL,
+            samples_json TEXT NOT NULL,
+            warmups_json TEXT NOT NULL,
+            build_command_json TEXT NOT NULL,
+            run_command_json TEXT NOT NULL,
+            build_env_json TEXT NOT NULL,
+            baseline_cache_status TEXT NOT NULL,
+            baseline_cache_reason TEXT NOT NULL,
+            baseline_cache_key TEXT NOT NULL,
+            primary_metric_id TEXT NOT NULL,
+            primary_metric_label TEXT NOT NULL,
+            primary_metric_unit TEXT NOT NULL,
+            primary_metric_value REAL,
+            PRIMARY KEY (run_id, case_id, language),
+            FOREIGN KEY (run_id, case_id) REFERENCES benchmark_case_results(run_id, case_id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_benchmark_language_results_lookup
+            ON benchmark_language_results (case_id, language, run_id DESC);
+        CREATE INDEX IF NOT EXISTS idx_benchmark_language_results_kain
+            ON benchmark_language_results (language, run_ok, median_ms);
+
+        CREATE TABLE IF NOT EXISTS benchmark_metric_results (
+            run_id INTEGER NOT NULL,
+            case_id TEXT NOT NULL,
+            language TEXT NOT NULL,
+            metric_id TEXT NOT NULL,
+            metric_label TEXT NOT NULL,
+            metric_unit TEXT NOT NULL,
+            work_items_text TEXT NOT NULL,
+            metric_value REAL,
+            PRIMARY KEY (run_id, case_id, language, metric_id),
+            FOREIGN KEY (run_id, case_id, language)
+                REFERENCES benchmark_language_results(run_id, case_id, language)
+                ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_benchmark_metric_results_lookup
+            ON benchmark_metric_results (case_id, language, metric_id, run_id DESC);
+        """
+    )
+    if version == 0:
+        connection.execute(f"PRAGMA user_version = {BENCHMARK_HISTORY_SCHEMA_VERSION}")
+
+
+def history_database_summary(connection: sqlite3.Connection) -> dict[str, Any]:
+    run_count = int(connection.execute("SELECT COUNT(*) FROM benchmark_runs").fetchone()[0])
+    successful_runs = int(connection.execute("SELECT COUNT(*) FROM benchmark_runs WHERE ok = 1").fetchone()[0])
+    case_count = int(connection.execute("SELECT COUNT(*) FROM benchmark_case_results").fetchone()[0])
+    language_count = int(connection.execute("SELECT COUNT(*) FROM benchmark_language_results").fetchone()[0])
+    kain_measurements = int(
+        connection.execute(
+            "SELECT COUNT(*) FROM benchmark_language_results WHERE language = 'kain' AND run_ok = 1 AND median_ms IS NOT NULL"
+        ).fetchone()[0]
+    )
+    first_generated_at = connection.execute("SELECT MIN(generated_at) FROM benchmark_runs").fetchone()[0]
+    last_generated_at = connection.execute("SELECT MAX(generated_at) FROM benchmark_runs").fetchone()[0]
+    return {
+        "schema_version": BENCHMARK_HISTORY_SCHEMA_VERSION,
+        "db_path": "",
+        "total_runs": run_count,
+        "successful_runs": successful_runs,
+        "total_case_results": case_count,
+        "total_language_results": language_count,
+        "total_kain_measurements": kain_measurements,
+        "first_generated_at": first_generated_at or "",
+        "last_generated_at": last_generated_at or "",
+    }
+
+
+def summarize_report_history(report: dict[str, Any], history_db_path: Path) -> dict[str, Any]:
+    history = {
+        "enabled": True,
+        "db_path": str(history_db_path),
+        "comparison_key": history_comparison_key(report),
+        "comparison_scope": {
+            "suite": report.get("suite", ""),
+            "latest_stem": report.get("latest_stem", DEFAULT_LATEST_REPORT_STEM),
+            "machine_key": history_machine_key(),
+            "case_count": len(report.get("cases", [])),
+            "language_count": len(report.get("languages", [])),
+        },
+        "database": {
+            "schema_version": BENCHMARK_HISTORY_SCHEMA_VERSION,
+            "db_path": str(history_db_path),
+            "total_runs": 0,
+            "successful_runs": 0,
+            "total_case_results": 0,
+            "total_language_results": 0,
+            "total_kain_measurements": 0,
+            "first_generated_at": "",
+            "last_generated_at": "",
+        },
+        "previous_run": None,
+        "current_run": None,
+        "kain_summary": {
+            "compared_cases": 0,
+            "improved_cases": 0,
+            "regressed_cases": 0,
+            "flat_cases": 0,
+            "alert_regressions": 0,
+            "missing_previous_cases": 0,
+            "best_improvement": None,
+            "worst_regression": None,
+        },
+    }
+    try:
+        with open_history_database(history_db_path) as connection:
+            database = history_database_summary(connection)
+            database["db_path"] = str(history_db_path)
+            history["database"] = database
+            previous = connection.execute(
+                """
+                SELECT run_id, generated_at, ok, git_json, report_latest_json, report_latest_llm
+                FROM benchmark_runs
+                WHERE comparison_key = ?
+                ORDER BY generated_at DESC, run_id DESC
+                LIMIT 1
+                """,
+                (history["comparison_key"],),
+            ).fetchone()
+            if previous is None:
+                return history
+            previous_git = json.loads(previous["git_json"]) if previous["git_json"] else {}
+            history["previous_run"] = {
+                "run_id": int(previous["run_id"]),
+                "generated_at": str(previous["generated_at"]),
+                "ok": bool(previous["ok"]),
+                "git_commit": str(previous_git.get("commit", "")),
+                "git_branch": str(previous_git.get("branch", "")),
+                "report_latest_json": str(previous["report_latest_json"]),
+                "report_latest_llm": str(previous["report_latest_llm"]),
+            }
+            prior_rows = connection.execute(
+                """
+                SELECT case_id, run_ok, median_ms, unstable,
+                       primary_metric_id, primary_metric_label, primary_metric_unit, primary_metric_value
+                FROM benchmark_language_results
+                WHERE run_id = ? AND language = 'kain'
+                """,
+                (history["previous_run"]["run_id"],),
+            ).fetchall()
+    except Exception as exc:
+        history["error"] = str(exc)
+        return history
+
+    prior_by_case = {str(row["case_id"]): row for row in prior_rows}
+    best_improvement: dict[str, Any] | None = None
+    worst_regression: dict[str, Any] | None = None
+
+    for case in report.get("cases", []):
+        case_history = case.setdefault("history", {})
+        if "kain" not in case.get("languages", []):
+            case_history["kain"] = {"available": False, "reason": "kain not selected"}
+            continue
+        current_run = case.get("run", {}).get("kain")
+        if not isinstance(current_run, dict) or not current_run.get("ok") or current_run.get("median_ms") is None:
+            case_history["kain"] = {
+                "available": False,
+                "reason": "current Kain run failed or has no timing samples",
+            }
+            continue
+        previous = prior_by_case.get(case["id"])
+        if previous is None or not previous["run_ok"] or previous["median_ms"] is None:
+            history["kain_summary"]["missing_previous_cases"] += 1
+            case_history["kain"] = {
+                "available": False,
+                "reason": "no previous successful Kain measurement in the comparable run",
+                "previous_run_id": history["previous_run"]["run_id"],
+                "previous_generated_at": history["previous_run"]["generated_at"],
+            }
+            continue
+        current_median = float(current_run["median_ms"])
+        previous_median = float(previous["median_ms"])
+        delta = classify_time_delta(current_median, previous_median)
+        current_metric = history_primary_metric(case, "kain")
+        previous_metric_value = coerce_float(previous["primary_metric_value"])
+        metric_delta = None
+        if current_metric["value"] is not None and previous_metric_value is not None:
+            metric_delta = classify_rate_delta(float(current_metric["value"]), float(previous_metric_value))
+        case_history["kain"] = {
+            "available": True,
+            "previous_run_id": history["previous_run"]["run_id"],
+            "previous_generated_at": history["previous_run"]["generated_at"],
+            "previous_git_commit": history["previous_run"]["git_commit"],
+            "previous_median_ms": previous_median,
+            "current_median_ms": current_median,
+            "delta_ms": delta["delta_ms"],
+            "delta_pct": delta["delta_pct"],
+            "direction": delta["direction"],
+            "alert": delta["alert"],
+            "previous_unstable": bool(previous["unstable"]),
+            "current_unstable": bool(current_run.get("unstable")),
+            "primary_metric": {
+                "id": current_metric["id"] or str(previous["primary_metric_id"] or ""),
+                "label": current_metric["label"] or str(previous["primary_metric_label"] or ""),
+                "unit": current_metric["unit"] or str(previous["primary_metric_unit"] or ""),
+                "previous_value": previous_metric_value,
+                "current_value": current_metric["value"],
+                "delta_value": metric_delta["delta_value"] if metric_delta else None,
+                "delta_pct": metric_delta["delta_pct"] if metric_delta else None,
+                "direction": metric_delta["direction"] if metric_delta else "",
+            },
+        }
+        history["kain_summary"]["compared_cases"] += 1
+        if delta["direction"] == "faster":
+            history["kain_summary"]["improved_cases"] += 1
+            if best_improvement is None or delta["delta_ms"] < best_improvement["delta_ms"]:
+                best_improvement = {
+                    "case_id": case["id"],
+                    "delta_ms": delta["delta_ms"],
+                    "delta_pct": delta["delta_pct"],
+                }
+        elif delta["direction"] == "slower":
+            history["kain_summary"]["regressed_cases"] += 1
+            if delta["alert"]:
+                history["kain_summary"]["alert_regressions"] += 1
+            if worst_regression is None or delta["delta_ms"] > worst_regression["delta_ms"]:
+                worst_regression = {
+                    "case_id": case["id"],
+                    "delta_ms": delta["delta_ms"],
+                    "delta_pct": delta["delta_pct"],
+                }
+        else:
+            history["kain_summary"]["flat_cases"] += 1
+
+    history["kain_summary"]["best_improvement"] = best_improvement
+    history["kain_summary"]["worst_regression"] = worst_regression
+    return history
+
+
+def persist_report_history(
+    report: dict[str, Any],
+    history_db_path: Path,
+    outputs: dict[str, Path],
+    *,
+    manifest_path: str,
+    only_case: str,
+    timeout: int,
+    minimal_name: str,
+) -> dict[str, Any]:
+    machine = machine_fingerprint()
+    git = report.get("git")
+    if not isinstance(git, dict):
+        git = git_metadata()
+    comparison_key = history_comparison_key(report)
+    with open_history_database(history_db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO benchmark_runs (
+                suite, generated_at, platform, latest_stem, minimal_name, manifest_path, only_case,
+                baseline_mode, warmups, timed_runs, timeout_seconds, ok, comparison_key,
+                machine_key, machine_json, git_json, toolchain_json, languages_json,
+                report_latest_json, report_latest_llm, report_timestamped_json, report_timestamped_llm
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(report.get("suite", "")),
+                str(report.get("generated_at", "")),
+                str(report.get("platform", "")),
+                str(report.get("latest_stem", DEFAULT_LATEST_REPORT_STEM)),
+                minimal_name,
+                manifest_path,
+                only_case,
+                str(report.get("baseline_mode", "off")),
+                int(report.get("warmups", 0) or 0),
+                int(report.get("runs", 0) or 0),
+                timeout,
+                1 if report.get("ok") else 0,
+                comparison_key,
+                history_machine_key(),
+                stable_json_text(machine),
+                stable_json_text(git),
+                stable_json_text(report.get("toolchain", {})),
+                stable_json_text(report.get("languages", [])),
+                str(outputs["latest_json"].resolve()),
+                str(outputs["latest_llm"].resolve()),
+                str(outputs["timestamped_json"].resolve()),
+                str(outputs["timestamped_llm"].resolve()),
+            ),
+        )
+        run_id = int(cursor.lastrowid)
+
+        for case in report.get("cases", []):
+            connection.execute(
+                """
+                INSERT INTO benchmark_case_results (
+                    run_id, case_id, title, description, maturity, fairness_note, winner,
+                    fastest_median_ms, languages_json, source_json, telemetry_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    str(case.get("id", "")),
+                    str(case.get("title", "")),
+                    str(case.get("description", "")),
+                    str(case.get("maturity", "")),
+                    str(case.get("fairness_note", "")),
+                    str(case.get("winner", "")),
+                    coerce_float(case.get("fastest_median_ms")),
+                    stable_json_text(case.get("languages", [])),
+                    stable_json_text(case.get("source", {})),
+                    stable_json_text(case.get("telemetry", {})),
+                ),
+            )
+
+            telemetry = case.get("telemetry", {})
+            telemetry_metrics = telemetry.get("metrics", []) if isinstance(telemetry, dict) else []
+
+            for language in case.get("languages", []):
+                build = case.get("build", {}).get(language, {})
+                run = case.get("run", {}).get(language, {})
+                cache_info = build.get("baseline_cache", {}) if isinstance(build, dict) else {}
+                primary_metric = history_primary_metric(case, language)
+                error_text = "\n".join(
+                    item
+                    for item in [str(build.get("error", "")).strip(), str(run.get("error", "")).strip()]
+                    if item
+                ).strip()
+                connection.execute(
+                    """
+                    INSERT INTO benchmark_language_results (
+                        run_id, case_id, language, label, build_ok, run_ok, build_ms,
+                        min_ms, max_ms, median_ms, mean_ms, stdev_ms, coefficient_of_variation,
+                        max_to_median_ratio, unstable, stability_note, error_text,
+                        relative_to_fastest, samples_json, warmups_json, build_command_json,
+                        run_command_json, build_env_json, baseline_cache_status,
+                        baseline_cache_reason, baseline_cache_key, primary_metric_id,
+                        primary_metric_label, primary_metric_unit, primary_metric_value
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        run_id,
+                        str(case.get("id", "")),
+                        str(language),
+                        LANGUAGE_LABELS.get(language, language),
+                        1 if build.get("ok") else 0,
+                        1 if run.get("ok") else 0,
+                        coerce_float(build.get("build_ms")),
+                        coerce_float(run.get("min_ms")),
+                        coerce_float(run.get("max_ms")),
+                        coerce_float(run.get("median_ms")),
+                        coerce_float(run.get("mean_ms")),
+                        coerce_float(run.get("stdev_ms")),
+                        coerce_float(run.get("coefficient_of_variation")),
+                        coerce_float(run.get("max_to_median_ratio")),
+                        1 if run.get("unstable") else 0,
+                        str(run.get("stability_note", "")),
+                        error_text,
+                        coerce_float(case.get("relative_to_fastest", {}).get(language)),
+                        stable_json_text(run.get("samples_ms", [])),
+                        stable_json_text(run.get("warmups", [])),
+                        stable_json_text(build.get("command", [])),
+                        stable_json_text(build.get("run_command", [])),
+                        stable_json_text(build.get("env", {})),
+                        str(cache_info.get("status", "")),
+                        str(cache_info.get("reason", "")),
+                        str(cache_info.get("cache_key", "")),
+                        str(primary_metric.get("id", "")),
+                        str(primary_metric.get("label", "")),
+                        str(primary_metric.get("unit", "")),
+                        coerce_float(primary_metric.get("value")),
+                    ),
+                )
+
+                for metric in telemetry_metrics:
+                    if not isinstance(metric, dict):
+                        continue
+                    values = metric.get("values", {})
+                    metric_value = values.get(language) if isinstance(values, dict) else None
+                    connection.execute(
+                        """
+                        INSERT INTO benchmark_metric_results (
+                            run_id, case_id, language, metric_id, metric_label, metric_unit, work_items_text, metric_value
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            run_id,
+                            str(case.get("id", "")),
+                            str(language),
+                            str(metric.get("id", "")),
+                            str(metric.get("label", "")),
+                            str(metric.get("unit", "")),
+                            str(metric.get("work_items", "")),
+                            coerce_float(metric_value),
+                        ),
+                    )
+
+        connection.commit()
+        database = history_database_summary(connection)
+        database["db_path"] = str(history_db_path)
+        return {
+            "enabled": True,
+            "db_path": str(history_db_path),
+            "comparison_key": comparison_key,
+            "database": database,
+            "current_run": {
+                "run_id": run_id,
+                "generated_at": str(report.get("generated_at", "")),
+                "git_commit": str(git.get("commit", "")),
+                "git_branch": str(git.get("branch", "")),
+            },
+        }
+
+
 def render_summary_table(report: dict[str, Any]) -> str:
     languages = report["languages"]
     header = ["case", "maturity", "winner"] + [f"{language} median ms" for language in languages]
@@ -2011,10 +2679,93 @@ def render_stability_table(report: dict[str, Any]) -> str:
     return "\n".join(rows) if added else ""
 
 
+def render_history_overview(report: dict[str, Any]) -> str:
+    history = report.get("history")
+    if not isinstance(history, dict) or not history.get("enabled"):
+        return ""
+    lines = [
+        "## History",
+        "",
+        f"- history_db: `{history.get('db_path', 'n/a')}`",
+    ]
+    current_run = history.get("current_run")
+    if isinstance(current_run, dict) and current_run.get("run_id") is not None:
+        lines.append(f"- current_history_run_id: `{current_run.get('run_id')}`")
+    previous_run = history.get("previous_run")
+    if isinstance(previous_run, dict):
+        lines.append(
+            f"- previous_comparable_run: `#{previous_run.get('run_id', 'n/a')}` at `{previous_run.get('generated_at', 'n/a')}`"
+        )
+        if previous_run.get("git_commit"):
+            lines.append(f"- previous_git_commit: `{previous_run.get('git_commit')}`")
+    else:
+        lines.append("- previous_comparable_run: `none yet`")
+    database = history.get("database", {})
+    if isinstance(database, dict):
+        lines.extend(
+            [
+                f"- total_recorded_runs: `{database.get('total_runs', 0)}`",
+                f"- total_recorded_case_results: `{database.get('total_case_results', 0)}`",
+                f"- total_recorded_kain_measurements: `{database.get('total_kain_measurements', 0)}`",
+            ]
+        )
+    summary = history.get("kain_summary", {})
+    if isinstance(summary, dict):
+        lines.extend(
+            [
+                f"- compared_kain_cases: `{summary.get('compared_cases', 0)}`",
+                f"- kain_improvements: `{summary.get('improved_cases', 0)}`",
+                f"- kain_regressions: `{summary.get('regressed_cases', 0)}`",
+                f"- kain_flat: `{summary.get('flat_cases', 0)}`",
+                f"- alert_regressions: `{summary.get('alert_regressions', 0)}`",
+            ]
+        )
+        best_improvement = summary.get("best_improvement")
+        if isinstance(best_improvement, dict):
+            lines.append(
+                f"- best_improvement: `{best_improvement.get('case_id', 'n/a')}` ({fmt_signed_ms(best_improvement.get('delta_ms'))} ms, {fmt_signed_pct(best_improvement.get('delta_pct'))})"
+            )
+        worst_regression = summary.get("worst_regression")
+        if isinstance(worst_regression, dict):
+            lines.append(
+                f"- worst_regression: `{worst_regression.get('case_id', 'n/a')}` ({fmt_signed_ms(worst_regression.get('delta_ms'))} ms, {fmt_signed_pct(worst_regression.get('delta_pct'))})"
+            )
+    if history.get("error"):
+        lines.append(f"- history_error: `{history.get('error')}`")
+    return "\n".join(lines)
+
+
+def render_kain_history_table(report: dict[str, Any]) -> str:
+    header = ["case", "prev kain ms", "current kain ms", "delta ms", "delta %", "trend", "alert"]
+    divider = ["---"] * len(header)
+    rows = [markdown_table_row(header), markdown_table_row(divider)]
+    added = False
+    for case in report.get("cases", []):
+        detail = case.get("history", {}).get("kain")
+        if not isinstance(detail, dict) or not detail.get("available"):
+            continue
+        rows.append(
+            markdown_table_row(
+                [
+                    str(case.get("id", "")),
+                    fmt_ms(detail.get("previous_median_ms")),
+                    fmt_ms(detail.get("current_median_ms")),
+                    fmt_signed_ms(detail.get("delta_ms")),
+                    fmt_signed_pct(detail.get("delta_pct")),
+                    str(detail.get("direction", "")),
+                    "alert" if detail.get("alert") else "",
+                ]
+            )
+        )
+        added = True
+    return "\n".join(rows) if added else ""
+
+
 def render_toolchain(report: dict[str, Any]) -> str:
     toolchain = report.get("toolchain", {})
     kain_native_env = toolchain.get("kain_native_env", {})
     cache_summary = report.get("baseline_cache", {})
+    git = report.get("git", {})
     lines = [
         "## Toolchain",
         "",
@@ -2040,6 +2791,9 @@ def render_toolchain(report: dict[str, Any]) -> str:
         f"- baseline_cache_hits: `{cache_summary.get('hits', 0)}`",
         f"- baseline_cache_refreshed: `{cache_summary.get('refreshed', 0)}`",
         f"- baseline_cache_misses: `{cache_summary.get('misses', 0)}`",
+        f"- git_branch: `{git.get('branch', '') if isinstance(git, dict) else ''}`",
+        f"- git_commit: `{git.get('commit', '') if isinstance(git, dict) else ''}`",
+        f"- git_dirty: `{bool(git.get('dirty')) if isinstance(git, dict) else False}`",
     ]
     return "\n".join(lines)
 
@@ -2113,6 +2867,24 @@ def render_case_detail(case: dict[str, Any], languages: list[str]) -> str:
             reason = str(cache_info.get("reason", "")).strip()
             reason_suffix = f" - {reason}" if reason else ""
             lines.append(f"  - baseline_cache: `{cache_info.get('status', 'n/a')}`{reason_suffix}")
+        history_detail = case.get("history", {}).get(language)
+        if language == "kain" and isinstance(history_detail, dict):
+            if history_detail.get("available"):
+                lines.append(
+                    f"  - previous_run: `#{history_detail.get('previous_run_id', 'n/a')}` at `{history_detail.get('previous_generated_at', 'n/a')}`"
+                )
+                lines.append(f"  - delta_ms: `{fmt_signed_ms(history_detail.get('delta_ms'))}`")
+                lines.append(f"  - delta_pct: `{fmt_signed_pct(history_detail.get('delta_pct'))}`")
+                lines.append(f"  - trend: `{history_detail.get('direction', '')}`")
+                if history_detail.get("alert"):
+                    lines.append("  - regression_alert: `true`")
+                history_primary_metric = history_detail.get("primary_metric", {})
+                if isinstance(history_primary_metric, dict) and history_primary_metric.get("id"):
+                    lines.append(
+                        f"  - primary_metric_delta: `{fmt_signed_pct(history_primary_metric.get('delta_pct'))}` ({history_primary_metric.get('label', history_primary_metric.get('id', 'metric'))})"
+                    )
+            else:
+                lines.append(f"  - previous_run_delta: `{history_detail.get('reason', 'n/a')}`")
         if build.get("env"):
             lines.append(f"  - build_env: `{json.dumps(build['env'], sort_keys=True)}`")
         if build.get("error") or run.get("error"):
@@ -2143,7 +2915,14 @@ def render_llm_report(report: dict[str, Any]) -> str:
     ]
     if report.get("fatal_error"):
         lines.extend(["## Fatal Error", "", report["fatal_error"], ""])
-    lines.extend([render_toolchain(report), "", "## Summary", "", render_summary_table(report), ""])
+    lines.extend([render_toolchain(report), ""])
+    history_overview = render_history_overview(report)
+    if history_overview:
+        lines.extend([history_overview, ""])
+    lines.extend(["## Summary", "", render_summary_table(report), ""])
+    history_table = render_kain_history_table(report)
+    if history_table:
+        lines.extend(["## Kain Delta vs Prior Comparable Run", "", history_table, ""])
     telemetry_table = render_telemetry_table(report)
     if telemetry_table:
         lines.extend(["## Telemetry", "", telemetry_table, ""])
@@ -2182,9 +2961,28 @@ def render_minimal_report(report: dict[str, Any], minimal_name: str, latest_stem
                 "",
             ]
         )
+    history = report.get("history", {})
+    if isinstance(history, dict) and history.get("enabled"):
+        current_run = history.get("current_run", {})
+        previous_run = history.get("previous_run", {})
+        summary = history.get("kain_summary", {})
+        lines.extend(
+            [
+                f"- history_db: `{history.get('db_path', 'n/a')}`",
+                f"- history_run_id: `{current_run.get('run_id', 'pending') if isinstance(current_run, dict) else 'pending'}`",
+                f"- previous_comparable_run: `{previous_run.get('run_id', 'none') if isinstance(previous_run, dict) else 'none'}`",
+                f"- compared_kain_cases: `{summary.get('compared_cases', 0) if isinstance(summary, dict) else 0}`",
+                f"- kain_regressions: `{summary.get('regressed_cases', 0) if isinstance(summary, dict) else 0}`",
+                f"- alert_regressions: `{summary.get('alert_regressions', 0) if isinstance(summary, dict) else 0}`",
+                "",
+            ]
+        )
     if report.get("fatal_error"):
         lines.extend(["## Fatal Error", "", report["fatal_error"], ""])
     lines.extend(["## Summary", "", render_summary_table(report)])
+    history_table = render_kain_history_table(report)
+    if history_table:
+        lines.extend(["", "## Kain Delta vs Prior Comparable Run", "", history_table])
     telemetry_table = render_telemetry_table(report)
     if telemetry_table:
         lines.extend(["", "## Telemetry", "", telemetry_table])
@@ -2260,6 +3058,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kain-native-debug-info")
     parser.add_argument("--minimal-name")
     parser.add_argument("--latest-stem")
+    parser.add_argument(
+        "--history-db",
+        default=str(DEFAULT_HISTORY_DB_PATH),
+        help="SQLite history database path. Pass off to disable persistent benchmark history.",
+    )
     parser.add_argument("--no-build", action="store_true")
     parser.add_argument(
         "--baseline-mode",
@@ -2273,6 +3076,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     manifest = load_manifest(Path(args.manifest))
+    history_db_path = resolve_history_db_path(args.history_db)
+    git_info = git_metadata()
     default_languages = args.languages
     if default_languages is None:
         manifest_default_languages = manifest.get("default_languages")
@@ -2301,6 +3106,11 @@ def main() -> int:
         "cases": [],
         "ok": False,
         "toolchain": {},
+        "git": git_info,
+        "history": {
+            "enabled": bool(history_db_path),
+            "db_path": str(history_db_path) if history_db_path else "",
+        },
     }
 
     try:
@@ -2384,6 +3194,8 @@ def main() -> int:
             for language in case.get("languages", languages)
         )
         report["baseline_cache"] = baseline_cache_summary(report)
+        if history_db_path:
+            report["history"] = summarize_report_history(report, history_db_path)
     except Exception as exc:
         report["fatal_error"] = str(exc)
         report["ok"] = False
@@ -2391,7 +3203,42 @@ def main() -> int:
     finally:
         if "baseline_cache" not in report:
             report["baseline_cache"] = baseline_cache_summary(report)
+        if "history" not in report:
+            report["history"] = {
+                "enabled": bool(history_db_path),
+                "db_path": str(history_db_path) if history_db_path else "",
+            }
         outputs = write_reports(report, minimal_name=minimal_name, latest_stem=latest_stem)
+        if history_db_path:
+            try:
+                persisted_history = persist_report_history(
+                    report,
+                    history_db_path,
+                    outputs,
+                    manifest_path=str(Path(args.manifest).resolve()),
+                    only_case=args.only_case or "",
+                    timeout=args.timeout,
+                    minimal_name=minimal_name,
+                )
+                history = report.get("history", {})
+                if not isinstance(history, dict):
+                    history = {}
+                history["enabled"] = True
+                history["db_path"] = str(history_db_path)
+                history["database"] = persisted_history.get("database", {})
+                history["current_run"] = persisted_history.get("current_run")
+                history["comparison_key"] = persisted_history.get("comparison_key", history.get("comparison_key", ""))
+                report["history"] = history
+                outputs = write_reports(report, minimal_name=minimal_name, latest_stem=latest_stem)
+            except Exception as exc:
+                history = report.get("history", {})
+                if not isinstance(history, dict):
+                    history = {}
+                history["enabled"] = True
+                history["db_path"] = str(history_db_path)
+                history["error"] = str(exc)
+                report["history"] = history
+                outputs = write_reports(report, minimal_name=minimal_name, latest_stem=latest_stem)
         print(f"[bench] report: {outputs['latest_llm']}")
         print(f"[bench] snapshot: {outputs['latest_minimal']}")
 

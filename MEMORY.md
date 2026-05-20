@@ -1,5 +1,101 @@
 # Kain Memory
 
+# 2026-05-20 - Disabled attrition fastpath plus process output cleanup flipped the process row
+
+This automation pass targeted the real post-hardening frontier from the morning full suite: `process_stdio_loop`, plus the broader disabled-attrition tax that benchmark-release was still paying by accident.
+
+What changed:
+
+- `runtime/native/src/core/process_system.c`
+  - `process_output_text(...)` now sends stderr to `NUL` instead of creating/draining an invisible stderr pipe.
+  - Windows process launch now reuses cached `NUL` handle templates, resolves bare `cmd` / `cmd.exe` through a cached application path for `CreateProcessW`, and avoids duplicate-close cleanup on null stdio handles.
+- `runtime/native/src/core/attrition.c`
+  - added an atomic disabled fast-flag so benchmark-release runs skip attrition event hooks, actor/process/async timer notes, RC note paths, raw clock/sleep bookkeeping, and attrition heap wrappers unless capture is explicitly configured.
+  - this was the real cross-row unlock: benchmark-release had `config.enabled == 0`, but the runtime was still taking the init/lock/event path anyway.
+- `benchmark/cases/process_stdio_loop/main.kn`
+  - now touches `deadline_millis` / `deadline_elapsed` once so the row exercises the requested live deadline surface.
+- `benchmark/cases/process_stdio_loop/proofs-experimental/process-stdio-loop-checksum.smt2`
+  - checksum guard proof for the touched row; report `z3/reports/20260520T122202Z-process-stdio-loop-checksum.json` returned `unsat`.
+- `benchmark/run.py`
+  - fixed the `render_case_detail(...)` `primary_metric` local-shadow bug so focused `--latest-stem` retakes no longer crash with `UnboundLocalError`.
+- Durable notes:
+  - `research/2026-05-20-benchmark-frontier-process-stdio.md`
+  - `benchmark/assesments/2026-05-20-process-stdio-and-disabled-attrition-fastpath-latest-benchmark-assessment.md`
+
+Validation:
+
+- `python -m py_compile benchmark/run.py` -> PASS.
+- `toolchain\\llvm\\bin\\clang.exe -fsyntax-only runtime\\native\\src\\core\\process_system.c -I runtime\\native\\include` -> PASS.
+- `toolchain\\llvm\\bin\\clang.exe -fsyntax-only runtime\\native\\src\\core\\attrition.c -I runtime\\native\\include` -> PASS.
+- Focused frontier retakes:
+  - `benchmark/out/reports/latest_process_stdio_frontier.llm.md`
+  - Kain moved `5883.793 ms -> 5577.407 ms -> 5486.127 ms`
+  - Rust baseline for that focused 5-run shape stayed `5338.471 ms`
+- Canonical full-suite rerun:
+  - `python benchmark/run.py --timeout 900 --baseline-mode auto` -> PASS
+  - `benchmark/out/reports/latest.llm.md`
+  - generated `2026-05-20T12:32:24.336303+00:00`
+  - `process_stdio_loop` flipped from the old durable `6809.287 ms` / Rust `5174.384 ms` frontier to Kain `5487.617 ms`, Rust `5687.132 ms`, C++ `9695.726 ms`
+  - collateral full-suite wins now include:
+    - `ownership_memory`: Kain `10.671 ms`, Rust `11.119 ms`, C++ `11.952 ms`
+    - `memory_stream`: Kain `9.522 ms`, Rust `9.964 ms`, C++ `10.418 ms`
+    - `alloc_churn`: Kain `8.253 ms`, Rust `10.729 ms`, C++ `9.922 ms`
+  - suite regression summary: `kain_regressions = 0`, `alert_regressions = 0`
+
+Durable lesson:
+
+- Disabled attrition must actually collapse to near-zero cost in `benchmark-release`; otherwise host-heavy and allocation-heavy rows end up benchmarking bookkeeping that the runtime itself claims is off.
+- `process_output_text(...)` was paying for a whole stderr capture path that its public contract never exposed. Deleting invisible work was enough to flip the canonical row once the disabled-attrition tax was also removed.
+- The next honest frontier is now `http_server_concurrency` again: current canonical full suite shows Kain `125.680 ms` vs Rust `40.919 ms`.
+
+# 2026-05-20 - Benchmark runner now persists SQLite history and prior-run Kain deltas
+
+`benchmark/run.py` now has a first-class benchmark history lane instead of only timestamped JSON/Markdown artifacts plus the foreign baseline cache.
+
+What changed:
+
+- Added stdlib-`sqlite3` history persistence at `benchmark/out/history/benchmark_history.sqlite3` by default, configurable with `--history-db <path>` and disable-able with `--history-db off`.
+- Each benchmark invocation now records a normalized run row plus case/language/metric rows: suite identity, selected cases/languages, toolchain/git metadata, report artifact paths, Kain and foreign medians, build timings, cache status, samples/warmups, and primary telemetry metric values.
+- Reports now compare current Kain results against the most recent prior *comparable* run, keyed by suite + `latest_stem` + machine fingerprint + selected case/language set + warmup/run counts. The LLM report and minimal snapshot surface per-case `delta_ms`, `delta_pct`, trend, and alert-worthy regressions.
+- Added focused unit coverage at `benchmark/tests/test_run_history.py` for SQLite persistence, previous-run lookup, Kain improvement detection, and regression-alert classification.
+- Updated `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future agents know the history DB is part of the runner contract.
+
+Validation:
+
+- `python -m py_compile benchmark/run.py` -> PASS.
+- `python -m unittest benchmark.tests.test_run_history` -> PASS (2 tests).
+- `python benchmark/run.py --case alloc_churn --languages python --runs 1 --warmups 0 --history-db benchmark/out/history/py_smoke_history.sqlite3 --latest-stem latest_history_py_smoke --minimal-name latest_history_py_smoke.md` -> PASS.
+
+Known live smoke caveat:
+
+- A focused Kain smoke (`scalar_mix`, `--kain-exe target/release/kain.exe`) wrote history/report rows correctly but the benchmark itself failed with an existing native link error: unresolved `kain_native_converge_record_i64` while linking `benchmark/out/build/scalar_mix/kain/scalar_mix.exe`. History persistence still recorded the failed run as intended; the compile/runtime issue is separate from the new history lane.
+
+# 2026-05-20 - `kain run` consumes platform locks, transitive FFI, inferred modules, and imported Self builders
+
+This pass turned the platform-package/build-graph work into the daily run path and cleared the imported `impl Self_` LLVM blocker for fluent builders.
+
+What changed:
+
+- `crates/kain-run` plans now include `RunBuildGraphProvenance` and `RunPlatformLock` entries. `build.kn` / `platform.kn` `platform_package("...").provider("...")` declarations and manifest `[[platform.packages]]` defaults are parsed into run reports, dry-run/plan mode records platform locks as `planned`, and real runs import/lock packages before execution.
+- `kain run dev` / `kain watch` now watch the entry inputs plus `KAIN.toml`, `kain.toml`, `build.kn`, `platform.kn`, generated lockfiles, generated platform modules, binding reports, and inherited blade C/FFI inputs.
+- `crates/kain-blades` now exposes transitive `[c_ffi]` libraries through blade dependencies. `kain-run` attaches inherited headers, sources, shared libraries, include paths, `KAIN_TRANSITIVE_C_FFI_INPUTS`, and `KAIN_TRANSITIVE_C_FFI_LIBS` to the final executable unit instead of forcing app entrypoints to restate every library-blade bridge.
+- Blade module roots are inferred from nested `.kn` / `.god` files below declared `source_roots`, while generated platform modules under `.kain/platform` are made visible to module resolution. This should reduce hand-maintained `module_roots` soup for Kaintana/Vulkain-style trees.
+- Native LLVM now lowers imported builder methods with authored `_self: Self_` / `Self_` returns as the impl target storage type, skips the duplicate explicit self parameter in the emitted ABI, binds `_self` to the implicit receiver, and supports dot calls on value aggregates by taking a temporary address.
+
+Validation:
+
+- `cargo fmt -p kain-run -p blade -p kain-sys-codegen -p kain-driver`
+- `cargo test -p kain-run --target-dir target\codex-platform-package` -> PASS, 11 tests.
+- `cargo test -p blade` -> PASS, 9 tests.
+- `cargo test -p kain-sys-codegen lowers_impl_self_builder_methods_without_extra_self_parameter` -> PASS.
+- `cargo test -p kain-driver compile_llvm_supports_imported_impl_self_builder_methods` -> PASS.
+- `python tools/bazel/sync_rust_builds.py` and `python tools/bazel/sync_rust_builds.py --check` -> PASS, 62 generated Rust package BUILD files checked.
+- `bazel test //crates/kain-run:unit_test --config=dev` -> PASS.
+
+Follow-up cleanup:
+
+- The 15 stale `cargo test -p kain-sys-codegen` LLVM integration failures were cleared later on 2026-05-20. Native LLVM pattern binding now handles tuple/struct value aggregates by spilling them to entry-block temporaries before field GEPs, and `tests/llvm_codegen_test.rs` expectations now match current IR contracts: internal linkage for non-entry functions, stack-backed fixed arrays, typed pointer GEPs, value-aggregate tuple returns, and struct `None` as zeroinitialized value aggregates. `cargo test -p kain-sys-codegen` now passes.
+
 # 2026-05-20 - Platform package lock/import v1 landed
 
 Kain now has a v1 native platform package lane that favors deterministic lock/import plus generated typed thunks over public generic dynamic-call magic.
@@ -9,15 +105,17 @@ What changed:
 - `runtime/native` added `platform.library`: fixed-table dynamic library open/resolve/close/status helpers in `platform_library.{h,c}`, exported through `stdlib/platform.kn` as `std::platform`.
 - `crates/kain-c-ffi` added `import_platform_package` and `kain import platform`, producing target-aware locks at `.kain/platform/<package>/<target-triple>/<package>.lock` with roots searched, resolved headers/libs, hashes, discovered/generated symbols, capability tags, blocked symbols, and generated module names.
 - Vulkan is special by metadata and dispatch model: the importer records `vulkan-loader-dispatch`, prefers `vk.xml` when present, and generates loader thunk metadata instead of pretending every Vulkan command is a normal DLL export.
-- `crates/kain-build` records deterministic graph provenance from `build.kn` or `platform.kn`; it recognizes `platform_package("...").provider("...")` requirements and reports whether `KAIN.toml` only contributed defaults.
-- `fixtures/platform_sdk/tiny_math` is the tiny SDK proof fixture for header scan, lock determinism, and generated typed thunk tests before touching real Vulkan installs.
+- `crates/kain-build` records deterministic graph provenance from `build.kn`, `platform.kn`, or equivalent `KAIN.toml` `[[platform.packages]]`; matching TOML/script requirements produce the same graph, while overrides report explicit provenance.
+- `fixtures/platform_sdk/tiny_math` is the tiny SDK proof fixture for header scan, lock determinism, generated typed thunk metadata, and stable negative-surface reasons before touching real Vulkan installs.
+- `blades/platform-package-smoke` is the tiny proof blade for the lane. Its script stages `tiny_math`, imports twice, byte-compares lock/report output, checks relocatable path rendering, verifies blocked callback/opaque/unsupported reasons, checks no public `call_typed` leak, then runs the Kain `std::platform` open/resolve/close smoke.
+- `blades/vulkain` now declares Vulkan as a platform package graph requirement in both `build.kn` and `KAIN.toml`; dispatch remains package metadata owned by `platform::vulkan`, not `runtime/native`.
 
 Proof/validation:
 
 - Z3 proof `runtime/native/src/platform/z3/proofs-experimental/platform-library-handle-roundtrip-and-stale-reject.smt2` returned `unsat` via report `z3/reports/20260520T090846Z-platform-library-handle-roundtrip-and-stale-reject-clean.json`.
-- `cargo test -p kain-build -p kain-c-ffi` split runs passed; `cargo test -p kain-commands` passed with `parses_import_platform_command`; `cargo check -p cli` passed.
-- `cargo run -q -p cli --bin kain --target-dir target\codex-platform-package -- import platform fixtures/platform_sdk/tiny_math --package-name tiny_math --dry-run` produced a deterministic lock report and honestly blocked typed generation because the checked-in fixture has no DLL.
-- `py -3 tools/bazel/sync_native_runtime_builds.py --check`, `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`, `bazel build //runtime:all`, and `bazel test //runtime:native_test_platform_library` passed.
+- `cargo test -p kain-c-ffi --target-dir target\codex-platform-package -- --test-threads=1` passed, including deterministic/relocatable lock+report byte-compare checks and the no-`call_typed` assertion.
+- `cargo test -p kain-build --target-dir target\codex-platform-package -- --test-threads=1` passed, including build.kn/KAIN.toml graph parity plus explicit override provenance.
+- `cargo test -p kain-commands --target-dir target\codex-platform-package`, `cargo check -p cli --target-dir target\codex-platform-package`, `bazel test //runtime:native_test_platform_library`, `cargo run -q -p cli --bin kain --target-dir target\codex-platform-package -- check blades\platform-package-smoke\src\main.kn --target llvm`, and full `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\platform-package-smoke\run.ps1` passed. The full smoke generated `.kain/run/platform_package_smoke.txt` with `status=0`, while the executable still prints the existing native runtime `[MEMORY] ERROR: RC release underflow` shutdown diagnostic on stderr.
 - Full `bazel test //runtime:native_runtime_tests` is still red because existing `//runtime:native_test_ownership_memory` fails `generic observe uses imported registry path expected 0, got -6`; the new platform-library test passes inside and outside that suite.
 
 # 2026-05-20 - Kloner same-window Kaintana x Vulkain mograph blade
@@ -183,8 +281,7 @@ Validation:
 
 Durable caveats:
 
-- Native LLVM still rejects the prettier imported `impl Self_` dot-builder form with `Field address for .ctx requires a struct or struct pointer`; keep explicit builder-stage functions until the compiler path is fixed.
-- Avoid storing the full `KaintanaContext` inside builders. Pass context only to render, otherwise SlotMap/arena/native handles get copied through every shim.
+- The imported `impl Self_` dot-builder lowering blocker was fixed later on 2026-05-20 in `crates/kain-sys-codegen`; Kaintana can now reattempt the fluent `builder.key(...).rect(...).render(...)` API shape from imported modules. Keep context-heavy builders lean: pass context only to render so SlotMap/arena/native handles are not copied through every shim.
 - `SlotMapInsert.map.free_head` currently comes back stale in this nested imported-module path, so Kaintana normalizes append-only node maps from `count` after inserts. Remove that shim only after a focused SlotMap/native LLVM proof.
 - The public builder module is `api/kaintana_ui.kn`, not `api/ui.kn`, to avoid collisions with root `std::ui`.
 

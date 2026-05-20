@@ -1199,7 +1199,18 @@ static int abi_process_create_pipe_pair(
     return 1;
 }
 
-static HANDLE abi_process_open_null_device(DWORD access_mask) {
+typedef struct KainNativeProcessWindowsCache {
+    INIT_ONCE init_once;
+    HANDLE null_read_template;
+    HANDLE null_write_template;
+    wchar_t* command_shell_path;
+} KainNativeProcessWindowsCache;
+
+static KainNativeProcessWindowsCache g_process_windows_cache = {
+    .init_once = INIT_ONCE_STATIC_INIT
+};
+
+static HANDLE abi_process_open_null_device_raw(DWORD access_mask) {
     return CreateFileW(
         L"NUL",
         access_mask,
@@ -1209,6 +1220,129 @@ static HANDLE abi_process_open_null_device(DWORD access_mask) {
         FILE_ATTRIBUTE_NORMAL,
         0
     );
+}
+
+static BOOL CALLBACK abi_process_windows_cache_init(
+    PINIT_ONCE init_once,
+    PVOID parameter,
+    PVOID* context
+) {
+    wchar_t command_shell_path_buffer[32768];
+    const size_t command_shell_path_capacity =
+        sizeof(command_shell_path_buffer) / sizeof(command_shell_path_buffer[0]);
+    DWORD command_shell_length = 0u;
+    HANDLE null_read_template = abi_process_open_null_device_raw(GENERIC_READ);
+    HANDLE null_write_template = abi_process_open_null_device_raw(GENERIC_WRITE);
+    wchar_t* command_shell_path = 0;
+    (void)init_once;
+    (void)parameter;
+    (void)context;
+
+    command_shell_length = GetEnvironmentVariableW(
+        L"ComSpec",
+        command_shell_path_buffer,
+        (DWORD)command_shell_path_capacity
+    );
+    if (command_shell_length > 0u &&
+        command_shell_length < (DWORD)command_shell_path_capacity) {
+        command_shell_path = abi_process_wide_duplicate(command_shell_path_buffer);
+    }
+    if (command_shell_path == 0) {
+        command_shell_length = GetSystemDirectoryW(
+            command_shell_path_buffer,
+            (UINT)command_shell_path_capacity
+        );
+        if (command_shell_length > 0u &&
+            ((size_t)command_shell_length + 9u) <= command_shell_path_capacity) {
+            memcpy(
+                command_shell_path_buffer + command_shell_length,
+                L"\\cmd.exe",
+                9u * sizeof(wchar_t)
+            );
+            command_shell_path = abi_process_wide_duplicate(command_shell_path_buffer);
+        }
+    }
+
+    g_process_windows_cache.null_read_template = null_read_template;
+    g_process_windows_cache.null_write_template = null_write_template;
+    g_process_windows_cache.command_shell_path = command_shell_path;
+    return TRUE;
+}
+
+static void abi_process_windows_cache_ensure_initialized(void) {
+    InitOnceExecuteOnce(
+        &g_process_windows_cache.init_once,
+        abi_process_windows_cache_init,
+        0,
+        0
+    );
+}
+
+static HANDLE abi_process_duplicate_inheritable_handle(HANDLE source_handle) {
+    HANDLE duplicated_handle = 0;
+    if (source_handle == 0) {
+        return 0;
+    }
+    if (!DuplicateHandle(
+            GetCurrentProcess(),
+            source_handle,
+            GetCurrentProcess(),
+            &duplicated_handle,
+            0,
+            TRUE,
+            DUPLICATE_SAME_ACCESS
+        )) {
+        return 0;
+    }
+    return duplicated_handle;
+}
+
+static HANDLE abi_process_open_null_device(DWORD access_mask) {
+    HANDLE duplicated_handle = 0;
+    abi_process_windows_cache_ensure_initialized();
+    if (access_mask == GENERIC_READ) {
+        duplicated_handle = abi_process_duplicate_inheritable_handle(
+            g_process_windows_cache.null_read_template
+        );
+    } else if (access_mask == GENERIC_WRITE) {
+        duplicated_handle = abi_process_duplicate_inheritable_handle(
+            g_process_windows_cache.null_write_template
+        );
+    }
+    if (duplicated_handle != 0) {
+        return duplicated_handle;
+    }
+    return abi_process_open_null_device_raw(access_mask);
+}
+
+static int abi_process_text_has_path_separator(const char* text) {
+    size_t index;
+    if (text == 0) {
+        return 0;
+    }
+    for (index = 0u; text[index] != '\0'; index++) {
+        if (text[index] == '\\' || text[index] == '/') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int abi_process_is_cmd_shell_alias(const char* executable) {
+    if (abi_process_text_empty(executable) || abi_process_text_has_path_separator(executable)) {
+        return 0;
+    }
+    return abi_process_text_equal_ci(executable, "cmd") ||
+           abi_process_text_equal_ci(executable, "cmd.exe");
+}
+
+static wchar_t* abi_process_resolve_application_name_w(const char* executable) {
+    abi_process_windows_cache_ensure_initialized();
+    if (!abi_process_is_cmd_shell_alias(executable) ||
+        g_process_windows_cache.command_shell_path == 0) {
+        return 0;
+    }
+    return abi_process_wide_duplicate(g_process_windows_cache.command_shell_path);
 }
 
 static int abi_process_refresh_exit_state(KainNativeProcessHandle* process) {
@@ -1531,6 +1665,7 @@ static int64_t abi_process_launch_standard_process(
     HANDLE null_stderr = 0;
     STARTUPINFOW startup_info;
     PROCESS_INFORMATION process_information;
+    wchar_t* application_name = 0;
     wchar_t* command_line = 0;
     wchar_t* cwd_wide = 0;
     wchar_t* environment_block = 0;
@@ -1538,8 +1673,10 @@ static int64_t abi_process_launch_standard_process(
     memset(&startup_info, 0, sizeof(startup_info));
     memset(&process_information, 0, sizeof(process_information));
 
+    application_name = abi_process_resolve_application_name_w(spec->executable);
     command_line = abi_process_build_command_line_w(spec);
     if (command_line == 0) {
+        free(application_name);
         return abi_process_fail(
             ABI_PROCESS_SPAWN_FAILED,
             "command-line",
@@ -1549,6 +1686,7 @@ static int64_t abi_process_launch_standard_process(
     if (!abi_process_text_empty(spec->current_working_directory)) {
         cwd_wide = abi_process_utf8_to_wide(spec->current_working_directory);
         if (cwd_wide == 0) {
+            free(application_name);
             free(command_line);
             return abi_process_fail(
                 ABI_PROCESS_SPAWN_FAILED,
@@ -1560,6 +1698,7 @@ static int64_t abi_process_launch_standard_process(
     if (!spec->inherit_environment || spec->environment_count > 0) {
         environment_block = abi_process_build_environment_block_w(spec);
         if (environment_block == 0) {
+            free(application_name);
             free(command_line);
             free(cwd_wide);
             return abi_process_fail(
@@ -1610,7 +1749,7 @@ static int64_t abi_process_launch_standard_process(
     startup_info.hStdError = child_stderr;
 
     if (!CreateProcessW(
-            0,
+            application_name,
             command_line,
             0,
             0,
@@ -1639,13 +1778,23 @@ static int64_t abi_process_launch_standard_process(
 
     if (child_stdin != 0 && child_stdin != GetStdHandle(STD_INPUT_HANDLE)) {
         CloseHandle(child_stdin);
+        if (child_stdin == null_stdin) {
+            null_stdin = 0;
+        }
     }
     if (child_stdout != 0 && child_stdout != GetStdHandle(STD_OUTPUT_HANDLE)) {
         CloseHandle(child_stdout);
+        if (child_stdout == null_stdout) {
+            null_stdout = 0;
+        }
     }
     if (child_stderr != 0 && child_stderr != GetStdHandle(STD_ERROR_HANDLE)) {
         CloseHandle(child_stderr);
+        if (child_stderr == null_stderr) {
+            null_stderr = 0;
+        }
     }
+    free(application_name);
     free(command_line);
     free(cwd_wide);
     free(environment_block);
@@ -1676,12 +1825,21 @@ cleanup_failure:
     }
     if (child_stdin != 0 && child_stdin != GetStdHandle(STD_INPUT_HANDLE)) {
         CloseHandle(child_stdin);
+        if (child_stdin == null_stdin) {
+            null_stdin = 0;
+        }
     }
     if (child_stdout != 0 && child_stdout != GetStdHandle(STD_OUTPUT_HANDLE)) {
         CloseHandle(child_stdout);
+        if (child_stdout == null_stdout) {
+            null_stdout = 0;
+        }
     }
     if (child_stderr != 0 && child_stderr != GetStdHandle(STD_ERROR_HANDLE)) {
         CloseHandle(child_stderr);
+        if (child_stderr == null_stderr) {
+            null_stderr = 0;
+        }
     }
     if (null_stdin != 0) {
         CloseHandle(null_stdin);
@@ -1692,6 +1850,7 @@ cleanup_failure:
     if (null_stderr != 0) {
         CloseHandle(null_stderr);
     }
+    free(application_name);
     free(command_line);
     free(cwd_wide);
     free(environment_block);
@@ -3187,7 +3346,9 @@ const char* abi_process_output_text(
     spec.inherit_environment = 1;
     spec.stdin_mode = ABI_PROCESS_STDIO_NULL;
     spec.stdout_mode = ABI_PROCESS_STDIO_PIPE;
-    spec.stderr_mode = ABI_PROCESS_STDIO_PIPE;
+    /* `process_output_text(...)` only surfaces stdout, so keep stderr off the
+     * pipe path and let the child write it straight to NUL. */
+    spec.stderr_mode = ABI_PROCESS_STDIO_NULL;
     abi_process_copy(spec.executable, sizeof(spec.executable), executable);
     if (!abi_process_spec_append_direct_arg(&spec, arg0) ||
         !abi_process_spec_append_direct_arg(&spec, arg1) ||

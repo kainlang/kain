@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <time.h>
 
@@ -80,6 +81,7 @@ static KainAttritionState g_kain_attrition_state = {
     .init_once = PTHREAD_ONCE_INIT
 #endif
 };
+static atomic_uint_least64_t g_kain_attrition_enabled_fast = 0;
 
 static void kain_attrition_lock(void) {
 #ifdef _WIN32
@@ -95,6 +97,10 @@ static void kain_attrition_unlock(void) {
 #else
     pthread_mutex_unlock(&g_kain_attrition_state.lock);
 #endif
+}
+
+static int kain_attrition_enabled_fast(void) {
+    return atomic_load_explicit(&g_kain_attrition_enabled_fast, memory_order_relaxed) != 0u;
 }
 
 static uint64_t kain_attrition_u64_saturating_add(uint64_t left, uint64_t right) {
@@ -296,6 +302,11 @@ void kain_attrition_runtime_configure(const KainAttritionSessionConfig* config) 
     g_kain_attrition_state.config = local_config;
     g_kain_attrition_state.virtual_time_now_ms = local_config.virtual_time_initial_ms;
     kain_attrition_unlock();
+    atomic_store_explicit(
+        &g_kain_attrition_enabled_fast,
+        local_config.enabled != 0u ? 1u : 0u,
+        memory_order_relaxed
+    );
 }
 
 static uint64_t kain_attrition_popcount_u64(uint64_t value) {
@@ -522,6 +533,9 @@ void kain_attrition_runtime_note_progress(uint64_t iteration, uint64_t checksum)
 
 void* kain_attrition_heap_alloc(size_t total_bytes) {
     void* allocation = NULL;
+    if (!kain_attrition_enabled_fast()) {
+        return malloc(total_bytes);
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     if (g_kain_attrition_state.config.allocation_fail_after != 0u &&
@@ -547,6 +561,10 @@ int kain_attrition_heap_release(void* raw_header, size_t total_bytes) {
     size_t slot;
     KainAttritionQuarantineEntry* entry;
     if (raw_header == NULL) {
+        return 1;
+    }
+    if (!kain_attrition_enabled_fast()) {
+        free(raw_header);
         return 1;
     }
     kain_attrition_ensure_initialized();
@@ -590,6 +608,9 @@ int kain_attrition_heap_release(void* raw_header, size_t total_bytes) {
 
 unsigned long long kain_attrition_now_millis(void) {
     unsigned long long result;
+    if (!kain_attrition_enabled_fast()) {
+        return (unsigned long long)((clock() * 1000ULL) / CLOCKS_PER_SEC);
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     if (g_kain_attrition_state.config.virtual_time_enabled != 0u) {
@@ -615,6 +636,18 @@ long long kain_attrition_clock_ticks(void) {
 }
 
 void kain_attrition_sleep_for_millis(unsigned long long milliseconds) {
+    if (!kain_attrition_enabled_fast()) {
+#ifdef _WIN32
+        Sleep((DWORD)(milliseconds > 0xFFFFFFFFULL ? 0xFFFFFFFFULL : milliseconds));
+#else
+        struct timespec delay;
+        delay.tv_sec = (time_t)(milliseconds / 1000ULL);
+        delay.tv_nsec = (long)((milliseconds % 1000ULL) * 1000000ULL);
+        while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+        }
+#endif
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     if (g_kain_attrition_state.config.virtual_time_enabled != 0u) {
@@ -669,6 +702,9 @@ void kain_attrition_note_raw_sleep_fallback(unsigned long long milliseconds) {
 }
 
 void kain_attrition_note_rc_alloc(size_t total_bytes) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     g_kain_attrition_state.allocation_count =
@@ -695,6 +731,9 @@ void kain_attrition_note_rc_alloc(size_t total_bytes) {
 }
 
 void kain_attrition_note_rc_free(size_t total_bytes) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     g_kain_attrition_state.free_count =
@@ -719,6 +758,9 @@ void kain_attrition_note_rc_free(size_t total_bytes) {
 }
 
 void kain_attrition_note_rc_retain(void) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     g_kain_attrition_state.retain_count =
@@ -728,6 +770,9 @@ void kain_attrition_note_rc_retain(void) {
 }
 
 void kain_attrition_note_rc_release(void) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     g_kain_attrition_state.release_count =
@@ -737,6 +782,9 @@ void kain_attrition_note_rc_release(void) {
 }
 
 void kain_attrition_note_rc_underflow(void) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     g_kain_attrition_state.rc_underflow_count =
@@ -746,6 +794,9 @@ void kain_attrition_note_rc_underflow(void) {
 }
 
 void kain_attrition_note_rc_overflow(void) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     g_kain_attrition_state.rc_overflow_count =
@@ -755,6 +806,9 @@ void kain_attrition_note_rc_overflow(void) {
 }
 
 void kain_attrition_note_actor_spawn(uint64_t actor_id, int synthetic_reply_port) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(
@@ -768,6 +822,9 @@ void kain_attrition_note_actor_spawn(uint64_t actor_id, int synthetic_reply_port
 }
 
 void kain_attrition_note_actor_exit(uint64_t actor_id, int synthetic_reply_port) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(
@@ -781,6 +838,9 @@ void kain_attrition_note_actor_exit(uint64_t actor_id, int synthetic_reply_port)
 }
 
 void kain_attrition_note_actor_stale_reject(uint64_t actor_id, uint64_t generation) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ACTOR_STALE_REJECT, 0u, actor_id, generation, 0u);
@@ -788,6 +848,9 @@ void kain_attrition_note_actor_stale_reject(uint64_t actor_id, uint64_t generati
 }
 
 void kain_attrition_note_process_spawn(uint64_t process_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_PROCESS_SPAWN, 0u, process_id, 0u, 0u);
@@ -795,6 +858,9 @@ void kain_attrition_note_process_spawn(uint64_t process_id) {
 }
 
 void kain_attrition_note_process_exit(uint64_t process_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_PROCESS_EXIT, 0u, process_id, 0u, 0u);
@@ -802,6 +868,9 @@ void kain_attrition_note_process_exit(uint64_t process_id) {
 }
 
 void kain_attrition_note_process_stale_reject(uint64_t subject_id, int64_t status) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_PROCESS_STALE_REJECT, (uint32_t)(status & 0xffffffffu), subject_id, 0u, 0u);
@@ -809,6 +878,9 @@ void kain_attrition_note_process_stale_reject(uint64_t subject_id, int64_t statu
 }
 
 void kain_attrition_note_async_task_spawn(uint64_t task_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ASYNC_TASK_SPAWN, 0u, task_id, 0u, 0u);
@@ -816,6 +888,9 @@ void kain_attrition_note_async_task_spawn(uint64_t task_id) {
 }
 
 void kain_attrition_note_async_task_exit(uint64_t task_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ASYNC_TASK_EXIT, 0u, task_id, 0u, 0u);
@@ -823,6 +898,9 @@ void kain_attrition_note_async_task_exit(uint64_t task_id) {
 }
 
 void kain_attrition_note_async_task_stale_reject(uint64_t task_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ASYNC_TASK_STALE_REJECT, 0u, task_id, 0u, 0u);
@@ -830,6 +908,9 @@ void kain_attrition_note_async_task_stale_reject(uint64_t task_id) {
 }
 
 void kain_attrition_note_async_timer_spawn(uint64_t timer_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ASYNC_TIMER_SPAWN, 0u, timer_id, 0u, 0u);
@@ -837,6 +918,9 @@ void kain_attrition_note_async_timer_spawn(uint64_t timer_id) {
 }
 
 void kain_attrition_note_async_timer_exit(uint64_t timer_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ASYNC_TIMER_EXIT, 0u, timer_id, 0u, 0u);
@@ -844,6 +928,9 @@ void kain_attrition_note_async_timer_exit(uint64_t timer_id) {
 }
 
 void kain_attrition_note_async_timer_cancel(uint64_t timer_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ASYNC_TIMER_CANCEL, 0u, timer_id, 0u, 0u);
@@ -851,6 +938,9 @@ void kain_attrition_note_async_timer_cancel(uint64_t timer_id) {
 }
 
 void kain_attrition_note_async_timer_stale_reject(uint64_t timer_id) {
+    if (!kain_attrition_enabled_fast()) {
+        return;
+    }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
     kain_attrition_record_event_locked(KAIN_ATTRITION_EVENT_ASYNC_TIMER_STALE_REJECT, 0u, timer_id, 0u, 0u);
