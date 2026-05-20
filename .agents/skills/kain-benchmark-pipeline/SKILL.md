@@ -71,6 +71,10 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - timestamped `benchmark/out/reports/<stamp>.json`
 - `benchmark/latest.md`, `benchmark/latest_fast.md`, `benchmark/latest_sim.md`, and `benchmark/latest_gpu.md` are intentionally minimal LLM-facing snapshots. If a case declares telemetry metrics, the snapshot also includes a compact telemetry table keyed by the case primary metric.
 - Root snapshots and full reports now include `baseline_mode` plus baseline-cache hit/refresh counts so you can tell at a glance whether the fast foreign-baseline path actually engaged.
+- `python benchmark/run.py` now also persists every suite run to `benchmark/out/history/benchmark_history.sqlite3` by default using stdlib `sqlite3`. Pass `--history-db off` to disable or `--history-db <path>` to route history elsewhere.
+- The history database records one row per run plus normalized case/language/metric rows, including Kain medians, build timings, primary telemetry metric values, cache status, toolchain/git metadata, and report artifact paths.
+- Full and minimal reports now compare current Kain results against the most recent prior *comparable* run: same suite, same `latest_stem`, same machine fingerprint, same selected case set/language set, and same warmup/run counts. The report surfaces per-case `delta_ms`, `delta_pct`, trend, and a regression alert when slowdown crosses the configured threshold.
+- The SQLite history lane is meant to complement timestamped JSON reports, not replace them. JSON remains the human/LLM artifact; SQLite is the regression/trend warehouse.
 - HTML is no longer a report format. If `benchmark/out/reports/latest.html` appears, treat it as stale-output cleanup debt.
 - The preferred extension point for new categories is `benchmark/wrappers/*.json`, not new hardcoded branches in `run.py`. Wrapper configs are data-driven plugins that can inject `before_args` and `after_args` around user-supplied CLI flags.
 

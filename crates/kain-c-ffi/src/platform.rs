@@ -180,7 +180,10 @@ pub fn import_platform_package(
         let (_artifacts, output) =
             write_generated_artifacts(&resolved, &bundle, &cache_dir, Some(&output_dir))?;
         generated_modules.push(format!("platform::{package_name}"));
-        generated_modules.push(output.canonical_module_path.display().to_string());
+        generated_modules.push(render_lock_path(
+            &current_dir,
+            &output.canonical_module_path,
+        ));
         generated_module_path = Some(output.canonical_module_path.clone());
         binding_report_path = Some(output.report_json_path.clone());
         c_ffi_output = Some(output);
@@ -206,37 +209,40 @@ pub fn import_platform_package(
         "header declarations plus generated typed thunks".to_string()
     };
 
+    sort_symbol_locks(&mut discovered_symbols);
+    sort_blocked_locks(&mut blocked_symbols);
+
     let lock = PlatformPackageLock {
         schema_version: PLATFORM_LOCK_SCHEMA_VERSION.to_string(),
         package_name: package_name.clone(),
         provider: options.provider.clone(),
         target_triple: target_triple.clone(),
         dispatch_model: dispatch_model.to_string(),
-        roots_searched: render_paths(&discovery.roots),
+        roots_searched: render_paths(&current_dir, &discovery.roots),
         resolved_headers: discovery
             .header
             .iter()
-            .map(|path| resolved_file("header", path))
+            .map(|path| resolved_file("header", &current_dir, path))
             .collect(),
         resolved_libraries: discovery
             .dynamic_libraries
             .iter()
-            .map(|path| resolved_file("dynamic_library", path))
+            .map(|path| resolved_file("dynamic_library", &current_dir, path))
             .collect(),
         resolved_import_libraries: discovery
             .import_libraries
             .iter()
-            .map(|path| resolved_file("import_library", path))
+            .map(|path| resolved_file("import_library", &current_dir, path))
             .collect(),
         registry_files: discovery
             .registry
             .iter()
-            .map(|path| resolved_file("registry", path))
+            .map(|path| resolved_file("registry", &current_dir, path))
             .collect(),
-        hashes: collect_fingerprints(&discovery),
+        hashes: collect_fingerprints(&current_dir, &discovery),
         discovered_symbols,
         chosen_symbol_source,
-        dependency_closure: render_dependency_closure(&discovery),
+        dependency_closure: render_dependency_closure(&current_dir, &discovery),
         generated_modules,
         capability_tags: capability_tags_for_package(&package_name),
         blocked_symbols,
@@ -417,9 +423,29 @@ fn collect_symbol_lock_entry(
     } else if let Some(reason) = &entry.reason {
         blocked.push(PlatformBlockedSymbol {
             symbol_name: entry.symbol_path.clone(),
-            reason: reason.clone(),
+            reason: stable_platform_block_reason(entry, reason),
         });
     }
+}
+
+fn stable_platform_block_reason(entry: &BindingReportEntry, detail: &str) -> String {
+    let code = match entry.kind {
+        crate::model::ItemKind::Callback => "type_only_callback_handle",
+        crate::model::ItemKind::Struct => "opaque_struct_metadata_only",
+        crate::model::ItemKind::Enum => "type_only_enum_metadata",
+        crate::model::ItemKind::Typedef => "type_only_typedef_metadata",
+        crate::model::ItemKind::Global => "unsupported_global_variable",
+        crate::model::ItemKind::Function => {
+            if detail.contains("by-value C") {
+                "unsupported_by_value_aggregate"
+            } else if detail.contains("K&R-style") {
+                "unsupported_kr_function"
+            } else {
+                "unsupported_function_signature"
+            }
+        }
+    };
+    format!("{code}: {detail}")
 }
 
 fn find_platform_header(package_name: &str, roots: &[PathBuf]) -> Option<PathBuf> {
@@ -598,7 +624,7 @@ fn find_first_file_by_name(roots: &[PathBuf], wanted: &str) -> Option<PathBuf> {
         .map(|path| canonical_or_self(&path))
 }
 
-fn collect_fingerprints(discovery: &PlatformDiscovery) -> Vec<FileFingerprint> {
+fn collect_fingerprints(current_dir: &Path, discovery: &PlatformDiscovery) -> Vec<FileFingerprint> {
     let mut paths = Vec::new();
     paths.extend(discovery.header.iter().cloned());
     paths.extend(discovery.registry.iter().cloned());
@@ -608,27 +634,27 @@ fn collect_fingerprints(discovery: &PlatformDiscovery) -> Vec<FileFingerprint> {
     paths.dedup();
     paths
         .into_iter()
-        .filter_map(|path| fingerprint_file(&path))
+        .filter_map(|path| fingerprint_file(current_dir, &path))
         .collect()
 }
 
-fn fingerprint_file(path: &Path) -> Option<FileFingerprint> {
+fn fingerprint_file(current_dir: &Path, path: &Path) -> Option<FileFingerprint> {
     let bytes = fs::read(path).ok()?;
     let mut hasher = Sha256::new();
     hasher.update(&bytes);
     Some(FileFingerprint {
-        path: path.display().to_string(),
+        path: render_lock_path(current_dir, path),
         sha256: format!("{:x}", hasher.finalize()),
     })
 }
 
-fn render_dependency_closure(discovery: &PlatformDiscovery) -> Vec<String> {
+fn render_dependency_closure(current_dir: &Path, discovery: &PlatformDiscovery) -> Vec<String> {
     let mut values = Vec::new();
     for path in &discovery.dynamic_libraries {
-        values.push(path.display().to_string());
+        values.push(render_lock_path(current_dir, path));
     }
     for path in &discovery.import_libraries {
-        values.push(path.display().to_string());
+        values.push(render_lock_path(current_dir, path));
     }
     values.sort();
     values.dedup();
@@ -665,18 +691,61 @@ fn sdk_env_keys(package_name: &str) -> Vec<String> {
     keys
 }
 
-fn resolved_file(kind: &str, path: &Path) -> PlatformResolvedFile {
+fn resolved_file(kind: &str, current_dir: &Path, path: &Path) -> PlatformResolvedFile {
     PlatformResolvedFile {
         kind: kind.to_string(),
-        path: path.display().to_string(),
+        path: render_lock_path(current_dir, path),
     }
 }
 
-fn render_paths(paths: &[PathBuf]) -> Vec<String> {
+fn render_paths(current_dir: &Path, paths: &[PathBuf]) -> Vec<String> {
     paths
         .iter()
-        .map(|path| path.display().to_string())
+        .map(|path| render_lock_path(current_dir, path))
         .collect()
+}
+
+fn render_lock_path(current_dir: &Path, path: &Path) -> String {
+    let anchor = canonical_or_self(current_dir);
+    let canonical_path = canonical_or_self(path);
+    if let Ok(relative) = canonical_path.strip_prefix(&anchor) {
+        if relative.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            slash_path(relative)
+        }
+    } else {
+        slash_path(&canonical_path)
+    }
+}
+
+fn slash_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn sort_symbol_locks(symbols: &mut Vec<PlatformSymbol>) {
+    symbols.sort_by(|left, right| {
+        left.symbol_name
+            .cmp(&right.symbol_name)
+            .then(left.emitted_symbol.cmp(&right.emitted_symbol))
+            .then(left.source.cmp(&right.source))
+    });
+    symbols.dedup_by(|left, right| {
+        left.symbol_name == right.symbol_name
+            && left.emitted_symbol == right.emitted_symbol
+            && left.source == right.source
+    });
+}
+
+fn sort_blocked_locks(symbols: &mut Vec<PlatformBlockedSymbol>) {
+    symbols.sort_by(|left, right| {
+        left.symbol_name
+            .cmp(&right.symbol_name)
+            .then(left.reason.cmp(&right.reason))
+    });
+    symbols.dedup_by(|left, right| {
+        left.symbol_name == right.symbol_name && left.reason == right.reason
+    });
 }
 
 fn resolve_candidate_path(current_dir: &Path, value: &str) -> PathBuf {
@@ -754,30 +823,51 @@ mod tests {
         fs::write(path, content).unwrap();
     }
 
-    #[test]
-    fn platform_import_locks_tiny_sdk_with_generated_typed_thunks() {
-        let temp = tempfile::tempdir().unwrap();
-        let sdk = temp.path().join("tiny_math");
+    fn write_tiny_math_sdk(root: &Path) -> PathBuf {
+        let sdk = root.join("tiny_math");
         let header = sdk.join("include").join("tiny_math.h");
         let library = sdk
             .join("bin")
             .join(library_file_names("tiny_math", &default_target_triple(), false)[0].clone());
         write(
             &header,
-            "int tiny_add(int left, int right);\ndouble tiny_gain(double value);\n",
+            r#"
+typedef struct TinyPair {
+    int left;
+    int right;
+} TinyPair;
+typedef struct TinyOpaque TinyOpaque;
+typedef int (*tiny_math_callback)(int value);
+int tiny_add(int left, int right);
+double tiny_gain(double value);
+int tiny_apply_callback(int value, tiny_math_callback callback);
+TinyOpaque* tiny_context(void);
+TinyPair tiny_make_pair(int left, int right);
+"#,
         );
         write(
             &library,
             "fake dynamic library bytes for deterministic lock tests",
         );
+        sdk
+    }
+
+    fn tiny_import_options(root: &Path) -> ImportPlatformOptions {
+        ImportPlatformOptions {
+            package_name: Some("tiny_math".to_string()),
+            output_dir: Some(root.join(".kain").join("platform").join("tiny_math")),
+            ..ImportPlatformOptions::default()
+        }
+    }
+
+    #[test]
+    fn platform_import_locks_tiny_sdk_with_generated_typed_thunks() {
+        let temp = tempfile::tempdir().unwrap();
+        let sdk = write_tiny_math_sdk(temp.path());
 
         let output = import_platform_package(
             sdk.to_str().unwrap(),
-            &ImportPlatformOptions {
-                package_name: Some("tiny_math".to_string()),
-                output_dir: Some(temp.path().join(".kain").join("platform").join("tiny_math")),
-                ..ImportPlatformOptions::default()
-            },
+            &tiny_import_options(temp.path()),
             &PrepareContext {
                 current_dir: Some(temp.path().to_path_buf()),
                 manifest_path: None,
@@ -795,6 +885,63 @@ mod tests {
             .discovered_symbols
             .iter()
             .any(|symbol| symbol.symbol_name.contains("tiny_add")));
+        assert!(output
+            .lock
+            .blocked_symbols
+            .iter()
+            .any(|symbol| symbol.symbol_name.contains("tiny_make_pair")
+                && symbol.reason.starts_with("unsupported_by_value_aggregate")));
+        assert!(output
+            .lock
+            .blocked_symbols
+            .iter()
+            .any(|symbol| symbol.symbol_name.contains("tiny_math_callback")
+                && symbol.reason.starts_with("type_only_callback_handle")));
+        assert!(output
+            .lock
+            .blocked_symbols
+            .iter()
+            .any(|symbol| symbol.symbol_name.contains("TinyPair")
+                && symbol.reason.starts_with("opaque_struct_metadata_only")));
+    }
+
+    #[test]
+    fn platform_import_lock_and_report_are_deterministic_and_relocatable() {
+        let temp = tempfile::tempdir().unwrap();
+        let sdk = write_tiny_math_sdk(temp.path());
+        let output_dir = temp.path().join(".kain").join("platform").join("tiny_math");
+        let report_json = temp
+            .path()
+            .join(".kain")
+            .join("reports")
+            .join("tiny_math.lock.json");
+        let options = ImportPlatformOptions {
+            report_json: Some(report_json.clone()),
+            ..tiny_import_options(temp.path())
+        };
+        let prepare = PrepareContext {
+            current_dir: Some(temp.path().to_path_buf()),
+            manifest_path: None,
+        };
+
+        import_platform_package(sdk.to_str().unwrap(), &options, &prepare).expect("first import");
+        let lock_path = output_dir.join("tiny_math.lock");
+        let first_lock = fs::read(&lock_path).expect("first lock");
+        let first_report = fs::read(&report_json).expect("first report");
+        import_platform_package(sdk.to_str().unwrap(), &options, &prepare).expect("second import");
+
+        assert_eq!(first_lock, fs::read(&lock_path).expect("second lock"));
+        assert_eq!(first_report, fs::read(&report_json).expect("second report"));
+
+        let lock_text = String::from_utf8(first_lock).expect("lock utf8");
+        let temp_prefix = temp.path().to_string_lossy().replace('\\', "/");
+        assert!(
+            !lock_text.contains(&temp_prefix),
+            "lock should not bake local temp prefix: {temp_prefix}"
+        );
+        assert!(lock_text.contains("tiny_math/include/tiny_math.h"));
+        assert!(lock_text.contains(".kain/platform/tiny_math/tiny_math.kn"));
+        assert!(!lock_text.contains("call_typed"));
     }
 
     #[test]

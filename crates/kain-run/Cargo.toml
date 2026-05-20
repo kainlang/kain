@@ -8,6 +8,7 @@ license = "MIT"
 [dependencies]
 blade = { path = "../kain-blades" }
 kain-core = { path = "../kain-core" }
+kain-c-ffi = { path = "../kain-c-ffi" }
 kain-driver = { path = "../kain-driver" }
 kain-fs = { path = "../kain-fs" }
 kain-host = { path = "../kain-host", default-features = false }

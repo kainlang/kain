@@ -1,0 +1,37 @@
+[package]
+name = "platform-package-smoke"
+version = "0.1.0"
+description = "Tiny platform package lock/import smoke before Vulkan consumes generated dispatch packages."
+
+[blade]
+name = "platform-package-smoke"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "build.kn",
+  "KAIN.toml",
+]
+
+[[platform.packages]]
+name = "tiny_math"
+provider = "fixture"
+sdk = "../../fixtures/platform_sdk/tiny_math"

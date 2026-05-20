@@ -3,791 +3,1142 @@
     {
       "active": true,
       "confidence": "high",
-      "fact": {
-        "parameter": "span",
-        "role": "unsigned-size",
-        "type": "Span) -> KainResult<(usize, usize"
-      },
-      "id": "abi-layout-for-ty.parameter-role.1",
-      "kind": "parameter-role",
-      "language": "rust",
-      "line": 836,
-      "origin_class": "type-role-hint",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 82,
-        "end_line": 836,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 836
-      },
-      "symbol": "abi_layout_for_ty",
-      "text": "fn abi_layout_for_ty(&self, ty: &str, span: Span) -> KainResult<(usize, usize)> {",
-      "variables": [
-        "span"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "low",
-      "fact": {
-        "parameter": "size",
-        "role": "size-like",
-        "type": "usize"
-      },
-      "id": "align-abi-size.parameter-role.1",
-      "kind": "parameter-role",
-      "language": "rust",
-      "line": 828,
-      "origin_class": "naming-role-hint",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 56,
-        "end_line": 828,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 828
-      },
-      "symbol": "align_abi_size",
-      "text": "fn align_abi_size(size: usize, align: usize) -> usize {",
-      "variables": [
-        "size"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "fact": {
-        "parameter": "size",
-        "role": "unsigned-size",
-        "type": "usize"
-      },
-      "id": "align-abi-size.parameter-role.2",
-      "kind": "parameter-role",
-      "language": "rust",
-      "line": 828,
-      "origin_class": "type-role-hint",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 56,
-        "end_line": 828,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 828
-      },
-      "symbol": "align_abi_size",
-      "text": "fn align_abi_size(size: usize, align: usize) -> usize {",
-      "variables": [
-        "size"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "fact": {
-        "parameter": "align",
-        "role": "unsigned-size",
-        "type": "usize"
-      },
-      "id": "align-abi-size.parameter-role.3",
-      "kind": "parameter-role",
-      "language": "rust",
-      "line": 828,
-      "origin_class": "type-role-hint",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 56,
-        "end_line": 828,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 828
-      },
-      "symbol": "align_abi_size",
-      "text": "fn align_abi_size(size: usize, align: usize) -> usize {",
-      "variables": [
-        "align"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "align",
-          1
-        ],
-        "op": "le"
-      },
-      "expression": "align <= 1",
-      "id": "align-abi-size.guard-condition.4",
+      "expression": "let Some(scope) = self.forwarded_mem_slot_scopes.last_mut()",
+      "id": "clear-current-forwarded-mem-slots.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 829,
+      "line": 1910,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 16,
-        "end_line": 829,
+        "end_col": 65,
+        "end_line": 1910,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 829
+        "start_line": 1910
       },
-      "symbol": "align_abi_size",
+      "symbol": "clear_current_forwarded_mem_slots",
       "tags": [
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if align <= 1 {",
-      "variables": [
-        "align"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "matches!(param.ty, Type::Infer(_))",
-      "id": "ast-param-codegen-types.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2654,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 40,
-        "end_line": 2654,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2654
-      },
-      "symbol": "ast_param_codegen_types",
-      "tags": [
-        "bitwise",
         "bounds"
       ],
-      "text": "if matches!(param.ty, Type::Infer(_)) {",
-      "variables": [
-        "Infer",
-        "Type",
-        "_",
-        "matches",
-        "param",
-        "ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(scope) = self.scopes.last_mut()",
-      "id": "bind-local-pattern-value.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1651,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 46,
-        "end_line": 1651,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1651
-      },
-      "symbol": "bind_local_pattern_value",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(scope) = self.scopes.last_mut() {",
+      "text": "if let Some(scope) = self.forwarded_mem_slot_scopes.last_mut() {",
       "variables": [
         "Some",
+        "forwarded_mem_slot_scopes",
         "last_mut",
         "let",
         "scope",
-        "scopes",
         "self"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "field_ty == \"i8*\"",
-      "id": "bind-local-pattern-value.guard-condition.2",
+      "expression": "assigned.is_empty()",
+      "id": "clear-loop-variant-literal-facts.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1687,
+      "line": 2764,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 23,
-        "end_line": 1687,
+        "end_col": 25,
+        "end_line": 2764,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 1687
+        "start_line": 2764
       },
-      "symbol": "bind_local_pattern_value",
+      "symbol": "clear_loop_variant_literal_facts",
       "tags": [
         "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
+        "bounds"
       ],
-      "text": "if field_ty == \"i8*\" {",
+      "text": "if assigned.is_empty() {",
       "variables": [
-        "field_ty",
-        "i8"
+        "assigned",
+        "is_empty"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "&struct_name != name",
-      "id": "bind-local-pattern-value.guard-condition.3",
+      "dsl_expression": {
+        "args": [
+          "ptr_ty",
+          "target_ptr_ty"
+        ],
+        "op": "eq"
+      },
+      "expression": "ptr_ty == target_ptr_ty",
+      "id": "coerce-pointer-value-to-typed-memory-pointer.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1706,
+      "line": 1516,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 26,
-        "end_line": 1706,
+        "end_col": 29,
+        "end_line": 1516,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 1706
+        "start_line": 1516
       },
-      "symbol": "bind_local_pattern_value",
+      "symbol": "coerce_pointer_value_to_typed_memory_pointer",
       "tags": [
         "bitwise",
         "bounds",
         "overflow",
         "pointer"
       ],
-      "text": "if &struct_name != name {",
+      "text": "if ptr_ty == target_ptr_ty {",
       "variables": [
+        "ptr_ty",
+        "target_ptr_ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ptr_ty.ends_with('*')",
+      "id": "coerce-pointer-value-to-typed-memory-pointer.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1519,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 1519,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1519
+      },
+      "symbol": "coerce_pointer_value_to_typed_memory_pointer",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if ptr_ty.ends_with('*') {",
+      "variables": [
+        "ends_with",
+        "ptr_ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(value) = value",
+      "id": "collect-block-assigned-identifier-names.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2749,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 2749,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2749
+      },
+      "symbol": "collect_block_assigned_identifier_names",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(value) = value {",
+      "variables": [
+        "Some",
+        "let",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Stmt::Let",
+      "id": "collect-block-ephemeral-candidate-names.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3399,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 3399,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3399
+      },
+      "symbol": "collect_block_ephemeral_candidate_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Stmt::Let {",
+      "variables": [
+        "Let",
+        "Stmt",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "is_bounded_helper_alloc",
+      "expression": "is_bounded_helper_alloc",
+      "id": "collect-block-ephemeral-candidate-names.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3409,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 3409,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3409
+      },
+      "symbol": "collect_block_ephemeral_candidate_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if is_bounded_helper_alloc",
+      "variables": [
+        "is_bounded_helper_alloc"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings)",
+      "id": "collect-block-ephemeral-candidate-names.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3419,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 89,
+        "end_line": 3419,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3419
+      },
+      "symbol": "collect_block_ephemeral_candidate_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {",
+      "variables": [
+        "Self",
+        "Some",
+        "known_i64_bindings",
+        "let",
+        "literal",
         "name",
-        "struct_name"
+        "stmt",
+        "stmt_binds_i64_literal"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "field_ty == \"i8*\"",
-      "id": "bind-local-pattern-value.guard-condition.4",
+      "expression": "let Stmt::Let",
+      "id": "collect-block-ephemeral-zero-init-elision-names.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1740,
+      "line": 3438,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 23,
-        "end_line": 1740,
+        "end_col": 19,
+        "end_line": 3438,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 1740
+        "start_line": 3438
       },
-      "symbol": "bind_local_pattern_value",
+      "symbol": "collect_block_ephemeral_zero_init_elision_names",
       "tags": [
         "bitwise",
         "bounds",
-        "overflow",
+        "overflow"
+      ],
+      "text": "if let Stmt::Let {",
+      "variables": [
+        "Let",
+        "Stmt",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(layout) =",
+      "id": "collect-block-ephemeral-zero-init-elision-names.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3445,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 3445,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3445
+      },
+      "symbol": "collect_block_ephemeral_zero_init_elision_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(layout) =",
+      "variables": [
+        "Some",
+        "layout",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "layout.zeroed",
+      "id": "collect-block-ephemeral-zero-init-elision-names.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3448,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 17,
+        "end_line": 3448,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3448
+      },
+      "symbol": "collect_block_ephemeral_zero_init_elision_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if layout.zeroed",
+      "variables": [
+        "layout",
+        "zeroed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings)",
+      "id": "collect-block-ephemeral-zero-init-elision-names.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3466,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 89,
+        "end_line": 3466,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3466
+      },
+      "symbol": "collect_block_ephemeral_zero_init_elision_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {",
+      "variables": [
+        "Self",
+        "Some",
+        "known_i64_bindings",
+        "let",
+        "literal",
+        "name",
+        "stmt",
+        "stmt_binds_i64_literal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some((name, llvm_ty)) = self.stmt_binds_obvious_llvm_ty(stmt, &known_llvm_types)",
+      "id": "collect-block-ephemeral-zero-init-elision-names.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3469,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 88,
+        "end_line": 3469,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3469
+      },
+      "symbol": "collect_block_ephemeral_zero_init_elision_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some((name, llvm_ty)) = self.stmt_binds_obvious_llvm_ty(stmt, &known_llvm_types)",
+      "variables": [
+        "Some",
+        "known_llvm_types",
+        "let",
+        "llvm_ty",
+        "name",
+        "self",
+        "stmt",
+        "stmt_binds_obvious_llvm_ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Stmt::Let",
+      "id": "collect-block-fixed-array-candidate-names.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3652,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 3652,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3652
+      },
+      "symbol": "collect_block_fixed_array_candidate_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Stmt::Let {",
+      "variables": [
+        "Let",
+        "Stmt",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::expr_is_fixed_i64_array_literal(value)",
+      "id": "collect-block-fixed-array-candidate-names.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3658,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 3658,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3658
+      },
+      "symbol": "collect_block_fixed_array_candidate_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if Self::expr_is_fixed_i64_array_literal(value)",
+      "variables": [
+        "Self",
+        "expr_is_fixed_i64_array_literal",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Stmt::Let",
+      "id": "collect-block-stack-shatter-candidate-names.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3856,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 3856,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3856
+      },
+      "symbol": "collect_block_stack_shatter_candidate_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Stmt::Let {",
+      "variables": [
+        "Let",
+        "Stmt",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.expr_is_direct_shattered_array_literal(value)",
+      "id": "collect-block-stack-shatter-candidate-names.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3862,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 3862,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3862
+      },
+      "symbol": "collect_block_stack_shatter_candidate_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.expr_is_direct_shattered_array_literal(value)",
+      "variables": [
+        "expr_is_direct_shattered_array_literal",
+        "self",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(nested) = nested",
+      "id": "collect-else-branch-assigned-identifier-names.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2722,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 2722,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2722
+      },
+      "symbol": "collect_else_branch_assigned_identifier_names",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if let Some(nested) = nested {",
+      "variables": [
+        "Some",
+        "let",
+        "nested"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Expr::Ident(name, _) = target.as_ref()",
+      "id": "collect-expr-assigned-identifier-names.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2532,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 2532,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2532
+      },
+      "symbol": "collect_expr_assigned_identifier_names",
+      "tags": [
+        "bitwise",
+        "bounds",
         "pointer"
       ],
-      "text": "if field_ty == \"i8*\" {",
+      "text": "if let Expr::Ident(name, _) = target.as_ref() {",
       "variables": [
-        "field_ty",
-        "i8"
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "let",
+        "name",
+        "target"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "scrutinee_ty == \"i8*\"",
-      "id": "bind-match-pattern.guard-condition.1",
+      "expression": "let Some(else_branch) = else_branch",
+      "id": "collect-expr-assigned-identifier-names.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1870,
+      "line": 2545,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 2545,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2545
+      },
+      "symbol": "collect_expr_assigned_identifier_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(else_branch) = else_branch {",
+      "variables": [
+        "Some",
+        "else_branch",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(guard) = &arm.guard",
+      "id": "collect-expr-assigned-identifier-names.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2554,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 2554,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2554
+      },
+      "symbol": "collect_expr_assigned_identifier_names",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(guard) = &arm.guard {",
+      "variables": [
+        "Some",
+        "arm",
+        "guard",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(rest) = rest",
+      "id": "collect-expr-assigned-identifier-names.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2609,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 27,
-        "end_line": 1870,
+        "end_line": 2609,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 1870
+        "start_line": 2609
       },
-      "symbol": "bind_match_pattern",
+      "symbol": "collect_expr_assigned_identifier_names",
       "tags": [
         "bitwise",
         "bounds",
-        "overflow"
+        "pointer"
       ],
-      "text": "if scrutinee_ty == \"i8*\" {",
+      "text": "if let Some(rest) = rest {",
       "variables": [
-        "i8",
-        "scrutinee_ty"
+        "Some",
+        "let",
+        "rest"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "!self.struct_defs.contains_key(&payload_struct_name)",
-      "id": "bind-variant-pattern-fields.guard-condition.1",
+      "expression": "let Some(start) = start",
+      "id": "collect-expr-assigned-identifier-names.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1764,
+      "line": 2624,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 58,
-        "end_line": 1764,
+        "end_col": 29,
+        "end_line": 2624,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 1764
+        "start_line": 2624
       },
-      "symbol": "bind_variant_pattern_fields",
+      "symbol": "collect_expr_assigned_identifier_names",
       "tags": [
         "bitwise",
         "bounds",
-        "overflow"
+        "pointer"
       ],
-      "text": "if !self.struct_defs.contains_key(&payload_struct_name) {",
+      "text": "if let Some(start) = start {",
       "variables": [
-        "contains_key",
-        "payload_struct_name",
-        "self",
-        "struct_defs"
+        "Some",
+        "let",
+        "start"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "ret_type == \"void\" && callable_name != \"main\"",
-      "id": "callable-signature.guard-condition.1",
+      "expression": "let Some(end) = end",
+      "id": "collect-expr-assigned-identifier-names.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2622,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 51,
-        "end_line": 2622,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2622
-      },
-      "symbol": "callable_signature",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if ret_type == \"void\" && callable_name != \"main\" {",
-      "variables": [
-        "callable_name",
-        "main",
-        "ret_type",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "src_ty",
-          "dst_ty"
-        ],
-        "op": "eq"
-      },
-      "expression": "src_ty == dst_ty",
-      "id": "cast-numeric-value.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1311,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 22,
-        "end_line": 1311,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1311
-      },
-      "symbol": "cast_numeric_value",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if src_ty == dst_ty {",
-      "variables": [
-        "dst_ty",
-        "src_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "lhs_ty",
-          "rhs_ty"
-        ],
-        "op": "eq"
-      },
-      "expression": "lhs_ty == rhs_ty",
-      "id": "coerce-binary-operands.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1403,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 22,
-        "end_line": 1403,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1403
-      },
-      "symbol": "coerce_binary_operands",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if lhs_ty == rhs_ty {",
-      "variables": [
-        "lhs_ty",
-        "rhs_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "lhs_ty == \"double\"",
-      "id": "coerce-binary-operands.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1407,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 1407,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1407
-      },
-      "symbol": "coerce_binary_operands",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if lhs_ty == \"double\" {",
-      "variables": [
-        "double",
-        "lhs_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "rhs_ty == \"double\"",
-      "id": "coerce-binary-operands.guard-condition.3",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1412,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 1412,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1412
-      },
-      "symbol": "coerce_binary_operands",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if rhs_ty == \"double\" {",
-      "variables": [
-        "double",
-        "rhs_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "lhs_ty == \"i64\"",
-      "id": "coerce-binary-operands.guard-condition.4",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1417,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 1417,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1417
-      },
-      "symbol": "coerce_binary_operands",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if lhs_ty == \"i64\" {",
-      "variables": [
-        "i64",
-        "lhs_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "rhs_ty == \"i64\"",
-      "id": "coerce-binary-operands.guard-condition.5",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1422,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 1422,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1422
-      },
-      "symbol": "coerce_binary_operands",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if rhs_ty == \"i64\" {",
-      "variables": [
-        "i64",
-        "rhs_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "src_ty",
-          "target_ty"
-        ],
-        "op": "eq"
-      },
-      "expression": "src_ty == target_ty",
-      "id": "coerce-compiled-value-to-target-type.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 772,
+      "line": 2627,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 25,
-        "end_line": 772,
+        "end_line": 2627,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 772
+        "start_line": 2627
       },
-      "symbol": "coerce_compiled_value_to_target_type",
+      "symbol": "collect_expr_assigned_identifier_names",
       "tags": [
         "bitwise",
         "bounds",
-        "overflow"
+        "pointer"
       ],
-      "text": "if src_ty == target_ty {",
+      "text": "if let Some(end) = end {",
       "variables": [
-        "src_ty",
-        "target_ty"
+        "Some",
+        "end",
+        "let"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "target_ty == \"void\"",
-      "id": "coerce-compiled-value-to-target-type.guard-condition.2",
+      "expression": "let Some(next) = next.as_deref()",
+      "id": "collect-pointer-let-types-from-else-branch.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 776,
+      "line": 717,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 25,
-        "end_line": 776,
+        "end_col": 38,
+        "end_line": 717,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 776
+        "start_line": 717
       },
-      "symbol": "coerce_compiled_value_to_target_type",
+      "symbol": "collect_pointer_let_types_from_else_branch",
       "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
+        "bounds"
       ],
-      "text": "if target_ty == \"void\" {",
+      "text": "if let Some(next) = next.as_deref() {",
       "variables": [
-        "target_ty",
-        "void"
+        "Some",
+        "as_deref",
+        "let",
+        "next"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "matches!(target_ty, \"i64\" | \"i32\" | \"i8\" | \"i1\" | \"double\")",
-      "id": "coerce-compiled-value-to-target-type.guard-condition.3",
+      "expression": "let Some(rest) = rest",
+      "id": "collect-pointer-let-types-from-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 780,
+      "line": 777,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 65,
-        "end_line": 780,
+        "end_col": 27,
+        "end_line": 777,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 780
+        "start_line": 777
       },
-      "symbol": "coerce_compiled_value_to_target_type",
+      "symbol": "collect_pointer_let_types_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(rest) = rest {",
+      "variables": [
+        "Some",
+        "let",
+        "rest"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(start) = start.as_deref()",
+      "id": "collect-pointer-let-types-from-expr.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 800,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 800,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 800
+      },
+      "symbol": "collect_pointer_let_types_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(start) = start.as_deref() {",
+      "variables": [
+        "Some",
+        "as_deref",
+        "let",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(end) = end.as_deref()",
+      "id": "collect-pointer-let-types-from-expr.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 803,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 803,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 803
+      },
+      "symbol": "collect_pointer_let_types_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(end) = end.as_deref() {",
+      "variables": [
+        "Some",
+        "as_deref",
+        "end",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(else_branch) = else_branch.as_deref()",
+      "id": "collect-pointer-let-types-from-expr.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 815,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 815,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 815
+      },
+      "symbol": "collect_pointer_let_types_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(else_branch) = else_branch.as_deref() {",
+      "variables": [
+        "Some",
+        "as_deref",
+        "else_branch",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(guard) = &arm.guard",
+      "id": "collect-pointer-let-types-from-expr.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 824,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 824,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 824
+      },
+      "symbol": "collect_pointer_let_types_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(guard) = &arm.guard {",
+      "variables": [
+        "Some",
+        "arm",
+        "guard",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Expr::SendMsg { target, .. } = expr",
+      "id": "collect-pointer-let-types-from-expr.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 857,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 857,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 857
+      },
+      "symbol": "collect_pointer_let_types_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Expr::SendMsg { target, .. } = expr {",
+      "variables": [
+        "Expr",
+        "SendMsg",
+        "expr",
+        "let",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(value) = value.as_deref()",
+      "id": "collect-pointer-let-types-from-expr.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 878,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 878,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 878
+      },
+      "symbol": "collect_pointer_let_types_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(value) = value.as_deref() {",
+      "variables": [
+        "Some",
+        "as_deref",
+        "let",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(items) = &module.inline",
+      "id": "collect-pointer-let-types-from-item.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 652,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 652,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 652
+      },
+      "symbol": "collect_pointer_let_types_from_item",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(items) = &module.inline {",
+      "variables": [
+        "Some",
+        "inline",
+        "items",
+        "let",
+        "module"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(original_ty) = ty",
+      "id": "collect-pointer-let-types-from-stmt.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 679,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 679,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 679
+      },
+      "symbol": "collect_pointer_let_types_from_stmt",
       "tags": [
         "bitwise",
         "bounds",
         "overflow"
       ],
-      "text": "if matches!(target_ty, \"i64\" | \"i32\" | \"i8\" | \"i1\" | \"double\") {",
+      "text": "if let Some(original_ty) = ty {",
       "variables": [
-        "double",
-        "i1",
-        "i32",
-        "i64",
-        "i8",
+        "Some",
+        "let",
+        "original_ty",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(original_ty, Type::Ptr { .. } | Type::Ref { .. })",
+      "id": "collect-pointer-let-types-from-stmt.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 680,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 64,
+        "end_line": 680,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 680
+      },
+      "symbol": "collect_pointer_let_types_from_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if matches!(original_ty, Type::Ptr { .. } | Type::Ref { .. }) {",
+      "variables": [
+        "Ptr",
+        "Ref",
+        "Type",
         "matches",
-        "target_ty"
+        "original_ty"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "target_ty.ends_with('*')",
-      "id": "coerce-compiled-value-to-target-type.guard-condition.4",
+      "expression": "let Some(value) = value",
+      "id": "collect-pointer-let-types-from-stmt.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 785,
+      "line": 685,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 30,
-        "end_line": 785,
+        "end_col": 29,
+        "end_line": 685,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 785
+        "start_line": 685
       },
-      "symbol": "coerce_compiled_value_to_target_type",
+      "symbol": "collect_pointer_let_types_from_stmt",
       "tags": [
         "bitwise",
         "bounds",
         "overflow"
       ],
-      "text": "if target_ty.ends_with('*') {",
+      "text": "if let Some(value) = value {",
       "variables": [
-        "ends_with",
-        "target_ty"
+        "Some",
+        "let",
+        "value"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "src_ty.ends_with('*')",
-      "id": "coerce-compiled-value-to-target-type.guard-condition.5",
+      "expression": "let Some(value) = value",
+      "id": "collect-pointer-let-types-from-stmt.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 786,
+      "line": 691,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 27,
-        "end_line": 786,
+        "end_col": 29,
+        "end_line": 691,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 786
+        "start_line": 691
       },
-      "symbol": "coerce_compiled_value_to_target_type",
+      "symbol": "collect_pointer_let_types_from_stmt",
       "tags": [
         "bitwise",
         "bounds",
         "overflow"
       ],
-      "text": "if src_ty.ends_with('*') {",
+      "text": "if let Some(value) = value {",
       "variables": [
-        "ends_with",
-        "src_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "src_ty.ends_with('*') && target_ty == \"i64\"",
-      "id": "coerce-compiled-value-to-target-type.guard-condition.6",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 804,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 49,
-        "end_line": 804,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 804
-      },
-      "symbol": "coerce_compiled_value_to_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if src_ty.ends_with('*') && target_ty == \"i64\" {",
-      "variables": [
-        "ends_with",
-        "i64",
-        "src_ty",
-        "target_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "src_ty.starts_with('%') && target_ty.starts_with('%')",
-      "id": "coerce-compiled-value-to-target-type.guard-condition.7",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 810,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 59,
-        "end_line": 810,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 810
-      },
-      "symbol": "coerce_compiled_value_to_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if src_ty.starts_with('%') && target_ty.starts_with('%') {",
-      "variables": [
-        "src_ty",
-        "starts_with",
-        "target_ty"
+        "Some",
+        "let",
+        "value"
       ]
     },
     {
@@ -797,15 +1148,15 @@
       "id": "collect-program-tuple-types.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 343,
+      "line": 1204,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 43,
-        "end_line": 343,
+        "end_line": 1204,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 343
+        "start_line": 1204
       },
       "symbol": "collect_program_tuple_types",
       "tags": [
@@ -829,15 +1180,15 @@
       "id": "collect-program-tuple-types.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 352,
+      "line": 1213,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 44,
-        "end_line": 352,
+        "end_line": 1213,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 352
+        "start_line": 1213
       },
       "symbol": "collect_program_tuple_types",
       "tags": [
@@ -861,15 +1212,15 @@
       "id": "collect-program-tuple-types.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 368,
+      "line": 1229,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 47,
-        "end_line": 368,
+        "end_line": 1229,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 368
+        "start_line": 1229
       },
       "symbol": "collect_program_tuple_types",
       "tags": [
@@ -893,15 +1244,15 @@
       "id": "collect-program-tuple-types.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 382,
+      "line": 1243,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 50,
-        "end_line": 382,
+        "end_line": 1243,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 382
+        "start_line": 1243
       },
       "symbol": "collect_program_tuple_types",
       "tags": [
@@ -925,15 +1276,15 @@
       "id": "collect-program-tuple-types.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 425,
+      "line": 1286,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 41,
-        "end_line": 425,
+        "end_line": 1286,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 425
+        "start_line": 1286
       },
       "symbol": "collect_program_tuple_types",
       "tags": [
@@ -952,2023 +1303,267 @@
     {
       "active": true,
       "confidence": "high",
-      "expression": "let Some((addr, ty)) = self.locals.get(name).cloned()",
-      "id": "compile-addressable-ptr.guard-condition.1",
+      "expression": "witness.storage_llvm_ty == witness.storage_element_ty",
+      "id": "compile-ephemeral-storage-i8-pointer.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2047,
+      "line": 1612,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 59,
-        "end_line": 2047,
+        "end_line": 1612,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 2047
+        "start_line": 1612
       },
-      "symbol": "compile_addressable_ptr",
+      "symbol": "compile_ephemeral_storage_i8_pointer",
       "tags": [
         "bitwise",
         "bounds",
         "overflow",
         "pointer"
       ],
-      "text": "if let Some((addr, ty)) = self.locals.get(name).cloned() {",
+      "text": "if witness.storage_llvm_ty == witness.storage_element_ty {",
       "variables": [
-        "Some",
-        "addr",
-        "cloned",
-        "get",
-        "let",
-        "locals",
-        "name",
-        "self",
-        "ty"
+        "storage_element_ty",
+        "storage_llvm_ty",
+        "witness"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "let Some(struct_name) = self.ptr_struct_name(&obj_ty)",
-      "id": "compile-addressable-ptr.guard-condition.2",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "id": "compile-ephemeral-storage-i8-pointer.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2066,
+      "line": 1666,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 59,
-        "end_line": 2066,
+        "end_col": 112,
+        "end_line": 1666,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 2066
+        "start_line": 1666
       },
-      "symbol": "compile_addressable_ptr",
+      "symbol": "compile_ephemeral_storage_i8_pointer",
       "tags": [
         "bitwise",
         "bounds",
         "overflow",
         "pointer"
       ],
-      "text": "if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {",
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
       "variables": [
-        "Some",
-        "let",
-        "obj_ty",
-        "ptr_struct_name",
-        "self",
-        "struct_name"
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_index_ptr",
+        "__kain_ptr_offset",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "obj_ty == \"i8*\"",
-      "id": "compile-addressable-ptr.guard-condition.3",
+      "expression": "witness.storage_element_ty != llvm_ty",
+      "id": "compile-ephemeral-typed-memory-pointer.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2115,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2115,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2115
-      },
-      "symbol": "compile_addressable_ptr",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if obj_ty == \"i8*\" {",
-      "variables": [
-        "i8",
-        "obj_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "future_ty != \"i8*\"",
-      "id": "compile-await-for-target-type.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1207,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 1207,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1207
-      },
-      "symbol": "compile_await_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if future_ty != \"i8*\" {",
-      "variables": [
-        "future_ty",
-        "i8"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "!info.requires_runtime_init",
-      "id": "compile-const-initializer.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2829,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 33,
-        "end_line": 2829,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2829
-      },
-      "symbol": "compile_const_initializer",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if !info.requires_runtime_init {",
-      "variables": [
-        "info",
-        "requires_runtime_init"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(return_type) = &converge.ast.return_type",
-      "id": "compile-converge.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3875,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 55,
-        "end_line": 3875,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3875
-      },
-      "symbol": "compile_converge",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if let Some(return_type) = &converge.ast.return_type {",
-      "variables": [
-        "Some",
-        "ast",
-        "converge",
-        "let",
-        "return_type"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "ret_type == \"void\"",
-      "id": "compile-converge.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3900,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 3900,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3900
-      },
-      "symbol": "compile_converge",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if ret_type == \"void\" {",
-      "variables": [
-        "ret_type",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "self.native_entanglements.is_empty()",
-      "id": "compile-entangle-registration-function.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3664,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 42,
-        "end_line": 3664,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3664
-      },
-      "symbol": "compile_entangle_registration_function",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if self.native_entanglements.is_empty() {",
-      "variables": [
-        "is_empty",
-        "native_entanglements",
-        "self"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "boxed_ty == \"i8*\"",
-      "id": "compile-expr-for-target-type.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 661,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 23,
-        "end_line": 661,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 661
-      },
-      "symbol": "compile_expr_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if boxed_ty == \"i8*\" {",
-      "variables": [
-        "boxed_ty",
-        "i8"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "method == \"expect\" && args.len() != 1",
-      "id": "compile-expr-for-target-type.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 662,
+      "line": 1710,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 43,
-        "end_line": 662,
+        "end_line": 1710,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 662
+        "start_line": 1710
       },
-      "symbol": "compile_expr_for_target_type",
+      "symbol": "compile_ephemeral_typed_memory_pointer",
       "tags": [
         "bitwise",
         "bounds",
-        "overflow"
+        "overflow",
+        "pointer"
       ],
-      "text": "if method == \"expect\" && args.len() != 1 {",
+      "text": "if witness.storage_element_ty != llvm_ty {",
       "variables": [
-        "args",
-        "expect",
-        "len",
-        "method"
+        "llvm_ty",
+        "storage_element_ty",
+        "witness"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "method == \"unwrap\" && !args.is_empty()",
-      "id": "compile-expr-for-target-type.guard-condition.3",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "id": "compile-ephemeral-typed-memory-pointer.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 668,
+      "line": 1753,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 44,
-        "end_line": 668,
+        "end_col": 112,
+        "end_line": 1753,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 668
+        "start_line": 1753
       },
-      "symbol": "compile_expr_for_target_type",
+      "symbol": "compile_ephemeral_typed_memory_pointer",
       "tags": [
         "bitwise",
         "bounds",
-        "overflow"
+        "overflow",
+        "pointer"
       ],
-      "text": "if method == \"unwrap\" && !args.is_empty() {",
-      "variables": [
-        "args",
-        "is_empty",
-        "method",
-        "unwrap"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 1",
-      "id": "compile-expr-for-target-type.guard-condition.4",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 685,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 685,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 685
-      },
-      "symbol": "compile_expr_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if args.len() != 1 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "boxed_ty == \"i8*\"",
-      "id": "compile-expr-for-target-type.guard-condition.5",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 692,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 23,
-        "end_line": 692,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 692
-      },
-      "symbol": "compile_expr_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if boxed_ty == \"i8*\" {",
-      "variables": [
-        "boxed_ty",
-        "i8"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "payload_ty",
-          "default_ty"
-        ],
-        "op": "neq"
-      },
-      "expression": "payload_ty != default_ty",
-      "id": "compile-expr-for-target-type.guard-condition.6",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 727,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 30,
-        "end_line": 727,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 727
-      },
-      "symbol": "compile_expr_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if payload_ty != default_ty {",
-      "variables": [
-        "default_ty",
-        "payload_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "matches!(expr, Expr::None(_))",
-      "id": "compile-expr-for-target-type.guard-condition.7",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 750,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 35,
-        "end_line": 750,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 750
-      },
-      "symbol": "compile_expr_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if matches!(expr, Expr::None(_)) {",
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
       "variables": [
         "Expr",
-        "None",
+        "Ident",
         "_",
-        "expr",
-        "matches"
+        "__kain_index_ptr",
+        "__kain_ptr_offset",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "target_ty == \"i8*\"",
-      "id": "compile-expr-for-target-type.guard-condition.8",
+      "expression": "stride_literal != Some(access_width)",
+      "id": "compile-ephemeral-typed-memory-pointer.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 751,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 751,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 751
-      },
-      "symbol": "compile_expr_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if target_ty == \"i8*\" {",
-      "variables": [
-        "i8",
-        "target_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "Self::function_is_extern(func)",
-      "id": "compile-function.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 4088,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 36,
-        "end_line": 4088,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 4088
-      },
-      "symbol": "compile_function",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if Self::function_is_extern(func) {",
-      "variables": [
-        "Self",
-        "func",
-        "function_is_extern"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "ret_type == \"void\"",
-      "id": "compile-impl-method.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3594,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 3594,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3594
-      },
-      "symbol": "compile_impl_method",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if ret_type == \"void\" {",
-      "variables": [
-        "ret_type",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(pointee_ty) = obj_ty.strip_suffix('*')",
-      "id": "compile-index-address-from-compiled.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2017,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 53,
-        "end_line": 2017,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2017
-      },
-      "symbol": "compile_index_address_from_compiled",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if let Some(pointee_ty) = obj_ty.strip_suffix('*') {",
-      "variables": [
-        "Some",
-        "let",
-        "obj_ty",
-        "pointee_ty",
-        "strip_suffix"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(prop) = props.iter().find(|prop| prop.name == prop_name)",
-      "id": "compile-jsx.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2521,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 71,
-        "end_line": 2521,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2521
-      },
-      "symbol": "compile_jsx",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if let Some(prop) = props.iter().find(|prop| prop.name == prop_name) {",
-      "variables": [
-        "Some",
-        "find",
-        "iter",
-        "let",
-        "name",
-        "prop",
-        "prop_name",
-        "props"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 1",
-      "id": "compile-lowered-helper-call.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2138,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2138,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2138
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 1 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() < 1",
-      "id": "compile-lowered-helper-call.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2176,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 20,
-        "end_line": 2176,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2176
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() < 1 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 1",
-      "id": "compile-lowered-helper-call.guard-condition.3",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2212,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2212,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2212
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 1 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 2",
-      "id": "compile-lowered-helper-call.guard-condition.4",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2223,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2223,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2223
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 2 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 3",
-      "id": "compile-lowered-helper-call.guard-condition.5",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2234,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2234,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2234
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 3 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 3",
-      "id": "compile-lowered-helper-call.guard-condition.6",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2280,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2280,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2280
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 3 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 3",
-      "id": "compile-lowered-helper-call.guard-condition.7",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2322,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2322,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2322
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 3 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 3",
-      "id": "compile-lowered-helper-call.guard-condition.8",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2364,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2364,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2364
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 3 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 4",
-      "id": "compile-lowered-helper-call.guard-condition.9",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2398,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 2398,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2398
-      },
-      "symbol": "compile_lowered_helper_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if args.len() != 4 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let TypedItem::Struct(s) = item",
-      "id": "compile-module.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2910,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 37,
-        "end_line": 2910,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2910
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let TypedItem::Struct(s) = item {",
-      "variables": [
-        "Struct",
-        "TypedItem",
-        "item",
-        "let",
-        "s"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(res_ty) = s.field_types.get(&field.name)",
-      "id": "compile-module.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2914,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 55,
-        "end_line": 2914,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2914
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(res_ty) = s.field_types.get(&field.name) {",
-      "variables": [
-        "Some",
-        "field",
-        "field_types",
-        "get",
-        "let",
-        "name",
-        "res_ty",
-        "s"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(res_ty) = component.prop_types.get(&prop.name)",
-      "id": "compile-module.guard-condition.3",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2935,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 61,
-        "end_line": 2935,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2935
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(res_ty) = component.prop_types.get(&prop.name) {",
-      "variables": [
-        "Some",
-        "component",
-        "get",
-        "let",
-        "name",
-        "prop",
-        "prop_types",
-        "res_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(res_ty) = a.state_types.get(&state.name)",
-      "id": "compile-module.guard-condition.4",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2952,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 55,
-        "end_line": 2952,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2952
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(res_ty) = a.state_types.get(&state.name) {",
-      "variables": [
-        "Some",
-        "a",
-        "get",
-        "let",
-        "name",
-        "res_ty",
-        "state",
-        "state_types"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "!payload_types.is_empty()",
-      "id": "compile-module.guard-condition.5",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2997,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 31,
-        "end_line": 2997,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2997
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if !payload_types.is_empty() {",
-      "variables": [
-        "is_empty",
-        "payload_types"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let TypedItem::Function(func) = item",
-      "id": "compile-module.guard-condition.6",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3022,
+      "line": 1761,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 42,
-        "end_line": 3022,
+        "end_line": 1761,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 3022
+        "start_line": 1761
       },
-      "symbol": "compile_module",
+      "symbol": "compile_ephemeral_typed_memory_pointer",
       "tags": [
         "bitwise",
         "bounds",
         "overflow",
         "pointer"
       ],
-      "text": "if let TypedItem::Function(func) = item {",
+      "text": "if stride_literal != Some(access_width) {",
       "variables": [
-        "Function",
-        "TypedItem",
-        "func",
-        "item",
-        "let"
+        "Some",
+        "access_width",
+        "stride_literal"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "Self::function_is_extern(func)",
-      "id": "compile-module.guard-condition.7",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "id": "compile-non-ephemeral-typed-memory-pointer.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3026,
+      "line": 1562,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 36,
-        "end_line": 3026,
+        "end_col": 112,
+        "end_line": 1562,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 3026
+        "start_line": 1562
       },
-      "symbol": "compile_module",
+      "symbol": "compile_non_ephemeral_typed_memory_pointer",
       "tags": [
         "bitwise",
         "bounds",
         "overflow",
         "pointer"
       ],
-      "text": "if Self::function_is_extern(func) {",
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_index_ptr",
+        "__kain_ptr_offset",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stride_literal == Some(access_width as i64)",
+      "id": "compile-non-ephemeral-typed-memory-pointer.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1574,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 1574,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1574
+      },
+      "symbol": "compile_non_ephemeral_typed_memory_pointer",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if stride_literal == Some(access_width as i64) {",
+      "variables": [
+        "Some",
+        "access_width",
+        "as",
+        "i64",
+        "stride_literal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::converge_capability_is_cpu_selector(capability)",
+      "id": "converge-selector-static-eligibility.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1036,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 1036,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1036
+      },
+      "symbol": "converge_selector_static_eligibility",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if Self::converge_capability_is_cpu_selector(capability) {",
       "variables": [
         "Self",
-        "func",
-        "function_is_extern"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let kain_core::ast::Type::Named { name, .. } = &imp.ast.target_type",
-      "id": "compile-module.guard-condition.8",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3052,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 73,
-        "end_line": 3052,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3052
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let kain_core::ast::Type::Named { name, .. } = &imp.ast.target_type {",
-      "variables": [
-        "Named",
-        "Type",
-        "ast",
-        "imp",
-        "kain_core",
-        "let",
-        "name",
-        "target_type"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "ret_ty == \"void\"",
-      "id": "compile-module.guard-condition.9",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3059,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 22,
-        "end_line": 3059,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3059
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if ret_ty == \"void\" {",
-      "variables": [
-        "ret_ty",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "b >= 32 && b < 127 && b != b'\"' && b != b'\\\\'",
-      "id": "compile-module.guard-condition.10",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3112,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 51,
-        "end_line": 3112,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3112
-      },
-      "symbol": "compile_module",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if b >= 32 && b < 127 && b != b'\"' && b != b'\\\\' {",
-      "variables": [
-        "b"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(return_type) = explicit_return_type",
-      "id": "compile-named-callable.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3712,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 50,
-        "end_line": 3712,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3712
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(return_type) = explicit_return_type {",
-      "variables": [
-        "Some",
-        "explicit_return_type",
-        "let",
-        "return_type"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "ret_type == \"void\"",
-      "id": "compile-named-callable.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3719,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 3719,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3719
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if ret_type == \"void\" {",
-      "variables": [
-        "ret_type",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "dsl_expression": {
-        "args": [
-          "index",
-          0
-        ],
-        "op": "gt"
-      },
-      "expression": "index > 0",
-      "id": "compile-named-callable.guard-condition.3",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3729,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 15,
-        "end_line": 3729,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3729
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if index > 0 {",
-      "variables": [
-        "index"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "is_main && !self.native_entanglements.is_empty()",
-      "id": "compile-named-callable.guard-condition.4",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3742,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 54,
-        "end_line": 3742,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3742
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if is_main && !self.native_entanglements.is_empty() {",
-      "variables": [
-        "is_empty",
-        "is_main",
-        "native_entanglements",
-        "self"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(patch_name) = self.current_patch_name.clone()",
-      "id": "compile-named-callable.guard-condition.5",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3746,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 60,
-        "end_line": 3746,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3746
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(patch_name) = self.current_patch_name.clone() {",
-      "variables": [
-        "Some",
-        "clone",
-        "current_patch_name",
-        "let",
-        "patch_name",
-        "self"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(scope) = self.scopes.last_mut()",
-      "id": "compile-named-callable.guard-condition.6",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3764,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 46,
-        "end_line": 3764,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3764
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(scope) = self.scopes.last_mut() {",
-      "variables": [
-        "Some",
-        "last_mut",
-        "let",
-        "scope",
-        "scopes",
-        "self"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Err(error) = self.compile_block(body)",
-      "id": "compile-named-callable.guard-condition.7",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3769,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 47,
-        "end_line": 3769,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3769
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Err(error) = self.compile_block(body) {",
-      "variables": [
-        "Err",
-        "body",
-        "compile_block",
-        "error",
-        "let",
-        "self"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(patch_name) = self.current_patch_name.clone()",
-      "id": "compile-named-callable.guard-condition.8",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3780,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 60,
-        "end_line": 3780,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3780
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(patch_name) = self.current_patch_name.clone() {",
-      "variables": [
-        "Some",
-        "clone",
-        "current_patch_name",
-        "let",
-        "patch_name",
-        "self"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "ret_type == \"void\"",
-      "id": "compile-named-callable.guard-condition.9",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3789,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 3789,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3789
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if ret_type == \"void\" {",
-      "variables": [
-        "ret_type",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(return_type) = &converge.ast.return_type",
-      "id": "compile-named-callable.guard-condition.10",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3875,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 55,
-        "end_line": 3875,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3875
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if let Some(return_type) = &converge.ast.return_type {",
-      "variables": [
-        "Some",
-        "ast",
-        "converge",
-        "let",
-        "return_type"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "ret_type == \"void\"",
-      "id": "compile-named-callable.guard-condition.11",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 3900,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 3900,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 3900
-      },
-      "symbol": "compile_named_callable",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow",
-        "pointer"
-      ],
-      "text": "if ret_type == \"void\" {",
-      "variables": [
-        "ret_type",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 1",
-      "id": "compile-native-variant-function-call.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1146,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 1146,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1146
-      },
-      "symbol": "compile_native_variant_function_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if args.len() != 1 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "args.len() != 1",
-      "id": "compile-native-variant-function-call.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1163,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 1163,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1163
-      },
-      "symbol": "compile_native_variant_function_call",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if args.len() != 1 {",
-      "variables": [
-        "args",
-        "len"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "regs.is_empty()",
-      "id": "compile-pattern-condition.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1578,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 21,
-        "end_line": 1578,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1578
-      },
-      "symbol": "compile_pattern_condition",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if regs.is_empty() {",
-      "variables": [
-        "is_empty",
-        "regs"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "scrutinee_ty == \"i8*\"",
-      "id": "compile-pattern-condition.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1590,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 27,
-        "end_line": 1590,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1590
-      },
-      "symbol": "compile_pattern_condition",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if scrutinee_ty == \"i8*\" {",
-      "variables": [
-        "i8",
-        "scrutinee_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(tag) = native_tag",
-      "id": "compile-pattern-condition.guard-condition.3",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1598,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 32,
-        "end_line": 1598,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1598
-      },
-      "symbol": "compile_pattern_condition",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if let Some(tag) = native_tag {",
-      "variables": [
-        "Some",
-        "let",
-        "native_tag",
-        "tag"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "value_ty == \"void\"",
-      "id": "compile-payload-pointer-from-value.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1034,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 1034,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1034
-      },
-      "symbol": "compile_payload_pointer_from_value",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if value_ty == \"void\" {",
-      "variables": [
-        "value_ty",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "value_ty == \"i8*\"",
-      "id": "compile-payload-pointer-from-value.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1039,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 23,
-        "end_line": 1039,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1039
-      },
-      "symbol": "compile_payload_pointer_from_value",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if value_ty == \"i8*\" {",
-      "variables": [
-        "i8",
-        "value_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(lo) = start",
-      "id": "compile-range-check.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1487,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 26,
-        "end_line": 1487,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1487
-      },
-      "symbol": "compile_range_check",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if let Some(lo) = start {",
-      "variables": [
-        "Some",
-        "let",
-        "lo",
-        "start"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(hi) = end",
-      "id": "compile-range-check.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1507,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 24,
-        "end_line": 1507,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1507
-      },
-      "symbol": "compile_range_check",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if let Some(hi) = end {",
-      "variables": [
-        "Some",
-        "end",
-        "hi",
-        "let"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "checks.is_empty()",
-      "id": "compile-range-check.guard-condition.3",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1531,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 23,
-        "end_line": 1531,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1531
-      },
-      "symbol": "compile_range_check",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if checks.is_empty() {",
-      "variables": [
-        "checks",
-        "is_empty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "target_ty == \"void\"",
-      "id": "compile-tagged-payload-copy.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1070,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 25,
-        "end_line": 1070,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1070
-      },
-      "symbol": "compile_tagged_payload_copy",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if target_ty == \"void\" {",
-      "variables": [
-        "target_ty",
-        "void"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "boxed_ty != \"i8*\"",
-      "id": "compile-try-for-target-type.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1228,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 23,
-        "end_line": 1228,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1228
-      },
-      "symbol": "compile_try_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if boxed_ty != \"i8*\" {",
-      "variables": [
-        "boxed_ty",
-        "i8"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "self.current_return_type.as_deref() == Some(\"i8*\")",
-      "id": "compile-try-for-target-type.guard-condition.2",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1254,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 56,
-        "end_line": 1254,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1254
-      },
-      "symbol": "compile_try_for_target_type",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if self.current_return_type.as_deref() == Some(\"i8*\") {",
-      "variables": [
-        "Some",
-        "as_deref",
-        "current_return_type",
-        "i8",
-        "self"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "lhs_ty == \"i8*\" || rhs_ty == \"i8*\"",
-      "id": "compile-value-eq.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 1446,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 40,
-        "end_line": 1446,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 1446
-      },
-      "symbol": "compile_value_eq",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if lhs_ty == \"i8*\" || rhs_ty == \"i8*\" {",
-      "variables": [
-        "i8",
-        "lhs_ty",
-        "rhs_ty"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "info.requires_runtime_init",
-      "id": "emit-const-init-call-if-needed.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2878,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 32,
-        "end_line": 2878,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2878
-      },
-      "symbol": "emit_const_init_call_if_needed",
-      "tags": [
-        "bitwise",
-        "bounds"
-      ],
-      "text": "if info.requires_runtime_init {",
-      "variables": [
-        "info",
-        "requires_runtime_init"
+        "capability",
+        "converge_capability_is_cpu_selector"
       ]
     },
     {
@@ -2978,15 +1573,15 @@
       "id": "emit-entry-alloca.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 210,
+      "line": 901,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 56,
-        "end_line": 210,
+        "end_line": 901,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 210
+        "start_line": 901
       },
       "symbol": "emit_entry_alloca",
       "tags": [
@@ -3007,29 +1602,66 @@
     {
       "active": true,
       "confidence": "high",
-      "expression": "!self.native_entanglements.is_empty()",
-      "id": "emit-externs.guard-condition.1",
+      "expression": "let Some(preamble_offset) = self.entry_preamble_insert_offset",
+      "id": "emit-entry-alloca.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3383,
+      "line": 904,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 43,
-        "end_line": 3383,
+        "end_col": 67,
+        "end_line": 904,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 3383
+        "start_line": 904
       },
-      "symbol": "emit_externs",
+      "symbol": "emit_entry_alloca",
       "tags": [
+        "bitwise",
         "bounds",
-        "overflow"
+        "overflow",
+        "pointer"
       ],
-      "text": "if !self.native_entanglements.is_empty() {",
+      "text": "if let Some(preamble_offset) = self.entry_preamble_insert_offset {",
       "variables": [
-        "is_empty",
-        "native_entanglements",
+        "Some",
+        "entry_preamble_insert_offset",
+        "let",
+        "preamble_offset",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(offset) = self.entry_preamble_insert_offset",
+      "id": "emit-entry-preamble-line.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 914,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 58,
+        "end_line": 914,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 914
+      },
+      "symbol": "emit_entry_preamble_line",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(offset) = self.entry_preamble_insert_offset {",
+      "variables": [
+        "Some",
+        "entry_preamble_insert_offset",
+        "let",
+        "offset",
         "self"
       ]
     },
@@ -3040,15 +1672,15 @@
       "id": "emit-label.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 203,
+      "line": 893,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 22,
-        "end_line": 203,
+        "end_line": 893,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 203
+        "start_line": 893
       },
       "symbol": "emit_label",
       "tags": [
@@ -3064,94 +1696,575 @@
     {
       "active": true,
       "confidence": "high",
-      "expression": "let Some(patch_name) = self.current_patch_name.clone()",
-      "id": "emit-patch-record-i64.guard-condition.1",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "id": "expr-is-ephemeral-target-address.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1954,
+      "line": 2493,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 60,
-        "end_line": 1954,
+        "end_col": 112,
+        "end_line": 2493,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 1954
+        "start_line": 2493
       },
-      "symbol": "emit_patch_record_i64",
+      "symbol": "expr_is_ephemeral_target_address",
       "tags": [
         "bitwise",
         "bounds",
-        "overflow"
+        "pointer"
       ],
-      "text": "if let Some(patch_name) = self.current_patch_name.clone() {",
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_index_ptr",
+        "__kain_ptr_offset",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_mem_store\")",
+      "id": "expr-is-full-width-initial-store-on-target.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2940,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 81,
+        "end_line": 2940,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2940
+      },
+      "symbol": "expr_is_full_width_initial_store_on_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_mem_store\")",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_mem_store",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::expr_is_exact_target_pointer(pointer, target) =>",
+      "id": "expr-is-full-width-initial-store-on-target.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2951,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 58,
+        "end_line": 2951,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2951
+      },
+      "symbol": "expr_is_full_width_initial_store_on_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if Self::expr_is_exact_target_pointer(pointer, target) =>",
+      "variables": [
+        "Self",
+        "expr_is_exact_target_pointer",
+        "pointer",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"map_new\") && args.is_empty()",
+      "id": "expr-is-literal-map-seed.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3878,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 91,
+        "end_line": 3878,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3878
+      },
+      "symbol": "expr_is_literal_map_seed",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"map_new\") && args.is_empty()",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "args",
+        "as_ref",
+        "callee",
+        "is_empty",
+        "map_new",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"len\")",
+      "id": "expr-is-safe-fixed-array-use.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3501,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 68,
+        "end_line": 3501,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3501
+      },
+      "symbol": "expr_is_safe_fixed_array_use",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"len\")",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "callee",
+        "len",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::expr_is_exact_target_pointer(object, target)",
+      "id": "expr-is-safe-fixed-array-use.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3513,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 3513,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3513
+      },
+      "symbol": "expr_is_safe_fixed_array_use",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if Self::expr_is_exact_target_pointer(object, target) {",
+      "variables": [
+        "Self",
+        "expr_is_exact_target_pointer",
+        "object",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_mem_load\")",
+      "id": "expr-is-safe-for-ephemeral-local.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3115,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 82,
+        "end_line": 3115,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3115
+      },
+      "symbol": "expr_is_safe_for_ephemeral_local",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_mem_load\") {",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_mem_load",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::expr_matches_closed_shatter_field_projection(expr, target)",
+      "id": "expr-is-safe-stack-shatter-use.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3697,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 70,
+        "end_line": 3697,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3697
+      },
+      "symbol": "expr_is_safe_stack_shatter_use",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if Self::expr_matches_closed_shatter_field_projection(expr, target) {",
+      "variables": [
+        "Self",
+        "expr",
+        "expr_matches_closed_shatter_field_projection",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"len\")",
+      "id": "expr-is-safe-stack-shatter-use.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3703,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 68,
+        "end_line": 3703,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3703
+      },
+      "symbol": "expr_is_safe_stack_shatter_use",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"len\")",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "callee",
+        "len",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::expr_is_exact_target_pointer(object, target)",
+      "id": "expr-is-safe-stack-shatter-use.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3715,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 3715,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3715
+      },
+      "symbol": "expr_is_safe_stack_shatter_use",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if Self::expr_is_exact_target_pointer(object, target) {",
+      "variables": [
+        "Self",
+        "expr_is_exact_target_pointer",
+        "object",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "id": "forwardable-mem-pointer-key.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1841,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 112,
+        "end_line": 1841,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1841
+      },
+      "symbol": "forwardable_mem_pointer_key",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_index_ptr",
+        "__kain_ptr_offset",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_mem_load\")",
+      "id": "forwarded-mem-load-slot.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1863,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 80,
+        "end_line": 1863,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1863
+      },
+      "symbol": "forwarded_mem_load_slot",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_mem_load\")",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_mem_load",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "known_i64_bindings",
+        "role": "signed-int",
+        "type": "&HashMap<String, i64>"
+      },
+      "id": "helper-alloc-is-single-cell.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 2038,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 97,
+        "end_line": 2038,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2038
+      },
+      "symbol": "helper_alloc_is_single_cell",
+      "text": "fn helper_alloc_is_single_cell(expr: &Expr, known_i64_bindings: &HashMap<String, i64>) -> bool {",
+      "variables": [
+        "known_i64_bindings"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "stride_bytes",
+        "role": "stride-like",
+        "type": "i64"
+      },
+      "id": "helper-alloc-scalar-llvm-ty.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 2045,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 76,
+        "end_line": 2045,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2045
+      },
+      "symbol": "helper_alloc_scalar_llvm_ty",
+      "text": "fn helper_alloc_scalar_llvm_ty(stride_bytes: i64) -> Option<&'static str> {",
+      "variables": [
+        "stride_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "stride_bytes",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "helper-alloc-scalar-llvm-ty.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 2045,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 76,
+        "end_line": 2045,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2045
+      },
+      "symbol": "helper_alloc_scalar_llvm_ty",
+      "text": "fn helper_alloc_scalar_llvm_ty(stride_bytes: i64) -> Option<&'static str> {",
+      "variables": [
+        "stride_bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(scalar_ty) = scalar_ty",
+      "id": "helper-alloc-stack-storage-shape.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2095,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 2095,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2095
+      },
+      "symbol": "helper_alloc_stack_storage_shape",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(scalar_ty) = scalar_ty {",
       "variables": [
         "Some",
-        "clone",
-        "current_patch_name",
         "let",
-        "patch_name",
-        "self"
+        "scalar_ty"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "skip_list.contains(&name.as_str())",
-      "id": "emit-stdlib-externs.guard-condition.1",
+      "expression": "layout.element_count == 1",
+      "id": "helper-alloc-stack-storage-shape.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3430,
+      "line": 2096,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 40,
-        "end_line": 3430,
+        "end_col": 31,
+        "end_line": 2096,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 3430
+        "start_line": 2096
       },
-      "symbol": "emit_stdlib_externs",
+      "symbol": "helper_alloc_stack_storage_shape",
       "tags": [
         "bitwise",
         "bounds"
       ],
-      "text": "if skip_list.contains(&name.as_str()) {",
+      "text": "if layout.element_count == 1 {",
       "variables": [
-        "as_str",
-        "contains",
-        "name",
-        "skip_list"
+        "element_count",
+        "layout"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "self.defined_functions.contains(&name)",
-      "id": "emit-stdlib-externs.guard-condition.2",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_alloc\")",
+      "id": "helper-alloc-storage-layout-with-bindings.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3433,
+      "line": 2017,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 44,
-        "end_line": 3433,
+        "end_col": 77,
+        "end_line": 2017,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 3433
+        "start_line": 2017
       },
-      "symbol": "emit_stdlib_externs",
+      "symbol": "helper_alloc_storage_layout_with_bindings",
       "tags": [
         "bitwise",
         "bounds"
       ],
-      "text": "if self.defined_functions.contains(&name) {",
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"__kain_alloc\")",
       "variables": [
-        "contains",
-        "defined_functions",
-        "name",
-        "self"
+        "Expr",
+        "Ident",
+        "_",
+        "__kain_alloc",
+        "as_ref",
+        "callee",
+        "matches",
+        "name"
       ]
     },
     {
@@ -3159,113 +2272,392 @@
       "confidence": "high",
       "dsl_expression": {
         "args": [
-          "has_rc_fields"
+          {
+            "args": [
+              "element_count",
+              0
+            ],
+            "op": "le"
+          },
+          {
+            "args": [
+              "stride_bytes",
+              0
+            ],
+            "op": "le"
+          }
         ],
-        "op": "not"
+        "op": "or"
       },
-      "expression": "!has_rc_fields",
-      "id": "emit-struct-destructors.guard-condition.1",
+      "expression": "element_count <= 0 || stride_bytes <= 0",
+      "id": "helper-alloc-storage-layout-with-bindings.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 3464,
+      "line": 2023,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 20,
-        "end_line": 3464,
+        "end_col": 45,
+        "end_line": 2023,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 3464
+        "start_line": 2023
       },
-      "symbol": "emit_struct_destructors",
-      "tags": [
-        "bitwise",
-        "bounds",
-        "overflow"
-      ],
-      "text": "if !has_rc_fields {",
-      "variables": [
-        "has_rc_fields"
-      ]
-    },
-    {
-      "active": true,
-      "confidence": "high",
-      "expression": "let Some(return_type) = &func.ast.return_type",
-      "id": "function-codegen-signature.guard-condition.1",
-      "kind": "guard-condition",
-      "language": "rust",
-      "line": 2677,
-      "origin_class": "direct-guard",
-      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-      "span": {
-        "end_col": 51,
-        "end_line": 2677,
-        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
-        "start_col": 1,
-        "start_line": 2677
-      },
-      "symbol": "function_codegen_signature",
+      "symbol": "helper_alloc_storage_layout_with_bindings",
       "tags": [
         "bitwise",
         "bounds"
       ],
-      "text": "if let Some(return_type) = &func.ast.return_type {",
+      "text": "if element_count <= 0 || stride_bytes <= 0 {",
       "variables": [
-        "Some",
-        "ast",
-        "func",
-        "let",
-        "return_type"
+        "element_count",
+        "stride_bytes"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "self.struct_defs.contains_key(name)",
-      "id": "map-type.guard-condition.1",
+      "fact": {
+        "parameter": "bytes",
+        "role": "unsigned-int",
+        "type": "&[u8]"
+      },
+      "id": "kain-map-codegen-hash-bytes.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 225,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 225,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 225
+      },
+      "symbol": "kain_map_codegen_hash_bytes",
+      "text": "fn kain_map_codegen_hash_bytes(bytes: &[u8]) -> u64 {",
+      "variables": [
+        "bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "offset + 8 <= bytes.len()",
+      "id": "kain-map-codegen-hash-bytes.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 514,
+      "line": 231,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 41,
-        "end_line": 514,
+        "end_col": 34,
+        "end_line": 231,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 514
+        "start_line": 231
       },
-      "symbol": "map_type",
+      "symbol": "kain_map_codegen_hash_bytes",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while offset + 8 <= bytes.len() {",
+      "variables": [
+        "bytes",
+        "len",
+        "offset"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "remaining",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "remaining > 0",
+      "id": "kain-map-codegen-hash-bytes.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 241,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 241,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 241
+      },
+      "symbol": "kain_map_codegen_hash_bytes",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if remaining > 0 {",
+      "variables": [
+        "remaining"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "u64"
+      },
+      "id": "kain-map-codegen-mix-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 216,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 216,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 216
+      },
+      "symbol": "kain_map_codegen_mix_u64",
+      "text": "fn kain_map_codegen_mix_u64(mut value: u64) -> u64 {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "key",
+        "role": "unsigned-int",
+        "type": "&str) -> (u64, u64, u64"
+      },
+      "id": "kain-map-codegen-static-key-metadata.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 272,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 72,
+        "end_line": 272,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 272
+      },
+      "symbol": "kain_map_codegen_static_key_metadata",
+      "text": "fn kain_map_codegen_static_key_metadata(key: &str) -> (u64, u64, u64) {",
+      "variables": [
+        "key"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "u64"
+      },
+      "id": "llvm-i64-literal-for-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 965,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 965,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 965
+      },
+      "symbol": "llvm_i64_literal_for_u64",
+      "text": "fn llvm_i64_literal_for_u64(value: u64) -> String {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(value) = std::env::var(\"KAIN_LLVM_ORCHESTRATE_TRACE\")",
+      "id": "llvm-orchestrate-trace-enabled.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 316,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 316,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 316
+      },
+      "symbol": "llvm_orchestrate_trace_enabled",
       "tags": [
         "bitwise",
         "bounds",
         "overflow"
       ],
-      "text": "if self.struct_defs.contains_key(name) {",
+      "text": "if let Ok(value) = std::env::var(\"KAIN_LLVM_ORCHESTRATE_TRACE\") {",
       "variables": [
-        "contains_key",
+        "KAIN_LLVM_ORCHESTRATE_TRACE",
+        "Ok",
+        "env",
+        "let",
+        "std",
+        "value",
+        "var"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "value.eq_ignore_ascii_case(\"1\")",
+      "id": "llvm-orchestrate-trace-enabled.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 318,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 318,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 318
+      },
+      "symbol": "llvm_orchestrate_trace_enabled",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if value.eq_ignore_ascii_case(\"1\")",
+      "variables": [
+        "eq_ignore_ascii_case",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "value.eq_ignore_ascii_case(\"0\")",
+      "id": "llvm-orchestrate-trace-enabled.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 325,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 325,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 325
+      },
+      "symbol": "llvm_orchestrate_trace_enabled",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if value.eq_ignore_ascii_case(\"0\")",
+      "variables": [
+        "eq_ignore_ascii_case",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::ast_type_is_self_alias(ty)",
+      "id": "map-impl-type-from-ast.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1382,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 1382,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1382
+      },
+      "symbol": "map_impl_type_from_ast",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if Self::ast_type_is_self_alias(ty) {",
+      "variables": [
+        "Self",
+        "ast_type_is_self_alias",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(tuple_ty) = self.builtin_named_tuple_storage_type(name)",
+      "id": "map-type-from-str.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1364,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 70,
+        "end_line": 1364,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1364
+      },
+      "symbol": "map_type_from_str",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(tuple_ty) = self.builtin_named_tuple_storage_type(name) {",
+      "variables": [
+        "Some",
+        "builtin_named_tuple_storage_type",
+        "let",
         "name",
         "self",
-        "struct_defs"
+        "tuple_ty"
       ]
     },
     {
       "active": true,
       "confidence": "high",
       "expression": "self.struct_defs.contains_key(name)",
-      "id": "map-type-from-str.guard-condition.1",
+      "id": "map-type-from-str.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 495,
+      "line": 1368,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 41,
-        "end_line": 495,
+        "end_line": 1368,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 495
+        "start_line": 1368
       },
       "symbol": "map_type_from_str",
       "tags": [
@@ -3284,124 +2676,579 @@
     {
       "active": true,
       "confidence": "high",
-      "expression": "self.world_globals.contains_key(struct_name)",
-      "id": "native-world-field-path.guard-condition.1",
+      "expression": "self.ephemeral_owned_pointer_locals.contains_key(name)",
+      "id": "ownership-pointer-provenance-for-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 1932,
+      "line": 1428,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 50,
-        "end_line": 1932,
+        "end_col": 60,
+        "end_line": 1428,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 1932
+        "start_line": 1428
       },
-      "symbol": "native_world_field_path",
+      "symbol": "ownership_pointer_provenance_for_expr",
       "tags": [
-        "bounds"
+        "bitwise",
+        "bounds",
+        "pointer"
       ],
-      "text": "if self.world_globals.contains_key(struct_name) {",
+      "text": "if self.ephemeral_owned_pointer_locals.contains_key(name) {",
       "variables": [
         "contains_key",
-        "self",
-        "struct_name",
-        "world_globals"
+        "ephemeral_owned_pointer_locals",
+        "name",
+        "self"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "let Some(initializer) = initializer",
-      "id": "register-const-global.guard-condition.1",
+      "expression": "args.is_empty()",
+      "id": "ownership-pointer-provenance-for-expr.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 2794,
+      "line": 1445,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 41,
-        "end_line": 2794,
+        "end_col": 21,
+        "end_line": 1445,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 2794
+        "start_line": 1445
       },
-      "symbol": "register_const_global",
+      "symbol": "ownership_pointer_provenance_for_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if args.is_empty() {",
+      "variables": [
+        "args",
+        "is_empty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\"",
+      "id": "ownership-pointer-provenance-for-expr.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1454,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 63,
+        "end_line": 1454,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1454
+      },
+      "symbol": "ownership_pointer_provenance_for_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if (name == \"__kain_ptr_offset\" || name == \"__kain_index_ptr\")",
+      "variables": [
+        "__kain_index_ptr",
+        "__kain_ptr_offset",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "known_i64_bindings",
+        "role": "signed-int",
+        "type": "&HashMap<String, i64>"
+      },
+      "id": "positive-i64-literal.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 2163,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 97,
+        "end_line": 2163,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2163
+      },
+      "symbol": "positive_i64_literal",
+      "text": "fn positive_i64_literal(expr: &Expr, known_i64_bindings: &HashMap<String, i64>) -> Option<i64> {",
+      "variables": [
+        "known_i64_bindings"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "signed-int",
+        "type": "i64"
+      },
+      "id": "positive-power-of-two-shift.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 2159,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 2159,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2159
+      },
+      "symbol": "positive_power_of_two_shift",
+      "text": "fn positive_power_of_two_shift(value: i64) -> Option<u32> {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!matches!(",
+      "id": "preferred-ephemeral-storage-element-llvm-ty.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2065,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 2065,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2065
+      },
+      "symbol": "preferred_ephemeral_storage_element_llvm_ty",
       "tags": [
         "bitwise",
         "bounds"
       ],
-      "text": "if let Some(initializer) = initializer {",
+      "text": "if !matches!(",
       "variables": [
-        "Some",
-        "initializer",
-        "let"
+        "matches"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "let TypedItem::Const(constant) = item",
-      "id": "register-const-globals.guard-condition.1",
+      "expression": "let Some(scope) = self.forwarded_mem_slot_scopes.last_mut()",
+      "id": "record-forwarded-mem-store.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1897,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 65,
+        "end_line": 1897,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1897
+      },
+      "symbol": "record_forwarded_mem_store",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(scope) = self.forwarded_mem_slot_scopes.last_mut() {",
+      "variables": [
+        "Some",
+        "forwarded_mem_slot_scopes",
+        "last_mut",
+        "let",
+        "scope",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "provenance == OwnershipPointerProvenance::HelperOwned",
+      "id": "record-helper-owned-pointer-local.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1417,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 1417,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1417
+      },
+      "symbol": "record_helper_owned_pointer_local",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if provenance == OwnershipPointerProvenance::HelperOwned {",
+      "variables": [
+        "HelperOwned",
+        "OwnershipPointerProvenance",
+        "provenance"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(name) = Self::stmt_assigned_identifier_name(stmt)",
+      "id": "record-stmt-i64-literal-effects.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2780,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 64,
+        "end_line": 2780,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2780
+      },
+      "symbol": "record_stmt_i64_literal_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(name) = Self::stmt_assigned_identifier_name(stmt) {",
+      "variables": [
+        "Self",
+        "Some",
+        "let",
+        "name",
+        "stmt",
+        "stmt_assigned_identifier_name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "scope.remove(name).is_some()",
+      "id": "record-stmt-i64-literal-effects.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2782,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 2782,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2782
+      },
+      "symbol": "record_stmt_i64_literal_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if scope.remove(name).is_some() {",
+      "variables": [
+        "is_some",
+        "name",
+        "remove",
+        "scope"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings)",
+      "id": "record-stmt-i64-literal-effects.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2789,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 89,
+        "end_line": 2789,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2789
+      },
+      "symbol": "record_stmt_i64_literal_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some((name, literal)) = Self::stmt_binds_i64_literal(stmt, &known_i64_bindings) {",
+      "variables": [
+        "Self",
+        "Some",
+        "known_i64_bindings",
+        "let",
+        "literal",
+        "name",
+        "stmt",
+        "stmt_binds_i64_literal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(scope) = self.known_i64_literal_scopes.last_mut()",
+      "id": "record-stmt-i64-literal-effects.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2790,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 64,
+        "end_line": 2790,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2790
+      },
+      "symbol": "record_stmt_i64_literal_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(scope) = self.known_i64_literal_scopes.last_mut() {",
+      "variables": [
+        "Some",
+        "known_i64_literal_scopes",
+        "last_mut",
+        "let",
+        "scope",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.current_scope_marks_literal_map_candidate(name)",
+      "id": "record-stmt-literal-map-effects.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2804,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 2804,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2804
+      },
+      "symbol": "record_stmt_literal_map_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if self.current_scope_marks_literal_map_candidate(name)",
+      "variables": [
+        "current_scope_marks_literal_map_candidate",
+        "name",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"map_set\")",
+      "id": "record-stmt-literal-map-effects.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
       "line": 2812,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 43,
+        "end_col": 72,
         "end_line": 2812,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
         "start_line": 2812
       },
-      "symbol": "register_const_globals",
+      "symbol": "record_stmt_literal_map_effects",
       "tags": [
         "bitwise",
         "bounds"
       ],
-      "text": "if let TypedItem::Const(constant) = item {",
+      "text": "if matches!(callee.as_ref(), Expr::Ident(name, _) if name == \"map_set\")",
       "variables": [
-        "Const",
-        "TypedItem",
-        "constant",
-        "item",
-        "let"
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "callee",
+        "map_set",
+        "matches",
+        "name"
       ]
     },
     {
       "active": true,
       "confidence": "high",
-      "expression": "items.iter().any(|item| matches!(item, TypedItem::Const(_)))",
-      "id": "register-const-globals.guard-condition.2",
+      "expression": "let Expr::Ident(map_name, _) = &args[0].value",
+      "id": "record-stmt-literal-map-effects.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2815,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 2815,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2815
+      },
+      "symbol": "record_stmt_literal_map_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Expr::Ident(map_name, _) = &args[0].value {",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "args",
+        "let",
+        "map_name",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(local) = self.sealed_literal_map_locals.get_mut(map_name)",
+      "id": "record-stmt-literal-map-effects.guard-condition.4",
       "kind": "guard-condition",
       "language": "rust",
       "line": 2816,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
-        "end_col": 66,
+        "end_col": 72,
         "end_line": 2816,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
         "start_line": 2816
       },
-      "symbol": "register_const_globals",
+      "symbol": "record_stmt_literal_map_effects",
       "tags": [
         "bitwise",
         "bounds"
       ],
-      "text": "if items.iter().any(|item| matches!(item, TypedItem::Const(_))) {",
+      "text": "if let Some(local) = self.sealed_literal_map_locals.get_mut(map_name) {",
       "variables": [
-        "Const",
-        "TypedItem",
-        "_",
-        "any",
-        "item",
-        "items",
-        "iter",
-        "matches"
+        "Some",
+        "get_mut",
+        "let",
+        "local",
+        "map_name",
+        "sealed_literal_map_locals",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let (Some(key), Some(value)) = (",
+      "id": "record-stmt-literal-map-effects.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2817,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 2817,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2817
+      },
+      "symbol": "record_stmt_literal_map_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let (Some(key), Some(value)) = (",
+      "variables": [
+        "Some",
+        "key",
+        "let",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "is_nonnegative",
+      "expression": "is_nonnegative",
+      "id": "record-stmt-nonnegative-i64-effects.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2855,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 2855,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2855
+      },
+      "symbol": "record_stmt_nonnegative_i64_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if is_nonnegative {",
+      "variables": [
+        "is_nonnegative"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(scope) = self.known_nonnegative_i64_scopes.last_mut()",
+      "id": "record-stmt-nonnegative-i64-effects.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2856,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 68,
+        "end_line": 2856,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2856
+      },
+      "symbol": "record_stmt_nonnegative_i64_effects",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(scope) = self.known_nonnegative_i64_scopes.last_mut() {",
+      "variables": [
+        "Some",
+        "known_nonnegative_i64_scopes",
+        "last_mut",
+        "let",
+        "scope",
+        "self"
       ]
     },
     {
@@ -3411,15 +3258,15 @@
       "id": "register-tuple-struct.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 267,
+      "line": 1122,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 43,
-        "end_line": 267,
+        "end_line": 1122,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 267
+        "start_line": 1122
       },
       "symbol": "register_tuple_struct",
       "tags": [
@@ -3438,19 +3285,340 @@
     {
       "active": true,
       "confidence": "high",
+      "dsl_expression": "field_tys",
+      "expression": "field_tys",
+      "id": "register-tuple-struct.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1129,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 13,
+        "end_line": 1129,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1129
+      },
+      "symbol": "register_tuple_struct",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if field_tys",
+      "variables": [
+        "field_tys"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::debug_mentions_identifier(stmt, target)",
+      "id": "remaining-statements-allow-ephemeral-zero-init-elision.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3070,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 3070,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3070
+      },
+      "symbol": "remaining_statements_allow_ephemeral_zero_init_elision",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if Self::debug_mentions_identifier(stmt, target) {",
+      "variables": [
+        "Self",
+        "debug_mentions_identifier",
+        "stmt",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "saw_decay",
+      "expression": "saw_decay",
+      "id": "remaining-statements-preserve-ephemeral-contract.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3322,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 15,
+        "end_line": 3322,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3322
+      },
+      "symbol": "remaining_statements_preserve_ephemeral_contract",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if saw_decay {",
+      "variables": [
+        "saw_decay"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "Self::debug_mentions_identifier(stmt, target)",
+      "id": "remaining-statements-preserve-ephemeral-contract.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3323,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 3323,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3323
+      },
+      "symbol": "remaining_statements_preserve_ephemeral_contract",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if Self::debug_mentions_identifier(stmt, target) {",
+      "variables": [
+        "Self",
+        "debug_mentions_identifier",
+        "stmt",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!Self::expr_is_safe_for_ephemeral_local(body, target)",
+      "id": "remaining-statements-preserve-ephemeral-contract.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3341,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 3341,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3341
+      },
+      "symbol": "remaining_statements_preserve_ephemeral_contract",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if !Self::expr_is_safe_for_ephemeral_local(body, target) {",
+      "variables": [
+        "Self",
+        "body",
+        "expr_is_safe_for_ephemeral_local",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!Self::expr_is_safe_for_ephemeral_local(body, target)",
+      "id": "remaining-statements-preserve-ephemeral-contract.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3350,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 3350,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3350
+      },
+      "symbol": "remaining_statements_preserve_ephemeral_contract",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if !Self::expr_is_safe_for_ephemeral_local(body, target) {",
+      "variables": [
+        "Self",
+        "body",
+        "expr_is_safe_for_ephemeral_local",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!Self::expr_is_safe_for_ephemeral_local(body, target)",
+      "id": "remaining-statements-preserve-ephemeral-contract.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3363,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 3363,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3363
+      },
+      "symbol": "remaining_statements_preserve_ephemeral_contract",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if !Self::expr_is_safe_for_ephemeral_local(body, target) {",
+      "variables": [
+        "Self",
+        "body",
+        "expr_is_safe_for_ephemeral_local",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!Self::expr_is_safe_for_ephemeral_local(body, target)",
+      "id": "remaining-statements-preserve-ephemeral-contract.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3376,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 3376,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3376
+      },
+      "symbol": "remaining_statements_preserve_ephemeral_contract",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if !Self::expr_is_safe_for_ephemeral_local(body, target) {",
+      "variables": [
+        "Self",
+        "body",
+        "expr_is_safe_for_ephemeral_local",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!Self::stmt_is_safe_for_ephemeral_local(stmt, target)",
+      "id": "remaining-statements-preserve-ephemeral-contract.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3381,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 3381,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 3381
+      },
+      "symbol": "remaining_statements_preserve_ephemeral_contract",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if !Self::stmt_is_safe_for_ephemeral_local(stmt, target) {",
+      "variables": [
+        "Self",
+        "stmt",
+        "stmt_is_safe_for_ephemeral_local",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "known_i64_bindings",
+        "role": "signed-int",
+        "type": "&HashMap<String, i64>"
+      },
+      "id": "resolve-i64-literal.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 2114,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 96,
+        "end_line": 2114,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 2114
+      },
+      "symbol": "resolve_i64_literal",
+      "text": "fn resolve_i64_literal(expr: &Expr, known_i64_bindings: &HashMap<String, i64>) -> Option<i64> {",
+      "variables": [
+        "known_i64_bindings"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "natural",
+          1
+        ],
+        "op": "le"
+      },
+      "expression": "natural <= 1",
+      "id": "safe-memory-access-alignment.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1499,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 18,
+        "end_line": 1499,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1499
+      },
+      "symbol": "safe_memory_access_alignment",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if natural <= 1 {",
+      "variables": [
+        "natural"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "expression": "sanitized.is_empty()",
       "id": "sanitize-symbol-fragment.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 245,
+      "line": 949,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
       "span": {
         "end_col": 26,
-        "end_line": 245,
+        "end_line": 949,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
         "start_col": 1,
-        "start_line": 245
+        "start_line": 949
       },
       "symbol": "sanitize_symbol_fragment",
       "tags": [
@@ -3462,10 +3630,154 @@
         "is_empty",
         "sanitized"
       ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "name != \"__kain_ptr_offset\" && name != \"__kain_index_ptr\"",
+      "id": "scalar-forward-key.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1804,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 63,
+        "end_line": 1804,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1804
+      },
+      "symbol": "scalar_forward_key",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if name != \"__kain_ptr_offset\" && name != \"__kain_index_ptr\" {",
+      "variables": [
+        "__kain_index_ptr",
+        "__kain_ptr_offset",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "usize"
+      },
+      "id": "stdlib-function-uses-borrowed-string-param.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 196,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 82,
+        "end_line": 196,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 196
+      },
+      "symbol": "stdlib_function_uses_borrowed_string_param",
+      "text": "fn stdlib_function_uses_borrowed_string_param(name: &str, index: usize) -> bool {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "index",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "stdlib-function-uses-borrowed-string-param.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 196,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 82,
+        "end_line": 196,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 196
+      },
+      "symbol": "stdlib_function_uses_borrowed_string_param",
+      "text": "fn stdlib_function_uses_borrowed_string_param(name: &str, index: usize) -> bool {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.value_aggregate_structs.contains(name)",
+      "id": "struct-storage-type.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1113,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 1113,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1113
+      },
+      "symbol": "struct_storage_type",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.value_aggregate_structs.contains(name) {",
+      "variables": [
+        "contains",
+        "name",
+        "self",
+        "value_aggregate_structs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.value_aggregate_structs.contains(&tuple_name)",
+      "id": "tuple-struct-storage-type-from-types.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1056,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 1056,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
+        "start_col": 1,
+        "start_line": 1056
+      },
+      "symbol": "tuple_struct_storage_type_from_types",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.value_aggregate_structs.contains(&tuple_name) {",
+      "variables": [
+        "contains",
+        "self",
+        "tuple_name",
+        "value_aggregate_structs"
+      ]
     }
   ],
   "language": "rust",
-  "source_hash": "f50e780de7618642ed2eed99f2f77834953c1bfb20c355f1c6a81496836714db",
+  "source_hash": "84689d3452454c74f3daed4da1bfed41691f37e43f2f2e597abb1f3290989550",
   "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\mod.rs",
   "version": 1
 }

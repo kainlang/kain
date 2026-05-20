@@ -1,0 +1,3 @@
+fn build(ctx: BuildContext) -> BuildGraph:
+    let vk = platform_package("vulkan").provider("system")
+    return build_graph().require(vk)

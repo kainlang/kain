@@ -156,8 +156,50 @@ pub struct RunPlan {
     pub mode: RunMode,
     pub requested_target: RunTarget,
     pub args: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_graph: Option<RunBuildGraphProvenance>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub platform_locks: Vec<RunPlatformLock>,
     pub units: Vec<RunUnit>,
     pub watch_inputs: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct RunBuildGraphProvenance {
+    pub graph_source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defaults_merged_from: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub build_script: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overrides: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub platform_packages: Vec<RunPlatformPackageRequirement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct RunPlatformPackageRequirement {
+    pub package: String,
+    pub provider: String,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sdk_root: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RunPlatformLock {
+    pub package: String,
+    pub provider: String,
+    pub target_triple: String,
+    pub status: String,
+    pub lock_path: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generated_module_path: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding_report_path: Option<PathBuf>,
+    pub symbol_source: String,
+    pub discovered_symbol_count: usize,
+    pub blocked_symbol_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -230,6 +272,10 @@ pub struct RunReport {
     pub started_unix_ms: u128,
     pub finished_unix_ms: u128,
     pub dry_run: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_graph: Option<RunBuildGraphProvenance>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub platform_locks: Vec<RunPlatformLock>,
     pub units: Vec<RunUnitExecution>,
 }
 
@@ -268,11 +314,34 @@ pub fn plan_run(request: &RunRequest) -> RunResult<RunPlan> {
     let cache_root = workspace_root.join(DEFAULT_RUN_CACHE_ROOT);
     let report_root = workspace_root.join(DEFAULT_RUN_REPORT_ROOT);
     let mut unit = resolve_run_unit(request, &workspace_root, &cache_root)?;
+    let (build_graph_root, build_graph) =
+        discover_run_build_graph_for_unit(&workspace_root, &unit)?;
+    let platform_locks =
+        prepare_run_platform_locks(&build_graph_root, build_graph.as_ref(), request)?;
+    attach_platform_run_inputs(&mut unit, &platform_locks);
     if !request.args.is_empty() {
         append_runtime_args(&mut unit, &request.args);
     }
     let mut watch_inputs = unit.inputs.clone();
     watch_inputs.push(workspace_root.join("KAIN.toml"));
+    watch_inputs.push(workspace_root.join("kain.toml"));
+    if let Some(graph) = build_graph.as_ref() {
+        if let Some(build_script) = graph.build_script.as_ref() {
+            watch_inputs.push(build_script.clone());
+        }
+        if let Some(defaults) = graph.defaults_merged_from.as_ref() {
+            watch_inputs.push(defaults.clone());
+        }
+    }
+    for lock in &platform_locks {
+        watch_inputs.push(lock.lock_path.clone());
+        if let Some(module_path) = lock.generated_module_path.as_ref() {
+            watch_inputs.push(module_path.clone());
+        }
+        if let Some(report_path) = lock.binding_report_path.as_ref() {
+            watch_inputs.push(report_path.clone());
+        }
+    }
     watch_inputs.sort();
     watch_inputs.dedup();
     Ok(RunPlan {
@@ -282,6 +351,8 @@ pub fn plan_run(request: &RunRequest) -> RunResult<RunPlan> {
         mode: request.mode,
         requested_target: request.target,
         args: request.args.clone(),
+        build_graph,
+        platform_locks,
         units: vec![unit],
         watch_inputs,
     })
@@ -368,6 +439,8 @@ pub fn execute_plan(plan: RunPlan, request: &RunRequest) -> RunResult<RunReport>
         started_unix_ms,
         finished_unix_ms,
         dry_run: request.dry_run,
+        build_graph: plan.build_graph,
+        platform_locks: plan.platform_locks,
         units: executions,
     };
     kfs::atomic_write_text(&report_path, &serde_json::to_string_pretty(&report)?)?;
@@ -414,6 +487,226 @@ fn watchers_changed(watchers: &mut [kfs::FsWatcher]) -> RunResult<bool> {
         }
     }
     Ok(false)
+}
+
+fn discover_run_build_graph_for_unit(
+    workspace_root: &Path,
+    unit: &RunUnit,
+) -> RunResult<(PathBuf, Option<RunBuildGraphProvenance>)> {
+    let candidate_root = run_graph_root_for_unit(unit, workspace_root);
+    let candidate_graph = discover_run_build_graph(&candidate_root)?;
+    if candidate_graph.is_some() || candidate_root == workspace_root {
+        return Ok((candidate_root, candidate_graph));
+    }
+    Ok((
+        workspace_root.to_path_buf(),
+        discover_run_build_graph(workspace_root)?,
+    ))
+}
+
+fn run_graph_root_for_unit(unit: &RunUnit, workspace_root: &Path) -> PathBuf {
+    let anchor = match &unit.adapter {
+        RunAdapter::KainInterpreter { entry }
+        | RunAdapter::KainNativeLlvm { entry, .. }
+        | RunAdapter::CExecutable { source: entry, .. }
+        | RunAdapter::NodeLike { entry, .. } => entry.parent().map(Path::to_path_buf),
+        RunAdapter::Cargo { manifest_path, .. } | RunAdapter::Fabric { manifest_path } => {
+            manifest_path.parent().map(Path::to_path_buf)
+        }
+    };
+    let Some(anchor) = anchor else {
+        return workspace_root.to_path_buf();
+    };
+    discover_workspace(anchor)
+        .map(|workspace| workspace.root)
+        .unwrap_or_else(|_| workspace_root.to_path_buf())
+}
+
+fn discover_run_build_graph(workspace_root: &Path) -> RunResult<Option<RunBuildGraphProvenance>> {
+    let manifest_path = ["KAIN.toml", "kain.toml"]
+        .into_iter()
+        .map(|name| workspace_root.join(name))
+        .find(|path| path.exists());
+    let manifest_platform_packages = if let Some(path) = &manifest_path {
+        extract_manifest_platform_packages(&kfs::read_text(path)?)
+    } else {
+        Vec::new()
+    };
+    let build_script = ["build.kn", "platform.kn"]
+        .into_iter()
+        .map(|name| workspace_root.join(name))
+        .find(|path| path.exists());
+
+    if build_script.is_none() && manifest_path.is_none() {
+        return Ok(None);
+    }
+
+    let Some(build_script) = build_script else {
+        return Ok(Some(RunBuildGraphProvenance {
+            graph_source: "KAIN.toml".to_string(),
+            defaults_merged_from: None,
+            build_script: None,
+            overrides: Vec::new(),
+            platform_packages: manifest_platform_packages,
+        }));
+    };
+
+    let graph_source = build_script
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("build.kn")
+        .to_string();
+    let source = kfs::read_text(&build_script)?;
+    let mut platform_packages = extract_build_script_platform_packages(&source, &graph_source);
+    inherit_manifest_platform_package_details(&mut platform_packages, &manifest_platform_packages);
+
+    let mut overrides = Vec::new();
+    if manifest_path.is_some() {
+        overrides.push(format!(
+            "{graph_source} is build graph authority; KAIN.toml contributes defaults"
+        ));
+    }
+    if !manifest_platform_packages.is_empty()
+        && platform_package_pairs(&manifest_platform_packages)
+            != platform_package_pairs(&platform_packages)
+    {
+        overrides.push(format!(
+            "{graph_source} overrides KAIN.toml platform packages: script={:?}, manifest={:?}",
+            platform_package_pairs(&platform_packages),
+            platform_package_pairs(&manifest_platform_packages)
+        ));
+    }
+
+    Ok(Some(RunBuildGraphProvenance {
+        graph_source,
+        defaults_merged_from: manifest_path,
+        build_script: Some(build_script),
+        overrides,
+        platform_packages,
+    }))
+}
+
+fn prepare_run_platform_locks(
+    workspace_root: &Path,
+    build_graph: Option<&RunBuildGraphProvenance>,
+    request: &RunRequest,
+) -> RunResult<Vec<RunPlatformLock>> {
+    let Some(build_graph) = build_graph else {
+        return Ok(Vec::new());
+    };
+    let dry_run = request.dry_run || matches!(request.mode, RunMode::Plan);
+    let prepare = kain_c_ffi::PrepareContext {
+        current_dir: Some(workspace_root.to_path_buf()),
+        manifest_path: ["KAIN.toml", "kain.toml"]
+            .into_iter()
+            .map(|name| workspace_root.join(name))
+            .find(|path| path.exists()),
+    };
+
+    let mut locks = Vec::new();
+    for package in &build_graph.platform_packages {
+        let package_or_path = resolve_platform_package_input(workspace_root, package);
+        let output = kain_c_ffi::import_platform_package(
+            &package_or_path,
+            &kain_c_ffi::ImportPlatformOptions {
+                package_name: Some(package.package.clone()),
+                provider: package.provider.clone(),
+                sdk_root: package.sdk_root.clone(),
+                dry_run,
+                ..kain_c_ffi::ImportPlatformOptions::default()
+            },
+            &prepare,
+        )?;
+        locks.push(RunPlatformLock {
+            package: output.lock.package_name.clone(),
+            provider: output.lock.provider.clone(),
+            target_triple: output.lock.target_triple.clone(),
+            status: if dry_run {
+                "planned".to_string()
+            } else {
+                "locked".to_string()
+            },
+            lock_path: output.lock_path,
+            generated_module_path: output.generated_module_path,
+            binding_report_path: output.binding_report_path,
+            symbol_source: output.lock.chosen_symbol_source,
+            discovered_symbol_count: output.lock.discovered_symbols.len(),
+            blocked_symbol_count: output.lock.blocked_symbols.len(),
+        });
+    }
+    Ok(locks)
+}
+
+fn attach_platform_run_inputs(unit: &mut RunUnit, locks: &[RunPlatformLock]) {
+    if locks.is_empty() {
+        return;
+    }
+
+    let mut lock_paths = Vec::new();
+    let mut generated_roots = Vec::new();
+    for lock in locks {
+        push_unique_unit_input(unit, lock.lock_path.clone());
+        lock_paths.push(lock.lock_path.clone());
+        if let Some(module_path) = lock.generated_module_path.as_ref() {
+            push_unique_unit_input(unit, module_path.clone());
+            if let Some(parent) = module_path.parent() {
+                generated_roots.push(parent.to_path_buf());
+            }
+        }
+        if let Some(report_path) = lock.binding_report_path.as_ref() {
+            push_unique_unit_input(unit, report_path.clone());
+        }
+    }
+
+    if let Some(value) = join_paths_for_env(&lock_paths) {
+        unit.env.insert("KAIN_PLATFORM_LOCKS".to_string(), value);
+    }
+    if let Some(value) = join_paths_for_env(&generated_roots) {
+        unit.env
+            .insert("KAIN_PLATFORM_GENERATED_ROOTS".to_string(), value);
+    }
+}
+
+fn push_unique_unit_input(unit: &mut RunUnit, input: PathBuf) {
+    if !unit.inputs.contains(&input) {
+        unit.inputs.push(input);
+    }
+}
+
+fn resolve_platform_package_input(
+    workspace_root: &Path,
+    package: &RunPlatformPackageRequirement,
+) -> String {
+    if let Some(sdk_root) = package.sdk_root.as_ref() {
+        return resolve_path(workspace_root, sdk_root)
+            .to_string_lossy()
+            .into_owned();
+    }
+    if package.provider.eq_ignore_ascii_case("fixture") {
+        if let Some(fixture) = find_platform_fixture_sdk(workspace_root, &package.package) {
+            return fixture.to_string_lossy().into_owned();
+        }
+    }
+    package.package.clone()
+}
+
+fn find_platform_fixture_sdk(workspace_root: &Path, package: &str) -> Option<PathBuf> {
+    for ancestor in workspace_root.ancestors() {
+        let candidate = ancestor.join("fixtures").join("platform_sdk").join(package);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn join_paths_for_env(paths: &[PathBuf]) -> Option<String> {
+    if paths.is_empty() {
+        return None;
+    }
+    std::env::join_paths(paths)
+        .ok()
+        .map(|value| value.to_string_lossy().into_owned())
 }
 
 fn resolve_run_unit(
@@ -492,7 +785,7 @@ fn resolve_workspace_unit(
 
 fn resolve_blade_unit(
     request: &RunRequest,
-    _workspace: &BladeWorkspace,
+    workspace: &BladeWorkspace,
     blade: &ResolvedBlade,
     cache_root: &Path,
 ) -> RunResult<RunUnit> {
@@ -548,6 +841,7 @@ fn resolve_blade_unit(
         return Err(no_runnable_blade_error(blade));
     };
     apply_run_section_to_unit(&mut unit, &blade.root, &run, request.args.is_empty());
+    attach_blade_foreign_requirements(&mut unit, workspace, blade);
     Ok(unit)
 }
 
@@ -577,6 +871,42 @@ fn apply_run_section_to_unit(
             unit.inputs.push(input);
         }
     }
+}
+
+fn attach_blade_foreign_requirements(
+    unit: &mut RunUnit,
+    workspace: &BladeWorkspace,
+    blade: &ResolvedBlade,
+) {
+    let libraries = workspace.transitive_c_ffi_libraries_for(&blade.name);
+    if libraries.is_empty() {
+        return;
+    }
+
+    let mut names = Vec::new();
+    let mut inputs = Vec::new();
+    for library in libraries {
+        names.push(library.name);
+        inputs.push(library.header);
+        inputs.extend(library.sources);
+        if let Some(shared_lib) = library.shared_lib {
+            inputs.push(shared_lib);
+        }
+        inputs.extend(library.include_paths);
+    }
+    inputs.sort();
+    inputs.dedup();
+    for input in &inputs {
+        push_unique_unit_input(unit, input.clone());
+    }
+    if let Some(value) = join_paths_for_env(&inputs) {
+        unit.env
+            .insert("KAIN_TRANSITIVE_C_FFI_INPUTS".to_string(), value);
+    }
+    names.sort();
+    names.dedup();
+    unit.env
+        .insert("KAIN_TRANSITIVE_C_FFI_LIBS".to_string(), names.join(";"));
 }
 
 fn resolve_file_unit(
@@ -1170,11 +1500,225 @@ fn append_runtime_args(unit: &mut RunUnit, args: &[String]) {
     unit.args.extend(args.iter().cloned());
 }
 
+fn extract_manifest_platform_packages(source: &str) -> Vec<RunPlatformPackageRequirement> {
+    let mut packages = Vec::new();
+    let mut current = BTreeMap::<String, String>::new();
+    let mut in_platform_package = false;
+
+    for raw_line in source.lines() {
+        let line = raw_line
+            .split_once('#')
+            .map(|(before_comment, _)| before_comment)
+            .unwrap_or(raw_line)
+            .trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("[[") && line.ends_with("]]") {
+            flush_manifest_platform_package(&mut packages, &mut current);
+            in_platform_package = line == "[[platform.packages]]";
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            flush_manifest_platform_package(&mut packages, &mut current);
+            in_platform_package = false;
+            continue;
+        }
+        if !in_platform_package {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if let Some(value) = parse_manifest_string_value(value.trim()) {
+            current.insert(key.trim().to_string(), value);
+        }
+    }
+    flush_manifest_platform_package(&mut packages, &mut current);
+    sort_platform_packages(&mut packages);
+    packages
+}
+
+fn flush_manifest_platform_package(
+    packages: &mut Vec<RunPlatformPackageRequirement>,
+    current: &mut BTreeMap<String, String>,
+) {
+    if current.is_empty() {
+        return;
+    }
+    let package = current
+        .get("package")
+        .or_else(|| current.get("name"))
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(package) = package {
+        let provider = current
+            .get("provider")
+            .map(String::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("system");
+        let sdk_root = current
+            .get("sdk")
+            .or_else(|| current.get("sdk_root"))
+            .or_else(|| current.get("root"))
+            .map(PathBuf::from);
+        packages.push(RunPlatformPackageRequirement {
+            package: package.to_string(),
+            provider: provider.to_string(),
+            source: "KAIN.toml".to_string(),
+            sdk_root,
+        });
+    }
+    current.clear();
+}
+
+fn parse_manifest_string_value(value: &str) -> Option<String> {
+    let value = value.trim().trim_end_matches(',');
+    if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+        Some(value[1..value.len() - 1].replace("\\\"", "\""))
+    } else {
+        None
+    }
+}
+
+fn extract_build_script_platform_packages(
+    source: &str,
+    graph_source: &str,
+) -> Vec<RunPlatformPackageRequirement> {
+    let mut packages = Vec::new();
+    let mut offset = 0usize;
+    while let Some(relative) = source[offset..].find("platform_package") {
+        let function_start = offset + relative + "platform_package".len();
+        if let Some((package, after_call)) = parse_string_call_argument(source, function_start) {
+            let provider =
+                parse_provider_chain(source, after_call).unwrap_or_else(|| "system".to_string());
+            packages.push(RunPlatformPackageRequirement {
+                package,
+                provider,
+                source: graph_source.to_string(),
+                sdk_root: None,
+            });
+            offset = after_call;
+        } else {
+            offset = function_start;
+        }
+    }
+    sort_platform_packages(&mut packages);
+    packages
+}
+
+fn parse_provider_chain(source: &str, offset: usize) -> Option<String> {
+    let line_end = source[offset..]
+        .find(|ch| matches!(ch, '\n' | '\r' | ';'))
+        .map(|relative| offset + relative)
+        .unwrap_or(source.len());
+    let limit = line_end.min(offset.saturating_add(512));
+    let tail = &source[offset..limit];
+    let provider_offset = tail.find(".provider")?;
+    parse_string_call_argument(tail, provider_offset + ".provider".len()).map(|(value, _)| value)
+}
+
+fn parse_string_call_argument(source: &str, mut index: usize) -> Option<(String, usize)> {
+    let bytes = source.as_bytes();
+    index = skip_ascii_whitespace(bytes, index);
+    if bytes.get(index).copied()? != b'(' {
+        return None;
+    }
+    index += 1;
+    index = skip_ascii_whitespace(bytes, index);
+    if bytes.get(index).copied()? != b'"' {
+        return None;
+    }
+    index += 1;
+    let mut value = String::new();
+    while let Some(byte) = bytes.get(index).copied() {
+        match byte {
+            b'\\' => {
+                index += 1;
+                value.push(bytes.get(index).copied().unwrap_or_default() as char);
+                index += 1;
+            }
+            b'"' => {
+                index += 1;
+                break;
+            }
+            _ => {
+                value.push(byte as char);
+                index += 1;
+            }
+        }
+    }
+    index = skip_ascii_whitespace(bytes, index);
+    if bytes.get(index).copied()? != b')' {
+        return None;
+    }
+    Some((value, index + 1))
+}
+
+fn skip_ascii_whitespace(bytes: &[u8], mut index: usize) -> usize {
+    while bytes
+        .get(index)
+        .copied()
+        .is_some_and(|byte| byte.is_ascii_whitespace())
+    {
+        index += 1;
+    }
+    index
+}
+
+fn inherit_manifest_platform_package_details(
+    script_packages: &mut [RunPlatformPackageRequirement],
+    manifest_packages: &[RunPlatformPackageRequirement],
+) {
+    for package in script_packages {
+        if package.sdk_root.is_some() {
+            continue;
+        }
+        if let Some(manifest_package) = manifest_packages.iter().find(|candidate| {
+            candidate.package == package.package && candidate.provider == package.provider
+        }) {
+            package.sdk_root = manifest_package.sdk_root.clone();
+        }
+    }
+}
+
+fn sort_platform_packages(packages: &mut Vec<RunPlatformPackageRequirement>) {
+    packages.sort_by(|left, right| {
+        left.package
+            .cmp(&right.package)
+            .then(left.provider.cmp(&right.provider))
+            .then(left.source.cmp(&right.source))
+    });
+    packages.dedup_by(|left, right| {
+        left.package == right.package
+            && left.provider == right.provider
+            && left.source == right.source
+    });
+}
+
+fn platform_package_pairs(packages: &[RunPlatformPackageRequirement]) -> Vec<(String, String)> {
+    packages
+        .iter()
+        .map(|package| (package.package.clone(), package.provider.clone()))
+        .collect()
+}
+
 fn discover_workspace_root(request: &RunRequest) -> RunResult<PathBuf> {
     let anchor = request
         .input
         .as_ref()
-        .and_then(|input| input.parent().map(Path::to_path_buf))
+        .map(|input| {
+            if input.is_dir() {
+                input.clone()
+            } else {
+                input
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| request.workspace_path.clone())
+            }
+        })
         .unwrap_or_else(|| request.workspace_path.clone());
     Ok(discover_workspace(anchor)?.root)
 }
@@ -1426,6 +1970,18 @@ fn unix_timestamp_ms() -> u128 {
 pub fn render_text_report(report: &RunReport) -> String {
     let mut out = String::new();
     out.push_str(&format!("Run {:?}: {:?}\n", report.mode, report.status));
+    if let Some(graph) = report.build_graph.as_ref() {
+        out.push_str(&format!("  build graph: {}\n", graph.graph_source));
+    }
+    for lock in &report.platform_locks {
+        out.push_str(&format!(
+            "  platform {} via {}: {} ({})\n",
+            lock.package,
+            lock.provider,
+            lock.status,
+            lock.lock_path.display()
+        ));
+    }
     for unit in &report.units {
         out.push_str(&format!(
             "  {:?} {} exit={:?}\n",
@@ -1622,6 +2178,127 @@ KAIN_RUN_TEST_FLAG = "enabled"
             .watch_inputs
             .iter()
             .any(|path| path.ends_with(Path::new("config").join("settings.json"))));
+    }
+
+    #[test]
+    fn run_plan_reports_build_graph_platform_locks() {
+        let temp = tempfile::tempdir().unwrap();
+        let entry = temp.path().join("src").join("main.kn");
+        kfs::create_dir_all(entry.parent().unwrap()).unwrap();
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
+        kfs::write_text(
+            temp.path().join("KAIN.toml"),
+            r#"
+[package]
+name = "platform-run-plan"
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[[platform.packages]]
+name = "tiny_math"
+provider = "fixture"
+sdk = "fixtures/platform_sdk/tiny_math"
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            temp.path().join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let tiny = platform_package("tiny_math").provider("fixture")
+    return build_graph().require(tiny)
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(temp.path().to_path_buf())).with_mode(RunMode::Plan);
+        let plan = plan_run(&request).unwrap();
+        let graph = plan.build_graph.as_ref().expect("build graph");
+        assert_eq!(graph.graph_source, "build.kn");
+        assert_eq!(graph.platform_packages.len(), 1);
+        assert_eq!(graph.platform_packages[0].package, "tiny_math");
+        assert!(graph.platform_packages[0]
+            .sdk_root
+            .as_ref()
+            .is_some_and(|path| path.ends_with("tiny_math")));
+        assert_eq!(plan.platform_locks.len(), 1);
+        assert_eq!(plan.platform_locks[0].status, "planned");
+        assert!(plan.platform_locks[0].lock_path.ends_with(
+            Path::new("tiny_math")
+                .join(&plan.platform_locks[0].target_triple)
+                .join("tiny_math.lock")
+        ));
+        assert!(plan
+            .watch_inputs
+            .iter()
+            .any(|path| path.ends_with("build.kn")));
+        assert!(plan.units[0].env.contains_key("KAIN_PLATFORM_LOCKS"));
+    }
+
+    #[test]
+    fn run_plan_uses_selected_blade_build_graph() {
+        let temp = tempfile::tempdir().unwrap();
+        kfs::write_text(
+            temp.path().join("KAIN.toml"),
+            "[workspace]\nblades = [\"blades/*\"]\n",
+        )
+        .unwrap();
+
+        let blade_root = temp.path().join("blades").join("app");
+        let entry = blade_root.join("src").join("main.kn");
+        kfs::create_dir_all(entry.parent().unwrap()).unwrap();
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
+        kfs::write_text(
+            blade_root.join("KAIN.toml"),
+            r#"
+[package]
+name = "app"
+
+[blade]
+entry = "src/main.kn"
+source_roots = ["src"]
+
+[run]
+target = "llvm"
+
+[[platform.packages]]
+name = "tiny_math"
+provider = "fixture"
+sdk = "fixtures/platform_sdk/tiny_math"
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            blade_root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let tiny = platform_package("tiny_math").provider("fixture")
+    return build_graph().require(tiny)
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(temp.path().to_path_buf()))
+            .with_mode(RunMode::Plan)
+            .with_blade(Some("app".to_string()));
+        let plan = plan_run(&request).unwrap();
+        let graph = plan.build_graph.as_ref().expect("build graph");
+        assert_eq!(graph.graph_source, "build.kn");
+        assert!(graph
+            .build_script
+            .as_ref()
+            .is_some_and(|path| path.ends_with(Path::new("blades").join("app").join("build.kn"))));
+        assert!(graph
+            .defaults_merged_from
+            .as_ref()
+            .is_some_and(|path| path.ends_with(Path::new("blades").join("app").join("KAIN.toml"))));
+        assert_eq!(plan.platform_locks.len(), 1);
+        assert!(plan
+            .watch_inputs
+            .iter()
+            .any(|path| path.ends_with(Path::new("blades").join("app").join("build.kn"))));
     }
 
     #[test]

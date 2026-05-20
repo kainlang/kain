@@ -5,11 +5,20 @@
 #include <string.h>
 
 #ifdef _WIN32
+#include <windows.h>
 #define PLATFORM_TEST_LIBRARY "kernel32.dll"
 #define PLATFORM_TEST_SYMBOL "GetCurrentProcessId"
+typedef DWORD(WINAPI* PlatformTestProcessIdFn)(void);
+#elif defined(__APPLE__)
+#include <unistd.h>
+#define PLATFORM_TEST_LIBRARY "/usr/lib/libSystem.B.dylib"
+#define PLATFORM_TEST_SYMBOL "getpid"
+typedef pid_t (*PlatformTestProcessIdFn)(void);
 #else
+#include <unistd.h>
 #define PLATFORM_TEST_LIBRARY "libc.so.6"
-#define PLATFORM_TEST_SYMBOL "printf"
+#define PLATFORM_TEST_SYMBOL "getpid"
+typedef pid_t (*PlatformTestProcessIdFn)(void);
 #endif
 
 static int expect_true(int condition, const char* label) {
@@ -46,6 +55,13 @@ int main(void) {
     symbol = abi_platform_library_resolve(handle, PLATFORM_TEST_SYMBOL);
     if (!expect_true(symbol != 0, "resolves known symbol")) {
         return 1;
+    }
+    {
+        PlatformTestProcessIdFn typed_thunk = (PlatformTestProcessIdFn)(intptr_t)symbol;
+        int64_t process_id = (int64_t)typed_thunk();
+        if (!expect_true(process_id > 0, "typed thunk calls through resolved symbol")) {
+            return 1;
+        }
     }
 
     close_status = abi_platform_library_close(handle);

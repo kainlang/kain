@@ -79,7 +79,10 @@ Use `kain run`, `kain run dev`, `kain run plan`, or `kain watch` for the
 unified runtime loop. That path is owned by `crates/kain-run` and supports Kain
 source, native LLVM Kain source via `--target llvm` or `[run] target = "llvm"`,
 C files, Cargo crates, Fabric manifests, Node, Bun, blades, and workspace
-`[run]` metadata.
+`[run]` metadata. It also folds `build.kn` / `platform.kn` platform package
+requirements and transitive blade `[c_ffi]` bridge inputs into the run plan so
+desktop/GPU blades can be launched from their package root without hand-staging
+every native input.
 
 Use `kain amalgamate` when you want to pack a file, blade, or workspace into a
 portable single-file Kain capsule. `kain amalgamate inspect` and

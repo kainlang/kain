@@ -1,0 +1,74 @@
+use std::runtime
+use std::fs
+use std::platform
+
+fn smoke_library_name(platform_name: String) -> String:
+    if platform_name == "win32":
+        return "kernel32.dll"
+    if platform_name == "linux":
+        return "libc.so.6"
+    if platform_name == "macos":
+        return "/usr/lib/libSystem.B.dylib"
+    return ""
+
+fn smoke_symbol_name(platform_name: String) -> String:
+    if platform_name == "win32":
+        return "GetCurrentProcessId"
+    if platform_name == "linux":
+        return "getpid"
+    if platform_name == "macos":
+        return "getpid"
+    return ""
+
+fn status_line(stage: String, status: Int, platform_name: String, library_name: String, symbol_name: String) -> String:
+    return format!("platform-package-smoke:", stage, ":status=", status, ":platform=", platform_name, ":library=", library_name, ":symbol=", symbol_name)
+
+fn write_smoke_report(stage: String, status: Int, platform_name: String, library_name: String, symbol_name: String) -> Int:
+    fs_create_dir_all(".kain/run")
+    fs_write_text(".kain/run/platform_package_smoke.txt", status_line(stage, status, platform_name, library_name, symbol_name))
+    return status
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return write_smoke_report("runtime-init", boot, "", "", "")
+
+    let platform_name = platform_current_name()
+    let library_name = smoke_library_name(platform_name)
+    let symbol_name = smoke_symbol_name(platform_name)
+    if library_name == "" or symbol_name == "":
+        let _shutdown_unknown = runtime_shutdown()
+        return write_smoke_report("unsupported-platform", 10, platform_name, library_name, symbol_name)
+
+    let before = platform_library_live_count()
+    let handle = platform_library_open(library_name)
+    if handle <= 0:
+        let _shutdown_open = runtime_shutdown()
+        return write_smoke_report("open", platform_library_last_status(), platform_name, library_name, symbol_name)
+    if platform_library_is_valid(handle) == false:
+        let _close_invalid = platform_library_close(handle)
+        let _shutdown_invalid = runtime_shutdown()
+        return write_smoke_report("valid", 20, platform_name, library_name, symbol_name)
+    if platform_library_live_count() != before + 1:
+        let _close_count = platform_library_close(handle)
+        let _shutdown_count = runtime_shutdown()
+        return write_smoke_report("live-count-open", 30, platform_name, library_name, symbol_name)
+
+    let symbol = platform_library_resolve(handle, symbol_name)
+    if symbol == 0:
+        let _close_resolve = platform_library_close(handle)
+        let _shutdown_resolve = runtime_shutdown()
+        return write_smoke_report("resolve", platform_library_last_status(), platform_name, library_name, symbol_name)
+
+    let close_status = platform_library_close(handle)
+    if close_status != 0:
+        let _shutdown_close = runtime_shutdown()
+        return write_smoke_report("close", close_status, platform_name, library_name, symbol_name)
+    if platform_library_live_count() != before:
+        let _shutdown_final_count = runtime_shutdown()
+        return write_smoke_report("live-count-close", 40, platform_name, library_name, symbol_name)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return write_smoke_report("runtime-shutdown", shutdown, platform_name, library_name, symbol_name)
+    return write_smoke_report("ok", 0, platform_name, library_name, symbol_name)

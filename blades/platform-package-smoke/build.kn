@@ -1,0 +1,3 @@
+fn build(ctx: BuildContext) -> BuildGraph:
+    let tiny = platform_package("tiny_math").provider("fixture")
+    return build_graph().require(tiny)

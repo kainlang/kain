@@ -324,6 +324,37 @@ impl BladeWorkspace {
             .iter()
             .find(|blade| names_match(&blade.name, blade_name))
     }
+
+    pub fn transitive_c_ffi_libraries_for(&self, blade_name: &str) -> Vec<ResolvedCffiLibrary> {
+        let mut output = Vec::new();
+        let mut visited = BTreeSet::new();
+        self.collect_transitive_c_ffi_libraries(blade_name, &mut visited, &mut output);
+        output.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then(left.header.cmp(&right.header))
+        });
+        output.dedup_by(|left, right| left.name == right.name && left.header == right.header);
+        output
+    }
+
+    fn collect_transitive_c_ffi_libraries(
+        &self,
+        blade_name: &str,
+        visited: &mut BTreeSet<String>,
+        output: &mut Vec<ResolvedCffiLibrary>,
+    ) {
+        let Some(blade) = self.find_blade(blade_name) else {
+            return;
+        };
+        if !visited.insert(normalize_name(&blade.name)) {
+            return;
+        }
+        output.extend(blade.c_ffi_libraries.iter().cloned());
+        for dependency in &blade.dependencies {
+            self.collect_transitive_c_ffi_libraries(&dependency.name, visited, output);
+        }
+    }
 }
 
 pub fn discover_workspace(start: impl AsRef<Path>) -> BladeResult<BladeWorkspace> {
@@ -420,6 +451,7 @@ pub fn discover_blade_module_roots_from(start: impl AsRef<Path>) -> BladeResult<
         if is_workspace_marker_dir(&current) {
             let workspace = discover_workspace(&current)?;
             if visited_workspaces.insert(workspace.root.clone()) {
+                push_generated_platform_module_roots(&workspace.root, &mut roots)?;
                 for blade in workspace.blades {
                     for root in blade.module_roots {
                         if root.exists() {
@@ -535,6 +567,8 @@ fn resolve_explicit_blade_manifest(
             push_unique_path(&mut source_roots, canonicalize_lossy(&candidate));
         }
     }
+    let mut module_roots = source_roots.clone();
+    expand_module_roots_from_kn_files(&mut module_roots)?;
 
     let mut artifacts = BTreeMap::new();
     for (key, path) in manifest.blade.artifacts {
@@ -596,7 +630,7 @@ fn resolve_explicit_blade_manifest(
         fabric_manifest,
         entry,
         source_roots: source_roots.clone(),
-        module_roots: source_roots,
+        module_roots,
         build_targets,
         dependencies: manifest.blade.dependencies,
         artifacts,
@@ -831,6 +865,75 @@ fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
     if !paths.iter().any(|existing| existing == &canonical) {
         paths.push(canonical);
     }
+}
+
+fn expand_module_roots_from_kn_files(module_roots: &mut Vec<PathBuf>) -> BladeResult<()> {
+    let seeds = module_roots.clone();
+    for seed in seeds {
+        collect_kn_module_dirs(&seed, module_roots, 0)?;
+    }
+    Ok(())
+}
+
+fn push_generated_platform_module_roots(
+    workspace_root: &Path,
+    roots: &mut BTreeSet<PathBuf>,
+) -> BladeResult<()> {
+    let platform_root = workspace_root.join(".kain").join("platform");
+    if !platform_root.exists() {
+        return Ok(());
+    }
+    let mut module_roots = Vec::new();
+    collect_kn_module_dirs(&platform_root, &mut module_roots, 0)?;
+    roots.extend(module_roots);
+    Ok(())
+}
+
+fn collect_kn_module_dirs(
+    root: &Path,
+    module_roots: &mut Vec<PathBuf>,
+    depth: usize,
+) -> BladeResult<()> {
+    const MAX_MODULE_DISCOVERY_DEPTH: usize = 32;
+    if depth > MAX_MODULE_DISCOVERY_DEPTH || !root.exists() || !root.is_dir() {
+        return Ok(());
+    }
+
+    let entries = kfs::read_dir_entries(root)?;
+    let has_kain_file = entries.iter().any(|entry| {
+        entry.file_type == FsFileType::File
+            && entry
+                .path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| matches!(ext, "kn" | "god"))
+    });
+    if has_kain_file {
+        push_unique_path(module_roots, root.to_path_buf());
+    }
+
+    for entry in entries {
+        if entry.file_type != FsFileType::Directory {
+            continue;
+        }
+        if entry
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(skip_module_discovery_dir)
+        {
+            continue;
+        }
+        collect_kn_module_dirs(&entry.path, module_roots, depth + 1)?;
+    }
+    Ok(())
+}
+
+fn skip_module_discovery_dir(name: &str) -> bool {
+    matches!(
+        name,
+        ".git" | ".kain" | "target" | "node_modules" | "__pycache__" | "out" | "dist"
+    )
 }
 
 fn resolve_path(root: &Path, path: &Path) -> PathBuf {
@@ -1111,6 +1214,116 @@ sources = ["native/ops.c"]
         assert_eq!(library.name, "ops");
         assert!(library.header.ends_with("native/ops.h"));
         assert_eq!(library.sources.len(), 1);
+    }
+
+    #[test]
+    fn infers_nested_module_roots_from_source_tree() {
+        let tmp = tempfile::tempdir().unwrap();
+        let blade_root = tmp.path().join("blades").join("ui");
+        kfs::create_dir_all(blade_root.join("src").join("api")).unwrap();
+        kfs::create_dir_all(blade_root.join("src").join("platform").join("desktop")).unwrap();
+        kfs::write_text(
+            blade_root.join("KAIN.toml"),
+            r#"
+[package]
+name = "ui"
+
+[blade]
+entry = "src/main.kn"
+source_roots = ["src"]
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            blade_root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .unwrap();
+        kfs::write_text(
+            blade_root.join("src").join("api").join("widgets.kn"),
+            "pub fn widgets_ready() -> Int:\n    return 1\n",
+        )
+        .unwrap();
+        kfs::write_text(
+            blade_root
+                .join("src")
+                .join("platform")
+                .join("desktop")
+                .join("adapter.kn"),
+            "pub fn desktop_ready() -> Int:\n    return 1\n",
+        )
+        .unwrap();
+
+        let workspace = discover_workspace(tmp.path()).unwrap();
+        let blade = workspace.find_blade("ui").unwrap();
+        assert!(blade
+            .module_roots
+            .iter()
+            .any(|root| root.ends_with(Path::new("src").join("platform").join("desktop"))));
+        assert!(blade
+            .module_roots
+            .iter()
+            .any(|root| root.ends_with(Path::new("src").join("api"))));
+    }
+
+    #[test]
+    fn collects_transitive_c_ffi_libraries_through_dependencies() {
+        let tmp = tempfile::tempdir().unwrap();
+        kfs::write_text(
+            tmp.path().join("KAIN.toml"),
+            "[workspace]\nblades = [\"blades/*\"]\n",
+        )
+        .unwrap();
+
+        let native_root = tmp.path().join("blades").join("native_ops");
+        kfs::create_dir_all(native_root.join("native")).unwrap();
+        kfs::write_text(
+            native_root.join("native").join("ops.h"),
+            "int add(int a, int b);\n",
+        )
+        .unwrap();
+        kfs::write_text(
+            native_root.join("KAIN.toml"),
+            r#"
+[package]
+name = "native_ops"
+
+[c_ffi]
+[[c_ffi.libraries]]
+name = "ops"
+header = "native/ops.h"
+"#,
+        )
+        .unwrap();
+
+        let app_root = tmp.path().join("blades").join("app");
+        kfs::create_dir_all(app_root.join("src")).unwrap();
+        kfs::write_text(
+            app_root.join("KAIN.toml"),
+            r#"
+[package]
+name = "app"
+
+[blade]
+entry = "src/main.kn"
+source_roots = ["src"]
+
+[[blade.dependencies]]
+name = "native_ops"
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            app_root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .unwrap();
+
+        let workspace = discover_workspace(tmp.path()).unwrap();
+        let libraries = workspace.transitive_c_ffi_libraries_for("app");
+        assert_eq!(libraries.len(), 1);
+        assert_eq!(libraries[0].name, "ops");
+        assert!(libraries[0].header.ends_with("native/ops.h"));
     }
 
     #[test]

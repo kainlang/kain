@@ -3096,6 +3096,7 @@ name = "kain-run"
 version = "0.1.0"
 dependencies = [
  "blade",
+ "kain-c-ffi",
  "kain-core",
  "kain-driver",
  "kain-fs",

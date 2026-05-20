@@ -31,6 +31,7 @@ rust_library(
     aliases = aliases(),
     deps = [
         "//crates/kain-blades:blade",
+        "//crates/kain-c-ffi:kain-c-ffi",
         "//crates/kain-core:kain-core",
         "//crates/kain-driver:kain-driver",
         "//crates/kain-fs:kain-fs",

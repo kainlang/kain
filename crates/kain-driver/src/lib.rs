@@ -2394,6 +2394,55 @@ pub fn label() -> String:
 
     #[cfg(feature = "sys")]
     #[test]
+    fn compile_llvm_supports_imported_impl_self_builder_methods() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_path = temp.path().join("main.kn");
+        let module_dir = temp.path().join("src");
+        let module_path = module_dir.join("builders.kn");
+        fs::create_dir_all(&module_dir).expect("module dir");
+        fs::write(
+            &main_path,
+            r#"
+use builders::ButtonBuilder
+
+fn main() -> Int:
+    let b = ButtonBuilder { label: "Save", key: "" }.key("save")
+    return len(b.key)
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &module_path,
+            r#"
+pub struct ButtonBuilder:
+    label: String
+    key: String
+
+impl ButtonBuilder:
+    fn key(_self: Self_, key: String) -> Self_:
+        return ButtonBuilder { label: _self.label, key: key }
+"#,
+        )
+        .expect("module source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            DriverSession::default().compile(&source, CompileTarget::Llvm)
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let llvm = result.expect("llvm output");
+        assert!(llvm.contains(
+            "define %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder* %arg0, i8* %arg1)"
+        ));
+        assert!(llvm.contains("call %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder*"));
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
     fn compile_llvm_supports_statement_if_with_ignored_string_result() {
         let llvm = DriverSession::default()
             .compile(

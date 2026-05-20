@@ -272,7 +272,7 @@ fn main() -> Int:
         .expect("llvm should be utf8");
 
     assert!(llvm.contains("declare i8* @abi_fs_read_text(i8* %arg0)"));
-    assert!(llvm.contains("define i8* @fs_read_text(i8* %arg0)"));
+    assert!(llvm.contains("define internal i8* @fs_read_text(i8* %arg0)"));
     assert!(!llvm.contains("declare i8* @fs_read_text(i8*"));
     assert!(llvm.contains("call i1 @deep_eq(i8*"));
 }
@@ -587,7 +587,7 @@ fn main() -> Float:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm should be utf8");
 
-    assert!(llvm.contains("define double @takes_float(double %arg0)"));
+    assert!(llvm.contains("define internal double @takes_float(double %arg0)"));
     assert!(llvm.contains("sitofp i64 7 to double"));
     assert!(!llvm.contains("@Float("));
 }
@@ -864,10 +864,10 @@ fn main() -> Int:
     assert!(llvm.contains("@__kain_world_Mirror = internal global %Mirror zeroinitializer"));
     assert!(llvm.contains("@__kain_world_init_flag_Studio = internal global i1 0"));
     assert!(llvm.contains("define void @__kain_init_world_Studio()"));
-    assert!(llvm.contains("define i64 @set_counter(%Studio* %arg0, i64 %arg1)"));
-    assert!(llvm.contains("define i1 @revision_is_valid(i64 %arg0)"));
+    assert!(llvm.contains("define internal i64 @set_counter(%Studio* %arg0, i64 %arg1)"));
+    assert!(llvm.contains("define internal i1 @revision_is_valid(i64 %arg0)"));
     assert!(llvm.contains("define i64 @choose_value(i64 %arg0)"));
-    assert!(llvm.contains("define i64 @pipeline(i64 %arg0)"));
+    assert!(llvm.contains("define internal i64 @pipeline(i64 %arg0)"));
     assert!(llvm.contains("declare i64 @abi_entangle_register(i8*, i8*, i8*, i8*)"));
     assert!(llvm.contains("define void @__kain_register_entanglements()"));
     assert!(llvm.contains("call i64 @abi_entangle_register"));
@@ -881,11 +881,11 @@ fn main() -> Int:
     assert!(llvm.contains("call i64 @abi_patch_record_i64"));
     assert!(llvm.contains("call i64 @abi_patch_commit"));
     assert!(llvm.contains("call i64 @abi_entangle_record_i64"));
-    assert!(llvm.contains("define i64 @choose_value__spec"));
-    assert!(llvm.contains("define i64 @choose_value__fast_interpret_lane"));
-    assert!(llvm.contains("define i64 @choose_value__fast_llvm_lane"));
-    assert!(llvm.contains("define i64 @choose_value__fast_avx2_lane"));
-    assert!(llvm.contains("define i64 @choose_value__fast_native_lane"));
+    assert!(llvm.contains("define internal i64 @choose_value__spec"));
+    assert!(llvm.contains("define internal i64 @choose_value__fast_interpret_lane"));
+    assert!(llvm.contains("define internal i64 @choose_value__fast_llvm_lane"));
+    assert!(llvm.contains("define internal i64 @choose_value__fast_avx2_lane"));
+    assert!(llvm.contains("define internal i64 @choose_value__fast_native_lane"));
     assert!(llvm.contains("call i64 @abi_cpu_capability_mask_for_key"));
     assert!(llvm.contains("call i64 @abi_cpu_feature_mask()"));
     assert!(llvm.contains("call i64 @abi_converge_select_lane_for_key"));
@@ -1197,10 +1197,11 @@ fn llvm_generates_struct_array_and_fstring_paths() {
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("define i8* @make_view(i64 %arg0)"));
-    assert!(llvm.contains("call i8* @KAIN_alloc(i64"));
-    assert!(llvm.contains("call i8* @array_new(i64 4)"));
-    assert!(llvm.contains("call i64 @array_get(i8*"));
+    assert!(llvm.contains("define internal i8* @make_view(i64 %arg0)"));
+    assert!(!llvm.contains("call i8* @array_new"));
+    assert!(!llvm.contains("call i64 @array_get"));
+    assert!(llvm.contains("alloca [3 x i64]"));
+    assert!(llvm.contains("getelementptr inbounds [3 x i64]"));
     assert!(llvm.contains("call i8* @to_string(i64"));
     assert!(llvm.contains("call i8* @str_concat(i8*"));
 }
@@ -1641,7 +1642,7 @@ fn llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage() {
     assert!(!llvm.contains("call i8* @__kain_ptr_offset"));
     assert!(llvm.contains("alloca [4 x i64]"));
     assert!(llvm.contains("align 8"));
-    assert!(llvm.contains("getelementptr i8"));
+    assert!(llvm.contains("getelementptr i64"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "bounded-ephemeral-ptr-offset-buffer-erasure");
 }
 
@@ -1940,7 +1941,7 @@ fn llvm_generates_float_arithmetic_and_comparisons() {
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("define double @blend(double %arg0, double %arg1)"));
+    assert!(llvm.contains("define internal double @blend(double %arg0, double %arg1)"));
     assert!(llvm.contains("fdiv double"));
     assert!(llvm.contains("fcmp ogt double"));
     assert!(llvm.contains("call double @pow(double"));
@@ -2192,10 +2193,11 @@ fn unpack_sum() -> Int:
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%__kain_tuple_i64_i64_i64 = type { i64, i64, i64 }"));
-    assert!(llvm.contains("define %__kain_tuple_i64_i64_i64* @step()"));
-    assert!(llvm.contains("call i8* @KAIN_alloc(i64"));
+    assert!(llvm.contains("define internal %__kain_tuple_i64_i64_i64 @step()"));
+    assert!(llvm.contains("insertvalue %__kain_tuple_i64_i64_i64"));
     assert!(llvm.contains("getelementptr inbounds %__kain_tuple_i64_i64_i64"));
-    assert!(llvm.contains("define i64 @unpack_sum()"));
+    assert!(llvm.contains("store %__kain_tuple_i64_i64_i64"));
+    assert!(llvm.contains("define internal i64 @unpack_sum()"));
 }
 
 #[test]
@@ -2213,7 +2215,7 @@ fn mutate_items() -> Int:
 
     assert!(llvm.contains("call void @array_set(i8*"));
     assert!(llvm.contains("call i64 @array_get(i8*"));
-    assert!(llvm.contains("define i64 @mutate_items()"));
+    assert!(llvm.contains("define internal i64 @mutate_items()"));
 }
 
 #[test]
@@ -2342,7 +2344,7 @@ fn llvm_generates_struct_destructuring_patterns() {
 
     assert!(llvm.contains("%Point = type { i64, i64 }"));
     assert!(llvm.contains("getelementptr inbounds %Point, %Point*"));
-    assert!(llvm.contains("define i64 @sum_point()"));
+    assert!(llvm.contains("define internal i64 @sum_point()"));
 }
 
 #[test]
@@ -2402,7 +2404,7 @@ fn llvm_generates_raw_address_indexing_reads_and_writes() {
     )
     .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("define i64 @mutate_ptr(i64 %arg0)"));
+    assert!(llvm.contains("define internal i64 @mutate_ptr(i64 %arg0)"));
     assert!(llvm.contains("inttoptr i64"));
     assert!(llvm.contains("getelementptr inbounds i64, i64*"));
     assert!(llvm.contains("store i64 99, i64*"));
@@ -2457,8 +2459,8 @@ fn llvm_lowers_tuple_aggregate_init_without_dummy_fallback() {
     .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%__kain_tuple_i64_i64 = type { i64, i64 }"));
-    assert!(llvm.contains("define %__kain_tuple_i64_i64* @build_pair()"));
-    assert!(llvm.contains("call i8* @KAIN_alloc(i64"));
+    assert!(llvm.contains("define internal %__kain_tuple_i64_i64 @build_pair()"));
+    assert!(llvm.contains("insertvalue %__kain_tuple_i64_i64"));
     assert!(!llvm.contains("ret i64 0"));
 }
 
@@ -2536,9 +2538,9 @@ fn classify(kind: AssetKind) -> Int:
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%AssetKind = type { i64, i8* }"));
-    assert!(llvm.contains("define i64 @classify(%AssetKind* %arg0)"));
+    assert!(llvm.contains("define internal i64 @classify(%AssetKind* %arg0)"));
     assert!(llvm.contains("getelementptr inbounds %AssetKind, %AssetKind*"));
-    let classify_ir = llvm_function_ir(&llvm, "define i64 @classify(%AssetKind* %arg0)");
+    let classify_ir = llvm_function_ir(&llvm, "define internal i64 @classify(%AssetKind* %arg0)");
     assert!(classify_ir.contains("phi i64"));
     assert!(classify_ir.contains("ret i64 %"));
     assert!(!classify_ir.trim_end().ends_with("unreachable\n}"));
@@ -2558,8 +2560,9 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("call i8* @array_new(i64 4)"));
-    assert!(llvm.contains("call void @array_push(i8*"));
+    assert!(llvm.contains("alloca [3 x i64]"));
+    assert!(!llvm.contains("call i8* @array_new"));
+    assert!(!llvm.contains("call void @array_push"));
     assert!(llvm.contains("call i8* @str_concat(i8*"));
 }
 
@@ -2961,13 +2964,13 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("define i8* @describe(%AssetKind* %arg0, i64 %arg1)"));
+    assert!(llvm.contains("define internal i8* @describe(%AssetKind* %arg0, i64 %arg1)"));
     assert!(llvm.contains("phi i8*"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "guarded-string-match");
 }
 
 #[test]
-fn llvm_lowers_typed_none_to_null_for_struct_pointer_flows() {
+fn llvm_lowers_typed_none_to_zero_for_struct_value_flows() {
     let node = TypedItem::Struct(TypedStruct {
         ast: Struct {
             name: "Node".to_string(),
@@ -3064,8 +3067,8 @@ fn llvm_lowers_typed_none_to_null_for_struct_pointer_flows() {
     .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%Node = type { i64 }"));
-    assert!(llvm.contains("%node.addr_0 = alloca %Node*"));
-    assert!(llvm.contains("store %Node* null, %Node** %node.addr_0"));
-    assert!(llvm.contains("define %Node* @return_none()"));
-    assert!(llvm.contains("ret %Node* null"));
+    assert!(llvm.contains("%node.addr_0 = alloca %Node"));
+    assert!(llvm.contains("store %Node zeroinitializer, %Node* %node.addr_0"));
+    assert!(llvm.contains("define internal %Node @return_none()"));
+    assert!(llvm.contains("ret %Node zeroinitializer"));
 }

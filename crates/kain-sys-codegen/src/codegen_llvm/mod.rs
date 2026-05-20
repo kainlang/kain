@@ -1374,6 +1374,25 @@ impl LlvmGenerator {
         }
     }
 
+    fn ast_type_is_self_alias(ty: &Type) -> bool {
+        matches!(ty, Type::Named { name, .. } if name == "Self_" || name == "Self")
+    }
+
+    fn map_impl_type_from_ast(&self, target_name: &str, ty: &Type) -> String {
+        if Self::ast_type_is_self_alias(ty) {
+            self.struct_storage_type(target_name)
+        } else {
+            self.map_type_from_ast(ty)
+        }
+    }
+
+    fn impl_method_has_authored_self_param(method: &kain_core::ast::Function) -> bool {
+        method.params.first().is_some_and(|param| {
+            Self::ast_type_is_self_alias(&param.ty)
+                || matches!(param.name.as_str(), "self" | "_self")
+        })
+    }
+
     fn ast_type_is_string(ty: &Type) -> bool {
         matches!(
             ty,
@@ -7459,14 +7478,23 @@ impl LlvmGenerator {
             Pattern::Tuple(patterns, span) => {
                 let struct_name = ty
                     .strip_prefix('%')
-                    .and_then(|name| name.strip_suffix('*'))
+                    .map(|name| name.trim_end_matches('*'))
                     .ok_or_else(|| {
                         KainError::codegen(
-                            format!("Tuple pattern requires tuple pointer value, got {}", ty),
+                            format!("Tuple pattern requires tuple aggregate value, got {}", ty),
                             *span,
                         )
                     })?
                     .to_string();
+                let (pattern_val, pattern_ty) = if ty.ends_with('*') {
+                    (val, ty)
+                } else {
+                    let addr_reg = format!("%tuple.pattern.addr_{}", self.reg_count);
+                    self.reg_count += 1;
+                    self.emit_entry_alloca(&addr_reg, &ty);
+                    self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, addr_reg));
+                    (addr_reg, format!("{}*", ty))
+                };
 
                 let field_defs = self.struct_defs.get(&struct_name).cloned().ok_or_else(|| {
                     KainError::codegen(
@@ -7483,7 +7511,7 @@ impl LlvmGenerator {
                     let field_ptr = self.next_reg();
                     self.emit(&format!(
                         "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                        field_ptr, struct_name, ty, val, index
+                        field_ptr, struct_name, pattern_ty, pattern_val, index
                     ));
                     let field_val = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
@@ -7497,14 +7525,23 @@ impl LlvmGenerator {
             Pattern::Struct { name, fields, span, .. } => {
                 let struct_name = ty
                     .strip_prefix('%')
-                    .and_then(|name| name.strip_suffix('*'))
+                    .map(|name| name.trim_end_matches('*'))
                     .ok_or_else(|| {
                         KainError::codegen(
-                            format!("Struct pattern requires struct pointer value, got {}", ty),
+                            format!("Struct pattern requires struct aggregate value, got {}", ty),
                             *span,
                         )
                     })?
                     .to_string();
+                let (pattern_val, pattern_ty) = if ty.ends_with('*') {
+                    (val, ty)
+                } else {
+                    let addr_reg = format!("%struct.pattern.addr_{}", self.reg_count);
+                    self.reg_count += 1;
+                    self.emit_entry_alloca(&addr_reg, &ty);
+                    self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, addr_reg));
+                    (addr_reg, format!("{}*", ty))
+                };
 
                 if &struct_name != name {
                     return Err(KainError::codegen(
@@ -7536,7 +7573,7 @@ impl LlvmGenerator {
                     let field_ptr = self.next_reg();
                     self.emit(&format!(
                         "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                        field_ptr, struct_name, ty, val, index
+                        field_ptr, struct_name, pattern_ty, pattern_val, index
                     ));
                     let field_val = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", field_val, field_ty, field_ty, field_ptr));
@@ -9290,7 +9327,7 @@ impl LlvmGenerator {
                             let mut ret_ty = method
                                 .return_type
                                 .as_ref()
-                                .map(|ty| self.map_type_from_ast(ty))
+                                .map(|ty| self.map_impl_type_from_ast(name, ty))
                                 .unwrap_or_else(|| "void".to_string());
                             if ret_ty == "void" {
                                 ret_ty = "i64".to_string();
@@ -10404,7 +10441,7 @@ impl LlvmGenerator {
         let mut ret_type = method
             .return_type
             .as_ref()
-            .map(|ty| self.map_type_from_ast(ty))
+            .map(|ty| self.map_impl_type_from_ast(target_name, ty))
             .unwrap_or_else(|| "void".to_string());
         if ret_type == "void" {
             ret_type = "i64".to_string();
@@ -10413,10 +10450,16 @@ impl LlvmGenerator {
 
         let mut params = Vec::new();
         params.push(format!("{} %arg0", self_ty));
-        for (i, param) in method.params.iter().enumerate() {
+        let authored_self_param = Self::impl_method_has_authored_self_param(method);
+        for (i, param) in method
+            .params
+            .iter()
+            .skip(if authored_self_param { 1 } else { 0 })
+            .enumerate()
+        {
             params.push(format!(
                 "{} %arg{}",
-                self.map_type_from_ast(&param.ty),
+                self.map_impl_type_from_ast(target_name, &param.ty),
                 i + 1
             ));
         }
@@ -10448,9 +10491,31 @@ impl LlvmGenerator {
         if let Some(scope) = self.scopes.last_mut() {
             scope.push("self".to_string());
         }
+        if authored_self_param {
+            let self_name = method
+                .params
+                .first()
+                .map(|param| param.name.as_str())
+                .unwrap_or("_self");
+            if self_name != "self" {
+                self.locals.insert(
+                    self_name.to_string(),
+                    ("%self.addr".to_string(), self_ty.clone()),
+                );
+                self.borrowed_locals.insert(self_name.to_string());
+                if let Some(scope) = self.scopes.last_mut() {
+                    scope.push(self_name.to_string());
+                }
+            }
+        }
 
-        for (i, param) in method.params.iter().enumerate() {
-            let p_ty = self.map_type_from_ast(&param.ty);
+        for (i, param) in method
+            .params
+            .iter()
+            .skip(if authored_self_param { 1 } else { 0 })
+            .enumerate()
+        {
+            let p_ty = self.map_impl_type_from_ast(target_name, &param.ty);
             let addr_reg = format!("%{}.addr", param.name);
             self.emit_entry_alloca(&addr_reg, &p_ty);
             self.emit(&format!(
@@ -14394,17 +14459,31 @@ impl LlvmGenerator {
                     }
                 }
 
-                if obj_ty.starts_with("%") && obj_ty.ends_with("*") {
-                    let struct_name = &obj_ty[1..obj_ty.len() - 1]; // Remove % and *
+                if obj_ty.starts_with("%") {
+                    let struct_name = obj_ty
+                        .trim_start_matches('%')
+                        .trim_end_matches('*');
                     let func_name = format!("{}_{}", struct_name, method);
 
                     if self.functions.contains_key(&func_name) {
                         let mut compiled_args = Vec::new();
                         let mut arg_types = Vec::new();
+                        let self_arg_ty = format!("%{}*", struct_name);
+                        let self_arg_val = if obj_ty.ends_with('*') {
+                            obj_val
+                        } else {
+                            let receiver_addr = self.next_reg();
+                            self.emit_entry_alloca(&receiver_addr, &obj_ty);
+                            self.emit(&format!(
+                                "  store {} {}, {}* {}",
+                                obj_ty, obj_val, obj_ty, receiver_addr
+                            ));
+                            receiver_addr
+                        };
 
                         // Pass 'self' as first argument
-                        compiled_args.push(obj_val);
-                        arg_types.push(obj_ty);
+                        compiled_args.push(self_arg_val);
+                        arg_types.push(self_arg_ty);
 
                         for arg in args {
                             let (val, ty) = self.compile_expr(&arg.value)?;
@@ -14861,6 +14940,38 @@ fn main() -> Int:
         assert!(llvm.contains("declare i64 @piano_audio_note_on(i64 %arg0)"));
         assert!(llvm.contains("call i8* @piano_audio_status()"));
         assert!(llvm.contains("call i64 @piano_audio_note_on(i64 60)"));
+    }
+
+    #[test]
+    fn lowers_impl_self_builder_methods_without_extra_self_parameter() {
+        let source = r#"
+struct ButtonBuilder:
+    label: String
+    key: String
+
+impl ButtonBuilder:
+    fn key(_self: Self_, key: String) -> Self_:
+        return ButtonBuilder { label: _self.label, key: key }
+
+fn main() -> Int:
+    let b = ButtonBuilder { label: "Save", key: "" }.key("save")
+    return len(b.key)
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-impl-self-builder-test>")
+            .parse()
+            .expect("parse");
+        let typed =
+            types::check(&ast, &mapper, "<llvm-impl-self-builder-test>").expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+
+        assert!(llvm.contains(
+            "define %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder* %arg0, i8* %arg1)"
+        ));
+        assert!(llvm.contains("call %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder*"));
+        assert!(!llvm.contains("@ButtonBuilder_key(%ButtonBuilder* %arg0, %ButtonBuilder* %arg1"));
     }
 
     #[test]

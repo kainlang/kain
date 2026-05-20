@@ -21,6 +21,11 @@ artifact_root = ".kain/out"
 cache_root = ".kain/cache/build"
 profile = "debug"
 
+[[platform.packages]]
+name = "vulkan"
+provider = "system"
+dispatch_model = "vulkan-loader-dispatch"
+
 [[build.tasks]]
 id = "check-llvm"
 kind = "check"

@@ -109,11 +109,20 @@ Useful flags:
 
 `kain run dev [input]` and `kain watch [input]` run the same plan in watcher
 mode and re-run when planned inputs change. Use `--dry-run` on either command
-to print the resolved plan without entering the resident loop.
+to print the resolved plan without entering the resident loop. Watch inputs now
+include manifest defaults, `build.kn` / `platform.kn`, generated platform locks,
+binding reports, generated modules, and transitive blade C/FFI bridge inputs when
+they are part of the resolved run graph.
 
 `kain run plan [input]` prints the resolved plan without executing it. This is
-the quickest way to debug target inference, blade selection, and manifest run
-metadata.
+the quickest way to debug target inference, blade selection, manifest run
+metadata, platform lock provenance, and inherited blade foreign requirements.
+
+When a workspace declares platform packages through `build.kn`, `platform.kn`,
+or `[[platform.packages]]`, `kain run` resolves the deterministic package lock
+lane before executing. Plans and reports include the build graph source,
+platform lock paths, generated package modules, binding reports, and status
+(`planned` for `run plan` / dry-run, `locked` for real execution).
 
 Capsule `.kn` inputs are auto-detected before target inference. The CLI
 materializes the capsule to `.kain/cache/amalgamate/<digest>/workspace` and

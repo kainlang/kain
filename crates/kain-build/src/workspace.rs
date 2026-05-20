@@ -1180,6 +1180,12 @@ fn discover_build_graph_provenance(
     let manifest_path = manifest_path
         .filter(|path| path.exists())
         .map(Path::to_path_buf);
+    let manifest_platform_packages = if let Some(path) = &manifest_path {
+        let source = kfs::read_text(path)?;
+        extract_manifest_build_graph_platform_packages(&source)
+    } else {
+        Vec::new()
+    };
     let build_script = BUILD_GRAPH_SCRIPT_NAMES
         .iter()
         .map(|name| workspace_root.join(name))
@@ -1195,7 +1201,7 @@ fn discover_build_graph_provenance(
             defaults_merged_from: None,
             build_script: None,
             overrides: Vec::new(),
-            platform_packages: Vec::new(),
+            platform_packages: manifest_platform_packages,
         }));
     };
 
@@ -1212,6 +1218,15 @@ fn discover_build_graph_provenance(
             "{graph_source} is build graph authority; KAIN.toml contributes defaults"
         ));
     }
+    if !manifest_platform_packages.is_empty() {
+        let manifest_pairs = platform_package_pairs(&manifest_platform_packages);
+        let script_pairs = platform_package_pairs(&platform_packages);
+        if manifest_pairs != script_pairs {
+            overrides.push(format!(
+                "{graph_source} overrides KAIN.toml platform packages: script={script_pairs:?}, manifest={manifest_pairs:?}"
+            ));
+        }
+    }
 
     Ok(Some(KainBuildGraphProvenance {
         graph_source,
@@ -1220,6 +1235,50 @@ fn discover_build_graph_provenance(
         overrides,
         platform_packages,
     }))
+}
+
+fn extract_manifest_build_graph_platform_packages(
+    source: &str,
+) -> Vec<KainBuildGraphPlatformPackage> {
+    let Ok(value) = source.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    let Some(packages) = value
+        .get("platform")
+        .and_then(|platform| platform.get("packages"))
+        .and_then(toml::Value::as_array)
+    else {
+        return Vec::new();
+    };
+
+    let mut output = Vec::new();
+    for package in packages {
+        let Some(table) = package.as_table() else {
+            continue;
+        };
+        let package_name = table
+            .get("package")
+            .or_else(|| table.get("name"))
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let Some(package_name) = package_name else {
+            continue;
+        };
+        let provider = table
+            .get("provider")
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("system");
+        output.push(KainBuildGraphPlatformPackage {
+            package: package_name.to_string(),
+            provider: provider.to_string(),
+            source: "KAIN.toml".to_string(),
+        });
+    }
+    sort_build_graph_platform_packages(&mut output);
+    output
 }
 
 fn extract_build_graph_platform_packages(
@@ -1243,14 +1302,29 @@ fn extract_build_graph_platform_packages(
             offset = function_start;
         }
     }
+    sort_build_graph_platform_packages(&mut packages);
+    packages
+}
+
+fn sort_build_graph_platform_packages(packages: &mut Vec<KainBuildGraphPlatformPackage>) {
     packages.sort_by(|left, right| {
         left.package
             .cmp(&right.package)
             .then(left.provider.cmp(&right.provider))
+            .then(left.source.cmp(&right.source))
     });
+    packages.dedup_by(|left, right| {
+        left.package == right.package
+            && left.provider == right.provider
+            && left.source == right.source
+    });
+}
+
+fn platform_package_pairs(packages: &[KainBuildGraphPlatformPackage]) -> Vec<(String, String)> {
     packages
-        .dedup_by(|left, right| left.package == right.package && left.provider == right.provider);
-    packages
+        .iter()
+        .map(|package| (package.package.clone(), package.provider.clone()))
+        .collect()
 }
 
 fn parse_provider_chain(source: &str, offset: usize) -> Option<String> {
@@ -3502,7 +3576,7 @@ mod tests {
         let manifest_path = root.join("KAIN.toml");
         std::fs::write(
             &manifest_path,
-            "[package]\nname = \"probe\"\n\n[build]\nentry = \"src/main.kn\"\n",
+            "[package]\nname = \"probe\"\n\n[build]\nentry = \"src/main.kn\"\n\n[[platform.packages]]\nname = \"tiny_math\"\nprovider = \"fixture\"\n",
         )
         .expect("write KAIN.toml");
         std::fs::write(
@@ -3526,6 +3600,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
             .overrides
             .iter()
             .any(|value| value.contains("build graph authority")));
+        assert!(provenance
+            .overrides
+            .iter()
+            .any(|value| value.contains("overrides KAIN.toml platform packages")));
         assert_eq!(
             provenance
                 .platform_packages
@@ -3534,6 +3612,45 @@ fn build(ctx: BuildContext) -> BuildGraph:
                 .collect::<Vec<_>>(),
             vec![("tiny_math", "system"), ("vulkan", "system")]
         );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn build_graph_provenance_manifest_platform_packages_match_build_kn_graph() {
+        let manifest_source = "[package]\nname = \"probe\"\n\n[[platform.packages]]\nname = \"tiny_math\"\nprovider = \"fixture\"\n\n[[platform.packages]]\npackage = \"vulkan\"\nprovider = \"system\"\n";
+        let build_source = r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let vk = platform_package("vulkan").provider("system")
+    let tiny = platform_package("tiny_math").provider("fixture")
+    return build_graph().require(vk).require(tiny)
+"#;
+
+        let manifest_packages = extract_manifest_build_graph_platform_packages(manifest_source);
+        let build_packages = extract_build_graph_platform_packages(build_source, "build.kn");
+        assert_eq!(
+            platform_package_pairs(&manifest_packages),
+            platform_package_pairs(&build_packages)
+        );
+    }
+
+    #[test]
+    fn build_graph_provenance_uses_kain_toml_when_no_script_exists() {
+        let root = unique_test_dir("manifest-platform-graph");
+        let manifest_path = root.join("KAIN.toml");
+        std::fs::write(
+            &manifest_path,
+            "[package]\nname = \"probe\"\n\n[[platform.packages]]\nname = \"tiny_math\"\nprovider = \"fixture\"\n",
+        )
+        .expect("write KAIN.toml");
+
+        let provenance = discover_build_graph_provenance(&root, Some(&manifest_path))
+            .expect("graph provenance")
+            .expect("provenance present");
+
+        assert_eq!(provenance.graph_source, "KAIN.toml");
+        assert_eq!(provenance.platform_packages.len(), 1);
+        assert_eq!(provenance.platform_packages[0].package, "tiny_math");
+        assert_eq!(provenance.platform_packages[0].provider, "fixture");
         let _ = std::fs::remove_dir_all(root);
     }
 
