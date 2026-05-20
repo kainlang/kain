@@ -1,5 +1,27 @@
 # Kain Memory
 
+# 2026-05-20 - Kaintana examples tour suite landed
+
+`blades/kaintana/examples` now holds single-file examples that compile into the normal `blades/kaintana/kaintana.exe` application through `examples/example_tour_suite.kn`. This keeps examples discoverable without creating a folder per demo or separate binaries.
+
+Examples added:
+
+- `example_todo_list.kn`: rows with toggle/delete controls for data-driven state and stable key reconciliation.
+- `example_tabbed_pane.kn`: three tabs with one active content branch for conditional composition.
+- `example_modal_popup.kn`: underlay controls plus appended modal/shield/dialog commands for layering/order.
+- `example_data_grid.kn`: virtualized table window rows `240-247` with sortable-looking headers.
+- `example_keypad.kn`: classic 3x4 keypad grid.
+- `example_resizable_panel.kn`: split preview/inspector layout with a handle and snap buttons.
+- `example_file_explorer.kn`: fake explorer path/tree rows.
+- `example_mega_button_test.kn`: 20-button grid to pressure stable keys and command count.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kaintana\run.ps1 -NoRun` -> PASS, generated `kaintana.exe`.
+- Direct smoke: `cmd /v:on /c "cd /d D:\Kain-Lang\blades\kaintana && kaintana.exe & echo EXIT:!ERRORLEVEL!"` -> `EXIT:0`.
+- Host report: `.kain/run/kaintana_host_report.txt` reports title `Kaintana // Examples Tour`, `commands=169`, `last_error=ok`.
+- Screenshot: `.kain/run/kaintana_host.bmp`, 5,734,454 bytes.
+
 # 2026-05-20 - Benchmark latest truth hardened; CFD frontier collapsed back to near parity
 
 This automation pass started from a false frontier: the canonical `benchmark/latest.md` snapshot was making `sim_cfd_pressure_projection` look like a catastrophic Kain regression even though focused retakes kept landing near parity. The durable fix was not only the already-tracked CFD row linearization, but also hardening `benchmark/run.py` so the suite stops failing or lying under Windows churn.

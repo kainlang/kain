@@ -1,0 +1,47 @@
+use layout::kaintana_inset
+use layout::kaintana_row_slot
+use types::KaintanaContext
+use types::KaintanaRect
+use types::kaintana_rect
+use kaintana_ui::*
+
+fn tabs_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_button(ui(ctx), label)
+    let b1 = kaintana_button_key(b0, key)
+    let b2 = kaintana_button_rect(b1, rect)
+    let b3 = kaintana_button_font(b2, font, 22.0)
+    let result = kaintana_button_render(ctx, b3)
+    return result.ctx
+
+fn tabs_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
+    let l0 = kaintana_label(ui(ctx), text)
+    let l1 = kaintana_label_key(l0, key)
+    let l2 = kaintana_label_rect(l1, rect)
+    let l3 = kaintana_label_font(l2, font, 22.0)
+    let result = kaintana_label_render(ctx, l3)
+    return result.ctx
+
+pub fn kaintana_example_tabbed_pane(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+    let p0 = kaintana_panel(ui(next), "Tabbed Pane")
+    let p1 = kaintana_panel_key(p0, "example.tabs.panel")
+    let p2 = kaintana_panel_rect(p1, rect)
+    let p3 = kaintana_panel_font(p2, title_font, 26.0)
+    let panel = kaintana_panel_render(next, p3)
+    next = panel.ctx
+
+    let active_tab: Int = 1
+    let inner = kaintana_inset(rect, 14.0, 50.0, 14.0, 14.0)
+    let tab_row = kaintana_rect(inner.x, inner.y, inner.width, 36.0)
+    next = tabs_button(next, kaintana_row_slot(tab_row, 0.0, 124.0, 8.0), "tabs.scene", "Scene", body_font)
+    next = tabs_button(next, kaintana_row_slot(tab_row, 1.0, 124.0, 8.0), "tabs.inspect", "Inspector *", body_font)
+    next = tabs_button(next, kaintana_row_slot(tab_row, 2.0, 124.0, 8.0), "tabs.console", "Console", body_font)
+
+    let content = kaintana_rect(inner.x, inner.y + 52.0, inner.width, inner.height - 52.0)
+    if active_tab == 0:
+        next = tabs_label(next, content, "tabs.content.scene", "Visible: scene graph preview", body_font)
+    if active_tab == 1:
+        next = tabs_label(next, content, "tabs.content.inspect", "Visible: inspector controls only; other tabs are not reconciled", body_font)
+    if active_tab == 2:
+        next = tabs_label(next, content, "tabs.content.console", "Visible: console log stream", body_font)
+    return next

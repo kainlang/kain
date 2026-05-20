@@ -8,20 +8,95 @@ use std::text
 use std::ui
 use c::kaintana_desktop_bridge
 use desktop_adapter::kaintana_desktop_host_geometry_count
+use desktop_adapter::kaintana_desktop_host_run_window
 use desktop_adapter::kaintana_desktop_host_write_report_path
 use desktop_adapter::kaintana_desktop_host_write_screenshot_path
 use desktop_adapter::kaintana_desktop_probe
-use layout::kaintana_column_slot
 use layout::kaintana_inset
-use layout::kaintana_split_left
-use layout::kaintana_split_right
 use reconciliation::kaintana_context_destroy
 use theme::kaintana_theme_named
+use types::KaintanaWindowSpec
 use types::kaintana_backend_desktop
-use types::kaintana_default_window_spec
 use types::kaintana_rect
+use types::kaintana_window_spec
 use types::kaintana_window_rect
+use vulkan_adapter::kaintana_vulkan_adapter_probe
+use winit_adapter::kaintana_winit_adapter_from_context
+use winit_adapter::kaintana_winit_adapter_present
+use winit_adapter::kaintana_winit_adapter_pump
+use winit_adapter::kaintana_winit_adapter_score
+use example_tour_suite::kaintana_examples_render_tour
 use kaintana_ui::*
+
+fn kaintana_is_digit_char(ch: String) -> Bool:
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+
+fn kaintana_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn kaintana_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let sign = 1
+    let index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let value = 0
+    while index < len(text):
+        if !kaintana_is_digit_char(char_at(text, index)):
+            return value * sign
+        value = value * 10 + kaintana_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn kaintana_examples_frame_budget_or_default(default_value: Int) -> Int:
+    let override_text = env("KAINTANA_EXAMPLES_FRAME_BUDGET")
+    if len(override_text) == 0:
+        return default_value
+    let override_value = kaintana_parse_int_text(override_text)
+    if override_value <= 0:
+        return default_value
+    return override_value
+
+fn kaintana_examples_window_spec() -> KaintanaWindowSpec:
+    return kaintana_window_spec(
+        "Kaintana // Examples Tour",
+        1280,
+        1120,
+        kaintana_examples_frame_budget_or_default(6000),
+        kaintana_backend_desktop(),
+        "software",
+        8,
+        14,
+        26,
+        255,
+        112,
+        68,
+        "",
+        "",
+        ".kain/run/kaintana_frame_report.txt",
+        ".kain/run/kaintana_host_report.txt",
+        ".kain/run/kaintana_host.bmp"
+    )
 
 fn main() -> Int:
     let boot = native_runtime_init()
@@ -31,54 +106,44 @@ fn main() -> Int:
     if kaintana_desktop_probe() != 1:
         return 20
 
-    let spec = kaintana_default_window_spec("Kaintana // Builder Probe", 960, 540, kaintana_backend_desktop())
+    let spec = kaintana_examples_window_spec()
     let theme = kaintana_theme_named("oxide-dcc")
-    var ctx = kaintana_context("kaintana-builder-probe", spec, theme, true)
+    var ctx = kaintana_context("kaintana-examples-tour", spec, theme, true)
     let body_font = native_ui_font_create(ctx.session_id, "font.kaintana.body", "Consolas", 16.0)
     let title_font = native_ui_font_create(ctx.session_id, "font.kaintana.title", "Segoe UI", 28.0)
-    ctx = kaintana_begin(ctx, "kaintana-v2-builder-probe", 16.0)
+    ctx = kaintana_begin(ctx, "kaintana-examples-tour", 16.0)
 
     let bounds = kaintana_inset(kaintana_window_rect(spec), 24.0, 24.0, 24.0, 24.0)
-    let rail = kaintana_split_left(bounds, 0.30, 20.0)
-    let stage = kaintana_split_right(bounds, 0.30, 20.0)
+    let hero = kaintana_rect(bounds.x, bounds.y, bounds.width, 56.0)
+    let gallery = kaintana_rect(bounds.x, bounds.y + 74.0, bounds.width, bounds.height - 74.0)
 
-    let panel0 = kaintana_panel(ui(ctx), "KAINTANA V2")
-    let panel1 = kaintana_panel_key(panel0, "shell.panel")
-    let panel2 = kaintana_panel_rect(panel1, bounds)
+    let panel0 = kaintana_panel(ui(ctx), "KAINTANA EXAMPLES TOUR")
+    let panel1 = kaintana_panel_key(panel0, "examples.hero.panel")
+    let panel2 = kaintana_panel_rect(panel1, hero)
     let panel3 = kaintana_panel_font(panel2, title_font, 36.0)
     let panel = kaintana_panel_render(ctx, panel3)
     ctx = panel.ctx
-    let label0 = kaintana_label(ui(ctx), "SlotMap handles // arena frame state // desktop adapter")
-    let label1 = kaintana_label_key(label0, "shell.summary")
-    let label2 = kaintana_label_rect(label1, kaintana_column_slot(rail, 1.0, 32.0, 12.0))
-    let label3 = kaintana_label_font(label2, body_font, 20.0)
+
+    let label0 = kaintana_label(ui(ctx), "todo, tabs, modal, data grid, keypad, resizable panels, file explorer, mega buttons")
+    let label1 = kaintana_label_key(label0, "examples.hero.summary")
+    let label2 = kaintana_label_rect(label1, kaintana_rect(hero.x + 560.0, hero.y + 18.0, hero.width - 580.0, 28.0))
+    let label3 = kaintana_label_font(label2, body_font, 22.0)
     let label4 = kaintana_label_muted(label3)
     let label = kaintana_label_render(ctx, label4)
     ctx = label.ctx
-    let button0 = kaintana_button(ui(ctx), "Ignite Renderer")
-    let button1 = kaintana_button_key(button0, "action.ignite")
-    let button2 = kaintana_button_rect(button1, kaintana_column_slot(rail, 3.0, 44.0, 12.0))
-    let button3 = kaintana_button_font(button2, body_font, 26.0)
-    let button = kaintana_button_render(ctx, button3)
-    ctx = button.ctx
-    let input0 = kaintana_text_input(ui(ctx), "Command", "converge desktop + gpu command stream")
-    let input1 = kaintana_text_input_key(input0, "input.command")
-    let input2 = kaintana_text_input_rect(input1, kaintana_column_slot(stage, 1.0, 52.0, 14.0))
-    let input3 = kaintana_text_input_font(input2, body_font, 28.0)
-    let input = kaintana_text_input_render(ctx, input3)
-    ctx = input.ctx
-    let slider0 = kaintana_slider(ui(ctx), "GPU UI Readiness", 72.0, 0.0, 100.0)
-    let slider1 = kaintana_slider_key(slider0, "slider.gpu.readiness")
-    let slider2 = kaintana_slider_rect(slider1, kaintana_column_slot(stage, 3.0, 84.0, 14.0))
-    let slider3 = kaintana_slider_font(slider2, body_font, 28.0)
-    let slider = kaintana_slider_render(ctx, slider3)
-    ctx = slider.ctx
+    ctx = kaintana_examples_render_tour(ctx, gallery, body_font, title_font)
 
     ctx = kaintana_commit(ctx)
+    let winit0 = kaintana_winit_adapter_from_context(ctx)
+    let winit1 = kaintana_winit_adapter_pump(winit0)
+    let winit2 = kaintana_winit_adapter_present(winit1)
+    let winit_score = kaintana_winit_adapter_score(winit2)
+    let vulkan_score = kaintana_vulkan_adapter_probe("kaintana-examples-vulkan", spec)
     let draw_count = ctx.draw_count
     let checksum = ctx.command_checksum
     let status = ctx.status
     fs_create_dir_all(".kain/run")
+    let host_status = kaintana_desktop_host_run_window(spec)
     let _report = kaintana_desktop_host_write_report_path(".kain/run/kaintana_host_report.txt")
     let _bmp = kaintana_desktop_host_write_screenshot_path(".kain/run/kaintana_host.bmp")
     let _destroy = kaintana_context_destroy(ctx)
@@ -87,10 +152,16 @@ fn main() -> Int:
         return 200 + shutdown
     if status != 0:
         return 30
-    if draw_count < 9:
+    if draw_count < 120:
         return 31
     if checksum <= 0:
         return 32
     if kaintana_desktop_host_geometry_count(spec) < draw_count:
         return 33
+    if winit_score <= 0:
+        return 34
+    if vulkan_score <= 0:
+        return 35
+    if host_status != 0:
+        return 36
     return 0

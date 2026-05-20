@@ -1,0 +1,40 @@
+use layout::kaintana_column_slot
+use layout::kaintana_inset
+use types::KaintanaContext
+use types::KaintanaRect
+use kaintana_ui::*
+
+fn explorer_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
+    let l0 = kaintana_label(ui(ctx), text)
+    let l1 = kaintana_label_key(l0, key)
+    let l2 = kaintana_label_rect(l1, rect)
+    let l3 = kaintana_label_font(l2, font, 21.0)
+    let result = kaintana_label_render(ctx, l3)
+    return result.ctx
+
+fn explorer_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_button(ui(ctx), label)
+    let b1 = kaintana_button_key(b0, key)
+    let b2 = kaintana_button_rect(b1, rect)
+    let b3 = kaintana_button_font(b2, font, 22.0)
+    let result = kaintana_button_render(ctx, b3)
+    return result.ctx
+
+pub fn kaintana_example_file_explorer(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+    let p0 = kaintana_panel(ui(next), "File Explorer")
+    let p1 = kaintana_panel_key(p0, "example.explorer.panel")
+    let p2 = kaintana_panel_rect(p1, rect)
+    let p3 = kaintana_panel_font(p2, title_font, 26.0)
+    let panel = kaintana_panel_render(next, p3)
+    next = panel.ctx
+
+    let inner = kaintana_inset(rect, 14.0, 50.0, 14.0, 14.0)
+    next = explorer_button(next, kaintana_column_slot(inner, 0.0, 32.0, 5.0), "explorer.path", "D:/Kain-Lang/blades/kaintana", body_font)
+    next = explorer_label(next, kaintana_column_slot(inner, 1.0, 24.0, 4.0), "explorer.src", "[dir] src", body_font)
+    next = explorer_label(next, kaintana_column_slot(inner, 2.0, 24.0, 4.0), "explorer.examples", "[dir] examples", body_font)
+    next = explorer_label(next, kaintana_column_slot(inner, 3.0, 24.0, 4.0), "explorer.native", "[dir] native", body_font)
+    next = explorer_label(next, kaintana_column_slot(inner, 4.0, 24.0, 4.0), "explorer.toml", "[file] KAIN.toml", body_font)
+    next = explorer_label(next, kaintana_column_slot(inner, 5.0, 24.0, 4.0), "explorer.run", "[file] run.ps1", body_font)
+    next = explorer_button(next, kaintana_column_slot(inner, 6.0, 32.0, 5.0), "explorer.refresh", "Refresh tree", body_font)
+    return next

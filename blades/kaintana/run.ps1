@@ -2,6 +2,7 @@ param(
     [switch]$NoRun,
     [ValidateSet("dev", "release")]
     [string]$BazelConfig = "dev",
+    [int]$FrameBudget = 0,
     [string]$KainBin = $env:KAIN_BIN
 )
 
@@ -30,8 +31,12 @@ if ($KainBin) {
 if (!$NoRun) {
     Push-Location $bladeRoot
     try {
+        if ($FrameBudget -gt 0) {
+            $env:KAINTANA_EXAMPLES_FRAME_BUDGET = [string]$FrameBudget
+        }
         & $rootExe
     } finally {
+        Remove-Item Env:KAINTANA_EXAMPLES_FRAME_BUDGET -ErrorAction SilentlyContinue
         Pop-Location
     }
 }

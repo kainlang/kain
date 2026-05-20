@@ -1,0 +1,44 @@
+use layout::kaintana_inset
+use layout::kaintana_split_left
+use layout::kaintana_split_right
+use types::KaintanaContext
+use types::KaintanaRect
+use types::kaintana_rect
+use kaintana_ui::*
+
+fn resize_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
+    let l0 = kaintana_label(ui(ctx), text)
+    let l1 = kaintana_label_key(l0, key)
+    let l2 = kaintana_label_rect(l1, rect)
+    let l3 = kaintana_label_font(l2, font, 22.0)
+    let result = kaintana_label_render(ctx, l3)
+    return result.ctx
+
+fn resize_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_button(ui(ctx), label)
+    let b1 = kaintana_button_key(b0, key)
+    let b2 = kaintana_button_rect(b1, rect)
+    let b3 = kaintana_button_font(b2, font, 23.0)
+    let result = kaintana_button_render(ctx, b3)
+    return result.ctx
+
+pub fn kaintana_example_resizable_panel(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+    let p0 = kaintana_panel(ui(next), "Resizable Panel")
+    let p1 = kaintana_panel_key(p0, "example.resize.panel")
+    let p2 = kaintana_panel_rect(p1, rect)
+    let p3 = kaintana_panel_font(p2, title_font, 26.0)
+    let panel = kaintana_panel_render(next, p3)
+    next = panel.ctx
+
+    let inner = kaintana_inset(rect, 14.0, 50.0, 14.0, 14.0)
+    let left = kaintana_split_left(inner, 0.62, 12.0)
+    let right = kaintana_split_right(inner, 0.62, 12.0)
+    let handle = kaintana_rect(left.x + left.width + 3.0, inner.y, 6.0, inner.height)
+    next = resize_label(next, kaintana_rect(left.x, left.y, left.width, 28.0), "resize.left.label", "Preview pane width=62%", body_font)
+    next = resize_button(next, handle, "resize.drag.handle", "|", body_font)
+    next = resize_label(next, kaintana_rect(right.x, right.y, right.width, 28.0), "resize.right.label", "Inspector", body_font)
+    next = resize_button(next, kaintana_rect(right.x, right.y + 46.0, right.width, 36.0), "resize.snap.33", "Snap 33%", body_font)
+    next = resize_button(next, kaintana_rect(right.x, right.y + 90.0, right.width, 36.0), "resize.snap.66", "Snap 66%", body_font)
+    next = resize_label(next, kaintana_rect(left.x, left.y + 52.0, left.width, 28.0), "resize.note", "layout split stays stable while the handle moves", body_font)
+    return next

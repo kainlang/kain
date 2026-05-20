@@ -51,6 +51,9 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
   - command checksum/counting, passive `std::ui` draw calls, and optional desktop bridge emission
 - `blades/kaintana/src/platform/desktop/desktop_adapter.kn`
   - desktop PAL wrapper over the blade-local compatibility bridge. Do not import `c::kaintana_desktop_bridge` here; keep that import in the entrypoint that owns linking.
+- `blades/kaintana/examples/*.kn`
+  - single-file examples that all compile into the normal `kaintana.exe` tour app through `examples/example_tour_suite.kn`
+  - current examples: to-do list, tabbed pane, modal popup, data grid, keypad, resizable panel, file explorer, mega button stress
 - `blades/kaintana/native/kaintana_desktop_bridge.c`
   - Win32/GDI compatibility host
   - fixed rect/text command buffer with client-size scaling and sized text fallback
@@ -147,6 +150,7 @@ Proof artifacts:
 
 - framework package host report: `blades/kaintana/.kain/run/kaintana_host_report.txt`
 - framework package screenshot: `blades/kaintana/.kain/run/kaintana_host.bmp`
+- framework package examples tour currently renders `commands=169` in the host report
 - desktop frame report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_frame.txt`
 - desktop host report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_host.txt`
 - desktop screenshot: `blades/kaintana-test/.kain/run/kaintana_test_desktop.bmp`

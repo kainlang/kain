@@ -16,7 +16,7 @@ use widgets::kaintana_widget_slider
 use widgets::kaintana_widget_text_input
 
 pub struct KaintanaUi:
-    session_seed: Int
+    default_font_resource_id: Int
 
 pub struct KaintanaPanelBuilder:
     label: StringView
@@ -68,10 +68,10 @@ pub fn kaintana_commit(ctx: KaintanaContext) -> KaintanaContext:
     return kaintana_context_commit_frame(ctx)
 
 pub fn ui(ctx: KaintanaContext) -> KaintanaUi:
-    return KaintanaUi { session_seed: ctx.session_id }
+    return KaintanaUi { default_font_resource_id: 0 }
 
 pub fn kaintana_panel(ui_state: KaintanaUi, label: String) -> KaintanaPanelBuilder:
-    return KaintanaPanelBuilder { label: kaintana_text(label), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.session_seed * 0, baseline_y: 18.0 }
+    return KaintanaPanelBuilder { label: kaintana_text(label), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.default_font_resource_id, baseline_y: 18.0 }
 
 pub fn kaintana_panel_key(builder: KaintanaPanelBuilder, stable_key: String) -> KaintanaPanelBuilder:
     return KaintanaPanelBuilder { label: builder.label, stable_key: kaintana_text(stable_key), rect: builder.rect, font_resource_id: builder.font_resource_id, baseline_y: builder.baseline_y }
@@ -86,7 +86,7 @@ pub fn kaintana_panel_render(ctx: KaintanaContext, builder: KaintanaPanelBuilder
     return kaintana_widget_panel(ctx, builder.stable_key, builder.label, builder.rect, builder.font_resource_id, builder.baseline_y)
 
 pub fn kaintana_label(ui_state: KaintanaUi, text: String) -> KaintanaLabelBuilder:
-    return KaintanaLabelBuilder { text: kaintana_text(text), stable_key: kaintana_text(text), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.session_seed * 0, baseline_y: 18.0, muted: false }
+    return KaintanaLabelBuilder { text: kaintana_text(text), stable_key: kaintana_text(text), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.default_font_resource_id, baseline_y: 18.0, muted: false }
 
 pub fn kaintana_label_key(builder: KaintanaLabelBuilder, stable_key: String) -> KaintanaLabelBuilder:
     return KaintanaLabelBuilder { text: builder.text, stable_key: kaintana_text(stable_key), rect: builder.rect, font_resource_id: builder.font_resource_id, baseline_y: builder.baseline_y, muted: builder.muted }
@@ -104,7 +104,7 @@ pub fn kaintana_label_render(ctx: KaintanaContext, builder: KaintanaLabelBuilder
     return kaintana_widget_label(ctx, builder.stable_key, builder.text, builder.rect, builder.font_resource_id, builder.baseline_y, builder.muted)
 
 pub fn kaintana_button(ui_state: KaintanaUi, label: String) -> KaintanaButtonBuilder:
-    return KaintanaButtonBuilder { label: kaintana_text(label), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.session_seed * 0, baseline_y: 18.0 }
+    return KaintanaButtonBuilder { label: kaintana_text(label), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.default_font_resource_id, baseline_y: 18.0 }
 
 pub fn kaintana_button_key(builder: KaintanaButtonBuilder, stable_key: String) -> KaintanaButtonBuilder:
     return KaintanaButtonBuilder { label: builder.label, stable_key: kaintana_text(stable_key), rect: builder.rect, font_resource_id: builder.font_resource_id, baseline_y: builder.baseline_y }
@@ -119,7 +119,7 @@ pub fn kaintana_button_render(ctx: KaintanaContext, builder: KaintanaButtonBuild
     return kaintana_widget_button(ctx, builder.stable_key, builder.label, builder.rect, builder.font_resource_id, builder.baseline_y)
 
 pub fn kaintana_text_input(ui_state: KaintanaUi, label: String, value: String) -> KaintanaTextInputBuilder:
-    return KaintanaTextInputBuilder { label: kaintana_text(label), value: kaintana_text(value), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.session_seed * 0, baseline_y: 18.0 }
+    return KaintanaTextInputBuilder { label: kaintana_text(label), value: kaintana_text(value), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.default_font_resource_id, baseline_y: 18.0 }
 
 pub fn kaintana_text_input_key(builder: KaintanaTextInputBuilder, stable_key: String) -> KaintanaTextInputBuilder:
     return KaintanaTextInputBuilder { label: builder.label, value: builder.value, stable_key: kaintana_text(stable_key), rect: builder.rect, font_resource_id: builder.font_resource_id, baseline_y: builder.baseline_y }
@@ -134,7 +134,7 @@ pub fn kaintana_text_input_render(ctx: KaintanaContext, builder: KaintanaTextInp
     return kaintana_widget_text_input(ctx, builder.stable_key, builder.label, builder.value, builder.rect, builder.font_resource_id, builder.baseline_y)
 
 pub fn kaintana_slider(ui_state: KaintanaUi, label: String, value: Float, min_value: Float, max_value: Float) -> KaintanaSliderBuilder:
-    return KaintanaSliderBuilder { label: kaintana_text(label), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.session_seed * 0, baseline_y: 18.0, value: value, min_value: min_value, max_value: max_value }
+    return KaintanaSliderBuilder { label: kaintana_text(label), stable_key: kaintana_text(label), rect: kaintana_rect(0.0, 0.0, 0.0, 0.0), font_resource_id: ui_state.default_font_resource_id, baseline_y: 18.0, value: value, min_value: min_value, max_value: max_value }
 
 pub fn kaintana_slider_key(builder: KaintanaSliderBuilder, stable_key: String) -> KaintanaSliderBuilder:
     return KaintanaSliderBuilder { label: builder.label, stable_key: kaintana_text(stable_key), rect: builder.rect, font_resource_id: builder.font_resource_id, baseline_y: builder.baseline_y, value: builder.value, min_value: builder.min_value, max_value: builder.max_value }

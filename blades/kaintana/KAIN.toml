@@ -12,12 +12,18 @@ source_roots = [
   "src/api",
   "src/core",
   "src/platform/desktop",
+  "src/platform/vulkan",
+  "src/platform/winit",
+  "examples",
 ]
 module_roots = [
   "src",
   "src/api",
   "src/core",
   "src/platform/desktop",
+  "src/platform/vulkan",
+  "src/platform/winit",
+  "examples",
 ]
 build_targets = ["llvm"]
 
@@ -48,6 +54,17 @@ inputs = [
   "src/core/theme.kn",
   "src/core/types.kn",
   "src/platform/desktop/desktop_adapter.kn",
+  "src/platform/vulkan/vulkan_adapter.kn",
+  "src/platform/winit/winit_adapter.kn",
+  "examples/example_data_grid.kn",
+  "examples/example_file_explorer.kn",
+  "examples/example_keypad.kn",
+  "examples/example_mega_button_test.kn",
+  "examples/example_modal_popup.kn",
+  "examples/example_resizable_panel.kn",
+  "examples/example_tabbed_pane.kn",
+  "examples/example_todo_list.kn",
+  "examples/example_tour_suite.kn",
   "native/kaintana_desktop_bridge.h",
   "native/kaintana_desktop_bridge.c",
   "build-desktop.ps1",

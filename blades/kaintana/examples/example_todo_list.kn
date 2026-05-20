@@ -1,0 +1,52 @@
+use layout::kaintana_column_slot
+use layout::kaintana_inset
+use types::KaintanaContext
+use types::KaintanaRect
+use types::kaintana_rect
+use kaintana_ui::*
+
+fn todo_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
+    let l0 = kaintana_label(ui(ctx), text)
+    let l1 = kaintana_label_key(l0, key)
+    let l2 = kaintana_label_rect(l1, rect)
+    let l3 = kaintana_label_font(l2, font, 22.0)
+    let result = kaintana_label_render(ctx, l3)
+    return result.ctx
+
+fn todo_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_button(ui(ctx), label)
+    let b1 = kaintana_button_key(b0, key)
+    let b2 = kaintana_button_rect(b1, rect)
+    let b3 = kaintana_button_font(b2, font, 24.0)
+    let result = kaintana_button_render(ctx, b3)
+    return result.ctx
+
+fn todo_row(ctx: KaintanaContext, row: KaintanaRect, toggle_key: String, label_key: String, delete_key: String, check_label: String, item_label: String, font: Int) -> KaintanaContext:
+    var next = ctx
+    let check_rect = kaintana_rect(row.x, row.y, 58.0, row.height)
+    let label_rect = kaintana_rect(row.x + 70.0, row.y, row.width - 180.0, row.height)
+    let delete_rect = kaintana_rect(row.x + row.width - 98.0, row.y, 98.0, row.height)
+    next = todo_button(next, check_rect, toggle_key, check_label, font)
+    next = todo_label(next, label_rect, label_key, item_label, font)
+    next = todo_button(next, delete_rect, delete_key, "Delete", font)
+    return next
+
+pub fn kaintana_example_todo_list(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+    let p0 = kaintana_panel(ui(next), "To-Do List")
+    let p1 = kaintana_panel_key(p0, "example.todo.panel")
+    let p2 = kaintana_panel_rect(p1, rect)
+    let p3 = kaintana_panel_font(p2, title_font, 26.0)
+    let panel = kaintana_panel_render(next, p3)
+    next = panel.ctx
+
+    let list = kaintana_inset(rect, 14.0, 48.0, 14.0, 14.0)
+    let note = kaintana_rect(list.x, list.y, list.width, 26.0)
+    next = todo_label(next, note, "example.todo.note", "data-driven rows, delete buttons, stable keys", body_font)
+    let row0 = kaintana_column_slot(list, 1.0, 34.0, 8.0)
+    let row1 = kaintana_column_slot(list, 2.0, 34.0, 8.0)
+    let row2 = kaintana_column_slot(list, 3.0, 34.0, 8.0)
+    next = todo_row(next, row0, "todo.row0.toggle", "todo.row0.label", "todo.row0.delete", "[x]", "Ship SlotMap handles", body_font)
+    next = todo_row(next, row1, "todo.row1.toggle", "todo.row1.label", "todo.row1.delete", "[ ]", "Write junior examples", body_font)
+    next = todo_row(next, row2, "todo.row2.toggle", "todo.row2.label", "todo.row2.delete", "[x]", "Prove no ghost rows", body_font)
+    return next

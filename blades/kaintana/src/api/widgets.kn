@@ -27,7 +27,7 @@ pub fn kaintana_widget_label(ctx: KaintanaContext, stable_key: StringView, text:
 pub fn kaintana_widget_button(ctx: KaintanaContext, stable_key: StringView, label: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
     var result = kaintana_reconcile_node(ctx, "kaintana.button", stable_key, label, "button", label, rect, true)
     var next = kaintana_record_fill(result.ctx, result.native_node_id, rect, "fill", ctx.theme.accent)
-    next = kaintana_record_text(next, result.native_node_id, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink", ctx.theme.shell, kaintana_text_size_from_baseline(baseline_y))
+    next = kaintana_record_text(next, result.native_node_id, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink", ctx.theme.ink, kaintana_text_size_from_baseline(baseline_y))
     return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: 0, value: 0.0 }
 
 pub fn kaintana_widget_text_input(ctx: KaintanaContext, stable_key: StringView, label: StringView, value: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
