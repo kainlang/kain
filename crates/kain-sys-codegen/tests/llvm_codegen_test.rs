@@ -2793,6 +2793,41 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_static_two_byte_find_substring_from_to_packed_stride_one_search() {
+    let source = r#"
+fn main() -> Int:
+    return find_substring_from("ka0in0be0nch", "in", 0)
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let main_ir = llvm_function_ir(&llvm, "define i64 @main()");
+
+    assert!(
+        main_ir.contains("shl i16"),
+        "static two-byte substring search should pack adjacent bytes into a word compare:\n{}",
+        main_ir
+    );
+    assert!(
+        main_ir.contains("icmp eq i16"),
+        "static two-byte substring search should compare the packed word directly:\n{}",
+        main_ir
+    );
+    assert!(
+        !main_ir.contains("call i8* @memchr("),
+        "static two-byte substring search should avoid the memchr helper call:\n{}",
+        main_ir
+    );
+    assert!(
+        !main_ir.contains("call i32 @memcmp("),
+        "static two-byte substring search should avoid the memcmp helper call:\n{}",
+        main_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "static-two-byte-find-substring-packed-search");
+}
+
+#[test]
 fn llvm_lowers_manual_find_substring_helpers_with_len_on_miss_to_native_search() {
     let source = r#"
 fn starts_with_at(text: String, index: Int, needle: String) -> Bool:

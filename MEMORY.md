@@ -1,5 +1,62 @@
 # Kain Memory
 
+# 2026-05-20 - Packed two-byte substring lane flipped string_ops and kept the suite green
+
+This automation pass targeted the clean compiler frontier after the process/runtime win: `string_ops`, where the latest honest focused run still had Kain behind Rust on a stable ASCII substring row and the existing LLVM fast path was still paying a `memchr`-driven shape for tiny static needles.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - `compile_known_length_find_substring_inline(...)` now routes statically visible two-byte needles into `compile_known_length_find_substring_inline_static_two_byte_needle(...)`.
+  - the new lane keeps the authored helper semantics but replaces the `memchr` call with a stride-1 packed 16-bit compare loop and a one-byte remaining-span update.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - added `llvm_lowers_static_two_byte_find_substring_from_to_packed_stride_one_search` and kept the prior general-path substring tests green so the new lane stays isolated to the tiny-static-needle surface.
+- `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-static-two-byte-find-substring-stride-stays-in-bounds.yaml`
+  - durable proof that the stride-1 cursor advance and `next_remaining` update stay in-bounds (`unsat` in the full pack).
+- `crates/kain-sys-codegen/z3/proofs-experimental/inline-known-string-static-two-byte-first-match-selection.smt2`
+  - exploratory benchmark-shape proof that the packed two-byte first-match selector returns the same answer as the readable left-to-right scan (`unsat` report `z3/reports/20260520T172131Z-inline-known-string-static-two-byte-selection.json`).
+- `benchmark/benchmarks.json`
+  - updated `string_ops` / `unicode_string_heavy` honesty notes so reports describe compiler-owned inline substring search with the new packed two-byte lane instead of the older `memchr/memcmp` wording.
+- Durable notes:
+  - `research/2026-05-20-string-packed-two-byte-lane.md`
+  - `benchmark/assesments/2026-05-20-packed-two-byte-substring-lane-latest-benchmark-assessment.md`
+
+Validation:
+
+- LLVM/codegen checks:
+  - `cargo test -p kain-sys-codegen llvm_lowers_static_two_byte_find_substring_from_to_packed_stride_one_search -- --nocapture` -> PASS.
+  - `cargo test -p kain-sys-codegen llvm_lowers_find_substring_from_on_known_strings_with_precomputed_lengths -- --nocapture` -> PASS.
+  - `cargo test -p kain-sys-codegen llvm_lowers_manual_find_substring_helpers_with_len_on_miss_to_native_search -- --nocapture` -> PASS.
+  - `cargo test -p kain-sys-codegen llvm_lowers_manual_find_substring_helpers_with_negative_one_miss_to_native_search -- --nocapture` -> PASS.
+- Proofs:
+  - `mcp__z3_local__.check_smt2(...)` on the packed two-byte first-match selector -> `unsat`.
+  - `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", report_name="kain-sys-codegen-static-two-byte-substring-pack")` -> `27 proved, 0 counterexamples, 0 unknown, 0 errors`.
+- Focused frontier retake:
+  - `benchmark/latest_string_frontier_packed_two_byte.md`
+  - `string_ops`: Kain `7.969 ms`, Rust `9.463 ms`, C++ `9.882 ms`
+  - `unicode_string_heavy`: Kain `9.052 ms`, Rust `9.163 ms`, C++ `8.466 ms` with one Kain outlier sample
+- Canonical clean-worktree full-suite rerun:
+  - `python benchmark/run.py --timeout 900 --baseline-mode auto` in `D:\Kain-Lang\.codex-tmp\kain-packed-two-byte-verify` -> PASS
+  - `benchmark/out/reports/latest.llm.md`
+  - generated `2026-05-20T17:57:03.518984+00:00`
+  - `string_ops` improved to Kain `8.288 ms`, Rust `10.481 ms`, C++ `11.003 ms`
+  - `unicode_string_heavy` stayed in the noise band at Kain `9.777 ms`, Rust `9.737 ms`, C++ `10.753 ms`
+  - suite regression summary: `kain_regressions = 0`, `alert_regressions = 0`
+- Regression sanity:
+  - `benchmark/latest_machine_stones_regression_probe.md`
+  - the scary full-suite `machine_stones_shatter_loop` sample (`74.797 ms`) did not reproduce; focused retake returned Kain `12.400 ms`, Rust `12.711 ms`, C++ `12.169 ms`
+
+Durable lesson:
+
+- The next honest substring win was not a benchmark rewrite or constant-folded cheat. It was a narrower backend mechanism: keep the general known-string search path, but give tiny static needles a different proved search geometry.
+- Full-literal haystack/needle collapse would have been the easy alien move, but it would stop measuring the declared row. The kept lane only specializes the needle shape and still executes the hot loop honestly.
+- `string_ops` is the real shipped win. `unicode_string_heavy` still lives in a near-noise-band pocket, so the honest claim is that the tiny-static-needle lane helps there but does not cleanly own the row yet.
+- The biggest remaining honest frontiers after this pass are now:
+  - `http_server_concurrency`: Kain `55.194 ms`, Rust `47.584 ms`
+  - `sim_uv_velocity_grid`: Kain `17.150 ms`, Rust `15.234 ms`, C++ `14.134 ms`
+  - `ownership_memory`: Kain `12.037 ms`, Rust `11.525 ms`, C++ `11.352 ms`
+  - `sim_nbody_gravity`: Kain `9.899 ms`, Rust `9.519 ms`, C++ `8.998 ms`
+
 # 2026-05-20 - Disabled attrition fastpath plus process output cleanup flipped the process row
 
 This automation pass targeted the real post-hardening frontier from the morning full suite: `process_stdio_loop`, plus the broader disabled-attrition tax that benchmark-release was still paying by accident.

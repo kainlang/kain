@@ -1,0 +1,51 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.control_inline_known_string_static_two_byte_find_substring_stride_stays_in_bounds
+kind: check_smt2
+description: The LLVM static two-byte known-string substring fast path advances
+  one byte after each failed packed-window compare. Under the emitted guards,
+  the next cursor offset must remain inside the haystack and the next remaining
+  span must stay non-negative while strictly shrinking.
+tags:
+- llvm
+- control
+- string
+- substring
+- two-byte
+- bounds
+source:
+  path: D:/Kain-Lang/crates/kain-sys-codegen/src/codegen_llvm/mod.rs
+  symbol: compile_known_length_find_substring_inline_static_two_byte_needle
+  start_line: 4835
+  reason: compile_known_length_find_substring_inline_static_two_byte_needle
+    emits the stride-1 cursor advance and remaining-span update directly in LLVM
+    IR.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+
+    (declare-const text_len Int)
+    (declare-const clamped_start Int)
+    (declare-const cursor_offset Int)
+
+    (assert (<= 0 text_len))
+    (assert (<= 0 clamped_start))
+    (assert (<= clamped_start cursor_offset))
+    (assert (<= cursor_offset text_len))
+
+    (define-fun remaining_phi () Int (- text_len cursor_offset))
+    (assert (<= 2 remaining_phi))
+
+    ; After a failed packed two-byte compare the loop advances by one byte.
+    (define-fun next_offset () Int (+ cursor_offset 1))
+    (define-fun next_remaining () Int (- text_len next_offset))
+
+    (assert
+      (or
+        (< next_offset 0)
+        (> next_offset text_len)
+        (< next_remaining 0)
+        (>= next_remaining remaining_phi)))
+
+    (check-sat)
+  include_model: false
+  include_stats: false

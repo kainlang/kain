@@ -4526,6 +4526,15 @@ impl LlvmGenerator {
         start: &str,
         needle_static_bytes: Option<&[u8]>,
     ) -> String {
+        if let Some(bytes) = needle_static_bytes {
+            if bytes.len() == 2 {
+                // Proof-backed short-needle lane: a stride-1 packed compare is
+                // cheaper than bouncing through memchr for tiny constant needles.
+                return self.compile_known_length_find_substring_inline_static_two_byte_needle(
+                    text_ptr, text_len, start, bytes[0], bytes[1],
+                );
+            }
+        }
         let empty_check = self.next_label();
         let setup = self.next_label();
         let search = self.next_label();
@@ -4800,6 +4809,161 @@ impl LlvmGenerator {
         self.emit(&format!(
             "  {} = phi i64 [ {}, %{} ], [ -1, %{} ], [ {}, %{} ]",
             result, clamped_start, empty_check, fail, match_offset, found_match
+        ));
+        result
+    }
+
+    fn compile_known_length_find_substring_inline_static_two_byte_needle(
+        &mut self,
+        text_ptr: &str,
+        text_len: &str,
+        start: &str,
+        first: u8,
+        second: u8,
+    ) -> String {
+        let setup = self.next_label();
+        let search = self.next_label();
+        let compare = self.next_label();
+        let continue_search = self.next_label();
+        let found_match = self.next_label();
+        let fail = self.next_label();
+        let merge = self.next_label();
+        let next_cursor = self.next_reg();
+        let next_offset = self.next_reg();
+        let next_remaining = self.next_reg();
+
+        let text_non_null = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i8* {}, null",
+            text_non_null, text_ptr
+        ));
+        let start_non_negative = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, 0",
+            start_non_negative, start
+        ));
+        let clamped_start = self.next_reg();
+        self.emit(&format!(
+            "  {} = select i1 {}, i64 {}, i64 0",
+            clamped_start, start_non_negative, start
+        ));
+        let start_in_bounds = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sle i64 {}, {}",
+            start_in_bounds, clamped_start, text_len
+        ));
+        let start_valid = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            start_valid, text_non_null, start_in_bounds
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            start_valid, setup, fail
+        ));
+
+        self.emit_label(&setup);
+        let remaining = self.next_reg();
+        self.emit(&format!(
+            "  {} = sub i64 {}, {}",
+            remaining, text_len, clamped_start
+        ));
+        let needle_fits = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, 2",
+            needle_fits, remaining
+        ));
+        let start_cursor = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+            start_cursor, text_ptr, clamped_start
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            needle_fits, search, fail
+        ));
+
+        self.emit_label(&search);
+        let cursor = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i8* [ {}, %{} ], [ {}, %{} ]",
+            cursor, start_cursor, setup, next_cursor, continue_search
+        ));
+        let cursor_offset = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i64 [ {}, %{} ], [ {}, %{} ]",
+            cursor_offset, clamped_start, setup, next_offset, continue_search
+        ));
+        let remaining_phi = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i64 [ {}, %{} ], [ {}, %{} ]",
+            remaining_phi, remaining, setup, next_remaining, continue_search
+        ));
+        let can_search = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, 2",
+            can_search, remaining_phi
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            can_search, compare, fail
+        ));
+
+        self.emit_label(&compare);
+        let byte0 = self.next_reg();
+        self.emit(&format!("  {} = load i8, i8* {}, align 1", byte0, cursor));
+        let byte0_i16 = self.next_reg();
+        self.emit(&format!("  {} = zext i8 {} to i16", byte0_i16, byte0));
+        let byte1_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 1",
+            byte1_ptr, cursor
+        ));
+        let byte1 = self.next_reg();
+        self.emit(&format!("  {} = load i8, i8* {}, align 1", byte1, byte1_ptr));
+        let byte1_i16 = self.next_reg();
+        self.emit(&format!("  {} = zext i8 {} to i16", byte1_i16, byte1));
+        let byte1_shifted = self.next_reg();
+        self.emit(&format!("  {} = shl i16 {}, 8", byte1_shifted, byte1_i16));
+        let packed_window = self.next_reg();
+        self.emit(&format!(
+            "  {} = or i16 {}, {}",
+            packed_window, byte0_i16, byte1_shifted
+        ));
+        let window_matches = self.next_reg();
+        let packed_needle = u16::from(first) | (u16::from(second) << 8);
+        self.emit(&format!(
+            "  {} = icmp eq i16 {}, {}",
+            window_matches, packed_window, packed_needle
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            window_matches, found_match, continue_search
+        ));
+
+        self.emit_label(&continue_search);
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 1",
+            next_cursor, cursor
+        ));
+        self.emit(&format!("  {} = add i64 {}, 1", next_offset, cursor_offset));
+        self.emit(&format!(
+            "  {} = sub i64 {}, 1",
+            next_remaining, remaining_phi
+        ));
+        self.emit(&format!("  br label %{}", search));
+
+        self.emit_label(&fail);
+        self.emit(&format!("  br label %{}", merge));
+
+        self.emit_label(&found_match);
+        self.emit(&format!("  br label %{}", merge));
+
+        self.emit_label(&merge);
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i64 [ -1, %{} ], [ {}, %{} ]",
+            result, fail, cursor_offset, found_match
         ));
         result
     }

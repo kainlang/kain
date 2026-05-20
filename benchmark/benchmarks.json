@@ -192,9 +192,9 @@
       "title": "String Ops",
       "description": "Repeated substring search and string length/indexing over fixed ASCII strings. This probes text lowering and branchy search loops without external dependencies.",
       "maturity": "implemented",
-      "fairness_note": "All languages use the same fixed ASCII strings and no dead modulo math. Kain now recognizes the canonical user-authored manual substring helper and lowers known-length calls to an inline memchr/memcmp search, so this measures compiler-owned string-loop recognition rather than a benchmark-specific checksum collapse.",
+      "fairness_note": "All languages use the same fixed ASCII strings and no dead modulo math. Kain now recognizes the canonical user-authored manual substring helper and lowers known-length calls to compiler-owned inline substring search, including a packed two-byte lane for tiny static needles, so this measures backend string-loop work rather than a benchmark-specific checksum collapse.",
       "language_notes": {
-        "kain": "The LLVM lane preserves the authored find_substring/starts_with_at helper shape but bypasses the helper call at known string call sites, using the durable bounds proof at crates/kain-sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml."
+        "kain": "The LLVM lane preserves the authored find_substring/starts_with_at helper shape but bypasses the helper call at known string call sites, using a durable memchr-window proof for the general path plus a packed two-byte stride proof for tiny static needles."
       },
       "kain": "cases/string_ops/main.kn",
       "rust": "cases/string_ops/main.rs",
@@ -958,9 +958,9 @@
       "title": "Unicode String Heavy",
       "description": "Repeated substring search over mixed UTF-8 payloads with multilingual text and emoji. This catches string traversal and byte/character handling under non-ASCII inputs.",
       "maturity": "implemented",
-      "fairness_note": "All rows stay on UTF-8 strings with the same payloads and manual substring search so the case measures real byte traversal over multilingual payloads rather than ASCII-only shortcuts. Kain's LLVM lane may recognize the canonical helper shape and lower known-length calls to inline memchr/memcmp, but the benchmark still computes score_text before the hot accumulation loop.",
+      "fairness_note": "All rows stay on UTF-8 strings with the same payloads and manual substring search so the case measures real byte traversal over multilingual payloads rather than ASCII-only shortcuts. Kain's LLVM lane may recognize the canonical helper shape and lower known-length calls to compiler-owned inline substring search, but the benchmark still computes score_text before the hot accumulation loop.",
       "language_notes": {
-        "kain": "Uses the same compiler-owned manual substring recognizer as string_ops; this row remains a near-noise-band Rust edge in focused runs because most substring work is outside the timed inner accumulation loop."
+        "kain": "Uses the same compiler-owned manual substring recognizer as string_ops; the packed two-byte lane only helps the tiny static-needle subset, so this row still lives near the noise band because most substring work is outside the timed inner accumulation loop."
       },
       "kain": "cases/unicode_string_heavy/main.kn",
       "rust": "cases/unicode_string_heavy/main.rs",
