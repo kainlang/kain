@@ -94,8 +94,8 @@ Validation for the kept path:
   - Kain `58.326 ms`
   - Rust `38.002 ms`
 - final canonical suite: `benchmark/out/reports/latest.llm.md`
-  - generated `2026-05-20T00:31:37.355712+00:00`
-  - Kain `68.832 ms`
-  - Rust `44.327 ms`
+  - generated `2026-05-20T00:41:49.464745+00:00`
+  - Kain `57.850 ms`
+  - Rust `40.170 ms`
 
 This does not retake the row, but it improves the honest Kain/Rust ratio relative to the earlier canonical baseline while avoiding the catastrophic queue regression. The next serious attack should focus on syscall/scheduler shape, not mutex/condvar queue geometry.

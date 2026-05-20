@@ -26,14 +26,14 @@ Validation:
   - `benchmark/out/reports/latest_http_sanity.llm.md`
   - `http_server_concurrency`: Kain `58.326 ms`, Rust `38.002 ms`
 - canonical full-suite refresh:
-  - `python benchmark/run.py --timeout 900 --baseline-mode refresh-foreign`
+  - `python benchmark/run.py --runs 7 --warmups 2 --timeout 900 --baseline-mode refresh-foreign`
   - `benchmark/out/reports/latest.llm.md`
-  - generated `2026-05-20T00:31:37.355712+00:00`
+  - generated `2026-05-20T00:41:49.464745+00:00`
   - suite status: `PASS`
-  - `http_server_concurrency`: Kain `68.832 ms`, Rust `44.327 ms`
-  - `http_server_frameworks`: Kain `204.417 ms`, Rust `221.048 ms`, Go `266.681 ms`
-  - `filesystem_stream`: Kain `88.187 ms`, Rust `125.956 ms`, C++ `105.770 ms`
-  - `string_ops`: Kain `9.624 ms`, Rust `9.822 ms`, C++ `10.096 ms`
+  - `http_server_concurrency`: Kain `57.850 ms`, Rust `40.170 ms`
+  - `http_server_frameworks`: Kain `177.337 ms`, Rust `190.941 ms`, Go `205.807 ms`
+  - `filesystem_stream`: Kain `99.533 ms`, Rust `116.475 ms`, C++ `138.468 ms`
+  - `string_ops`: Kain `9.422 ms`, Rust `10.470 ms`, C++ `10.101 ms`
 
 Durable lesson:
 

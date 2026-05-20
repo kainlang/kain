@@ -35,9 +35,9 @@ Focused validation for the kept path:
 Final canonical suite:
 
 - `benchmark/out/reports/latest.llm.md`
-- generated `2026-05-20T00:31:37.355712+00:00`
-- `http_server_concurrency`: Kain `68.832 ms`, Rust `44.327 ms`
-- telemetry: Kain `3,486.766 req/s`, Rust `5,414.344 req/s`
+- generated `2026-05-20T00:41:49.464745+00:00`
+- `http_server_concurrency`: Kain `57.850 ms`, Rust `40.170 ms`
+- telemetry: Kain `4,148.639 req/s`, Rust `5,974.638 req/s`
 
 Interpretation:
 
