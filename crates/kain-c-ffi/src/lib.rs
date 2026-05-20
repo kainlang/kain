@@ -2,6 +2,7 @@ mod config;
 mod extract;
 mod generate;
 mod model;
+mod platform;
 
 pub use config::{CFfiConfig, CInteropTier, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
@@ -10,6 +11,10 @@ pub use model::{
     HostBridgeModuleDescriptor, HostBridgeServiceDescriptor, ImportCOptions, ImportCOutput,
     ItemKind, ItemStatus, PackagedBridgeBinaryArtifact, PackagedBridgeImport,
     PackagedBridgeManifest, PackagedBridgeSymbolDescriptor, PrepareContext, ResolvedCLibrary,
+};
+pub use platform::{
+    import_platform_package, ImportPlatformOptions, PlatformBlockedSymbol, PlatformImportOutput,
+    PlatformPackageLock, PlatformResolvedFile, PlatformSymbol, PLATFORM_LOCK_SCHEMA_VERSION,
 };
 
 use extract::extract_binding_bundle;

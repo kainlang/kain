@@ -1,0 +1,109 @@
+@extern
+fn abi_platform_current_kind() -> Int
+
+@extern
+fn abi_platform_current_name() -> String
+
+@extern
+fn abi_platform_current_service_mask() -> Int
+
+@extern
+fn abi_platform_current_optional_service_mask() -> Int
+
+@extern
+fn abi_platform_library_open(path: String) -> Int
+
+@extern
+fn abi_platform_library_close(handle: Int) -> Int
+
+@extern
+fn abi_platform_library_resolve(handle: Int, symbol_name: String) -> Int
+
+@extern
+fn abi_platform_library_is_valid(handle: Int) -> Int
+
+@extern
+fn abi_platform_library_live_count() -> Int
+
+@extern
+fn abi_platform_library_last_status() -> Int
+
+@extern
+fn abi_platform_library_last_error_kind() -> String
+
+@extern
+fn abi_platform_library_last_error_message() -> String
+
+pub fn native_platform_current_kind() -> Int:
+    return abi_platform_current_kind()
+
+pub fn native_platform_current_name() -> String:
+    return abi_platform_current_name()
+
+pub fn native_platform_current_service_mask() -> Int:
+    return abi_platform_current_service_mask()
+
+pub fn native_platform_current_optional_service_mask() -> Int:
+    return abi_platform_current_optional_service_mask()
+
+pub fn native_platform_library_open(path: String) -> Int:
+    return abi_platform_library_open(path)
+
+pub fn native_platform_library_close(handle: Int) -> Int:
+    return abi_platform_library_close(handle)
+
+pub fn native_platform_library_resolve(handle: Int, symbol_name: String) -> Int:
+    return abi_platform_library_resolve(handle, symbol_name)
+
+pub fn native_platform_library_is_valid(handle: Int) -> Bool:
+    return abi_platform_library_is_valid(handle) != 0
+
+pub fn native_platform_library_live_count() -> Int:
+    return abi_platform_library_live_count()
+
+pub fn native_platform_library_last_status() -> Int:
+    return abi_platform_library_last_status()
+
+pub fn native_platform_library_last_error_kind() -> String:
+    return abi_platform_library_last_error_kind()
+
+pub fn native_platform_library_last_error_message() -> String:
+    return abi_platform_library_last_error_message()
+
+# root-domain aliases: generated public std names
+pub fn platform_current_kind() -> Int:
+    return native_platform_current_kind()
+
+pub fn platform_current_name() -> String:
+    return native_platform_current_name()
+
+pub fn platform_current_service_mask() -> Int:
+    return native_platform_current_service_mask()
+
+pub fn platform_current_optional_service_mask() -> Int:
+    return native_platform_current_optional_service_mask()
+
+pub fn platform_library_open(path: String) -> Int:
+    return native_platform_library_open(path)
+
+pub fn platform_library_close(handle: Int) -> Int:
+    return native_platform_library_close(handle)
+
+pub fn platform_library_resolve(handle: Int, symbol_name: String) -> Int:
+    return native_platform_library_resolve(handle, symbol_name)
+
+pub fn platform_library_is_valid(handle: Int) -> Bool:
+    return native_platform_library_is_valid(handle)
+
+pub fn platform_library_live_count() -> Int:
+    return native_platform_library_live_count()
+
+pub fn platform_library_last_status() -> Int:
+    return native_platform_library_last_status()
+
+pub fn platform_library_last_error_kind() -> String:
+    return native_platform_library_last_error_kind()
+
+pub fn platform_library_last_error_message() -> String:
+    return native_platform_library_last_error_message()
+# end root-domain aliases

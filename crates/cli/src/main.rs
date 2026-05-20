@@ -8,6 +8,7 @@ use cli::fabric;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_crate;
+use cli::import_platform;
 use cli::import_rust;
 use cli::import_typescript;
 use cli::llvm_native_stage;
@@ -2086,6 +2087,36 @@ fn main() {
                             import_rust::import_workspace_crates(&workspace_root, &options)
                         {
                             eprintln!("❌ import crates failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                    ImportCommand::Platform {
+                        package,
+                        package_name,
+                        provider,
+                        sdk,
+                        output,
+                        target_triple,
+                        dry_run,
+                        report_json,
+                        registry,
+                        header,
+                    } => {
+                        if let Err(err) = import_platform::import_platform(
+                            &package,
+                            import_platform::ImportPlatformCliOptions {
+                                package_name,
+                                provider,
+                                sdk_root: sdk,
+                                output_dir: output,
+                                target_triple,
+                                dry_run,
+                                report_json,
+                                registry_path: registry,
+                                header_path: header,
+                            },
+                        ) {
+                            eprintln!("❌ import platform failed: {}", err);
                             std::process::exit(1);
                         }
                     }

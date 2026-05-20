@@ -77,6 +77,37 @@ VULKAIN_EXPORT int32_t vulkain_native_run_authored_mesh_scene(
     int32_t energy
 );
 
+VULKAIN_EXPORT int32_t vulkain_native_run_kloner_same_window(
+    const char* title,
+    int32_t width,
+    int32_t height,
+    int32_t frame_budget,
+    int32_t clear_red,
+    int32_t clear_green,
+    int32_t clear_blue,
+    int32_t accent_red,
+    int32_t accent_green,
+    int32_t accent_blue,
+    int32_t clone_count,
+    int32_t layout_mode,
+    int32_t grid_width,
+    int32_t grid_rows,
+    int32_t spacing_milli,
+    int32_t radial_radius_milli,
+    int32_t sphere_radius_milli,
+    int32_t wave_milli,
+    int32_t speed_milli,
+    int32_t target_fps,
+    int32_t camera_yaw_milli,
+    int32_t camera_pitch_milli,
+    int32_t ui_draw_count,
+    int32_t ui_checksum,
+    const char* vertex_spv_path,
+    const char* fragment_spv_path,
+    const char* vertex_entry_point,
+    const char* fragment_entry_point
+);
+
 VULKAIN_EXPORT int32_t vulkain_native_write_report(const char* path);
 VULKAIN_EXPORT int32_t vulkain_native_write_default_mesh_report(void);
 

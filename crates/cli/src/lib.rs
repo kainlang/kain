@@ -18,6 +18,7 @@ pub mod gpu_artifacts;
 pub mod import_asm;
 pub mod import_c;
 pub mod import_crate;
+pub mod import_platform;
 pub mod import_rust;
 pub mod import_typescript;
 pub mod llvm_native_stage;

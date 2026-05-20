@@ -33,7 +33,8 @@ static const KainPlatformDescriptorTemplate KAIN_PLATFORM_TEMPLATES[] = {
         KAIN_PLATFORM_SERVICE_PROCESS |
         KAIN_PLATFORM_SERVICE_TIMERS |
         KAIN_PLATFORM_SERVICE_NETWORK |
-        KAIN_PLATFORM_SERVICE_CLIPBOARD,
+        KAIN_PLATFORM_SERVICE_CLIPBOARD |
+        KAIN_PLATFORM_SERVICE_NATIVE_LIBRARY,
         KAIN_PLATFORM_SERVICE_HOT_RELOAD,
         "win32",
         "native",
@@ -45,7 +46,8 @@ static const KainPlatformDescriptorTemplate KAIN_PLATFORM_TEMPLATES[] = {
         KAIN_PLATFORM_SERVICE_FILESYSTEM |
         KAIN_PLATFORM_SERVICE_PROCESS |
         KAIN_PLATFORM_SERVICE_TIMERS |
-        KAIN_PLATFORM_SERVICE_NETWORK,
+        KAIN_PLATFORM_SERVICE_NETWORK |
+        KAIN_PLATFORM_SERVICE_NATIVE_LIBRARY,
         0,
         "linux",
         "posix-core",
@@ -57,7 +59,8 @@ static const KainPlatformDescriptorTemplate KAIN_PLATFORM_TEMPLATES[] = {
         KAIN_PLATFORM_SERVICE_FILESYSTEM |
         KAIN_PLATFORM_SERVICE_PROCESS |
         KAIN_PLATFORM_SERVICE_TIMERS |
-        KAIN_PLATFORM_SERVICE_NETWORK,
+        KAIN_PLATFORM_SERVICE_NETWORK |
+        KAIN_PLATFORM_SERVICE_NATIVE_LIBRARY,
         0,
         "macos",
         "stub",
@@ -76,6 +79,7 @@ static const char* KAIN_PLATFORM_SERVICE_NAMES[] = {
     "network",
     "clipboard",
     "hot_reload",
+    "native_library",
 };
 
 static void kain_platform_append_text(char* out, size_t out_cap, const char* text) {

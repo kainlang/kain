@@ -51,6 +51,10 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
   - command checksum/counting, passive `std::ui` draw calls, and optional desktop bridge emission
 - `blades/kaintana/src/platform/desktop/desktop_adapter.kn`
   - desktop PAL wrapper over the blade-local compatibility bridge. Do not import `c::kaintana_desktop_bridge` here; keep that import in the entrypoint that owns linking.
+- `blades/kaintana/src/platform/vulkan/vulkan_adapter.kn`
+  - base stdlib `std::graphics`/SPIR-V capability adapter. This probes Vulkan-compatible graphics state without importing `vulkain_bridge.dll`.
+- `blades/kaintana/src/platform/winit/winit_adapter.kn`
+  - Kain-side window/event-loop adapter contract over passive `std::ui` host sessions and existing `KaintanaContext` sessions. It is not the future Rust/winit native bridge yet.
 - `blades/kaintana/examples/*.kn`
   - single-file examples that all compile into the normal `kaintana.exe` tour app through `examples/example_tour_suite.kn`
   - current examples: to-do list, tabbed pane, modal popup, data grid, keypad, resizable panel, file explorer, mega button stress
@@ -69,6 +73,9 @@ Do not push Kaintana concepts back into `runtime/native`. If a feature is app/fr
 - `blades/kaintana-test/run.ps1`
   - desktop-only acceptance runner
   - `-FrameBudget` overrides the default long-run host pressure count through `KAINTANA_TEST_FRAME_BUDGET`
+- `blades/kaintana/run.ps1`
+  - base framework/examples runner
+  - `-FrameBudget` overrides the examples tour live window budget through `KAINTANA_EXAMPLES_FRAME_BUDGET`
 - `blades/kaintana-vulkan-test/run.ps1`
   - Vulkan-only acceptance runner
   - `-FrameBudget` overrides the foreign-presenter pressure count through `KAINTANA_VULKAN_TEST_FRAME_BUDGET`
@@ -120,6 +127,7 @@ Framework package:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\blades\kaintana\run.ps1 -NoRun
+powershell -ExecutionPolicy Bypass -File .\blades\kaintana\run.ps1 -FrameBudget 3
 ```
 
 Optional Vulkan adapter package:
@@ -150,7 +158,7 @@ Proof artifacts:
 
 - framework package host report: `blades/kaintana/.kain/run/kaintana_host_report.txt`
 - framework package screenshot: `blades/kaintana/.kain/run/kaintana_host.bmp`
-- framework package examples tour currently renders `commands=169` in the host report
+- framework package examples tour currently renders `commands=169`; a short live smoke with `KAINTANA_EXAMPLES_FRAME_BUDGET=3` reports `frames=3`, `last_error=ok`
 - desktop frame report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_frame.txt`
 - desktop host report: `blades/kaintana-test/.kain/run/kaintana_test_desktop_host.txt`
 - desktop screenshot: `blades/kaintana-test/.kain/run/kaintana_test_desktop.bmp`
@@ -176,6 +184,9 @@ Current Z3 checks:
 - `SlotMapInsert.map.free_head` currently returns stale in this nested native LLVM path. Kaintana normalizes append-only node maps from `count`; remove that shim only after a focused compiler/stdlib proof says nested SlotMap returns preserve `free_head`.
 - For desktop reports/screenshots, prefer direct path wrappers such as `kaintana_desktop_host_write_report_path(".kain/run/...")` and create `.kain/run` first. Passing large window spec structs back into host-write wrappers after many UI calls can surface stale String fields.
 - Do not put desktop and Vulkan acceptance entrypoints back into one consuming blade unless per-entry manifests become real. A shared manifest/output path can silently reintroduce `vulkain_bridge.dll` into the desktop executable or overwrite the user-facing root exe with the Vulkan proof build.
+- The base `platform/vulkan/vulkan_adapter.kn` is only the stdlib graphics/SPIR-V adapter seam. The real foreign-presenter Vulkan window remains `blades/kaintana-vulkan` over `blades/vulkain`.
+- `kain run` is one-shot. It will not behave like `npm run tauri dev` unless the Kain entrypoint calls a live host loop. For Kaintana examples, `src/main.kn` calls `kaintana_desktop_host_run_window(spec)` and `KAINTANA_EXAMPLES_FRAME_BUDGET` controls the live duration.
+- If manifest `kain run . --target llvm` fails on a clean Kaintana checkout, stage the C bridge first with `blades/kaintana/run.ps1 -NoRun`; the manifest runner consumes the `[c_ffi]` object but does not own the blade-local bridge build step yet.
 - `kaintana_split_right(rect, fraction, gap)` uses `fraction` as the left-hand share. If you want a 25% right inspector rail, pass about `0.75`, not `0.25`, or the right panel will silently eat most of the shell.
 - `ui_host_session_create(..., "software")` is still passive. It records authored session/draw state; it does not open a live OS window by itself.
 - The current Vulkan proof proves host routing into a foreign presenter lane. It does not yet rasterize the full Kaintana scene graph through Vulkan.

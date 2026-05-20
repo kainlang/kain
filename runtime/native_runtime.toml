@@ -38,6 +38,7 @@ sources = [
     "native/src/core/union.c",
     "native/src/core/actor.c",
     "native/src/platform/platform.c",
+    "native/src/platform/platform_library.c",
     "native/src/ui/ui_compiled_bundle.c",
     "native/src/ui/ui_system.c",
     "native/src/ui/ui_host_adapter.c",
@@ -374,6 +375,15 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "Plugin and foreign service integration"
+
+[[services]]
+key = "platform.library"
+name = "Native Dynamic Library Loader"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Raw platform dynamic library open/resolve/close substrate for generated typed platform packages; no generic public ABI call surface is exposed"
 
 [link]
 windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp"]

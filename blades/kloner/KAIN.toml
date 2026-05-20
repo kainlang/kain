@@ -6,8 +6,26 @@ description = "Faithful Kain-native workstation recreation of the legacy KCloner
 [blade]
 name = "kloner"
 entry = "src/main.kn"
-source_roots = ["src"]
-module_roots = ["src"]
+source_roots = [
+  "src",
+  "../kaintana/src",
+  "../kaintana/src/api",
+  "../kaintana/src/core",
+  "../kaintana/src/platform/desktop",
+  "../kaintana/src/platform/vulkan",
+  "../kaintana/src/platform/winit",
+  "../vulkain/src",
+]
+module_roots = [
+  "src",
+  "../kaintana/src",
+  "../kaintana/src/api",
+  "../kaintana/src/core",
+  "../kaintana/src/platform/desktop",
+  "../kaintana/src/platform/vulkan",
+  "../kaintana/src/platform/winit",
+  "../vulkain/src",
+]
 build_targets = ["llvm"]
 
 [[blade.dependencies]]
@@ -39,6 +57,19 @@ inputs = [
   "src/kloner_state.kn",
   "src/kloner_scene.kn",
   "src/kloner_ui.kn",
+  "../kaintana/src/api/kaintana_ui.kn",
+  "../kaintana/src/api/widgets.kn",
+  "../kaintana/src/core/layout.kn",
+  "../kaintana/src/core/reconciliation.kn",
+  "../kaintana/src/core/render_commands.kn",
+  "../kaintana/src/core/theme.kn",
+  "../kaintana/src/core/types.kn",
+  "../kaintana/src/platform/vulkan/vulkan_adapter.kn",
+  "../vulkain/src/vulkain.kn",
+  "../vulkain/native/vulkain_bridge.h",
+  "../vulkain/native/vulkain_bridge.c",
+  "../vulkain/native/shaders/vulkain_basic.vert",
+  "../vulkain/native/shaders/vulkain_basic.frag",
   "run.ps1",
   "reference/KCloner.tsx",
 ]

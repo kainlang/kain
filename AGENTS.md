@@ -20,6 +20,7 @@ use std::http
 use std::tls
 use std::http2
 use std::process
+use std::platform
 use std::graphics
 use std::ui
 use std::math
@@ -358,8 +359,9 @@ fn stdlib_probe_lane() -> Int:
     let _h2_destroy = request_destroy(h2)
 
     let process_score = process_platform_available()
+    let platform_score = len(platform_current_name()) + platform_current_kind() + platform_library_live_count() + bool_to_int(platform_library_is_valid(0) == false)
     let diagnostic_score = bool_to_status(status_ok(0)) + result_ok()
-    return fs_text_score + view_score + crypto_score + queue_score + slot_score + alloc_score + input_score + net_score + process_score + diagnostic_score
+    return fs_text_score + view_score + crypto_score + queue_score + slot_score + alloc_score + input_score + net_score + process_score + platform_score + diagnostic_score
 
 fn graphics_ui_lane() -> Int:
     let _graphics_reset = graphics_reset()

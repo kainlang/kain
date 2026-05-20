@@ -1,5 +1,74 @@
 # Kain Memory
 
+# 2026-05-20 - Platform package lock/import v1 landed
+
+Kain now has a v1 native platform package lane that favors deterministic lock/import plus generated typed thunks over public generic dynamic-call magic.
+
+What changed:
+
+- `runtime/native` added `platform.library`: fixed-table dynamic library open/resolve/close/status helpers in `platform_library.{h,c}`, exported through `stdlib/platform.kn` as `std::platform`.
+- `crates/kain-c-ffi` added `import_platform_package` and `kain import platform`, producing target-aware locks at `.kain/platform/<package>/<target-triple>/<package>.lock` with roots searched, resolved headers/libs, hashes, discovered/generated symbols, capability tags, blocked symbols, and generated module names.
+- Vulkan is special by metadata and dispatch model: the importer records `vulkan-loader-dispatch`, prefers `vk.xml` when present, and generates loader thunk metadata instead of pretending every Vulkan command is a normal DLL export.
+- `crates/kain-build` records deterministic graph provenance from `build.kn` or `platform.kn`; it recognizes `platform_package("...").provider("...")` requirements and reports whether `KAIN.toml` only contributed defaults.
+- `fixtures/platform_sdk/tiny_math` is the tiny SDK proof fixture for header scan, lock determinism, and generated typed thunk tests before touching real Vulkan installs.
+
+Proof/validation:
+
+- Z3 proof `runtime/native/src/platform/z3/proofs-experimental/platform-library-handle-roundtrip-and-stale-reject.smt2` returned `unsat` via report `z3/reports/20260520T090846Z-platform-library-handle-roundtrip-and-stale-reject-clean.json`.
+- `cargo test -p kain-build -p kain-c-ffi` split runs passed; `cargo test -p kain-commands` passed with `parses_import_platform_command`; `cargo check -p cli` passed.
+- `cargo run -q -p cli --bin kain --target-dir target\codex-platform-package -- import platform fixtures/platform_sdk/tiny_math --package-name tiny_math --dry-run` produced a deterministic lock report and honestly blocked typed generation because the checked-in fixture has no DLL.
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`, `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`, `bazel build //runtime:all`, and `bazel test //runtime:native_test_platform_library` passed.
+- Full `bazel test //runtime:native_runtime_tests` is still red because existing `//runtime:native_test_ownership_memory` fails `generic observe uses imported registry path expected 0, got -6`; the new platform-library test passes inside and outside that suite.
+
+# 2026-05-20 - Kloner same-window Kaintana x Vulkain mograph blade
+
+`blades/kloner` is now the KCloner recreation lane for a same-window Kaintana + Vulkain 3D mograph/cloner scene, superseding the earlier flat/static sidecar-style UI attempt. The authored Kain side is intentionally modular:
+
+- `src/kloner_state.kn`: settings, reference metadata, layout naming, report/export text, and data-driven clone/runtime defaults.
+- `src/kloner_ui.kn`: Kaintana builder UI over the refactored SlotMap framework, including clone count, grid/radial/honeycomb/helix controls, camera/animation/density panels, and Kaintana command checksums.
+- `src/kloner_scene.kn`: std::math-backed scene probes and the Vulkain same-window presenter call.
+- `src/kloner_lattice.kn`: Kain worlds, entangle links, laws, and patches for clone/layout authority state.
+- `src/main.kn`: runtime boot, Kaintana composition/commit, report/export writes, same-window Vulkain presentation, and validation gates.
+
+`blades/vulkain` now has a Kloner-specific reusable bridge entrypoint (`vulkain_run_kloner_same_window`) plus shader/C support for instanced sphere impostors in one Vulkan window with a procedural Kaintana-style overlay. The bridge clamps logical instances to `1..1_000_000`, draws a fullscreen background pass, draws six billboard vertices per instance for grid/radial/honeycomb/helix layouts, then draws a foreground overlay pass so the UI docks sit on top of the 3D scene. Keep app policy in Kloner/Kaintana; keep native window/GPU substrate in Vulkain.
+
+Kloner launch semantics:
+
+- Default launch is interactive-until-close: `kloner_settings().frame_budget` defaults to `0`, and Vulkain treats `frame_budget <= 0` as an interactive Kloner loop.
+- Automated validation still uses `blades/kloner/run.ps1 -FrameBudget N`, which sets `KLONER_FRAME_BUDGET` and forces a finite run.
+- Native viewport controls live in `vulkain_bridge.c`: RMB drag or `A/D` orbits, `W/S` dollies, arrows and `Q/E` pan, `1/2/3/4` switch grid/radial/honeycomb/helix, `Z/X` adjusts sphere size, `C/V` spacing, `F/G` wave amount, `[ / ]` clone count, `R` resets camera, and `Esc` closes.
+
+Important gotcha: imported Kain `String` fields can still stale/corrupt after heavy Kaintana composition. Kloner report/export code uses explicit string helpers/literals (`KCloner.tsx`, fixed Vulkain title) instead of trusting nested reference/spec string fields across module/native boundaries.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kloner\run.ps1 -FrameBudget 2` -> PASS, generated `blades/kloner/kloner.exe`, exit `0`.
+- `.kain/run/kloner_frame.txt`: `target_fps=120`, `layout=HONEYCOMB`, `clones=1000000`, `ui_draw_count=89`, `reference=KCloner.tsx`.
+- `.kain/run/kloner_vulkain_report.txt`: finite smoke reports `frame_budget=2`, `interactive_mode=0`, `instance_count=1000000`, `frames_presented=2`, `vertices_drawn=12000012`, `last_error=ok`.
+- Default live launch sanity check: `Start-Process .\kloner.exe`, wait 5s -> process still alive; close main window -> report records `frame_budget=0`, `interactive_mode=1`, `frames_presented=460`, `last_error=ok`.
+- Visual sanity: MCP window capture showed the foreground overlay docks/sliders/layout strip/crosshair drawn over the million-sphere honeycomb field.
+- Z3: `blades/vulkain/native/z3/vulkain_bridge_bounds.smt2` now proves the Kloner instance clamp, per-frame vertex ceiling (`6 + 6 * 1_000_000`, background plus overlay fullscreen triangles), 4096-frame total vertex ceiling, and signed-64 safety bound; MCP report `z3/reports/20260520T073416Z-vulkain_kloner_interactive_overlay_bounds.json` returned all `unsat`.
+
+# 2026-05-20 - Kaintana platform adapters and live examples launch
+
+`blades/kaintana` now has first-class platform adapter seams beyond the desktop compatibility bridge:
+
+- `src/platform/vulkan/vulkan_adapter.kn`: stdlib-backed Vulkan capability adapter that creates a `std::graphics` session, selects the `vulkan` backend when available, stages a tiny SPIR-V mesh/pipeline/draw probe, and destroys the graphics session. This deliberately does not import `vulkain_bridge.dll`; the foreign-presenter lane remains the opt-in `blades/kaintana-vulkan` package.
+- `src/platform/winit/winit_adapter.kn`: Kain-side winit/event-loop adapter contract over passive `std::ui` host sessions and existing `KaintanaContext` sessions. It pumps/presents host state and scores the contract without pulling Rust/winit into the base blade yet.
+- `src/main.kn`: the examples tour now enters `kaintana_desktop_host_run_window(spec)` after composing the scene, so `kaintana.exe` is a live Win32 desktop proof instead of only a report/BMP generator. Default live budget is `6000` frames; override with `KAINTANA_EXAMPLES_FRAME_BUDGET` or `blades/kaintana/run.ps1 -FrameBudget N`.
+- `KAIN.toml`: module roots now include `src/platform/vulkan` and `src/platform/winit`.
+
+Run semantics discovered:
+
+- `kain run` is still a one-shot compile/run command, not a Tauri-style watcher/event loop. The program must call a host loop itself.
+- Plain manifest `kain run . --target llvm --keep-artifacts --json` works after the C bridge object has been staged. `run.ps1` remains the reliable route because it builds `native/kaintana_desktop_bridge.c` first.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\kaintana\run.ps1 -NoRun` -> PASS, generated `kaintana.exe`.
+- Direct short live smoke: `KAINTANA_EXAMPLES_FRAME_BUDGET=3`, `.\blades\kaintana\kaintana.exe` -> exit `0`; host report says `commands=169`, `frames=3`, `last_error=ok`.
+- Manifest run from `blades/kaintana`: `kain run . --target llvm --keep-artifacts --json` with `KAINTANA_EXAMPLES_FRAME_BUDGET=3` -> status `succeeded`, exit `0`.
+
 # 2026-05-20 - Kaintana examples tour suite landed
 
 `blades/kaintana/examples` now holds single-file examples that compile into the normal `blades/kaintana/kaintana.exe` application through `examples/example_tour_suite.kn`. This keeps examples discoverable without creating a folder per demo or separate binaries.

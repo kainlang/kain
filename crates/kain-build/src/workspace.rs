@@ -25,6 +25,7 @@ const DEFAULT_CACHE_ROOT: &str = ".kain/cache/build";
 const DEFAULT_REPORT_ROOT: &str = ".kain/reports/build";
 const BUILD_ADAPTER_VERSION: &str = "kain-build-v2";
 const BUILD_ARTIFACT_SCHEMA_VERSION: u32 = 2;
+const BUILD_GRAPH_SCRIPT_NAMES: [&str; 2] = ["build.kn", "platform.kn"];
 
 pub type BuildResult<T> = Result<T, BuildError>;
 
@@ -130,7 +131,29 @@ pub struct BladeBuildPlan {
     pub lane: BuildLane,
     pub profile: String,
     pub target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub build_graph: Option<KainBuildGraphProvenance>,
     pub tasks: Vec<BuildTask>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct KainBuildGraphProvenance {
+    pub graph_source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defaults_merged_from: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub build_script: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overrides: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub platform_packages: Vec<KainBuildGraphPlatformPackage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KainBuildGraphPlatformPackage {
+    pub package: String,
+    pub provider: String,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -438,6 +461,8 @@ pub struct BladeBuildReport {
     pub started_unix_ms: u128,
     pub finished_unix_ms: u128,
     pub dry_run: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_graph: Option<KainBuildGraphProvenance>,
     pub tasks: Vec<BuildTaskExecution>,
 }
 
@@ -615,6 +640,8 @@ pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBui
     }
 
     let tasks = order_tasks(tasks)?;
+    let build_graph =
+        discover_build_graph_provenance(&workspace.root, workspace.manifest_path.as_deref())?;
     let plan = BladeBuildPlan {
         schema_version: BUILD_ARTIFACT_SCHEMA_VERSION,
         workspace_root: config.workspace_root,
@@ -625,6 +652,7 @@ pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBui
         lane: config.lane,
         profile: config.profile,
         target: config.target,
+        build_graph,
         tasks,
     };
     validate_plan_safety(&plan)?;
@@ -931,7 +959,9 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
         }
     }
     let tasks = order_tasks(tasks)?;
-    let plan = config.into_plan("project", tasks);
+    let build_graph = discover_build_graph_provenance(&workspace_root, Some(&manifest_path))?;
+    let mut plan = config.into_plan("project", tasks);
+    plan.build_graph = build_graph;
     validate_plan_safety(&plan)?;
     Ok(plan)
 }
@@ -1070,6 +1100,7 @@ impl StandaloneBuildConfig {
             lane: self.lane,
             profile: self.profile,
             target: target_label.to_string(),
+            build_graph: None,
             tasks,
         }
     }
@@ -1140,6 +1171,146 @@ impl BuildWorkspaceConfig {
             .join(sanitize_id(blade_name))
             .join(sanitize_id(task_id))
     }
+}
+
+fn discover_build_graph_provenance(
+    workspace_root: &Path,
+    manifest_path: Option<&Path>,
+) -> BuildResult<Option<KainBuildGraphProvenance>> {
+    let manifest_path = manifest_path
+        .filter(|path| path.exists())
+        .map(Path::to_path_buf);
+    let build_script = BUILD_GRAPH_SCRIPT_NAMES
+        .iter()
+        .map(|name| workspace_root.join(name))
+        .find(|path| path.exists());
+
+    if build_script.is_none() && manifest_path.is_none() {
+        return Ok(None);
+    }
+
+    let Some(build_script) = build_script else {
+        return Ok(Some(KainBuildGraphProvenance {
+            graph_source: "KAIN.toml".to_string(),
+            defaults_merged_from: None,
+            build_script: None,
+            overrides: Vec::new(),
+            platform_packages: Vec::new(),
+        }));
+    };
+
+    let graph_source = build_script
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("build.kn")
+        .to_string();
+    let source = kfs::read_text(&build_script)?;
+    let platform_packages = extract_build_graph_platform_packages(&source, &graph_source);
+    let mut overrides = Vec::new();
+    if manifest_path.is_some() {
+        overrides.push(format!(
+            "{graph_source} is build graph authority; KAIN.toml contributes defaults"
+        ));
+    }
+
+    Ok(Some(KainBuildGraphProvenance {
+        graph_source,
+        defaults_merged_from: manifest_path,
+        build_script: Some(build_script),
+        overrides,
+        platform_packages,
+    }))
+}
+
+fn extract_build_graph_platform_packages(
+    source: &str,
+    graph_source: &str,
+) -> Vec<KainBuildGraphPlatformPackage> {
+    let mut packages = Vec::new();
+    let mut offset = 0usize;
+    while let Some(relative) = source[offset..].find("platform_package") {
+        let function_start = offset + relative + "platform_package".len();
+        if let Some((package, after_call)) = parse_string_call_argument(source, function_start) {
+            let provider =
+                parse_provider_chain(source, after_call).unwrap_or_else(|| "system".to_string());
+            packages.push(KainBuildGraphPlatformPackage {
+                package,
+                provider,
+                source: graph_source.to_string(),
+            });
+            offset = after_call;
+        } else {
+            offset = function_start;
+        }
+    }
+    packages.sort_by(|left, right| {
+        left.package
+            .cmp(&right.package)
+            .then(left.provider.cmp(&right.provider))
+    });
+    packages
+        .dedup_by(|left, right| left.package == right.package && left.provider == right.provider);
+    packages
+}
+
+fn parse_provider_chain(source: &str, offset: usize) -> Option<String> {
+    let line_end = source[offset..]
+        .find(|ch| matches!(ch, '\n' | '\r' | ';'))
+        .map(|relative| offset + relative)
+        .unwrap_or(source.len());
+    let limit = line_end.min(offset.saturating_add(512));
+    let tail = &source[offset..limit];
+    let provider_offset = tail.find(".provider")?;
+    parse_string_call_argument(tail, provider_offset + ".provider".len()).map(|(value, _)| value)
+}
+
+fn parse_string_call_argument(source: &str, mut index: usize) -> Option<(String, usize)> {
+    let bytes = source.as_bytes();
+    index = skip_ascii_whitespace(bytes, index);
+    if bytes.get(index).copied()? != b'(' {
+        return None;
+    }
+    index += 1;
+    index = skip_ascii_whitespace(bytes, index);
+    parse_quoted_string(source, index)
+}
+
+fn parse_quoted_string(source: &str, mut index: usize) -> Option<(String, usize)> {
+    let bytes = source.as_bytes();
+    if bytes.get(index).copied()? != b'"' {
+        return None;
+    }
+    index += 1;
+    let mut value = String::new();
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => {
+                let escaped = *bytes.get(index + 1)?;
+                value.push(match escaped {
+                    b'n' => '\n',
+                    b'r' => '\r',
+                    b't' => '\t',
+                    b'"' => '"',
+                    b'\\' => '\\',
+                    other => other as char,
+                });
+                index += 2;
+            }
+            b'"' => return Some((value, index + 1)),
+            byte => {
+                value.push(byte as char);
+                index += 1;
+            }
+        }
+    }
+    None
+}
+
+fn skip_ascii_whitespace(bytes: &[u8], mut index: usize) -> usize {
+    while matches!(bytes.get(index), Some(b' ' | b'\n' | b'\r' | b'\t')) {
+        index += 1;
+    }
+    index
 }
 
 fn add_c_tasks(
@@ -1575,6 +1746,7 @@ fn execute_plan(
         started_unix_ms,
         finished_unix_ms,
         dry_run: options.dry_run,
+        build_graph: plan.build_graph,
         tasks: executions,
     };
     let encoded = serde_json::to_string_pretty(&report)
@@ -3315,12 +3487,78 @@ mod tests {
             lane: BuildLane::Dev,
             profile: "debug".to_string(),
             target: "test".to_string(),
+            build_graph: None,
             tasks: vec![
                 test_task_with_outputs("a", vec![output.clone()]),
                 test_task_with_outputs("b", vec![output]),
             ],
         };
         assert!(validate_plan_safety(&plan).is_err());
+    }
+
+    #[test]
+    fn build_graph_provenance_prefers_build_kn_over_manifest_defaults() {
+        let root = unique_test_dir("build-graph-authority");
+        let manifest_path = root.join("KAIN.toml");
+        std::fs::write(
+            &manifest_path,
+            "[package]\nname = \"probe\"\n\n[build]\nentry = \"src/main.kn\"\n",
+        )
+        .expect("write KAIN.toml");
+        std::fs::write(
+            root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let vk = platform_package("vulkan").provider("system")
+    let tiny = platform_package("tiny_math")
+    return build_graph().require(vk).require(tiny)
+"#,
+        )
+        .expect("write build.kn");
+
+        let provenance = discover_build_graph_provenance(&root, Some(&manifest_path))
+            .expect("graph provenance")
+            .expect("provenance present");
+
+        assert_eq!(provenance.graph_source, "build.kn");
+        assert_eq!(provenance.defaults_merged_from, Some(manifest_path));
+        assert!(provenance
+            .overrides
+            .iter()
+            .any(|value| value.contains("build graph authority")));
+        assert_eq!(
+            provenance
+                .platform_packages
+                .iter()
+                .map(|package| (package.package.as_str(), package.provider.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("tiny_math", "system"), ("vulkan", "system")]
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn build_graph_provenance_uses_platform_kn_when_build_kn_absent() {
+        let root = unique_test_dir("platform-graph-authority");
+        std::fs::write(
+            root.join("platform.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    return build_graph().require(platform_package("tiny_math").provider("fixture"))
+"#,
+        )
+        .expect("write platform.kn");
+
+        let provenance = discover_build_graph_provenance(&root, None)
+            .expect("graph provenance")
+            .expect("provenance present");
+
+        assert_eq!(provenance.graph_source, "platform.kn");
+        assert_eq!(provenance.defaults_merged_from, None);
+        assert_eq!(provenance.platform_packages.len(), 1);
+        assert_eq!(provenance.platform_packages[0].package, "tiny_math");
+        assert_eq!(provenance.platform_packages[0].provider, "fixture");
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
@@ -3358,5 +3596,18 @@ mod tests {
             outputs,
             ..test_task(id, Vec::new())
         }
+    }
+
+    fn unique_test_dir(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "kain-build-{name}-{}-{}",
+            std::process::id(),
+            unix_timestamp_ms()
+        ));
+        if root.exists() {
+            let _ = std::fs::remove_dir_all(&root);
+        }
+        std::fs::create_dir_all(&root).expect("create test directory");
+        root
     }
 }

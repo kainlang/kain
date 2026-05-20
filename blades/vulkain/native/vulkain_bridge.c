@@ -27,6 +27,8 @@
 #define VKN_MAX_ENTRY_POINT_BYTES 128u
 #define VKN_DEFAULT_DRAW_VERTICES 3u
 #define VKN_MAX_DRAW_VERTICES 4096u
+#define VKN_MAX_INSTANCE_COUNT 1000000u
+#define VKN_KLONER_BILLBOARD_VERTICES 6u
 
 typedef struct VulkainPushConstants {
     float time_seconds;
@@ -39,7 +41,43 @@ typedef struct VulkainPushConstants {
     float mesh_twist;
     float depth_bias;
     float energy;
+    float clone_count;
+    float layout_mode;
+    float grid_width;
+    float spacing;
+    float radial_radius;
+    float wave_amount;
+    float animation_speed;
+    float target_fps;
+    float ui_command_count;
+    float ui_checksum;
+    float viewport_width;
+    float viewport_height;
+    float honeycomb_bias;
+    float row_count;
+    float column_count;
+    float lod_budget;
+    float camera_zoom;
+    float camera_pan_x;
+    float camera_pan_y;
+    float control_overlay;
 } VulkainPushConstants;
+
+typedef struct VulkainPendingKlonerConfig {
+    int32_t enabled;
+    int32_t clone_count;
+    int32_t layout_mode;
+    int32_t grid_width;
+    int32_t grid_rows;
+    int32_t spacing_milli;
+    int32_t radial_radius_milli;
+    int32_t sphere_radius_milli;
+    int32_t wave_milli;
+    int32_t speed_milli;
+    int32_t target_fps;
+    int32_t ui_draw_count;
+    int32_t ui_checksum;
+} VulkainPendingKlonerConfig;
 
 typedef struct VulkainApp {
     HINSTANCE hinstance;
@@ -49,14 +87,35 @@ typedef struct VulkainApp {
     int32_t height;
     int32_t frame_budget;
     uint32_t draw_vertices;
+    uint32_t instance_count;
+    int32_t logical_clone_count;
+    int32_t kloner_mode;
     float clear_color[3];
     float accent_color[3];
     float camera_yaw;
     float camera_pitch;
+    float camera_zoom;
+    float camera_pan_x;
+    float camera_pan_y;
     float mesh_scale;
     float mesh_twist;
     float depth_bias;
     float energy;
+    float control_overlay;
+    float layout_mode;
+    float grid_width;
+    float grid_rows;
+    float spacing;
+    float radial_radius;
+    float wave_amount;
+    float animation_speed;
+    float target_fps;
+    float ui_command_count;
+    float ui_checksum;
+    int interactive_loop;
+    int mouse_look_active;
+    int has_last_cursor;
+    POINT last_cursor;
     char title[VKN_MAX_TITLE_BYTES];
     char vertex_entry_point[VKN_MAX_ENTRY_POINT_BYTES];
     char fragment_entry_point[VKN_MAX_ENTRY_POINT_BYTES];
@@ -100,16 +159,29 @@ static int32_t g_last_width = 0;
 static int32_t g_last_height = 0;
 static int32_t g_last_frame_budget = 0;
 static int32_t g_last_draw_vertices = 0;
+static int32_t g_last_instance_count = 1;
+static int32_t g_last_logical_clone_count = 1;
+static int32_t g_last_kloner_mode = 0;
+static int32_t g_last_layout_mode = 0;
+static int32_t g_last_target_fps = 60;
+static int32_t g_last_ui_command_count = 0;
+static int32_t g_last_ui_checksum = 0;
 static int32_t g_last_camera_yaw_milli = 0;
 static int32_t g_last_camera_pitch_milli = 0;
+static int32_t g_last_camera_zoom_milli = 0;
+static int32_t g_last_camera_pan_x_milli = 0;
+static int32_t g_last_camera_pan_y_milli = 0;
 static int32_t g_last_mesh_scale_milli = 0;
 static int32_t g_last_mesh_twist_milli = 0;
 static int32_t g_last_depth_bias_milli = 0;
 static int32_t g_last_energy = 0;
+static int32_t g_last_interactive_mode = 0;
+static int32_t g_last_control_overlay_milli = 0;
 static char g_last_vertex_entry_point[VKN_MAX_ENTRY_POINT_BYTES] = "main";
 static char g_last_fragment_entry_point[VKN_MAX_ENTRY_POINT_BYTES] = "main";
 static int64_t g_frames_presented = 0;
 static int64_t g_vertices_drawn = 0;
+static VulkainPendingKlonerConfig g_pending_kloner_config;
 
 static PFN_vkGetInstanceProcAddr q_vkGetInstanceProcAddr;
 static PFN_vkGetDeviceProcAddr q_vkGetDeviceProcAddr;
@@ -245,8 +317,52 @@ static uint32_t vkn_safe_draw_vertices(int32_t requested) {
     return (uint32_t)requested;
 }
 
+static uint32_t vkn_safe_instance_count(int32_t requested) {
+    if (requested < 1) {
+        return 1u;
+    }
+    if (requested > (int32_t)VKN_MAX_INSTANCE_COUNT) {
+        return VKN_MAX_INSTANCE_COUNT;
+    }
+    return (uint32_t)requested;
+}
+
 static float vkn_milli_to_float(int32_t requested) {
     return (float)requested / 1000.0f;
+}
+
+static int32_t vkn_safe_target_fps(int32_t requested) {
+    if (requested < 1) {
+        return 60;
+    }
+    if (requested > 240) {
+        return 240;
+    }
+    return requested;
+}
+
+static float vkn_clampf(float value, float minimum, float maximum) {
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
+}
+
+static int32_t vkn_float_to_milli(float value) {
+    if (value > 2147483.0f) {
+        return 2147483000;
+    }
+    if (value < -2147483.0f) {
+        return -2147483000;
+    }
+    return (int32_t)(value * 1000.0f);
+}
+
+static int vkn_key_down(int virtual_key) {
+    return (GetAsyncKeyState(virtual_key) & 0x8000) != 0;
 }
 
 static uint32_t vkn_safe_swapchain_image_count(const VulkainApp* app) {
@@ -269,6 +385,44 @@ static void vkn_copy_title(char* dest, size_t dest_cap, const char* src) {
     }
     strncpy(dest, src, dest_cap - 1u);
     dest[dest_cap - 1u] = '\0';
+}
+
+static void vkn_apply_pending_kloner_config(VulkainApp* app) {
+    if (!app) {
+        return;
+    }
+    app->instance_count = 1u;
+    app->logical_clone_count = 1;
+    app->kloner_mode = 0;
+    app->layout_mode = 0.0f;
+    app->grid_width = 1.0f;
+    app->grid_rows = 1.0f;
+    app->spacing = 1.0f;
+    app->radial_radius = 1.0f;
+    app->wave_amount = 0.0f;
+    app->animation_speed = 1.0f;
+    app->target_fps = 60.0f;
+    app->ui_command_count = 0.0f;
+    app->ui_checksum = 0.0f;
+    if (g_pending_kloner_config.enabled == 0) {
+        return;
+    }
+    app->kloner_mode = 1;
+    app->draw_vertices = VKN_KLONER_BILLBOARD_VERTICES;
+    app->instance_count = vkn_safe_instance_count(g_pending_kloner_config.clone_count);
+    app->logical_clone_count = (int32_t)app->instance_count;
+    app->layout_mode = (float)g_pending_kloner_config.layout_mode;
+    app->grid_width = (float)vkn_safe_instance_count(g_pending_kloner_config.grid_width);
+    app->grid_rows = (float)vkn_safe_instance_count(g_pending_kloner_config.grid_rows);
+    app->spacing = vkn_milli_to_float(g_pending_kloner_config.spacing_milli);
+    app->radial_radius = vkn_milli_to_float(g_pending_kloner_config.radial_radius_milli);
+    app->mesh_scale = vkn_milli_to_float(g_pending_kloner_config.sphere_radius_milli);
+    app->wave_amount = vkn_milli_to_float(g_pending_kloner_config.wave_milli);
+    app->animation_speed = vkn_milli_to_float(g_pending_kloner_config.speed_milli);
+    app->target_fps = (float)vkn_safe_target_fps(g_pending_kloner_config.target_fps);
+    app->ui_command_count = (float)(g_pending_kloner_config.ui_draw_count < 0 ? 0 : g_pending_kloner_config.ui_draw_count);
+    app->ui_checksum = (float)(g_pending_kloner_config.ui_checksum & 0x7fffffff);
+    memset(&g_pending_kloner_config, 0, sizeof(g_pending_kloner_config));
 }
 
 static void vkn_blade_path(char* dest, size_t dest_cap, const char* suffix) {
@@ -469,9 +623,25 @@ static LRESULT CALLBACK vkn_window_proc(HWND hwnd, UINT message, WPARAM wparam, 
             }
             PostQuitMessage(0);
             return 0;
+        case WM_KEYDOWN:
+            if (app && wparam == VK_ESCAPE) {
+                app->closing = 1;
+                DestroyWindow(hwnd);
+                return 0;
+            }
+            break;
+        case WM_MOUSEWHEEL:
+            if (app && app->kloner_mode) {
+                float notches = (float)GET_WHEEL_DELTA_WPARAM(wparam) / (float)WHEEL_DELTA;
+                app->camera_zoom = vkn_clampf(app->camera_zoom - notches * 8.0f, 1.2f, 900.0f);
+                app->control_overlay = 1.0f;
+                return 0;
+            }
+            break;
         default:
             return DefWindowProcA(hwnd, message, wparam, lparam);
     }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
 }
 
 static int32_t vkn_create_window(VulkainApp* app, const char* title) {
@@ -523,11 +693,163 @@ static int32_t vkn_create_window(VulkainApp* app, const char* title) {
 
 static void vkn_pump_messages(VulkainApp* app) {
     MSG msg;
-    (void)app;
     while (PeekMessageA(&msg, NULL, 0u, 0u, PM_REMOVE)) {
         TranslateMessage(&msg);
         DispatchMessageA(&msg);
     }
+}
+
+static void vkn_update_kloner_controls(VulkainApp* app) {
+    int active = 0;
+    float dt;
+    float turn_speed;
+    float pan_speed;
+    float zoom_speed;
+    float edit_speed;
+    if (!app || !app->kloner_mode) {
+        return;
+    }
+    if (GetForegroundWindow() != app->hwnd) {
+        app->mouse_look_active = 0;
+        app->has_last_cursor = 0;
+        app->control_overlay = vkn_clampf(app->control_overlay * 0.92f, 0.18f, 1.0f);
+        return;
+    }
+
+    dt = 1.0f / vkn_clampf(app->target_fps, 30.0f, 240.0f);
+    turn_speed = vkn_key_down(VK_SHIFT) ? 2.2f : 1.0f;
+    pan_speed = (vkn_key_down(VK_SHIFT) ? 1.45f : 0.55f) * dt;
+    zoom_speed = (vkn_key_down(VK_SHIFT) ? 78.0f : 28.0f) * dt;
+    edit_speed = (vkn_key_down(VK_SHIFT) ? 2.0f : 0.45f) * dt;
+
+    if (vkn_key_down(VK_RBUTTON)) {
+        POINT cursor;
+        if (GetCursorPos(&cursor)) {
+            if (app->mouse_look_active && app->has_last_cursor) {
+                LONG dx = cursor.x - app->last_cursor.x;
+                LONG dy = cursor.y - app->last_cursor.y;
+                app->camera_yaw += (float)dx * 0.0065f * turn_speed;
+                app->camera_pitch += (float)dy * 0.0055f * turn_speed;
+                app->camera_pitch = vkn_clampf(app->camera_pitch, -1.42f, 1.42f);
+                active = 1;
+            }
+            app->last_cursor = cursor;
+            app->has_last_cursor = 1;
+            app->mouse_look_active = 1;
+        }
+    } else {
+        app->mouse_look_active = 0;
+        app->has_last_cursor = 0;
+    }
+
+    if (vkn_key_down('A')) {
+        app->camera_yaw -= 1.5f * dt * turn_speed;
+        active = 1;
+    }
+    if (vkn_key_down('D')) {
+        app->camera_yaw += 1.5f * dt * turn_speed;
+        active = 1;
+    }
+    if (vkn_key_down('W')) {
+        app->camera_zoom = vkn_clampf(app->camera_zoom - zoom_speed, 1.2f, 900.0f);
+        active = 1;
+    }
+    if (vkn_key_down('S')) {
+        app->camera_zoom = vkn_clampf(app->camera_zoom + zoom_speed, 1.2f, 900.0f);
+        active = 1;
+    }
+    if (vkn_key_down('Q')) {
+        app->camera_pan_y += pan_speed;
+        active = 1;
+    }
+    if (vkn_key_down('E')) {
+        app->camera_pan_y -= pan_speed;
+        active = 1;
+    }
+    if (vkn_key_down(VK_LEFT)) {
+        app->camera_pan_x += pan_speed;
+        active = 1;
+    }
+    if (vkn_key_down(VK_RIGHT)) {
+        app->camera_pan_x -= pan_speed;
+        active = 1;
+    }
+    if (vkn_key_down(VK_UP)) {
+        app->camera_pan_y -= pan_speed;
+        active = 1;
+    }
+    if (vkn_key_down(VK_DOWN)) {
+        app->camera_pan_y += pan_speed;
+        active = 1;
+    }
+
+    if (vkn_key_down('1')) {
+        app->layout_mode = 1.0f;
+        active = 1;
+    }
+    if (vkn_key_down('2')) {
+        app->layout_mode = 2.0f;
+        active = 1;
+    }
+    if (vkn_key_down('3')) {
+        app->layout_mode = 3.0f;
+        active = 1;
+    }
+    if (vkn_key_down('4')) {
+        app->layout_mode = 4.0f;
+        active = 1;
+    }
+
+    if (vkn_key_down('Z')) {
+        app->mesh_scale = vkn_clampf(app->mesh_scale - edit_speed * 0.18f, 0.015f, 4.0f);
+        active = 1;
+    }
+    if (vkn_key_down('X')) {
+        app->mesh_scale = vkn_clampf(app->mesh_scale + edit_speed * 0.18f, 0.015f, 4.0f);
+        active = 1;
+    }
+    if (vkn_key_down('C')) {
+        app->spacing = vkn_clampf(app->spacing - edit_speed, 0.05f, 8.0f);
+        active = 1;
+    }
+    if (vkn_key_down('V')) {
+        app->spacing = vkn_clampf(app->spacing + edit_speed, 0.05f, 8.0f);
+        active = 1;
+    }
+    if (vkn_key_down('F')) {
+        app->wave_amount = vkn_clampf(app->wave_amount - edit_speed, 0.0f, 12.0f);
+        active = 1;
+    }
+    if (vkn_key_down('G')) {
+        app->wave_amount = vkn_clampf(app->wave_amount + edit_speed, 0.0f, 12.0f);
+        active = 1;
+    }
+    if (vkn_key_down(VK_OEM_4)) {
+        app->logical_clone_count -= vkn_key_down(VK_SHIFT) ? 50000 : 5000;
+        if (app->logical_clone_count < 1) {
+            app->logical_clone_count = 1;
+        }
+        app->instance_count = vkn_safe_instance_count(app->logical_clone_count);
+        active = 1;
+    }
+    if (vkn_key_down(VK_OEM_6)) {
+        app->logical_clone_count += vkn_key_down(VK_SHIFT) ? 50000 : 5000;
+        if (app->logical_clone_count > (int32_t)VKN_MAX_INSTANCE_COUNT) {
+            app->logical_clone_count = (int32_t)VKN_MAX_INSTANCE_COUNT;
+        }
+        app->instance_count = vkn_safe_instance_count(app->logical_clone_count);
+        active = 1;
+    }
+    if (vkn_key_down('R')) {
+        app->camera_yaw = 0.72f;
+        app->camera_pitch = -0.38f;
+        app->camera_pan_x = 0.0f;
+        app->camera_pan_y = 0.0f;
+        app->camera_zoom = app->kloner_mode ? 78.0f : 3.15f;
+        active = 1;
+    }
+
+    app->control_overlay = active ? 1.0f : vkn_clampf(app->control_overlay * 0.92f, 0.18f, 1.0f);
 }
 
 static uint32_t vkn_select_queue_family(VulkainApp* app) {
@@ -1091,10 +1413,43 @@ static int32_t vkn_record_command_buffer(VulkainApp* app, uint32_t image_index, 
     push.accent_b = app->accent_color[2];
     push.camera_yaw = app->camera_yaw;
     push.camera_pitch = app->camera_pitch;
+    push.camera_zoom = app->camera_zoom;
+    push.camera_pan_x = app->camera_pan_x;
+    push.camera_pan_y = app->camera_pan_y;
+    push.control_overlay = app->control_overlay;
     push.mesh_scale = app->mesh_scale;
     push.mesh_twist = app->mesh_twist;
     push.depth_bias = app->depth_bias;
     push.energy = app->energy;
+    push.clone_count = (float)app->logical_clone_count;
+    push.layout_mode = app->layout_mode;
+    push.grid_width = app->grid_width;
+    push.spacing = app->spacing;
+    push.radial_radius = app->radial_radius;
+    push.wave_amount = app->wave_amount;
+    push.animation_speed = app->animation_speed;
+    push.target_fps = app->target_fps;
+    push.ui_command_count = app->ui_command_count;
+    push.ui_checksum = app->ui_checksum;
+    push.viewport_width = (float)app->extent.width;
+    push.viewport_height = (float)app->extent.height;
+    push.honeycomb_bias = 0.8660254f;
+    push.row_count = app->grid_rows;
+    push.column_count = app->grid_width;
+    push.lod_budget = (float)app->instance_count;
+    if (app->kloner_mode) {
+        VulkainPushConstants background_push = push;
+        background_push.depth_bias = -5.0f;
+        q_vkCmdPushConstants(
+            command_buffer,
+            app->pipeline_layout,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0u,
+            sizeof(background_push),
+            &background_push
+        );
+        q_vkCmdDraw(command_buffer, VKN_DEFAULT_DRAW_VERTICES, 1u, 0u, 0u);
+    }
     q_vkCmdPushConstants(
         command_buffer,
         app->pipeline_layout,
@@ -1103,7 +1458,20 @@ static int32_t vkn_record_command_buffer(VulkainApp* app, uint32_t image_index, 
         sizeof(push),
         &push
     );
-    q_vkCmdDraw(command_buffer, app->draw_vertices, 1u, 0u, 0u);
+    q_vkCmdDraw(command_buffer, app->draw_vertices, app->instance_count, 0u, 0u);
+    if (app->kloner_mode) {
+        VulkainPushConstants overlay_push = push;
+        overlay_push.depth_bias = -7.0f;
+        q_vkCmdPushConstants(
+            command_buffer,
+            app->pipeline_layout,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0u,
+            sizeof(overlay_push),
+            &overlay_push
+        );
+        q_vkCmdDraw(command_buffer, VKN_DEFAULT_DRAW_VERTICES, 1u, 0u, 0u);
+    }
     q_vkCmdEndRenderPass(command_buffer);
 
     result = q_vkEndCommandBuffer(command_buffer);
@@ -1166,7 +1534,11 @@ static int32_t vkn_draw_frame(VulkainApp* app, uint32_t frame_index) {
     }
 
     g_frames_presented += 1;
-    g_vertices_drawn += (int64_t)app->draw_vertices;
+    if (app->kloner_mode) {
+        g_vertices_drawn += ((int64_t)VKN_DEFAULT_DRAW_VERTICES * 2) + ((int64_t)app->draw_vertices * (int64_t)app->instance_count);
+    } else {
+        g_vertices_drawn += (int64_t)app->draw_vertices;
+    }
     return 0;
 }
 
@@ -1338,6 +1710,8 @@ static int32_t vkn_run_scene(
     app.height = (int32_t)vkn_clamp_dimension(height);
     app.frame_budget = (int32_t)vkn_safe_frame_budget(frame_budget);
     app.draw_vertices = vkn_safe_draw_vertices(draw_vertices);
+    app.instance_count = 1u;
+    app.logical_clone_count = 1;
     app.clear_color[0] = (float)vkn_clamp_color_u8(clear_red) / 255.0f;
     app.clear_color[1] = (float)vkn_clamp_color_u8(clear_green) / 255.0f;
     app.clear_color[2] = (float)vkn_clamp_color_u8(clear_blue) / 255.0f;
@@ -1350,6 +1724,15 @@ static int32_t vkn_run_scene(
     app.mesh_twist = vkn_milli_to_float(mesh_twist_milli);
     app.depth_bias = vkn_milli_to_float(depth_bias_milli);
     app.energy = vkn_milli_to_float(energy);
+    vkn_apply_pending_kloner_config(&app);
+    app.interactive_loop = (app.kloner_mode && frame_budget <= 0) ? 1 : 0;
+    if (app.interactive_loop) {
+        app.frame_budget = 0;
+    }
+    app.camera_zoom = app.kloner_mode ? 78.0f : 3.15f;
+    app.camera_pan_x = 0.0f;
+    app.camera_pan_y = 0.0f;
+    app.control_overlay = app.kloner_mode ? 0.35f : 0.0f;
     vkn_copy_title(app.title, sizeof(app.title), title);
     vkn_copy_title(
         app.vertex_entry_point,
@@ -1376,12 +1759,24 @@ static int32_t vkn_run_scene(
     g_last_height = app.height;
     g_last_frame_budget = app.frame_budget;
     g_last_draw_vertices = (int32_t)app.draw_vertices;
+    g_last_instance_count = (int32_t)app.instance_count;
+    g_last_logical_clone_count = app.logical_clone_count;
+    g_last_kloner_mode = app.kloner_mode;
+    g_last_layout_mode = (int32_t)app.layout_mode;
+    g_last_target_fps = (int32_t)app.target_fps;
+    g_last_ui_command_count = (int32_t)app.ui_command_count;
+    g_last_ui_checksum = (int32_t)app.ui_checksum;
     g_last_camera_yaw_milli = camera_yaw_milli;
     g_last_camera_pitch_milli = camera_pitch_milli;
+    g_last_camera_zoom_milli = vkn_float_to_milli(app.camera_zoom);
+    g_last_camera_pan_x_milli = 0;
+    g_last_camera_pan_y_milli = 0;
     g_last_mesh_scale_milli = mesh_scale_milli;
     g_last_mesh_twist_milli = mesh_twist_milli;
     g_last_depth_bias_milli = depth_bias_milli;
     g_last_energy = energy;
+    g_last_interactive_mode = app.interactive_loop;
+    g_last_control_overlay_milli = vkn_float_to_milli(app.control_overlay);
     g_frames_presented = 0;
     g_vertices_drawn = 0;
 
@@ -1394,18 +1789,39 @@ static int32_t vkn_run_scene(
         return -1;
     }
 
-    while (!app.closing && frame_index < (uint32_t)app.frame_budget) {
+    while (!app.closing && (app.interactive_loop || frame_index < (uint32_t)app.frame_budget)) {
         vkn_pump_messages(&app);
         if (app.closing) {
             break;
         }
+        vkn_update_kloner_controls(&app);
         status = vkn_draw_frame(&app, frame_index);
         if (status != 0) {
             break;
         }
         frame_index += 1u;
-        Sleep(16u);
+        if (app.kloner_mode && app.target_fps >= 120.0f) {
+            Sleep(8u);
+        } else {
+            Sleep(16u);
+        }
     }
+
+    g_last_frame_budget = app.interactive_loop ? 0 : app.frame_budget;
+    g_last_instance_count = (int32_t)app.instance_count;
+    g_last_logical_clone_count = app.logical_clone_count;
+    g_last_layout_mode = (int32_t)app.layout_mode;
+    g_last_camera_yaw_milli = vkn_float_to_milli(app.camera_yaw);
+    g_last_camera_pitch_milli = vkn_float_to_milli(app.camera_pitch);
+    g_last_camera_zoom_milli = vkn_float_to_milli(app.camera_zoom);
+    g_last_camera_pan_x_milli = vkn_float_to_milli(app.camera_pan_x);
+    g_last_camera_pan_y_milli = vkn_float_to_milli(app.camera_pan_y);
+    g_last_mesh_scale_milli = vkn_float_to_milli(app.mesh_scale);
+    g_last_mesh_twist_milli = vkn_float_to_milli(app.mesh_twist);
+    g_last_depth_bias_milli = vkn_float_to_milli(app.depth_bias);
+    g_last_energy = vkn_float_to_milli(app.energy);
+    g_last_interactive_mode = app.interactive_loop;
+    g_last_control_overlay_milli = vkn_float_to_milli(app.control_overlay);
 
     vkn_shutdown(&app);
     return status;
@@ -1427,7 +1843,8 @@ int32_t vulkain_native_run_window(
     const char* vertex_entry_point,
     const char* fragment_entry_point
 ) {
-    return vkn_run_scene(
+    {
+        int32_t status = vkn_run_scene(
         title,
         width,
         height,
@@ -1449,7 +1866,10 @@ int32_t vulkain_native_run_window(
         fragment_spv_path,
         vertex_entry_point,
         fragment_entry_point
-    );
+        );
+        memset(&g_pending_kloner_config, 0, sizeof(g_pending_kloner_config));
+        return status;
+    }
 }
 
 int32_t vulkain_native_run_mesh_scene(
@@ -1475,7 +1895,8 @@ int32_t vulkain_native_run_mesh_scene(
     const char* vertex_entry_point,
     const char* fragment_entry_point
 ) {
-    return vkn_run_scene(
+    {
+        int32_t status = vkn_run_scene(
         title,
         width,
         height,
@@ -1497,7 +1918,10 @@ int32_t vulkain_native_run_mesh_scene(
         fragment_spv_path,
         vertex_entry_point,
         fragment_entry_point
-    );
+        );
+        memset(&g_pending_kloner_config, 0, sizeof(g_pending_kloner_config));
+        return status;
+    }
 }
 
 int32_t vulkain_native_run_authored_mesh_scene(
@@ -1547,6 +1971,79 @@ int32_t vulkain_native_run_authored_mesh_scene(
     );
 }
 
+int32_t vulkain_native_run_kloner_same_window(
+    const char* title,
+    int32_t width,
+    int32_t height,
+    int32_t frame_budget,
+    int32_t clear_red,
+    int32_t clear_green,
+    int32_t clear_blue,
+    int32_t accent_red,
+    int32_t accent_green,
+    int32_t accent_blue,
+    int32_t clone_count,
+    int32_t layout_mode,
+    int32_t grid_width,
+    int32_t grid_rows,
+    int32_t spacing_milli,
+    int32_t radial_radius_milli,
+    int32_t sphere_radius_milli,
+    int32_t wave_milli,
+    int32_t speed_milli,
+    int32_t target_fps,
+    int32_t camera_yaw_milli,
+    int32_t camera_pitch_milli,
+    int32_t ui_draw_count,
+    int32_t ui_checksum,
+    const char* vertex_spv_path,
+    const char* fragment_spv_path,
+    const char* vertex_entry_point,
+    const char* fragment_entry_point
+) {
+    memset(&g_pending_kloner_config, 0, sizeof(g_pending_kloner_config));
+    g_pending_kloner_config.enabled = 1;
+    g_pending_kloner_config.clone_count = clone_count;
+    g_pending_kloner_config.layout_mode = layout_mode;
+    g_pending_kloner_config.grid_width = grid_width;
+    g_pending_kloner_config.grid_rows = grid_rows;
+    g_pending_kloner_config.spacing_milli = spacing_milli;
+    g_pending_kloner_config.radial_radius_milli = radial_radius_milli;
+    g_pending_kloner_config.sphere_radius_milli = sphere_radius_milli;
+    g_pending_kloner_config.wave_milli = wave_milli;
+    g_pending_kloner_config.speed_milli = speed_milli;
+    g_pending_kloner_config.target_fps = target_fps;
+    g_pending_kloner_config.ui_draw_count = ui_draw_count;
+    g_pending_kloner_config.ui_checksum = ui_checksum;
+    {
+        int32_t status = vkn_run_scene(
+            title,
+            width,
+            height,
+            frame_budget,
+            clear_red,
+            clear_green,
+            clear_blue,
+            accent_red,
+            accent_green,
+            accent_blue,
+            (int32_t)VKN_KLONER_BILLBOARD_VERTICES,
+            camera_yaw_milli,
+            camera_pitch_milli,
+            sphere_radius_milli,
+            speed_milli,
+            0,
+            wave_milli,
+            vertex_spv_path,
+            fragment_spv_path,
+            vertex_entry_point,
+            fragment_entry_point
+        );
+        memset(&g_pending_kloner_config, 0, sizeof(g_pending_kloner_config));
+        return status;
+    }
+}
+
 int32_t vulkain_native_write_report(const char* path) {
     FILE* file;
     if (!path || !path[0]) {
@@ -1563,12 +2060,24 @@ int32_t vulkain_native_write_report(const char* path) {
     fprintf(file, "window_height=%d\n", g_last_height);
     fprintf(file, "frame_budget=%d\n", g_last_frame_budget);
     fprintf(file, "draw_vertices=%d\n", g_last_draw_vertices);
+    fprintf(file, "instance_count=%d\n", g_last_instance_count);
+    fprintf(file, "logical_clone_count=%d\n", g_last_logical_clone_count);
+    fprintf(file, "kloner_mode=%d\n", g_last_kloner_mode);
+    fprintf(file, "layout_mode=%d\n", g_last_layout_mode);
+    fprintf(file, "target_fps=%d\n", g_last_target_fps);
+    fprintf(file, "kaintana_ui_draw_count=%d\n", g_last_ui_command_count);
+    fprintf(file, "kaintana_ui_checksum=%d\n", g_last_ui_checksum);
+    fprintf(file, "interactive_mode=%d\n", g_last_interactive_mode);
     fprintf(file, "camera_yaw_milli=%d\n", g_last_camera_yaw_milli);
     fprintf(file, "camera_pitch_milli=%d\n", g_last_camera_pitch_milli);
+    fprintf(file, "camera_zoom_milli=%d\n", g_last_camera_zoom_milli);
+    fprintf(file, "camera_pan_x_milli=%d\n", g_last_camera_pan_x_milli);
+    fprintf(file, "camera_pan_y_milli=%d\n", g_last_camera_pan_y_milli);
     fprintf(file, "mesh_scale_milli=%d\n", g_last_mesh_scale_milli);
     fprintf(file, "mesh_twist_milli=%d\n", g_last_mesh_twist_milli);
     fprintf(file, "depth_bias_milli=%d\n", g_last_depth_bias_milli);
     fprintf(file, "energy=%d\n", g_last_energy);
+    fprintf(file, "control_overlay_milli=%d\n", g_last_control_overlay_milli);
     fprintf(file, "vertex_entry_point=%s\n", g_last_vertex_entry_point);
     fprintf(file, "fragment_entry_point=%s\n", g_last_fragment_entry_point);
     fprintf(file, "frames_presented=%lld\n", (long long)g_frames_presented);

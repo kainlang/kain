@@ -31,6 +31,7 @@ typedef enum {
     KAIN_PLATFORM_SERVICE_NETWORK = 1u << 7,
     KAIN_PLATFORM_SERVICE_CLIPBOARD = 1u << 8,
     KAIN_PLATFORM_SERVICE_HOT_RELOAD = 1u << 9,
+    KAIN_PLATFORM_SERVICE_NATIVE_LIBRARY = 1u << 10,
 } KainPlatformServiceMask;
 
 typedef struct {

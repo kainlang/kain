@@ -307,6 +307,48 @@ pub enum BridgeCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum ImportCommand {
+    /// Import a native platform SDK/package into a target-aware lock and generated typed thunks
+    Platform {
+        /// Package name or SDK root path, for example `vulkan` or `vendor/tiny_math`
+        package: String,
+
+        /// Override package/module name when the positional argument is a path
+        #[arg(long = "package-name")]
+        package_name: Option<String>,
+
+        /// Package provider label recorded in the lockfile
+        #[arg(long, default_value = "system")]
+        provider: String,
+
+        /// Explicit SDK root to scan
+        #[arg(long)]
+        sdk: Option<PathBuf>,
+
+        /// Output directory, defaults to .kain/platform/<package>/<target-triple>
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Target triple to lock against
+        #[arg(long = "target-triple")]
+        target_triple: Option<String>,
+
+        /// Print the resolved lock without writing artifacts
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Also write the lock/report JSON to this path
+        #[arg(long = "report-json")]
+        report_json: Option<PathBuf>,
+
+        /// Explicit registry metadata file, such as Vulkan vk.xml
+        #[arg(long)]
+        registry: Option<PathBuf>,
+
+        /// Explicit C header entrypoint
+        #[arg(long)]
+        header: Option<PathBuf>,
+    },
+
     /// Import every Rust crate in a workspace into one Kain bundle or a mirrored blades tree
     Crates {
         /// Workspace root (defaults to the current directory)
@@ -1066,6 +1108,43 @@ mod tests {
                 assert_eq!(include_filters, ["src"]);
             }
             other => panic!("expected import crates command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_import_platform_command() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "import",
+            "platform",
+            "vulkan",
+            "--provider",
+            "system",
+            "--sdk",
+            "C:/VulkanSDK",
+            "--target-triple",
+            "x86_64-pc-windows-msvc",
+            "--dry-run",
+        ]);
+        match cli.command {
+            Some(KainCommand::Import {
+                command:
+                    ImportCommand::Platform {
+                        package,
+                        provider,
+                        sdk,
+                        target_triple,
+                        dry_run,
+                        ..
+                    },
+            }) => {
+                assert_eq!(package, "vulkan");
+                assert_eq!(provider, "system");
+                assert_eq!(sdk, Some(PathBuf::from("C:/VulkanSDK")));
+                assert_eq!(target_triple, Some("x86_64-pc-windows-msvc".to_string()));
+                assert!(dry_run);
+            }
+            other => panic!("expected import platform command, got {other:?}"),
         }
     }
 

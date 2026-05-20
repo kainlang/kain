@@ -1,314 +1,85 @@
-// style: split 3d clone workstation
 use c::kaintana_desktop_bridge
 use c::vulkain_bridge
-use kaintana::*
+use kaintana_ui::*
 use kloner_lattice::*
 use kloner_scene::*
 use kloner_state::*
 use kloner_ui::*
-use std::collections
+use reconciliation::kaintana_context_destroy
 use std::fs
-use std::hash
-use std::input
-use std::intent
-use std::math
 use std::runtime
 use std::ui
-use vulkain::vulkain_probe
 
 fn kloner_make_fonts(session: Int) -> KlonerUiFonts:
     return KlonerUiFonts {
         body_font: native_ui_font_create(session, "font.kloner.body", "Consolas", 16.0),
         title_font: native_ui_font_create(session, "font.kloner.title", "Segoe UI", 28.0),
-        badge_font: native_ui_font_create(session, "font.kloner.badge", "Segoe UI", 13.0),
+        badge_font: native_ui_font_create(session, "font.kloner.badge", "Segoe UI", 14.0),
         micro_font: native_ui_font_create(session, "font.kloner.micro", "Consolas", 12.0),
     }
 
-fn kloner_open_service_surfaces(session: Int, controls: KlonerControlNodes, layout: KlonerLayout) -> Int:
-    let menu = kaintana_menu_create(session, "menu.kloner.settings")
-    let _item_a = kaintana_menu_add_item(session, menu, kaintana_menu_item("settings.vulkain", "Open Vulkain Preview", 301))
-    let _item_b = kaintana_menu_add_item(session, menu, kaintana_menu_item("settings.snapshot", "Write Clone Snapshot", 302))
-    let _item_c = kaintana_menu_add_item(session, menu, kaintana_menu_item("settings.export", "Commit Export Preview", 303))
-    let _open = kaintana_menu_open_below_node(session, menu, controls.settings_button, 8.0)
-    return menu
-
-fn kloner_apply_proof_inputs(authority: KlonerAuthority, session: Int, action_session: Int, controls: KlonerControlNodes, seed: KlonerRuntimeState) -> KlonerRuntimeState:
-    let active_mode = seed.active_mode
-    let active_chain = seed.active_chain
-    let active_export = seed.active_export
-    let distribution_mode = seed.distribution_mode
-    let export_mode = seed.export_mode
-    let target_engine = seed.target_engine
-    let normalize_scale = seed.normalize_scale
-    let show_reference_browser = seed.show_reference_browser
-    let show_settings_deck = seed.show_settings_deck
-    let current_time_ms = seed.current_time_ms
-    let status_text = seed.status_text
-    let orbit_value = seed.orbit_value
-
-    let _focus = kaintana_focus_node(session, controls.export_commit_button)
-    let _single_click = kaintana_click_node(session, controls.mode_single_button)
-    while native_ui_poll_event(session) == 1:
-        if kaintana_button_activated(session, controls.mode_single_button) == 1:
-            active_mode = kloner_commit_active_mode(authority, KLONER_MODE_SINGLE)
-            status_text = "pointer // single mode selected"
-
-    let _grid_down = kloner_press_key(action_session, "KeyG")
-    if kaintana_action_pressed(action_session, "mode.grid") == 1:
-        active_mode = kloner_commit_active_mode(authority, KLONER_MODE_GRID)
-        status_text = "keyboard // grid distribution restored"
-    let _grid_up = kloner_release_key(action_session, "KeyG")
-
-    let _radial_down = kloner_press_key(action_session, "KeyR")
-    if kaintana_action_pressed(action_session, "mode.radial") == 1:
-        active_mode = kloner_commit_active_mode(authority, KLONER_MODE_RADIAL)
-        status_text = "keyboard // radial preview engaged"
-    let _radial_up = kloner_release_key(action_session, "KeyR")
-
-    let _chain_down = kloner_press_key(action_session, "Digit2")
-    if kaintana_action_pressed(action_session, "chain.crown") == 1:
-        active_chain = kloner_commit_active_chain(authority, 1)
-        status_text = "chain // crown swarm active"
-    let _chain_up = kloner_release_key(action_session, "Digit2")
-
-    let _browse_down = kloner_press_key(action_session, "KeyB")
-    if kaintana_action_pressed(action_session, "library.browse") == 1:
-        show_reference_browser = 1
-        status_text = "reference // browser mounted"
-    let _browse_up = kloner_release_key(action_session, "KeyB")
-
-    let _vat_down = kloner_press_key(action_session, "KeyV")
-    if kaintana_action_pressed(action_session, "export.vat") == 1:
-        active_export = kloner_commit_active_export(authority, KLONER_EXPORT_FORMAT_VAT)
-        status_text = "export // VAT lane selected"
-    let _vat_up = kloner_release_key(action_session, "KeyV")
-
-    let _instance_down = kloner_press_key(action_session, "KeyI")
-    if kaintana_action_pressed(action_session, "export.instance") == 1:
-        export_mode = KLONER_EXPORT_MODE_INSTANCE
-        status_text = "export // instance mode"
-    let _instance_up = kloner_release_key(action_session, "KeyI")
-
-    let _unreal_down = kloner_press_key(action_session, "KeyU")
-    if kaintana_action_pressed(action_session, "target.unreal") == 1:
-        target_engine = KLONER_TARGET_UNREAL
-        status_text = "target // unreal posture"
-    let _unreal_up = kloner_release_key(action_session, "KeyU")
-
-    let _settings_down = kloner_press_key(action_session, "KeyS")
-    if kaintana_action_pressed(action_session, "service.settings") == 1:
-        show_settings_deck = 1
-        status_text = "services // settings deck armed"
-    let _settings_up = kloner_release_key(action_session, "KeyS")
-
-    let _play_down = kloner_press_key(action_session, "Enter")
-    if kaintana_action_pressed(action_session, "transport.play") == 1:
-        current_time_ms = 4180
-        status_text = "transport // proof frame sampled"
-    let _play_up = kloner_release_key(action_session, "Enter")
-
-    let _axis_frame = kloner_pump_axis(action_session, 0.72)
-    orbit_value = kaintana_action_axis_value(action_session, "preview.orbit")
-
-    return KlonerRuntimeState {
-        active_mode: active_mode,
-        active_chain: active_chain,
-        active_export: active_export,
-        distribution_mode: distribution_mode,
-        export_mode: export_mode,
-        target_engine: target_engine,
-        normalize_scale: normalize_scale,
-        show_reference_browser: show_reference_browser,
-        show_settings_deck: show_settings_deck,
-        dialog_result: seed.dialog_result,
-        current_time_ms: current_time_ms,
-        status_text: status_text,
-        clone_total: seed.clone_total,
-        preview_hash: seed.preview_hash,
-        export_signature: seed.export_signature,
-        orbit_value: orbit_value,
-    }
-
-fn kloner_state_with_scene(authority: KlonerAuthority, state: KlonerRuntimeState, scene: KlonerSceneConfig) -> KlonerRuntimeState:
-    let clone_total = kloner_commit_clone_total(authority, kloner_clone_total(state.active_mode, scene))
-    let preview_seed = hash_quad32(state.active_mode + 17, state.active_chain + 31, clone_total + 43, state.current_time_ms + 59)
-    let preview_hash = kloner_commit_preview_hash(authority, kloner_hash_lane(preview_seed))
-    let export_signature = kloner_export_signature(hash_pair32(preview_hash, state.active_export + state.export_mode + state.target_engine + 101))
-    return KlonerRuntimeState {
-        active_mode: state.active_mode,
-        active_chain: state.active_chain,
-        active_export: state.active_export,
-        distribution_mode: state.distribution_mode,
-        export_mode: state.export_mode,
-        target_engine: state.target_engine,
-        normalize_scale: state.normalize_scale,
-        show_reference_browser: state.show_reference_browser,
-        show_settings_deck: state.show_settings_deck,
-        dialog_result: state.dialog_result,
-        current_time_ms: state.current_time_ms,
-        status_text: state.status_text,
-        clone_total: clone_total,
-        preview_hash: preview_hash,
-        export_signature: export_signature,
-        orbit_value: state.orbit_value,
-    }
-
-fn kloner_state_with_dialog(state: KlonerRuntimeState, dialog_result: Int, status_text: String) -> KlonerRuntimeState:
-    return KlonerRuntimeState {
-        active_mode: state.active_mode,
-        active_chain: state.active_chain,
-        active_export: state.active_export,
-        distribution_mode: state.distribution_mode,
-        export_mode: state.export_mode,
-        target_engine: state.target_engine,
-        normalize_scale: state.normalize_scale,
-        show_reference_browser: state.show_reference_browser,
-        show_settings_deck: state.show_settings_deck,
-        dialog_result: dialog_result,
-        current_time_ms: state.current_time_ms,
-        status_text: status_text,
-        clone_total: state.clone_total,
-        preview_hash: state.preview_hash,
-        export_signature: state.export_signature,
-        orbit_value: state.orbit_value,
-    }
-
-fn kloner_draw_preview_clones(session: Int, parent: Int, plot_rect: KaintanaRect, theme: KaintanaTheme, fonts: KlonerUiFonts, state: KlonerRuntimeState, scene: KlonerSceneConfig, camera: KlonerViewportCamera) -> Int:
-    let preview_count = int_min(state.clone_total, KLONER_MAX_PREVIEW_CLONES)
-    let clone_index = 0
-    while clone_index < preview_count:
-        let pose = kloner_clone_pose(state.active_mode, state.distribution_mode, state.active_chain, state.current_time_ms, clone_index, scene)
-        let _draw = kloner_draw_clone(session, parent, plot_rect, camera, clone_index, pose, theme, fonts.micro_font)
-        clone_index = clone_index + 1
-    return preview_count
-
 fn main() -> Int:
-    let runtime_status = native_runtime_init()
-    if runtime_status != 0:
-        println("runtime init failed")
-        return 10
+    let boot = native_runtime_init()
+    if boot != 0:
+        return 100 + boot
 
     fs_create_dir_all(".kain")
     fs_create_dir_all(fs_path_join(".kain", "run"))
 
-    let settings = kloner_settings_desktop()
-    let theme_name = "oxide-dcc"
-    let reference_root = "reference"
-    let reference_spec_path = fs_path_join(reference_root, "KCloner.tsx")
-    let reference_label = "KCloner.tsx"
-    let theme: KaintanaTheme = kaintana_theme_named(theme_name)
+    let settings = kloner_settings()
     let spec = kloner_build_window_spec(settings)
+    let theme = kloner_theme(settings.theme_name)
+    let reference = kloner_reference_info(settings)
+    let controls = kloner_default_controls()
+    let draft_state = kloner_runtime_state_from_controls(controls, 1333, 0, 0)
+
+    var ctx = kaintana_context("kloner.same-window", spec, theme, false)
+    let fonts = kloner_make_fonts(ctx.session_id)
+    ctx = kaintana_begin(ctx, settings.revision_key, 8.333)
+    ctx = kloner_render_ui(ctx, spec, settings, controls, draft_state, reference, fonts)
+    ctx = kaintana_commit(ctx)
+
+    let runtime_snapshot = kloner_runtime_state_from_controls(controls, 1333, ctx.draw_count, ctx.command_checksum)
     let authority = KlonerAuthority
-    let _reset = kaintana_action_reset()
+    let _mode_commit = kloner_commit_active_mode(authority, controls.layout_mode)
+    let _clone_commit = kloner_commit_clone_total(authority, controls.clone_count)
+    let _hash_commit = kloner_commit_preview_hash(authority, runtime_snapshot.preview_hash)
 
-    let desktop_begin = kaintana_desktop_scene_begin(spec)
-    if desktop_begin != 0:
-        println("desktop scene begin failed")
-        return 11
+    fs_write_text(settings.snapshot_path, kloner_frame_report_text(settings, controls, runtime_snapshot, reference, 0))
+    fs_atomic_write_text(settings.export_preview_path, kloner_export_preview_json(settings, controls, runtime_snapshot, reference))
 
-    let session = kaintana_session_create("kloner", spec)
-    let action_session = kaintana_action_session_create("kloner.actions")
-    let _bindings = kloner_bind_action_map(action_session)
-    let fonts = kloner_make_fonts(session)
-    let _frame = kaintana_begin_frame(session, settings.revision_key, 16.0)
+    let presenter = kloner_present_same_window(settings, controls, runtime_snapshot)
+    fs_write_text(settings.frame_report_path, kloner_frame_report_text(settings, controls, runtime_snapshot, reference, presenter.status))
+    fs_write_text(settings.scene_report_path, kloner_scene_report_text(settings, controls, runtime_snapshot, presenter))
 
-    let reference = kloner_reference_info(reference_root, reference_spec_path)
-    var scene = kloner_default_scene_config()
-    let seed_state = kloner_initial_runtime_state(authority)
-    let layout = kloner_build_layout(spec)
-    let nodes = kloner_build_shell(session, theme, fonts.badge_font, layout)
-    let controls = kloner_render_controls(session, nodes, layout, theme, fonts, theme_name)
-    let settings_menu = kloner_open_service_surfaces(session, controls, layout)
-    let settings_popover = kaintana_popover_spec("settings", 290.0, 118.0, -292.0, 10.0)
-    let browser_popover = kaintana_popover_spec("browser", 360.0, 154.0, -360.0, 10.0)
+    var exit_code = 0
+    if !kloner_validate_mode(controls.layout_mode):
+        exit_code = 20
+    if !kloner_validate_clone_budget_law(controls.clone_count):
+        exit_code = 21
+    if !kloner_validate_preview_hash(runtime_snapshot.preview_hash):
+        exit_code = 22
+    if ctx.draw_count < 24:
+        exit_code = 23
+    if ctx.command_checksum <= 0:
+        exit_code = 24
+    if !fs_exists(settings.frame_report_path) or !fs_exists(settings.scene_report_path) or !fs_exists(settings.export_preview_path):
+        exit_code = 25
+    if presenter.vulkan_available != 1:
+        exit_code = 34
+    if presenter.status != 0:
+        exit_code = 35
+    if presenter.frames_presented < 1:
+        exit_code = 36
+    if presenter.vertices_drawn < controls.clone_count:
+        exit_code = 37
+    if presenter.math_score <= 0:
+        exit_code = 38
 
-    var state = kloner_apply_proof_inputs(authority, session, action_session, controls, seed_state)
-    if state.show_settings_deck != 0:
-        let _open_settings = kaintana_popover_open(session, controls.settings_button, settings_popover)
-    if state.show_reference_browser != 0:
-        let _open_browser = kaintana_popover_open(session, controls.browse_button, browser_popover)
-
-    scene.spacing_y = kloner_key_sample(1, state.current_time_ms, scene.spacing_y)
-    scene.radial_radius = kloner_key_sample(0, state.current_time_ms, scene.radial_radius)
-    state = kloner_state_with_scene(authority, state, scene)
-    let headline = kloner_headline(state.active_mode, state.active_chain, state.active_export, state.clone_total)
-    let export_preview = kloner_export_preview_json(reference_label, reference, state, scene)
-    fs_write_text(settings.state_path, kloner_state_snapshot_text(headline, state, reference))
-    fs_atomic_write_text(settings.export_preview_path, export_preview)
-
-    let dialog_id = kaintana_dialog_request(session, "export", "Commit Kloner Export", "Write preview payload for " + kloner_export_format_name(state.active_export))
-    let _dialog_response = kaintana_dialog_respond(session, dialog_id, 207, "export committed")
-    let dialog_result = kaintana_dialog_poll_response(session)
-    state = kloner_state_with_dialog(state, dialog_result, "export // preview payload committed")
-    fs_write_text(settings.state_path, kloner_state_snapshot_text(headline, state, reference))
-    let _clipboard = kaintana_clipboard_copy_text(session, settings.export_preview_path)
-    let _agent_export = kloner_pump_agent_intent(action_session, "export.commit", "commit kloner export preview")
-
-    let _left = kloner_render_left_panel(session, nodes, layout, theme, fonts, state, reference_label, reference)
-    let camera = kloner_viewport_camera(state, scene)
-    let plot_rect = kloner_render_viewport_scaffold(session, nodes, layout, theme, fonts, headline, state, camera)
-    let _grid = kloner_draw_viewport_grid(session, nodes.viewport_surface, plot_rect, theme, camera, fonts.micro_font)
-    let _clones = kloner_draw_preview_clones(session, nodes.viewport_surface, plot_rect, theme, fonts, state, scene, camera)
-    let _sequence = kloner_render_sequencer_panel(session, nodes, layout, theme, fonts, state, scene)
-    let _chains = kloner_render_chain_panel(session, nodes, layout, theme, fonts, state)
-    let _inspector = kloner_render_inspector_panel(session, nodes, layout, theme, fonts, state, scene, reference_label, reference, camera)
-    let _footer = kloner_render_footer(session, nodes, layout, theme, fonts, state)
-    let _overlays = kloner_render_overlays(session, nodes, layout, theme, fonts, state, reference_label, reference, settings)
-    let _focus_ring = kaintana_render_focus_ring(session, controls.export_commit_button, theme, 4.0)
-    let _commit = kaintana_commit_frame(session)
-
-    fs_write_text(settings.frame_report_path, kloner_frame_report_text(theme_name, settings.vulkain_report_path, theme, headline, state, action_session))
-    fs_write_text(settings.snapshot_path, kloner_state_snapshot_text(headline, state, reference))
-    fs_write_text(settings.input_trace_path, kaintana_action_trace_text(action_session))
-    let _desktop_report = kaintana_desktop_scene_write_report(settings.scene_report_path)
-
-    if !kloner_validate_mode(state.active_mode):
-        return 20
-    if !kloner_validate_clone_budget(state.clone_total):
-        return 21
-    if !kloner_validate_preview_hash(state.preview_hash):
-        return 22
-    if dialog_id <= 0 or state.dialog_result != 207:
-        return 23
-    if kaintana_active_menu(session) != settings_menu:
-        return 24
-    if kaintana_menu_item_count(session, settings_menu) != 3:
-        return 25
-    if state.show_reference_browser != 1 or kaintana_popover_is_open(session, controls.browse_button, browser_popover) != 1:
-        return 26
-    if kaintana_action_event_count(action_session) < 1:
-        return 27
-    if kaintana_clipboard_text(session) != settings.export_preview_path:
-        return 28
-    if !fs_exists(settings.state_path) or !fs_exists(settings.export_preview_path) or !fs_exists(settings.frame_report_path) or !fs_exists(settings.snapshot_path) or !fs_exists(settings.input_trace_path) or !fs_exists(settings.scene_report_path):
-        return 29
-
-    let host_status = kaintana_host_run_window(spec)
-    let _host_report = kaintana_host_write_report(spec)
-    let _host_shot = kaintana_host_write_screenshot(spec)
-
-    if host_status != 0:
-        return 30
-    if kaintana_host_frames_presented(spec) < 1:
-        return 31
-    if kaintana_host_geometry_count(spec) < 1:
-        return 32
-    if !fs_exists(settings.screenshot_path):
-        return 33
-
-    let vulkain_available = vulkain_probe()
-    if vulkain_available != 1:
-        fs_write_text(settings.scene_report_path, kloner_scene_report_text(state, scene, camera, vulkain_available, 0))
-        return 34
-    let vulkain_status = kloner_run_vulkain_preview(settings, state, scene, camera)
-    fs_write_text(settings.scene_report_path, kloner_scene_report_text(state, scene, camera, vulkain_available, vulkain_status))
-    if vulkain_status != 0:
-        return 35
-    if !fs_exists(settings.vulkain_report_path):
-        return 36
-
-    let _action_destroy = kaintana_action_session_destroy(action_session)
-    let shutdown_status = native_runtime_shutdown()
-    if shutdown_status != 0:
-        return 40
+    let _destroy = kaintana_context_destroy(ctx)
+    let shutdown = native_runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if exit_code != 0:
+        return exit_code
     return 0

@@ -13,6 +13,7 @@
 #include "simd.h"
 #include "json.h"
 #include "machine_stones.h"
+#include "platform_library.h"
 
 #ifdef __cplusplus
 extern "C" {
