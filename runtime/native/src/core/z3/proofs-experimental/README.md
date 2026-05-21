@@ -20,6 +20,7 @@ Current references:
 - `actor-table-slot-composition-bounds.smt2`
 - `actor-table-debruijn-hash-distinct.smt2`
 - `actor-reply-port-copy-bounds.smt2`
+- `actor-ask-live-snapshot-ref-match-equivalence.smt2`
 - `service-registry-magic-collision-free.smt2`
 - `service-alias-canonicalizer-token-states.smt2`
 - `reflection-ui-token-magic-collision-free.smt2`

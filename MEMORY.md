@@ -1,5 +1,69 @@
 # Kain Memory
 
+# 2026-05-21 - actor ask path shed the global table lock and the broken actor benchmark lane was repaired
+
+The current checkout had a hidden benchmark-lane failure before any speed work started: `benchmark/cases/actor_ownership_backpressure/main.kn` was missing, so the loudest actor frontier row could not even run. This pass restored that source, deleted the ask-side global actor-table lock from `kain_actor_ask_send_ref(...)`, and reran the canonical benchmark suite.
+
+What changed:
+
+- `benchmark/cases/actor_ownership_backpressure/main.kn`
+  - restored the missing source file and kept the live `deadline_millis(...)` / `deadline_elapsed(...)` touch active
+- `runtime/native/src/core/actor.c`
+  - added `kain_actor_ref_matches_live_snapshot(...)`
+  - switched `kain_actor_ask_send_ref(...)` from locked `kain_actor_table_ref_matches_locked(...)` validation to a live-snapshot validation path that mirrors the existing lockless `kain_actor_send(...)` lookup shape
+- `runtime/native/src/core/z3/proofs-experimental/actor-ask-live-snapshot-ref-match-equivalence.smt2`
+  - proves the new snapshot predicate and the old locked predicate cannot disagree under the stable live-slot invariant
+- `crates/kain-build/BUILD.bazel` and `crates/kain-core/BUILD.bazel`
+  - regenerated via `python tools/bazel/sync_rust_builds.py` after stale BUILD drift blocked `kain check` by dropping the `kain-test` Bazel dependency
+- durable notes:
+  - `research/2026-05-21-actor-ask-live-snapshot-speedup-hunt.md`
+  - `benchmark/assesments/2026-05-21-actor-ask-live-snapshot-latest-benchmark-assessment.md`
+
+Validation:
+
+- `clang -fsyntax-only runtime/native/src/core/actor.c -I runtime/native/include`
+- `mcp__z3_local__.check_smt2(...)` for `actor-ask-live-snapshot-ref-match-equivalence.smt2` -> `unsat`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/runtime/native/src/core/z3", lane="actor", report_name="actor-ask-live-snapshot-regression-check")` -> `16 proved, 0 counterexamples`
+- `bazel build //:kain --config=dev`
+- `kain check benchmark/cases/actor_ownership_backpressure/main.kn --target llvm`
+- `cargo test -p kain-actor --target-dir target/codex-actor-ask-live-snapshot`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test actor_ask_reply --target-dir target/codex-actor-direct-reply -- --nocapture`
+- `python benchmark/run.py --case actor_ownership_backpressure --languages kain,cpp,rust --runs 3 --warmups 1 --timeout 240 --latest-stem latest_actor_probe`
+- `python benchmark/run.py --timeout 900 --baseline-mode auto`
+
+Measured outcome:
+
+- focused actor retake vs the previous canonical latest report:
+  - `actor_ownership_backpressure`: Kain `506.508 ms` -> `482.118 ms`
+  - semantic rounds/s: `355,374.446` -> `373,352.349`
+- canonical full suite (`benchmark/out/reports/latest.llm.md`, generated `2026-05-21T10:27:47.027376+00:00`):
+  - `actor_ownership_backpressure`: Kain `472.025 ms`, C++ `16.683 ms`
+  - `semantic_fabric_relay`: Kain `134.765 ms`, C++ `11.191 ms`
+  - `pulse_teleport_decay_mesh`: Kain `125.148 ms`, C++ `79.211 ms`
+  - `semantic_host_bridge_fusion`: Kain `1264.507 ms`, C++ `861.447 ms`
+  - history summary: `14` Kain improvements, `25` regressions, `16` alert regressions versus prior comparable run `#38` on commit `5229b9f8d978999ddea120a5c9403e9505548e42`
+
+Durable lesson:
+
+- The ask-side global table lock was real overhead, but deleting it is still only a single-digit percentage win. The remaining multi-x actor gap is now clearly request-side ownership after lookup, not stale-ref validation itself.
+- `actor_ownership_backpressure` and `semantic_fabric_relay` should be treated as the same frontier until proven otherwise.
+- Do not claim the current full suite is regression-free. The canonical history comparison is against an older commit, so use the latest report as frontier truth, but treat the regression table as a separate cleanup backlog rather than direct blame on this actor patch.
+
+# 2026-05-21 - `lang-projects` replaced `lang-blades` as the project pipeline skill
+
+The repo-local project skill taxonomy now treats blades as one scale mode inside a broader Kain project pipeline instead of the default mental model.
+
+What changed:
+
+- added `.agents/skills/lang-projects/SKILL.md` as the universal authored project/workspace field manual for `build.kn`, `platform.kn`, project layouts, imports/module roots, check/run/build/watch loops, source tests, native LLVM executable outputs, evidence DAGs, portable amalgamate capsules, Fabric/Omni boundaries, and blade/workspace scale-up behavior
+- moved the root executable helper to `.agents/skills/lang-projects/scripts/compile_kain_project_to_root.ps1`; it now finds project roots via `build.kn`, `platform.kn`, `KAIN.toml`, or `kain.toml`
+- added `.agents/skills/lang-projects/references/project-authoring-patterns.md` for optional examples and failure routing
+- retired active `.agents/skills/lang-blades` files and updated `.agents/skills/TAXONOMY.md` to list `lang-projects`
+- updated `lang-stdlib` so the live root profile includes `std::build`, `std::proof`, `std::bench`, `std::attrition`, and `std::certify`
+- updated `AGENTS.md` so generic runtime-owned `use c::...` imports are not described as requiring `KAIN.toml`
+
+Future agents should use `$lang-projects` when the work is about Kain project authority, evidence graphs, local build/run/check/test flow, portable capsules, or workspace-scale organization. Use `tool-build-system` only when the implementation problem is repo build plumbing such as Bazel, launchers, generated BUILD drift, stale binaries, or `kain doctor`.
+
 # 2026-05-21 - `build.kn` gained first-class Kain std evidence APIs
 
 `build.kn` now has public Kain-facing stdlib contract modules for the evidence graph: `std::build`, `std::proof`, `std::bench`, `std::attrition`, and `std::certify`, with `std::test` extended for `test_suite(...)` / `test_task(...)`. Preferred task constructors are now `build_check(...)`, `test_suite(...)`, `proof_obligation(...)`, `bench_case(...)`, `attrition_case(...)`, `native_executable(...)`, and `certify_gate(...)`; legacy `build_task(...).kind(...)` remains accepted.
@@ -21,7 +85,7 @@ What changed:
 - `build_task(...).kind("proof")` defaults to Z3 `prove-pass` and requires proof evidence
 - `build_task(...).kind("benchmark")` and `kind("attrition")` run the repo evidence runners as structured external commands
 - `build_task(...).kind("certify")` emits a certificate only after dependencies passed
-- `build_task(...).kind("native-executable")` compiles a Kain entry into a blade/root executable via the `lang-blades` helper
+- `build_task(...).kind("native-executable")` compiles a Kain entry into a project/root executable via the `lang-projects` helper
 - explicit task paths now accept `$blade`, `$root`/`$repo`/`$workspace`, and `$task`/`$out` prefixes
 - `blades/kloner`, `blades/kaintana`, and `blades/kaintana-test` now dogfood script-authored evidence graphs
 - `docs/pipelines/build-kn-evidence-dag.md` is the agent tutorial for the new pipeline

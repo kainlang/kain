@@ -38,6 +38,7 @@ rust_library(
         "//crates/kain-host:kain-host",
         "//crates/kain-omni:kain-omni",
         "//crates/kain-sys-codegen:kain-sys-codegen",
+        "//crates/kain-test:kain-test",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,

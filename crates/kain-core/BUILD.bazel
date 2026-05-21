@@ -409,6 +409,33 @@ rust_test(
 )
 
 rust_test(
+    name = "test_import_path_keywords_test",
+    crate_name = "test_import_path_keywords",
+    crate_root = "tests/test_import_path_keywords.rs",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    edition = "2021",
+    crate_features = [
+        "runtime",
+    ],
+    aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
+    deps = [
+        ":kain-core",
+        "//crates/kain-actor:kain-actor",
+        "//crates/kain-blades:blade",
+        "//crates/kain-entangle:kain-entangle",
+        "//crates/kain-fs:kain-fs",
+        "//crates/kain-input:kain-input",
+        "//crates/kain-ownership:kain-ownership",
+        "//crates/kain-ui:kain-ui",
+    ] + all_crate_deps(normal = True, normal_dev = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
+    compile_data = COMMON_COMPILE_DATA,
+    tags = [
+        "manual",
+    ],
+)
+
+rust_test(
     name = "test_network_sync_parser_test",
     crate_name = "test_network_sync_parser",
     crate_root = "tests/test_network_sync_parser.rs",

@@ -232,6 +232,10 @@ static void kain_actor_execute_microcell_turn(
     int count_busy_worker
 );
 static void kain_actor_ref_zero(KainActorRef* actor_ref);
+static int kain_actor_ref_matches_live_snapshot(
+    const KainActorRef* actor_ref,
+    const KainActorState_Internal* actor
+);
 static void kain_actor_ref_write_live(
     KainActorRef* actor_ref,
     const KainActorState_Internal* actor
@@ -386,6 +390,23 @@ static void kain_actor_ref_zero(KainActorRef* actor_ref) {
     actor_ref->generation = 0u;
     actor_ref->execution_class = KAIN_ACTOR_EXECUTION_CLASS_INVALID;
     actor_ref->locality_class = KAIN_ACTOR_LOCALITY_INVALID;
+}
+
+static int kain_actor_ref_matches_live_snapshot(
+    const KainActorRef* actor_ref,
+    const KainActorState_Internal* actor
+) {
+    if (actor_ref == NULL ||
+        actor == NULL ||
+        actor_ref->actor_id == KAIN_ACTOR_ID_INVALID ||
+        actor_ref->actor_id >= KAIN_ACTOR_TABLE_SIZE) {
+        return 0;
+    }
+    return actor->actor_id == actor_ref->actor_id &&
+           g_actor_table.generations[actor_ref->actor_id] == actor_ref->generation &&
+           actor->ref_generation == actor_ref->generation &&
+           actor->execution_class == actor_ref->execution_class &&
+           actor->locality_class == actor_ref->locality_class;
 }
 
 static void kain_actor_ref_write_live(
@@ -2259,7 +2280,7 @@ int kain_actor_ask_send_ref(
     const KainActorMessage* message,
     KainDiagnostic* diag
 ) {
-    KainActorState_Internal* actor = NULL;
+    KainActorState_Internal* actor;
     KainActorMailbox* mailbox;
     int append_result;
     int mailbox_was_empty;
@@ -2271,17 +2292,8 @@ int kain_actor_ask_send_ref(
 
     kain_actor_runtime_ensure_initialized();
 
-#ifdef _WIN32
-    EnterCriticalSection(&g_actor_table.lock);
-#else
-    pthread_mutex_lock(&g_actor_table.lock);
-#endif
-    if (!kain_actor_table_ref_matches_locked(target_ref, &actor) || actor == NULL) {
-#ifdef _WIN32
-        LeaveCriticalSection(&g_actor_table.lock);
-#else
-        pthread_mutex_unlock(&g_actor_table.lock);
-#endif
+    actor = kain_actor_table_get(target_ref->actor_id);
+    if (!kain_actor_ref_matches_live_snapshot(target_ref, actor)) {
         atomic_fetch_add_explicit(&g_attrition_actor_stale_reject_count, 1u, memory_order_relaxed);
         kain_attrition_note_actor_stale_reject(target_ref->actor_id, target_ref->generation);
         if (diag != NULL) {
@@ -2293,11 +2305,6 @@ int kain_actor_ask_send_ref(
         }
         return -1;
     }
-#ifdef _WIN32
-    LeaveCriticalSection(&g_actor_table.lock);
-#else
-    pthread_mutex_unlock(&g_actor_table.lock);
-#endif
 
     mailbox = &actor->mailbox;
 #ifdef _WIN32
