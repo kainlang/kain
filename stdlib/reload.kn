@@ -1,0 +1,102 @@
+use std::ui
+
+pub struct ReloadGeneration:
+    session_id: Int
+    generation: Int
+    revision_key: String
+
+pub fn native_reload_begin(session_id: Int, revision_key: String) -> Int:
+    return native_ui_hot_reload_begin(session_id, revision_key)
+
+pub fn native_reload_commit(session_id: Int) -> Int:
+    return native_ui_hot_reload_commit(session_id)
+
+pub fn native_reload_generation(session_id: Int) -> Int:
+    return native_ui_hot_reload_generation(session_id)
+
+pub fn native_reload_key(session_id: Int) -> String:
+    return native_ui_hot_reload_key(session_id)
+
+pub fn native_reload_snapshot(session_id: Int) -> ReloadGeneration:
+    return ReloadGeneration {
+        session_id: session_id,
+        generation: native_reload_generation(session_id),
+        revision_key: native_reload_key(session_id),
+    }
+
+pub fn native_reload_package_surface() -> String:
+    return "std::reload"
+
+pub fn native_reload_default_state_migration() -> String:
+    return "auto-structural"
+
+pub fn native_reload_default_actor_quiesce() -> String:
+    return "turn-boundary"
+
+pub fn native_reload_gpu_swap_boundary() -> String:
+    return "frame-boundary"
+
+pub fn native_reload_default_restart_mode() -> String:
+    return "restart-with-snapshot-restore"
+
+pub fn native_reload_lane_noop() -> String:
+    return "noop"
+
+pub fn native_reload_lane_presentation() -> String:
+    return "presentation-only"
+
+pub fn native_reload_lane_structural() -> String:
+    return "structural-migrate"
+
+pub fn native_reload_lane_actor() -> String:
+    return "quiesce-and-migrate"
+
+pub fn native_reload_lane_gpu() -> String:
+    return "frame-boundary-gpu-swap"
+
+# root-domain aliases: generated public std names
+pub fn reload_begin(session_id: Int, revision_key: String) -> Int:
+    return native_reload_begin(session_id, revision_key)
+
+pub fn reload_commit(session_id: Int) -> Int:
+    return native_reload_commit(session_id)
+
+pub fn reload_generation(session_id: Int) -> Int:
+    return native_reload_generation(session_id)
+
+pub fn reload_key(session_id: Int) -> String:
+    return native_reload_key(session_id)
+
+pub fn reload_snapshot(session_id: Int) -> ReloadGeneration:
+    return native_reload_snapshot(session_id)
+
+pub fn reload_package_surface() -> String:
+    return native_reload_package_surface()
+
+pub fn reload_default_state_migration() -> String:
+    return native_reload_default_state_migration()
+
+pub fn reload_default_actor_quiesce() -> String:
+    return native_reload_default_actor_quiesce()
+
+pub fn reload_gpu_swap_boundary() -> String:
+    return native_reload_gpu_swap_boundary()
+
+pub fn reload_default_restart_mode() -> String:
+    return native_reload_default_restart_mode()
+
+pub fn reload_lane_noop() -> String:
+    return native_reload_lane_noop()
+
+pub fn reload_lane_presentation() -> String:
+    return native_reload_lane_presentation()
+
+pub fn reload_lane_structural() -> String:
+    return native_reload_lane_structural()
+
+pub fn reload_lane_actor() -> String:
+    return native_reload_lane_actor()
+
+pub fn reload_lane_gpu() -> String:
+    return native_reload_lane_gpu()
+# end root-domain aliases

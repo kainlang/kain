@@ -267,6 +267,30 @@
       "expected_fail_sabotages": []
     },
     {
+      "id": "kain_std_reload_contract",
+      "title": "Kain Std Reload Contract",
+      "description": "Real Kain LLVM attrition lane for std::reload generation monotonicity, commit sequencing, checkpoint/progress accounting, and UI session cleanup on the native LLVM path.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_std_reload_contract/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 16,
+        "medium": 128,
+        "full": 1024
+      },
+      "validation": {
+        "closure_groups": [],
+        "semantic_groups": ["reload"]
+      },
+      "invariants": [],
+      "expected_fail_sabotages": [
+        "skip_final_commit",
+        "skip_session_destroy"
+      ]
+    },
+    {
       "id": "kain_float_array_literal_indexing",
       "title": "Kain Float Array Literal Indexing",
       "description": "Dedicated Kain LLVM attrition lane for literal Float array construction and indexed reads so float-array parity becomes a first-class release blocker instead of a benchmark caveat.",

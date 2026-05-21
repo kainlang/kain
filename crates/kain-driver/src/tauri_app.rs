@@ -4,7 +4,10 @@ use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::native_app::{NativeAppBundle, NativeAppBundleConfig};
+use crate::native_app::{
+    build_native_app_reload_participants, NativeAppBundle, NativeAppBundleConfig,
+    NativeAppHotReloadParticipants,
+};
 use crate::{DriverSession, HybridArtifactOutput};
 use kain_core::error::KainError;
 use kain_core::{
@@ -240,7 +243,9 @@ impl DriverSession {
             artifact_paths.push(version_metadata_path);
         }
 
-        if let Some(reflection_payload) = &bundle.native_app.runtime_contract.reflection_payload {
+        let (reflection_payload_path, reflection_payload_json) = if let Some(reflection_payload) =
+            &bundle.native_app.runtime_contract.reflection_payload
+        {
             let reflection_payload_path =
                 artifact_root.join(TAURI_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME);
             let reflection_payload_json = serde_json::to_string_pretty(reflection_payload)
@@ -251,8 +256,11 @@ impl DriverSession {
                 })?;
             fs::write(&reflection_payload_path, reflection_payload_json.as_bytes())
                 .map_err(io_error("write Tauri reflection payload"))?;
-            artifact_paths.push(reflection_payload_path);
-        }
+            artifact_paths.push(reflection_payload_path.clone());
+            (Some(reflection_payload_path), Some(reflection_payload_json))
+        } else {
+            (None, None)
+        };
 
         let (shader_bundle_path, shader_bundle_json) =
             if let Some(shader_bundle) = &bundle.native_app.shader_bundle {
@@ -503,6 +511,8 @@ impl DriverSession {
             &realtime_bundle_json,
             shader_bundle_path.as_ref(),
             shader_bundle_json.as_deref(),
+            reflection_payload_path.as_ref(),
+            reflection_payload_json.as_deref(),
             &bridge_manifest_path,
             &bridge_manifest_json,
             &frontend_descriptor_path,
@@ -659,6 +669,8 @@ struct TauriAppHotReloadMetadata {
     launcher: TauriAppLauncherMetadata,
     policy: TauriAppHotReloadPolicy,
     identity: TauriAppHotReloadIdentity,
+    #[serde(default)]
+    participants: NativeAppHotReloadParticipants,
     artifact_fingerprints: Vec<TauriAppHotReloadArtifact>,
     materialization_fingerprint: String,
     previous_materialization_fingerprint: Option<String>,
@@ -674,6 +686,9 @@ struct PreviousTauriAppManifestMetadata {
 
 #[derive(Debug, Clone, serde::Deserialize)]
 struct PreviousTauriAppHotReloadMetadata {
+    identity: TauriAppHotReloadIdentity,
+    #[serde(default)]
+    participants: NativeAppHotReloadParticipants,
     artifact_fingerprints: Vec<PreviousTauriAppHotReloadArtifact>,
     materialization_fingerprint: String,
 }
@@ -717,6 +732,8 @@ struct TauriRuntimeSnapshot {
     tools: Vec<TauriRuntimeSnapshotTool>,
     launcher: TauriAppLauncherMetadata,
     hot_reload: TauriAppHotReloadMetadata,
+    #[serde(default)]
+    reload: NativeAppHotReloadParticipants,
     updated_at: String,
 }
 
@@ -859,6 +876,7 @@ fn build_tauri_runtime_snapshot(
             .collect(),
         launcher: app_manifest.launcher.clone(),
         hot_reload: app_manifest.hot_reload.clone(),
+        reload: app_manifest.hot_reload.participants.clone(),
         updated_at,
     }
 }
@@ -882,6 +900,8 @@ fn build_tauri_hot_reload_metadata(
     realtime_bundle_json: &str,
     shader_bundle_path: Option<&PathBuf>,
     shader_bundle_json: Option<&str>,
+    reflection_payload_path: Option<&PathBuf>,
+    reflection_payload_json: Option<&str>,
     bridge_manifest_path: &Path,
     bridge_manifest_json: &str,
     frontend_descriptor_path: &Path,
@@ -917,6 +937,8 @@ fn build_tauri_hot_reload_metadata(
             .map(|world| world.name.clone()),
         layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
     };
+    let participants =
+        build_native_app_reload_participants(&bundle.native_app, shader_bundle_json.is_some());
     let mut artifact_fingerprints = vec![
         hot_reload_artifact(project_dir, "source_input", source_copy_path, source_text),
         hot_reload_artifact(
@@ -971,6 +993,14 @@ fn build_tauri_hot_reload_metadata(
             json,
         ));
     }
+    if let (Some(path), Some(json)) = (reflection_payload_path, reflection_payload_json) {
+        artifact_fingerprints.push(hot_reload_artifact(
+            project_dir,
+            "reflection_payload",
+            path,
+            json,
+        ));
+    }
 
     let materialization_fingerprint = fingerprint_text(
         &artifact_fingerprints
@@ -1006,11 +1036,15 @@ fn build_tauri_hot_reload_metadata(
     let previous_materialization_fingerprint = previous_manifest_metadata
         .map(|previous| previous.hot_reload.materialization_fingerprint.clone());
     let reload_compatible_with_previous = previous_manifest_metadata
-        .map(|previous| previous.launcher == *launcher)
+        .map(|previous| {
+            previous.launcher == *launcher
+                && previous.hot_reload.identity == identity
+                && previous.hot_reload.participants == participants
+        })
         .unwrap_or(false);
     let summary = if previous_manifest_metadata.is_some() {
         format!(
-            "Tauri frontend and runtime sidecars changed: {}. Window reload remains {} while launcher contract stays stable.",
+            "Tauri frontend and runtime sidecars changed: {}. Window reload remains {} while launcher, authored identity, and std::reload participant schemas stay stable.",
             if changed_artifact_roles.is_empty() {
                 "none".to_string()
             } else {
@@ -1031,6 +1065,7 @@ fn build_tauri_hot_reload_metadata(
         launcher: launcher.clone(),
         policy,
         identity,
+        participants,
         artifact_fingerprints,
         materialization_fingerprint,
         previous_materialization_fingerprint,
@@ -1258,6 +1293,7 @@ component App():
         )
         .expect("app manifest should exist");
         assert!(app_manifest.contains("ai.kain.test"));
+        assert!(app_manifest.contains("\"std::reload\""));
 
         let runtime_snapshot = fs::read_to_string(
             result
@@ -1267,5 +1303,6 @@ component App():
         )
         .expect("runtime snapshot should exist");
         assert!(runtime_snapshot.contains("ai.kain.test"));
+        assert!(runtime_snapshot.contains("\"reload\""));
     }
 }

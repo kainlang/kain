@@ -626,6 +626,32 @@ def validate_async_closure(baseline: dict[str, Any], final_snapshot: dict[str, A
     return None
 
 
+def validate_reload_semantics(
+    options: dict[str, Any],
+    baseline: dict[str, Any],
+    final_snapshot: dict[str, Any],
+    capture: dict[str, Any],
+) -> str | None:
+    ops = int(options.get("ops", 0))
+    baseline_checkpoints = int(baseline.get("checkpoint_count", 0))
+    final_checkpoints = int(final_snapshot.get("checkpoint_count", 0))
+    expected_checkpoint_delta = ops + 2
+    if final_checkpoints - baseline_checkpoints != expected_checkpoint_delta:
+        return "reload checkpoint_count delta did not match ops"
+    baseline_progress = int(baseline.get("progress_heartbeat_count", 0))
+    final_progress = int(final_snapshot.get("progress_heartbeat_count", 0))
+    if final_progress - baseline_progress != ops:
+        return "reload progress_heartbeat_count delta did not match ops"
+    if int(final_snapshot.get("last_checkpoint_subject_id", 0)) != int(capture.get("checksum", 0)):
+        return "reload last_checkpoint_subject_id did not match final checksum"
+    expected_last_iteration = ops - 1 if ops > 0 else 0
+    if int(final_snapshot.get("last_progress_iteration", 0)) != expected_last_iteration:
+        return "reload last_progress_iteration did not match final iteration"
+    if int(final_snapshot.get("last_progress_checksum", 0)) != int(capture.get("checksum", 0)):
+        return "reload last_progress_checksum did not match final checksum"
+    return None
+
+
 def validate_kain_capture(
     case: dict[str, Any],
     options: dict[str, Any],
@@ -633,6 +659,7 @@ def validate_kain_capture(
 ) -> tuple[int, str]:
     validation = case.get("validation", {})
     groups = [str(group) for group in validation.get("closure_groups", [])]
+    groups.extend(str(group) for group in validation.get("semantic_groups", []))
     baseline = capture.get("baseline_snapshot", {})
     final_snapshot = capture.get("final_snapshot", {})
     validators = {
@@ -641,6 +668,7 @@ def validate_kain_capture(
         "actor": lambda: validate_actor_closure(baseline, final_snapshot),
         "process": lambda: validate_process_closure(baseline, final_snapshot),
         "async": lambda: validate_async_closure(baseline, final_snapshot),
+        "reload": lambda: validate_reload_semantics(options, baseline, final_snapshot, capture),
     }
     for group in groups:
         validator = validators.get(group)

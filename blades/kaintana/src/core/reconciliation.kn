@@ -2,6 +2,7 @@ use std::alloc
 use std::collections
 use std::text
 use std::graphics
+use std::reload
 use std::ui
 use desktop_adapter::kaintana_desktop_scene_begin
 use types::KAINTANA_ERR_ARENA_EXHAUSTED
@@ -58,7 +59,7 @@ pub fn kaintana_context_create(app_name: String, spec: KaintanaWindowSpec, theme
 pub fn kaintana_context_begin_frame(ctx: KaintanaContext, revision_key: String, delta_ms: Float) -> KaintanaContext:
     let reset_arena = arena_allocator_reset(ctx.frame_arena)
     if len(revision_key) > 0:
-        let _reload = native_ui_hot_reload_begin(ctx.session_id, revision_key)
+        let _reload = reload_begin(ctx.session_id, revision_key)
     let _frame = ui_frame_begin(ctx.session_id, delta_ms)
     if ctx.desktop_enabled:
         let _desktop = kaintana_desktop_scene_begin(ctx.spec)
@@ -84,7 +85,7 @@ pub fn kaintana_context_sync_events(ctx: KaintanaContext) -> KaintanaContext:
     return ctx
 
 pub fn kaintana_context_commit_frame(ctx: KaintanaContext) -> KaintanaContext:
-    let _reload = native_ui_hot_reload_commit(ctx.session_id)
+    let _reload = reload_commit(ctx.session_id)
     let _submit = ui_frame_submit(ctx.session_id)
     return ctx
 

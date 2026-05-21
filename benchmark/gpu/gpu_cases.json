@@ -127,6 +127,48 @@
         }
       },
       "fairness_note": "Kain and C++ still use different shader frontends, but both run the same branchy Vec4 packet-transform contract through the same C++ Vulkan dispatcher, descriptor layout, exact CPU oracle, timestamp query, and telemetry sidecar. This fills the current GPU-lane blind spot around semantic packet-routing kernels rather than pure copy or ping-pong-only work."
+    },
+    {
+      "id": "wave_interleave_fold",
+      "title": "Wave interleave fold",
+      "description": "Interleaved branch-fold compute row: each invocation transforms one Vec4 packet through a five-lane weighted branch lattice and writes exact-float outputs verified by a shared Vulkan CPU oracle.",
+      "maturity": "vulkan-runtime-proof",
+      "work_items": 196608,
+      "width": 768,
+      "runner_env": {
+        "KAIN_GPU_BIAS": 23
+      },
+      "languages": {
+        "kain": {
+          "shader": "cases/wave_interleave_fold/kain.kn",
+          "target": "spirv",
+          "stage": "comp",
+          "entry_point": "wave_interleave_fold",
+          "runner": "cases/wave_interleave_fold/vulkan_wave_interleave_fold.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        },
+        "cpp": {
+          "shader": "cases/wave_interleave_fold/reference.comp",
+          "shader_compiler": "glslang",
+          "stage": "comp",
+          "entry_point": "main",
+          "runner": "cases/wave_interleave_fold/vulkan_wave_interleave_fold.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        }
+      },
+      "fairness_note": "Kain and C++ still use different shader frontends, but both execute the same branch-fold packet contract through one shared C++ Vulkan dispatcher, descriptor layout, timestamp query, and exact CPU-oracle verification sidecar."
     }
   ]
 }

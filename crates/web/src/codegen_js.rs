@@ -10,8 +10,9 @@
 //! - No runtime dependencies
 
 use kain_core::ast::{
-    BinaryOp, Block, Component, ElseBranch, Enum, EnumVariantFields, Expr, Function, Impl,
-    JSXAttrValue, JSXNode, Pattern, Stmt, Struct, Type, UnaryOp, VariantFields,
+    BinaryOp, Block, Component, ConvergeDef, ElseBranch, Enum, EnumVariantFields, Expr, Function,
+    Impl, JSXAttrValue, JSXNode, LawDef, OrchestrateDef, Param, PatchDef, Pattern, Stmt, Struct,
+    Type, UnaryOp, VariantFields, WorldDef,
     VariantPatternFields,
 };
 use kain_core::error::KainResult;
@@ -119,8 +120,13 @@ impl JSGen {
         for item in &program.items {
             match item {
                 TypedItem::Function(f) => self.gen_function(&f.ast),
+                TypedItem::Patch(p) => self.gen_patch(&p.ast),
+                TypedItem::Law(l) => self.gen_law(&l.ast),
+                TypedItem::Converge(c) => self.gen_converge(&c.ast),
+                TypedItem::Orchestrate(o) => self.gen_orchestrate(&o.ast),
                 TypedItem::Struct(s) => self.gen_struct(&s.ast),
                 TypedItem::Enum(e) => self.gen_enum(&e.ast),
+                TypedItem::World(w) => self.gen_world(&w.ast),
                 TypedItem::Component(c) => self.gen_component(&c.ast),
                 TypedItem::Const(c) => self.gen_const(&c.ast.name, &c.ast.value),
                 TypedItem::Impl(i) => self.gen_impl(&i.ast),
@@ -133,22 +139,49 @@ impl JSGen {
     }
 
     fn gen_function(&mut self, func: &Function) {
-        // Function signature
-        let params = func
-            .params
+        self.gen_callable(&func.name, &func.params, &func.body);
+    }
+
+    fn gen_patch(&mut self, patch: &PatchDef) {
+        self.gen_callable(&patch.name, &patch.params, &patch.body);
+    }
+
+    fn gen_law(&mut self, law: &LawDef) {
+        self.gen_callable(&law.name, &law.params, &law.body);
+    }
+
+    fn gen_converge(&mut self, converge: &ConvergeDef) {
+        self.gen_callable(&converge.name, &converge.params, &converge.spec_lane.body);
+    }
+
+    fn gen_orchestrate(&mut self, orchestrate: &OrchestrateDef) {
+        self.gen_callable(&orchestrate.name, &orchestrate.params, &orchestrate.body);
+    }
+
+    fn gen_callable(&mut self, name: &str, params: &[Param], body: &Block) {
+        let params = params
             .iter()
             .map(|p| p.name.clone())
             .collect::<Vec<_>>()
             .join(", ");
 
-        self.writeln(&format!("function {}({}) {{", func.name, params));
+        self.writeln(&format!("function {}({}) {{", name, params));
         self.indent();
-
-        // Function body
-        self.gen_block(&func.body);
-
+        self.gen_block(body);
         self.dedent();
         self.writeln("}");
+    }
+
+    fn gen_world(&mut self, world: &WorldDef) {
+        self.writeln(&format!("const {} = {{", world.name));
+        self.indent();
+        for state in &world.states {
+            self.write(&format!("{}: ", state.name));
+            self.gen_expr(&state.initial);
+            self.writeln(",");
+        }
+        self.dedent();
+        self.writeln("};");
     }
 
     fn gen_struct(&mut self, s: &Struct) {
@@ -428,6 +461,30 @@ impl JSGen {
                 self.gen_expr(value);
             }
 
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => {
+                self.gen_expr(body);
+            }
+
+            Expr::Teleport { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => {
+                self.gen_expr(value);
+            }
+
+            Expr::StageCall { function, args, .. } => {
+                self.write(function);
+                self.write("(");
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        self.write(", ");
+                    }
+                    self.gen_expr(&arg.value);
+                }
+                self.write(")");
+            }
+
             Expr::Call { callee, args, .. } => {
                 self.gen_expr(callee);
                 self.write("(");
@@ -579,6 +636,12 @@ impl JSGen {
                 self.write("})()");
             }
 
+            Expr::Paren(inner, _) => {
+                self.write("(");
+                self.gen_expr(inner);
+                self.write(")");
+            }
+
             Expr::Assign { target, value, .. } => {
                 self.gen_expr(target);
                 self.write(" = ");
@@ -631,6 +694,63 @@ impl JSGen {
                     }
                 }
                 self.write(")");
+            }
+
+            Expr::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
+                self.write("((__s, __e) => { const __a = []; for (let __i = __s; __i ");
+                self.write(if *inclusive { "<= __e" } else { "< __e" });
+                self.write("; __i++) __a.push(__i); return __a; })(");
+                if let Some(s) = start {
+                    self.gen_expr(s);
+                } else {
+                    self.write("0");
+                }
+                self.write(", ");
+                if let Some(e) = end {
+                    self.gen_expr(e);
+                } else {
+                    self.write("0");
+                }
+                self.write(")");
+            }
+
+            Expr::Spawn { actor, init, .. } => {
+                self.write(&format!("new {}(", actor));
+                for (i, (_, expr)) in init.iter().enumerate() {
+                    if i > 0 {
+                        self.write(", ");
+                    }
+                    self.gen_expr(expr);
+                }
+                self.write(")");
+            }
+
+            Expr::SendMsg {
+                target,
+                message,
+                data,
+                ..
+            } => {
+                self.gen_expr(target);
+                self.write(&format!(".{}(", message));
+                for (i, (_, expr)) in data.iter().enumerate() {
+                    if i > 0 {
+                        self.write(", ");
+                    }
+                    self.gen_expr(expr);
+                }
+                self.write(")");
+            }
+
+            Expr::Decay { target, .. } => {
+                self.write("(() => { void ");
+                self.gen_expr(target);
+                self.write("; return 0; })()");
             }
 
             _ => {

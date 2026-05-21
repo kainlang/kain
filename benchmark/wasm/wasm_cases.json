@@ -1,0 +1,43 @@
+{
+  "suite": "kain-wasm-vs-rust-wasm",
+  "default_warmups": 1,
+  "default_runs": 3,
+  "cases": [
+    {
+      "id": "scalar_mix",
+      "title": "WASM Scalar Mix",
+      "description": "Scalar loop, constants, calls, and a wasm-target converge lane.",
+      "maturity": "wasm-parity",
+      "kain": "cases/scalar_mix/main.kn",
+      "rust": "cases/scalar_mix/main.rs",
+      "export": "main"
+    },
+    {
+      "id": "branch_dispatch",
+      "title": "WASM Branch Dispatch",
+      "description": "Repeated if-return dispatch with signed integer arithmetic.",
+      "maturity": "wasm-parity",
+      "kain": "cases/branch_dispatch/main.kn",
+      "rust": "cases/branch_dispatch/main.rs",
+      "export": "main"
+    },
+    {
+      "id": "array_scan",
+      "title": "WASM Array Scan",
+      "description": "Array literal allocation, len(), indexing, nested loops, and local pointer typing.",
+      "maturity": "wasm-parity",
+      "kain": "cases/array_scan/main.kn",
+      "rust": "cases/array_scan/main.rs",
+      "export": "main"
+    },
+    {
+      "id": "bitwise_pack",
+      "title": "WASM Bitwise Pack",
+      "description": "Bit packing, shifts, masks, rotate-style arithmetic, and wrapping avalanche math.",
+      "maturity": "wasm-parity",
+      "kain": "cases/bitwise_pack/main.kn",
+      "rust": "cases/bitwise_pack/main.rs",
+      "export": "main"
+    }
+  ]
+}

@@ -16,7 +16,7 @@ use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_to_json, runtime_contract_bundle_to_json,
     CompileTarget, RealtimeAppBundle, RealtimeAssetBinding, RuntimeCapability,
     RuntimeCompatibilityMetadata, RuntimeContractBundle, RuntimePlatformAvailabilityMetadata,
-    RuntimeServiceBinding, RuntimeVersionRecord,
+    RuntimeReflectionPayload, RuntimeServiceBinding, RuntimeVersionRecord, RuntimeWorldContract,
 };
 use kain_ui::{
     ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeBundle,
@@ -36,6 +36,15 @@ const NATIVE_APP_CONFIG_DIR_NAME: &str = "config";
 const NATIVE_APP_STATE_DIR_NAME: &str = "state";
 const NATIVE_APP_MANIFEST_FILE_NAME: &str = "app_manifest.json";
 const NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME: &str = "runtime_snapshot.json";
+const HOT_RELOAD_COMPATIBILITY_LANES: &[&str] = &[
+    "cold-start",
+    "noop",
+    "presentation-only",
+    "structural-migrate",
+    "quiesce-and-migrate",
+    "frame-boundary-gpu-swap",
+    "restart-with-restore",
+];
 
 #[derive(Debug, Clone)]
 pub struct NativeAppBundleConfig {
@@ -297,6 +306,8 @@ struct NativeAppRuntimeSidecars {
     runtime_compatibility: String,
     realtime_bundle: String,
     shader_bundle: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reflection_payload: Option<String>,
     runtime_snapshot: String,
 }
 
@@ -336,6 +347,71 @@ struct NativeAppHotReloadIdentity {
     layout_id: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadParticipantField {
+    name: String,
+    type_name: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadWorldParticipant {
+    name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    state_fields: Vec<NativeAppHotReloadParticipantField>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    surface_kinds: Vec<String>,
+    migration_mode: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadActorParticipant {
+    name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    state_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    state_fields: Vec<NativeAppHotReloadParticipantField>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    message_types: Vec<String>,
+    migration_mode: String,
+    quiesce_boundary: String,
+    mailbox_transfer: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadGpuHooks {
+    swap_boundary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shader_bundle_role: Option<String>,
+    resource_graph_reload: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct NativeAppHotReloadParticipants {
+    package_surface: String,
+    default_state_migration: String,
+    default_actor_quiesce: String,
+    #[serde(default)]
+    default_restart_mode: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    compatibility_lanes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    worlds: Vec<NativeAppHotReloadWorldParticipant>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    actors: Vec<NativeAppHotReloadActorParticipant>,
+    #[serde(default)]
+    gpu_hooks: NativeAppHotReloadGpuHooks,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct NativeAppHotReloadTransition {
+    class: String,
+    restart_required: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    reasons: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    actions: Vec<String>,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct NativeAppHotReloadArtifact {
     role: String,
@@ -350,6 +426,10 @@ struct NativeAppHotReloadMetadata {
     launcher: NativeAppLauncherMetadata,
     policy: NativeAppHotReloadPolicy,
     identity: NativeAppHotReloadIdentity,
+    #[serde(default)]
+    participants: NativeAppHotReloadParticipants,
+    #[serde(default)]
+    transition: NativeAppHotReloadTransition,
     artifact_fingerprints: Vec<NativeAppHotReloadArtifact>,
     materialization_fingerprint: String,
     previous_materialization_fingerprint: Option<String>,
@@ -409,6 +489,8 @@ struct NativeAppRuntimeSnapshot {
     workspaces: Vec<NativeAppRuntimeWorkspace>,
     launcher: NativeAppLauncherMetadata,
     hot_reload: NativeAppHotReloadMetadata,
+    #[serde(default)]
+    reload: NativeAppHotReloadParticipants,
     updated_at: String,
 }
 
@@ -664,8 +746,9 @@ impl DriverSession {
             artifact_paths.push(version_metadata_path);
         }
 
-        // Write reflection payload if available
-        if let Some(reflection_payload) = &bundle.runtime_contract.reflection_payload {
+        let (reflection_payload_path, reflection_payload_json) = if let Some(reflection_payload) =
+            &bundle.runtime_contract.reflection_payload
+        {
             let reflection_payload_path =
                 artifact_root.join(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME);
             let reflection_payload_json = serde_json::to_string_pretty(reflection_payload)
@@ -674,8 +757,11 @@ impl DriverSession {
                 })?;
             fs::write(&reflection_payload_path, reflection_payload_json.as_bytes())
                 .map_err(io_error("write native runtime reflection payload"))?;
-            artifact_paths.push(reflection_payload_path);
-        }
+            artifact_paths.push(reflection_payload_path.clone());
+            (Some(reflection_payload_path), Some(reflection_payload_json))
+        } else {
+            (None, None)
+        };
 
         let (shader_bundle_path, shader_bundle_json) =
             if let Some(shader_bundle) = &bundle.shader_bundle {
@@ -738,6 +824,8 @@ impl DriverSession {
             &realtime_bundle_json,
             shader_bundle_path.as_ref(),
             shader_bundle_json.as_deref(),
+            reflection_payload_path.as_ref(),
+            reflection_payload_json.as_deref(),
         );
         let app_manifest = build_native_app_manifest(
             bundle,
@@ -749,6 +837,7 @@ impl DriverSession {
             &runtime_compatibility_path,
             &realtime_bundle_path,
             shader_bundle_path.as_ref(),
+            reflection_payload_path.as_deref(),
             &runtime_snapshot_path,
             launcher_metadata,
             hot_reload.clone(),
@@ -1368,6 +1457,7 @@ fn build_native_app_manifest(
     runtime_compatibility_path: &Path,
     realtime_bundle_path: &Path,
     shader_bundle_path: Option<&PathBuf>,
+    reflection_payload_path: Option<&Path>,
     runtime_snapshot_path: &Path,
     launcher: NativeAppLauncherMetadata,
     hot_reload: NativeAppHotReloadMetadata,
@@ -1409,6 +1499,7 @@ fn build_native_app_manifest(
             runtime_compatibility: sidecar_file_name(runtime_compatibility_path),
             realtime_bundle: sidecar_file_name(realtime_bundle_path),
             shader_bundle: shader_bundle_path.map(|path| sidecar_file_name(path)),
+            reflection_payload: reflection_payload_path.map(sidecar_file_name),
             runtime_snapshot: sidecar_file_name(runtime_snapshot_path),
         },
         launcher,
@@ -1506,8 +1597,265 @@ fn build_native_app_runtime_snapshot(
         }],
         launcher: app_manifest.launcher.clone(),
         hot_reload: app_manifest.hot_reload.clone(),
+        reload: app_manifest.hot_reload.participants.clone(),
         updated_at,
     }
+}
+
+pub(crate) fn build_native_app_reload_participants(
+    bundle: &NativeAppBundle,
+    shader_bundle_present: bool,
+) -> NativeAppHotReloadParticipants {
+    let mut worlds = bundle
+        .runtime_contract
+        .worlds
+        .iter()
+        .map(reload_world_participant_from_contract)
+        .collect::<Vec<_>>();
+    worlds.sort_by(|left, right| left.name.cmp(&right.name));
+
+    let mut actors = bundle
+        .runtime_contract
+        .reflection_payload
+        .as_ref()
+        .map(reload_actor_participants_from_reflection)
+        .unwrap_or_default();
+    actors.sort_by(|left, right| left.name.cmp(&right.name));
+
+    NativeAppHotReloadParticipants {
+        package_surface: "std::reload".to_string(),
+        default_state_migration: "auto-structural".to_string(),
+        default_actor_quiesce: "turn-boundary".to_string(),
+        default_restart_mode: "restart-with-snapshot-restore".to_string(),
+        compatibility_lanes: HOT_RELOAD_COMPATIBILITY_LANES
+            .iter()
+            .map(|lane| (*lane).to_string())
+            .collect(),
+        worlds,
+        actors,
+        gpu_hooks: NativeAppHotReloadGpuHooks {
+            swap_boundary: "frame-boundary".to_string(),
+            shader_bundle_role: if shader_bundle_present {
+                Some("shader_bundle".to_string())
+            } else {
+                None
+            },
+            resource_graph_reload: "planned".to_string(),
+        },
+    }
+}
+
+fn reload_role_affects_runtime_state(role: &str) -> bool {
+    matches!(
+        role,
+        "runtime_bundle" | "runtime_contract" | "realtime_bundle" | "reflection_payload"
+    )
+}
+
+fn reload_role_is_gpu_swap_only(role: &str) -> bool {
+    matches!(role, "shader_bundle")
+}
+
+fn push_reload_action(actions: &mut Vec<String>, action: &str) {
+    if !actions.iter().any(|existing| existing == action) {
+        actions.push(action.to_string());
+    }
+}
+
+fn build_native_app_hot_reload_transition(
+    previous_manifest_metadata: Option<&PreviousNativeAppManifestMetadata>,
+    launcher: &NativeAppLauncherMetadata,
+    identity: &NativeAppHotReloadIdentity,
+    participants: &NativeAppHotReloadParticipants,
+    changed_artifact_roles: &[String],
+) -> NativeAppHotReloadTransition {
+    let semantic_roles = changed_artifact_roles
+        .iter()
+        .filter(|role| role.as_str() != "source_input")
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let Some(previous) = previous_manifest_metadata else {
+        return NativeAppHotReloadTransition {
+            class: "cold-start".to_string(),
+            restart_required: false,
+            reasons: vec!["first materialized reload baseline".to_string()],
+            actions: vec!["launch-initial-generation".to_string()],
+        };
+    };
+
+    let launcher_changed = previous.launcher != *launcher;
+    let identity_changed = previous.hot_reload.identity != *identity;
+    let participant_contract_changed = previous.hot_reload.participants != *participants;
+
+    if launcher_changed || identity_changed || participant_contract_changed {
+        let mut reasons = Vec::new();
+        if launcher_changed {
+            reasons.push("launcher contract changed".to_string());
+        }
+        if identity_changed {
+            reasons.push("authored app identity changed".to_string());
+        }
+        if participant_contract_changed {
+            reasons.push("std::reload participant contract changed".to_string());
+        }
+        return NativeAppHotReloadTransition {
+            class: "restart-with-restore".to_string(),
+            restart_required: true,
+            reasons,
+            actions: vec![
+                "restart-process".to_string(),
+                "restore-runtime-snapshot".to_string(),
+            ],
+        };
+    }
+
+    if semantic_roles.is_empty() {
+        return NativeAppHotReloadTransition {
+            class: "noop".to_string(),
+            restart_required: false,
+            reasons: vec!["source changed without a runtime-sidecar delta".to_string()],
+            actions: vec!["preserve-ui-state".to_string()],
+        };
+    }
+
+    let mut reasons = vec![format!(
+        "changed runtime artifacts: {}",
+        semantic_roles.join(", ")
+    )];
+    let mut actions = vec!["preserve-ui-state".to_string()];
+    let has_worlds = !participants.worlds.is_empty();
+    let has_actors = !participants.actors.is_empty();
+    let runtime_state_roles = semantic_roles
+        .iter()
+        .any(|role| reload_role_affects_runtime_state(role));
+    let gpu_only = semantic_roles
+        .iter()
+        .all(|role| reload_role_is_gpu_swap_only(role))
+        && semantic_roles
+            .iter()
+            .any(|role| reload_role_is_gpu_swap_only(role));
+
+    if gpu_only {
+        reasons.push("shader/runtime graphics payload changed without schema drift".to_string());
+        push_reload_action(&mut actions, "swap-gpu-at-frame-boundary");
+        return NativeAppHotReloadTransition {
+            class: "frame-boundary-gpu-swap".to_string(),
+            restart_required: false,
+            reasons,
+            actions,
+        };
+    }
+
+    if runtime_state_roles && has_actors {
+        reasons.push("actor state remains structurally compatible".to_string());
+        if has_worlds {
+            reasons.push("world state remains structurally compatible".to_string());
+        }
+        push_reload_action(&mut actions, "quiesce-actors-at-turn-boundary");
+        push_reload_action(&mut actions, "transfer-queued-actor-messages");
+        if has_worlds {
+            push_reload_action(&mut actions, "migrate-world-state-structurally");
+        }
+        return NativeAppHotReloadTransition {
+            class: "quiesce-and-migrate".to_string(),
+            restart_required: false,
+            reasons,
+            actions,
+        };
+    }
+
+    if runtime_state_roles && has_worlds {
+        reasons.push("world state remains structurally compatible".to_string());
+        push_reload_action(&mut actions, "migrate-world-state-structurally");
+        return NativeAppHotReloadTransition {
+            class: "structural-migrate".to_string(),
+            restart_required: false,
+            reasons,
+            actions,
+        };
+    }
+
+    reasons.push("presentation/runtime surface can patch in place".to_string());
+    push_reload_action(&mut actions, "patch-runtime-presentation");
+    NativeAppHotReloadTransition {
+        class: "presentation-only".to_string(),
+        restart_required: false,
+        reasons,
+        actions,
+    }
+}
+
+fn reload_world_participant_from_contract(
+    world: &RuntimeWorldContract,
+) -> NativeAppHotReloadWorldParticipant {
+    let mut state_fields = world
+        .state_slots
+        .iter()
+        .map(|slot| NativeAppHotReloadParticipantField {
+            name: slot.name.clone(),
+            type_name: slot.type_name.clone(),
+        })
+        .collect::<Vec<_>>();
+    state_fields.sort_by(|left, right| left.name.cmp(&right.name));
+
+    let mut surface_kinds = world
+        .surfaces
+        .iter()
+        .map(|surface| surface.kind.clone())
+        .collect::<Vec<_>>();
+    surface_kinds.sort();
+
+    NativeAppHotReloadWorldParticipant {
+        name: world.name.clone(),
+        state_fields,
+        surface_kinds,
+        migration_mode: "auto-structural".to_string(),
+    }
+}
+
+fn reload_actor_participants_from_reflection(
+    reflection: &RuntimeReflectionPayload,
+) -> Vec<NativeAppHotReloadActorParticipant> {
+    reflection
+        .actors
+        .iter()
+        .map(|actor| {
+            let mut message_types = actor.message_types.clone();
+            message_types.sort();
+
+            let mut state_fields = actor
+                .state_type
+                .as_ref()
+                .and_then(|state_type| {
+                    reflection
+                        .types
+                        .iter()
+                        .find(|ty| ty.name == *state_type)
+                        .map(|ty| {
+                            ty.fields
+                                .iter()
+                                .map(|field| NativeAppHotReloadParticipantField {
+                                    name: field.name.clone(),
+                                    type_name: field.type_name.clone(),
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                })
+                .unwrap_or_default();
+            state_fields.sort_by(|left, right| left.name.cmp(&right.name));
+
+            NativeAppHotReloadActorParticipant {
+                name: actor.name.clone(),
+                state_type: actor.state_type.clone(),
+                state_fields,
+                message_types,
+                migration_mode: "auto-structural".to_string(),
+                quiesce_boundary: "turn-boundary".to_string(),
+                mailbox_transfer: "preserve-queued-messages".to_string(),
+            }
+        })
+        .collect()
 }
 
 fn build_native_app_launcher_metadata(
@@ -1546,6 +1894,8 @@ fn build_native_app_hot_reload_metadata(
     realtime_bundle_json: &str,
     shader_bundle_path: Option<&PathBuf>,
     shader_bundle_json: Option<&str>,
+    reflection_payload_path: Option<&PathBuf>,
+    reflection_payload_json: Option<&str>,
 ) -> NativeAppHotReloadMetadata {
     let hot_reload_plan = &bundle.ui.systems.hot_reload;
     let policy = NativeAppHotReloadPolicy {
@@ -1572,6 +1922,7 @@ fn build_native_app_hot_reload_metadata(
             .map(|world| world.name.clone()),
         layout_id: format!("{}_shell", bundle.metadata.app_name.replace('-', "_")),
     };
+    let participants = build_native_app_reload_participants(bundle, shader_bundle_json.is_some());
     let mut artifact_fingerprints = vec![
         NativeAppHotReloadArtifact {
             role: "source_input".to_string(),
@@ -1613,6 +1964,14 @@ fn build_native_app_hot_reload_metadata(
             byte_length: json.len(),
         });
     }
+    if let (Some(path), Some(json)) = (reflection_payload_path, reflection_payload_json) {
+        artifact_fingerprints.push(NativeAppHotReloadArtifact {
+            role: "reflection_payload".to_string(),
+            path: reload_path_string(project_dir, path),
+            fingerprint: fingerprint_text(json),
+            byte_length: json.len(),
+        });
+    }
 
     let materialization_fingerprint = fingerprint_text(
         &artifact_fingerprints
@@ -1649,11 +2008,23 @@ fn build_native_app_hot_reload_metadata(
     let previous_materialization_fingerprint = previous_manifest_metadata
         .map(|previous| previous.hot_reload.materialization_fingerprint.clone());
     let reload_compatible_with_previous = previous_manifest_metadata
-        .map(|previous| previous.launcher == *launcher && previous.hot_reload.identity == identity)
+        .map(|previous| {
+            previous.launcher == *launcher
+                && previous.hot_reload.identity == identity
+                && previous.hot_reload.participants == participants
+        })
         .unwrap_or(false);
+    let transition = build_native_app_hot_reload_transition(
+        previous_manifest_metadata,
+        launcher,
+        &identity,
+        &participants,
+        &changed_artifact_roles,
+    );
     let summary = if previous_manifest_metadata.is_some() {
         format!(
-            "Product mode stays default and devtools stay opt-in. Changed artifacts: {}. State-preserving reload remains {} when launcher and authored identity still match.",
+            "Product mode stays default and devtools stay opt-in. Transition lane: {}. Changed artifacts: {}. State-preserving reload remains {} when launcher, authored identity, and std::reload participant schemas still match. Actions: {}.",
+            transition.class,
             if changed_artifact_roles.is_empty() {
                 "none".to_string()
             } else {
@@ -1663,10 +2034,18 @@ fn build_native_app_hot_reload_metadata(
                 "eligible"
             } else {
                 "gated"
-            }
+            },
+            if transition.actions.is_empty() {
+                "none".to_string()
+            } else {
+                transition.actions.join(", ")
+            },
         )
     } else {
-        "Product mode stays default and devtools stay opt-in. This is the first materialized reload baseline for the packaged app.".to_string()
+        format!(
+            "Product mode stays default and devtools stay opt-in. This is the first materialized reload baseline for the packaged app. Transition lane: {}.",
+            transition.class
+        )
     };
 
     NativeAppHotReloadMetadata {
@@ -1674,6 +2053,8 @@ fn build_native_app_hot_reload_metadata(
         launcher: launcher.clone(),
         policy,
         identity,
+        participants,
+        transition,
         artifact_fingerprints,
         materialization_fingerprint,
         previous_materialization_fingerprint,
@@ -2149,6 +2530,7 @@ mod tests {
     use super::*;
     use kain_core::{realtime_app_bundle_from_json, RuntimeReflectionPayload};
     use kain_ui::{ui_runtime_bundle_from_json, validate_ui_runtime_bundle};
+    use serde_json::Value;
     use std::path::Path;
     use std::process::Command;
     use std::sync::Mutex;
@@ -2170,6 +2552,24 @@ mod tests {
             launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
             host_sidecars: Vec::new(),
         }
+    }
+
+    fn reloadable_native_ui_source(counter: i32, actor_extra_state: &str) -> String {
+        format!(
+            r#"
+world Studio:
+    state counter: Int = {counter}
+    surface native_ui => App
+
+actor ReloadDriver:
+    state tick: Int = 0
+{actor_extra_state}    on Ping(reply_to: P, step: Int):
+        send reply_to.Reply(value = self.tick + step)
+
+component App():
+    render <panel title="Studio" />
+"#
+        )
     }
 
     #[test]
@@ -2442,6 +2842,153 @@ component App():
             .artifact_paths
             .iter()
             .any(|path| path.ends_with(NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME)));
+    }
+
+    #[test]
+    fn materialize_native_app_bundle_emits_std_reload_participants_for_worlds_and_actors() {
+        let temp = TempDir::new().expect("temp dir");
+        let project_dir = temp.path().join("native-app-reload-contract");
+        let source = reloadable_native_ui_source(0, "");
+        let bundle = compile_native_app_bundle(
+            &source,
+            &NativeAppBundleConfig {
+                source_file_name: Some("reload_contract.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle should compile");
+
+        let materialized = materialize_native_app_bundle(
+            &source,
+            &bundle,
+            &native_ui_materialization_config(project_dir.clone()),
+        )
+        .expect("materialization should succeed");
+
+        let manifest_json =
+            fs::read_to_string(project_dir.join("config").join("app_manifest.json"))
+                .expect("app manifest");
+        let manifest: Value = serde_json::from_str(&manifest_json).expect("manifest json");
+        let participants = &manifest["hot_reload"]["participants"];
+        assert_eq!(participants["package_surface"], "std::reload");
+        assert_eq!(participants["default_state_migration"], "auto-structural");
+        assert_eq!(
+            participants["default_restart_mode"],
+            "restart-with-snapshot-restore"
+        );
+        assert_eq!(participants["compatibility_lanes"][0], "cold-start");
+        assert_eq!(
+            participants["compatibility_lanes"][6],
+            "restart-with-restore"
+        );
+        assert_eq!(participants["worlds"][0]["name"], "Studio");
+        assert_eq!(
+            participants["worlds"][0]["state_fields"][0]["name"],
+            "counter"
+        );
+        assert_eq!(participants["actors"][0]["name"], "ReloadDriver");
+        assert_eq!(participants["actors"][0]["state_fields"][0]["name"], "tick");
+        assert_eq!(participants["gpu_hooks"]["swap_boundary"], "frame-boundary");
+        assert_eq!(manifest["hot_reload"]["transition"]["class"], "cold-start");
+
+        let runtime_snapshot_json =
+            fs::read_to_string(project_dir.join("state").join("runtime_snapshot.json"))
+                .expect("runtime snapshot");
+        let runtime_snapshot: Value =
+            serde_json::from_str(&runtime_snapshot_json).expect("snapshot json");
+        assert_eq!(runtime_snapshot["reload"]["package_surface"], "std::reload");
+        assert_eq!(
+            runtime_snapshot["reload"]["default_restart_mode"],
+            "restart-with-snapshot-restore"
+        );
+        assert_eq!(
+            runtime_snapshot["reload"]["actors"][0]["name"],
+            "ReloadDriver"
+        );
+        assert!(materialized
+            .artifact_paths
+            .iter()
+            .any(|path| path.ends_with(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME)));
+    }
+
+    #[test]
+    fn native_app_hot_reload_uses_structural_participant_gating() {
+        let temp = TempDir::new().expect("temp dir");
+        let project_dir = temp.path().join("native-app-reload-compat");
+        let source_v1 = reloadable_native_ui_source(0, "");
+        let source_v2 = reloadable_native_ui_source(7, "");
+        let source_v3 = reloadable_native_ui_source(7, "    state phase: Int = 0\n");
+
+        let bundle_v1 = compile_native_app_bundle(
+            &source_v1,
+            &NativeAppBundleConfig {
+                source_file_name: Some("reload_compat.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle v1 should compile");
+        materialize_native_app_bundle(
+            &source_v1,
+            &bundle_v1,
+            &native_ui_materialization_config(project_dir.clone()),
+        )
+        .expect("materialize v1");
+
+        let bundle_v2 = compile_native_app_bundle(
+            &source_v2,
+            &NativeAppBundleConfig {
+                source_file_name: Some("reload_compat.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle v2 should compile");
+        materialize_native_app_bundle(
+            &source_v2,
+            &bundle_v2,
+            &native_ui_materialization_config(project_dir.clone()),
+        )
+        .expect("materialize v2");
+        let manifest_v2: Value = serde_json::from_str(
+            &fs::read_to_string(project_dir.join("config").join("app_manifest.json"))
+                .expect("manifest v2"),
+        )
+        .expect("manifest v2 json");
+        assert_eq!(
+            manifest_v2["hot_reload"]["reload_compatible_with_previous"],
+            Value::Bool(true)
+        );
+        assert_eq!(
+            manifest_v2["hot_reload"]["transition"]["class"],
+            "quiesce-and-migrate"
+        );
+
+        let bundle_v3 = compile_native_app_bundle(
+            &source_v3,
+            &NativeAppBundleConfig {
+                source_file_name: Some("reload_compat.kn".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("bundle v3 should compile");
+        materialize_native_app_bundle(
+            &source_v3,
+            &bundle_v3,
+            &native_ui_materialization_config(project_dir.clone()),
+        )
+        .expect("materialize v3");
+        let manifest_v3: Value = serde_json::from_str(
+            &fs::read_to_string(project_dir.join("config").join("app_manifest.json"))
+                .expect("manifest v3"),
+        )
+        .expect("manifest v3 json");
+        assert_eq!(
+            manifest_v3["hot_reload"]["reload_compatible_with_previous"],
+            Value::Bool(false)
+        );
+        assert_eq!(
+            manifest_v3["hot_reload"]["transition"]["class"],
+            "restart-with-restore"
+        );
     }
 
     #[test]

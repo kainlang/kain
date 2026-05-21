@@ -8,6 +8,9 @@ description: Use when adding, changing, running, or validating the attrition run
 ## Contract
 
 - `attrition/attritions.json` is the source of truth for case ids, titles, lane kind, determinism tier, op scales, expected-fail sabotages, runtime profile defaults, and runtime manifest selection.
+- Case-local validation can now be protocol-aware as well as closure-aware:
+  - `validation.closure_groups`
+  - `validation.semantic_groups`
 - `attrition/invariants.json` is the explicit invariant catalog. Keep every invariant data-driven:
   - `id`
   - `owner_subsystem`
@@ -64,6 +67,8 @@ description: Use when adding, changing, running, or validating the attrition run
   - copied from the benchmark quantumerlang row to stress semantic/runtime RC closure under real Kain codegen
 - `kain_semantic_singularity_crucible_attrition`
   - copied from the benchmark crucible to stress parser, lowering, actor/runtime, and semantic cleanup together
+- `kain_std_reload_contract`
+  - real Kain LLVM reload-lifecycle lane for `std::reload` generation monotonicity, begin/commit sequencing, checkpoint/progress accounting, and sabotage detection
 
 Each new invariant should map to:
 - one isolate lane
@@ -118,6 +123,7 @@ Telemetry reading contract:
   - `health_flags`
   - `pressure_metrics`
 - Suite telemetry now surfaces the worst offender case for major peaks/end-state drifts plus `cases_with_closure_drift`.
+- Semantic validators are allowed to pass a case even when raw end-state telemetry still shows drift, but only when the manifest explicitly omits closure groups and the report calls out the remaining drift as follow-up work instead of pretending it is healthy.
 - `event_ring_kind_histogram` is tail-only over the copied ring window. Always read it beside:
   - `event_count_total`
   - `event_ring_count`
@@ -163,4 +169,6 @@ Telemetry reading contract:
 - `python attrition/run.py --scale small --profile release-instrumented --timeout 300`
 - `python attrition/run.py --case virtual_time_async_timer --scale small --profile release-instrumented --sabotage skip_task_dispose --timeout 240`
 - `python attrition/run.py --case kain_semantic_singularity_crucible_attrition --scale small --profile release-instrumented --timeout 900`
+- `python attrition/run.py --case kain_std_reload_contract --scale small --profile release-instrumented --timeout 900`
+- `python attrition/run.py --case kain_std_reload_contract --scale small --profile release-instrumented --sabotage skip_final_commit --timeout 900`
 - Inspect `attrition/out/reports/latest.llm.md` and `attrition/latest.md` before summarizing lane health.

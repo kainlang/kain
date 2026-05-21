@@ -107,6 +107,71 @@
       }
     },
     {
+      "id": "actor_ownership_backpressure",
+      "title": "Actor Ownership Backpressure",
+      "description": "Mailbox-pressure semantic row: Kain drives bursty actor ask/reply traffic through world/entangle state, patch/law checks, teleport handoff, converge/orchestrate staging, and collapse/observe/decay-owned cells while C++ manually emulates the same deterministic graph.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is intentionally a semantic-state benchmark, not a literal runtime-feature parity claim. C++ manually reproduces the same state machine and burst schedule while Kain measures first-class language semantics directly.",
+      "language_notes": {
+        "kain": "Touches deadline_millis/deadline_elapsed once and allows the first local microcell ask in a turn to borrow the caller payload instead of heap-copying through the mailbox when the runtime proves inline execution is legal."
+      },
+      "telemetry": {
+        "primary_metric_id": "semantic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "semantic_rounds_per_second",
+            "label": "semantic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 180000
+          },
+          {
+            "id": "ask_roundtrips_per_second",
+            "label": "ask roundtrips/s",
+            "unit": "asks/s",
+            "work_items": 360000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/actor_ownership_backpressure/main.kn",
+        "cpp": "cases/actor_ownership_backpressure/main.cpp"
+      }
+    },
+    {
+      "id": "semantic_host_bridge_fusion",
+      "title": "Semantic Host Bridge Fusion",
+      "description": "Fused host-domain semantic row: Kain interleaves filesystem write/read, process-spec lifecycle, HTTP/HTTP2 request-handle probing, actor replies, world/entangle teleport, and owned memory cells in one checksum loop; C++ spells out the same deterministic contract manually.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is a host-bridge semantics lane, not a full network/process throughput contest. The process path intentionally uses spec lifecycle (not spawn/IO), and both rows keep the same deterministic file/request-handle contract.",
+      "telemetry": {
+        "primary_metric_id": "bridge_rounds_per_second",
+        "metrics": [
+          {
+            "id": "bridge_rounds_per_second",
+            "label": "bridge rounds/s",
+            "unit": "rounds/s",
+            "work_items": 2400
+          },
+          {
+            "id": "request_handles_per_second",
+            "label": "request handles/s",
+            "unit": "handles/s",
+            "work_items": 4800
+          },
+          {
+            "id": "process_specs_per_second",
+            "label": "process specs/s",
+            "unit": "specs/s",
+            "work_items": 2400
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/semantic_host_bridge_fusion/main.kn",
+        "cpp": "cases/semantic_host_bridge_fusion/main.cpp"
+      }
+    },
+    {
       "id": "ownership_memory",
       "title": "Scoped Ownership Memory Cell",
       "description": "A smaller first-class ownership smoke benchmark: Kain uses collapse/observe/decay over a helper-owned heap cell; Rust uses an owned Box mutation and drop.",

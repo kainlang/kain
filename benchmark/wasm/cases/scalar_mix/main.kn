@@ -1,0 +1,22 @@
+const WASM_SCALAR_ITERATIONS: Int = 240000
+const WASM_SCALAR_MODULUS: Int = 1000000007
+
+fn scalar_mix_step(value: Int) -> Int:
+    return (((value * 1664525) + 1013904223) % WASM_SCALAR_MODULUS)
+
+fn scalar_mix_checksum(iterations: Int, modulus: Int) -> Int:
+    var acc: Int = 17
+    var i: Int = 0
+    while i < iterations:
+        acc = (scalar_mix_step(acc + i) + (i % 97)) % modulus
+        i = i + 1
+    return acc
+
+converge wasm_scalar_mix(iterations: Int, modulus: Int) -> Int:
+    spec reference:
+        return scalar_mix_checksum(iterations, modulus)
+    fast wasm_lane when target("wasm"):
+        return scalar_mix_checksum(iterations, modulus)
+
+fn main() -> Int:
+    return wasm_scalar_mix(WASM_SCALAR_ITERATIONS, WASM_SCALAR_MODULUS)

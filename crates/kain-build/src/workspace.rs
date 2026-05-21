@@ -1,6 +1,7 @@
 use blade::{
-    discover_workspace, load_kain_manifest, BladeError, BladeWorkspace, KainBuildTaskSection,
-    KainManifest, ResolvedBlade, ResolvedCffiLibrary, FABRIC_MANIFEST_NAME,
+    discover_workspace, find_build_script_in, load_effective_kain_manifest, load_kain_manifest,
+    BladeError, BladeWorkspace, KainBuildTaskSection, KainManifest, ResolvedBlade,
+    ResolvedCffiLibrary, FABRIC_MANIFEST_NAME, KAIN_BUILD_SCRIPT_NAMES,
 };
 use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
@@ -23,9 +24,8 @@ const DEFAULT_PROFILE: &str = "debug";
 const DEFAULT_ARTIFACT_ROOT: &str = ".kain/out";
 const DEFAULT_CACHE_ROOT: &str = ".kain/cache/build";
 const DEFAULT_REPORT_ROOT: &str = ".kain/reports/build";
-const BUILD_ADAPTER_VERSION: &str = "kain-build-v2";
+const BUILD_ADAPTER_VERSION: &str = "kain-build-v3";
 const BUILD_ARTIFACT_SCHEMA_VERSION: u32 = 2;
-const BUILD_GRAPH_SCRIPT_NAMES: [&str; 2] = ["build.kn", "platform.kn"];
 
 pub type BuildResult<T> = Result<T, BuildError>;
 
@@ -154,6 +154,14 @@ pub struct KainBuildGraphPlatformPackage {
     pub package: String,
     pub provider: String,
     pub source: String,
+}
+
+#[derive(Debug, Clone)]
+struct DiscoveredBuildGraphScript {
+    graph_source: String,
+    build_script: PathBuf,
+    platform_packages: Vec<KainBuildGraphPlatformPackage>,
+    explicit_tasks: Vec<KainBuildTaskSection>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -552,11 +560,7 @@ impl Default for ProjectBuildSection {
 
 pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBuildPlan> {
     let workspace = discover_workspace(&options.path)?;
-    let root_manifest = workspace
-        .manifest_path
-        .as_ref()
-        .map(|path| load_kain_manifest(path))
-        .transpose()?;
+    let root_manifest = load_effective_kain_manifest(&workspace.root)?;
     let config = BuildWorkspaceConfig::from_workspace(&workspace, root_manifest.as_ref(), options);
 
     let mut tasks = Vec::new();
@@ -580,7 +584,7 @@ pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBui
             inputs: workspace
                 .blades
                 .iter()
-                .filter_map(|blade| blade.manifest_path.clone())
+                .flat_map(blade_authority_inputs)
                 .collect(),
             outputs: Vec::new(),
             cacheable: false,
@@ -862,14 +866,21 @@ pub fn build_kain_native_ui(options: &KainNativeUiBuildOptions) -> BuildResult<B
 pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<BladeBuildPlan> {
     let workspace_root = PathBuf::from(kfs::canonicalize_path(&options.path)?);
     let manifest_path = workspace_root.join("KAIN.toml");
-    let manifest = load_project_manifest(&manifest_path)?;
+    let manifest = load_effective_kain_manifest(&workspace_root)?.ok_or_else(|| {
+        BuildError::Config(format!(
+            "No Kain project authority found under {}; add build.kn or KAIN.toml",
+            workspace_root.display()
+        ))
+    })?;
     let lane = options
         .lane
         .or_else(|| options.profile.as_deref().and_then(BuildLane::parse))
+        .or_else(|| manifest.build.profile.as_deref().and_then(BuildLane::parse))
         .unwrap_or_default();
     let profile = options
         .profile
         .clone()
+        .or_else(|| manifest.build.profile.clone())
         .unwrap_or_else(|| lane.cargo_profile().to_string());
     let config = StandaloneBuildConfig::new(
         workspace_root.clone(),
@@ -879,8 +890,10 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
     );
     let package_name = manifest
         .package
-        .as_ref()
-        .map(|package| sanitize_id(&package.name))
+        .name
+        .as_deref()
+        .or(manifest.blade.name.as_deref())
+        .map(sanitize_id)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| {
             workspace_root
@@ -890,13 +903,29 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(|| "project".to_string())
         });
-    let build = manifest.build.unwrap_or_default();
-    let entry = resolve_workspace_path(&workspace_root, &build.entry);
+    let build = manifest.build.clone();
+    let entry = resolve_workspace_path(
+        &workspace_root,
+        build
+            .entry
+            .as_deref()
+            .or(manifest.blade.entry.as_deref())
+            .unwrap_or_else(|| Path::new("src/main.kn")),
+    );
     if !entry.exists() {
         return Err(BuildError::Config(format!(
             "Entry file not found: {}",
             entry.display()
         )));
+    }
+    let mut authority_inputs = vec![entry.clone()];
+    if manifest_path.is_file() {
+        authority_inputs.push(manifest_path.clone());
+    }
+    if let Some(path) = find_build_script_in(&workspace_root) {
+        if !authority_inputs.iter().any(|existing| existing == &path) {
+            authority_inputs.push(path);
+        }
     }
     let mut tasks = Vec::new();
     if options.rust_only {
@@ -907,7 +936,7 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
             blade: None,
             description: format!("Emit Rust artifact bundle for {}", entry.display()),
             depends_on: Vec::new(),
-            inputs: vec![entry.clone(), manifest_path.clone()],
+            inputs: authority_inputs.clone(),
             outputs: vec![
                 task_root.join(format!("{package_name}.rs")),
                 artifact_manifest_path(&task_root),
@@ -945,7 +974,7 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                 blade: None,
                 description: format!("Compile project target {target_value}"),
                 depends_on: Vec::new(),
-                inputs: vec![entry.clone(), manifest_path.clone()],
+                inputs: authority_inputs.clone(),
                 outputs,
                 cacheable: true,
                 adapter: BuildTaskAdapter::KainCompile {
@@ -959,7 +988,10 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
         }
     }
     let tasks = order_tasks(tasks)?;
-    let build_graph = discover_build_graph_provenance(&workspace_root, Some(&manifest_path))?;
+    let build_graph = discover_build_graph_provenance(
+        &workspace_root,
+        manifest_path.is_file().then_some(manifest_path.as_path()),
+    )?;
     let mut plan = config.into_plan("project", tasks);
     plan.build_graph = build_graph;
     validate_plan_safety(&plan)?;
@@ -1180,22 +1212,26 @@ fn discover_build_graph_provenance(
     let manifest_path = manifest_path
         .filter(|path| path.exists())
         .map(Path::to_path_buf);
-    let manifest_platform_packages = if let Some(path) = &manifest_path {
-        let source = kfs::read_text(path)?;
-        extract_manifest_build_graph_platform_packages(&source)
+    let manifest_source = if let Some(path) = &manifest_path {
+        Some(kfs::read_text(path)?)
     } else {
-        Vec::new()
+        None
     };
-    let build_script = BUILD_GRAPH_SCRIPT_NAMES
-        .iter()
-        .map(|name| workspace_root.join(name))
-        .find(|path| path.exists());
+    let manifest_platform_packages = manifest_source
+        .as_deref()
+        .map(extract_manifest_build_graph_platform_packages)
+        .unwrap_or_default();
+    let manifest_explicit_tasks = manifest_source
+        .as_deref()
+        .map(extract_manifest_build_graph_explicit_tasks)
+        .unwrap_or_default();
+    let script = discover_build_graph_script(workspace_root)?;
 
-    if build_script.is_none() && manifest_path.is_none() {
+    if script.is_none() && manifest_path.is_none() {
         return Ok(None);
     }
 
-    let Some(build_script) = build_script else {
+    let Some(script) = script else {
         return Ok(Some(KainBuildGraphProvenance {
             graph_source: "KAIN.toml".to_string(),
             defaults_merged_from: None,
@@ -1205,13 +1241,10 @@ fn discover_build_graph_provenance(
         }));
     };
 
-    let graph_source = build_script
-        .file_name()
-        .and_then(OsStr::to_str)
-        .unwrap_or("build.kn")
-        .to_string();
-    let source = kfs::read_text(&build_script)?;
-    let platform_packages = extract_build_graph_platform_packages(&source, &graph_source);
+    let graph_source = script.graph_source.clone();
+    let build_script = script.build_script.clone();
+    let platform_packages = script.platform_packages;
+    let script_explicit_tasks = script.explicit_tasks;
     let mut overrides = Vec::new();
     if manifest_path.is_some() {
         overrides.push(format!(
@@ -1224,6 +1257,19 @@ fn discover_build_graph_provenance(
         if manifest_pairs != script_pairs {
             overrides.push(format!(
                 "{graph_source} overrides KAIN.toml platform packages: script={script_pairs:?}, manifest={manifest_pairs:?}"
+            ));
+        }
+    }
+    if manifest_path.is_some() && !manifest_explicit_tasks.is_empty() {
+        let manifest_signatures = explicit_build_task_signatures(&manifest_explicit_tasks);
+        let script_signatures = explicit_build_task_signatures(&script_explicit_tasks);
+        if script_explicit_tasks.is_empty() {
+            overrides.push(format!(
+                "{graph_source} defers explicit build tasks to KAIN.toml because no build_task(...) declarations were found"
+            ));
+        } else if manifest_signatures != script_signatures {
+            overrides.push(format!(
+                "{graph_source} overrides KAIN.toml explicit build tasks: script={script_signatures:?}, manifest={manifest_signatures:?}"
             ));
         }
     }
@@ -1281,6 +1327,49 @@ fn extract_manifest_build_graph_platform_packages(
     output
 }
 
+fn extract_manifest_build_graph_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection> {
+    toml::from_str::<KainManifest>(source)
+        .map(|manifest| manifest.build.tasks)
+        .unwrap_or_default()
+}
+
+fn discover_build_graph_script(
+    workspace_root: &Path,
+) -> BuildResult<Option<DiscoveredBuildGraphScript>> {
+    let Some(build_script) = KAIN_BUILD_SCRIPT_NAMES
+        .iter()
+        .map(|name| workspace_root.join(name))
+        .find(|path| path.exists())
+    else {
+        return Ok(None);
+    };
+    let graph_source = build_script
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("build.kn")
+        .to_string();
+    let source = kfs::read_text(&build_script)?;
+    Ok(Some(DiscoveredBuildGraphScript {
+        platform_packages: extract_build_graph_platform_packages(&source, &graph_source),
+        explicit_tasks: extract_build_graph_explicit_tasks(&source),
+        graph_source,
+        build_script,
+    }))
+}
+
+fn blade_authority_inputs(blade: &ResolvedBlade) -> Vec<PathBuf> {
+    let mut inputs = Vec::new();
+    if let Some(path) = &blade.manifest_path {
+        inputs.push(path.clone());
+    }
+    if let Some(path) = find_build_script_in(&blade.root) {
+        if !inputs.iter().any(|existing| existing == &path) {
+            inputs.push(path);
+        }
+    }
+    inputs
+}
+
 fn extract_build_graph_platform_packages(
     source: &str,
     graph_source: &str,
@@ -1306,6 +1395,44 @@ fn extract_build_graph_platform_packages(
     packages
 }
 
+fn extract_build_graph_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection> {
+    let mut tasks = Vec::new();
+    let mut offset = 0usize;
+    while let Some(relative) = source[offset..].find("build_task") {
+        let function_start = offset + relative + "build_task".len();
+        if let Some((id, after_call)) = parse_string_call_argument(source, function_start) {
+            let mut task = KainBuildTaskSection {
+                id,
+                ..KainBuildTaskSection::default()
+            };
+            let mut next_offset = after_call;
+            for (method, value, after_method) in parse_string_method_chain(source, after_call) {
+                next_offset = after_method;
+                match method.as_str() {
+                    "kind" => task.kind = value,
+                    "blade" => task.blade = Some(value),
+                    "entry" => task.entry = Some(PathBuf::from(value)),
+                    "manifest" => task.manifest = Some(PathBuf::from(value)),
+                    "command" => task.command = Some(value),
+                    "arg" | "args" => task.args.push(value),
+                    "cwd" => task.cwd = Some(PathBuf::from(value)),
+                    "target" => task.target = Some(value),
+                    "profile" => task.profile = Some(value),
+                    "input" | "inputs" => task.inputs.push(PathBuf::from(value)),
+                    "output" | "outputs" => task.outputs.push(PathBuf::from(value)),
+                    "depends_on" | "depends" | "dependency" => task.depends_on.push(value),
+                    _ => {}
+                }
+            }
+            tasks.push(task);
+            offset = next_offset;
+        } else {
+            offset = function_start;
+        }
+    }
+    tasks
+}
+
 fn sort_build_graph_platform_packages(packages: &mut Vec<KainBuildGraphPlatformPackage>) {
     packages.sort_by(|left, right| {
         left.package
@@ -1327,15 +1454,69 @@ fn platform_package_pairs(packages: &[KainBuildGraphPlatformPackage]) -> Vec<(St
         .collect()
 }
 
+fn explicit_build_task_signatures(tasks: &[KainBuildTaskSection]) -> Vec<(String, String)> {
+    let mut signatures = tasks
+        .iter()
+        .map(|task| {
+            (
+                sanitize_build_task_reference(&task.id),
+                task.kind.trim().to_ascii_lowercase(),
+            )
+        })
+        .collect::<Vec<_>>();
+    signatures.sort();
+    signatures
+}
+
 fn parse_provider_chain(source: &str, offset: usize) -> Option<String> {
-    let line_end = source[offset..]
-        .find(|ch| matches!(ch, '\n' | '\r' | ';'))
-        .map(|relative| offset + relative)
-        .unwrap_or(source.len());
-    let limit = line_end.min(offset.saturating_add(512));
-    let tail = &source[offset..limit];
-    let provider_offset = tail.find(".provider")?;
-    parse_string_call_argument(tail, provider_offset + ".provider".len()).map(|(value, _)| value)
+    parse_string_method_chain(source, offset)
+        .into_iter()
+        .find_map(|(method, value, _)| (method == "provider").then_some(value))
+}
+
+fn parse_string_method_chain(source: &str, mut index: usize) -> Vec<(String, String, usize)> {
+    let bytes = source.as_bytes();
+    let mut methods = Vec::new();
+    loop {
+        index = skip_ascii_whitespace(bytes, index);
+        if bytes.get(index).copied() != Some(b'.') {
+            break;
+        }
+        index += 1;
+        let method_start = index;
+        while matches!(
+            bytes.get(index).copied(),
+            Some(b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_')
+        ) {
+            index += 1;
+        }
+        if method_start == index {
+            break;
+        }
+        let Some(method) = source.get(method_start..index) else {
+            break;
+        };
+        let Some((value, after_call)) = parse_string_call_argument(source, index) else {
+            break;
+        };
+        methods.push((method.to_string(), value, after_call));
+        index = after_call;
+    }
+    methods
+}
+
+fn select_explicit_build_task_sections(
+    root: &Path,
+    manifest_tasks: &[KainBuildTaskSection],
+) -> BuildResult<Vec<KainBuildTaskSection>> {
+    let Some(script) = discover_build_graph_script(root)? else {
+        return Ok(manifest_tasks.to_vec());
+    };
+    if script.explicit_tasks.is_empty() {
+        Ok(manifest_tasks.to_vec())
+    } else {
+        Ok(script.explicit_tasks)
+    }
 }
 
 fn parse_string_call_argument(source: &str, mut index: usize) -> Option<(String, usize)> {
@@ -1346,7 +1527,12 @@ fn parse_string_call_argument(source: &str, mut index: usize) -> Option<(String,
     }
     index += 1;
     index = skip_ascii_whitespace(bytes, index);
-    parse_quoted_string(source, index)
+    let (value, mut after_string) = parse_quoted_string(source, index)?;
+    after_string = skip_ascii_whitespace(bytes, after_string);
+    if bytes.get(after_string).copied()? != b')' {
+        return None;
+    }
+    Some((value, after_string + 1))
 }
 
 fn parse_quoted_string(source: &str, mut index: usize) -> Option<(String, usize)> {
@@ -1505,12 +1691,11 @@ fn add_explicit_blade_tasks(
     config: &BuildWorkspaceConfig,
     blade: &ResolvedBlade,
 ) -> BuildResult<()> {
-    let Some(manifest_path) = &blade.kain_manifest else {
+    let Some(manifest) = load_effective_kain_manifest(&blade.root)? else {
         return Ok(());
     };
-    let manifest = load_kain_manifest(manifest_path)?;
-    for task in &manifest.build.tasks {
-        let resolved = build_explicit_task(config, Some(blade), &blade.root, task)?;
+    for task in select_explicit_build_task_sections(&blade.root, &manifest.build.tasks)? {
+        let resolved = build_explicit_task(config, Some(blade), &blade.root, &task)?;
         if matches!(
             resolved.kind,
             BuildTaskKind::CSharedLibrary | BuildTaskKind::CargoBuild
@@ -1527,12 +1712,13 @@ fn add_explicit_root_tasks(
     config: &BuildWorkspaceConfig,
     manifest: &KainManifest,
 ) -> BuildResult<()> {
-    for task in &manifest.build.tasks {
+    for task in select_explicit_build_task_sections(&config.workspace_root, &manifest.build.tasks)?
+    {
         tasks.push(build_explicit_task(
             config,
             None,
             &config.workspace_root,
-            task,
+            &task,
         )?);
     }
     Ok(())
@@ -1565,11 +1751,7 @@ fn build_explicit_task(
             )));
         }
     };
-    let task_id = if let Some(blade) = blade {
-        format!("{}:{}", sanitize_id(&blade.name), sanitize_id(&task.id))
-    } else {
-        sanitize_id(&task.id)
-    };
+    let task_id = build_explicit_task_id(task.id.trim(), blade);
     let task_root = config.task_root(
         blade
             .map(|value| value.name.as_str())
@@ -1724,7 +1906,7 @@ fn build_explicit_task(
         depends_on: task
             .depends_on
             .iter()
-            .map(|value| sanitize_id(value))
+            .filter_map(|value| explicit_build_task_dependency_id(value, blade))
             .collect(),
         inputs,
         outputs,
@@ -3446,6 +3628,45 @@ fn sanitize_id(value: &str) -> String {
     output.trim_matches('-').to_string()
 }
 
+fn sanitize_build_task_reference(value: &str) -> String {
+    value
+        .split(':')
+        .map(sanitize_id)
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
+fn build_explicit_task_id(task_id: &str, blade: Option<&ResolvedBlade>) -> String {
+    if let Some(blade) = blade {
+        if task_id.contains(':') {
+            sanitize_build_task_reference(task_id)
+        } else {
+            sanitize_build_task_reference(&format!("{}:{task_id}", blade.name))
+        }
+    } else {
+        sanitize_build_task_reference(task_id)
+    }
+}
+
+fn explicit_build_task_dependency_id(value: &str, blade: Option<&ResolvedBlade>) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let scoped = if let Some(blade) = blade {
+        if trimmed.contains(':') {
+            trimmed.to_string()
+        } else {
+            format!("{}:{trimmed}", blade.name)
+        }
+    } else {
+        trimmed.to_string()
+    };
+    let normalized = sanitize_build_task_reference(&scoped);
+    (!normalized.is_empty()).then_some(normalized)
+}
+
 fn resolve_workspace_path(root: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()
@@ -3525,6 +3746,51 @@ mod tests {
     }
 
     #[test]
+    fn build_graph_extracts_explicit_tasks_from_build_kn() {
+        let source = r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let check = build_task("check-llvm")
+        .kind("check")
+        .entry("src/main.kn")
+        .target("llvm")
+        .input("src/main.kn")
+        .input("src/vulkain.kn")
+        .depends_on("prep-assets")
+    let bundle = build_task("bundle-web")
+        .kind("bun")
+        .entry("tools/bundle.ts")
+        .command("bun")
+        .arg("run")
+        .arg("build")
+        .cwd("tools")
+        .output("dist/app.js")
+    return build_graph().task(check).task(bundle)
+"#;
+
+        let tasks = extract_build_graph_explicit_tasks(source);
+        assert_eq!(tasks.len(), 2);
+        assert_eq!(tasks[0].id, "check-llvm");
+        assert_eq!(tasks[0].kind, "check");
+        assert_eq!(tasks[0].entry, Some(PathBuf::from("src/main.kn")));
+        assert_eq!(tasks[0].target.as_deref(), Some("llvm"));
+        assert_eq!(
+            tasks[0].inputs,
+            vec![
+                PathBuf::from("src/main.kn"),
+                PathBuf::from("src/vulkain.kn")
+            ]
+        );
+        assert_eq!(tasks[0].depends_on, vec!["prep-assets".to_string()]);
+        assert_eq!(tasks[1].id, "bundle-web");
+        assert_eq!(tasks[1].kind, "bun");
+        assert_eq!(tasks[1].entry, Some(PathBuf::from("tools/bundle.ts")));
+        assert_eq!(tasks[1].command.as_deref(), Some("bun"));
+        assert_eq!(tasks[1].args, vec!["run".to_string(), "build".to_string()]);
+        assert_eq!(tasks[1].cwd, Some(PathBuf::from("tools")));
+        assert_eq!(tasks[1].outputs, vec![PathBuf::from("dist/app.js")]);
+    }
+
+    #[test]
     fn standalone_task_root_uses_host_lane_target_unit_schema() {
         let root = std::env::current_dir().expect("cwd");
         let config = StandaloneBuildConfig::new(
@@ -3576,7 +3842,7 @@ mod tests {
         let manifest_path = root.join("KAIN.toml");
         std::fs::write(
             &manifest_path,
-            "[package]\nname = \"probe\"\n\n[build]\nentry = \"src/main.kn\"\n\n[[platform.packages]]\nname = \"tiny_math\"\nprovider = \"fixture\"\n",
+            "[package]\nname = \"probe\"\n\n[build]\nentry = \"src/main.kn\"\n\n[[build.tasks]]\nid = \"manifest-check\"\nkind = \"check\"\nentry = \"src/main.kn\"\n\n[[platform.packages]]\nname = \"tiny_math\"\nprovider = \"fixture\"\n",
         )
         .expect("write KAIN.toml");
         std::fs::write(
@@ -3585,7 +3851,8 @@ mod tests {
 fn build(ctx: BuildContext) -> BuildGraph:
     let vk = platform_package("vulkan").provider("system")
     let tiny = platform_package("tiny_math")
-    return build_graph().require(vk).require(tiny)
+    let check = build_task("script-check").kind("check").entry("src/main.kn").target("llvm")
+    return build_graph().require(vk).require(tiny).task(check)
 "#,
         )
         .expect("write build.kn");
@@ -3604,6 +3871,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
             .overrides
             .iter()
             .any(|value| value.contains("overrides KAIN.toml platform packages")));
+        assert!(provenance
+            .overrides
+            .iter()
+            .any(|value| value.contains("overrides KAIN.toml explicit build tasks")));
         assert_eq!(
             provenance
                 .platform_packages
@@ -3612,6 +3883,71 @@ fn build(ctx: BuildContext) -> BuildGraph:
                 .collect::<Vec<_>>(),
             vec![("tiny_math", "system"), ("vulkan", "system")]
         );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn build_graph_script_tasks_override_manifest_tasks() {
+        let root = unique_test_dir("build-graph-task-authority");
+        let manifest_path = root.join("KAIN.toml");
+        std::fs::write(
+            &manifest_path,
+            "[package]\nname = \"probe\"\n\n[build]\nentry = \"src/main.kn\"\n\n[[build.tasks]]\nid = \"manifest-check\"\nkind = \"check\"\nentry = \"src/main.kn\"\n",
+        )
+        .expect("write KAIN.toml");
+        std::fs::write(
+            root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let check = build_task("script-check")
+        .kind("check")
+        .entry("src/main.kn")
+        .target("llvm")
+    return build_graph().task(check)
+"#,
+        )
+        .expect("write build.kn");
+
+        let manifest = load_kain_manifest(&manifest_path).expect("load manifest");
+        let selected = select_explicit_build_task_sections(&root, &manifest.build.tasks)
+            .expect("select explicit tasks");
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "script-check");
+        assert_eq!(selected[0].target.as_deref(), Some("llvm"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn build_graph_script_without_tasks_falls_back_to_manifest_tasks() {
+        let root = unique_test_dir("build-graph-task-fallback");
+        let manifest_path = root.join("KAIN.toml");
+        std::fs::write(
+            &manifest_path,
+            "[package]\nname = \"probe\"\n\n[build]\nentry = \"src/main.kn\"\n\n[[build.tasks]]\nid = \"manifest-check\"\nkind = \"check\"\nentry = \"src/main.kn\"\n",
+        )
+        .expect("write KAIN.toml");
+        std::fs::write(
+            root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    return build_graph().require(platform_package("tiny_math").provider("fixture"))
+"#,
+        )
+        .expect("write build.kn");
+
+        let manifest = load_kain_manifest(&manifest_path).expect("load manifest");
+        let selected = select_explicit_build_task_sections(&root, &manifest.build.tasks)
+            .expect("select explicit tasks");
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "manifest-check");
+
+        let provenance = discover_build_graph_provenance(&root, Some(&manifest_path))
+            .expect("graph provenance")
+            .expect("provenance present");
+        assert!(provenance
+            .overrides
+            .iter()
+            .any(|value| value.contains("defers explicit build tasks to KAIN.toml")));
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -3675,6 +4011,62 @@ fn build(ctx: BuildContext) -> BuildGraph:
         assert_eq!(provenance.platform_packages.len(), 1);
         assert_eq!(provenance.platform_packages[0].package, "tiny_math");
         assert_eq!(provenance.platform_packages[0].provider, "fixture");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn explicit_build_task_dependencies_use_blade_scope() {
+        let root = unique_test_dir("explicit-task-deps");
+        let config = BuildWorkspaceConfig {
+            workspace_root: root.clone(),
+            artifact_root: root.join(".kain").join("out"),
+            cache_root: root.join(".kain").join("cache").join("build"),
+            report_root: root.join(".kain").join("reports").join("build"),
+            host: default_target_name(),
+            lane: BuildLane::Dev,
+            profile: "debug".to_string(),
+            target: default_target_name(),
+        };
+        let blade = ResolvedBlade {
+            name: "ProbeBlade".to_string(),
+            version: None,
+            kind: "kain_library".to_string(),
+            root: root.clone(),
+            manifest_path: None,
+            kain_manifest: None,
+            cargo_manifest: None,
+            rust_crate_name: None,
+            fabric_manifest: None,
+            entry: Some(root.join("src").join("main.kn")),
+            source_roots: Vec::new(),
+            module_roots: Vec::new(),
+            build_targets: vec!["llvm".to_string()],
+            dependencies: Vec::new(),
+            artifacts: BTreeMap::new(),
+            c_ffi_libraries: Vec::new(),
+            gpu_shader_sources: Vec::new(),
+            gpu_shader_roots: Vec::new(),
+            compute_keys: Vec::new(),
+            discovery_source: "test".to_string(),
+        };
+        let task = KainBuildTaskSection {
+            id: "check".to_string(),
+            kind: "check".to_string(),
+            entry: Some(PathBuf::from("src/main.kn")),
+            depends_on: vec!["prep-assets".to_string(), "shared:bundle".to_string()],
+            ..KainBuildTaskSection::default()
+        };
+
+        let resolved =
+            build_explicit_task(&config, Some(&blade), &blade.root, &task).expect("build task");
+        assert_eq!(resolved.id, "probeblade:check");
+        assert_eq!(
+            resolved.depends_on,
+            vec![
+                "probeblade:prep-assets".to_string(),
+                "shared:bundle".to_string()
+            ]
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 

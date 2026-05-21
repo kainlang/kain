@@ -1,0 +1,33 @@
+const WASM_BITWISE_ITERATIONS: Int = 180000
+const WASM_BITWISE_MODULUS: Int = 1000000007
+const WASM_U32_MASK: Int = 4294967295
+const WASM_AVALANCHE_A: Int = 2246822519
+const WASM_AVALANCHE_B: Int = 3266489917
+
+fn wasm_rotl32(value: Int, bits: Int) -> Int:
+    let masked: Int = value & WASM_U32_MASK
+    let left: Int = (masked << bits) & WASM_U32_MASK
+    let right: Int = masked >> (32 - bits)
+    return (left | right) & WASM_U32_MASK
+
+fn wasm_avalanche32(value: Int) -> Int:
+    var x: Int = value & WASM_U32_MASK
+    x = (x ^ (x >> 16)) & WASM_U32_MASK
+    x = (x * WASM_AVALANCHE_A) & WASM_U32_MASK
+    x = (x ^ (x >> 13)) & WASM_U32_MASK
+    x = (x * WASM_AVALANCHE_B) & WASM_U32_MASK
+    return (x ^ (x >> 16)) & WASM_U32_MASK
+
+fn bitwise_pack_checksum(iterations: Int, modulus: Int) -> Int:
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        let header: Int = ((i & 1048575) << 12) | (((i * 3) & 15) << 8) | ((i & 15) << 4) | 1
+        let mixed: Int = wasm_avalanche32(header + acc + 374761393)
+        let rotated: Int = wasm_rotl32(mixed, (i % 23) + 1)
+        acc = (acc + rotated + (mixed & 4095)) & WASM_U32_MASK
+        i = i + 1
+    return acc % modulus
+
+fn main() -> Int:
+    return bitwise_pack_checksum(WASM_BITWISE_ITERATIONS, WASM_BITWISE_MODULUS)

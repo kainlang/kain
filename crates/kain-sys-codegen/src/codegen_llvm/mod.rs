@@ -9975,7 +9975,10 @@ impl LlvmGenerator {
 
         // Unknown messages are dropped after payload cleanup.
         self.emit_label(&label_unknown);
-        self.emit(&format!("  call void @free(i8* {})", message_data));
+        self.emit(&format!(
+            "  call void @kain_actor_message_release(i8* {})",
+            message_data
+        ));
         let unknown_remaining = self.next_reg();
         self.emit(&format!(
             "  {} = load i32, i32* {}",
@@ -10049,7 +10052,10 @@ impl LlvmGenerator {
             self.compile_block(&handler.body)?;
 
             // Normal fallthrough returns to the receive loop.
-            self.emit(&format!("  call void @free(i8* {})", message_data));
+            self.emit(&format!(
+                "  call void @kain_actor_message_release(i8* {})",
+                message_data
+            ));
             let handler_remaining = self.next_reg();
             self.emit(&format!(
                 "  {} = load i32, i32* {}",
@@ -10068,7 +10074,10 @@ impl LlvmGenerator {
 
             // Explicit returns from the handler branch here.
             self.emit_label(&handler_return_label);
-            self.emit(&format!("  call void @free(i8* {})", message_data));
+            self.emit(&format!(
+                "  call void @kain_actor_message_release(i8* {})",
+                message_data
+            ));
             let handler_ret = self.next_reg();
             self.emit(&format!(
                 "  {} = load i32, i32* {}",
@@ -10093,7 +10102,7 @@ impl LlvmGenerator {
         self.emit("%KainActorMessage = type { i64, i8*, i64, i64 }");
         self.emit("%KainReplyPort = type { %KainActorRef }");
         self.emit(&format!(
-            "%KainActorSpawnConfig = type {{ i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [{} x i8], i32, i32 (i64, i8*, i8*, i32)*, i32, i32, i32 }}",
+            "%KainActorSpawnConfig = type {{ i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [{} x i8], i32, i32 (i64, i8*, i8*, i32)*, i32, i32, i32, i32 }}",
             NATIVE_ACTOR_NAME_MAX_BYTES
         ));
         self.emit("");
@@ -10186,6 +10195,7 @@ impl LlvmGenerator {
         self.emit("declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_receive(i8*, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_try_receive(i8*, %KainActorMessage*, i8*)");
+        self.emit("declare void @kain_actor_message_release(i8*)");
         self.emit("declare void @kain_actor_ref_from_id(i64, %KainActorRef*)");
         self.emit("declare i32 @kain_actor_ref_is_live(%KainActorRef*)");
         self.emit("declare i8* @kain_actor_reply_port_new()");
@@ -13773,6 +13783,13 @@ impl LlvmGenerator {
                     "  store {}* @{}_turn, {}** {}",
                     turn_fn_ty, actor, turn_fn_ty, turn_ptr
                 ));
+
+                let inline_ask_policy_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %KainActorSpawnConfig, %KainActorSpawnConfig* {}, i32 0, i32 13",
+                    inline_ask_policy_ptr, config_ptr
+                ));
+                self.emit(&format!("  store i32 1, i32* {}", inline_ask_policy_ptr));
 
                 // Initialize fields.
                 let mut provided: HashMap<String, Expr> = init.iter().cloned().collect();

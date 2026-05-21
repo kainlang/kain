@@ -1,5 +1,168 @@
 # Kain Memory
 
+# 2026-05-20 - build.kn became V3 blade/workspace authority instead of only a task sidecar
+
+`build.kn` is now a real authority surface for blade/workspace discovery, build defaults, run defaults, and explicit build tasks. The repo no longer needs `KAIN.toml` just to discover a blade, pick its entry, or route build/run defaults, even though `KAIN.toml` still works as the compatibility lane and still owns metadata that has not been promoted into the script surface yet.
+
+What changed:
+
+- `crates/kain-blades/src/lib.rs`
+  - added effective-manifest synthesis by overlaying `build.kn` / `platform.kn` metadata on top of `KAIN.toml`
+  - added script-authority parsing for `workspace_defaults()`, `package("...")`, `blade("...")`, `build_defaults()`, `run_defaults()`, and `build_task("...")`
+  - workspace discovery now honors script-authored blade patterns like `workspace_defaults().blade_pattern("packages/*")`
+  - blade discovery now accepts script-only blades without `KAIN.toml` when the script declares real blade surface metadata
+  - workspace markers now include `build.kn` / `platform.kn`, so blade-root and workspace-root detection can anchor on script authority
+- `crates/kain-build/src/workspace.rs`
+  - workspace config now reads effective manifest defaults from script-or-TOML authority instead of only raw `KAIN.toml`
+  - explicit blade/root tasks now work from script-only authorities instead of requiring `blade.kain_manifest`
+  - blade-check inputs now include build scripts as first-class authority files
+  - bumped the build adapter fingerprint version to `kain-build-v3`
+  - `plan_kain_project(...)` now accepts `build.kn`-only project authority for package/build metadata and task inputs
+- `crates/kain-run/src/lib.rs`
+  - run planning now loads run defaults from effective script-or-TOML authority for workspaces and blades
+  - file-target inference now honors script-authored `run_defaults().target("...")`
+  - workspace-level fallback entry resolution now checks script-authored `run_defaults()` / `build_defaults()` / `blade(...).entry(...)`
+- `blades/vulkain/build.kn`
+  - now dogfoods V3 authority metadata with script-authored package/blade/build/run declarations in addition to the existing platform package + explicit task graph
+
+Validation:
+
+- `cargo fmt --package blade --package kain-build --package kain-run`
+- `cargo test -p blade --lib --target-dir target\\codex-build-v3` -> PASS, including new script-only blade/workspace discovery cases
+- `cargo test -p kain-build --lib --target-dir target\\codex-build-v3` -> blocked by pre-existing unrelated `crates/web` compile errors in `codegen_wasm.rs` / `codegen_ts.rs` while Cargo resolves the wider graph
+- `cargo test -p kain-run --lib manifest_run_section_can_route_file_auto_to_llvm --target-dir target\\codex-build-v3` -> blocked by the same unrelated `crates/web` compile errors before `kain-run` tests could execute
+
+# 2026-05-21 - Dedicated WASM parity lane revived Kain wasm against Rust
+
+Kain now has a dedicated benchmark lane for its long-stale built-in wasm backend. The lane compiles Kain with `-t wasm`, compiles equivalent Rust with `rustc --target wasm32-unknown-unknown`, validates both modules through Node's `WebAssembly.Module`, executes the same export, and requires the normalized `result/stdout` transcript bytes to match exactly.
+
+What changed:
+
+- `crates/web/src/codegen_wasm.rs`
+  - folds top-level constants into wasm immediates
+  - declares/compiles `converge` functions and selects wasm-target fast lanes
+  - exports `main` even when it is not explicitly public
+  - lowers grouped expressions, local assignment, array pointer locals, and `len(array)`
+  - propagates codegen errors out of wasm control-flow closures instead of silently emitting malformed stack code
+- `benchmark/wasm/`
+  - added `wasm_cases.json`, a Node wasm execution host, and four Kain/Rust parity cases: `scalar_mix`, `branch_dispatch`, `array_scan`, and `bitwise_pack`
+- `benchmark/run_wasm.py`
+  - added the root shim for the dedicated wasm lane
+- `.agents/skills/kain-benchmark-pipeline/SKILL.md`
+  - documents the new wasm lane and report locations
+
+Validation:
+
+- `cargo fmt -p web`
+- `cargo check -p web`
+- `cargo build -p cli --bin kain`
+- `python -m py_compile benchmark\wasm\run.py benchmark\run_wasm.py`
+- `node --check benchmark\wasm\run_wasm_module.mjs`
+- `python benchmark\run_wasm.py --timeout 300 --keep-going` -> PASS for all four cases, with byte-for-byte Kain/Rust wasm transcript matches in `benchmark/latest_wasm.md` and `benchmark/out/reports/wasm_latest.json`
+
+# 2026-05-20 - `build.kn` explicit task parity landed for the blade build graph
+
+`build.kn` is no longer limited to platform-package provenance. The blade build graph can now lift explicit build tasks directly out of script-authored `build_task("...")` chains, while keeping `KAIN.toml` task support as the compatibility/default lane.
+
+What changed:
+
+- `crates/kain-build/src/workspace.rs`
+  - added shared build-script discovery so `build.kn` / `platform.kn` extraction now reads both `platform_package(...)` requirements and script-authored explicit tasks
+  - added `build_task("id").kind("...").entry("...").target("...").input("...").output("...").depends_on("...")` parsing with the same field surface as `[[build.tasks]]`
+  - explicit task selection now prefers script tasks when at least one `build_task(...)` is present and cleanly falls back to manifest tasks when the script only declares platform packages
+  - build-graph provenance now reports explicit-task overrides or explicit-task deferral in addition to platform-package override notes
+  - fixed explicit task dependency scoping so blade-local `depends_on("prep")` resolves to the actual scoped task id instead of flattening colon-separated graph ids through plain `sanitize_id`
+- `blades/vulkain/build.kn`
+  - now dogfoods the new script task lane by carrying the `check-llvm` task in the script alongside its Vulkan platform-package requirement
+
+Validation:
+
+- `cargo fmt --package kain-build`
+- `cargo test -p kain-build build_graph --target-dir target\\codex-buildkn-phase2`
+- `cargo test -p kain-build explicit_build_task_dependencies_use_blade_scope --target-dir target\\codex-buildkn-phase2`
+- `cargo test -p kain-build --lib --target-dir target\\codex-buildkn-phase2`
+- `cargo test -p kain-run build_graph --target-dir target\\codex-buildkn-phase2`
+
+# 2026-05-20 - `std::reload` became the canonical hot-reload surface, gained an explicit transition lattice, and now has a real attrition lane
+
+The repo now has a real v1 `std::reload` lane instead of making authored code reach directly for native UI hot-reload ABI helpers, and the packaging/dev loop now carries explicit world/actor reload contracts plus an OTP-shaped transition lattice instead of only launcher identity plus artifact-role guesses.
+
+What changed:
+
+- `stdlib/reload.kn`
+  - added the new author-facing `std::reload` module with `ReloadGeneration`, `reload_begin`, `reload_commit`, `reload_generation`, `reload_key`, `reload_snapshot`, and explicit policy/lane getter functions
+  - kept the current runtime truth package-first by wrapping the existing native UI reload ABI instead of inventing a second runtime path
+  - important follow-up: the original `ReloadPolicy` aggregate return shape was not trustworthy on the LLVM path when it carried many `String` fields, so the public surface was narrowed to explicit getters instead of shipping a broken fat aggregate
+- `blades/kaintana/src/core/reconciliation.kn` and `runtime/fixtures/native_ui_stdlib_layer/main.kn`
+  - switched authored reload calls from raw `native_ui_hot_reload_*` helpers to `std::reload`
+- `crates/kain-core/src/runtime_contract.rs`
+  - reflection payloads now emit explicit actor-state schemas (`<ActorName>State`) so reload participants can compare actor structure honestly instead of carrying actor names without fields
+- `crates/kain-driver/src/native_app.rs` and `crates/kain-driver/src/tauri_app.rs`
+  - native and Tauri app manifests now emit `hot_reload.participants`
+  - runtime snapshots now mirror that contract under `reload`
+  - the participant payload inventories `std::reload`, structural migration defaults, world state schemas, actor state/message schemas, planned GPU frame-boundary/resource-graph hooks, the default restart mode, and the explicit compatibility lanes
+  - runtime sidecars now persist the reflection payload path so reload classification has a durable actor-schema source
+  - reload metadata now carries a `transition` record with class/restart-requirement/reasons/actions so the runtime can say `presentation-only`, `structural-migrate`, `quiesce-and-migrate`, `frame-boundary-gpu-swap`, or `restart-with-restore` instead of only yes/no
+- `crates/cli/src/native_ui_dev.rs`
+  - reload manifest/snapshot structs now deserialize the participant contract and transition record and use them as part of restart-vs-live-reload classification
+  - added regressions that prove participant-schema drift forces restart and that transition classes such as `frame-boundary-gpu-swap` surface in the operator note instead of staying host-local
+- `crates/cli/src/run.rs`
+  - `kain run dev <file.kn>` now auto-routes direct native UI/component inputs into the stronger `native_ui_dev` loop when there are no conflicting blade/json/dry-run/app-arg flags
+- `attrition/run.py`, `attrition/attritions.json`, and `attrition/cases/kain_std_reload_contract/main.kn`
+  - added `validation.semantic_groups` beside `closure_groups` so attrition can certify protocol/lifecycle truth in addition to teardown closure
+  - added the real Kain LLVM lane `kain_std_reload_contract`, which certifies `std::reload` generation monotonicity, begin/commit sequencing, checkpoint/progress accounting, and explicit UI session cleanup on the native LLVM path
+  - added sabotage proofs `skip_final_commit` and `skip_session_destroy`
+- Atlas / docs:
+  - regenerated `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json`; the atlas continues to include `std::reload`
+  - updated `ARCHITECTURE.md`, this memory note, and the attrition skill
+
+Validation:
+
+- `cargo fmt --package kain-driver --package cli`
+- `python -m py_compile attrition/run.py`
+- `D:/Kain-Lang/target/debug/kain.exe D:/Kain-Lang/attrition/cases/kain_std_reload_contract/main.kn -t llvm -o D:/Kain-Lang/attrition/cases/kain_std_reload_contract/generated/kain_std_reload_contract.ll`
+- `cargo test -p kain-driver --no-default-features --lib -- --list`
+- `python attrition/run.py --case kain_std_reload_contract --scale small --profile release-instrumented --timeout 900 --kain-exe D:/Kain-Lang/target/debug/kain.exe`
+- `python attrition/run.py --case kain_std_reload_contract --scale small --profile release-instrumented --sabotage skip_final_commit --timeout 900 --kain-exe D:/Kain-Lang/target/debug/kain.exe`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+
+Important behavior notes:
+
+- This is v1 package-first reload, not universal live code swapping. World and actor compatibility is structural today: default-value edits that preserve emitted schemas stay reload-compatible, while schema changes restart honestly.
+- `std::reload` is now the canonical surface for authored code, but the current runtime implementation still rides the existing native UI reload substrate underneath.
+- GPU participation is metadata-only in this wave. The manifest/snapshot contract already exposes frame-boundary/resource-graph intent, but full Vulkain live resource reload is still a follow-on phase.
+- The new attrition lane is intentionally semantic-only for now. It proves reload lifecycle truth, not RC closure, because the remaining LLVM path still shows end-state RC drift when `std::reload` string-return surfaces are exercised heavily.
+- That drift is real follow-up work, not something to hide: a green `kain_std_reload_contract` run may still report `cases_with_closure_drift` telemetry because the lane currently validates the reload protocol while deliberately not gating on the broader string/RC leak family yet.
+- Full `cli` crate validation for this branch is still partially obscured by unrelated repo breakage in optional surfaces (`ue5*` and a `RustBuildOutput.bundle` mismatch). The reload-specific driver and attrition evidence is still good, but future cleanup should rerun the higher-level CLI tests once those unrelated blockers are removed.
+
+# 2026-05-20 - Website package registry model replaced marketplace-first flow
+
+The ignored `website/` workspace now has a registry-native backend lane for Kain packages instead of treating the public ecosystem as only products.
+
+What changed:
+
+- `website/db/schema.ts` and `website/db/migrations/012_kain_package_registry.sql`
+  - added first-class `packages`, `package_versions`, `package_artifacts`, `package_dependencies`, and `package_owners`
+  - kept `products` only as a legacy mirror/fallback and added rich product fields needed by old rows
+- `website/api/_src/packages.ts`
+  - added public `/api/packages`, `/api/packages/:idOrSlug`, `/api/packages/:idOrSlug/download`, and `/api/packages/:idOrSlug/acquire`
+  - resolves package rows into frontend-compatible catalog entries, hydrates versions/artifacts/dependencies, signs Supabase storage artifacts, and falls back to legacy products if the registry migration has not run
+- `website/api/_src/admin-packages.ts` plus `website/api/_src/admin.ts`
+  - added admin CRUD for packages, versions, artifacts, and owners under `/api/admin/packages`
+- `website/src-frontend/features/packages/*`, `PackageDetailPage.tsx`, and `productService.ts`
+  - package list/detail now call `/api/packages`
+  - package actions resolve/download artifacts directly instead of opening Stripe checkout
+  - categories/channels now include core package lanes such as runtime, platform, graphics, UI, and library
+- `packages/README.md`
+  - documents `/packages` as the stable first-party package workspace and maps blades -> package graduation to the registry nouns
+
+Validation:
+
+- `bunx tsc --project api/tsconfig.json --noEmit` in `website/` -> PASS
+- `bun --bun vite build --mode production --config vite.config.web.ts` in `website/` -> PASS
+- Full web typecheck still has old unrelated unused/WASM backlog, but no errors from the touched package files when filtered.
+
 # 2026-05-20 - LLVM floor fastpath flipped sim_uv and kept the full suite green
 
 This automation pass targeted the latest honest sim frontier after the packed two-byte substring work: `sim_uv_velocity_grid`, where the canonical `latest` report still had Kain losing to both Rust and C++ and the emitted LLVM IR was still routing every `floor(Float) -> Int` through the out-of-line runtime wrapper `kain_floor_i64`.

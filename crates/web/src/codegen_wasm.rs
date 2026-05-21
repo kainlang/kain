@@ -5,9 +5,9 @@
 use crate::c_runtime_shims::{
     wasm_c_runtime_constant, wasm_c_runtime_shim, wasm_import_signature_types, WasmCRuntimeShimKind,
 };
-use kain_core::ast::{BinaryOp, Block, CallArg, Expr, Stmt};
+use kain_core::ast::{BinaryOp, Block, CallArg, ConvergeSelector, Expr, Stmt};
 use kain_core::error::{KainError, KainResult};
-use kain_core::types::{ResolvedType, TypedFunction, TypedItem, TypedProgram};
+use kain_core::types::{ResolvedType, TypedConverge, TypedFunction, TypedItem, TypedProgram};
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use std::collections::HashMap;
 use walrus::{FunctionBuilder, InstrSeqBuilder, LocalId, Module, ModuleConfig, ValType};
@@ -159,6 +159,8 @@ struct WasmCompiler {
     module: Module,
     /// Map function names to their WASM function IDs for call resolution
     functions: HashMap<String, walrus::FunctionId>,
+    /// Top-level constants folded into wasm immediates.
+    constants: HashMap<String, WasmConstValue>,
     /// Memory ID for linear memory
     memory_id: Option<walrus::MemoryId>,
     heap_ptr_global: walrus::GlobalId,
@@ -185,6 +187,49 @@ struct WasmCompiler {
     lambda_counter: u32,
     /// Map lambda ID -> (table_index, func_id) for indirect calls
     lambda_table: HashMap<u32, (u32, walrus::FunctionId)>,
+    /// Lowered world singleton pointers in linear memory.
+    world_globals: HashMap<String, u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum WasmConstValue {
+    I64(i64),
+    I32(i32),
+    F64(f64),
+}
+
+impl WasmConstValue {
+    fn val_type(self) -> ValType {
+        match self {
+            WasmConstValue::I64(_) => ValType::I64,
+            WasmConstValue::I32(_) => ValType::I32,
+            WasmConstValue::F64(_) => ValType::F64,
+        }
+    }
+
+    fn truthy(self) -> bool {
+        match self {
+            WasmConstValue::I64(value) => value != 0,
+            WasmConstValue::I32(value) => value != 0,
+            WasmConstValue::F64(value) => value != 0.0,
+        }
+    }
+
+    fn as_i64(self) -> Option<i64> {
+        match self {
+            WasmConstValue::I64(value) => Some(value),
+            WasmConstValue::I32(value) => Some(value as i64),
+            WasmConstValue::F64(_) => None,
+        }
+    }
+
+    fn as_f64(self) -> f64 {
+        match self {
+            WasmConstValue::I64(value) => value as f64,
+            WasmConstValue::I32(value) => value as f64,
+            WasmConstValue::F64(value) => value,
+        }
+    }
 }
 
 // Separate Context from Builder to avoid self-borrow issues
@@ -192,6 +237,7 @@ struct WasmCompiler {
 struct CompilationContext<'a> {
     locals: HashMap<String, LocalId>,
     functions: &'a HashMap<String, walrus::FunctionId>,
+    constants: &'a HashMap<String, WasmConstValue>,
     string_table: &'a HashMap<String, u32>,
     struct_layouts: &'a HashMap<String, (HashMap<String, u32>, u32)>,
     enum_layouts: &'a HashMap<
@@ -204,9 +250,11 @@ struct CompilationContext<'a> {
     >,
     memory_id: walrus::MemoryId,
     heap_ptr_global: walrus::GlobalId,
+    world_globals: &'a HashMap<String, u32>,
     tmp_i32: LocalId,
     tmp_i32_2: LocalId,
     tmp_i64: LocalId,
+    tmp_f64: LocalId,
     #[allow(dead_code)]
     funcref_table: Option<walrus::TableId>,
     lambda_table: &'a HashMap<u32, (u32, walrus::FunctionId)>,
@@ -291,9 +339,7 @@ impl WasmCompiler {
         builder: &mut InstrSeqBuilder,
         expr: &Expr,
     ) -> KainResult<()> {
-        let already_i32 = self.is_string_expr(expr)
-            || self.is_i32_expr(expr)
-            || matches!(expr, Expr::Ident(name, _) if self.is_i32_local(name, &ctx.locals));
+        let already_i32 = self.expr_is_i32_in_context(ctx, expr);
         self.compile_expr(ctx, builder, expr)?;
         if !already_i32 {
             builder.unop(walrus::ir::UnaryOp::I32WrapI64);
@@ -307,9 +353,7 @@ impl WasmCompiler {
         builder: &mut InstrSeqBuilder,
         expr: &Expr,
     ) -> KainResult<()> {
-        let already_i32 = self.is_string_expr(expr)
-            || self.is_i32_expr(expr)
-            || matches!(expr, Expr::Ident(name, _) if self.is_i32_local(name, &ctx.locals));
+        let already_i32 = self.expr_is_i32_in_context(ctx, expr);
         self.compile_expr(ctx, builder, expr)?;
         if already_i32 {
             builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
@@ -635,6 +679,7 @@ impl WasmCompiler {
         Self {
             module,
             functions,
+            constants: HashMap::new(),
             memory_id: Some(memory_id),
             heap_ptr_global,
             data_offset: 0,
@@ -645,10 +690,22 @@ impl WasmCompiler {
             funcref_table: Some(funcref_table),
             lambda_counter: 0,
             lambda_table: HashMap::new(),
+            world_globals: HashMap::new(),
         }
     }
 
     fn compile_program(&mut self, program: &TypedProgram) -> KainResult<()> {
+        // First pass: fold top-level constants that can be represented as wasm immediates.
+        // LLVM already treats these as compile-time values; wasm must do the same to keep
+        // ordinary benchmark and proof blades target-portable.
+        for item in &program.items {
+            if let TypedItem::Const(constant) = item {
+                if let Some(value) = self.try_eval_const_expr(&constant.ast.value) {
+                    self.constants.insert(constant.ast.name.clone(), value);
+                }
+            }
+        }
+
         // First pass: collect struct layouts
         for item in &program.items {
             if let TypedItem::Struct(s) = item {
@@ -656,6 +713,9 @@ impl WasmCompiler {
             }
             if let TypedItem::Component(c) = item {
                 self.compute_component_layout(c);
+            }
+            if let TypedItem::World(w) = item {
+                self.compute_world_layout(w);
             }
         }
 
@@ -668,16 +728,61 @@ impl WasmCompiler {
 
         // Third pass: collect all string literals
         for item in &program.items {
-            if let TypedItem::Function(f) = item {
-                self.collect_strings_in_block(&f.ast.body);
+            match item {
+                TypedItem::Function(f) => self.collect_strings_in_block(&f.ast.body),
+                TypedItem::Patch(p) => self.collect_strings_in_block(&p.ast.body),
+                TypedItem::Law(l) => self.collect_strings_in_block(&l.ast.body),
+                TypedItem::Converge(c) => {
+                    self.collect_strings_in_block(&c.ast.spec_lane.body);
+                    for lane in &c.ast.fast_lanes {
+                        self.collect_strings_in_block(&lane.body);
+                    }
+                }
+                TypedItem::Orchestrate(o) => self.collect_strings_in_block(&o.ast.body),
+                TypedItem::World(w) => {
+                    for state in &w.ast.states {
+                        self.collect_strings_in_expr(&state.initial);
+                    }
+                }
+                TypedItem::Impl(i) => {
+                    for method in &i.ast.methods {
+                        self.collect_strings_in_block(&method.body);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for item in &program.items {
+            if let TypedItem::World(w) = item {
+                self.allocate_world(w)?;
             }
         }
 
         // Fourth pass: collect and compile all lambdas
         let mut all_lambdas = Vec::new();
         for item in &program.items {
-            if let TypedItem::Function(f) = item {
-                self.collect_lambdas_in_block(&f.ast.body, &mut all_lambdas);
+            match item {
+                TypedItem::Function(f) => {
+                    self.collect_lambdas_in_block(&f.ast.body, &mut all_lambdas)
+                }
+                TypedItem::Patch(p) => self.collect_lambdas_in_block(&p.ast.body, &mut all_lambdas),
+                TypedItem::Law(l) => self.collect_lambdas_in_block(&l.ast.body, &mut all_lambdas),
+                TypedItem::Converge(c) => {
+                    self.collect_lambdas_in_block(&c.ast.spec_lane.body, &mut all_lambdas);
+                    for lane in &c.ast.fast_lanes {
+                        self.collect_lambdas_in_block(&lane.body, &mut all_lambdas);
+                    }
+                }
+                TypedItem::Orchestrate(o) => {
+                    self.collect_lambdas_in_block(&o.ast.body, &mut all_lambdas)
+                }
+                TypedItem::Impl(i) => {
+                    for method in &i.ast.methods {
+                        self.collect_lambdas_in_block(&method.body, &mut all_lambdas);
+                    }
+                }
+                _ => {}
             }
         }
         // Compile each lambda to a WASM function
@@ -687,8 +792,14 @@ impl WasmCompiler {
 
         // Fifth pass: declare functions (recursion support)
         for item in &program.items {
-            if let TypedItem::Function(f) = item {
-                self.declare_function(f)?;
+            match item {
+                TypedItem::Function(f) => self.declare_function(f)?,
+                TypedItem::Patch(p) => self.declare_patch(p)?,
+                TypedItem::Law(l) => self.declare_law(l)?,
+                TypedItem::Converge(c) => self.declare_converge(c)?,
+                TypedItem::Orchestrate(o) => self.declare_orchestrate(o)?,
+                TypedItem::Impl(i) => self.declare_impl_methods(i)?,
+                _ => {}
             }
         }
 
@@ -697,6 +808,21 @@ impl WasmCompiler {
             match item {
                 TypedItem::Function(f) => {
                     self.compile_function_body(f)?;
+                }
+                TypedItem::Patch(p) => {
+                    self.compile_patch_body(p)?;
+                }
+                TypedItem::Law(l) => {
+                    self.compile_law_body(l)?;
+                }
+                TypedItem::Converge(c) => {
+                    self.compile_converge_body(c)?;
+                }
+                TypedItem::Orchestrate(o) => {
+                    self.compile_orchestrate_body(o)?;
+                }
+                TypedItem::Impl(i) => {
+                    self.compile_impl_methods(i)?;
                 }
                 _ => {}
             }
@@ -755,6 +881,67 @@ impl WasmCompiler {
             .insert(c.ast.name.clone(), (field_offsets, total_size));
     }
 
+    fn compute_world_layout(&mut self, world: &kain_core::types::TypedWorld) {
+        let mut offset = 0u32;
+        let mut field_offsets = HashMap::new();
+
+        for state in &world.ast.states {
+            offset = (offset + 3) & !3;
+            field_offsets.insert(state.name.clone(), offset);
+            offset += self.ast_type_size_of(&state.ty);
+        }
+
+        let total_size = (offset + 3) & !3;
+        self.struct_layouts
+            .insert(world.ast.name.clone(), (field_offsets, total_size));
+    }
+
+    fn allocate_world(&mut self, world: &kain_core::types::TypedWorld) -> KainResult<()> {
+        let Some((field_offsets, total_size)) = self.struct_layouts.get(&world.ast.name).cloned() else {
+            return Err(KainError::codegen(
+                format!("World '{}' layout not found", world.ast.name),
+                world.ast.span,
+            ));
+        };
+
+        let base = self.data_offset;
+        let mut data = vec![0u8; total_size as usize];
+
+        for state in &world.ast.states {
+            let Some(&offset) = field_offsets.get(&state.name) else {
+                continue;
+            };
+            if let Expr::String(value, _) = &state.initial {
+                if let Some(string_offset) = self.string_table.get(value) {
+                    let ptr = (*string_offset + 4) as i32;
+                    let start = offset as usize;
+                    if start + 4 <= data.len() {
+                        data[start..start + 4].copy_from_slice(&ptr.to_le_bytes());
+                    }
+                }
+                continue;
+            }
+            if let Some(value) = self.try_eval_const_expr(&state.initial) {
+                self.write_const_bytes(&mut data, offset as usize, &value);
+            }
+        }
+
+        if let Some(memory_id) = self.memory_id {
+            self.module.data.add(
+                walrus::DataKind::Active {
+                    memory: memory_id,
+                    offset: walrus::ConstExpr::Value(walrus::ir::Value::I32(base as i32)),
+                },
+                data,
+            );
+        }
+
+        self.world_globals.insert(world.ast.name.clone(), base);
+        self.data_offset += total_size;
+        self.data_offset = (self.data_offset + 7) & !7;
+        Ok(())
+    }
+
     fn compile_component(&mut self, c: &kain_core::types::TypedComponent) -> KainResult<()> {
         let render_name = format!("{}_render", c.ast.name);
 
@@ -770,6 +957,7 @@ impl WasmCompiler {
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
         let tmp_i64 = self.module.locals.add(ValType::I64);
+        let tmp_f64 = self.module.locals.add(ValType::F64);
 
         let mut locals_map = HashMap::new();
         locals_map.insert("self".to_string(), self_local);
@@ -777,14 +965,17 @@ impl WasmCompiler {
         let ctx = CompilationContext {
             locals: locals_map,
             functions: &self.functions,
+            constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
+            world_globals: &self.world_globals,
             tmp_i32,
             tmp_i32_2,
             tmp_i64,
+            tmp_f64,
             funcref_table: self.funcref_table,
             lambda_table: &self.lambda_table,
         };
@@ -874,6 +1065,33 @@ impl WasmCompiler {
         }
     }
 
+    fn ast_type_size_of(&self, ty: &kain_core::ast::Type) -> u32 {
+        match ty {
+            kain_core::ast::Type::Named { name, .. } => match name.as_str() {
+                "Bool" => 4,
+                "Int" | "I64" | "U64" | "Isize" | "Usize" => 8,
+                "I32" | "U32" | "Float32" | "F32" => 4,
+                "I16" | "U16" => 2,
+                "I8" | "U8" | "Char" => 1,
+                "Float" | "Float64" | "F64" => 8,
+                "String" => 4,
+                _ => 4,
+            },
+            kain_core::ast::Type::Array(_, len, _) => 4 + (*len as u32 * 8),
+            kain_core::ast::Type::Tuple(types, _) => (types.len() as u32) * 8,
+            kain_core::ast::Type::Ref { .. }
+            | kain_core::ast::Type::Ptr { .. }
+            | kain_core::ast::Type::Function { .. }
+            | kain_core::ast::Type::Option(_, _)
+            | kain_core::ast::Type::Result(_, _, _)
+            | kain_core::ast::Type::Impl { .. } => 4,
+            kain_core::ast::Type::Slice(_, _) => 8,
+            kain_core::ast::Type::Infer(_)
+            | kain_core::ast::Type::Never(_)
+            | kain_core::ast::Type::Unit(_) => 0,
+        }
+    }
+
     /// Emit bump allocator: allocates `size` bytes, returns pointer to start
     /// Stack effect: [] -> [i32 pointer]
     ///
@@ -898,6 +1116,142 @@ impl WasmCompiler {
         builder.global_set(ctx.heap_ptr_global);
 
         // Stack now has: [old_ptr] - which is our allocated address
+    }
+
+    fn emit_const_value(&self, builder: &mut InstrSeqBuilder, value: WasmConstValue) {
+        match value {
+            WasmConstValue::I64(value) => builder.i64_const(value),
+            WasmConstValue::I32(value) => builder.i32_const(value),
+            WasmConstValue::F64(value) => builder.f64_const(value),
+        };
+    }
+
+    fn write_const_bytes(&self, data: &mut [u8], offset: usize, value: &WasmConstValue) {
+        match value {
+            WasmConstValue::I64(value) => {
+                if offset + 8 <= data.len() {
+                    data[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+                }
+            }
+            WasmConstValue::I32(value) => {
+                if offset + 4 <= data.len() {
+                    data[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+                }
+            }
+            WasmConstValue::F64(value) => {
+                if offset + 8 <= data.len() {
+                    data[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+                }
+            }
+        }
+    }
+
+    fn try_eval_const_expr(&self, expr: &Expr) -> Option<WasmConstValue> {
+        match expr {
+            Expr::Int(value, _) => Some(WasmConstValue::I64(*value)),
+            Expr::Float(value, _) => Some(WasmConstValue::F64(*value)),
+            Expr::Bool(value, _) => Some(WasmConstValue::I32(if *value { 1 } else { 0 })),
+            Expr::Ident(name, _) => self
+                .constants
+                .get(name)
+                .copied()
+                .or_else(|| wasm_c_runtime_constant(name).map(WasmConstValue::I64)),
+            Expr::Paren(inner, _) => self.try_eval_const_expr(inner),
+            Expr::Unary { op, operand, .. } => {
+                let value = self.try_eval_const_expr(operand)?;
+                match op {
+                    kain_core::ast::UnaryOp::Neg => match value {
+                        WasmConstValue::I64(value) => {
+                            Some(WasmConstValue::I64(value.wrapping_neg()))
+                        }
+                        WasmConstValue::I32(value) => {
+                            Some(WasmConstValue::I64((value as i64).wrapping_neg()))
+                        }
+                        WasmConstValue::F64(value) => Some(WasmConstValue::F64(-value)),
+                    },
+                    kain_core::ast::UnaryOp::Not => {
+                        Some(WasmConstValue::I32(if value.truthy() { 0 } else { 1 }))
+                    }
+                    kain_core::ast::UnaryOp::BitNot => Some(WasmConstValue::I64(!value.as_i64()?)),
+                    _ => None,
+                }
+            }
+            Expr::Binary {
+                left, op, right, ..
+            } => {
+                let left = self.try_eval_const_expr(left)?;
+                let right = self.try_eval_const_expr(right)?;
+                self.eval_const_binary(left, *op, right)
+            }
+            _ => None,
+        }
+    }
+
+    fn eval_const_binary(
+        &self,
+        left: WasmConstValue,
+        op: BinaryOp,
+        right: WasmConstValue,
+    ) -> Option<WasmConstValue> {
+        if matches!(left, WasmConstValue::F64(_)) || matches!(right, WasmConstValue::F64(_)) {
+            let l = left.as_f64();
+            let r = right.as_f64();
+            return match op {
+                BinaryOp::Add => Some(WasmConstValue::F64(l + r)),
+                BinaryOp::Sub => Some(WasmConstValue::F64(l - r)),
+                BinaryOp::Mul => Some(WasmConstValue::F64(l * r)),
+                BinaryOp::Div => Some(WasmConstValue::F64(l / r)),
+                BinaryOp::Eq => Some(WasmConstValue::I32(if l == r { 1 } else { 0 })),
+                BinaryOp::Ne => Some(WasmConstValue::I32(if l != r { 1 } else { 0 })),
+                BinaryOp::Lt => Some(WasmConstValue::I32(if l < r { 1 } else { 0 })),
+                BinaryOp::Gt => Some(WasmConstValue::I32(if l > r { 1 } else { 0 })),
+                BinaryOp::Le => Some(WasmConstValue::I32(if l <= r { 1 } else { 0 })),
+                BinaryOp::Ge => Some(WasmConstValue::I32(if l >= r { 1 } else { 0 })),
+                BinaryOp::And => Some(WasmConstValue::I32(if left.truthy() && right.truthy() {
+                    1
+                } else {
+                    0
+                })),
+                BinaryOp::Or => Some(WasmConstValue::I32(if left.truthy() || right.truthy() {
+                    1
+                } else {
+                    0
+                })),
+                _ => None,
+            };
+        }
+
+        let l = left.as_i64()?;
+        let r = right.as_i64()?;
+        match op {
+            BinaryOp::Add => Some(WasmConstValue::I64(l.wrapping_add(r))),
+            BinaryOp::Sub => Some(WasmConstValue::I64(l.wrapping_sub(r))),
+            BinaryOp::Mul => Some(WasmConstValue::I64(l.wrapping_mul(r))),
+            BinaryOp::Div if r != 0 => Some(WasmConstValue::I64(l.wrapping_div(r))),
+            BinaryOp::Mod if r != 0 => Some(WasmConstValue::I64(l.wrapping_rem(r))),
+            BinaryOp::Eq => Some(WasmConstValue::I32(if l == r { 1 } else { 0 })),
+            BinaryOp::Ne => Some(WasmConstValue::I32(if l != r { 1 } else { 0 })),
+            BinaryOp::Lt => Some(WasmConstValue::I32(if l < r { 1 } else { 0 })),
+            BinaryOp::Gt => Some(WasmConstValue::I32(if l > r { 1 } else { 0 })),
+            BinaryOp::Le => Some(WasmConstValue::I32(if l <= r { 1 } else { 0 })),
+            BinaryOp::Ge => Some(WasmConstValue::I32(if l >= r { 1 } else { 0 })),
+            BinaryOp::And => Some(WasmConstValue::I32(if left.truthy() && right.truthy() {
+                1
+            } else {
+                0
+            })),
+            BinaryOp::Or => Some(WasmConstValue::I32(if left.truthy() || right.truthy() {
+                1
+            } else {
+                0
+            })),
+            BinaryOp::BitAnd => Some(WasmConstValue::I64(l & r)),
+            BinaryOp::BitOr => Some(WasmConstValue::I64(l | r)),
+            BinaryOp::BitXor => Some(WasmConstValue::I64(l ^ r)),
+            BinaryOp::Shl => Some(WasmConstValue::I64(l.wrapping_shl((r & 63) as u32))),
+            BinaryOp::Shr => Some(WasmConstValue::I64(l.wrapping_shr((r & 63) as u32))),
+            _ => None,
+        }
     }
 
     fn collect_strings_in_block(&mut self, block: &Block) {
@@ -932,11 +1286,38 @@ impl WasmCompiler {
                 self.collect_strings_in_expr(left);
                 self.collect_strings_in_expr(right);
             }
-            Expr::Call { args, .. } => {
+            Expr::Assign { target, value, .. } => {
+                self.collect_strings_in_expr(target);
+                self.collect_strings_in_expr(value);
+            }
+            Expr::Paren(inner, _) => self.collect_strings_in_expr(inner),
+            Expr::Call { callee, args, .. } => {
+                self.collect_strings_in_expr(callee);
                 for arg in args {
                     self.collect_strings_in_expr(&arg.value);
                 }
             }
+            Expr::StageCall { args, .. } => {
+                for arg in args {
+                    self.collect_strings_in_expr(&arg.value);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.collect_strings_in_expr(receiver);
+                for arg in args {
+                    self.collect_strings_in_expr(&arg.value);
+                }
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.collect_strings_in_expr(target);
+                self.collect_strings_in_expr(body);
+            }
+            Expr::Teleport { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => self.collect_strings_in_expr(value),
             Expr::If {
                 condition,
                 then_branch,
@@ -1104,8 +1485,18 @@ impl WasmCompiler {
             Expr::Unary { operand, .. } => {
                 self.collect_lambdas_in_expr(operand, lambdas);
             }
+            Expr::Assign { target, value, .. } => {
+                self.collect_lambdas_in_expr(target, lambdas);
+                self.collect_lambdas_in_expr(value, lambdas);
+            }
+            Expr::Paren(inner, _) => self.collect_lambdas_in_expr(inner, lambdas),
             Expr::Call { callee, args, .. } => {
                 self.collect_lambdas_in_expr(callee, lambdas);
+                for arg in args {
+                    self.collect_lambdas_in_expr(&arg.value, lambdas);
+                }
+            }
+            Expr::StageCall { args, .. } => {
                 for arg in args {
                     self.collect_lambdas_in_expr(&arg.value, lambdas);
                 }
@@ -1116,6 +1507,16 @@ impl WasmCompiler {
                     self.collect_lambdas_in_expr(&arg.value, lambdas);
                 }
             }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.collect_lambdas_in_expr(target, lambdas);
+                self.collect_lambdas_in_expr(body, lambdas);
+            }
+            Expr::Teleport { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => self.collect_lambdas_in_expr(value, lambdas),
             Expr::If {
                 condition,
                 then_branch,
@@ -1197,18 +1598,22 @@ impl WasmCompiler {
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
         let tmp_i64 = self.module.locals.add(ValType::I64);
+        let tmp_f64 = self.module.locals.add(ValType::F64);
 
         let ctx = CompilationContext {
             locals,
             functions: &self.functions,
+            constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
+            world_globals: &self.world_globals,
             tmp_i32,
             tmp_i32_2,
             tmp_i64,
+            tmp_f64,
             funcref_table: self.funcref_table,
             lambda_table: &self.lambda_table,
         };
@@ -1244,11 +1649,61 @@ impl WasmCompiler {
     }
 
     fn declare_function(&mut self, func: &TypedFunction) -> KainResult<()> {
+        self.declare_resolved_callable(
+            &func.ast.name,
+            &func.resolved_type,
+            matches!(func.ast.visibility, kain_core::ast::Visibility::Public),
+            func.ast.name == "main",
+            func.ast.span,
+        )
+    }
+
+    fn declare_patch(&mut self, patch: &kain_core::types::TypedPatch) -> KainResult<()> {
+        self.declare_resolved_callable(
+            &patch.ast.name,
+            &patch.resolved_type,
+            matches!(patch.ast.visibility, kain_core::ast::Visibility::Public),
+            patch.ast.name == "main",
+            patch.ast.span,
+        )
+    }
+
+    fn declare_law(&mut self, law: &kain_core::types::TypedLaw) -> KainResult<()> {
+        self.declare_resolved_callable(
+            &law.ast.name,
+            &law.resolved_type,
+            matches!(law.ast.visibility, kain_core::ast::Visibility::Public),
+            law.ast.name == "main",
+            law.ast.span,
+        )
+    }
+
+    fn declare_orchestrate(
+        &mut self,
+        orchestrate: &kain_core::types::TypedOrchestrate,
+    ) -> KainResult<()> {
+        self.declare_resolved_callable(
+            &orchestrate.ast.name,
+            &orchestrate.resolved_type,
+            matches!(orchestrate.ast.visibility, kain_core::ast::Visibility::Public),
+            orchestrate.ast.name == "main",
+            orchestrate.ast.span,
+        )
+    }
+
+    fn declare_resolved_callable(
+        &mut self,
+        name: &str,
+        resolved_type: &ResolvedType,
+        is_public: bool,
+        is_main: bool,
+        span: kain_core::span::Span,
+    ) -> KainResult<()> {
         let (param_types, ret_type) =
-            if let ResolvedType::Function { params, ret, .. } = &func.resolved_type {
+            if let ResolvedType::Function { params, ret, .. } = resolved_type {
                 (params, ret)
             } else {
-                return Err(KainError::codegen("Expected function type", func.ast.span));
+                return Err(KainError::codegen("Expected function type", span));
             };
 
         let wasm_params: Vec<ValType> = param_types.iter().map(|t| self.map_type(t)).collect();
@@ -1258,33 +1713,139 @@ impl WasmCompiler {
             vec![self.map_type(ret_type)]
         };
 
-        // Use FunctionBuilder to create the function correctly with empty body
         let builder = FunctionBuilder::new(&mut self.module.types, &wasm_params, &wasm_results);
-
-        // Create parameter locals manually to pass to finish
         let mut param_local_ids = Vec::new();
         for &param_type in &wasm_params {
             param_local_ids.push(self.module.locals.add(param_type));
         }
 
         let func_id = builder.finish(param_local_ids, &mut self.module.funcs);
-        self.functions.insert(func.ast.name.clone(), func_id);
+        self.functions.insert(name.to_string(), func_id);
+        if is_public || is_main {
+            self.module.exports.add(name, func_id);
+        }
+        Ok(())
+    }
 
-        if matches!(func.ast.visibility, kain_core::ast::Visibility::Public) {
-            self.module.exports.add(&func.ast.name, func_id);
+    fn declare_authored_callable(
+        &mut self,
+        name: &str,
+        params: &[kain_core::ast::Param],
+        return_type: Option<&kain_core::ast::Type>,
+        is_public: bool,
+        is_main: bool,
+    ) -> KainResult<()> {
+        let wasm_params: Vec<ValType> = params
+            .iter()
+            .map(|param| self.map_authored_type(&param.ty))
+            .collect();
+        let wasm_results = match return_type {
+            Some(ty) if !matches!(ty, kain_core::ast::Type::Unit(_)) => vec![self.map_authored_type(ty)],
+            _ => vec![],
+        };
+
+        let builder = FunctionBuilder::new(&mut self.module.types, &wasm_params, &wasm_results);
+        let mut param_local_ids = Vec::new();
+        for &param_type in &wasm_params {
+            param_local_ids.push(self.module.locals.add(param_type));
+        }
+        let func_id = builder.finish(param_local_ids, &mut self.module.funcs);
+        self.functions.insert(name.to_string(), func_id);
+        if is_public || is_main {
+            self.module.exports.add(name, func_id);
+        }
+        Ok(())
+    }
+
+    fn impl_method_name(&self, target_type: &kain_core::ast::Type, method_name: &str) -> String {
+        match target_type {
+            kain_core::ast::Type::Named { name, .. } => format!("{name}.{method_name}"),
+            _ => method_name.to_string(),
+        }
+    }
+
+    fn declare_impl_methods(&mut self, impl_block: &kain_core::types::TypedImpl) -> KainResult<()> {
+        for method in &impl_block.ast.methods {
+            let qualified = self.impl_method_name(&impl_block.ast.target_type, &method.name);
+            self.declare_authored_callable(
+                &qualified,
+                &method.params,
+                method.return_type.as_ref(),
+                matches!(method.visibility, kain_core::ast::Visibility::Public),
+                false,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn declare_converge(&mut self, converge: &TypedConverge) -> KainResult<()> {
+        let (param_types, ret_type) =
+            if let ResolvedType::Function { params, ret, .. } = &converge.resolved_type {
+                (params, ret)
+            } else {
+                return Err(KainError::codegen(
+                    "Expected converge function type",
+                    converge.ast.span,
+                ));
+            };
+
+        let wasm_params: Vec<ValType> = param_types.iter().map(|t| self.map_type(t)).collect();
+        let wasm_results = if **ret_type == ResolvedType::Unit {
+            vec![]
+        } else {
+            vec![self.map_type(ret_type)]
+        };
+
+        let builder = FunctionBuilder::new(&mut self.module.types, &wasm_params, &wasm_results);
+        let mut param_local_ids = Vec::new();
+        for &param_type in &wasm_params {
+            param_local_ids.push(self.module.locals.add(param_type));
+        }
+
+        let func_id = builder.finish(param_local_ids, &mut self.module.funcs);
+        self.functions.insert(converge.ast.name.clone(), func_id);
+
+        if matches!(converge.ast.visibility, kain_core::ast::Visibility::Public)
+            || converge.ast.name == "main"
+        {
+            self.module.exports.add(&converge.ast.name, func_id);
         }
 
         Ok(())
     }
 
-    fn compile_function_body(&mut self, func: &TypedFunction) -> KainResult<()> {
-        let func_id = *self.functions.get(&func.ast.name).unwrap();
+    fn converge_target_matches_wasm(target: &str) -> bool {
+        matches!(
+            target.to_ascii_lowercase().as_str(),
+            "wasm" | "webassembly" | "web" | "browser" | "kain.wasm" | "wasm32"
+        )
+    }
+
+    fn selected_converge_body<'a>(&self, converge: &'a TypedConverge) -> &'a Block {
+        converge
+            .ast
+            .fast_lanes
+            .iter()
+            .find(|lane| {
+                matches!(
+                    lane.selector.as_ref(),
+                    Some(ConvergeSelector::Target(target))
+                        if Self::converge_target_matches_wasm(target)
+                )
+            })
+            .map(|lane| &lane.body)
+            .unwrap_or(&converge.ast.spec_lane.body)
+    }
+
+    fn compile_converge_body(&mut self, converge: &TypedConverge) -> KainResult<()> {
+        let func_id = *self.functions.get(&converge.ast.name).unwrap();
+        let body = self.selected_converge_body(converge);
 
         let (param_types, ret_type) =
-            if let ResolvedType::Function { params, ret, .. } = &func.resolved_type {
+            if let ResolvedType::Function { params, ret, .. } = &converge.resolved_type {
                 (params, ret)
             } else {
-                return Ok(()); // Should have failed in declare
+                return Ok(());
             };
 
         let wasm_params: Vec<ValType> = param_types.iter().map(|t| self.map_type(t)).collect();
@@ -1299,41 +1860,41 @@ impl WasmCompiler {
         let mut text_locals_map = HashMap::new();
         let mut param_local_ids = Vec::new();
 
-        // 1. Argument Locals
-        for (i, param) in func.ast.params.iter().enumerate() {
+        for (i, param) in converge.ast.params.iter().enumerate() {
             let local_id = self.module.locals.add(wasm_params[i]);
             text_locals_map.insert(param.name.clone(), local_id);
             param_local_ids.push(local_id);
         }
 
-        // 2. Scan body for Let bindings and pre-allocate locals
-        self.preallocate_locals(&func.ast.body, &mut text_locals_map);
+        self.preallocate_locals(body, &mut text_locals_map);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
         let tmp_i64 = self.module.locals.add(ValType::I64);
+        let tmp_f64 = self.module.locals.add(ValType::F64);
 
         let ctx = CompilationContext {
             locals: text_locals_map,
             functions: &self.functions,
+            constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
+            world_globals: &self.world_globals,
             tmp_i32,
             tmp_i32_2,
             tmp_i64,
+            tmp_f64,
             funcref_table: self.funcref_table,
             lambda_table: &self.lambda_table,
         };
 
-        // 3. Compile body
         let mut func_body = builder.func_body();
-        self.compile_block(&ctx, &mut func_body, &func.ast.body)?;
+        self.compile_block(&ctx, &mut func_body, body)?;
 
-        // Return default value if needed
-        if func.ast.body.stmts.is_empty() && !wasm_results.is_empty() {
+        if body.stmts.is_empty() && !wasm_results.is_empty() {
             match wasm_results[0] {
                 ValType::I64 => func_body.i64_const(0),
                 ValType::I32 => func_body.i32_const(0),
@@ -1343,13 +1904,17 @@ impl WasmCompiler {
             };
         }
 
-        // Finish the builder to get a NEW function ID with the compiled body
         let temp_func_id = builder.finish(param_local_ids, &mut self.module.funcs);
+        self.replace_reserved_function_body(func_id, temp_func_id);
 
-        // 4. Move body from temp function to the reserved function
-        // We use a dummy ImportFunction kind to facilitate the swap,
-        // derived from a dummy Global import to avoid circular dependencies with Function imports.
+        Ok(())
+    }
 
+    fn replace_reserved_function_body(
+        &mut self,
+        reserved_func_id: walrus::FunctionId,
+        temp_func_id: walrus::FunctionId,
+    ) {
         let dummy_type = self.module.types.add(&[], &[]);
         let (_dummy_global_id, dummy_import_id) =
             self.module
@@ -1360,19 +1925,205 @@ impl WasmCompiler {
             ty: dummy_type,
         });
 
-        // Swap out the new body from temp_func
         let new_func = self.module.funcs.get_mut(temp_func_id);
         let new_kind = std::mem::replace(&mut new_func.kind, dummy_kind);
 
-        // Swap in the new body to the old function
-        let old_func = self.module.funcs.get_mut(func_id);
+        let old_func = self.module.funcs.get_mut(reserved_func_id);
         let _old_kind = std::mem::replace(&mut old_func.kind, new_kind);
 
-        // Clean up
         self.module.funcs.delete(temp_func_id);
         self.module.imports.delete(dummy_import_id);
-        // Globals cleanup? module.globals.delete(_dummy_global_id)?
+    }
 
+    fn compile_function_body(&mut self, func: &TypedFunction) -> KainResult<()> {
+        self.compile_resolved_callable_body(
+            &func.ast.name,
+            &func.ast.params,
+            &func.ast.body,
+            &func.resolved_type,
+        )
+    }
+
+    fn compile_patch_body(&mut self, patch: &kain_core::types::TypedPatch) -> KainResult<()> {
+        self.compile_resolved_callable_body(
+            &patch.ast.name,
+            &patch.ast.params,
+            &patch.ast.body,
+            &patch.resolved_type,
+        )
+    }
+
+    fn compile_law_body(&mut self, law: &kain_core::types::TypedLaw) -> KainResult<()> {
+        self.compile_resolved_callable_body(
+            &law.ast.name,
+            &law.ast.params,
+            &law.ast.body,
+            &law.resolved_type,
+        )
+    }
+
+    fn compile_orchestrate_body(
+        &mut self,
+        orchestrate: &kain_core::types::TypedOrchestrate,
+    ) -> KainResult<()> {
+        self.compile_resolved_callable_body(
+            &orchestrate.ast.name,
+            &orchestrate.ast.params,
+            &orchestrate.ast.body,
+            &orchestrate.resolved_type,
+        )
+    }
+
+    fn compile_resolved_callable_body(
+        &mut self,
+        name: &str,
+        params: &[kain_core::ast::Param],
+        body: &Block,
+        resolved_type: &ResolvedType,
+    ) -> KainResult<()> {
+        let func_id = *self.functions.get(name).unwrap();
+
+        let (param_types, ret_type) =
+            if let ResolvedType::Function { params, ret, .. } = resolved_type {
+                (params, ret)
+            } else {
+                return Ok(());
+            };
+
+        let wasm_params: Vec<ValType> = param_types.iter().map(|t| self.map_type(t)).collect();
+        let wasm_results = if **ret_type == ResolvedType::Unit {
+            vec![]
+        } else {
+            vec![self.map_type(ret_type)]
+        };
+
+        let mut builder = FunctionBuilder::new(&mut self.module.types, &wasm_params, &wasm_results);
+        let mut text_locals_map = HashMap::new();
+        let mut param_local_ids = Vec::new();
+        for (i, param) in params.iter().enumerate() {
+            let local_id = self.module.locals.add(wasm_params[i]);
+            text_locals_map.insert(param.name.clone(), local_id);
+            param_local_ids.push(local_id);
+        }
+
+        self.preallocate_locals(body, &mut text_locals_map);
+
+        let tmp_i32 = self.module.locals.add(ValType::I32);
+        let tmp_i32_2 = self.module.locals.add(ValType::I32);
+        let tmp_i64 = self.module.locals.add(ValType::I64);
+        let tmp_f64 = self.module.locals.add(ValType::F64);
+
+        let ctx = CompilationContext {
+            locals: text_locals_map,
+            functions: &self.functions,
+            constants: &self.constants,
+            string_table: &self.string_table,
+            struct_layouts: &self.struct_layouts,
+            enum_layouts: &self.enum_layouts,
+            memory_id: self.memory_id.unwrap(),
+            heap_ptr_global: self.heap_ptr_global,
+            world_globals: &self.world_globals,
+            tmp_i32,
+            tmp_i32_2,
+            tmp_i64,
+            tmp_f64,
+            funcref_table: self.funcref_table,
+            lambda_table: &self.lambda_table,
+        };
+
+        let mut func_body = builder.func_body();
+        self.compile_block(&ctx, &mut func_body, body)?;
+        if body.stmts.is_empty() && !wasm_results.is_empty() {
+            match wasm_results[0] {
+                ValType::I64 => func_body.i64_const(0),
+                ValType::I32 => func_body.i32_const(0),
+                ValType::F64 => func_body.f64_const(0.0),
+                ValType::F32 => func_body.f32_const(0.0),
+                _ => func_body.i64_const(0),
+            };
+        }
+
+        let temp_func_id = builder.finish(param_local_ids, &mut self.module.funcs);
+        self.replace_reserved_function_body(func_id, temp_func_id);
+        Ok(())
+    }
+
+    fn compile_impl_methods(&mut self, impl_block: &kain_core::types::TypedImpl) -> KainResult<()> {
+        for method in &impl_block.ast.methods {
+            let qualified = self.impl_method_name(&impl_block.ast.target_type, &method.name);
+            self.compile_authored_callable_body(
+                &qualified,
+                &method.params,
+                method.return_type.as_ref(),
+                &method.body,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn compile_authored_callable_body(
+        &mut self,
+        name: &str,
+        params: &[kain_core::ast::Param],
+        return_type: Option<&kain_core::ast::Type>,
+        body: &Block,
+    ) -> KainResult<()> {
+        let func_id = *self.functions.get(name).unwrap();
+        let wasm_params: Vec<ValType> = params
+            .iter()
+            .map(|param| self.map_authored_type(&param.ty))
+            .collect();
+        let wasm_results = match return_type {
+            Some(ty) if !matches!(ty, kain_core::ast::Type::Unit(_)) => vec![self.map_authored_type(ty)],
+            _ => vec![],
+        };
+
+        let mut builder = FunctionBuilder::new(&mut self.module.types, &wasm_params, &wasm_results);
+        let mut locals = HashMap::new();
+        let mut param_local_ids = Vec::new();
+        for (i, param) in params.iter().enumerate() {
+            let local_id = self.module.locals.add(wasm_params[i]);
+            locals.insert(param.name.clone(), local_id);
+            param_local_ids.push(local_id);
+        }
+        self.preallocate_locals(body, &mut locals);
+
+        let tmp_i32 = self.module.locals.add(ValType::I32);
+        let tmp_i32_2 = self.module.locals.add(ValType::I32);
+        let tmp_i64 = self.module.locals.add(ValType::I64);
+        let tmp_f64 = self.module.locals.add(ValType::F64);
+        let ctx = CompilationContext {
+            locals,
+            functions: &self.functions,
+            constants: &self.constants,
+            string_table: &self.string_table,
+            struct_layouts: &self.struct_layouts,
+            enum_layouts: &self.enum_layouts,
+            memory_id: self.memory_id.unwrap(),
+            heap_ptr_global: self.heap_ptr_global,
+            world_globals: &self.world_globals,
+            tmp_i32,
+            tmp_i32_2,
+            tmp_i64,
+            tmp_f64,
+            funcref_table: self.funcref_table,
+            lambda_table: &self.lambda_table,
+        };
+
+        let mut func_body = builder.func_body();
+        self.compile_block(&ctx, &mut func_body, body)?;
+        if body.stmts.is_empty() && !wasm_results.is_empty() {
+            match wasm_results[0] {
+                ValType::I64 => func_body.i64_const(0),
+                ValType::I32 => func_body.i32_const(0),
+                ValType::F64 => func_body.f64_const(0.0),
+                ValType::F32 => func_body.f32_const(0.0),
+                _ => func_body.i64_const(0),
+            };
+        }
+
+        let temp_func_id = builder.finish(param_local_ids, &mut self.module.funcs);
+        self.replace_reserved_function_body(func_id, temp_func_id);
         Ok(())
     }
 
@@ -1425,6 +2176,32 @@ impl WasmCompiler {
         }
     }
 
+    fn map_authored_type(&self, ty: &kain_core::ast::Type) -> ValType {
+        match ty {
+            kain_core::ast::Type::Named { name, .. } => match name.as_str() {
+                "Bool" => ValType::I32,
+                "Float" | "Float64" | "F64" => ValType::F64,
+                "String" => ValType::I32,
+                "Int" | "I64" | "U64" | "I32" | "U32" | "I16" | "U16" | "I8" | "U8" => {
+                    ValType::I64
+                }
+                _ => ValType::I32,
+            },
+            kain_core::ast::Type::Ref { .. }
+            | kain_core::ast::Type::Ptr { .. }
+            | kain_core::ast::Type::Array(_, _, _)
+            | kain_core::ast::Type::Slice(_, _)
+            | kain_core::ast::Type::Option(_, _)
+            | kain_core::ast::Type::Result(_, _, _)
+            | kain_core::ast::Type::Impl { .. } => ValType::I32,
+            kain_core::ast::Type::Tuple(_, _)
+            | kain_core::ast::Type::Function { .. }
+            | kain_core::ast::Type::Infer(_)
+            | kain_core::ast::Type::Never(_)
+            | kain_core::ast::Type::Unit(_) => ValType::I64,
+        }
+    }
+
     // Infer WASM ValType from an expression (for local allocation)
     fn infer_wasm_type(&self, expr: &Expr) -> ValType {
         match expr {
@@ -1432,7 +2209,21 @@ impl WasmCompiler {
             Expr::Float(_, _) => ValType::F64,
             Expr::Bool(_, _) => ValType::I32,
             Expr::String(_, _) => ValType::I32,
+            Expr::Ident(name, _) if self.world_globals.contains_key(name) => ValType::I32,
             Expr::JSX(_, _) => ValType::I32, // JSX nodes are DOM element IDs (i32)
+            Expr::Array(_, _)
+            | Expr::Tuple(_, _)
+            | Expr::Struct { .. }
+            | Expr::AggregateInit { .. }
+            | Expr::EnumVariant { .. } => ValType::I32,
+            Expr::Paren(inner, _) => self.infer_wasm_type(inner),
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => self.infer_wasm_type(body),
+            Expr::Teleport { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => self.infer_wasm_type(value),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     // Component calls return i32 (DOM node IDs)
@@ -1532,6 +2323,86 @@ impl WasmCompiler {
         Ok(())
     }
 
+    fn temp_local_for_expr(&self, ctx: &CompilationContext, expr: &Expr) -> LocalId {
+        match self.infer_wasm_type(expr) {
+            ValType::I32 => ctx.tmp_i32,
+            ValType::F64 => ctx.tmp_f64,
+            _ => ctx.tmp_i64,
+        }
+    }
+
+    fn compile_field_address(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        object: &Expr,
+        field: &str,
+        span: kain_core::span::Span,
+    ) -> KainResult<()> {
+        self.compile_expr_as_i32(ctx, builder, object)?;
+
+        let mut field_offset = None;
+        for (_struct_name, (offsets, _size)) in ctx.struct_layouts.iter() {
+            if let Some(&offset) = offsets.get(field) {
+                field_offset = Some(offset);
+                break;
+            }
+        }
+
+        if let Some(offset) = field_offset {
+            if offset > 0 {
+                builder.i32_const(offset as i32);
+                builder.binop(walrus::ir::BinaryOp::I32Add);
+            }
+            Ok(())
+        } else {
+            Err(KainError::codegen(
+                format!("Field '{}' layout not found", field),
+                span,
+            ))
+        }
+    }
+
+    fn emit_store_for_val_type(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        val_type: ValType,
+        offset: u32,
+    ) {
+        match val_type {
+            ValType::I32 => builder.store(
+                ctx.memory_id,
+                walrus::ir::StoreKind::I32 { atomic: false },
+                walrus::ir::MemArg { align: 4, offset },
+            ),
+            ValType::F64 => builder.store(
+                ctx.memory_id,
+                walrus::ir::StoreKind::F64,
+                walrus::ir::MemArg { align: 8, offset },
+            ),
+            _ => builder.store(
+                ctx.memory_id,
+                walrus::ir::StoreKind::I64 { atomic: false },
+                walrus::ir::MemArg { align: 8, offset },
+            ),
+        };
+    }
+
+    fn stmt_span(stmt: &Stmt) -> kain_core::span::Span {
+        match stmt {
+            Stmt::Let { span, .. }
+            | Stmt::Return(_, span)
+            | Stmt::Break(_, span)
+            | Stmt::Continue(span)
+            | Stmt::For { span, .. }
+            | Stmt::While { span, .. }
+            | Stmt::Loop { span, .. } => *span,
+            Stmt::Expr(expr) => expr.span(),
+            Stmt::Item(_) => kain_core::span::Span::default(),
+        }
+    }
+
     fn compile_stmt(
         &self,
         ctx: &CompilationContext,
@@ -1541,16 +2412,35 @@ impl WasmCompiler {
         match stmt {
             Stmt::Expr(expr) => {
                 self.compile_expr(ctx, builder, expr)?;
-                // Expression statements discard their result
-                builder.drop();
+                // Control-flow-only if statements do not leave a stack value.
+                if !matches!(expr, Expr::If { .. }) {
+                    builder.drop();
+                }
             }
             Stmt::Let { value, pattern, .. } => {
                 if let Some(val_expr) = value {
-                    self.compile_expr(ctx, builder, val_expr)?;
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
                         if let Some(local_id) = ctx.locals.get(name) {
+                            let local_ty = self.module.locals.get(*local_id).ty();
+                            let value_is_i32 = self.expr_is_i32_in_context(ctx, val_expr);
+                            self.compile_expr(ctx, builder, val_expr)?;
+                            match local_ty {
+                                ValType::I32 if !value_is_i32 => {
+                                    builder.unop(walrus::ir::UnaryOp::I32WrapI64);
+                                }
+                                ValType::I64 if value_is_i32 => {
+                                    builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
+                                }
+                                _ => {}
+                            }
                             builder.local_set(*local_id);
+                        } else {
+                            self.compile_expr(ctx, builder, val_expr)?;
+                            builder.drop();
                         }
+                    } else {
+                        self.compile_expr(ctx, builder, val_expr)?;
+                        builder.drop();
                     }
                 }
             }
@@ -1563,26 +2453,32 @@ impl WasmCompiler {
             Stmt::While {
                 condition, body, ..
             } => {
+                let loop_error = std::cell::RefCell::new(None);
                 builder.block(None, |block_builder| {
                     let block_id = block_builder.id();
 
                     block_builder.loop_(None, |loop_builder| {
                         let loop_id = loop_builder.id();
 
-                        if self.compile_expr(ctx, loop_builder, condition).is_err() {
+                        if let Err(err) = self.compile_expr(ctx, loop_builder, condition) {
+                            *loop_error.borrow_mut() = Some(err);
                             return;
                         }
 
                         loop_builder.unop(walrus::ir::UnaryOp::I32Eqz);
                         loop_builder.br_if(block_id);
 
-                        if self.compile_block(ctx, loop_builder, body).is_err() {
+                        if let Err(err) = self.compile_block(ctx, loop_builder, body) {
+                            *loop_error.borrow_mut() = Some(err);
                             return;
                         }
 
                         loop_builder.br(loop_id);
                     });
                 });
+                if let Some(err) = loop_error.into_inner() {
+                    return Err(err);
+                }
             }
             // For loop: `for i in start..end: body`
             // Desugars to: let i = start; while i < end: body; i = i + 1
@@ -1621,6 +2517,7 @@ impl WasmCompiler {
                     }
 
                     // block { loop { if i >= end: break; body; i++; br loop } }
+                    let loop_error = std::cell::RefCell::new(None);
                     builder.block(None, |block_builder| {
                         let block_id = block_builder.id();
 
@@ -1633,7 +2530,8 @@ impl WasmCompiler {
                             }
 
                             if let Some(end_e) = end_expr {
-                                if self.compile_expr(ctx, loop_builder, end_e).is_err() {
+                                if let Err(err) = self.compile_expr(ctx, loop_builder, end_e) {
+                                    *loop_error.borrow_mut() = Some(err);
                                     return;
                                 }
                             } else {
@@ -1649,7 +2547,8 @@ impl WasmCompiler {
                             loop_builder.br_if(block_id);
 
                             // Execute body
-                            if self.compile_block(ctx, loop_builder, body).is_err() {
+                            if let Err(err) = self.compile_block(ctx, loop_builder, body) {
+                                *loop_error.borrow_mut() = Some(err);
                                 return;
                             }
 
@@ -1664,13 +2563,19 @@ impl WasmCompiler {
                             loop_builder.br(loop_id);
                         });
                     });
+                    if let Some(err) = loop_error.into_inner() {
+                        return Err(err);
+                    }
                 } else {
-                    // Non-range iterators not yet supported
-                    // For arrays: would need to get length, index each element
+                    return Err(KainError::codegen(
+                        "Only range iterators are supported in WASM codegen",
+                        iter.span(),
+                    ));
                 }
             }
             // Infinite loop: `loop: body` - can be exited with break
             Stmt::Loop { body, span: _ } => {
+                let loop_error = std::cell::RefCell::new(None);
                 builder.block(None, |block_builder| {
                     let _block_id = block_builder.id();
 
@@ -1678,7 +2583,8 @@ impl WasmCompiler {
                         let loop_id = loop_builder.id();
 
                         // Execute body
-                        if self.compile_block(ctx, loop_builder, body).is_err() {
+                        if let Err(err) = self.compile_block(ctx, loop_builder, body) {
+                            *loop_error.borrow_mut() = Some(err);
                             return;
                         }
 
@@ -1686,6 +2592,9 @@ impl WasmCompiler {
                         loop_builder.br(loop_id);
                     });
                 });
+                if let Some(err) = loop_error.into_inner() {
+                    return Err(err);
+                }
             }
             // Break statement
             Stmt::Break(_, _) => {
@@ -1698,7 +2607,12 @@ impl WasmCompiler {
                 // Jump to loop header
                 builder.unreachable(); // Placeholder - real impl needs loop ID tracking
             }
-            _ => {}
+            _ => {
+                return Err(KainError::codegen(
+                    "Unsupported statement in WASM codegen",
+                    Self::stmt_span(stmt),
+                ));
+            }
         }
         Ok(())
     }
@@ -1706,6 +2620,7 @@ impl WasmCompiler {
     fn is_string_expr(&self, expr: &Expr) -> bool {
         match expr {
             Expr::String(_, _) => true,
+            Expr::Paren(inner, _) => self.is_string_expr(inner),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     name == "to_string" || name == "str_concat"
@@ -1729,6 +2644,19 @@ impl WasmCompiler {
             Expr::JSX(_, _) => true,
             Expr::Bool(_, _) => true,
             Expr::String(_, _) => true, // Strings are i32 pointers
+            Expr::Array(_, _)
+            | Expr::Tuple(_, _)
+            | Expr::Struct { .. }
+            | Expr::AggregateInit { .. }
+            | Expr::EnumVariant { .. } => true,
+            Expr::Paren(inner, _) => self.is_i32_expr(inner),
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => self.is_i32_expr(body),
+            Expr::Teleport { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => self.is_i32_expr(value),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     // Component calls and DOM functions return i32
@@ -1757,6 +2685,22 @@ impl WasmCompiler {
             return local.ty() == ValType::I32;
         }
         false
+    }
+
+    fn expr_is_i32_in_context(&self, ctx: &CompilationContext, expr: &Expr) -> bool {
+        self.is_string_expr(expr)
+            || self.is_i32_expr(expr)
+            || matches!(expr, Expr::Ident(name, _) if self.is_i32_local(name, &ctx.locals))
+            || matches!(expr, Expr::Ident(name, _) if ctx.world_globals.contains_key(name))
+            || matches!(
+                expr,
+                Expr::Ident(name, _)
+                    if ctx
+                        .constants
+                        .get(name)
+                        .map(|value| value.val_type() == ValType::I32)
+                        .unwrap_or(false)
+            )
     }
 
     fn expr_string_literal<'a>(&self, expr: &'a Expr) -> Option<&'a str> {
@@ -2122,6 +3066,9 @@ impl WasmCompiler {
             Expr::Int(n, _) => {
                 builder.i64_const(*n);
             }
+            Expr::None(_) => {
+                builder.i64_const(0);
+            }
             Expr::Float(f, _) => {
                 builder.f64_const(*f);
             }
@@ -2136,6 +3083,38 @@ impl WasmCompiler {
                 } else {
                     return Err(KainError::codegen("String not found in table", *span));
                 }
+            }
+            Expr::Paren(inner, _) => {
+                self.compile_expr(ctx, builder, inner)?;
+            }
+            Expr::Cast { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => {
+                self.compile_expr(ctx, builder, value)?;
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.compile_expr(ctx, builder, target)?;
+                builder.drop();
+                self.compile_expr(ctx, builder, body)?;
+            }
+            Expr::Teleport { value, .. } => {
+                self.compile_expr(ctx, builder, value)?;
+            }
+            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } => {
+                self.compile_expr(ctx, builder, value)?;
+            }
+            Expr::Deref(value, _) => {
+                self.compile_expr_as_i32(ctx, builder, value)?;
+                builder.load(
+                    ctx.memory_id,
+                    walrus::ir::LoadKind::I64 { atomic: false },
+                    walrus::ir::MemArg {
+                        align: 8,
+                        offset: 0,
+                    },
+                );
             }
             Expr::Binary {
                 left, op, right, ..
@@ -2239,6 +3218,10 @@ impl WasmCompiler {
             Expr::Ident(name, span) => {
                 if let Some(local_id) = ctx.locals.get(name) {
                     builder.local_get(*local_id);
+                } else if let Some(offset) = ctx.world_globals.get(name) {
+                    builder.i32_const(*offset as i32);
+                } else if let Some(value) = ctx.constants.get(name).copied() {
+                    self.emit_const_value(builder, value);
                 } else if let Some(value) = wasm_c_runtime_constant(name) {
                     builder.i64_const(value);
                 } else {
@@ -2248,6 +3231,53 @@ impl WasmCompiler {
                     ));
                 }
             }
+            Expr::Assign {
+                target,
+                value,
+                span,
+            } => match target.as_ref() {
+                Expr::Ident(name, _) => {
+                    let Some(local_id) = ctx.locals.get(name).copied() else {
+                        return Err(KainError::codegen(
+                            format!("Assignment target '{}' not found in locals", name),
+                            *span,
+                        ));
+                    };
+                    let local_ty = self.module.locals.get(local_id).ty();
+                    self.compile_expr(ctx, builder, value)?;
+                    match local_ty {
+                        ValType::I32 if !self.is_i32_expr(value) => {
+                            builder.unop(walrus::ir::UnaryOp::I32WrapI64);
+                        }
+                        ValType::I64 if self.is_i32_expr(value) => {
+                            builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
+                        }
+                        _ => {}
+                    }
+                    builder.local_set(local_id);
+                    builder.local_get(local_id);
+                }
+                Expr::Field {
+                    object,
+                    field,
+                    span: field_span,
+                } => {
+                    let temp_local = self.temp_local_for_expr(ctx, value);
+                    let temp_ty = self.module.locals.get(temp_local).ty();
+                    self.compile_expr(ctx, builder, value)?;
+                    builder.local_set(temp_local);
+                    self.compile_field_address(ctx, builder, object, field, *field_span)?;
+                    builder.local_get(temp_local);
+                    self.emit_store_for_val_type(ctx, builder, temp_ty, 0);
+                    builder.local_get(temp_local);
+                }
+                _ => {
+                    return Err(KainError::codegen(
+                        "Only local and field assignment targets are supported in WASM codegen",
+                        *span,
+                    ));
+                }
+            },
             Expr::If {
                 condition,
                 then_branch,
@@ -2256,17 +3286,25 @@ impl WasmCompiler {
             } => {
                 self.compile_expr(ctx, builder, condition)?;
 
+                let branch_error = std::cell::RefCell::new(None);
                 builder.if_else(
                     None,
                     |then_builder| {
-                        let _ = self.compile_block(ctx, then_builder, then_branch);
+                        if let Err(err) = self.compile_block(ctx, then_builder, then_branch) {
+                            *branch_error.borrow_mut() = Some(err);
+                        }
                     },
                     |else_builder| {
                         if let Some(else_br) = else_branch {
-                            let _ = self.compile_else_branch(ctx, else_builder, else_br);
+                            if let Err(err) = self.compile_else_branch(ctx, else_builder, else_br) {
+                                *branch_error.borrow_mut() = Some(err);
+                            }
                         }
                     },
                 );
+                if let Some(err) = branch_error.into_inner() {
+                    return Err(err);
+                }
             }
             Expr::JSX(node, _) => {
                 self.compile_jsx_node(ctx, builder, node)?;
@@ -2274,6 +3312,29 @@ impl WasmCompiler {
             Expr::Call { callee, args, span } => {
                 // Get function name from callee
                 if let Expr::Ident(func_name, _) = callee.as_ref() {
+                    // Built-in len(value): arrays store their element count at base pointer.
+                    // String literals point past their length prefix, so adjust those back.
+                    if func_name == "len" && args.len() == 1 {
+                        let arg = &args[0].value;
+                        if self.is_string_expr(arg) {
+                            self.compile_expr_as_i32(ctx, builder, arg)?;
+                            builder.i32_const(4);
+                            builder.binop(walrus::ir::BinaryOp::I32Sub);
+                        } else {
+                            self.compile_expr_as_i32(ctx, builder, arg)?;
+                        }
+                        builder.load(
+                            ctx.memory_id,
+                            walrus::ir::LoadKind::I32 { atomic: false },
+                            walrus::ir::MemArg {
+                                align: 4,
+                                offset: 0,
+                            },
+                        );
+                        builder.unop(walrus::ir::UnaryOp::I64ExtendUI32);
+                        return Ok(());
+                    }
+
                     if self.compile_low_level_helper_call(ctx, builder, func_name, args)? {
                         return Ok(());
                     }
@@ -2326,6 +3387,21 @@ impl WasmCompiler {
                     // For now, only support direct function calls by name
                     return Err(KainError::codegen(
                         "Only direct function calls supported in WASM",
+                        *span,
+                    ));
+                }
+            }
+            Expr::StageCall {
+                function, args, span, ..
+            } => {
+                if let Some(func_id) = ctx.functions.get(function) {
+                    for arg in args {
+                        self.compile_expr(ctx, builder, &arg.value)?;
+                    }
+                    builder.call(*func_id);
+                } else {
+                    return Err(KainError::codegen(
+                        format!("Stage function '{}' not found", function),
                         *span,
                     ));
                 }
@@ -2489,28 +3565,9 @@ impl WasmCompiler {
             Expr::Field {
                 object,
                 field,
-                span: _,
+                span,
             } => {
-                // Compile the object to get struct pointer
-                self.compile_expr(ctx, builder, object)?;
-                // Stack: [ptr]
-
-                // Try to find field offset from any struct layout
-                // This is a heuristic - proper impl would use type info
-                let mut field_offset = 0u32;
-                let mut found = false;
-                for (_struct_name, (offsets, _size)) in ctx.struct_layouts.iter() {
-                    if let Some(&offset) = offsets.get(field) {
-                        field_offset = offset;
-                        found = true;
-                        break;
-                    }
-                }
-
-                if found && field_offset > 0 {
-                    builder.i32_const(field_offset as i32);
-                    builder.binop(walrus::ir::BinaryOp::I32Add);
-                }
+                self.compile_field_address(ctx, builder, object, field, *span)?;
 
                 // Load value from memory (default to i64)
                 builder.load(
@@ -2537,14 +3594,23 @@ impl WasmCompiler {
                     self.compile_expr(ctx, builder, &arg.value)?;
                 }
 
-                // Look for method in functions map
-                // Methods are typically named "TypeName.method_name"
-                // For now, try just the method name
-                if let Some(func_id) = ctx.functions.get(method) {
-                    builder.call(*func_id);
+                let resolved_method = ctx.functions.get(method).copied().or_else(|| {
+                    let suffix = format!(".{method}");
+                    let mut matches = ctx
+                        .functions
+                        .iter()
+                        .filter_map(|(name, func_id)| name.ends_with(&suffix).then_some(*func_id));
+                    let first = matches.next()?;
+                    if matches.next().is_some() {
+                        None
+                    } else {
+                        Some(first)
+                    }
+                });
+
+                if let Some(func_id) = resolved_method {
+                    builder.call(func_id);
                 } else {
-                    // Method not found - leave result on stack as placeholder
-                    // Real impl would look for impl blocks
                     return Err(KainError::codegen(
                         format!("Method '{}' not found", method),
                         *span,
@@ -2916,7 +3982,29 @@ impl WasmCompiler {
                     builder.i64_const(0);
                 }
             }
-            _ => {}
+            Expr::Return(value, _) => {
+                if let Some(value) = value {
+                    self.compile_expr(ctx, builder, value)?;
+                }
+                builder.return_();
+            }
+            Expr::Decay { target, .. } => {
+                self.compile_expr(ctx, builder, target)?;
+                builder.drop();
+                builder.i64_const(0);
+            }
+            Expr::Break(_, _) | Expr::Continue(_) => {
+                return Err(KainError::codegen(
+                    "break/continue expressions are not yet supported in WASM codegen",
+                    expr.span(),
+                ));
+            }
+            _ => {
+                return Err(KainError::codegen(
+                    format!("Unsupported expression in WASM codegen: {:?}", expr),
+                    expr.span(),
+                ));
+            }
         }
         Ok(())
     }
@@ -2929,22 +4017,30 @@ impl WasmCompiler {
     ) -> KainResult<()> {
         match branch {
             kain_core::ast::ElseBranch::Else(block) => {
-                let _ = self.compile_block(ctx, builder, block);
+                self.compile_block(ctx, builder, block)?;
             }
             kain_core::ast::ElseBranch::ElseIf(cond, then, next_else) => {
                 self.compile_expr(ctx, builder, cond)?;
 
+                let branch_error = std::cell::RefCell::new(None);
                 builder.if_else(
                     None,
                     |then_builder| {
-                        let _ = self.compile_block(ctx, then_builder, then);
+                        if let Err(err) = self.compile_block(ctx, then_builder, then) {
+                            *branch_error.borrow_mut() = Some(err);
+                        }
                     },
                     |else_builder| {
                         if let Some(next) = next_else {
-                            let _ = self.compile_else_branch(ctx, else_builder, next);
+                            if let Err(err) = self.compile_else_branch(ctx, else_builder, next) {
+                                *branch_error.borrow_mut() = Some(err);
+                            }
                         }
                     },
                 );
+                if let Some(err) = branch_error.into_inner() {
+                    return Err(err);
+                }
             }
         }
         Ok(())

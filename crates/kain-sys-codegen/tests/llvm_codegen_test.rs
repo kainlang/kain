@@ -1784,7 +1784,7 @@ fn drive() -> Int:
 
     assert!(llvm.contains("%KainActorMessage = type { i64, i8*, i64, i64 }"));
     assert!(llvm.contains(
-        "%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [128 x i8], i32, i32 (i64, i8*, i8*, i32)*, i32, i32, i32 }"
+        "%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [128 x i8], i32, i32 (i64, i8*, i8*, i32)*, i32, i32, i32, i32 }"
     ));
     assert!(llvm.contains(
         "define i32 @Printer_turn(i64 %actor_id, i8* %mailbox, i8* %user_data, i32 %budget)"
@@ -1796,7 +1796,8 @@ fn drive() -> Int:
     assert!(llvm.contains("call i64 @kain_actor_spawn(%KainActorSpawnConfig*"));
     assert!(llvm.contains("call i32 @kain_actor_try_receive(i8* %mailbox, %KainActorMessage*"));
     assert!(llvm.contains("call i32 @kain_actor_send(i64 "));
-    assert!(llvm.contains("call void @free(i8* "));
+    assert!(llvm.contains("declare void @kain_actor_message_release(i8*)"));
+    assert!(llvm.contains("call void @kain_actor_message_release(i8* "));
     assert!(llvm.contains("%Printer_Print = type { i64 }"));
     assert!(!llvm.contains("KAIN_spawn"));
     assert!(!llvm.contains("mq_push"));
@@ -1830,6 +1831,7 @@ fn drive() -> Int:
     assert!(llvm.contains("call i32 @kain_actor_reply_port_send_ref(%KainActorRef* "));
     assert!(llvm.contains("call i64 @kain_actor_reply_port_wait_i64(i8*"));
     assert!(llvm.contains("call void @kain_actor_reply_port_destroy(i8*"));
+    assert!(llvm.contains("declare void @kain_actor_message_release(i8*)"));
     assert!(llvm.contains("extractvalue %KainReplyPort"));
     assert!(llvm.contains("%Echo_Call = type { %KainReplyPort, i64 }"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "actor-ask-reply-roundtrip");

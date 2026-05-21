@@ -65,6 +65,7 @@ description: Use when adding, changing, running, or reviewing the multi-language
   - `benchmark/latest_fast.md` and `benchmark/out/reports/latest_fast.llm.md` / `latest_fast.json` when the `fast` wrapper is used
   - `benchmark/latest_sim.md` and `benchmark/out/reports/latest_sim.llm.md` / `latest_sim.json` when the `sim` wrapper is used
   - `benchmark/latest_gpu.md` and `benchmark/out/reports/latest_gpu.llm.md` / `latest_gpu.json` when the dedicated GPU lane is used
+  - `benchmark/latest_wasm.md` and `benchmark/out/reports/wasm_latest.llm.md` / `wasm_latest.json` when the dedicated WASM lane is used
   - `benchmark/out/reports/latest.llm.md`
   - `benchmark/out/reports/latest.json`
   - timestamped `benchmark/out/reports/<stamp>.llm.md`
@@ -77,6 +78,15 @@ description: Use when adding, changing, running, or reviewing the multi-language
 - The SQLite history lane is meant to complement timestamped JSON reports, not replace them. JSON remains the human/LLM artifact; SQLite is the regression/trend warehouse.
 - HTML is no longer a report format. If `benchmark/out/reports/latest.html` appears, treat it as stale-output cleanup debt.
 - The preferred extension point for new categories is `benchmark/wrappers/*.json`, not new hardcoded branches in `run.py`. Wrapper configs are data-driven plugins that can inject `before_args` and `after_args` around user-supplied CLI flags.
+
+## Dedicated WASM Parity Lane
+
+- Command: `python benchmark/run_wasm.py --warmups 1 --runs 3 --timeout 300`
+- Direct runner: `python benchmark/wasm/run.py ...`
+- This specialized lane sits outside `benchmarks.json` under `benchmark/wasm/`.
+- `benchmark/wasm/wasm_cases.json` is the source of truth for Kain/Rust wasm parity cases. Case assets live under `benchmark/wasm/cases/<case_id>/`.
+- The runner builds Kain with `-t wasm`, builds Rust with `rustc --target wasm32-unknown-unknown`, validates both modules through Node's `WebAssembly.Module`, executes the same export, and requires the normalized `result/stdout` transcript bytes to match exactly.
+- Reports land in `benchmark/latest_wasm.md`, `benchmark/out/reports/wasm_latest.llm.md`, `benchmark/out/reports/wasm_latest.json`, and timestamped `wasm_<stamp>` siblings.
 
 ## Dedicated FFI Boundary Lane
 

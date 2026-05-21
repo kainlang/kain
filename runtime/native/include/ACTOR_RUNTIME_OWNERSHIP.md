@@ -51,7 +51,7 @@ This document defines the ownership, lifetime, and thread-safety rules for the K
 - Mailbox owns all `MessageNode` structures in its queue
 - Message data (`KainActorMessage.data`) ownership transfers to receiver on `kain_actor_receive()`
 - Sender must not access message data after successful send
-- Receiver must free message data when done
+- Receiver must release message data when done with `kain_actor_message_release(...)`
 - Actor `user_data` is retained by the runtime on spawn and released during actor cleanup
 
 **Backpressure**:
@@ -67,13 +67,13 @@ This document defines the ownership, lifetime, and thread-safety rules for the K
 1. **Before send**: Sender owns the message and its data
 2. **During send**: Ownership transfers to mailbox
 3. **After receive**: Receiver owns the message data
-4. **Cleanup**: Receiver must free data when done
+4. **Cleanup**: Receiver must release data with `kain_actor_message_release(...)`
 
 **Lifetime**:
 - Created by sender before `kain_actor_send()`
 - Queued in mailbox as `MessageNode`
 - Delivered to receiver via `kain_actor_receive()`
-- Freed by receiver after processing
+- Released by receiver after processing
 
 **Data Ownership**:
 - `data` pointer: owned by message owner
@@ -228,8 +228,8 @@ if (result == 0) {
     // Receiver now owns msg.data
     process_message(&msg);
 
-    // Receiver MUST free msg.data when done
-    free(msg.data);
+    // Receiver MUST release msg.data when done
+    kain_actor_message_release(msg.data);
 }
 ```
 

@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 pub const KAIN_MANIFEST_NAMES: &[&str] = &["KAIN.toml", "kain.toml"];
+pub const KAIN_BUILD_SCRIPT_NAMES: &[&str] = &["build.kn", "platform.kn"];
 pub const CARGO_MANIFEST_NAME: &str = "Cargo.toml";
 pub const FABRIC_MANIFEST_NAME: &str = "KAIN.fabric.toml";
 pub const DEFAULT_BLADE_PATTERNS: &[&str] = &["blades/*", "apps/*", "crates/*"];
@@ -361,13 +362,14 @@ pub fn discover_workspace(start: impl AsRef<Path>) -> BladeResult<BladeWorkspace
     let input_path = canonicalize_lossy(start.as_ref());
     let root = discover_workspace_root(start.as_ref())?;
     let manifest_path = find_kain_manifest_in(&root);
-    let manifest = manifest_path
-        .as_ref()
-        .map(|path| load_kain_manifest(path.as_path()))
-        .transpose()?;
+    let manifest = load_effective_kain_manifest(&root)?;
     let mut candidate_dirs = BTreeSet::<PathBuf>::new();
 
-    if manifest_path.is_some() {
+    if manifest_path.is_some()
+        || manifest
+            .as_ref()
+            .is_some_and(manifest_declares_blade_surface)
+    {
         candidate_dirs.insert(root.clone());
     }
 
@@ -489,12 +491,49 @@ pub fn load_kain_manifest(path: &Path) -> BladeResult<KainManifest> {
     Ok(toml::from_str(&source)?)
 }
 
+pub fn load_effective_kain_manifest(root: &Path) -> BladeResult<Option<KainManifest>> {
+    let manifest_path = find_kain_manifest_in(root);
+    let manifest = manifest_path
+        .as_ref()
+        .map(|path| load_kain_manifest(path.as_path()))
+        .transpose()?;
+    let build_script = find_build_script_in(root);
+
+    if manifest.is_none() && build_script.is_none() {
+        return Ok(None);
+    }
+
+    let mut effective = manifest.unwrap_or_default();
+    if let Some(build_script) = build_script {
+        let source = kfs::read_text(&build_script)?;
+        let overlay = extract_build_script_manifest(&source);
+        effective = merge_kain_manifest(effective, overlay);
+    }
+    Ok(Some(effective))
+}
+
 fn resolve_blade_directory(candidate: &Path) -> BladeResult<Option<ResolvedBlade>> {
     if let Some(manifest_path) = find_kain_manifest_in(candidate) {
-        return Ok(Some(resolve_explicit_blade_manifest(
+        if !load_effective_kain_manifest(candidate)?
+            .as_ref()
+            .is_some_and(manifest_declares_blade_surface)
+        {
+            return Ok(None);
+        }
+        return Ok(Some(resolve_authored_blade(
             candidate,
-            &manifest_path,
+            Some(&manifest_path),
         )?));
+    }
+
+    if find_build_script_in(candidate).is_some() {
+        if load_effective_kain_manifest(candidate)?
+            .as_ref()
+            .is_some_and(manifest_declares_blade_surface)
+        {
+            return Ok(Some(resolve_authored_blade(candidate, None)?));
+        }
+        return Ok(None);
     }
 
     let cargo_manifest = candidate.join(CARGO_MANIFEST_NAME);
@@ -508,11 +547,20 @@ fn resolve_blade_directory(candidate: &Path) -> BladeResult<Option<ResolvedBlade
     Ok(None)
 }
 
-fn resolve_explicit_blade_manifest(
-    root: &Path,
-    manifest_path: &Path,
-) -> BladeResult<ResolvedBlade> {
-    let manifest = load_kain_manifest(manifest_path)?;
+fn resolve_authored_blade(root: &Path, manifest_path: Option<&Path>) -> BladeResult<ResolvedBlade> {
+    let manifest = load_effective_kain_manifest(root)?.ok_or_else(|| {
+        BladeError::Config(format!(
+            "No effective Kain manifest or build script could be loaded for {}",
+            root.display()
+        ))
+    })?;
+    if !manifest_declares_blade_surface(&manifest) {
+        return Err(BladeError::Config(format!(
+            "Authored blade root {} does not declare blade metadata or entry points",
+            root.display()
+        )));
+    }
+    let build_script = find_build_script_in(root);
     let name = manifest
         .blade
         .name
@@ -623,8 +671,8 @@ fn resolve_explicit_blade_manifest(
         version,
         kind,
         root: canonicalize_lossy(root),
-        manifest_path: Some(canonicalize_lossy(manifest_path)),
-        kain_manifest: Some(canonicalize_lossy(manifest_path)),
+        manifest_path: manifest_path.map(canonicalize_lossy),
+        kain_manifest: manifest_path.map(canonicalize_lossy),
         cargo_manifest,
         rust_crate_name: manifest.blade.rust.crate_name.clone(),
         fabric_manifest,
@@ -638,7 +686,12 @@ fn resolve_explicit_blade_manifest(
         gpu_shader_sources,
         gpu_shader_roots,
         compute_keys: manifest.blade.gpu.compute_keys,
-        discovery_source: "kain-manifest".to_string(),
+        discovery_source: match (manifest_path.is_some(), build_script.is_some()) {
+            (true, true) => "kain-manifest+build-script".to_string(),
+            (true, false) => "kain-manifest".to_string(),
+            (false, true) => "build-script".to_string(),
+            (false, false) => "kain-manifest".to_string(),
+        },
     })
 }
 
@@ -691,6 +744,26 @@ fn workspace_blade_patterns(manifest: Option<&KainManifest>) -> Vec<PathBuf> {
         patterns.extend(DEFAULT_BLADE_PATTERNS.iter().map(PathBuf::from));
     }
     patterns
+}
+
+fn manifest_declares_blade_surface(manifest: &KainManifest) -> bool {
+    manifest.blade.name.is_some()
+        || manifest.blade.kind.is_some()
+        || manifest.blade.entry.is_some()
+        || manifest.build.entry.is_some()
+        || manifest.run.entry.is_some()
+        || manifest.run.blade.is_some()
+        || !manifest.blade.source_roots.is_empty()
+        || !manifest.blade.module_roots.is_empty()
+        || !manifest.blade.build_targets.is_empty()
+        || !manifest.blade.dependencies.is_empty()
+        || manifest.blade.cargo_manifest.is_some()
+        || manifest.blade.fabric_manifest.is_some()
+        || !manifest.c_ffi.libraries.is_empty()
+        || !manifest.blade.c_ffi.libraries.is_empty()
+        || !manifest.blade.gpu.shader_sources.is_empty()
+        || !manifest.blade.gpu.shader_roots.is_empty()
+        || !manifest.blade.gpu.compute_keys.is_empty()
 }
 
 fn expand_blade_pattern(root: &Path, pattern: &Path) -> BladeResult<Vec<PathBuf>> {
@@ -998,10 +1071,21 @@ fn find_kain_manifest_in(root: &Path) -> Option<PathBuf> {
         .map(|path| canonicalize_lossy(&path))
 }
 
+pub fn find_build_script_in(root: &Path) -> Option<PathBuf> {
+    KAIN_BUILD_SCRIPT_NAMES
+        .iter()
+        .map(|name| root.join(name))
+        .find(|path| path.exists())
+        .map(|path| canonicalize_lossy(&path))
+}
+
 fn is_workspace_marker_dir(dir: &Path) -> bool {
     KAIN_MANIFEST_NAMES
         .iter()
         .any(|name| dir.join(name).exists())
+        || KAIN_BUILD_SCRIPT_NAMES
+            .iter()
+            .any(|name| dir.join(name).exists())
         || dir.join(CARGO_MANIFEST_NAME).exists()
         || dir.join(".git").exists()
 }
@@ -1043,6 +1127,516 @@ fn canonicalize_lossy(path: &Path) -> PathBuf {
     kfs::canonicalize_path(path)
         .map(PathBuf::from)
         .unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn extract_build_script_manifest(source: &str) -> KainManifest {
+    let mut manifest = KainManifest::default();
+    apply_package_manifest_from_build_script(source, &mut manifest);
+    apply_blade_manifest_from_build_script(source, &mut manifest);
+    apply_blade_dependencies_from_build_script(source, &mut manifest);
+    apply_build_defaults_from_build_script(source, &mut manifest);
+    apply_run_defaults_from_build_script(source, &mut manifest);
+    apply_workspace_defaults_from_build_script(source, &mut manifest);
+    manifest.build.tasks = extract_build_script_explicit_tasks(source);
+    manifest
+}
+
+fn apply_package_manifest_from_build_script(source: &str, manifest: &mut KainManifest) {
+    for (args, methods) in scan_string_call_chains(source, "package") {
+        if let Some(name) = args.first() {
+            manifest.package.name = Some(name.clone());
+        }
+        for (method, values, _) in methods {
+            let Some(value) = values.first() else {
+                continue;
+            };
+            match method.as_str() {
+                "version" => manifest.package.version = Some(value.clone()),
+                "description" => manifest.package.description = Some(value.clone()),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn apply_blade_manifest_from_build_script(source: &str, manifest: &mut KainManifest) {
+    for (args, methods) in scan_string_call_chains(source, "blade") {
+        if let Some(name) = args.first() {
+            manifest.blade.name = Some(name.clone());
+        }
+        for (method, values, _) in methods {
+            match method.as_str() {
+                "version" => assign_first_string(&values, &mut manifest.blade.version),
+                "kind" => assign_first_string(&values, &mut manifest.blade.kind),
+                "entry" => assign_first_path(&values, &mut manifest.blade.entry),
+                "source_root" | "source_roots" => {
+                    push_unique_paths_from_strings(&mut manifest.blade.source_roots, &values);
+                }
+                "module_root" | "module_roots" => {
+                    push_unique_paths_from_strings(&mut manifest.blade.module_roots, &values);
+                }
+                "build_target" | "build_targets" | "target" | "targets" => {
+                    push_unique_strings(&mut manifest.blade.build_targets, &values);
+                }
+                "dependency" | "depends_on_blade" => {
+                    for value in values {
+                        push_unique_dependency(
+                            &mut manifest.blade.dependencies,
+                            BladeDependency {
+                                name: value,
+                                version: None,
+                                kind: None,
+                                optional: false,
+                            },
+                        );
+                    }
+                }
+                "cargo_manifest" => assign_first_path(&values, &mut manifest.blade.cargo_manifest),
+                "fabric_manifest" => {
+                    assign_first_path(&values, &mut manifest.blade.fabric_manifest)
+                }
+                "runtime_contract" => {
+                    assign_first_path(&values, &mut manifest.blade.runtime_contract)
+                }
+                "realtime_bundle" => {
+                    assign_first_path(&values, &mut manifest.blade.realtime_bundle)
+                }
+                "gpu_shader_source" | "shader_source" => {
+                    push_unique_paths_from_strings(&mut manifest.blade.gpu.shader_sources, &values);
+                }
+                "gpu_shader_root" | "shader_root" => {
+                    push_unique_paths_from_strings(&mut manifest.blade.gpu.shader_roots, &values);
+                }
+                "compute_key" | "gpu_compute_key" => {
+                    push_unique_strings(&mut manifest.blade.gpu.compute_keys, &values);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn apply_blade_dependencies_from_build_script(source: &str, manifest: &mut KainManifest) {
+    for (args, methods) in scan_string_call_chains(source, "blade_dependency") {
+        let Some(name) = args.first() else {
+            continue;
+        };
+        let mut dependency = BladeDependency {
+            name: name.clone(),
+            version: None,
+            kind: None,
+            optional: false,
+        };
+        for (method, values, _) in methods {
+            let Some(value) = values.first() else {
+                continue;
+            };
+            match method.as_str() {
+                "version" => dependency.version = Some(value.clone()),
+                "kind" => dependency.kind = Some(value.clone()),
+                "optional" => dependency.optional = parse_bool_string(value),
+                _ => {}
+            }
+        }
+        push_unique_dependency(&mut manifest.blade.dependencies, dependency);
+    }
+}
+
+fn apply_build_defaults_from_build_script(source: &str, manifest: &mut KainManifest) {
+    for (_, methods) in scan_string_call_chains(source, "build_defaults") {
+        for (method, values, _) in methods {
+            match method.as_str() {
+                "entry" => assign_first_path(&values, &mut manifest.build.entry),
+                "entry_module" => assign_first_string(&values, &mut manifest.build.entry_module),
+                "source_root" => assign_first_path(&values, &mut manifest.build.source_root),
+                "source_order" => {
+                    push_unique_paths_from_strings(&mut manifest.build.source_order, &values);
+                }
+                "module_root" | "module_roots" => {
+                    push_unique_paths_from_strings(&mut manifest.build.module_roots, &values);
+                }
+                "module_search_path" | "module_search_paths" => {
+                    push_unique_paths_from_strings(
+                        &mut manifest.build.module_search_paths,
+                        &values,
+                    );
+                }
+                "target" | "targets" => push_unique_strings(&mut manifest.build.targets, &values),
+                "artifact_root" => assign_first_path(&values, &mut manifest.build.artifact_root),
+                "cache_root" => assign_first_path(&values, &mut manifest.build.cache_root),
+                "profile" => assign_first_string(&values, &mut manifest.build.profile),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn apply_run_defaults_from_build_script(source: &str, manifest: &mut KainManifest) {
+    for (_, methods) in scan_string_call_chains(source, "run_defaults") {
+        for (method, values, _) in methods {
+            match method.as_str() {
+                "entry" => assign_first_path(&values, &mut manifest.run.entry),
+                "blade" => assign_first_string(&values, &mut manifest.run.blade),
+                "target" => assign_first_string(&values, &mut manifest.run.target),
+                "arg" | "args" => manifest.run.args.extend(values),
+                "cwd" => assign_first_path(&values, &mut manifest.run.cwd),
+                "watch" | "watch_path" => {
+                    push_unique_paths_from_strings(&mut manifest.run.watch, &values);
+                }
+                "env" if values.len() >= 2 => {
+                    manifest
+                        .run
+                        .env
+                        .insert(values[0].clone(), values[1].clone());
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn apply_workspace_defaults_from_build_script(source: &str, manifest: &mut KainManifest) {
+    for (_, methods) in scan_string_call_chains(source, "workspace_defaults") {
+        for (method, values, _) in methods {
+            match method.as_str() {
+                "blade_pattern" | "blades" => {
+                    push_unique_paths_from_strings(&mut manifest.workspace.blades, &values);
+                }
+                "blade_root" | "blade_roots" => {
+                    push_unique_paths_from_strings(&mut manifest.workspace.blade_roots, &values);
+                }
+                "member" | "members" => {
+                    push_unique_paths_from_strings(&mut manifest.workspace.members, &values);
+                }
+                "search_root" | "search_roots" => {
+                    push_unique_paths_from_strings(&mut manifest.workspace.search_roots, &values);
+                }
+                "stdlib_root" => assign_first_path(&values, &mut manifest.workspace.stdlib_root),
+                "manifest_root" => {
+                    assign_first_path(&values, &mut manifest.workspace.manifest_root)
+                }
+                "generated_root" => {
+                    assign_first_path(&values, &mut manifest.workspace.generated_root)
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn extract_build_script_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection> {
+    let mut tasks = Vec::new();
+    for (args, methods) in scan_string_call_chains(source, "build_task") {
+        let Some(id) = args.first() else {
+            continue;
+        };
+        let mut task = KainBuildTaskSection {
+            id: id.clone(),
+            ..KainBuildTaskSection::default()
+        };
+        for (method, values, _) in methods {
+            match method.as_str() {
+                "kind" => {
+                    if let Some(value) = values.first() {
+                        task.kind = value.clone();
+                    }
+                }
+                "blade" => assign_first_string(&values, &mut task.blade),
+                "entry" => assign_first_path(&values, &mut task.entry),
+                "manifest" => assign_first_path(&values, &mut task.manifest),
+                "command" => assign_first_string(&values, &mut task.command),
+                "arg" | "args" => task.args.extend(values),
+                "cwd" => assign_first_path(&values, &mut task.cwd),
+                "target" => assign_first_string(&values, &mut task.target),
+                "profile" => assign_first_string(&values, &mut task.profile),
+                "input" | "inputs" => push_unique_paths_from_strings(&mut task.inputs, &values),
+                "output" | "outputs" => push_unique_paths_from_strings(&mut task.outputs, &values),
+                "depends_on" | "depends" | "dependency" => {
+                    push_unique_strings(&mut task.depends_on, &values)
+                }
+                _ => {}
+            }
+        }
+        tasks.push(task);
+    }
+    tasks
+}
+
+fn merge_kain_manifest(mut base: KainManifest, overlay: KainManifest) -> KainManifest {
+    merge_package_section(&mut base.package, overlay.package);
+    merge_workspace_section(&mut base.workspace, overlay.workspace);
+    merge_build_section(&mut base.build, overlay.build);
+    merge_run_section(&mut base.run, overlay.run);
+    merge_blade_section(&mut base.blade, overlay.blade);
+    base.manifests.extend(overlay.manifests);
+    base
+}
+
+fn merge_package_section(base: &mut KainPackageSection, overlay: KainPackageSection) {
+    overlay_optional(&mut base.name, overlay.name);
+    overlay_optional(&mut base.version, overlay.version);
+    overlay_optional(&mut base.description, overlay.description);
+}
+
+fn merge_workspace_section(base: &mut KainWorkspaceSection, overlay: KainWorkspaceSection) {
+    overlay_vec(&mut base.blades, overlay.blades);
+    overlay_vec(&mut base.blade_roots, overlay.blade_roots);
+    overlay_vec(&mut base.members, overlay.members);
+    overlay_vec(&mut base.search_roots, overlay.search_roots);
+    overlay_optional(&mut base.stdlib_root, overlay.stdlib_root);
+    overlay_optional(&mut base.manifest_root, overlay.manifest_root);
+    overlay_optional(&mut base.generated_root, overlay.generated_root);
+}
+
+fn merge_build_section(base: &mut KainBuildSection, overlay: KainBuildSection) {
+    overlay_optional(&mut base.entry, overlay.entry);
+    overlay_optional(&mut base.entry_module, overlay.entry_module);
+    overlay_optional(&mut base.source_root, overlay.source_root);
+    overlay_vec(&mut base.source_order, overlay.source_order);
+    overlay_vec(&mut base.module_roots, overlay.module_roots);
+    overlay_vec(&mut base.module_search_paths, overlay.module_search_paths);
+    overlay_vec(&mut base.targets, overlay.targets);
+    overlay_optional(&mut base.artifact_root, overlay.artifact_root);
+    overlay_optional(&mut base.cache_root, overlay.cache_root);
+    overlay_optional(&mut base.profile, overlay.profile);
+    overlay_vec(&mut base.tasks, overlay.tasks);
+}
+
+fn merge_run_section(base: &mut KainRunSection, overlay: KainRunSection) {
+    overlay_optional(&mut base.entry, overlay.entry);
+    overlay_optional(&mut base.blade, overlay.blade);
+    overlay_optional(&mut base.target, overlay.target);
+    overlay_vec(&mut base.args, overlay.args);
+    base.env.extend(overlay.env);
+    overlay_optional(&mut base.cwd, overlay.cwd);
+    overlay_vec(&mut base.watch, overlay.watch);
+}
+
+fn merge_blade_section(base: &mut BladeSection, overlay: BladeSection) {
+    overlay_optional(&mut base.name, overlay.name);
+    overlay_optional(&mut base.version, overlay.version);
+    overlay_optional(&mut base.kind, overlay.kind);
+    overlay_optional(&mut base.entry, overlay.entry);
+    overlay_vec(&mut base.source_roots, overlay.source_roots);
+    overlay_vec(&mut base.module_roots, overlay.module_roots);
+    overlay_vec(&mut base.build_targets, overlay.build_targets);
+    overlay_vec(&mut base.dependencies, overlay.dependencies);
+    overlay_optional(&mut base.cargo_manifest, overlay.cargo_manifest);
+    overlay_optional(&mut base.fabric_manifest, overlay.fabric_manifest);
+    overlay_optional(&mut base.runtime_contract, overlay.runtime_contract);
+    overlay_optional(&mut base.realtime_bundle, overlay.realtime_bundle);
+    base.artifacts.extend(overlay.artifacts);
+    overlay_optional(&mut base.rust.cargo_manifest, overlay.rust.cargo_manifest);
+    overlay_optional(&mut base.rust.crate_name, overlay.rust.crate_name);
+    overlay_vec(&mut base.rust.features, overlay.rust.features);
+    if overlay.rust.all_features {
+        base.rust.all_features = true;
+    }
+    if overlay.rust.no_default_features {
+        base.rust.no_default_features = true;
+    }
+    overlay_vec(&mut base.gpu.shader_sources, overlay.gpu.shader_sources);
+    overlay_vec(&mut base.gpu.shader_roots, overlay.gpu.shader_roots);
+    overlay_vec(&mut base.gpu.compute_keys, overlay.gpu.compute_keys);
+    overlay_optional(&mut base.fabric.manifest, overlay.fabric.manifest);
+    overlay_optional(&mut base.fabric.entry, overlay.fabric.entry);
+    overlay_optional(&mut base.fabric.compute_key, overlay.fabric.compute_key);
+}
+
+fn overlay_optional<T>(slot: &mut Option<T>, overlay: Option<T>) {
+    if let Some(value) = overlay {
+        *slot = Some(value);
+    }
+}
+
+fn overlay_vec<T>(slot: &mut Vec<T>, overlay: Vec<T>) {
+    if !overlay.is_empty() {
+        *slot = overlay;
+    }
+}
+
+fn scan_string_call_chains(
+    source: &str,
+    function_name: &str,
+) -> Vec<(Vec<String>, Vec<(String, Vec<String>, usize)>)> {
+    let mut matches = Vec::new();
+    let mut offset = 0usize;
+    while let Some(call_start) = find_function_call(source, function_name, offset) {
+        let function_end = call_start + function_name.len();
+        if let Some((args, after_call)) = parse_string_call_arguments(source, function_end) {
+            let methods = parse_string_method_chain(source, after_call);
+            let next_offset = methods
+                .last()
+                .map(|(_, _, after)| *after)
+                .unwrap_or(after_call);
+            matches.push((args, methods));
+            offset = next_offset;
+        } else {
+            offset = function_end;
+        }
+    }
+    matches
+}
+
+fn find_function_call(source: &str, function_name: &str, mut offset: usize) -> Option<usize> {
+    while let Some(relative) = source[offset..].find(function_name) {
+        let start = offset + relative;
+        let before = start
+            .checked_sub(1)
+            .and_then(|index| source.as_bytes().get(index).copied());
+        let after = source.as_bytes().get(start + function_name.len()).copied();
+        if !matches!(before, Some(byte) if is_identifier_byte(byte))
+            && matches!(after, Some(b'(' | b' ' | b'\n' | b'\r' | b'\t'))
+        {
+            return Some(start);
+        }
+        offset = start + function_name.len();
+    }
+    None
+}
+
+fn parse_string_method_chain(source: &str, mut index: usize) -> Vec<(String, Vec<String>, usize)> {
+    let bytes = source.as_bytes();
+    let mut methods = Vec::new();
+    loop {
+        index = skip_ascii_whitespace(bytes, index);
+        if bytes.get(index).copied() != Some(b'.') {
+            break;
+        }
+        index += 1;
+        let method_start = index;
+        while matches!(bytes.get(index).copied(), Some(byte) if is_identifier_byte(byte)) {
+            index += 1;
+        }
+        if method_start == index {
+            break;
+        }
+        let Some(method) = source.get(method_start..index) else {
+            break;
+        };
+        let Some((args, after_call)) = parse_string_call_arguments(source, index) else {
+            break;
+        };
+        methods.push((method.to_string(), args, after_call));
+        index = after_call;
+    }
+    methods
+}
+
+fn parse_string_call_arguments(source: &str, mut index: usize) -> Option<(Vec<String>, usize)> {
+    let bytes = source.as_bytes();
+    index = skip_ascii_whitespace(bytes, index);
+    if bytes.get(index).copied()? != b'(' {
+        return None;
+    }
+    index += 1;
+    let mut values = Vec::new();
+    loop {
+        index = skip_ascii_whitespace(bytes, index);
+        match bytes.get(index).copied()? {
+            b')' => return Some((values, index + 1)),
+            b'"' => {
+                let (value, after_string) = parse_quoted_string(source, index)?;
+                values.push(value);
+                index = skip_ascii_whitespace(bytes, after_string);
+                match bytes.get(index).copied()? {
+                    b',' => {
+                        index += 1;
+                    }
+                    b')' => return Some((values, index + 1)),
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn parse_quoted_string(source: &str, mut index: usize) -> Option<(String, usize)> {
+    let bytes = source.as_bytes();
+    if bytes.get(index).copied()? != b'"' {
+        return None;
+    }
+    index += 1;
+    let mut value = String::new();
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => {
+                let escaped = *bytes.get(index + 1)?;
+                value.push(match escaped {
+                    b'n' => '\n',
+                    b'r' => '\r',
+                    b't' => '\t',
+                    b'"' => '"',
+                    b'\\' => '\\',
+                    other => other as char,
+                });
+                index += 2;
+            }
+            b'"' => return Some((value, index + 1)),
+            byte => {
+                value.push(byte as char);
+                index += 1;
+            }
+        }
+    }
+    None
+}
+
+fn skip_ascii_whitespace(bytes: &[u8], mut index: usize) -> usize {
+    while matches!(bytes.get(index), Some(b' ' | b'\n' | b'\r' | b'\t')) {
+        index += 1;
+    }
+    index
+}
+
+fn is_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+fn parse_bool_string(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "y" | "on"
+    )
+}
+
+fn assign_first_string(values: &[String], slot: &mut Option<String>) {
+    if let Some(value) = values.first() {
+        *slot = Some(value.clone());
+    }
+}
+
+fn assign_first_path(values: &[String], slot: &mut Option<PathBuf>) {
+    if let Some(value) = values.first() {
+        *slot = Some(PathBuf::from(value));
+    }
+}
+
+fn push_unique_strings(values: &mut Vec<String>, additions: &[String]) {
+    for value in additions {
+        if !values.iter().any(|existing| existing == value) {
+            values.push(value.clone());
+        }
+    }
+}
+
+fn push_unique_paths_from_strings(values: &mut Vec<PathBuf>, additions: &[String]) {
+    for value in additions {
+        let path = PathBuf::from(value);
+        if !values.iter().any(|existing| existing == &path) {
+            values.push(path);
+        }
+    }
+}
+
+fn push_unique_dependency(values: &mut Vec<BladeDependency>, dependency: BladeDependency) {
+    if !values
+        .iter()
+        .any(|existing| normalize_name(&existing.name) == normalize_name(&dependency.name))
+    {
+        values.push(dependency);
+    }
 }
 
 #[cfg(test)]
@@ -1179,6 +1773,105 @@ KAIN_RUN_MODE = "smoke"
             .as_ref()
             .unwrap()
             .ends_with("Cargo.toml"));
+    }
+
+    #[test]
+    fn discovers_build_script_only_blade_without_kain_toml() {
+        let tmp = tempfile::tempdir().unwrap();
+        kfs::write_text(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        let blade_root = tmp.path().join("blades").join("constellation");
+        kfs::create_dir_all(blade_root.join("src")).unwrap();
+        kfs::create_dir_all(blade_root.join("assets")).unwrap();
+        kfs::write_text(
+            blade_root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("constellation")
+        .kind("kain")
+        .entry("src/main.kn")
+        .source_root("src")
+        .build_target("llvm")
+        .dependency("kain-json")
+    let defaults = build_defaults()
+        .profile("release")
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+        .arg("--demo")
+        .watch("assets")
+    let check = build_task("script-check")
+        .kind("check")
+        .entry("src/main.kn")
+        .target("llvm")
+    return build_graph().task(check)
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            blade_root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .unwrap();
+
+        let workspace = discover_workspace(tmp.path()).unwrap();
+        let blade = workspace.find_blade("constellation").unwrap();
+        assert_eq!(blade.discovery_source, "build-script");
+        assert_eq!(blade.kind, "kain");
+        assert_eq!(blade.build_targets, vec!["llvm"]);
+        assert_eq!(blade.dependencies.len(), 1);
+        assert_eq!(blade.dependencies[0].name, "kain-json");
+        assert!(blade
+            .entry
+            .as_ref()
+            .unwrap()
+            .ends_with(Path::new("src").join("main.kn")));
+
+        let manifest = load_effective_kain_manifest(&blade_root)
+            .unwrap()
+            .expect("effective manifest");
+        assert_eq!(manifest.build.profile.as_deref(), Some("release"));
+        assert_eq!(manifest.run.target.as_deref(), Some("llvm"));
+        assert_eq!(manifest.run.args, vec!["--demo"]);
+        assert_eq!(manifest.build.tasks.len(), 1);
+        assert_eq!(manifest.build.tasks[0].id, "script-check");
+    }
+
+    #[test]
+    fn build_script_workspace_defaults_can_discover_packages_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        kfs::write_text(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        kfs::write_text(
+            tmp.path().join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let ws = workspace_defaults().blade_pattern("packages/*")
+    return build_graph()
+"#,
+        )
+        .unwrap();
+        let blade_root = tmp.path().join("packages").join("omni");
+        kfs::create_dir_all(blade_root.join("src")).unwrap();
+        kfs::write_text(
+            blade_root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("omni")
+        .kind("kain_library")
+        .module_root("src")
+    return build_graph()
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            blade_root.join("src").join("omni.kn"),
+            "pub fn ready() -> Int:\n    return 1\n",
+        )
+        .unwrap();
+
+        let workspace = discover_workspace(tmp.path()).unwrap();
+        let blade = workspace.find_blade("omni").unwrap();
+        assert_eq!(blade.discovery_source, "build-script");
+        assert_eq!(blade.kind, "kain_library");
     }
 
     #[test]

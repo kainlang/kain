@@ -1,0 +1,19 @@
+const WASM_ARRAY_ITERATIONS: Int = 90000
+const WASM_ARRAY_MODULUS: Int = 1000000007
+
+fn array_scan_checksum(iterations: Int, modulus: Int) -> Int:
+    let values = [3, 1, 4, 1, 5, 9, 2, 6]
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        var inner: Int = 0
+        var index: Int = 0
+        while index < len(values):
+            inner = (inner + values[index] * (index + 1)) % modulus
+            index = index + 1
+        acc = (acc + inner + (i % 31)) % modulus
+        i = i + 1
+    return acc
+
+fn main() -> Int:
+    return array_scan_checksum(WASM_ARRAY_ITERATIONS, WASM_ARRAY_MODULUS)

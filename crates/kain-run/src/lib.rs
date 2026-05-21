@@ -1,5 +1,6 @@
 use blade::{
-    discover_workspace, load_kain_manifest, BladeWorkspace, KainRunSection, ResolvedBlade,
+    discover_workspace, load_effective_kain_manifest, load_kain_manifest, BladeWorkspace,
+    KainRunSection, ResolvedBlade,
 };
 use kain_core::CompileTarget;
 use kain_fs as kfs;
@@ -847,12 +848,7 @@ fn resolve_workspace_unit(
     cache_root: &Path,
 ) -> RunResult<RunUnit> {
     let workspace = discover_workspace(path)?;
-    let workspace_run = workspace
-        .manifest_path
-        .as_ref()
-        .map(|path| load_run_section(path))
-        .transpose()?
-        .unwrap_or_default();
+    let workspace_run = load_run_section_from_root(&workspace.root)?;
     let selected_by_workspace_run = request.blade.is_none() && workspace_run.blade.is_some();
     let selected_blade = select_blade(
         &workspace,
@@ -879,15 +875,18 @@ fn resolve_workspace_unit(
         }
         return Ok(unit);
     }
-    let manifest_path = workspace.manifest_path.as_ref().ok_or_else(|| {
-        RunError::Config("run needs an input, blade, or KAIN.toml workspace".into())
+    let manifest = load_effective_kain_manifest(&workspace.root)?.ok_or_else(|| {
+        RunError::Config(format!(
+            "run needs an input, blade, or build authority under {}",
+            workspace.root.display()
+        ))
     })?;
-    let manifest = load_kain_manifest(manifest_path)?;
     let run = workspace_run;
     let entry = run
         .entry
         .clone()
         .or(manifest.build.entry)
+        .or(manifest.blade.entry)
         .map(|path| resolve_path(&workspace.root, &path));
     if let Some(entry) = entry {
         let mut unit = resolve_file_unit(request, &workspace.root, &entry, cache_root)?;
@@ -895,8 +894,8 @@ fn resolve_workspace_unit(
         return Ok(unit);
     }
     Err(RunError::Config(format!(
-        "no runnable entry found in {}",
-        manifest_path.display()
+        "no runnable entry found under {}",
+        workspace.root.display()
     )))
 }
 
@@ -906,12 +905,7 @@ fn resolve_blade_unit(
     blade: &ResolvedBlade,
     cache_root: &Path,
 ) -> RunResult<RunUnit> {
-    let run = blade
-        .manifest_path
-        .as_ref()
-        .map(|path| load_run_section(path))
-        .transpose()?
-        .unwrap_or_default();
+    let run = load_run_section_from_root(&blade.root)?;
     let target = run
         .target
         .as_deref()
@@ -1895,11 +1889,9 @@ fn infer_target_from_run_manifest(
     workspace_root: &Path,
     input: &Path,
 ) -> RunResult<Option<RunTarget>> {
-    let manifest_path = workspace_root.join("KAIN.toml");
-    if !manifest_path.is_file() {
+    let Some(manifest) = load_effective_kain_manifest(workspace_root)? else {
         return Ok(None);
-    }
-    let manifest = load_kain_manifest(&manifest_path)?;
+    };
     let Some(target) = manifest.run.target.as_deref() else {
         return Ok(None);
     };
@@ -1924,6 +1916,12 @@ fn same_declared_path(left: &Path, right: &Path) -> bool {
 fn load_run_section(path: &Path) -> RunResult<KainRunSection> {
     let manifest = load_kain_manifest(path)?;
     Ok(manifest.run)
+}
+
+fn load_run_section_from_root(root: &Path) -> RunResult<KainRunSection> {
+    Ok(load_effective_kain_manifest(root)?
+        .map(|manifest| manifest.run)
+        .unwrap_or_default())
 }
 
 fn resolve_existing_or_declared_path(workspace_root: &Path, path: &Path) -> PathBuf {
@@ -2249,6 +2247,36 @@ target = "llvm"
     }
 
     #[test]
+    fn build_script_run_section_can_route_file_auto_to_llvm() {
+        let temp = tempfile::tempdir().unwrap();
+        let entry = temp.path().join("src").join("main.kn");
+        kfs::create_dir_all(entry.parent().unwrap()).unwrap();
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
+        kfs::write_text(
+            temp.path().join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("native-auto")
+        .kind("kain")
+        .entry("src/main.kn")
+        .source_root("src")
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+    return build_graph()
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(entry.clone()));
+        let plan = plan_run(&request).unwrap();
+        let unit = &plan.units[0];
+        assert_eq!(unit.target, RunTarget::Llvm);
+        assert!(same_declared_path(&unit.cwd, temp.path()));
+        assert!(matches!(unit.adapter, RunAdapter::KainNativeLlvm { .. }));
+    }
+
+    #[test]
     fn blade_run_section_can_route_auto_to_llvm() {
         let temp = tempfile::tempdir().unwrap();
         kfs::write_text(
@@ -2278,6 +2306,52 @@ source_roots = ["src"]
 [run]
 entry = "src/main.kn"
 target = "llvm"
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(blade_root.clone()));
+        let plan = plan_run(&request).unwrap();
+        let unit = &plan.units[0];
+        assert_eq!(unit.target, RunTarget::Llvm);
+        assert!(same_declared_path(&unit.cwd, &blade_root));
+        assert!(matches!(unit.adapter, RunAdapter::KainNativeLlvm { .. }));
+    }
+
+    #[test]
+    fn build_script_blade_run_section_can_route_auto_to_llvm() {
+        let temp = tempfile::tempdir().unwrap();
+        kfs::write_text(
+            temp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = []\n",
+        )
+        .unwrap();
+        kfs::write_text(
+            temp.path().join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let ws = workspace_defaults().blade_pattern("blades/*")
+    return build_graph()
+"#,
+        )
+        .unwrap();
+
+        let blade_root = temp.path().join("blades").join("native");
+        let entry = blade_root.join("src").join("main.kn");
+        kfs::create_dir_all(entry.parent().unwrap()).unwrap();
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
+        kfs::write_text(
+            blade_root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("native")
+        .kind("kain")
+        .entry("src/main.kn")
+        .source_root("src")
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+    return build_graph()
 "#,
         )
         .unwrap();

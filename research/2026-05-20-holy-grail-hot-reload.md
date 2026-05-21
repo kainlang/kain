@@ -128,6 +128,9 @@ The strongest version for Kain specifically would look like this:
 6. Eventually, converged live evolution.
    Old and new versions may coexist briefly, with traffic drained or mirrored across them until the runtime commits the new epoch.
 
+7. Package-surfaced, compiler-backed opt-in adoption.
+   The feature should present itself as `std::reload` to authors instead of as ambient language magic. Importing or declaring reload participation turns on compiler-emitted metadata, runtime classification, and migration hooks for the opted-in semantic regions only.
+
 Status classification:
 
 - Proved:
@@ -142,3 +145,9 @@ Status classification:
 Best next branch:
 
 Define a repo-level `reload contract` model for non-UI state. The first serious research spike should target one `world` + one `actor` + one Vulkain-backed resource graph and prove a quiesced migration lane end-to-end.
+
+Refinement from the active session:
+
+- The most promising product shape is `package surface, compiler-backed semantics`.
+- `std::reload` should be opt-in and capability-driven rather than globally hardcoded into all Kain programs.
+- The author-facing promise should be: keep the exe alive, rebuild compatible slices, migrate live semantic state when possible, and restart only when the compatibility proof fails.

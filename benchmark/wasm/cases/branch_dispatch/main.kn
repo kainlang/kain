@@ -1,0 +1,31 @@
+const WASM_BRANCH_ITERATIONS: Int = 320000
+const WASM_BRANCH_MODULUS: Int = 1000000007
+
+fn wasm_branch_classify(value: Int) -> Int:
+    let tag: Int = value % 8
+    if tag == 0:
+        return value + 1
+    if tag == 1:
+        return (value * 3) + 7
+    if tag == 2:
+        return value - 5
+    if tag == 3:
+        return (value * value) + 11
+    if tag == 4:
+        return value + 17
+    if tag == 5:
+        return (value * 5) - 13
+    if tag == 6:
+        return value + 23
+    return value - 11
+
+fn branch_dispatch_checksum(iterations: Int, modulus: Int) -> Int:
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        acc = (acc + wasm_branch_classify(i)) % modulus
+        i = i + 1
+    return acc
+
+fn main() -> Int:
+    return branch_dispatch_checksum(WASM_BRANCH_ITERATIONS, WASM_BRANCH_MODULUS)

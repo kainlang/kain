@@ -447,11 +447,82 @@ struct NativeUiDevHotReloadIdentity {
     layout_id: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct NativeUiDevReloadParticipantField {
+    name: String,
+    type_name: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct NativeUiDevReloadWorldParticipant {
+    name: String,
+    #[serde(default)]
+    state_fields: Vec<NativeUiDevReloadParticipantField>,
+    #[serde(default)]
+    surface_kinds: Vec<String>,
+    migration_mode: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct NativeUiDevReloadActorParticipant {
+    name: String,
+    #[serde(default)]
+    state_type: Option<String>,
+    #[serde(default)]
+    state_fields: Vec<NativeUiDevReloadParticipantField>,
+    #[serde(default)]
+    message_types: Vec<String>,
+    migration_mode: String,
+    quiesce_boundary: String,
+    mailbox_transfer: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct NativeUiDevReloadGpuHooks {
+    swap_boundary: String,
+    #[serde(default)]
+    shader_bundle_role: Option<String>,
+    resource_graph_reload: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct NativeUiDevReloadParticipants {
+    package_surface: String,
+    default_state_migration: String,
+    default_actor_quiesce: String,
+    #[serde(default)]
+    default_restart_mode: String,
+    #[serde(default)]
+    compatibility_lanes: Vec<String>,
+    #[serde(default)]
+    worlds: Vec<NativeUiDevReloadWorldParticipant>,
+    #[serde(default)]
+    actors: Vec<NativeUiDevReloadActorParticipant>,
+    #[serde(default)]
+    gpu_hooks: NativeUiDevReloadGpuHooks,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct NativeUiDevHotReloadTransition {
+    #[serde(default)]
+    class: String,
+    #[serde(default)]
+    restart_required: bool,
+    #[serde(default)]
+    reasons: Vec<String>,
+    #[serde(default)]
+    actions: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct NativeUiDevHotReload {
     changed_artifact_roles: Vec<String>,
     reload_compatible_with_previous: bool,
     identity: NativeUiDevHotReloadIdentity,
+    #[serde(default)]
+    participants: NativeUiDevReloadParticipants,
+    #[serde(default)]
+    transition: NativeUiDevHotReloadTransition,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -461,6 +532,8 @@ struct NativeUiDevRuntimeSidecars {
     runtime_compatibility: String,
     realtime_bundle: String,
     shader_bundle: Option<String>,
+    #[serde(default)]
+    reflection_payload: Option<String>,
     runtime_snapshot: String,
 }
 
@@ -505,6 +578,8 @@ struct NativeUiDevSnapshot {
     commands: Vec<NativeUiDevSnapshotCommand>,
     providers: Vec<NativeUiDevSnapshotProvider>,
     tools: Vec<NativeUiDevSnapshotTool>,
+    #[serde(default)]
+    reload: NativeUiDevReloadParticipants,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -521,6 +596,7 @@ struct NativeUiDevSnapshotContract {
     command_ids: Vec<String>,
     provider_ids: Vec<String>,
     tool_ids: Vec<String>,
+    reload: NativeUiDevReloadParticipants,
 }
 
 #[derive(Debug, Clone)]
@@ -637,6 +713,7 @@ fn snapshot_contract_from_snapshot(snapshot: NativeUiDevSnapshot) -> NativeUiDev
         command_ids,
         provider_ids,
         tool_ids,
+        reload: snapshot.reload,
     }
 }
 
@@ -657,9 +734,11 @@ fn classify_reload_decision(
     let launcher_changed = previous.launcher != current.launcher;
     let sidecar_contract_changed = previous.runtime_sidecars != current.runtime_sidecars;
     let snapshot_contract_changed = previous.snapshot_contract != current.snapshot_contract;
+    let transition_requires_restart = current.hot_reload.transition.restart_required;
     let needs_restart = launcher_changed
         || sidecar_contract_changed
         || snapshot_contract_changed
+        || transition_requires_restart
         || !current.hot_reload.reload_compatible_with_previous
         || !launch_target.path().exists()
         || !has_running_child;
@@ -678,6 +757,14 @@ fn classify_reload_decision(
             "runtime sidecar contract changed"
         } else if snapshot_contract_changed {
             "runtime snapshot contract changed"
+        } else if transition_requires_restart {
+            current
+                .hot_reload
+                .transition
+                .reasons
+                .first()
+                .map(String::as_str)
+                .unwrap_or("hot reload transition requires restart")
         } else if !current.hot_reload.reload_compatible_with_previous {
             "hot reload compatibility gate failed"
         } else if !launch_target.path().exists() {
@@ -688,12 +775,33 @@ fn classify_reload_decision(
         return (ReloadDecision::RestartProcess, reason.to_string());
     }
 
+    let transition_class = if current.hot_reload.transition.class.is_empty() {
+        "hot-reload"
+    } else {
+        current.hot_reload.transition.class.as_str()
+    };
+    let transition_actions = if current.hot_reload.transition.actions.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " | actions={}",
+            current.hot_reload.transition.actions.join(", ")
+        )
+    };
     (
         ReloadDecision::HotReloadInProcess,
         if changed_roles.is_empty() {
-            "runtime-sidecar rewrite requested without a semantic role delta".to_string()
+            format!(
+                "{} | runtime-sidecar rewrite requested without a semantic role delta{}",
+                transition_class, transition_actions
+            )
         } else {
-            format!("updated runtime sidecars: {}", changed_roles.join(", "))
+            format!(
+                "{} | updated runtime sidecars: {}{}",
+                transition_class,
+                changed_roles.join(", "),
+                transition_actions
+            )
         },
     )
 }
@@ -850,7 +958,81 @@ mod tests {
     fn manifest_state(
         changed_roles: &[&str],
         reload_compatible_with_previous: bool,
+        transition_class: &str,
     ) -> NativeUiDevManifestState {
+        let restart_required = transition_class == "restart-with-restore";
+        let transition_actions = match transition_class {
+            "frame-boundary-gpu-swap" => {
+                vec![
+                    "preserve-ui-state".to_string(),
+                    "swap-gpu-at-frame-boundary".to_string(),
+                ]
+            }
+            "quiesce-and-migrate" => vec![
+                "preserve-ui-state".to_string(),
+                "quiesce-actors-at-turn-boundary".to_string(),
+                "transfer-queued-actor-messages".to_string(),
+                "migrate-world-state-structurally".to_string(),
+            ],
+            "structural-migrate" => vec![
+                "preserve-ui-state".to_string(),
+                "migrate-world-state-structurally".to_string(),
+            ],
+            "restart-with-restore" => {
+                vec![
+                    "restart-process".to_string(),
+                    "restore-runtime-snapshot".to_string(),
+                ]
+            }
+            "presentation-only" => {
+                vec![
+                    "preserve-ui-state".to_string(),
+                    "patch-runtime-presentation".to_string(),
+                ]
+            }
+            _ => vec!["preserve-ui-state".to_string()],
+        };
+        let reload = NativeUiDevReloadParticipants {
+            package_surface: "std::reload".to_string(),
+            default_state_migration: "auto-structural".to_string(),
+            default_actor_quiesce: "turn-boundary".to_string(),
+            default_restart_mode: "restart-with-snapshot-restore".to_string(),
+            compatibility_lanes: vec![
+                "cold-start".to_string(),
+                "noop".to_string(),
+                "presentation-only".to_string(),
+                "structural-migrate".to_string(),
+                "quiesce-and-migrate".to_string(),
+                "frame-boundary-gpu-swap".to_string(),
+                "restart-with-restore".to_string(),
+            ],
+            worlds: vec![NativeUiDevReloadWorldParticipant {
+                name: "ChronosLab".to_string(),
+                state_fields: vec![NativeUiDevReloadParticipantField {
+                    name: "counter".to_string(),
+                    type_name: "Int".to_string(),
+                }],
+                surface_kinds: vec!["native_ui".to_string(), "viewport3d".to_string()],
+                migration_mode: "auto-structural".to_string(),
+            }],
+            actors: vec![NativeUiDevReloadActorParticipant {
+                name: "ChronosDriver".to_string(),
+                state_type: Some("ChronosDriverState".to_string()),
+                state_fields: vec![NativeUiDevReloadParticipantField {
+                    name: "tick".to_string(),
+                    type_name: "Int".to_string(),
+                }],
+                message_types: vec!["Ping".to_string()],
+                migration_mode: "auto-structural".to_string(),
+                quiesce_boundary: "turn-boundary".to_string(),
+                mailbox_transfer: "preserve-queued-messages".to_string(),
+            }],
+            gpu_hooks: NativeUiDevReloadGpuHooks {
+                swap_boundary: "frame-boundary".to_string(),
+                shader_bundle_role: Some("shader_bundle".to_string()),
+                resource_graph_reload: "planned".to_string(),
+            },
+        };
         NativeUiDevManifestState {
             launcher: NativeUiDevLauncher {
                 kind: "run_bundled_app_json".to_string(),
@@ -870,6 +1052,22 @@ mod tests {
                     active_world: Some("ChronosLab".to_string()),
                     layout_id: "chronos_shell".to_string(),
                 },
+                participants: reload.clone(),
+                transition: NativeUiDevHotReloadTransition {
+                    class: transition_class.to_string(),
+                    restart_required,
+                    reasons: if restart_required {
+                        vec!["std::reload participant contract changed".to_string()]
+                    } else if transition_class == "noop" {
+                        vec!["source changed without a runtime-sidecar delta".to_string()]
+                    } else {
+                        vec![format!(
+                            "changed runtime artifacts: {}",
+                            changed_roles.join(", ")
+                        )]
+                    },
+                    actions: transition_actions,
+                },
             },
             runtime_sidecars: NativeUiDevRuntimeSidecars {
                 runtime_bundle: "native_app_bundle.json".to_string(),
@@ -877,6 +1075,7 @@ mod tests {
                 runtime_compatibility: "compatibility.json".to_string(),
                 realtime_bundle: "kain_realtime_app_bundle.json".to_string(),
                 shader_bundle: Some("kain_shader_bundle.json".to_string()),
+                reflection_payload: Some("kain_reflection_payload.json".to_string()),
                 runtime_snapshot: "runtime_snapshot.json".to_string(),
             },
             snapshot_contract: NativeUiDevSnapshotContract {
@@ -892,14 +1091,15 @@ mod tests {
                 command_ids: vec!["rebuild".to_string()],
                 provider_ids: vec!["native_runtime".to_string()],
                 tool_ids: vec!["exec".to_string()],
+                reload,
             },
         }
     }
 
     #[test]
     fn reload_decision_treats_source_only_delta_as_noop() {
-        let previous = manifest_state(&[], true);
-        let current = manifest_state(&["source_input"], true);
+        let previous = manifest_state(&[], true, "noop");
+        let current = manifest_state(&["source_input"], true, "noop");
         let executable_path = test_executable_path();
         let launch_target = NativeUiLaunchTarget::Executable(executable_path);
         let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
@@ -909,24 +1109,58 @@ mod tests {
 
     #[test]
     fn reload_decision_hot_reloads_runtime_sidecar_changes() {
-        let previous = manifest_state(&[], true);
-        let current = manifest_state(&["runtime_bundle", "shader_bundle"], true);
+        let previous = manifest_state(&[], true, "noop");
+        let current = manifest_state(
+            &["runtime_bundle", "shader_bundle"],
+            true,
+            "quiesce-and-migrate",
+        );
         let executable_path = test_executable_path();
         let launch_target = NativeUiLaunchTarget::Executable(executable_path);
         let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::HotReloadInProcess);
+        assert!(note.contains("quiesce-and-migrate"));
         assert!(note.contains("runtime_bundle"));
     }
 
     #[test]
     fn reload_decision_restarts_when_compatibility_breaks() {
-        let previous = manifest_state(&[], true);
-        let current = manifest_state(&["runtime_bundle"], false);
+        let previous = manifest_state(&[], true, "noop");
+        let current = manifest_state(&["runtime_bundle"], false, "presentation-only");
         let executable_path = test_executable_path();
         let launch_target = NativeUiLaunchTarget::Executable(executable_path);
         let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::RestartProcess);
         assert!(note.contains("compatibility"));
+    }
+
+    #[test]
+    fn reload_decision_restarts_when_reload_participant_contract_changes() {
+        let previous = manifest_state(&[], true, "noop");
+        let mut current = manifest_state(&["runtime_bundle"], true, "restart-with-restore");
+        current.snapshot_contract.reload.actors[0]
+            .state_fields
+            .push(NativeUiDevReloadParticipantField {
+                name: "phase".to_string(),
+                type_name: "Int".to_string(),
+            });
+        let executable_path = test_executable_path();
+        let launch_target = NativeUiLaunchTarget::Executable(executable_path);
+        let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
+        assert_eq!(decision, ReloadDecision::RestartProcess);
+        assert!(note.contains("snapshot"));
+    }
+
+    #[test]
+    fn reload_decision_surfaces_frame_boundary_gpu_swap_transition() {
+        let previous = manifest_state(&[], true, "noop");
+        let current = manifest_state(&["shader_bundle"], true, "frame-boundary-gpu-swap");
+        let executable_path = test_executable_path();
+        let launch_target = NativeUiLaunchTarget::Executable(executable_path);
+        let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
+        assert_eq!(decision, ReloadDecision::HotReloadInProcess);
+        assert!(note.contains("frame-boundary-gpu-swap"));
+        assert!(note.contains("swap-gpu-at-frame-boundary"));
     }
 
     #[test]

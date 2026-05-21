@@ -32,6 +32,7 @@
 #define KAIN_ACTOR_TABLE_WORD_COUNT (KAIN_ACTOR_TABLE_SIZE / KAIN_ACTOR_TABLE_WORD_BITS)
 #define KAIN_ACTOR_REPLY_PORT_WAIT_SPINS 256u
 #define KAIN_ACTOR_MAILBOX_NODE_CACHE_LIMIT 1024u
+#define KAIN_ACTOR_BORROWED_MESSAGE_STACK_CAPACITY 64u
 #if (KAIN_ACTOR_TABLE_SIZE % KAIN_ACTOR_TABLE_WORD_BITS) != 0
 #error "KAIN_ACTOR_TABLE_SIZE must be a multiple of 64 for occupancy-word indexing."
 #endif
@@ -127,6 +128,10 @@ typedef struct {
 } KainActorReplyPortState;
 
 static KAIN_THREAD_LOCAL KainActorReplyPortState* g_actor_reply_port_tls = NULL;
+static KAIN_THREAD_LOCAL const void* g_actor_borrowed_message_stack[
+    KAIN_ACTOR_BORROWED_MESSAGE_STACK_CAPACITY
+] = {0};
+static KAIN_THREAD_LOCAL unsigned int g_actor_borrowed_message_depth = 0u;
 static atomic_uint_least64_t g_attrition_actor_live_count = 0;
 static atomic_uint_least64_t g_attrition_actor_peak_count = 0;
 static atomic_uint_least64_t g_attrition_actor_spawn_count = 0;
@@ -266,6 +271,12 @@ static void kain_actor_reply_port_state_take_actor_ref(
 static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortState* state);
 static int kain_actor_reply_port_state_rearm_synthetic_actor(KainActorReplyPortState* state);
 static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPortState* state);
+static void kain_actor_borrowed_message_push(const void* message_data);
+static int kain_actor_borrowed_message_release_match(const void* message_data);
+static int kain_actor_mailbox_take_inline_message(
+    KainActorMailbox* mailbox,
+    KainActorMessage* message
+);
 static KainActorState_Internal* kain_actor_table_get(KainActorId actor_id);
 static KainActorId kain_actor_table_insert(KainActorState_Internal* actor);
 static int kain_actor_table_copy_ref(KainActorId actor_id, KainActorRef* out_actor_ref);
@@ -311,6 +322,60 @@ static void kain_actor_reply_port_spin_pause(unsigned int spin_index) {
 #endif
     }
 #endif
+}
+
+static void kain_actor_borrowed_message_push(const void* message_data) {
+    if (message_data == NULL) {
+        return;
+    }
+    if (g_actor_borrowed_message_depth < KAIN_ACTOR_BORROWED_MESSAGE_STACK_CAPACITY) {
+        g_actor_borrowed_message_stack[g_actor_borrowed_message_depth++] = message_data;
+    }
+}
+
+static int kain_actor_borrowed_message_release_match(const void* message_data) {
+    unsigned int index;
+
+    if (message_data == NULL || g_actor_borrowed_message_depth == 0u) {
+        return 0;
+    }
+    for (index = g_actor_borrowed_message_depth; index > 0u; --index) {
+        if (g_actor_borrowed_message_stack[index - 1u] == message_data) {
+            unsigned int tail_index;
+            for (tail_index = index; tail_index < g_actor_borrowed_message_depth; ++tail_index) {
+                g_actor_borrowed_message_stack[tail_index - 1u] =
+                    g_actor_borrowed_message_stack[tail_index];
+            }
+            g_actor_borrowed_message_stack[g_actor_borrowed_message_depth - 1u] = NULL;
+            g_actor_borrowed_message_depth--;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int kain_actor_mailbox_take_inline_message(
+    KainActorMailbox* mailbox,
+    KainActorMessage* message
+) {
+    if (mailbox == NULL || message == NULL || !mailbox->inline_message_pending) {
+        return 0;
+    }
+
+    message->type_tag = mailbox->inline_message_type_tag;
+    message->data = (void*)mailbox->inline_message_data;
+    message->data_size = mailbox->inline_message_size;
+    message->sender_id = mailbox->inline_message_sender_id;
+    if (mailbox->inline_message_borrowed) {
+        kain_actor_borrowed_message_push(mailbox->inline_message_data);
+    }
+    mailbox->inline_message_type_tag = 0ULL;
+    mailbox->inline_message_data = NULL;
+    mailbox->inline_message_size = 0u;
+    mailbox->inline_message_sender_id = KAIN_ACTOR_ID_INVALID;
+    mailbox->inline_message_pending = 0;
+    mailbox->inline_message_borrowed = 0;
+    return 1;
 }
 
 static void kain_actor_ref_zero(KainActorRef* actor_ref) {
@@ -1127,6 +1192,12 @@ static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity) {
     mailbox->capacity = capacity;
     mailbox->count = 0;
     mailbox->free_node_count = 0;
+    mailbox->inline_message_type_tag = 0ULL;
+    mailbox->inline_message_data = NULL;
+    mailbox->inline_message_size = 0u;
+    mailbox->inline_message_sender_id = KAIN_ACTOR_ID_INVALID;
+    mailbox->inline_message_pending = 0;
+    mailbox->inline_message_borrowed = 0;
     mailbox->closed = 0;
 
 #ifdef _WIN32
@@ -1167,6 +1238,12 @@ static void kain_actor_mailbox_destroy(KainActorMailbox* mailbox) {
     mailbox->free_nodes = NULL;
     mailbox->count = 0u;
     mailbox->free_node_count = 0u;
+    mailbox->inline_message_type_tag = 0ULL;
+    mailbox->inline_message_data = NULL;
+    mailbox->inline_message_size = 0u;
+    mailbox->inline_message_sender_id = KAIN_ACTOR_ID_INVALID;
+    mailbox->inline_message_pending = 0;
+    mailbox->inline_message_borrowed = 0;
 
 #ifdef _WIN32
     DeleteCriticalSection(&mailbox->lock);
@@ -1662,6 +1739,7 @@ void kain_actor_spawn_config_init(KainActorSpawnConfig* config) {
     config->microcell_turn_budget = KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET;
     config->execution_class = KAIN_ACTOR_EXECUTION_CLASS_MICROCELL;
     config->locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
+    config->inline_ask_payload_policy = KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_COPY;
 }
 
 void* kain_actor_reply_port_new(void) {
@@ -1888,6 +1966,7 @@ static KainActorId kain_actor_spawn_internal(
 ) {
     KainActorEntryKind entry_kind;
     unsigned int turn_budget;
+    unsigned int inline_ask_payload_policy;
 
     kain_actor_runtime_ensure_initialized();
 
@@ -1932,6 +2011,10 @@ static KainActorId kain_actor_spawn_internal(
     if (turn_budget == 0u) {
         turn_budget = KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET;
     }
+    inline_ask_payload_policy = config->inline_ask_payload_policy;
+    if (inline_ask_payload_policy != KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_BORROWED) {
+        inline_ask_payload_policy = KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_COPY;
+    }
 
     /* Allocate actor state */
     KainActorState_Internal* actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));
@@ -1954,6 +2037,7 @@ static KainActorId kain_actor_spawn_internal(
     actor->turn_fn = config->turn_fn;
     actor->microcell_turn_budget = turn_budget;
     actor->user_data = config->user_data;
+    actor->inline_ask_payload_policy = inline_ask_payload_policy;
     actor->ref_generation = 0u;
     actor->execution_class = config->execution_class != KAIN_ACTOR_EXECUTION_CLASS_INVALID
         ? config->execution_class
@@ -2009,6 +2093,7 @@ static KainActorId kain_actor_spawn_internal(
     actor->spawn_config.microcell_turn_budget = turn_budget;
     actor->spawn_config.execution_class = actor->execution_class;
     actor->spawn_config.locality_class = actor->locality_class;
+    actor->spawn_config.inline_ask_payload_policy = inline_ask_payload_policy;
     kain_actor_copy_name(
         actor->spawn_config.name,
         sizeof(actor->spawn_config.name),
@@ -2200,6 +2285,48 @@ int kain_actor_ask_send_ref(
 #endif
 
     mailbox_was_empty = mailbox->count == 0u;
+    if (mailbox_was_empty &&
+        kain_actor_is_microcell_turn_actor(actor) &&
+        actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_MICROCELL &&
+        actor->locality_class == KAIN_ACTOR_LOCALITY_LOCAL &&
+        actor->inline_ask_payload_policy == KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_BORROWED &&
+        (actor->state == KAIN_ACTOR_STATE_INITIALIZING ||
+         actor->state == KAIN_ACTOR_STATE_RUNNING)) {
+#ifdef _WIN32
+        EnterCriticalSection(&g_scheduler.lock);
+#else
+        pthread_mutex_lock(&g_scheduler.lock);
+#endif
+        if (!g_scheduler.shutdown &&
+            !actor->in_scheduler_queue &&
+            !actor->in_scheduler_turn &&
+            mailbox->count == 0u &&
+            !mailbox->inline_message_pending) {
+            actor->in_scheduler_turn = 1;
+            inline_execute = 1;
+        }
+#ifdef _WIN32
+        LeaveCriticalSection(&g_scheduler.lock);
+#else
+        pthread_mutex_unlock(&g_scheduler.lock);
+#endif
+        if (inline_execute) {
+            mailbox->inline_message_type_tag = message->type_tag;
+            mailbox->inline_message_data = message->data;
+            mailbox->inline_message_size = message->data_size;
+            mailbox->inline_message_sender_id = message->sender_id;
+            mailbox->inline_message_pending = 1;
+            mailbox->inline_message_borrowed = 1;
+#ifdef _WIN32
+            LeaveCriticalSection(&mailbox->lock);
+#else
+            pthread_mutex_unlock(&mailbox->lock);
+#endif
+            kain_actor_execute_microcell_turn(actor, 0);
+            return 0;
+        }
+    }
+
     append_result = kain_actor_mailbox_append_copied_locked(mailbox, message);
     if (append_result != 0) {
         if (diag != NULL) {
@@ -2248,16 +2375,15 @@ int kain_actor_ask_send_ref(
 #else
         pthread_mutex_unlock(&g_scheduler.lock);
 #endif
-    }
-
-    if (inline_execute) {
+        if (inline_execute) {
 #ifdef _WIN32
-        LeaveCriticalSection(&mailbox->lock);
+            LeaveCriticalSection(&mailbox->lock);
 #else
-        pthread_mutex_unlock(&mailbox->lock);
+            pthread_mutex_unlock(&mailbox->lock);
 #endif
-        kain_actor_execute_microcell_turn(actor, 0);
-        return 0;
+            kain_actor_execute_microcell_turn(actor, 0);
+            return 0;
+        }
     }
 
     if (kain_actor_is_microcell_turn_actor(actor)) {
@@ -2284,6 +2410,9 @@ int kain_actor_receive(
     KainActorMessage* message,
     KainDiagnostic* diag
 ) {
+    if (kain_actor_mailbox_take_inline_message(mailbox, message)) {
+        return 0;
+    }
     if (mailbox == NULL || message == NULL) {
         return -1;
     }
@@ -2361,6 +2490,9 @@ int kain_actor_try_receive(
 ) {
     (void)diag;
 
+    if (kain_actor_mailbox_take_inline_message(mailbox, message)) {
+        return 0;
+    }
     if (mailbox == NULL || message == NULL) {
         return -1;
     }
@@ -2406,6 +2538,16 @@ int kain_actor_try_receive(
 #endif
 
     return 0;
+}
+
+void kain_actor_message_release(void* message_data) {
+    if (message_data == NULL) {
+        return;
+    }
+    if (kain_actor_borrowed_message_release_match(message_data)) {
+        return;
+    }
+    free(message_data);
 }
 
 /*

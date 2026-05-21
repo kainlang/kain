@@ -7,8 +7,9 @@
 //! - Emitted output is valid TypeScript (no runtime dependency)
 
 use kain_core::ast::{
-    BinaryOp, Block, ElseBranch, EnumVariantFields, Expr, Function, Impl, JSXAttrValue, JSXNode,
-    Pattern, Stmt, Type, UnaryOp, VariantFields, VariantPatternFields,
+    BinaryOp, Block, ConvergeDef, ElseBranch, EnumVariantFields, Expr, Function, Impl,
+    JSXAttrValue, JSXNode, LawDef, OrchestrateDef, PatchDef, Pattern, Stmt, Type, UnaryOp,
+    VariantFields, VariantPatternFields, WorldDef,
 };
 use kain_core::error::KainResult;
 use kain_core::types::{
@@ -148,8 +149,13 @@ impl TSGen {
         for item in &program.items {
             match item {
                 TypedItem::Function(f) => self.gen_typed_function(f),
+                TypedItem::Patch(p) => self.gen_patch(&p.ast),
+                TypedItem::Law(l) => self.gen_law(&l.ast),
+                TypedItem::Converge(c) => self.gen_converge(&c.ast),
+                TypedItem::Orchestrate(o) => self.gen_orchestrate(&o.ast),
                 TypedItem::Struct(s) => self.gen_typed_struct(s),
                 TypedItem::Enum(e) => self.gen_typed_enum(e),
+                TypedItem::World(w) => self.gen_world(&w.ast),
                 TypedItem::Component(c) => {
                     self.needs_dom_types = true;
                     self.gen_typed_component(c);
@@ -180,6 +186,70 @@ impl TSGen {
         ));
         self.indent();
         self.gen_block(&func.ast.body);
+        self.dedent();
+        self.writeln("}");
+    }
+
+    fn gen_patch(&mut self, patch: &PatchDef) {
+        self.gen_typed_callable(&patch.name, &patch.params, patch.return_type.as_ref(), &patch.body, true);
+    }
+
+    fn gen_law(&mut self, law: &LawDef) {
+        self.gen_typed_callable(&law.name, &law.params, Some(&law.return_type), &law.body, true);
+    }
+
+    fn gen_converge(&mut self, converge: &ConvergeDef) {
+        self.gen_typed_callable(
+            &converge.name,
+            &converge.params,
+            converge.return_type.as_ref(),
+            &converge.spec_lane.body,
+            true,
+        );
+    }
+
+    fn gen_orchestrate(&mut self, orchestrate: &OrchestrateDef) {
+        self.gen_typed_callable(
+            &orchestrate.name,
+            &orchestrate.params,
+            orchestrate.return_type.as_ref(),
+            &orchestrate.body,
+            true,
+        );
+    }
+
+    fn gen_world(&mut self, world: &WorldDef) {
+        self.writeln(&format!("export const {} = {{", world.name));
+        self.indent();
+        for state in &world.states {
+            self.write(&format!("{}: ", state.name));
+            self.gen_expr(&state.initial);
+            self.writeln(",");
+        }
+        self.dedent();
+        self.writeln("};");
+    }
+
+    fn gen_typed_callable(
+        &mut self,
+        name: &str,
+        params: &[kain_core::ast::Param],
+        return_type: Option<&Type>,
+        body: &Block,
+        export: bool,
+    ) {
+        let params = params
+            .iter()
+            .map(|p| format!("{}: {}", p.name, self.type_to_ts(&p.ty)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let ret = return_type
+            .map(|t| self.type_to_ts(t))
+            .unwrap_or_else(|| "void".to_string());
+        let prefix = if export { "export " } else { "" };
+        self.writeln(&format!("{prefix}function {}({}): {} {{", name, params, ret));
+        self.indent();
+        self.gen_block(body);
         self.dedent();
         self.writeln("}");
     }

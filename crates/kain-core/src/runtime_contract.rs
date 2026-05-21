@@ -2096,8 +2096,29 @@ fn collect_reflection_data(
                 });
             }
             TypedItem::Actor(actor) => {
+                let type_id = *type_id_counter;
+                *type_id_counter += 1;
                 let item_id = *item_id_counter;
                 *item_id_counter += 1;
+                let state_type_name = format!("{}State", actor.actor_contract.name);
+                let fields = actor
+                    .ast
+                    .state
+                    .iter()
+                    .map(|state| ReflectedField {
+                        name: state.name.clone(),
+                        type_name: type_to_string(&state.ty),
+                        offset_hint: None,
+                    })
+                    .collect();
+
+                types.push(ReflectedType {
+                    type_id,
+                    name: state_type_name.clone(),
+                    kind: "actor-state".to_string(),
+                    size_hint: None,
+                    fields,
+                });
 
                 items.push(ReflectedItem {
                     item_id,
@@ -2116,7 +2137,7 @@ fn collect_reflection_data(
                         .names()
                         .map(str::to_string)
                         .collect(),
-                    state_type: Some(format!("{}State", actor.actor_contract.name)),
+                    state_type: Some(state_type_name),
                 });
             }
             TypedItem::Component(component) => {
@@ -2320,6 +2341,44 @@ component App():
             .migration_hints
             .iter()
             .any(|hint| hint.contains("reflection payload")));
+    }
+
+    #[test]
+    fn reflection_payload_emits_actor_state_schemas() {
+        let source = r#"
+actor Chronos:
+    state tick: Int = 0
+    state phase: Int = 1
+    on Ping(reply_to: P, step: Int):
+        send reply_to.Reply(value = self.tick + step)
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
+
+        let bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Rust);
+        let payload = bundle
+            .reflection_payload
+            .as_ref()
+            .expect("reflection payload");
+        assert_eq!(payload.actors.len(), 1);
+        assert_eq!(payload.actors[0].name, "Chronos");
+        assert_eq!(
+            payload.actors[0].state_type.as_deref(),
+            Some("ChronosState")
+        );
+        let state_schema = payload
+            .types
+            .iter()
+            .find(|ty| ty.name == "ChronosState")
+            .expect("actor state schema");
+        assert_eq!(state_schema.kind, "actor-state");
+        assert_eq!(state_schema.fields.len(), 2);
+        assert_eq!(state_schema.fields[0].name, "tick");
+        assert_eq!(state_schema.fields[1].name, "phase");
     }
 
     #[test]

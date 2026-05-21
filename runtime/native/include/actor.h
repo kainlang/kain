@@ -117,6 +117,8 @@ typedef struct {
 #define KAIN_ACTOR_DEFAULT_ASK_TIMEOUT_MS 30000ULL
 #define KAIN_ACTOR_DEFAULT_SHUTDOWN_GRACE_MS 5000ULL
 #define KAIN_ACTOR_DEFAULT_MICROCELL_TURN_BUDGET 64U
+#define KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_COPY 0U
+#define KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_BORROWED 1U
 
 /* String Buffer Sizes */
 #define KAIN_ACTOR_NAME_MAX 128
@@ -201,6 +203,12 @@ typedef struct KainActorMailbox {
     size_t capacity;        /* 0 = unbounded, >0 = bounded */
     size_t count;           /* Current message count */
     size_t free_node_count;
+    unsigned long long inline_message_type_tag;
+    const void* inline_message_data;
+    size_t inline_message_size;
+    unsigned long long inline_message_sender_id;
+    int inline_message_pending;
+    int inline_message_borrowed;
 
     /* Synchronization */
 #ifdef _WIN32
@@ -344,6 +352,7 @@ typedef struct {
     unsigned int microcell_turn_budget;
     unsigned int execution_class;
     unsigned int locality_class;
+    unsigned int inline_ask_payload_policy;
 } KainActorSpawnConfigStored;
 
 /*
@@ -404,6 +413,7 @@ typedef struct {
     KainActorTurnFn turn_fn;
     unsigned int microcell_turn_budget;
     void* user_data;
+    unsigned int inline_ask_payload_policy;
 
 #ifdef _WIN32
     HANDLE thread_handle;
@@ -508,6 +518,7 @@ typedef struct {
     unsigned int microcell_turn_budget;
     unsigned int execution_class;
     unsigned int locality_class;
+    unsigned int inline_ask_payload_policy;
 } KainActorSpawnConfig;
 
 /*
@@ -584,8 +595,12 @@ int kain_actor_send(
  * Compiler-lowered local asks use the full generation-tagged actor ref so the
  * runtime can reject stale handles and opportunistically run the first local
  * microcell turn inline when the target mailbox is empty and not already owned
- * by the scheduler. If the fast path is not legal, this falls back to normal
- * mailbox enqueue semantics.
+ * by the scheduler. Actors that opt into
+ * `KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_BORROWED` may also receive that first
+ * inline ask payload through a borrowed stack-backed lane; those receivers must
+ * release payloads with `kain_actor_message_release(...)` instead of raw
+ * `free(...)`. If the fast path is not legal, this falls back to normal mailbox
+ * enqueue semantics.
  */
 int kain_actor_ask_send_ref(
     const KainActorRef* target_ref,
@@ -616,6 +631,14 @@ int kain_actor_try_receive(
     KainActorMessage* message,
     KainDiagnostic* diag
 );
+
+/*
+ * Release received message payload storage.
+ *
+ * Normal queued messages still free their heap-owned payload. Borrowed inline
+ * ask payloads are recognized and released without touching the caller's stack.
+ */
+void kain_actor_message_release(void* message_data);
 
 /*
  * Native LLVM reply-port bridge.

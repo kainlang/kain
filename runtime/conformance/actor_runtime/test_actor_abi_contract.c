@@ -181,7 +181,7 @@ static KainActorTurnStatus ask_probe_turn(
     if (message.data == NULL || message.data_size != sizeof(AskProbeRequest)) {
         probe->errors = 1;
         if (message.data != NULL) {
-            free(message.data);
+            kain_actor_message_release(message.data);
         }
         return KAIN_ACTOR_TURN_CRASHED;
     }
@@ -193,11 +193,11 @@ static KainActorTurnStatus ask_probe_turn(
     reply_value = request->value + 7;
     if (kain_actor_reply_port_send_ref(&request->reply_to, &reply_value, sizeof(reply_value)) != 0) {
         probe->errors = 2;
-        free(message.data);
+        kain_actor_message_release(message.data);
         return KAIN_ACTOR_TURN_CRASHED;
     }
 
-    free(message.data);
+    kain_actor_message_release(message.data);
     return KAIN_ACTOR_TURN_IDLE;
 }
 
@@ -439,6 +439,7 @@ int main(void) {
         config.entry_kind = KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN;
         config.turn_fn = ask_probe_turn;
         config.user_data = &probe;
+        config.inline_ask_payload_policy = KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_BORROWED;
         snprintf(config.name, sizeof(config.name), "%s", "ask_probe");
         actor_id = kain_actor_spawn(&config, &diag);
         status = expect_true(actor_id != KAIN_ACTOR_ID_INVALID, 47, "ask probe spawn");

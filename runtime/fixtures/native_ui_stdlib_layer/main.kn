@@ -1,7 +1,9 @@
+use std::reload
+
 fn main() -> Int:
     let _reset = native_ui_reset()
     let session = ui_host_session_create("native-ui-stdlib-layer", "Kain UI Stdlib Layer", 640, 360, "software")
-    let generation = native_ui_hot_reload_begin(session, "stdlib-layer-v1")
+    let generation = reload_begin(session, "stdlib-layer-v1")
 
     let body_font = native_ui_font_create(session, "font.body", "Inter", 14.0)
     let root = ui_reconcile_node(session, 0, "app.root", "root", 0.0, 0.0, 640.0, 360.0)
@@ -38,7 +40,7 @@ fn main() -> Int:
     let _draw_label = ui_render_text(session, label, body_font, native_ui_node_x(session, label), native_ui_node_y(session, label) + 18.0, "ui.label")
     let _draw_icon = ui_render_resource(session, content, texture, content_x + content_width - 42.0, 24.0, 26.0, 26.0, "ui.icon")
     let presented = ui_frame_submit(session)
-    let committed = native_ui_hot_reload_commit(session)
+    let committed = reload_commit(session)
 
     if generation != committed:
         return 10
