@@ -113,6 +113,7 @@ static unsigned long long g_actor_spawn_sequence = 1;
 
 typedef struct {
     KainActorRef actor_ref;
+    KainActorState_Internal* parked_actor;
     int completed;
     void* reply_data;
     size_t reply_size;
@@ -325,6 +326,52 @@ static void kain_actor_reply_port_spin_pause(unsigned int spin_index) {
         __asm__ __volatile__("pause" ::: "memory");
 #endif
     }
+#endif
+}
+
+static int kain_actor_scheduler_flag_load(const int* value) {
+#if defined(__clang__) || defined(__GNUC__)
+    return __atomic_load_n(value, __ATOMIC_ACQUIRE);
+#elif defined(_WIN32)
+    return (int)InterlockedCompareExchange((volatile LONG*)value, 0, 0);
+#else
+    return *value;
+#endif
+}
+
+static void kain_actor_scheduler_flag_store(int* value, int next_value) {
+#if defined(__clang__) || defined(__GNUC__)
+    __atomic_store_n(value, next_value, __ATOMIC_RELEASE);
+#elif defined(_WIN32)
+    InterlockedExchange((volatile LONG*)value, (LONG)next_value);
+#else
+    *value = next_value;
+#endif
+}
+
+static int kain_actor_scheduler_turn_try_claim(KainActorState_Internal* actor) {
+    int expected = 0;
+
+    if (actor == NULL) {
+        return 0;
+    }
+#if defined(__clang__) || defined(__GNUC__)
+    return __atomic_compare_exchange_n(
+        &actor->in_scheduler_turn,
+        &expected,
+        1,
+        0,
+        __ATOMIC_ACQ_REL,
+        __ATOMIC_ACQUIRE
+    );
+#elif defined(_WIN32)
+    return InterlockedCompareExchange((volatile LONG*)&actor->in_scheduler_turn, 1, 0) == 0;
+#else
+    if (actor->in_scheduler_turn != 0) {
+        return 0;
+    }
+    actor->in_scheduler_turn = 1;
+    return 1;
 #endif
 }
 
@@ -805,6 +852,7 @@ static int kain_actor_reply_port_state_wait(
 static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) {
     int should_destroy = 0;
     void* reply_data_to_free = NULL;
+    KainActorState_Internal* parked_actor_to_free = NULL;
 
     if (state == NULL) {
         return;
@@ -819,6 +867,8 @@ static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) 
             reply_data_to_free = state->reply_data;
             state->reply_data = NULL;
             state->reply_size = 0u;
+            parked_actor_to_free = state->parked_actor;
+            state->parked_actor = NULL;
         }
     }
     LeaveCriticalSection(&state->lock);
@@ -831,6 +881,11 @@ static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) 
         ) {
             free(reply_data_to_free);
         }
+        if (parked_actor_to_free != NULL) {
+            parked_actor_to_free->user_data = NULL;
+            kain_actor_mailbox_destroy(&parked_actor_to_free->mailbox);
+            free(parked_actor_to_free);
+        }
         free(state);
     }
 #else
@@ -842,6 +897,8 @@ static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) 
             reply_data_to_free = state->reply_data;
             state->reply_data = NULL;
             state->reply_size = 0u;
+            parked_actor_to_free = state->parked_actor;
+            state->parked_actor = NULL;
         }
     }
     pthread_mutex_unlock(&state->lock);
@@ -854,6 +911,11 @@ static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) 
         ) {
             free(reply_data_to_free);
         }
+        if (parked_actor_to_free != NULL) {
+            parked_actor_to_free->user_data = NULL;
+            kain_actor_mailbox_destroy(&parked_actor_to_free->mailbox);
+            free(parked_actor_to_free);
+        }
         free(state);
     }
 #endif
@@ -863,14 +925,21 @@ static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortSt
     KainActorState_Internal* actor;
     KainActorRef actor_ref;
     KainActorId actor_id;
+    int reused_parked_actor = 0;
 
     if (state == NULL) {
         return -1;
     }
 
-    actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));
-    if (actor == NULL) {
-        return -1;
+    actor = state->parked_actor;
+    if (actor != NULL) {
+        reused_parked_actor = 1;
+        state->parked_actor = NULL;
+    } else {
+        actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));
+        if (actor == NULL) {
+            return -1;
+        }
     }
 
     actor->state = KAIN_ACTOR_STATE_RUNNING;
@@ -887,17 +956,31 @@ static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortSt
         "kain-reply-port"
     );
 
-    if (kain_actor_mailbox_init(&actor->mailbox, 1u) != 0) {
-        free(actor);
-        return -1;
+    if (!reused_parked_actor) {
+        if (kain_actor_mailbox_init(&actor->mailbox, 1u) != 0) {
+            free(actor);
+            return -1;
+        }
+    } else {
+        actor->mailbox.closed = 0;
+        actor->mailbox.inline_message_type_tag = 0ULL;
+        actor->mailbox.inline_message_data = NULL;
+        actor->mailbox.inline_message_size = 0u;
+        actor->mailbox.inline_message_sender_id = KAIN_ACTOR_ID_INVALID;
+        actor->mailbox.inline_message_pending = 0;
+        actor->mailbox.inline_message_borrowed = 0;
     }
 
     kain_actor_reply_port_state_acquire(state);
     actor_id = kain_actor_table_insert(actor);
     if (actor_id == KAIN_ACTOR_ID_INVALID) {
         kain_actor_reply_port_state_release(state);
-        kain_actor_mailbox_destroy(&actor->mailbox);
-        free(actor);
+        if (reused_parked_actor) {
+            state->parked_actor = actor;
+        } else {
+            kain_actor_mailbox_destroy(&actor->mailbox);
+            free(actor);
+        }
         return -1;
     }
 
@@ -980,6 +1063,18 @@ static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPor
 
     actor->state = KAIN_ACTOR_STATE_TERMINATED;
     actor->exit_reason = KAIN_ACTOR_EXIT_SHUTDOWN;
+    actor->actor_id = KAIN_ACTOR_ID_INVALID;
+    actor->ref_generation = 0u;
+    kain_actor_scheduler_flag_store(&actor->in_scheduler_queue, 0);
+    kain_actor_scheduler_flag_store(&actor->in_scheduler_turn, 0);
+    if (actor->mailbox.head == NULL &&
+        actor->mailbox.count == 0u &&
+        !actor->mailbox.inline_message_pending &&
+        state->parked_actor == NULL) {
+        /* Proof: runtime/native/src/core/z3/proofs-experimental/reply-port-parked-rebind-stale-ref-rejection.smt2 */
+        state->parked_actor = actor;
+        return;
+    }
     kain_actor_close_mailbox(actor);
     kain_actor_cleanup(actor);
     free(actor);
@@ -2090,8 +2185,8 @@ static KainActorId kain_actor_spawn_internal(
         : KAIN_ACTOR_LOCALITY_LOCAL;
     actor->monitors = NULL;
     actor->links = NULL;
-    actor->in_scheduler_queue = 0;
-    actor->in_scheduler_turn = 0;
+    kain_actor_scheduler_flag_store(&actor->in_scheduler_queue, 0);
+    kain_actor_scheduler_flag_store(&actor->in_scheduler_turn, 0);
     actor->spawn_sequence = 0;
 
     kain_actor_copy_name(actor->name, sizeof(actor->name), config->name);
@@ -2321,24 +2416,13 @@ int kain_actor_ask_send_ref(
         actor->inline_ask_payload_policy == KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_BORROWED &&
         (actor->state == KAIN_ACTOR_STATE_INITIALIZING ||
          actor->state == KAIN_ACTOR_STATE_RUNNING)) {
-#ifdef _WIN32
-        EnterCriticalSection(&g_scheduler.lock);
-#else
-        pthread_mutex_lock(&g_scheduler.lock);
-#endif
-        if (!g_scheduler.shutdown &&
-            !actor->in_scheduler_queue &&
-            !actor->in_scheduler_turn &&
+        if (!kain_actor_scheduler_flag_load(&g_scheduler.shutdown) &&
+            !kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) &&
             mailbox->count == 0u &&
-            !mailbox->inline_message_pending) {
-            actor->in_scheduler_turn = 1;
+            !mailbox->inline_message_pending &&
+            kain_actor_scheduler_turn_try_claim(actor)) {
             inline_execute = 1;
         }
-#ifdef _WIN32
-        LeaveCriticalSection(&g_scheduler.lock);
-#else
-        pthread_mutex_unlock(&g_scheduler.lock);
-#endif
         if (inline_execute) {
             mailbox->inline_message_type_tag = message->type_tag;
             mailbox->inline_message_data = message->data;
@@ -2387,23 +2471,12 @@ int kain_actor_ask_send_ref(
         actor->locality_class == KAIN_ACTOR_LOCALITY_LOCAL &&
         (actor->state == KAIN_ACTOR_STATE_INITIALIZING ||
          actor->state == KAIN_ACTOR_STATE_RUNNING)) {
-#ifdef _WIN32
-        EnterCriticalSection(&g_scheduler.lock);
-#else
-        pthread_mutex_lock(&g_scheduler.lock);
-#endif
-        if (!g_scheduler.shutdown &&
-            !actor->in_scheduler_queue &&
-            !actor->in_scheduler_turn &&
-            mailbox->count == 1u) {
-            actor->in_scheduler_turn = 1;
+        if (!kain_actor_scheduler_flag_load(&g_scheduler.shutdown) &&
+            !kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) &&
+            mailbox->count == 1u &&
+            kain_actor_scheduler_turn_try_claim(actor)) {
             inline_execute = 1;
         }
-#ifdef _WIN32
-        LeaveCriticalSection(&g_scheduler.lock);
-#else
-        pthread_mutex_unlock(&g_scheduler.lock);
-#endif
         if (inline_execute) {
 #ifdef _WIN32
             LeaveCriticalSection(&mailbox->lock);
@@ -2801,7 +2874,7 @@ void kain_attrition_actor_fill_snapshot(KainAttritionSnapshot* snapshot) {
         if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
             actor_supervised_count += 1u;
         }
-        if (actor->in_scheduler_turn) {
+        if (kain_actor_scheduler_flag_load(&actor->in_scheduler_turn)) {
             actor_in_scheduler_turn_count += 1u;
         }
         if (actor->supervision_limit_hits > 0) {
@@ -3390,7 +3463,7 @@ void kain_actor_scheduler_snapshot(KainActorSchedulerSnapshot* snapshot) {
     snapshot->busy_workers = g_scheduler.busy_workers;
     snapshot->max_busy_workers = g_scheduler.max_busy_workers;
     snapshot->overflow_thread_spawns = g_scheduler.overflow_thread_spawns;
-    snapshot->shutdown = g_scheduler.shutdown;
+    snapshot->shutdown = kain_actor_scheduler_flag_load(&g_scheduler.shutdown);
 
 #ifdef _WIN32
     LeaveCriticalSection(&g_scheduler.lock);
@@ -3423,7 +3496,8 @@ static void* kain_scheduler_worker_thread(void* param) {
 #endif
 
         /* Wait for work or shutdown */
-        while (g_scheduler.queue_depth == 0u && !g_scheduler.shutdown) {
+        while (g_scheduler.queue_depth == 0u &&
+               !kain_actor_scheduler_flag_load(&g_scheduler.shutdown)) {
 #ifdef _WIN32
             LeaveCriticalSection(&g_scheduler.lock);
             WaitForSingleObject(g_scheduler.work_available, INFINITE);
@@ -3434,7 +3508,8 @@ static void* kain_scheduler_worker_thread(void* param) {
         }
 
         /* Check for shutdown */
-        if (g_scheduler.shutdown && g_scheduler.queue_depth == 0u) {
+        if (kain_actor_scheduler_flag_load(&g_scheduler.shutdown) &&
+            g_scheduler.queue_depth == 0u) {
 #ifdef _WIN32
             LeaveCriticalSection(&g_scheduler.lock);
 #else
@@ -3547,7 +3622,7 @@ static void kain_scheduler_init(void) {
     memset(g_scheduler.queue, 0, sizeof(g_scheduler.queue));
     g_scheduler.enqueue_cursor = 0u;
     g_scheduler.dequeue_cursor = 0u;
-    g_scheduler.shutdown = 0;
+    kain_actor_scheduler_flag_store(&g_scheduler.shutdown, 0);
     g_scheduler.active_workers = KAIN_SCHEDULER_WORKER_COUNT;
     g_scheduler.busy_workers = 0;
     g_scheduler.max_busy_workers = 0;
@@ -3578,7 +3653,7 @@ static void kain_scheduler_shutdown(void) {
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
 
-    g_scheduler.shutdown = 1;
+    kain_actor_scheduler_flag_store(&g_scheduler.shutdown, 1);
 
 #ifdef _WIN32
     /* Signal all workers */
@@ -3632,9 +3707,9 @@ static void kain_scheduler_ready_actor(KainActorState_Internal* actor) {
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
 
-    if (g_scheduler.shutdown ||
-        actor->in_scheduler_queue ||
-        actor->in_scheduler_turn ||
+    if (kain_actor_scheduler_flag_load(&g_scheduler.shutdown) ||
+        kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) ||
+        kain_actor_scheduler_flag_load(&actor->in_scheduler_turn) ||
         actor->state == KAIN_ACTOR_STATE_TERMINATED ||
         g_scheduler.queue_depth >= KAIN_SCHEDULER_QUEUE_CAPACITY) {
 #ifdef _WIN32
@@ -3645,7 +3720,7 @@ static void kain_scheduler_ready_actor(KainActorState_Internal* actor) {
         return;
     }
 
-    actor->in_scheduler_queue = 1;
+    kain_actor_scheduler_flag_store(&actor->in_scheduler_queue, 1);
     g_scheduler.queue[g_scheduler.enqueue_cursor & KAIN_SCHEDULER_QUEUE_MASK] = actor_id;
     g_scheduler.enqueue_cursor++;
     g_scheduler.queue_depth++;
@@ -3678,17 +3753,27 @@ static void kain_scheduler_finish_turn(KainActorState_Internal* actor) {
                      actor->state == KAIN_ACTOR_STATE_RUNNING &&
                      actor->mailbox.count > 0u;
 
+    if (!should_requeue) {
+        kain_actor_scheduler_flag_store(&actor->in_scheduler_turn, 0);
+#ifdef _WIN32
+        LeaveCriticalSection(&actor->mailbox.lock);
+#else
+        pthread_mutex_unlock(&actor->mailbox.lock);
+#endif
+        return;
+    }
+
 #ifdef _WIN32
     EnterCriticalSection(&g_scheduler.lock);
 #else
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
-    actor->in_scheduler_turn = 0;
+    kain_actor_scheduler_flag_store(&actor->in_scheduler_turn, 0);
     if (should_requeue &&
-        !g_scheduler.shutdown &&
-        !actor->in_scheduler_queue &&
+        !kain_actor_scheduler_flag_load(&g_scheduler.shutdown) &&
+        !kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) &&
         g_scheduler.queue_depth < KAIN_SCHEDULER_QUEUE_CAPACITY) {
-        actor->in_scheduler_queue = 1;
+        kain_actor_scheduler_flag_store(&actor->in_scheduler_queue, 1);
         g_scheduler.queue[g_scheduler.enqueue_cursor & KAIN_SCHEDULER_QUEUE_MASK] = actor->actor_id;
         g_scheduler.enqueue_cursor++;
         g_scheduler.queue_depth++;
@@ -3789,8 +3874,9 @@ static KainActorId kain_scheduler_dequeue(void) {
     {
         KainActorState_Internal* actor = kain_actor_table_get(actor_id);
         if (actor != NULL) {
-            actor->in_scheduler_queue = 0;
-            actor->in_scheduler_turn = 1;
+            /* Proof: runtime/native/src/core/z3/proofs-experimental/inline-ask-turn-claim-no-double-owner.smt2 */
+            kain_actor_scheduler_flag_store(&actor->in_scheduler_turn, 1);
+            kain_actor_scheduler_flag_store(&actor->in_scheduler_queue, 0);
         }
     }
 

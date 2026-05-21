@@ -1,5 +1,58 @@
 # Kain Memory
 
+# 2026-05-21 - inline ask path shed scheduler-lock traffic and the actor frontier moved again
+
+The reply-port and live-snapshot work had already removed obvious ask/reply waste, but same-thread inline microcell asks were still paying scheduler-lock traffic just to discover that no queue admission was needed. This pass cut that scheduler lock from the inline claim path, skipped finish-turn scheduler locking when there was no backlog to requeue, and proved the dequeue ordering so we did not create a double-owner race.
+
+What changed:
+
+- `runtime/native/src/core/actor.c`
+  - keeps a parked synthetic reply-port actor/mailbox shell hot so TLS reply-port teardown can recycle that tiny shell instead of destroying it every time
+  - added atomic scheduler-flag helpers for `shutdown`, `in_scheduler_queue`, and `in_scheduler_turn`
+  - removed `g_scheduler.lock` from the same-thread inline claim path in `kain_actor_ask_send_ref(...)`
+  - taught `kain_scheduler_finish_turn(...)` to skip scheduler locking when there is nothing to requeue
+  - reordered dequeue handoff to publish `turn = 1` before `queue = 0`
+- `runtime/native/src/core/z3/proofs-experimental/reply-port-parked-rebind-stale-ref-rejection.smt2`
+  - proves the parked reply-port rebind still advances generation so stale refs stay dead
+- `runtime/native/src/core/z3/proofs-experimental/inline-ask-turn-claim-no-double-owner.smt2`
+  - proves the new dequeue ordering cannot expose an inline-claimable `(queue = 0, turn = 0)` intermediate state while the worker already owns the turn
+- durable notes:
+  - `research/2026-05-21-inline-ask-scheduler-lock-cut-speedup-hunt.md`
+  - `benchmark/assesments/2026-05-21-inline-ask-scheduler-lock-cut-assessment.md`
+
+Validation:
+
+- `toolchain\llvm\bin\clang.exe -fsyntax-only runtime\native\src\core\actor.c -I runtime\native\include`
+- `mcp__z3_local__.check_smt2(...)` for `reply-port-parked-rebind-stale-ref-rejection.smt2` -> `unsat`
+- `mcp__z3_local__.check_smt2(...)` for `inline-ask-turn-claim-no-double-owner.smt2` -> `unsat`
+- `python benchmark/run.py --case actor_ownership_backpressure,semantic_fabric_relay --languages kain,cpp --runs 5 --warmups 2 --timeout 600 --latest-stem latest_actor_inline_scheduler_cut`
+- `python benchmark/run.py --case actor_ownership_backpressure,semantic_fabric_relay --languages kain,cpp --runs 9 --warmups 3 --timeout 600 --latest-stem latest_actor_inline_scheduler_cut_rerun`
+- `python benchmark/run.py --timeout 900 --latest-stem latest_full_after_inline_scheduler_cut`
+- `python benchmark/run.py --case process_stdio_loop --languages kain,rust,cpp --runs 9 --warmups 3 --timeout 900 --latest-stem latest_process_stdio_validation`
+- `python benchmark/run.py --case contention_wall --languages kain,rust,cpp,zig,javascript,python --runs 9 --warmups 3 --timeout 900 --latest-stem latest_contention_validation`
+- `bash runtime/conformance/actor_runtime/run_tests.sh` is currently broken by a pre-existing missing `attrition.c` link closure in the script; do not blame that failure on this patch
+
+Measured outcome:
+
+- focused actor probe:
+  - `actor_ownership_backpressure`: Kain `485.658 ms` -> `461.558 ms`
+  - `semantic_fabric_relay`: Kain `109.095 ms` -> `114.365 ms`
+- focused 9-run retake:
+  - `actor_ownership_backpressure`: Kain `470.161 ms`, C++ `16.799 ms`
+  - `semantic_fabric_relay`: Kain `111.154 ms`, C++ `10.439 ms`
+- canonical full suite (`benchmark/out/reports/latest_full_after_inline_scheduler_cut.llm.md`, generated `2026-05-21T15:27:22.181379+00:00`):
+  - `actor_ownership_backpressure`: Kain `459.963 ms`, previous full latest `526.917 ms`
+  - `semantic_fabric_relay`: Kain `114.693 ms`, previous full latest `121.885 ms`
+- isolated regression checks:
+  - `process_stdio_loop`: isolated Kain `6382.368 ms`, better than the previous full latest `6860.217 ms`
+  - `contention_wall`: isolated Kain `9.842 ms`, close to the previous full latest `8.937 ms`
+
+Durable lesson:
+
+- The scheduler lock on same-thread inline asks was still real overhead, but this is still a step, not the alien leap. The remaining actor gap is dominated by request-side ownership and dispatch cost after the inline-claim decision.
+- Treat `actor_ownership_backpressure` and `semantic_fabric_relay` as the same frontier until a future pass proves otherwise.
+- When the full suite shows scary swings in non-actor rows, isolate them before calling them regressions. The long Windows suite still lies sometimes.
+
 # 2026-05-21 - actor ask path shed the global table lock and the broken actor benchmark lane was repaired
 
 The current checkout had a hidden benchmark-lane failure before any speed work started: `benchmark/cases/actor_ownership_backpressure/main.kn` was missing, so the loudest actor frontier row could not even run. This pass restored that source, deleted the ask-side global actor-table lock from `kain_actor_ask_send_ref(...)`, and reran the canonical benchmark suite.
