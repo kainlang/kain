@@ -1,30 +1,51 @@
 ---
 name: lang-ownership
-description: Use when authoring Kain code around ownership-state features such as `collapse`, `observe`, `decay`, shatter-aware movement, and ownership-heavy memory flows in `.kn` files, without changing the ownership model implementation, proof packs, or runtime helpers underneath.
+description: Use when authoring Kain ownership-state code, including `collapse`, `observe`, `decay`, memory-sensitive flows, and ownership-heavy demos or benchmarks, without changing the ownership model implementation underneath.
 ---
 
 # Lang Ownership
 
-## Overview
+Use this skill when the problem is about how ownership should be expressed in Kain.
 
-This skill owns authored ownership semantics. Use it when a task is about how Kain code should express ownership transitions or memory-sensitive flows, or when a blade/benchmark needs to dogfood ownership-state behavior from the language side.
+## Fast Loop
 
-## Start Here
+```powershell
+rg -n "collapse |observe |decay" blades benchmark smoketest
+kain check <entry.kn> --target llvm
+kain run <entry.kn-or-blade>
+```
 
-- Read ownership-heavy examples first: `benchmark/cases/ownership_memory/main.kn`, `benchmark/cases/quantumerlang/main.kn`, `blades/kain-example/src/main.kn`, and the nearest `semantic_singularity*` case using ownership features.
-- Prefer explicit ownership-state constructs over hand-rolled approximations.
-- Keep the authored proof surface strong enough that engine regressions are obvious.
+## Kain Pattern
 
-## Routing
+```kn
+fn fold_cells(cells: ptr<Int>, count: Int) -> Int:
+    var i: Int = 0
+    var acc: Int = 0
+    while i < count:
+        acc = acc + mem_load(ptr_offset(cells, i, "Int"), "Int")
+        i = i + 1
+    return acc
 
-- Stay here for `collapse`, `observe`, `decay`, ownership-oriented Kain data flow, and authored memory pressure examples.
-- Switch to `bootstrap-ownership` when parser/type/lowering/semantic ownership behavior is changing.
-- Switch to `runtime-core` when the native runtime helpers or heap-facing behavior under authored ownership code is wrong.
+fn main() -> Int with Unsafe:
+    let cells = alloc_zeroed(8, "Int")
+    collapse cells:
+        mem_store(ptr_offset(cells, 0, "Int"), 7, "Int")
+        0
+    let total = observe cells:
+        fold_cells(cells, 8)
+    decay cells
+    return total - 7
+```
+
+## What To Do
+
+- Use ownership constructs to make lifetime and exclusivity visible in the authored code.
+- Prefer real ownership pressure over decorative syntax. The point is to prove movement, observation, or teardown.
+- Keep the ownership-shaped code intact when an engine bug shows up; route the engine bug instead of deleting the ownership lane.
+
+## Hand Off When
+
+- Use `lang-systems` when ownership is part of actors, effects, raw pointers, zero-copy buffers, cache/bit lanes, scheduler pressure, or unsafe systems authoring.
+- Use `bootstrap-ownership` when semantic, typing, or lowering truth changes.
+- Use `runtime-core` when the native runtime helpers or heap behavior are wrong under authored ownership code.
 - Co-trigger `lang-semantics` when ownership is fused with `world`, `entangle`, `teleport`, or `patch`.
-- Co-trigger `test-harness` or `test-attrition` when the ownership claim needs proof or runtime abuse evidence.
-
-## Authoring Rules
-
-- Make ownership examples prove real movement, observation, or decay behavior instead of acting like decorative syntax.
-- If the authored lane exposes a compiler/runtime hole, preserve the intended ownership code and route the engine fix to `bootstrap-ownership` or `runtime-core`.
-- Use benchmark or attrition pressure when performance or lifetime cleanliness is part of the claim.

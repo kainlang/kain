@@ -24,7 +24,7 @@ const DEFAULT_PROFILE: &str = "debug";
 const DEFAULT_ARTIFACT_ROOT: &str = ".kain/out";
 const DEFAULT_CACHE_ROOT: &str = ".kain/cache/build";
 const DEFAULT_REPORT_ROOT: &str = ".kain/reports/build";
-const BUILD_ADAPTER_VERSION: &str = "kain-build-v4";
+const BUILD_ADAPTER_VERSION: &str = "kain-build-v5";
 const BUILD_ARTIFACT_SCHEMA_VERSION: u32 = 2;
 
 pub type BuildResult<T> = Result<T, BuildError>;
@@ -184,6 +184,12 @@ pub enum BuildTaskKind {
     BladeCheck,
     KainCheck,
     KainCompile,
+    NativeExecutable,
+    Test,
+    Proof,
+    Benchmark,
+    Attrition,
+    Certify,
     RustArtifacts,
     NativeUiApp,
     CargoBuild,
@@ -201,6 +207,12 @@ impl BuildTaskKind {
             Self::BladeCheck => "blade-check",
             Self::KainCheck => "kain-check",
             Self::KainCompile => "kain-compile",
+            Self::NativeExecutable => "native-executable",
+            Self::Test => "test",
+            Self::Proof => "proof",
+            Self::Benchmark => "benchmark",
+            Self::Attrition => "attrition",
+            Self::Certify => "certify",
             Self::RustArtifacts => "rust-artifacts",
             Self::NativeUiApp => "native-ui-app",
             Self::CargoBuild => "cargo-build",
@@ -227,6 +239,32 @@ enum BuildTaskAdapter {
         primary_output: PathBuf,
         materialized_primary_output: Option<PathBuf>,
         root_component: Option<String>,
+    },
+    NativeExecutable {
+        entry: PathBuf,
+        output: PathBuf,
+        script_path: PathBuf,
+        report_path: PathBuf,
+        verify_llvm: bool,
+    },
+    KainTest {
+        entry: PathBuf,
+        target: CompileTarget,
+        mode_override: Option<kain_test::KainTestMode>,
+        report_path: PathBuf,
+        proof_required: bool,
+        fail_fast: bool,
+        run_ignored: bool,
+    },
+    ExternalEvidence {
+        label: String,
+        program: String,
+        args: Vec<String>,
+        cwd: PathBuf,
+        report_path: PathBuf,
+    },
+    Certify {
+        report_path: PathBuf,
     },
     RustArtifacts {
         source: PathBuf,
@@ -639,7 +677,14 @@ pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBui
         }
     }
 
-    if let Some(manifest) = root_manifest.as_ref() {
+    let root_manifest_is_discovered_blade = workspace
+        .blades
+        .iter()
+        .any(|blade| paths_equivalent(&blade.root, &workspace.root));
+    if let Some(manifest) = root_manifest
+        .as_ref()
+        .filter(|_| !root_manifest_is_discovered_blade)
+    {
         add_explicit_root_tasks(&mut tasks, &config, manifest)?;
     }
 
@@ -1737,6 +1782,14 @@ fn build_explicit_task(
     }
     let kind = match task.kind.trim().to_ascii_lowercase().as_str() {
         "kain" | "kain-check" | "check" => BuildTaskKind::KainCheck,
+        "native-executable" | "root-executable" | "executable" | "exe" => {
+            BuildTaskKind::NativeExecutable
+        }
+        "test" | "kain-test" | "std-test" | "std::test" => BuildTaskKind::Test,
+        "proof" | "prove" | "z3" | "smt" => BuildTaskKind::Proof,
+        "benchmark" | "bench" => BuildTaskKind::Benchmark,
+        "attrition" | "abuse" => BuildTaskKind::Attrition,
+        "certify" | "certificate" | "evidence" => BuildTaskKind::Certify,
         "cargo" | "rust" | "rust-crate" => BuildTaskKind::CargoBuild,
         "c" | "c-shared-library" | "c_ffi" => BuildTaskKind::CSharedLibrary,
         "gpu" | "gpu-artifacts" => BuildTaskKind::GpuArtifacts,
@@ -1758,18 +1811,25 @@ fn build_explicit_task(
             .unwrap_or("workspace"),
         &task_id,
     );
-    let inputs = task
+    let mut inputs: Vec<PathBuf> = task
         .inputs
         .iter()
-        .map(|path| resolve_workspace_path(root, path))
+        .map(|path| resolve_build_graph_path(&config.workspace_root, root, &task_root, path))
         .collect();
+    let requested_outputs = task
+        .outputs
+        .iter()
+        .map(|path| resolve_build_graph_path(&config.workspace_root, root, &task_root, path))
+        .collect::<Vec<_>>();
+    let default_evidence_report = evidence_report_path(&task_root);
     let outputs = if task.outputs.is_empty() {
-        vec![task_root]
+        if is_evidence_task_kind(kind) {
+            vec![default_evidence_report.clone()]
+        } else {
+            vec![task_root.clone()]
+        }
     } else {
-        task.outputs
-            .iter()
-            .map(|path| resolve_workspace_path(root, path))
-            .collect()
+        requested_outputs.clone()
     };
     let adapter = match kind {
         BuildTaskKind::KainCheck => {
@@ -1782,10 +1842,105 @@ fn build_explicit_task(
                 .and_then(CompileTarget::from_str)
                 .unwrap_or(CompileTarget::Interpret);
             BuildTaskAdapter::KainCheck {
-                entry: resolve_workspace_path(root, entry),
+                entry: resolve_build_graph_path(&config.workspace_root, root, &task_root, entry),
                 target,
             }
         }
+        BuildTaskKind::NativeExecutable => {
+            let entry = task.entry.as_ref().ok_or_else(|| {
+                BuildError::Config(format!(
+                    "native executable task '{}' requires entry",
+                    task.id
+                ))
+            })?;
+            let entry = resolve_build_graph_path(&config.workspace_root, root, &task_root, entry);
+            let output = requested_outputs
+                .first()
+                .cloned()
+                .unwrap_or_else(|| root.join(default_executable_name(blade, root)));
+            let script_path = find_lang_blades_compile_script(root);
+            if !inputs.iter().any(|path| path == &script_path) {
+                inputs.push(script_path.clone());
+            }
+            BuildTaskAdapter::NativeExecutable {
+                entry,
+                output,
+                script_path,
+                report_path: default_evidence_report.clone(),
+                verify_llvm: !task.args.iter().any(|arg| arg == "--no-verify-llvm"),
+            }
+        }
+        BuildTaskKind::Test | BuildTaskKind::Proof => {
+            let entry = task.entry.as_ref().ok_or_else(|| {
+                BuildError::Config(format!(
+                    "{} task '{}' requires entry",
+                    kind.as_str(),
+                    task.id
+                ))
+            })?;
+            let target = task
+                .target
+                .as_deref()
+                .and_then(CompileTarget::from_str)
+                .unwrap_or(CompileTarget::Interpret);
+            let requested_mode = task
+                .args
+                .iter()
+                .filter_map(|arg| kain_test::KainTestMode::parse(arg))
+                .next();
+            let mode_override = match kind {
+                BuildTaskKind::Proof => {
+                    Some(requested_mode.unwrap_or(kain_test::KainTestMode::ProvePass))
+                }
+                _ => requested_mode,
+            };
+            BuildTaskAdapter::KainTest {
+                entry: resolve_build_graph_path(&config.workspace_root, root, &task_root, entry),
+                target,
+                mode_override,
+                report_path: default_evidence_report.clone(),
+                proof_required: kind == BuildTaskKind::Proof,
+                fail_fast: task.args.iter().any(|arg| arg == "--fail-fast"),
+                run_ignored: task
+                    .args
+                    .iter()
+                    .any(|arg| arg == "--ignored" || arg == "--run-ignored"),
+            }
+        }
+        BuildTaskKind::Benchmark | BuildTaskKind::Attrition => {
+            let default_runner = match kind {
+                BuildTaskKind::Benchmark => Path::new("benchmark").join("run.py"),
+                BuildTaskKind::Attrition => Path::new("attrition").join("run.py"),
+                _ => unreachable!(),
+            };
+            let entry = task
+                .entry
+                .as_ref()
+                .map(|path| {
+                    resolve_build_graph_path(&config.workspace_root, root, &task_root, path)
+                })
+                .unwrap_or_else(|| config.workspace_root.join(default_runner));
+            let program = task.command.clone().unwrap_or_else(python_command);
+            let mut args = vec![entry.display().to_string()];
+            args.extend(task.args.clone());
+            let cwd = task
+                .cwd
+                .as_ref()
+                .map(|path| {
+                    resolve_build_graph_path(&config.workspace_root, root, &task_root, path)
+                })
+                .unwrap_or_else(|| config.workspace_root.clone());
+            BuildTaskAdapter::ExternalEvidence {
+                label: kind.as_str().to_string(),
+                program,
+                args,
+                cwd,
+                report_path: default_evidence_report.clone(),
+            }
+        }
+        BuildTaskKind::Certify => BuildTaskAdapter::Certify {
+            report_path: default_evidence_report.clone(),
+        },
         BuildTaskKind::CargoBuild => {
             let manifest_path =
                 task.manifest
@@ -1798,7 +1953,12 @@ fn build_explicit_task(
                         ))
                     })?;
             BuildTaskAdapter::CargoBuild {
-                manifest_path: resolve_workspace_path(root, manifest_path),
+                manifest_path: resolve_build_graph_path(
+                    &config.workspace_root,
+                    root,
+                    &task_root,
+                    manifest_path,
+                ),
                 target_dir: outputs[0].clone(),
                 release: task.profile.as_deref().unwrap_or(&config.profile) == "release",
             }
@@ -1808,7 +1968,9 @@ fn build_explicit_task(
                 .inputs
                 .iter()
                 .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("c"))
-                .map(|path| resolve_workspace_path(root, path))
+                .map(|path| {
+                    resolve_build_graph_path(&config.workspace_root, root, &task_root, path)
+                })
                 .collect::<Vec<_>>();
             let header = task
                 .entry
@@ -1818,7 +1980,9 @@ fn build_explicit_task(
                         .iter()
                         .find(|path| path.extension().and_then(|value| value.to_str()) == Some("h"))
                 })
-                .map(|path| resolve_workspace_path(root, path))
+                .map(|path| {
+                    resolve_build_graph_path(&config.workspace_root, root, &task_root, path)
+                })
                 .unwrap_or_else(|| root.to_path_buf());
             let canonical_output = outputs.first().cloned().ok_or_else(|| {
                 BuildError::Config(format!("C build task '{}' requires an output", task.id))
@@ -1842,7 +2006,7 @@ fn build_explicit_task(
                 .ok_or_else(|| {
                     BuildError::Config(format!("GPU build task '{}' requires entry", task.id))
                 })?;
-            let source = resolve_workspace_path(root, source);
+            let source = resolve_build_graph_path(&config.workspace_root, root, &task_root, source);
             let output_base = outputs.first().cloned().unwrap_or_else(|| {
                 config
                     .task_root("workspace", &task_id)
@@ -1865,7 +2029,12 @@ fn build_explicit_task(
                         ))
                     })?;
             BuildTaskAdapter::Fabric {
-                manifest_path: resolve_workspace_path(root, manifest_path),
+                manifest_path: resolve_build_graph_path(
+                    &config.workspace_root,
+                    root,
+                    &task_root,
+                    manifest_path,
+                ),
                 run: kind == BuildTaskKind::FabricRun,
             }
         }
@@ -1877,16 +2046,17 @@ fn build_explicit_task(
             };
             BuildTaskAdapter::NodeLike {
                 runtime,
-                entry: task
-                    .entry
-                    .as_ref()
-                    .map(|path| resolve_workspace_path(root, path)),
+                entry: task.entry.as_ref().map(|path| {
+                    resolve_build_graph_path(&config.workspace_root, root, &task_root, path)
+                }),
                 command: task.command.clone(),
                 args: task.args.clone(),
                 cwd: task
                     .cwd
                     .as_ref()
-                    .map(|path| resolve_workspace_path(root, path))
+                    .map(|path| {
+                        resolve_build_graph_path(&config.workspace_root, root, &task_root, path)
+                    })
                     .unwrap_or_else(|| root.to_path_buf()),
             }
         }
@@ -1894,6 +2064,20 @@ fn build_explicit_task(
     };
     let outputs = match &adapter {
         BuildTaskAdapter::GpuArtifacts { output_base, .. } => gpu_output_paths(output_base),
+        BuildTaskAdapter::NativeExecutable {
+            output,
+            report_path,
+            ..
+        } => dedup_paths(vec![output.clone(), report_path.clone()]),
+        BuildTaskAdapter::KainTest { report_path, .. }
+        | BuildTaskAdapter::ExternalEvidence { report_path, .. }
+        | BuildTaskAdapter::Certify { report_path } => {
+            let mut evidence_outputs = outputs;
+            if !evidence_outputs.iter().any(|path| path == report_path) {
+                evidence_outputs.push(report_path.clone());
+            }
+            dedup_paths(evidence_outputs)
+        }
         _ => outputs,
     };
     Ok(BuildTask {
@@ -1910,7 +2094,16 @@ fn build_explicit_task(
             .collect(),
         inputs,
         outputs,
-        cacheable: !matches!(kind, BuildTaskKind::Node | BuildTaskKind::Bun),
+        cacheable: !matches!(
+            kind,
+            BuildTaskKind::Node
+                | BuildTaskKind::Bun
+                | BuildTaskKind::Test
+                | BuildTaskKind::Proof
+                | BuildTaskKind::Benchmark
+                | BuildTaskKind::Attrition
+                | BuildTaskKind::Certify
+        ),
         adapter,
     })
 }
@@ -1931,6 +2124,7 @@ fn execute_plan(
     let events_path = report_path.with_extension("jsonl");
     let mut event_writer = EventWriter::new(&events_path)?;
     let mut executions = Vec::new();
+    let mut task_statuses = BTreeMap::<String, BuildTaskStatus>::new();
     let mut failed = false;
     let workspace = discover_workspace(&plan.workspace_root)?;
 
@@ -1949,6 +2143,28 @@ fn execute_plan(
                 message: task.description.clone(),
                 error: None,
             }
+        } else if let Some(blocking_dependency) = task.depends_on.iter().find(|dependency| {
+            matches!(
+                task_statuses.get(*dependency),
+                Some(BuildTaskStatus::Failed | BuildTaskStatus::Skipped)
+            )
+        }) {
+            BuildTaskExecution {
+                id: task.id.clone(),
+                kind: task.kind,
+                blade: task.blade.clone(),
+                status: BuildTaskStatus::Skipped,
+                cache_hit: false,
+                started_unix_ms: None,
+                finished_unix_ms: None,
+                inputs: task.inputs.clone(),
+                outputs: task.outputs.clone(),
+                message: format!(
+                    "skipped because dependency '{}' did not pass",
+                    blocking_dependency
+                ),
+                error: None,
+            }
         } else {
             execute_task(task, &plan, &workspace)?
         };
@@ -1960,6 +2176,7 @@ fn execute_plan(
                 break;
             }
         }
+        task_statuses.insert(task.id.clone(), execution.status);
         executions.push(execution);
     }
 
@@ -2058,6 +2275,38 @@ fn execute_task(
             materialized_primary_output.as_ref(),
             root_component.as_deref(),
         ),
+        BuildTaskAdapter::NativeExecutable {
+            entry,
+            output,
+            script_path,
+            report_path,
+            verify_llvm,
+        } => run_native_executable_task(entry, output, script_path, report_path, *verify_llvm),
+        BuildTaskAdapter::KainTest {
+            entry,
+            target,
+            mode_override,
+            report_path,
+            proof_required,
+            fail_fast,
+            run_ignored,
+        } => run_kain_test_task(
+            entry,
+            *target,
+            *mode_override,
+            report_path,
+            *proof_required,
+            *fail_fast,
+            *run_ignored,
+        ),
+        BuildTaskAdapter::ExternalEvidence {
+            label,
+            program,
+            args,
+            cwd,
+            report_path,
+        } => run_external_evidence_command(label, program, args, cwd, report_path),
+        BuildTaskAdapter::Certify { report_path } => run_certify_task(task, plan, report_path),
         BuildTaskAdapter::RustArtifacts {
             source,
             output_base,
@@ -2217,6 +2466,213 @@ fn run_kain_check(entry: &Path, target: CompileTarget) -> BuildResult<String> {
             format!("Kain check failed for {}", entry.display())
         })))
     }
+}
+
+fn run_kain_test_task(
+    entry: &Path,
+    target: CompileTarget,
+    mode_override: Option<kain_test::KainTestMode>,
+    report_path: &Path,
+    proof_required: bool,
+    fail_fast: bool,
+    run_ignored: bool,
+) -> BuildResult<String> {
+    let mut options = kain_test::KainTestOptions::new(target);
+    options.mode_override = mode_override;
+    options.fail_fast = fail_fast;
+    options.run_ignored = run_ignored;
+
+    let report = kain_test::run_path(entry, &options);
+    let proof_count = report
+        .cases
+        .iter()
+        .filter(|case| case.proof.is_some())
+        .count();
+    write_json_report(
+        report_path,
+        &json!({
+            "schema_version": 1,
+            "kind": if proof_required { "proof" } else { "test" },
+            "entry": entry,
+            "target": kain_check::compile_target_name(target),
+            "mode_override": mode_override.map(kain_test::KainTestMode::as_str),
+            "fail_fast": fail_fast,
+            "run_ignored": run_ignored,
+            "proof_cases": proof_count,
+            "suite": &report,
+        }),
+    )?;
+
+    if proof_required && proof_count == 0 {
+        return Err(BuildError::Config(format!(
+            "proof task for {} produced no Z3 proof evidence",
+            entry.display()
+        )));
+    }
+    if !report.is_success() {
+        return Err(BuildError::Config(format!(
+            "{} task failed for {}; report {}",
+            if proof_required { "proof" } else { "test" },
+            entry.display(),
+            report_path.display()
+        )));
+    }
+    Ok(format!(
+        "{} passed: {}/{} cases; {} skipped; report {}",
+        if proof_required { "proof" } else { "test" },
+        report.passed,
+        report.total,
+        report.skipped,
+        report_path.display()
+    ))
+}
+
+fn run_native_executable_task(
+    entry: &Path,
+    output: &Path,
+    script_path: &Path,
+    report_path: &Path,
+    verify_llvm: bool,
+) -> BuildResult<String> {
+    if !script_path.exists() {
+        return Err(BuildError::Config(format!(
+            "native executable helper not found: {}",
+            script_path.display()
+        )));
+    }
+    if let Some(parent) = output.parent() {
+        kfs::create_dir_all(parent)?;
+    }
+    let mut args = vec![
+        "-ExecutionPolicy".to_string(),
+        "Bypass".to_string(),
+        "-File".to_string(),
+        script_path.display().to_string(),
+        "-Entry".to_string(),
+        entry.display().to_string(),
+        "-OutputName".to_string(),
+        output.display().to_string(),
+    ];
+    if verify_llvm {
+        args.push("-VerifyLlvm".to_string());
+    }
+    run_external_evidence_command(
+        "native-executable",
+        powershell_command(),
+        &args,
+        script_path.parent().unwrap_or_else(|| Path::new(".")),
+        report_path,
+    )?;
+    if !output.exists() {
+        return Err(BuildError::Command(format!(
+            "native executable task completed but output was not created: {}",
+            output.display()
+        )));
+    }
+    Ok(format!(
+        "native executable {} built from {}; report {}",
+        output.display(),
+        entry.display(),
+        report_path.display()
+    ))
+}
+
+fn run_external_evidence_command(
+    label: &str,
+    program: impl AsRef<str>,
+    args: &[String],
+    cwd: &Path,
+    report_path: &Path,
+) -> BuildResult<String> {
+    let program = program.as_ref();
+    let started_unix_ms = unix_timestamp_ms();
+    let output = Command::new(program)
+        .args(args)
+        .current_dir(cwd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    let finished_unix_ms = unix_timestamp_ms();
+    let output = match output {
+        Ok(output) => output,
+        Err(error) => {
+            write_json_report(
+                report_path,
+                &json!({
+                    "schema_version": 1,
+                    "kind": label,
+                    "program": program,
+                    "args": args,
+                    "cwd": cwd,
+                    "status": "spawn_failed",
+                    "error": error.to_string(),
+                    "started_unix_ms": started_unix_ms,
+                    "finished_unix_ms": finished_unix_ms,
+                }),
+            )?;
+            return Err(BuildError::Command(format!(
+                "failed to invoke {label} command '{program}': {error}"
+            )));
+        }
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    write_json_report(
+        report_path,
+        &json!({
+            "schema_version": 1,
+            "kind": label,
+            "program": program,
+            "args": args,
+            "cwd": cwd,
+            "status": if output.status.success() { "passed" } else { "failed" },
+            "exit_code": output.status.code(),
+            "stdout": stdout,
+            "stderr": stderr,
+            "started_unix_ms": started_unix_ms,
+            "finished_unix_ms": finished_unix_ms,
+        }),
+    )?;
+    if !output.status.success() {
+        return Err(BuildError::Command(format!(
+            "{label} exited with status {}; report {}",
+            output.status,
+            report_path.display()
+        )));
+    }
+    Ok(format!(
+        "{label} succeeded; report {}",
+        report_path.display()
+    ))
+}
+
+fn run_certify_task(
+    task: &BuildTask,
+    plan: &BladeBuildPlan,
+    report_path: &Path,
+) -> BuildResult<String> {
+    write_json_report(
+        report_path,
+        &json!({
+            "schema_version": 1,
+            "kind": "certify",
+            "task_id": &task.id,
+            "blade": &task.blade,
+            "lane": plan.lane,
+            "target": &plan.target,
+            "profile": &plan.profile,
+            "certified_dependencies": &task.depends_on,
+            "inputs": &task.inputs,
+            "outputs": &task.outputs,
+            "status": "certified",
+            "timestamp_unix_ms": unix_timestamp_ms(),
+        }),
+    )?;
+    Ok(format!(
+        "certified {} evidence dependencies; report {}",
+        task.depends_on.len(),
+        report_path.display()
+    ))
 }
 
 fn run_kain_compile(
@@ -3008,6 +3464,46 @@ fn run_command_capture(mut command: Command, label: &str) -> BuildResult<String>
     }
 }
 
+fn write_json_report(path: &Path, value: &serde_json::Value) -> BuildResult<()> {
+    if let Some(parent) = path.parent() {
+        kfs::create_dir_all(parent)?;
+    }
+    let encoded = serde_json::to_string_pretty(value)
+        .map_err(|err| BuildError::Config(format!("failed to serialize evidence report: {err}")))?;
+    kfs::atomic_write_text(path, &encoded)?;
+    Ok(())
+}
+
+fn python_command() -> String {
+    std::env::var("PYTHON").unwrap_or_else(|_| {
+        if cfg!(target_os = "windows") {
+            "python".to_string()
+        } else {
+            "python3".to_string()
+        }
+    })
+}
+
+fn powershell_command() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "powershell"
+    } else {
+        "pwsh"
+    }
+}
+
+fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut seen = BTreeSet::new();
+    let mut deduped = Vec::new();
+    for path in paths {
+        let key = path.display().to_string();
+        if seen.insert(key) {
+            deduped.push(path);
+        }
+    }
+    deduped
+}
+
 fn task_is_cached(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<bool> {
     if task.outputs.is_empty() || !task.outputs.iter().all(|path| path.exists()) {
         return Ok(false);
@@ -3331,6 +3827,21 @@ fn gpu_output_paths(output_base: &Path) -> Vec<PathBuf> {
 
 fn artifact_manifest_path(task_root: &Path) -> PathBuf {
     task_root.join("kain-artifacts.json")
+}
+
+fn evidence_report_path(task_root: &Path) -> PathBuf {
+    task_root.join("kain-evidence.json")
+}
+
+fn is_evidence_task_kind(kind: BuildTaskKind) -> bool {
+    matches!(
+        kind,
+        BuildTaskKind::Test
+            | BuildTaskKind::Proof
+            | BuildTaskKind::Benchmark
+            | BuildTaskKind::Attrition
+            | BuildTaskKind::Certify
+    )
 }
 
 fn kain_compile_expected_outputs(
@@ -3668,6 +4179,64 @@ fn explicit_build_task_dependency_id(value: &str, blade: Option<&ResolvedBlade>)
     };
     let normalized = sanitize_build_task_reference(&scoped);
     (!normalized.is_empty()).then_some(normalized)
+}
+
+fn default_executable_name(blade: Option<&ResolvedBlade>, root: &Path) -> String {
+    let stem = blade
+        .map(|value| value.name.as_str())
+        .or_else(|| root.file_name().and_then(OsStr::to_str))
+        .map(sanitize_id)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "kain-app".to_string());
+    if cfg!(target_os = "windows") {
+        format!("{stem}.exe")
+    } else {
+        stem
+    }
+}
+
+fn find_lang_blades_compile_script(start: &Path) -> PathBuf {
+    let relative = Path::new(".agents")
+        .join("skills")
+        .join("lang-blades")
+        .join("scripts")
+        .join("compile_kain_blade_to_root.ps1");
+    for ancestor in start.ancestors() {
+        let candidate = ancestor.join(&relative);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+    start.join(relative)
+}
+
+fn resolve_build_graph_path(
+    workspace_root: &Path,
+    blade_or_task_root: &Path,
+    task_root: &Path,
+    path: &Path,
+) -> PathBuf {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    let raw = path.to_string_lossy().replace('\\', "/");
+    for (prefix, base) in [
+        ("$root", workspace_root),
+        ("$repo", workspace_root),
+        ("$workspace", workspace_root),
+        ("$blade", blade_or_task_root),
+        ("$task", task_root),
+        ("$out", task_root),
+    ] {
+        if raw == prefix {
+            return base.to_path_buf();
+        }
+        let slash_prefix = format!("{prefix}/");
+        if let Some(rest) = raw.strip_prefix(&slash_prefix) {
+            return base.join(rest);
+        }
+    }
+    blade_or_task_root.join(path)
 }
 
 fn resolve_workspace_path(root: &Path, path: &Path) -> PathBuf {
@@ -4074,6 +4643,111 @@ fn build(ctx: BuildContext) -> BuildGraph:
     }
 
     #[test]
+    fn explicit_evidence_task_kinds_are_first_class_build_tasks() {
+        let root = unique_test_dir("explicit-evidence-kinds");
+        let config = test_workspace_config(&root);
+        let cases = [
+            ("suite", "test", BuildTaskKind::Test, true),
+            ("proofs", "proof", BuildTaskKind::Proof, true),
+            ("bench", "benchmark", BuildTaskKind::Benchmark, false),
+            ("abuse", "attrition", BuildTaskKind::Attrition, false),
+            ("gate", "certify", BuildTaskKind::Certify, false),
+        ];
+
+        for (id, kind, expected_kind, needs_entry) in cases {
+            let mut task = KainBuildTaskSection {
+                id: id.to_string(),
+                kind: kind.to_string(),
+                ..KainBuildTaskSection::default()
+            };
+            if needs_entry {
+                task.entry = Some(PathBuf::from("src/main.kn"));
+            }
+            let resolved =
+                build_explicit_task(&config, None, &root, &task).expect("build evidence task");
+            assert_eq!(resolved.kind, expected_kind);
+            assert!(!resolved.cacheable);
+            assert!(
+                resolved
+                    .outputs
+                    .iter()
+                    .any(|path| path.file_name().and_then(OsStr::to_str)
+                        == Some("kain-evidence.json"))
+            );
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn native_executable_task_can_target_repo_root_output() {
+        let root = unique_test_dir("native-executable-root-output");
+        let config = test_workspace_config(&root);
+        let task = KainBuildTaskSection {
+            id: "root-exe".to_string(),
+            kind: "native-executable".to_string(),
+            entry: Some(PathBuf::from("src/main.kn")),
+            outputs: vec![PathBuf::from("$root/bin/probe.exe")],
+            ..KainBuildTaskSection::default()
+        };
+
+        let resolved =
+            build_explicit_task(&config, None, &root, &task).expect("build native exe task");
+        assert_eq!(resolved.kind, BuildTaskKind::NativeExecutable);
+        assert!(resolved.cacheable);
+        assert!(resolved
+            .outputs
+            .contains(&root.join("bin").join("probe.exe")));
+        assert!(resolved
+            .outputs
+            .iter()
+            .any(|path| path.file_name().and_then(OsStr::to_str) == Some("kain-evidence.json")));
+        assert!(resolved
+            .inputs
+            .iter()
+            .any(|path| path.ends_with("compile_kain_blade_to_root.ps1")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn blade_root_workspace_does_not_duplicate_explicit_tasks_as_root_tasks() {
+        let root = unique_test_dir("blade-root-task-dedup");
+        std::fs::create_dir_all(root.join("src")).expect("create src");
+        std::fs::write(
+            root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("write source");
+        std::fs::write(
+            root.join("build.kn"),
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("probe").entry("src/main.kn").source_root("src").build_target("llvm")
+    let root_exe = build_task("root-executable")
+        .kind("native-executable")
+        .entry("src/main.kn")
+        .output("$blade/probe.exe")
+    return build_graph().blade(spec).task(root_exe)
+"#,
+        )
+        .expect("write build.kn");
+
+        let options = BladeBuildOptions {
+            dry_run: true,
+            ..BladeBuildOptions::new(&root)
+        };
+        let plan = plan_blade_workspace(&options).expect("plan blade workspace");
+        let root_executable_ids = plan
+            .tasks
+            .iter()
+            .filter(|task| task.id.ends_with("root-executable"))
+            .map(|task| task.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(root_executable_ids, vec!["probe:root-executable"]);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
         let source = include_str!("../../../blades/kain-example/src/main.kn");
 
@@ -4121,5 +4795,18 @@ fn build(ctx: BuildContext) -> BuildGraph:
         }
         std::fs::create_dir_all(&root).expect("create test directory");
         root
+    }
+
+    fn test_workspace_config(root: &Path) -> BuildWorkspaceConfig {
+        BuildWorkspaceConfig {
+            workspace_root: root.to_path_buf(),
+            artifact_root: root.join(".kain").join("out"),
+            cache_root: root.join(".kain").join("cache").join("build"),
+            report_root: root.join(".kain").join("reports").join("build"),
+            host: default_target_name(),
+            lane: BuildLane::Dev,
+            profile: "debug".to_string(),
+            target: default_target_name(),
+        }
     }
 }

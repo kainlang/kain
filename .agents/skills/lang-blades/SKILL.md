@@ -1,30 +1,57 @@
 ---
 name: lang-blades
-description: Use when creating, extending, or repairing a runnable Kain blade workspace, including authored `.kn` sources, blade-local `KAIN.toml`, acceptance/demo apps under `blades/`, and project-shaped dogfood surfaces that compile and run without taking ownership of compiler, runtime, or Bazel internals.
+description: Use when creating or extending a runnable Kain blade workspace, including `KAIN.toml`, blade-local `.kn` code, native bridge layout under `native/`, local artifacts under `.kain/`, and the authored compile-run loop for a real blade.
 ---
 
 # Lang Blades
 
-## Overview
+Use this skill when the unit of work is a blade, not just a loose `.kn` file.
 
-This skill owns authored blade workspaces. Use it when the task is to stand up a new blade, reshape an existing blade into a stronger Kain proof surface, or keep a blade's `.kn` and local metadata coherent while staying out of build-system and engine internals.
+## Fast Loop
 
-## Start Here
+```powershell
+kain blades build . --json
+kain blades run <blade>
+blade build . --json
+blade run <blade> --target auto -- <args>
+```
 
-- Read `references/blade-authoring-patterns.md` before building a new blade shape from scratch.
-- Prefer the nearest existing blade as the template, not a generic blank project.
-- Use `scripts/compile_kain_blade_to_root.ps1` when you need the existing local compile flow instead of reinventing it.
+If you want a blade-root executable proof:
 
-## Routing
+```powershell
+.\.agents\skills\lang-blades\scripts\compile_kain_blade_to_root.ps1 -Entry blades\<blade>\src\main.kn -OutputName <blade>.exe -Run
+```
 
-- Stay here for `blades/*` authored code, blade-local `KAIN.toml`, example reshaping, and acceptance/demo app structure.
-- Switch to `tool-build-system` when the blocker lives in Bazel sync, blade resolution internals, generated build state, launcher behavior, or the repo-wide run/build pipeline.
-- Switch to `bootstrap-core` when the blade uncovers parser, AST, lowering, or compiler semantic bugs.
-- Switch to `runtime-core`, `runtime-stdlib`, or `runtime-gpu` when the blade fails because the native substrate is missing or wrong.
-- Co-trigger `lang-ui`, `lang-gpu`, `lang-actors`, `lang-stdlib`, or `lang-c-abi-ffi` when the blade is centered on those surfaces.
+## Minimal Blade Shape
 
-## Blade Rules
+```toml
+[package]
+name = "my-blade"
+version = "0.1.0"
 
-- A blade should prove a capability, not merely exist. Favor acceptance blades, benchmark cases, or demo surfaces that exercise the claimed feature hard enough to matter.
-- Keep authored fixes and infrastructure fixes separate. If a blade reveals an engine defect, preserve the authored intent here and route the subsystem repair to the owning sibling skill.
-- Reuse blade-local references and scripts instead of rewriting the same setup logic in every session.
+[blade]
+name = "my-blade"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+```
+
+```kn
+fn main() -> Int:
+    println("blade ok")
+    return 0
+```
+
+## What To Do
+
+- Keep authored source in `src/`, native bridges in `native/`, and generated artifacts in blade-local `.kain/`.
+- Prefer blade-local validation loops over repo-root artifact sprawl.
+- If the blade needs a C bridge, keep the bridge owned by the blade or package that actually exposes it.
+- Build blades that prove a capability, not placeholder folders that only compile.
+
+## Hand Off When
+
+- Use `tool-build-system` when blade discovery, Bazel sync, launcher behavior, or resolver/build internals are the real issue.
+- Use `bootstrap-core`, `runtime-core`, `runtime-stdlib`, or `runtime-gpu` when the blade exposed an engine defect instead of an authored one.
+- Co-trigger `lang-ui`, `lang-gpu`, `lang-actors`, `lang-stdlib`, or `lang-c-abi-ffi` when the blade centers one of those domains.

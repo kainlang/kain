@@ -14,6 +14,7 @@ kain-fs = { path = "../kain-fs" }
 kain-host = { path = "../kain-host", default-features = false }
 kain-omni = { path = "../kain-omni" }
 kain-sys-codegen = { path = "../kain-sys-codegen" }
+kain-test = { path = "../kain-test" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"

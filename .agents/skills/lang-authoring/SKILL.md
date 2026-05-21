@@ -1,35 +1,49 @@
 ---
 name: lang-authoring
-description: Use when authoring or reshaping Kain `.kn` source, choosing idiomatic Kain constructs, picking exemplar blades or benchmark cases, or turning a requested idea into real Kain code without changing compiler, build, or runtime internals.
+description: Use when writing or reshaping Kain source as Kain, including module shape, public imports, idiomatic control flow, blade-facing `.kn` code, and routing authored work into `lang-semantics`, `lang-systems`, `lang-interop`, stdlib, UI, GPU, C-ABI, translation, or blade/project lanes without changing compiler, runtime, or build internals.
 ---
 
 # Lang Authoring
 
-## Overview
+Use this skill when the job is "write Kain" rather than "fix the compiler/runtime."
 
-Use this skill for writing in Kain. Stay on the authored side of the boundary: `.kn` structure, module shape, examples, stdlib usage, and semantic style. If the real blocker is parser, codegen, build plumbing, or native substrate behavior, switch to the matching `bootstrap-*`, `runtime-*`, or `tool-build-system` skill instead of hiding the bug inside a tame rewrite.
+## Fast Loop
 
-## Start Here
+```powershell
+rg -n "world |actor |converge |patch |law |shader |collapse |observe |decay |ptr<|mem_load|use std::|use c::" library_of_kain blades benchmark smoketest stdlib
+kain check <entry.kn> --target llvm
+kain run <entry.kn-or-blade>
+kain build <entry.kn> --target llvm -o <output.exe>
+```
 
-1. Read `ARCHITECTURE.md` and search `MEMORY.md` for the subsystem, blade, or error string.
-2. Read the closest real examples before writing source:
-   - `blades/kain-example/src/main.kn`
-   - `benchmark/cases/semantic_singularity_crucible/main.kn`
-   - `benchmark/cases/quantumerlang/main.kn`
-   - `blades/stdlib-domains/src/main.kn`
-3. Check `stdlib/STDLIB_MAP.llm.md` before inventing helpers or assuming a `std.*` symbol does not exist.
+## Kain Shape
 
-## Routing
+```kn
+use std::runtime
+use std::text
 
-- Use `lang-blades` for runnable blade workspaces, build scripts, and root executable proof loops.
-- Use `lang-semantics` when the authored shape is mainly `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `pulse`, `teleport`, or `shatter`.
-- Use `lang-actors`, `lang-ui`, `lang-gpu`, `lang-c-abi-ffi`, `lang-ownership`, or `lang-translation` when that topic is dominant.
-- Use `bootstrap-core` if you must change parser, typechecker, formatter, import, selfhost, or compiler-owned semantic behavior.
-- Use `runtime-core` or `runtime-stdlib` if the missing capability lives in native runtime or stdlib wrapper layers.
+const EXIT_OK: Int = 0
 
-## Authoring Rules
+fn score(seed: Int) -> Int:
+    return (seed * 17) + 3
 
-- Write Kain like Kain. Do not transliterate Rust or C++ module ceremony into `.kn`.
-- Prefer named modules, top-level constants, and real language constructs over `fn` and `let` soup.
-- Keep authored behavior in Kain and isolate OS, driver, or ABI work behind stdlib, package, or C bridge boundaries.
-- If a benchmark, blade, or proof is part of the claim, keep the validation surface alive instead of deleting the weird part that exposed the bug.
+fn main() -> Int:
+    let value = score(7)
+    println(format("score={value}"))
+    return EXIT_OK
+```
+
+## What To Do
+
+- Search for a nearby pattern first, then author the smallest real Kain surface that proves the feature.
+- Prefer root `std.*` imports, top-level constants, named helpers, and real language constructs over transliterated Rust/C++ structure.
+- Keep authored behavior in Kain. Push OS, driver, ABI, package, and runtime substrate concerns behind sibling skills instead of bloating the `.kn` file.
+
+## Hand Off When
+
+- Use `lang-semantics` when first-class Kain language features are dominant.
+- Use `lang-systems` when actors, effects, ownership, raw memory, zero-copy, unsafe, or backpressure systems code is dominant.
+- Use `lang-interop` when authored Kain crosses native, C ABI, DLL, OS, vendor SDK, Rust crate, host bridge, or package boundary surfaces.
+- Use `lang-ui`, `lang-gpu`, `lang-c-abi-ffi`, `lang-stdlib`, or `lang-translation` when one of those narrower domains is dominant.
+- Use `bootstrap-core` if the blocker is parser, typing, lowering, imports, or compiler-owned semantics.
+- Use `runtime-core` or `runtime-stdlib` if the missing capability lives below authored Kain.

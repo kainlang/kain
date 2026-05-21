@@ -1,29 +1,45 @@
 ---
 name: lang-commands
-description: Use when the task is about using Kain's user-facing command surface from the application side, such as choosing `kain`, `kn`, or `blade` workflows for a project, wiring authored command usage into docs or examples, or guiding project-local command execution without changing CLI router internals.
+description: Use when the task is about how to use Kain's command surface from the authored side, including file loops, blade loops, import loops, check/test flows, and project-local operator guidance without changing CLI internals.
 ---
 
 # Lang Commands
 
-## Overview
+Use this skill when the question is "which Kain commands should I run for this authored workflow?"
 
-This skill owns how authored projects use the command surface. Use it when the request is "how should this Kain project be run, built, checked, tested, or scaffolded from the user side?" rather than "change how the CLI itself works."
+## Fast Loop
 
-## Start Here
+```powershell
+kain check <file-or-dir> --target llvm
+kain run <file-or-blade>
+kain build <file.kn> --target llvm -o <output.exe>
+kain blades build . --json
+blade run <blade> --target auto -- <args>
+kain test <file-or-dir>
+kain import-c <input> -o <output.kn>
+kain import-rust <input> -o <output.kn>
+kain gpu-artifacts <shader.kn> --output <dir>
+```
 
-- Prefer the simplest user-facing command flow that matches the project shape.
-- Keep project-local command guidance next to the blade, benchmark, or test lane being touched.
-- If a request is really about build plumbing, Bazel drift, launcher binaries, or command registry internals, route it immediately instead of mixing concerns.
+## Tiny Probe File
 
-## Routing
+```kn
+fn main() -> Int:
+    println("command probe")
+    return 0
+```
 
-- Stay here for user-facing command selection and project-local usage patterns.
-- Switch to `tool-build-system` when the task changes `kain`/`kn`/`blade` internals, command manifests, router behavior, build adapters, launchers, generated BUILD state, or "how the repo builds Kain itself."
-- Co-trigger `lang-blades` when the command flow is specific to a blade workspace.
-- Co-trigger `test-harness`, `test-bench`, or `test-attrition` when the command work is really about using those proof lanes.
+Use that sort of file for quick check/run/build loops before scaling up.
 
-## Usage Rules
+## What To Do
 
-- Treat commands as operator surfaces, not ownership sinks. The skill should tell an agent how to use the command surface cleanly, not invite it to patch the command platform.
-- Prefer documented, reproducible flows over one-off shell folklore.
-- If the user asks for a new command or a changed CLI route, that is not `lang-commands`; hand it to `tool-build-system`.
+- Use `kain check` first when you want fast syntax/type feedback.
+- Use `kain run` for the quickest authored behavior loop.
+- Use `kain build` when you need a real artifact.
+- Use `kain blades ...` or `blade ...` when the unit of work is a blade rather than a loose file.
+- Use the import commands when the fastest path is to pull foreign code into a Kain starting point instead of hand-porting from zero.
+
+## Hand Off When
+
+- Use `tool-build-system` when the task changes command routing, launcher behavior, Bazel/build plumbing, generated BUILD state, or how Kain itself is built.
+- Co-trigger `lang-blades`, `test-harness`, `test-bench`, or `test-attrition` when the command surface is really in service of those lanes.

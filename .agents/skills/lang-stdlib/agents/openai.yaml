@@ -1,3 +1,4 @@
 interface:
   display_name: "Lang Stdlib"
-  short_description: "Help with Lang Stdlib tasks"
+  short_description: "Author Kain with root stdlib domains"
+  default_prompt: "Use $lang-stdlib to choose the right Kain stdlib imports, query exact symbols, and write a compact proof example."

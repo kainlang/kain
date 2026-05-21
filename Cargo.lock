@@ -2747,6 +2747,7 @@ dependencies = [
  "kain-host",
  "kain-omni",
  "kain-sys-codegen",
+ "kain-test",
  "serde",
  "serde_json",
  "sha2",

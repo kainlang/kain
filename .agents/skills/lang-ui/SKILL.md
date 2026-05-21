@@ -1,30 +1,41 @@
 ---
 name: lang-ui
-description: Use when authoring Kain UI code, Kain-owned layout/widget flows, passive UI projections, or blade-level desktop experiences in `.kn` files, without taking ownership of native host generation, runtime UI substrate internals, or package framework internals.
+description: Use when authoring Kain-owned UI code, including components, layout flows, native-ui surfaces, blade-facing desktop experiences, and UI-side state composition without taking ownership of host/runtime internals.
 ---
 
 # Lang UI
 
-## Overview
+Use this skill when the job is "write the UI in Kain."
 
-This skill owns authored UI in Kain. Use it when a task is about Kain-side layout, component composition, action wiring, or UI-facing blades, and the work should stay in `.kn` source rather than drifting into host/runtime internals.
+## Fast Loop
 
-## Start Here
+```powershell
+rg -n "component |render <|surface native_ui|ui_" blades benchmark smoketest
+kain check <entry.kn> --target llvm
+kain build native-ui <entry.kn> --bundle-only
+kain run <blade-or-entry>
+```
 
-- Read the nearest authored UI lane first: `blades/kaintana/src/kaintana.kn`, `blades/kaintana-test/src/main.kn`, `blades/pong/src/main.kn`, and any UI-specific files in `blades/kain-example/src/`.
-- Keep authored UI declarative where possible and let the runtime/package layer stay passive.
-- Use real acceptance blades when the UI shape matters, not isolated toy fragments.
+## Kain Pattern
 
-## Routing
+```kn
+component StatusPanel():
+    render <panel title="Status" />
 
-- Stay here for Kain-authored UI components, layout trees, actions, and blade-level UI experiences.
-- Switch to `package-kaintana` when the work changes the Kaintana framework surface itself.
-- Switch to `runtime-stdlib` when the underlying UI host/session/runtime-backed stdlib behavior needs to change.
-- Switch to `runtime-core` when the native UI substrate or ABI floor is the real blocker.
+world Dashboard:
+    state health: Int = 100
+    surface native_ui => StatusPanel
+```
+
+## What To Do
+
+- Keep the authored lane declarative and Kain-owned.
+- Make UI state readable in Kain instead of burying behavior in host glue.
+- Use blade-level acceptance loops when visual behavior matters, not just syntax-only snippets.
+
+## Hand Off When
+
+- Use `package-kaintana` when the framework surface itself is changing.
+- Use `runtime-stdlib` when the issue is in the runtime-backed UI host/session layer.
+- Use `runtime-core` when the native ABI/substrate is the real blocker.
 - Co-trigger `lang-gpu` when the UI surface is tightly coupled to graphics or shader work.
-
-## Authoring Rules
-
-- Keep Kain code responsible for the authored experience, not for reimplementing the host substrate in user space.
-- If a UI blade reveals a host/runtime limitation, keep the authored layer clean and route the engine repair to `runtime-stdlib`, `runtime-core`, or `package-kaintana`.
-- Strengthen one real blade or acceptance surface whenever you introduce a new authored UI pattern worth copying.

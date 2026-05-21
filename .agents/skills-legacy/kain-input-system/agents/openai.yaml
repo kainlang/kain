@@ -1,4 +1,0 @@
-interface:
-  display_name: "Kain Input System"
-  short_description: "Maintain Kain's canonical input pipeline."
-  default_prompt: "Use this skill when working on Kain input semantics, stdlib input APIs, native input runtime bindings, validation fixtures, or agent/LLM input flows."

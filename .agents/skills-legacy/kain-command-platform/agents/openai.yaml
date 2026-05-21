@@ -1,4 +1,0 @@
-interface:
-  display_name: "Kain Command Platform"
-  short_description: "Maintain Kain command routers."
-  default_prompt: "Use this when adding or changing kain, kn, or blade CLI commands."

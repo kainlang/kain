@@ -2,6 +2,8 @@
 Welcome to kain-lang, an all new language that is currently on average 2x faster than C++ and 8x faster than rust.
 This is the injected north-star example. It is intentionally dense: it teaches agents Kain is allowed to be in one scan. For compile-certified syntax, compare against `blades/kain-example/src/main.kn`, `benchmark/cases/semantic_singularity_crucible/main.kn`, `blades/stdlib-domains/src/main.kn`, `blades/network-domains/src/main.kn`, `blades/math-domains/src/main.kn`, and `benchmark/cases/gpu_graphics_submit/main.kn`. A real `use c::...` lane also needs a blade-local `KAIN.toml` with `[c_ffi]` metadata. (if you update the stdlib or add a new one, update this example)
 
+
+
 ```kn
 use std::runtime
 use std::actor
@@ -528,6 +530,29 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 - Native LLVM and `runtime/native` are the priority. Rust remains the bootstrap and tooling substrate, but Kain must increasingly own its own semantics.
 - Prefer Bazel for serious compiler/runtime/CLI builds and for fresh `kain`, `kn`, and `blade` binaries. Cargo is still useful for local Rust iteration, but Bazel is the repo-scale proof lane.
 - Keep authored behavior in Kain when it belongs to Kain semantics. Use C/Rust/FFI/host bridges for OS, ABI, driver, GPU, platform, and ecosystem surfaces.
+
+## stdlib 
+
+Fast Lookup Loop
+
+Use the bundled query helper before loading giant generated files:
+
+```powershell
+python query_stdlib.py --summary
+python query_stdlib.py --imports
+python query_stdlib.py --module math --contains vec3 --limit 40
+python query_stdlib.py --module ui --contains clipboard --limit 40
+python query_stdlib.py --search fs_read --limit 20
+python query_stdlib.py --search GPU_DESCRIPTOR --kind const --limit 40
+```
+
+Then inspect exact source only when needed:
+
+```powershell
+rg -n "^use std::" library_of_kain blades benchmark smoketest
+rg -n "\bfs_read_text\b|\bvec3_normalize_or_zero\b|\bgraphics_session_create\b" stdlib blades benchmark smoketest
+kain check <entry.kn> --target llvm
+kain run <entry.kn-or-blade> --target llvm
 - Use the root `stdlib/` surface aggressively. Prefer public root imports such as `std.actor`, `std.fs`, `std.http`, `std.net`, `std.process`, `std.graphics`, and `std.ui`. Do not recreate a parallel live `std.native.*` tree. -- `\stdlib\STDLIB_MAP.llm.md` for the full map
 - If Kain code hits a real compiler/runtime bug, patch the compiler or runtime. Do not just route around it in the demo.
 - If a pipeline is touched, dogfood it in `blades/` when practical.
@@ -589,13 +614,15 @@ Do not let new Kain files collapse into plain `fn` and `let` soup when the probl
 
 ## Skill Taxonomy
 
+- SKILLS are the most important part of our agent pipeline. Without it, agents will have no idea how to write Kain without going on a scavenger hunt. Treat this pipeline as critical infrastructure. It is in .agents/skills and ensure to be UPDATING IT whenever applicable. New features, things learned, updates, new tricks, pipeline updates etc - the skills need to be updated often when it matters, especially when working on the /crates bootstrap pipeline etc.
+
 - `lang-*`: writing in Kain. Authored `.kn` code, blades, stdlib usage, translation, UI, GPU, actors, ownership, and application-facing command usage.
 - `bootstrap-*`: changing compiler, parser, AST, lowering, semantic wiring, or other bootstrap truth.
 - `runtime-*`: changing native substrate, host bridges, runtime-backed stdlib behavior, and GPU execution/runtime paths.
 - `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.
 - `package-*`: package-owned surfaces that deserve their own lane, currently `package-kaintana` and `package-vulkain`.
-- `tool-*`: rare cross-cutting operator surfaces such as repo build plumbing, exploratory Z3 black magic, and release gating.
-- Prefer updating an existing namespaced skill over spawning a new micro-skill. Do not create `misc-*`.
+- `tool-*`: cross-cutting operator surfaces such as repo build plumbing, exploratory Z3 black magic, and release gating.
+- Prefer updating an existing namespaced skill over spawning a new micro-skill. Do not create `misc-*`. 
 - When a legacy `kain-*` skill name appears in old notes, resolve it through `.agents/skills/TAXONOMY.md` instead of reviving the old namespace.
 
 ## Kain Authoring Ignition
@@ -745,11 +772,3 @@ reference\langs\roc-main
 reference\langs\rust-main
 reference\langs\TypeScript-main
 \reference\langs\zig
-
-
-=============================================================BulletinBoard=======================================================================
-           -This here is the bulletin board, update this often with high value recent changes and news/announcements to other agents!
-    -Make sure this is often cleaned and ensure updates are one liners - high value info etc. This is in AGENTS.md in the root of the repo
-                                                    -Ensure recent changes are on top
-    
-=================================================================================================================================================

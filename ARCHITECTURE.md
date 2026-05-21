@@ -98,7 +98,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [README.md](/M:/Code/Kain/README.md): repo-level operating brief
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
-- `.agents/skills`: active repo-local skill tree. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, and `tool-*`; `.agents/skills/TAXONOMY.md` is the route map and `.agents/skills-legacy/` holds archived pre-namespace skills.
+- `.agents/skills`: active repo-local skill tree. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, and `tool-*`; `.agents/skills/TAXONOMY.md` is the current route map.
 - [scripts](/M:/Code/Kain/scripts): directory-only operational tree. `scripts/docs/` holds the indexes and guide docs; `scripts/kain/` holds executable KAIN filesystem automation built on real runtime helpers like `read_dir`, `path_*`, `create_dir_all`, `copy_file`, `remove_file`, `read_file`, `write_file`, `file_exists`, and `env`; `scripts/kain/actor/` adds real actor-system demos for supervisor/worker fan-out and extension bucketing; `scripts/linux/`, `scripts/windows/`, `scripts/python/`, `scripts/rust/`, and `scripts/tests/` hold the other executable helpers and fixtures.
 - [guides](/M:/Code/Kain/guides): canonical long-form guide tree for the live language, runtime, CLI, and example lanes
 - [guides/reference/legacy-crosswalk.md](/M:/Code/Kain/guides/reference/legacy-crosswalk.md): bridge from stale prose to the current canonical docs
@@ -381,7 +381,7 @@ Build artifacts are deliberately workspace-local and disposable:
 - `.kain/cache/build/stamps/*.stamp` owns task fingerprints over inputs, adapter settings, outputs, profile, and target.
 - `.kain/reports/build/session-*.json` plus `.jsonl` owns build reports and event streams.
 
-`[build]` in root or blade `KAIN.toml` can override `artifact_root`, `cache_root`, and `profile`, while CLI `--lane bootstrap|dev|release|dist|selfhost` chooses the invalidation lane. `[[build.tasks]]` can add explicit tasks with `kind`, `entry`, `manifest`, `command`, `args`, `cwd`, `inputs`, `outputs`, and `depends_on`. Prefer manifest-declared tasks over lab-local build scripts.
+`[build]` in root or blade `KAIN.toml` can override `artifact_root`, `cache_root`, and `profile`, while CLI `--lane bootstrap|dev|release|dist|selfhost` chooses the invalidation lane. `build.kn` is the preferred live authority for explicit DAG work: `build_task(...)` can add build, `test`, `proof`, `benchmark`, `attrition`, `certify`, and `native-executable` tasks with `kind`, `entry`, `manifest`, `command`, `args`, `cwd`, `inputs`, `outputs`, and `depends_on`. `KAIN.toml` remains the compatibility lane for metadata not yet promoted into script authority, especially C-FFI library declarations.
 
 ### Selfhost lanes
 

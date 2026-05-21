@@ -12,7 +12,7 @@ Set-StrictMode -Version Latest
 
 $bladeRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $bladeRoot "..\..")
-$compileScript = Join-Path $repoRoot ".agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1"
+$compileScript = Join-Path $repoRoot ".agents\skills\lang-blades\scripts\compile_kain_blade_to_root.ps1"
 $kaintanaDesktopBuild = Join-Path $repoRoot "blades\kaintana\build-desktop.ps1"
 $vulkainBuild = Join-Path $repoRoot "blades\vulkain\build-vulkain.ps1"
 $vulkainNativeBridge = Join-Path $repoRoot "blades\vulkain\.kain\native\vulkain_bridge.dll"

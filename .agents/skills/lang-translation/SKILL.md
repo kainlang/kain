@@ -1,29 +1,55 @@
 ---
 name: lang-translation
-description: Use when translating Rust, C, C++, JavaScript, TypeScript, Python, or tooling code into idiomatic Kain source, choosing the right Kain semantics for a foreign design, and producing real `.kn` replacements or migrations rather than mechanical line-by-line ports.
+description: Use when translating Rust, C, C++, JavaScript, TypeScript, Python, or tooling code into idiomatic Kain, preserving intent while reshaping the design around Kain semantics instead of performing a mechanical line-by-line port.
 ---
 
 # Lang Translation
 
-## Overview
+Use this skill when the task starts in another language and should end as real Kain.
 
-This skill owns language-to-Kain translation on the authored side. Use it when the task is to take an existing implementation or idea from another language and rewrite it into real Kain that feels native to the repo instead of preserving the donor language's shape.
+## Fast Loop
 
-## Start Here
+```powershell
+kain import-c <input> -o <generated.kn>
+kain import-rust <input> -o <generated.kn>
+kain import-ts <input> -o <generated.kn>
+py .agents\skills\lang-translation\scripts\select_translation_examples.py --repo . --top 10
+kain check <translated.kn> --target llvm
+```
 
-- Read `references/example-atlas.md` and `references/translation-patterns.md` before starting a large translation.
-- Use `references/benchmark-translation-compass.md` when the source problem smells like a benchmark or pressure lane rather than an application module.
-- Run `scripts/select_translation_examples.py` if you want a fast pointer to nearby repo exemplars before authoring.
+## Translation Rule
 
-## Routing
+Translate intent, not syntax.
 
-- Stay here for authored `.kn` translation, semantic reshaping, module decomposition, and Kain-first API selection.
-- Switch to `lang-stdlib`, `lang-semantics`, `lang-actors`, `lang-ownership`, `lang-ui`, or `lang-gpu` when the translation clearly lands in one of those domains.
-- Switch to `bootstrap-core` when translation is blocked by missing language/compiler support rather than authored design.
-- Switch to `runtime-core`, `runtime-stdlib`, or `runtime-gpu` when the translated design needs host/runtime capability that does not exist yet.
+```text
+C/Rust loop + shared mutable state
+    -> maybe Kain actor, world, entangle, or converge lane
 
-## Translation Rules
+manual buffer ownership
+    -> maybe collapse / observe / decay
 
-- Translate intent, not syntax. If the source code emulates actors, ownership, world state, or dataflow manually, replace that machinery with native Kain constructs.
-- Avoid preserving donor-language package boundaries when Kain's module and blade model offers a cleaner split.
-- If a translation exposes a real compiler/runtime deficit, do not flatten the design into a weaker Kain program just to get green lights. Preserve the intended authored shape and route the blocker.
+host callback soup
+    -> maybe actor messages or package-owned bridge helpers
+```
+
+## Tiny Kain Result Shape
+
+```kn
+converge mix(value: Int) -> Int:
+    spec reference:
+        return (value * 31) + 7
+    fast llvm_lane when target("llvm"):
+        return (value * 31) + 7
+    verify random(8)
+```
+
+## What To Do
+
+- Use the importer commands to get a starting point when that is faster than hand-porting from zero.
+- Then rewrite toward Kain semantics. Imported output is a draft, not the finished shape.
+- Prefer Kain modules, stdlib, ownership, actors, worlds, and converge lanes where they make the design stronger.
+
+## Hand Off When
+
+- Co-trigger the specific authored domain skill once the translation clearly becomes `lang-stdlib`, `lang-semantics`, `lang-systems`, `lang-actors`, `lang-ownership`, `lang-ui`, `lang-gpu`, `lang-interop`, or `lang-c-abi-ffi`.
+- Use `bootstrap-core` or `runtime-*` only when the translation is blocked by missing engine capability rather than authored design.

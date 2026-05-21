@@ -1,3 +1,4 @@
 interface:
   display_name: "Lang Semantics"
-  short_description: "Help with Lang Semantics tasks"
+  short_description: "Kain feature semantics field manual"
+  default_prompt: "Use $lang-semantics to author idiomatic Kain, cite the relevant language/runtime source anchors, and keep authored semantics separate from bootstrap/runtime implementation work."

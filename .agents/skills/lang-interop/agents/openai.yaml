@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lang Interop"
+  short_description: "Native and foreign interop in Kain"
+  default_prompt: "Use $lang-interop to design Kain-side native/foreign boundaries, including C ABI imports, bridge metadata, OS/package contracts, handles, buffers, strings, validation, and correct handoff to runtime or bootstrap owners."

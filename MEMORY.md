@@ -1,8 +1,60 @@
 # Kain Memory
 
+# 2026-05-21 - `build.kn` became an evidence DAG
+
+`crates/kain-build` now treats `build.kn` tasks as evidence DAG nodes, not only build DAG nodes. First-class explicit task kinds now include `test`, `proof`, `benchmark`, `attrition`, `certify`, and `native-executable`; dependency failures gate dependent tasks, and evidence-style tasks emit `kain-evidence.json`.
+
+What changed:
+
+- `build_task(...).kind("test")` runs `kain-test`
+- `build_task(...).kind("proof")` defaults to Z3 `prove-pass` and requires proof evidence
+- `build_task(...).kind("benchmark")` and `kind("attrition")` run the repo evidence runners as structured external commands
+- `build_task(...).kind("certify")` emits a certificate only after dependencies passed
+- `build_task(...).kind("native-executable")` compiles a Kain entry into a blade/root executable via the `lang-blades` helper
+- explicit task paths now accept `$blade`, `$root`/`$repo`/`$workspace`, and `$task`/`$out` prefixes
+- `blades/kloner`, `blades/kaintana`, and `blades/kaintana-test` now dogfood script-authored evidence graphs
+- `docs/pipelines/build-kn-evidence-dag.md` is the agent tutorial for the new pipeline
+
+# 2026-05-21 - `lang-gpu` became the rendering pipeline field manual
+
+The repo-local `.agents/skills/lang-gpu` lane now teaches authored Kain agents how rendering and GPU work actually flows through the repo: Kain-core shader parsing/typechecking, the LLVM host lane, the SPIR-V artifact lane, stdlib graphics/GPU/shared resource layers, current native graphics runtime reality, compute runtime synchronization, Vulkain package boundaries, and semantic fusion with worlds, pulses, ownership, converge, axiom, shatter, and orchestrate.
+
+What changed:
+
+- rewrote `.agents/skills/lang-gpu/SKILL.md` from a tiny shader card into a full rendering/GPU field manual with pipeline map, source anchors, shader rules, artifact flow, command-recorder loop, resource policy flow, runtime sync notes, semantics mesh, validation ladder, handoff matrix, and anti-patterns
+- updated `.agents/skills/lang-gpu/agents/openai.yaml` with a more precise UI blurb and default prompt
+
+Future rendering agents should start with `$lang-gpu`, keep authored shader/resource/semantic work in Kain, and only escalate to `bootstrap-gpu`, `runtime-gpu`, or `package-vulkain` when the task crosses into backend emitters, generic executors, or package-owned Vulkan bridge internals.
+
+# 2026-05-21 - `lang-stdlib` became the root stdlib field manual
+
+The repo-local `.agents/skills/lang-stdlib` lane now teaches authored Kain agents how to use the full root `std::*` surface without loading the entire generated atlas into context.
+
+What changed:
+
+- rewrote `.agents/skills/lang-stdlib/SKILL.md` into a full stdlib operator skill covering the 27 native root modules, public/private/native boundaries, module selection, source anchors, authoring examples, validation ladders, and handoff rules
+- added repo-root `query_stdlib.py` so agents can query `stdlib/stdlib.map.json` by summary, import list, module, symbol substring, and kind before opening large generated docs
+- updated `.agents/skills/lang-stdlib/agents/openai.yaml` with a more precise display blurb and default prompt
+
+Future stdlib agents should use `$lang-stdlib`, query exact symbols with `python query_stdlib.py ...`, then inspect only the specific `stdlib/*.kn` or proof blade needed for the task.
+
+# 2026-05-21 - `runtime-core` skill became the native runtime field manual
+
+The repo-local `.agents/skills/runtime-core` lane was expanded from a tiny ownership card into a full native runtime operator skill.
+
+What changed:
+
+- rewrote `.agents/skills/runtime-core/SKILL.md` with runtime-core trigger boundaries, fast operator loop, ABI/stdlib/codegen update rules, Z3 proof standard, implementation playbooks, validation ladders, and anti-patterns
+- added `.agents/skills/runtime-core/references/native-c-runtime-architecture.md` with the native C runtime flow, manifest/service table truth, header map, source map, platform/package boundaries, and runtime mechanics
+- added `.agents/skills/runtime-core/references/proof-and-validation.md` with native-core Z3 pack workflow, `proofs-experimental` rules, durable proof standards, file-to-proof matrix, MCP helper calls, and validation ladders
+- added `.agents/skills/runtime-core/references/performance-hunting.md` with solver-backed optimization workflow, current hot surfaces, fast-path candidates, benchmark/attrition contracts, and proof breadcrumb guidance
+- updated `.agents/skills/runtime-core/agents/openai.yaml` with a more precise UI description and default prompt
+
+Future runtime agents should start with `$runtime-core`, then load the relevant reference instead of rediscovering the C ABI floor, proof pack lanes, manifest truth, or current actor/memory/service fast paths from scratch.
+
 # 2026-05-21 - repo-local skills moved to a namespaced active tree
 
-The repo-local skills surface is no longer led by the old `kain-*` sprawl. The active tree under `.agents/skills/` now uses explicit ownership namespaces:
+The repo-local skills surface now uses explicit ownership namespaces under `.agents/skills/`:
 
 - `lang-*` for authored Kain/application work
 - `bootstrap-*` for compiler/frontend/selfhost truth
@@ -13,17 +65,13 @@ The repo-local skills surface is no longer led by the old `kain-*` sprawl. The a
 
 What changed:
 
-- created the new active skills, including `lang-authoring`, `lang-semantics`, `lang-actors`, `lang-commands`, `lang-blades`, `lang-stdlib`, `lang-c-abi-ffi`, `lang-ownership`, `lang-ui`, `lang-translation`, and `lang-gpu`
+- created the new active skills, including `lang-authoring`, `lang-semantics`, `lang-systems`, `lang-interop`, `lang-actors`, `lang-commands`, `lang-blades`, `lang-stdlib`, `lang-c-abi-ffi`, `lang-ownership`, `lang-ui`, `lang-translation`, and `lang-gpu`
 - split compiler/runtime ownership into `bootstrap-core`, `bootstrap-actors`, `bootstrap-ownership`, `bootstrap-fs`, `bootstrap-gpu`, `runtime-core`, `runtime-stdlib`, and `runtime-gpu`
 - split certification ownership into `test-harness`, `test-bench`, `test-attrition`, and `test-crash-forensics`
 - kept package-specific lanes explicit with `package-kaintana` and `package-vulkain`
 - centralized repo build and Bazel/operator reality under `tool-build-system`; solver-guided weirdness now routes through `tool-z3-black-magic`; release gating routes through `tool-release-readiness`
-- added `.agents/skills/TAXONOMY.md` as the active namespace map plus old-to-new alias table
-- archived the pre-namespace skill set under `.agents/skills-legacy/` instead of keeping the old clutter live beside the active tree
-
-Important durable rule:
-
-- historical `MEMORY.md`, `ARCHITECTURE.md`, or note references to old `kain-*` skill names are intentionally not bulk-rewritten; resolve them through `.agents/skills/TAXONOMY.md` rather than reviving the old namespace
+- rewrote the `lang-*` skills to be usage-first: actual `kain` commands, `rg` probes, manifest snippets, and Kain code examples instead of mainly telling agents which repo files to read
+- kept `.agents/skills/TAXONOMY.md` as a minimal live namespace map
 
 # 2026-05-21 - `kain test` gained a real Z3 proof lane and `std::test`
 
