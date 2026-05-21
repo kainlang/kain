@@ -98,6 +98,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [README.md](/M:/Code/Kain/README.md): repo-level operating brief
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
+- `.agents/skills`: active repo-local skill tree. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, and `tool-*`; `.agents/skills/TAXONOMY.md` is the route map and `.agents/skills-legacy/` holds archived pre-namespace skills.
 - [scripts](/M:/Code/Kain/scripts): directory-only operational tree. `scripts/docs/` holds the indexes and guide docs; `scripts/kain/` holds executable KAIN filesystem automation built on real runtime helpers like `read_dir`, `path_*`, `create_dir_all`, `copy_file`, `remove_file`, `read_file`, `write_file`, `file_exists`, and `env`; `scripts/kain/actor/` adds real actor-system demos for supervisor/worker fan-out and extension bucketing; `scripts/linux/`, `scripts/windows/`, `scripts/python/`, `scripts/rust/`, and `scripts/tests/` hold the other executable helpers and fixtures.
 - [guides](/M:/Code/Kain/guides): canonical long-form guide tree for the live language, runtime, CLI, and example lanes
 - [guides/reference/legacy-crosswalk.md](/M:/Code/Kain/guides/reference/legacy-crosswalk.md): bridge from stale prose to the current canonical docs
@@ -338,13 +339,15 @@ The formatter now lives in `crates/kain-core/src/formatter.rs` and is intentiona
 
 ### Checking and source test flow
 
-`Kain source tree -> kain-check discovery/frontend validation -> kain-test directive runner/runtime test lane -> cli check/test summaries and JSON reports`
+`Kain source tree -> kain-check discovery/frontend validation -> kain-test directive runner/runtime test/proof lanes -> cli check/test summaries and JSON reports`
 
 `crates/kain-check` is the reusable typecheck-only pipeline. It discovers `.kn` / `.ks` files, skips build/generated folders, validates through `kain-driver::DriverSession`, and reports typed item counts, typed test counts, required runtime capabilities, and frontend errors without emitting backend artifacts.
 
-`crates/kain-test` is the Rust-inspired compiletest-style harness. It parses `//@` and `#@` directives such as `check-pass`, `check-fail`, `run-pass`, `run-fail`, `kain-test`, `target`, `error`, `ignore`, `skip`, and `known-bug`. It should own future snapshot, revision, bless/update, and target-conditional behavior rather than letting one-off scripts duplicate suite semantics.
+`crates/kain-test` is the Rust-inspired compiletest-style harness plus the seed of Kain's solver-backed native test pipeline. It parses `//@` and `#@` directives such as `check-pass`, `check-fail`, `run-pass`, `run-fail`, `kain-test`, `prove-pass`, `prove-sat`, `target`, `error`, `proof-expect`, `smt2`, `ignore`, `skip`, and `known-bug`. Proof modes invoke Z3 from `PATH` or `KAIN_Z3` and record solver evidence in JSON reports. It should own future snapshot, revision, bless/update, compiler-extracted proof obligations, and target-conditional behavior rather than letting one-off scripts duplicate suite semantics.
 
 The runtime test lane now recursively executes `test` items nested inside typed modules. `kain test` reports skipped cases separately from failed cases, and `--ignored` reruns ignored cases when the operator wants to burn down known-bug inventory.
+
+`stdlib/test.kn` is the authored `std::test` surface for Kain-side outcome values. Keep author-facing test vocabulary there, while `crates/kain-test` owns suite discovery, directive execution, and solver/runtime reporting.
 
 ### Host bridge flow
 

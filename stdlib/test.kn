@@ -1,0 +1,52 @@
+pub const TEST_STATUS_PASS: Int = 0
+pub const TEST_STATUS_FAIL: Int = -1
+pub const TEST_STATUS_SKIP: Int = 1
+pub const TEST_STATUS_PROVED: Int = 2
+pub const TEST_STATUS_WITNESS: Int = 3
+
+pub struct TestOutcome:
+    status: Int
+    label: String
+    detail: String
+    evidence: String
+
+pub fn test_outcome(status: Int, label: String, detail: String, evidence: String) -> TestOutcome:
+    return TestOutcome { status: status, label: label, detail: detail, evidence: evidence }
+
+pub fn test_pass(label: String) -> TestOutcome:
+    return test_outcome(TEST_STATUS_PASS, label, "passed", "")
+
+pub fn test_fail(label: String, detail: String) -> TestOutcome:
+    return test_outcome(TEST_STATUS_FAIL, label, detail, "")
+
+pub fn test_skip(label: String, reason: String) -> TestOutcome:
+    return test_outcome(TEST_STATUS_SKIP, label, reason, "")
+
+pub fn test_proved(label: String, evidence: String) -> TestOutcome:
+    return test_outcome(TEST_STATUS_PROVED, label, "solver returned unsat", evidence)
+
+pub fn test_witness(label: String, evidence: String) -> TestOutcome:
+    return test_outcome(TEST_STATUS_WITNESS, label, "solver returned sat", evidence)
+
+pub fn test_outcome_ok(outcome: TestOutcome) -> Bool:
+    return outcome.status == TEST_STATUS_PASS or outcome.status == TEST_STATUS_PROVED or outcome.status == TEST_STATUS_WITNESS
+
+pub fn test_bool(label: String, condition: Bool) -> TestOutcome:
+    if condition:
+        return test_pass(label)
+    return test_fail(label, "condition was false")
+
+pub fn test_status(label: String, status: Int) -> TestOutcome:
+    if status == 0:
+        return test_pass(label)
+    return test_fail(label, "status was non-zero")
+
+pub fn test_combine(left: TestOutcome, right: TestOutcome) -> TestOutcome:
+    if test_outcome_ok(left) == false:
+        return left
+    return right
+
+pub fn test_count_failure(outcome: TestOutcome, count: Int) -> Int:
+    if test_outcome_ok(outcome):
+        return count
+    return count + 1

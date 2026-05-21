@@ -221,6 +221,9 @@ fn native_actor_abi_defaults_match_runtime_contract() {
         .contains(&"kain_actor_reply_port_send_ref"));
     assert!(contract
         .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_send_handle"));
+    assert!(contract
+        .required_runtime_symbols()
         .contains(&"kain_actor_reply_port_wait"));
     assert!(contract
         .required_runtime_symbols()

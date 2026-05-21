@@ -53,7 +53,8 @@ source out of the checked blade root when you want a clean directory-wide pass.
 
 ## Test Modes
 
-`kain test` uses `kain-check` for check modes and the Kain runtime for run/test modes.
+`kain test` uses `kain-check` for check modes, the Kain runtime for run/test modes,
+and Z3 for embedded proof obligations.
 
 | Mode | Directive | Meaning |
 | --- | --- | --- |
@@ -62,6 +63,8 @@ source out of the checked blade root when you want a clean directory-wide pass.
 | `run-pass` | `//@ run-pass` | Interpret-mode execution must pass. |
 | `run-fail` | `//@ run-fail` | Interpret-mode execution must fail. |
 | `kain-test` | `//@ kain-test` | Run Kain `test` items through the runtime test lane. |
+| `prove-pass` | `//@ prove-pass` | Run embedded SMT2 through Z3 and require `unsat`. |
+| `prove-sat` | `//@ prove-sat` | Run embedded SMT2 through Z3 and require `sat` witnessability. |
 
 If no mode directive is present, files containing a `test` item default to `kain-test`; other files default to `check-pass`.
 
@@ -84,10 +87,14 @@ Supported directives:
 - `//@ run-pass`
 - `//@ run-fail`
 - `//@ kain-test`
+- `//@ prove-pass`
+- `//@ prove-sat`
 - `//@ mode: check-pass`
 - `//@ target: rust`
 - `//@ error: expected diagnostic substring`
 - `//@ expect-error: expected diagnostic substring`
+- `//@ proof-expect: unsat`
+- `//@ smt2: (assert false)`
 - `//@ ignore`
 - `//@ ignore: reason`
 - `//@ skip: reason`
@@ -95,10 +102,36 @@ Supported directives:
 
 Ignored, skipped, and known-bug cases are reported as `skipped` and do not make the suite fail unless `--ignored` is passed.
 
+## Proof Tests
+
+Proof tests are the first native step beyond Cargo-style example execution. A
+`prove-pass` case treats the SMT2 as a negated safety claim and passes only when
+Z3 returns `unsat`, meaning no counterexample exists under the encoded bounds. A
+`prove-sat` case is useful for witness and synthesis lanes where a satisfying
+model should exist.
+
+```kain
+//@ prove-pass
+//@ smt2: (set-logic QF_LIA)
+//@ smt2: (declare-const offset Int)
+//@ smt2: (declare-const span Int)
+//@ smt2: (assert (>= offset 0))
+//@ smt2: (assert (< offset span))
+//@ smt2: (assert (or (< offset 0) (>= offset span)))
+```
+
+The harness uses `z3` from `PATH`, or `KAIN_Z3` when a specific solver binary is
+required. Reports include proof evidence with solver name, expected result,
+actual result, and SMT2 obligation line count.
+
 ## Fixture Rule
 
 Put harness-level proof fixtures under `smoketest/kain-test` or a focused suite-specific folder. Prefer directives inside source files over sidecar metadata until the suite needs snapshots, revisions, or target matrices.
 
 ## Expansion Path
 
-The next natural layers are snapshot comparison, revision matrices, target-conditional directives, and bless/update workflows. Add those to `kain-test` first, then expose them through CLI flags. Do not grow ad hoc validation scripts that duplicate harness semantics.
+The next natural layers are snapshot comparison, revision matrices,
+target-conditional directives, bless/update workflows, compiler-extracted proof
+obligations, and native LLVM proof/test bundle execution. Add those to
+`kain-test` first, then expose them through CLI flags. Do not grow ad hoc
+validation scripts that duplicate harness semantics.

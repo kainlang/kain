@@ -1,5 +1,60 @@
 # Kain Memory
 
+# 2026-05-21 - repo-local skills moved to a namespaced active tree
+
+The repo-local skills surface is no longer led by the old `kain-*` sprawl. The active tree under `.agents/skills/` now uses explicit ownership namespaces:
+
+- `lang-*` for authored Kain/application work
+- `bootstrap-*` for compiler/frontend/selfhost truth
+- `runtime-*` for native substrate and runtime-backed stdlib behavior
+- `test-*` for certification lanes
+- `package-*` for package-owned surfaces
+- `tool-*` for rare cross-cutting operator lanes
+
+What changed:
+
+- created the new active skills, including `lang-authoring`, `lang-semantics`, `lang-actors`, `lang-commands`, `lang-blades`, `lang-stdlib`, `lang-c-abi-ffi`, `lang-ownership`, `lang-ui`, `lang-translation`, and `lang-gpu`
+- split compiler/runtime ownership into `bootstrap-core`, `bootstrap-actors`, `bootstrap-ownership`, `bootstrap-fs`, `bootstrap-gpu`, `runtime-core`, `runtime-stdlib`, and `runtime-gpu`
+- split certification ownership into `test-harness`, `test-bench`, `test-attrition`, and `test-crash-forensics`
+- kept package-specific lanes explicit with `package-kaintana` and `package-vulkain`
+- centralized repo build and Bazel/operator reality under `tool-build-system`; solver-guided weirdness now routes through `tool-z3-black-magic`; release gating routes through `tool-release-readiness`
+- added `.agents/skills/TAXONOMY.md` as the active namespace map plus old-to-new alias table
+- archived the pre-namespace skill set under `.agents/skills-legacy/` instead of keeping the old clutter live beside the active tree
+
+Important durable rule:
+
+- historical `MEMORY.md`, `ARCHITECTURE.md`, or note references to old `kain-*` skill names are intentionally not bulk-rewritten; resolve them through `.agents/skills/TAXONOMY.md` rather than reviving the old namespace
+
+# 2026-05-21 - `kain test` gained a real Z3 proof lane and `std::test`
+
+Kain's source test pipeline now has a solver-backed lane instead of only Cargo/compiletest-style execution. `crates/kain-test` accepts `//@ prove-pass` and `//@ prove-sat` directives, collects repeated `//@ smt2:` lines, invokes Z3 from `PATH` or `KAIN_Z3`, and records proof evidence in JSON reports (`solver`, expected result, actual result, obligation line count). `prove-pass` expects `unsat`; `prove-sat` expects `sat`.
+
+What changed:
+
+- `crates/kain-test/src/lib.rs`
+  - added `KainTestMode::ProvePass` / `ProveSat`, SMT2 directive parsing, Z3 process execution, and proof evidence in case reports
+  - added unit coverage for live `unsat` and `sat` solver cases when Z3 is available
+- `crates/cli/src/main.rs`
+  - updated the test-mode help text to include proof modes
+- `stdlib/test.kn`
+  - added authored `std::test` outcome vocabulary (`TestOutcome`, pass/fail/skip/proved/witness helpers)
+- `smoketest/kain-test/prove_pass.kn` and `prove_sat.kn`
+  - added CLI-facing proof fixtures
+- `blades/stdlib-domains/src/main.kn`, `AGENTS.md`, `ARCHITECTURE.md`, and docs
+  - wired/documented `std::test` and the solver-backed test flow
+- regenerated `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json`
+
+Validation:
+
+- `rustfmt --edition 2021 crates\\kain-test\\src\\lib.rs crates\\cli\\src\\main.rs`
+- `cargo test -p kain-test --target-dir target\\codex-native-test-proof`
+- `cargo check -p cli --target-dir target\\codex-native-test-proof`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+- `cargo build -p cli --bin kain --target-dir target\\codex-native-test-proof`
+- `target\\codex-native-test-proof\\debug\\kain.exe test smoketest\\kain-test --json target\\codex-native-test-proof\\kain-test-proof-report.json` -> PASS, 2/2 with `unsat` and `sat` proof evidence
+- `target\\codex-native-test-proof\\debug\\kain.exe check blades\\stdlib-domains\\src\\main.kn --target llvm` -> PASS
+
 # 2026-05-20 - build.kn became V3 blade/workspace authority instead of only a task sidecar
 
 `build.kn` is now a real authority surface for blade/workspace discovery, build defaults, run defaults, and explicit build tasks. The repo no longer needs `KAIN.toml` just to discover a blade, pick its entry, or route build/run defaults, even though `KAIN.toml` still works as the compatibility lane and still owns metadata that has not been promoted into the script surface yet.

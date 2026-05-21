@@ -9,9 +9,9 @@ use kain_core::{runtime, CompileTarget};
 use kain_driver::DriverSession;
 use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::io::Write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -258,10 +258,15 @@ pub fn run_source(
     }
 
     let proof_result = match mode {
-        KainTestMode::CheckPass => TestExecution::from_result(run_check_pass(source_name, source, target)),
-        KainTestMode::CheckFail => {
-            TestExecution::from_result(run_check_fail(source_name, source, target, expected_error.as_deref()))
+        KainTestMode::CheckPass => {
+            TestExecution::from_result(run_check_pass(source_name, source, target))
         }
+        KainTestMode::CheckFail => TestExecution::from_result(run_check_fail(
+            source_name,
+            source,
+            target,
+            expected_error.as_deref(),
+        )),
         KainTestMode::RunPass => TestExecution::from_result(run_interpret_expect_pass(source)),
         KainTestMode::RunFail => {
             TestExecution::from_result(run_interpret_expect_fail(source, expected_error.as_deref()))
@@ -401,7 +406,7 @@ fn run_proof_obligation(
         }
     };
 
-    if let Some(stdin) = child.stdin.as_mut() {
+    if let Some(mut stdin) = child.stdin.take() {
         if let Err(error) = stdin.write_all(smt2.as_bytes()) {
             return TestExecution {
                 error: Some(format!("failed to send SMT2 to Z3: {error}")),
@@ -651,11 +656,71 @@ mod tests {
         assert!(report.is_success());
     }
 
+    #[test]
+    fn prove_pass_directive_requires_unsat_z3_obligation() {
+        if !z3_available() {
+            eprintln!("skipping Z3-backed test because z3 is not on PATH");
+            return;
+        }
+
+        let report = run_source(
+            "<proof-test>",
+            concat!(
+                "//@ prove-pass\n",
+                "//@ smt2: (set-logic QF_LIA)\n",
+                "//@ smt2: (declare-const x Int)\n",
+                "//@ smt2: (assert (>= x 0))\n",
+                "//@ smt2: (assert (< x 0))\n",
+            ),
+            &KainTestOptions::new(CompileTarget::Interpret),
+        );
+
+        assert!(report.passed(), "{:?}", report.error);
+        assert_eq!(report.mode, "prove-pass");
+        let proof = report.proof.expect("proof evidence");
+        assert_eq!(proof.expected, "unsat");
+        assert_eq!(proof.actual, "unsat");
+    }
+
+    #[test]
+    fn prove_sat_directive_accepts_witnessable_obligation() {
+        if !z3_available() {
+            eprintln!("skipping Z3-backed test because z3 is not on PATH");
+            return;
+        }
+
+        let report = run_source(
+            "<witness-test>",
+            concat!(
+                "//@ prove-sat\n",
+                "//@ smt2: (set-logic QF_LIA)\n",
+                "//@ smt2: (declare-const x Int)\n",
+                "//@ smt2: (assert (= x 7))\n",
+            ),
+            &KainTestOptions::new(CompileTarget::Interpret),
+        );
+
+        assert!(report.passed(), "{:?}", report.error);
+        let proof = report.proof.expect("proof evidence");
+        assert_eq!(proof.expected, "sat");
+        assert_eq!(proof.actual, "sat");
+    }
+
     fn run_path_for_sources(sources: &[(&str, &str)]) -> KainTestSuiteReport {
         let temp = tempfile::tempdir().expect("temp dir");
         for (path, source) in sources {
             kfs::write_text(temp.path().join(path), source).expect("write source");
         }
         run_path(temp.path(), &KainTestOptions::new(CompileTarget::Interpret))
+    }
+
+    fn z3_available() -> bool {
+        Command::new(std::env::var("KAIN_Z3").unwrap_or_else(|_| "z3".to_string()))
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
     }
 }

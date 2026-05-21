@@ -24,7 +24,7 @@ const DEFAULT_PROFILE: &str = "debug";
 const DEFAULT_ARTIFACT_ROOT: &str = ".kain/out";
 const DEFAULT_CACHE_ROOT: &str = ".kain/cache/build";
 const DEFAULT_REPORT_ROOT: &str = ".kain/reports/build";
-const BUILD_ADAPTER_VERSION: &str = "kain-build-v3";
+const BUILD_ADAPTER_VERSION: &str = "kain-build-v4";
 const BUILD_ARTIFACT_SCHEMA_VERSION: u32 = 2;
 
 pub type BuildResult<T> = Result<T, BuildError>;
@@ -3040,6 +3040,9 @@ fn stamp_path(task: &BuildTask, plan: &BladeBuildPlan) -> PathBuf {
 fn task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<String> {
     let mut hasher = Sha256::new();
     hasher.update(BUILD_ADAPTER_VERSION.as_bytes());
+    if let Ok(current_exe) = std::env::current_exe() {
+        hash_path_into(&mut hasher, &current_exe)?;
+    }
     hasher.update(plan.host.as_bytes());
     hasher.update(plan.lane.as_str().as_bytes());
     hasher.update(plan.profile.as_bytes());

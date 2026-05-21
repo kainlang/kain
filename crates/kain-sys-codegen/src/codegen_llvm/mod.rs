@@ -8947,6 +8947,11 @@ impl LlvmGenerator {
             "  {} = insertvalue {} zeroinitializer, {} {}, 0",
             reply_port_value, REPLY_PORT_LLVM_TYPE, ACTOR_REF_LLVM_TYPE, reply_port_actor_ref
         ));
+        let reply_port_value_with_handle = self.next_reg();
+        self.emit(&format!(
+            "  {} = insertvalue {} {}, i8* {}, 1",
+            reply_port_value_with_handle, REPLY_PORT_LLVM_TYPE, reply_port_value, reply_port_handle
+        ));
 
         let request_payload_ty = format!("%{}", request_payload_name);
         let request_payload_ptr_ty = format!("{}*", request_payload_ty);
@@ -8962,7 +8967,7 @@ impl LlvmGenerator {
             if index == 0 {
                 self.emit(&format!(
                     "  store {} {}, {}* {}",
-                    field_ty, reply_port_value, field_ty, field_ptr
+                    field_ty, reply_port_value_with_handle, field_ty, field_ptr
                 ));
                 continue;
             }
@@ -10100,7 +10105,7 @@ impl LlvmGenerator {
         self.emit("; Canonical native runtime ABI types");
         self.emit("%KainActorRef = type { i64, i32, i32, i32 }");
         self.emit("%KainActorMessage = type { i64, i8*, i64, i64 }");
-        self.emit("%KainReplyPort = type { %KainActorRef }");
+        self.emit("%KainReplyPort = type { %KainActorRef, i8* }");
         self.emit(&format!(
             "%KainActorSpawnConfig = type {{ i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [{} x i8], i32, i32 (i64, i8*, i8*, i32)*, i32, i32, i32, i32 }}",
             NATIVE_ACTOR_NAME_MAX_BYTES
@@ -10204,6 +10209,7 @@ impl LlvmGenerator {
         self.emit("declare void @kain_actor_reply_port_destroy(i8*)");
         self.emit("declare i32 @kain_actor_reply_port_send(i64, i8*, i64)");
         self.emit("declare i32 @kain_actor_reply_port_send_ref(%KainActorRef*, i8*, i64)");
+        self.emit("declare i32 @kain_actor_reply_port_send_handle(i8*, %KainActorRef*, i8*, i64)");
         self.emit("declare i32 @kain_actor_reply_port_wait(i8*, i64, i8*, i64, i64*)");
         self.emit("declare i64 @kain_actor_reply_port_wait_i64(i8*, i64)");
         self.emit("declare void @KAIN_set_destructor(i8*, void(i8*)*)");
@@ -13900,10 +13906,16 @@ impl LlvmGenerator {
                         ACTOR_REF_LLVM_TYPE,
                         target_ref_ptr
                     ));
+                    let target_handle = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = extractvalue {} {}, 1",
+                        target_handle, REPLY_PORT_LLVM_TYPE, target_val
+                    ));
                     let send_status = self.next_reg();
                     self.emit(&format!(
-                        "  {} = call i32 @kain_actor_reply_port_send_ref({}* {}, i8* {}, i64 {})",
+                        "  {} = call i32 @kain_actor_reply_port_send_handle(i8* {}, {}* {}, i8* {}, i64 {})",
                         send_status,
+                        target_handle,
                         ACTOR_REF_LLVM_TYPE,
                         target_ref_ptr,
                         payload_mem,

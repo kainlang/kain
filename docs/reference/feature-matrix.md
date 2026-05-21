@@ -178,7 +178,7 @@ Statement forms are:
 | Effects | `crates/kain-core/src/effects.rs` | `runtime/effects-io-async-and-patching.md` |
 | Low-level memory and provenance | `crates/kain-core/src/ast.rs`, `crates/kain-core/src/low_level_memory.rs`, `crates/kain-core/src/low_level_abi.rs` | `syntax-and-semantics/low-level-memory.md`, `native-c-runtime/helper-abi.md` |
 | Compiler-owned intents | `crates/kain-core/src/ast.rs`, `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/compiler-owned-intents.md` |
-| Checking and source tests | `crates/kain-check/src/lib.rs`, `crates/kain-test/src/lib.rs`, `crates/cli/src/main.rs` | `cli/check-and-test.md` |
+| Checking, source tests, and proof tests | `crates/kain-check/src/lib.rs`, `crates/kain-test/src/lib.rs`, `stdlib/test.kn`, `crates/cli/src/main.rs` | `cli/check-and-test.md` |
 | Runtime contracts and realtime bundles | `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/runtime-model.md`, `native-c-runtime/abi-contract.md` |
 | Native C ABI | `runtime/native/include/*.h` | `native-c-runtime/*.md` |
 | Omni orchestration | `src/.rustimport/reference/kain-omni/lib.kn` | `pipelines/omni.md`, `cli/selfhost-omni-fabric-lsp.md` |

@@ -40,6 +40,7 @@ pub const REQUIRED_NATIVE_ACTOR_SYMBOLS: &[&str] = &[
     "kain_actor_reply_port_destroy",
     "kain_actor_reply_port_send",
     "kain_actor_reply_port_send_ref",
+    "kain_actor_reply_port_send_handle",
     "kain_actor_reply_port_wait",
     "kain_actor_reply_port_wait_i64",
     "kain_actor_shutdown",

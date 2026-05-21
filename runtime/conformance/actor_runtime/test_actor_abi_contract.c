@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct {
     KainActorRef reply_to;
+    void* reply_port_handle;
     long long value;
 } AskProbeRequest;
 
@@ -191,7 +192,12 @@ static KainActorTurnStatus ask_probe_turn(
     probe->last_request = request->value;
     probe->saw_running_state = kain_actor_get_state(actor_id) == KAIN_ACTOR_STATE_RUNNING;
     reply_value = request->value + 7;
-    if (kain_actor_reply_port_send_ref(&request->reply_to, &reply_value, sizeof(reply_value)) != 0) {
+    if (kain_actor_reply_port_send_handle(
+            request->reply_port_handle,
+            &request->reply_to,
+            &reply_value,
+            sizeof(reply_value)
+        ) != 0) {
         probe->errors = 2;
         kain_actor_message_release(message.data);
         return KAIN_ACTOR_TURN_CRASHED;
@@ -454,6 +460,7 @@ int main(void) {
         kain_actor_reply_port_actor_ref(reply_port, &reply_ref);
 
         request.reply_to = reply_ref;
+        request.reply_port_handle = reply_port;
         request.value = 35;
         ask_message.type_tag = 0xA551ULL;
         ask_message.data = &request;

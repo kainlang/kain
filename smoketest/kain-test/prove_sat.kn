@@ -1,0 +1,6 @@
+//@ prove-sat
+//@ smt2: (set-logic QF_LIA)
+//@ smt2: (declare-const route Int)
+//@ smt2: (assert (>= route 0))
+//@ smt2: (assert (< route 64))
+//@ smt2: (assert (= route 17))

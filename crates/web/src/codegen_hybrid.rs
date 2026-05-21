@@ -148,8 +148,11 @@ fn generate_hybrid_runtime(exports: &[WasmExport]) -> String {
     // Core state
     code.push_str("let __wasmInstance = null;\n");
     code.push_str("let __wasmMemory = null;\n");
+    code.push_str("let __hostAllocPtr = 1024 * 1024;\n");
     code.push_str("let __wasmReady = false;\n");
     code.push_str("let __wasmReadyPromise = null;\n");
+    code.push_str("const __textEncoder = new TextEncoder();\n");
+    code.push_str("const __textDecoder = new TextDecoder();\n");
     code.push_str("const __domNodes = new Map(); // node_id -> DOM element\n");
     code.push_str("let __nextNodeId = 1;\n\n");
 
@@ -181,21 +184,29 @@ fn generate_memory_helpers() -> String {
 function __readString(ptr) {
     if (!__wasmMemory || ptr === 0) return '';
     const view = new DataView(__wasmMemory.buffer);
-    const len = view.getInt32(ptr, true);
-    const bytes = new Uint8Array(__wasmMemory.buffer, ptr + 4, len);
-    return new TextDecoder().decode(bytes);
+    const len = view.getInt32(ptr - 4, true);
+    const bytes = new Uint8Array(__wasmMemory.buffer, ptr, len);
+    return __textDecoder.decode(bytes);
+}
+
+function __readStringBytes(ptr) {
+    if (!__wasmMemory || ptr === 0) return new Uint8Array();
+    const view = new DataView(__wasmMemory.buffer);
+    const len = view.getInt32(ptr - 4, true);
+    return new Uint8Array(__wasmMemory.buffer, ptr, len);
+}
+
+function __writeBytes(bytes) {
+    if (!__wasmMemory) return 0;
+    const ptr = __wasmAlloc(4 + bytes.length);
+    const view = new DataView(__wasmMemory.buffer);
+    view.setInt32(ptr, bytes.length, true);
+    new Uint8Array(__wasmMemory.buffer).set(bytes, ptr + 4);
+    return ptr + 4;
 }
 
 function __writeString(str) {
-    if (!__wasmMemory) return 0;
-    const encoded = new TextEncoder().encode(str);
-    const len = encoded.length;
-    // Allocate: 4 bytes for length + string bytes
-    const ptr = __wasmAlloc(4 + len);
-    const view = new DataView(__wasmMemory.buffer);
-    view.setInt32(ptr, len, true);
-    new Uint8Array(__wasmMemory.buffer).set(encoded, ptr + 4);
-    return ptr;
+    return __writeBytes(__textEncoder.encode(str));
 }
 
 function __readArray(ptr, elemSize, readElem) {
@@ -210,14 +221,22 @@ function __readArray(ptr, elemSize, readElem) {
 }
 
 function __wasmAlloc(size) {
-    // Use the WASM heap pointer global if exported, otherwise bump allocate
     if (__wasmInstance && __wasmInstance.exports.__alloc) {
         return __wasmInstance.exports.__alloc(size);
     }
-    // Fallback: read/update heap pointer from WASM globals
-    // This assumes heap_ptr is at a known location - we'll use a simple bump
-    console.warn('Using fallback allocator - no __alloc export');
-    return 0;
+    if (!__wasmMemory) return 0;
+    const alignedSize = (size + 7) & ~7;
+    const needed = __hostAllocPtr + alignedSize;
+    if (needed > __wasmMemory.buffer.byteLength) {
+        const pageSize = 64 * 1024;
+        const extraPages = Math.ceil((needed - __wasmMemory.buffer.byteLength) / pageSize);
+        if (extraPages > 0) {
+            __wasmMemory.grow(extraPages);
+        }
+    }
+    const ptr = __hostAllocPtr;
+    __hostAllocPtr += alignedSize;
+    return ptr;
 }
 
 "#
@@ -246,7 +265,7 @@ const __hostImports = {
         print_str(ptr, len) {
             if (!__wasmMemory) return;
             const bytes = new Uint8Array(__wasmMemory.buffer, ptr, len);
-            console.log(new TextDecoder().decode(bytes));
+            console.log(__textDecoder.decode(bytes));
         },
         
         // Print boolean
@@ -262,14 +281,42 @@ const __hostImports = {
         
         // Integer to string - returns pointer to new string in WASM memory
         int_to_str(val) {
-            return __writeString(String(Number(val)));
+            return __writeString(String(val));
         },
         
         // Concatenate two strings - returns pointer to new string
         str_concat(ptr1, ptr2) {
-            const s1 = __readString(ptr1);
-            const s2 = __readString(ptr2);
-            return __writeString(s1 + s2);
+            const s1 = __readStringBytes(ptr1);
+            const s2 = __readStringBytes(ptr2);
+            const merged = new Uint8Array(s1.length + s2.length);
+            merged.set(s1, 0);
+            merged.set(s2, s1.length);
+            return __writeBytes(merged);
+        },
+
+        // Compare two strings byte-for-byte
+        str_eq(ptr1, ptr2) {
+            const s1 = __readStringBytes(ptr1);
+            const s2 = __readStringBytes(ptr2);
+            if (s1.length !== s2.length) {
+                return 0;
+            }
+            for (let i = 0; i < s1.length; i += 1) {
+                if (s1[i] !== s2[i]) {
+                    return 0;
+                }
+            }
+            return 1;
+        },
+
+        // Return a single-byte string slice at the requested index
+        char_at(ptr, index) {
+            const bytes = __readStringBytes(ptr);
+            const slot = Number(index);
+            if (!Number.isFinite(slot) || slot < 0 || slot >= bytes.length) {
+                return __writeString('');
+            }
+            return __writeBytes(Uint8Array.of(bytes[slot]));
         },
         
         // Get current time in milliseconds
@@ -280,7 +327,7 @@ const __hostImports = {
         // DOM: Create element
         dom_create(tagPtr, tagLen) {
             const bytes = new Uint8Array(__wasmMemory.buffer, tagPtr, tagLen);
-            const tag = new TextDecoder().decode(bytes);
+            const tag = __textDecoder.decode(bytes);
             const el = document.createElement(tag);
             const id = __nextNodeId++;
             __domNodes.set(id, el);
@@ -300,14 +347,14 @@ const __hostImports = {
         dom_attr(nodeId, keyPtr, keyLen, valPtr, valLen) {
             const node = __domNodes.get(nodeId);
             if (!node) return;
-            const key = new TextDecoder().decode(new Uint8Array(__wasmMemory.buffer, keyPtr, keyLen));
-            const val = new TextDecoder().decode(new Uint8Array(__wasmMemory.buffer, valPtr, valLen));
+            const key = __textDecoder.decode(new Uint8Array(__wasmMemory.buffer, keyPtr, keyLen));
+            const val = __textDecoder.decode(new Uint8Array(__wasmMemory.buffer, valPtr, valLen));
             node.setAttribute(key, val);
         },
         
         // DOM: Create text node
         dom_text(textPtr, textLen) {
-            const text = new TextDecoder().decode(new Uint8Array(__wasmMemory.buffer, textPtr, textLen));
+            const text = __textDecoder.decode(new Uint8Array(__wasmMemory.buffer, textPtr, textLen));
             const node = document.createTextNode(text);
             const id = __nextNodeId++;
             __domNodes.set(id, node);

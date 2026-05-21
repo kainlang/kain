@@ -1821,14 +1821,14 @@ fn drive() -> Int:
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%KainActorRef = type { i64, i32, i32, i32 }"));
-    assert!(llvm.contains("%KainReplyPort = type { %KainActorRef }"));
+    assert!(llvm.contains("%KainReplyPort = type { %KainActorRef, i8* }"));
     assert!(llvm.contains("call i8* @kain_actor_reply_port_new()"));
     assert!(llvm.contains("call void @kain_actor_reply_port_actor_ref(i8*"));
     assert!(llvm
         .contains("declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)"));
     assert!(llvm.contains("call i32 @kain_actor_ask_send_ref(%KainActorRef* "));
-    assert!(llvm.contains("declare i32 @kain_actor_reply_port_send_ref(%KainActorRef*, i8*, i64)"));
-    assert!(llvm.contains("call i32 @kain_actor_reply_port_send_ref(%KainActorRef* "));
+    assert!(llvm.contains("declare i32 @kain_actor_reply_port_send_handle(i8*, %KainActorRef*, i8*, i64)"));
+    assert!(llvm.contains("call i32 @kain_actor_reply_port_send_handle(i8* "));
     assert!(llvm.contains("call i64 @kain_actor_reply_port_wait_i64(i8*"));
     assert!(llvm.contains("call void @kain_actor_reply_port_destroy(i8*"));
     assert!(llvm.contains("declare void @kain_actor_message_release(i8*)"));

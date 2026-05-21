@@ -665,6 +665,20 @@ int kain_actor_reply_port_send_ref(
     const void* reply_data,
     size_t reply_size
 );
+/*
+ * Compiler-lowered fast reply lane.
+ *
+ * Generated `P` payloads may carry both the stable reply-port handle returned by
+ * `kain_actor_reply_port_new()` and the generation-tagged ref captured for this
+ * ask. The handle lets local replies complete without a global actor-table
+ * lookup, while the ref still guards against stale timeout/rearm sends.
+ */
+int kain_actor_reply_port_send_handle(
+    void* reply_port_handle,
+    const KainActorRef* expected_reply_port_ref,
+    const void* reply_data,
+    size_t reply_size
+);
 int kain_actor_reply_port_wait(
     void* reply_port_handle,
     long long timeout_ms,

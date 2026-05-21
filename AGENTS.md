@@ -11,6 +11,7 @@ use std::crypto
 use std::alloc
 use std::diagnostics
 use std::result
+use std::test
 use std::time
 use std::intent
 use std::fs
@@ -364,7 +365,9 @@ fn stdlib_probe_lane() -> Int:
     let process_score = process_platform_available()
     let platform_score = len(platform_current_name()) + platform_current_kind() + platform_library_live_count() + bool_to_int(platform_library_is_valid(0) == false)
     let diagnostic_score = bool_to_status(status_ok(0)) + result_ok()
-    return fs_text_score + view_score + crypto_score + queue_score + slot_score + alloc_score + input_score + net_score + process_score + platform_score + diagnostic_score
+    let proof_outcome = test_proved("mythic.smt", "unsat")
+    let test_score = bool_to_int(test_outcome_ok(proof_outcome)) + proof_outcome.status
+    return fs_text_score + view_score + crypto_score + queue_score + slot_score + alloc_score + input_score + net_score + process_score + platform_score + diagnostic_score + test_score
 
 fn graphics_ui_lane() -> Int:
     let _graphics_reset = graphics_reset()
@@ -499,7 +502,7 @@ This codebase is too unsafe and too cross-layer for unaided human intuition to b
 - The Z3 MCP is core infrastructure. Whenever working on low-level runtime code, memory allocation, pointer/index arithmetic, ABI layout, LLVM lowering, ownership transitions, actor scheduling, process/net/io bounds, or complex state boundaries, use Z3 to mathematically verify the logic when applicable.
 - The proof standard is `unsat`: no valid binary sequence, state transition, capacity relation, or arithmetic input can violate the invariant.
 - Z3 is also a performance weapon. Use it for magic constants, branchless replacements, selector tables, bit masks, proof-backed unsafe Rust, C hot paths, Kain low-level math, and black-magic optimizer work.
-- Use `$z3-black-magic-optimizer` when the task is exploratory optimization, alien math, perfect hashes, bit hacks, branch elimination, or solver-guided replacement algorithms.
+- Use `$tool-z3-black-magic` when the task is exploratory optimization, alien math, perfect hashes, bit hacks, branch elimination, or solver-guided replacement algorithms.
 - Passing tests are useful telemetry. They are not proof.
 
 The old unit-test mindset checks a few numbers we remembered to write down. The Kain standard asks the solver to search the entire state space. If a buffer rule is `length + byte_count + slack < capacity`, encode the real bounds and make Z3 prove the violation impossible.
@@ -538,7 +541,7 @@ The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/
 - Kain is already capable of winning serious rows. Recent reports have shown wins in 122x faster contention/collapse-style pressure, entangle/world mirroring, call/recursion overhead, allocation churn, struct/option/result pressure, native map lookup territory, and actor ask/reply lanes.
 - Kain also has obvious metal gaps that demand compiler/runtime attacks, not polite workarounds.
 - The semantic singularity family is the canary. `semantic_singularity*`, `quantumerlang`, and other fused keyword rows showing `n/a` or failure are not reasons to simplify the language; they are orders to harden parser, LLVM lowering, runtime contracts, and native ABI support until the weird semantics compile and run.
-- Treat a slow benchmark as a treasure map. Each slow row should become a concrete compiler/runtime/proof/attrition task with a rerun report. This in specific is where $Z3-black-magic-optimizer comes into play. Furthermore a slow lane is always a slow lane until it is faster than CPP or rust, the ultimate goal is to invoke magic alien code and absolutely dominate Rust and CPP.
+- Treat a slow benchmark as a treasure map. Each slow row should become a concrete compiler/runtime/proof/attrition task with a rerun report. This in specific is where `$tool-z3-black-magic` comes into play. Furthermore a slow lane is always a slow lane until it is faster than CPP or rust, the ultimate goal is to invoke magic alien code and absolutely dominate Rust and CPP.
 - Fairness notes matter. Proxy wins are not final victory, but they reveal where Kain's semantics can crush conventional overhead once the native lane catches up.
 
 ## First Read Order
@@ -560,7 +563,7 @@ The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/
 - `attrition`: deterministic runtime abuse, sabotage, replay, telemetry, and teardown-closure certification
 - `smoketest`: focused capability and regression proof surfaces
 - `z3/` and subsystem-local `z3/`: durable proof packs and reports
-- `.agents/skills`: repo-local skills. Update existing skills when changing a pipeline materially.
+- `.agents/skills`: active repo-local skills. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, and the small `tool-*` lane. Use `.agents/skills/TAXONOMY.md` for the active set and old-to-new aliases; archived pre-namespace skills live under `.agents/skills-legacy/`.
 - `guides`: canonical long-form docs
 - `docs`: older support material. Verify against code before trusting it.
 - `src/core`: owned selfhost Kain source
@@ -583,6 +586,17 @@ Read these before writing serious Kain:
 - `\stdlib\STDLIB_MAP.llm.md` : most importantly however is the stdlib map. this is regenerated with every build! 
 
 Do not let new Kain files collapse into plain `fn` and `let` soup when the problem calls for stronger language features. Push `world`, `converge`, `collapse`, `observe`, `decay`, `orchestrate`, `entangle`, `teleport`, `shatter`, `pulse`, `axiom`, `actor`, `law`, `patch`, and shader lanes when they fit.
+
+## Skill Taxonomy
+
+- `lang-*`: writing in Kain. Authored `.kn` code, blades, stdlib usage, translation, UI, GPU, actors, ownership, and application-facing command usage.
+- `bootstrap-*`: changing compiler, parser, AST, lowering, semantic wiring, or other bootstrap truth.
+- `runtime-*`: changing native substrate, host bridges, runtime-backed stdlib behavior, and GPU execution/runtime paths.
+- `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.
+- `package-*`: package-owned surfaces that deserve their own lane, currently `package-kaintana` and `package-vulkain`.
+- `tool-*`: rare cross-cutting operator surfaces such as repo build plumbing, exploratory Z3 black magic, and release gating.
+- Prefer updating an existing namespaced skill over spawning a new micro-skill. Do not create `misc-*`.
+- When a legacy `kain-*` skill name appears in old notes, resolve it through `.agents/skills/TAXONOMY.md` instead of reviving the old namespace.
 
 ## Kain Authoring Ignition
 
@@ -710,11 +724,11 @@ python attrition/run.py --case <case> --sabotage <mode>
 - `README.md` is the live broad repo overview.
 - `ARCHITECTURE.md` is the durable architecture bulletin board. Keep it high signal and structural: what Kain is, where systems live, ownership boundaries, key data flows, common commands, recurring errors, and lessons future agents will hit again.
 - `MEMORY.md` is the durable task/risk bulletin board. Keep it useful for handoff: what changed, why, risks, proof/report artifacts, next recommended steps, and weird traps that are not yet captured in a more local doc.
-- Pipeline `README.md` files and `.agents/skills/*/SKILL.md` are the preferred homes for detailed subsystem operating knowledge.
+- Pipeline `README.md` files, `.agents/skills/*/SKILL.md`, and `.agents/skills/TAXONOMY.md` are the preferred homes for detailed subsystem operating knowledge and skill routing.
 - Update `ARCHITECTURE.md` when architecture, important folders, command surfaces, ownership rules, or recurring errors change.
 - Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
 - Do not dump raw session logs into memory. Write the distilled lesson, the proof/benchmark/attrition evidence, and the next useful move.
-- If a pipeline changes significantly, update an existing repo-local skill before creating a new one. If no skill exists and the new pipeline is important, use `$skill-creator` at the end of the turn.
+- If a pipeline changes significantly, update the owning namespaced repo-local skill before creating a new one. If no namespace lane fits and the pipeline is important, use `$skill-creator` at the end of the turn.
 
 ## Git And Shipping
 

@@ -3,6 +3,7 @@ use std::actor
 use std::collections
 use std::diagnostics
 use std::result
+use std::test
 use std::time
 use std::intent
 use std::fs
@@ -36,6 +37,9 @@ fn main() -> Int:
         return 4
     if bool_to_status(true) != 0:
         return 5
+    let std_test_outcome = test_bool("stdlib.test.bool", true)
+    if test_outcome_ok(std_test_outcome) == false:
+        return 38
 
     if int_clamp(19, 0, 7) != 7:
         return 6

@@ -1513,7 +1513,7 @@ fn run_test_command(
             Some(mode) => Some(mode),
             None => {
                 eprintln!(
-                    " Unknown test mode '{}'. Use: check-pass, check-fail, run-pass, run-fail, kain-test",
+                    " Unknown test mode '{}'. Use: check-pass, check-fail, run-pass, run-fail, kain-test, prove-pass, prove-sat",
                     value
                 );
                 return false;

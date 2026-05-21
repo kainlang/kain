@@ -1,0 +1,67 @@
+shader compute orbit_fold_lattice(id: UVec3) -> Void:
+    uniform src_packets: StorageBuffer<Vec4> @0
+    uniform dst_packets: StorageBuffer<Vec4> @1
+    uniform count: UInt @2
+    uniform width: UInt @3
+    uniform bias: UInt @4
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let idx = id.x + (id.y * width)
+    if idx >= count:
+        return
+
+    let packet = src_packets[idx]
+    let lane = ((idx + bias) % 6) as Int
+    let step = ((idx % 97) + 1) as Float
+    let seed = (((idx + (bias * 3)) % 257) + 5) as Float
+    let base0 = packet.x + seed
+    let base1 = packet.y + step + 3.0
+    let base2 = packet.z + packet.x + 17.0
+    let base3 = packet.w + packet.y + 29.0
+
+    let mut out0 = base0
+    let mut out1 = base1
+    let mut out2 = base2
+    let mut out3 = base3
+    if lane == 0:
+        out0 = base0 + base1 + 5.0
+        out1 = base1 + base2 + 7.0
+        out2 = base2 + base3 + 11.0
+        out3 = base3 + step + 13.0
+    else:
+        if lane == 1:
+            out0 = base0 + packet.w + 17.0
+            out1 = base1 + packet.x + 19.0
+            out2 = base2 + packet.y + 23.0
+            out3 = base3 + packet.z + 29.0
+        else:
+            if lane == 2:
+                out0 = base0 + base2 + 31.0
+                out1 = base1 + base3 + 37.0
+                out2 = base2 + base0 + 41.0
+                out3 = base3 + base1 + 43.0
+            else:
+                if lane == 3:
+                    out0 = base0 + (step * 2.0) + 47.0
+                    out1 = base1 + (seed * 2.0) + 53.0
+                    out2 = base2 + packet.w + 59.0
+                    out3 = base3 + packet.x + 61.0
+                else:
+                    if lane == 4:
+                        out0 = base0 + packet.y + 67.0
+                        out1 = base1 + base0 + 71.0
+                        out2 = base2 + packet.x + 73.0
+                        out3 = base3 + seed + 79.0
+                    else:
+                        out0 = base0 + base3 + 83.0
+                        out1 = base1 + packet.w + 89.0
+                        out2 = base2 + step + 97.0
+                        out3 = base3 + packet.z + 101.0
+
+    dst_packets[idx] = vec4(out0, out1, out2, out3)
+    return
+
+fn main() -> Int:
+    return 0

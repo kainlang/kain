@@ -172,6 +172,40 @@
       }
     },
     {
+      "id": "pulse_teleport_decay_mesh",
+      "title": "Pulse Teleport Decay Mesh",
+      "description": "Machine-temporal semantic row: Kain drives pulse declarations, world/entangle state, teleport handoff, patch/law checks, actor ask/reply, and collapse/observe/decay-owned cells in one deterministic checksum loop while C++ mirrors the same state graph manually.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is a semantics-latency row, not a timer-precision contest. Kain uses compiler-owned pulse + teleport + ownership primitives directly; C++ reproduces the same deterministic algebraic state transitions without claiming feature-parity runtime internals.",
+      "telemetry": {
+        "primary_metric_id": "semantic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "semantic_rounds_per_second",
+            "label": "semantic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 54000
+          },
+          {
+            "id": "teleports_per_second",
+            "label": "teleports/s",
+            "unit": "teleports/s",
+            "work_items": 54000
+          },
+          {
+            "id": "ask_roundtrips_per_second",
+            "label": "ask roundtrips/s",
+            "unit": "asks/s",
+            "work_items": 54000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/pulse_teleport_decay_mesh/main.kn",
+        "cpp": "cases/pulse_teleport_decay_mesh/main.cpp"
+      }
+    },
+    {
       "id": "ownership_memory",
       "title": "Scoped Ownership Memory Cell",
       "description": "A smaller first-class ownership smoke benchmark: Kain uses collapse/observe/decay over a helper-owned heap cell; Rust uses an owned Box mutation and drop.",

@@ -1893,6 +1893,28 @@ int kain_actor_reply_port_send_ref(
     return result;
 }
 
+int kain_actor_reply_port_send_handle(
+    void* reply_port_handle,
+    const KainActorRef* expected_reply_port_ref,
+    const void* reply_data,
+    size_t reply_size
+) {
+    KainActorReplyPortState* state = (KainActorReplyPortState*)reply_port_handle;
+
+    if (state == NULL) {
+        if (expected_reply_port_ref == NULL) {
+            return -1;
+        }
+        return kain_actor_reply_port_send_ref(expected_reply_port_ref, reply_data, reply_size);
+    }
+    return kain_actor_reply_port_state_complete_copied(
+        state,
+        expected_reply_port_ref,
+        reply_data,
+        reply_size
+    );
+}
+
 int kain_actor_reply_port_wait(
     void* reply_port_handle,
     long long timeout_ms,

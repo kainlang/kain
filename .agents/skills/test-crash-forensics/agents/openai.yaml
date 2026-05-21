@@ -1,0 +1,3 @@
+interface:
+  display_name: "Test Crash Forensics"
+  short_description: "Help with Test Crash Forensics tasks"

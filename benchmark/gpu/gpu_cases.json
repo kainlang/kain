@@ -169,6 +169,48 @@
         }
       },
       "fairness_note": "Kain and C++ still use different shader frontends, but both execute the same branch-fold packet contract through one shared C++ Vulkan dispatcher, descriptor layout, timestamp query, and exact CPU-oracle verification sidecar."
+    },
+    {
+      "id": "orbit_fold_lattice",
+      "title": "Orbit fold lattice",
+      "description": "Six-lane orbit-fold compute row: each invocation routes one Vec4 packet through a wider branch lattice with seeded lane math and writes exact-float outputs verified by a shared Vulkan CPU oracle.",
+      "maturity": "vulkan-runtime-proof",
+      "work_items": 196608,
+      "width": 768,
+      "runner_env": {
+        "KAIN_GPU_BIAS": 29
+      },
+      "languages": {
+        "kain": {
+          "shader": "cases/orbit_fold_lattice/kain.kn",
+          "target": "spirv",
+          "stage": "comp",
+          "entry_point": "orbit_fold_lattice",
+          "runner": "cases/orbit_fold_lattice/vulkan_orbit_fold_lattice.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        },
+        "cpp": {
+          "shader": "cases/orbit_fold_lattice/reference.comp",
+          "shader_compiler": "glslang",
+          "stage": "comp",
+          "entry_point": "main",
+          "runner": "cases/orbit_fold_lattice/vulkan_orbit_fold_lattice.cpp",
+          "runner_compiler": "cpp",
+          "include_args": [
+            "-IC:/VulkanSDK/1.4.341.1/Include"
+          ],
+          "link_args": [
+            "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib"
+          ]
+        }
+      },
+      "fairness_note": "Kain and C++ still use different shader frontends, but both execute the same six-lane packet lattice through one shared C++ Vulkan dispatcher, descriptor layout, timestamp query, and exact CPU-oracle verification sidecar."
     }
   ]
 }

@@ -259,7 +259,7 @@ path against the extracted tree.
 | Flag | Meaning |
 | --- | --- |
 | `input` | Kain source file or directory |
-| `--mode` | override source directives with `check-pass`, `check-fail`, `run-pass`, `run-fail`, or `kain-test` |
+| `--mode` | override source directives with `check-pass`, `check-fail`, `run-pass`, `run-fail`, `kain-test`, `prove-pass`, or `prove-sat` |
 | `-t`, `--target` | default target profile for check modes, default `run` |
 | `--fail-fast` | stop after the first failed case |
 | `--ignored` | run cases marked with `//@ ignore` instead of skipping them |

@@ -1,0 +1,144 @@
+use std::runtime
+use std::actor
+use std::intent
+
+const PULSE_MODULUS: Int = 1000000007
+
+component PulsePanel():
+    render <panel title="pulse-teleport-decay-mesh" />
+
+world PulseAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state ledger: Int = 0
+    surface native_ui => PulsePanel
+
+world PulseMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state ledger_copy: Int = 0
+    surface web => PulsePanel
+
+entangle PulseAuthority.signal <-> PulseMirror.signal_copy with single_writer
+entangle PulseAuthority.epoch <-> PulseMirror.epoch_copy with single_writer
+entangle PulseAuthority.ledger <-> PulseMirror.ledger_copy with single_writer
+
+shatter struct PulseShard:
+    bias: Int
+    phase: Int
+    salt: Int
+    hot: Bool
+
+actor PulseRelay:
+    state bias: Int = 13
+    state turns: Int = 0
+
+    on Fold(reply_to: P, request: Int):
+        self.turns = self.turns + 1
+        send reply_to.Reply(value = ((request * 17) + self.bias + self.turns + 31) % PULSE_MODULUS)
+
+law pulse_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < PULSE_MODULUS
+
+patch commit_pulse(authority: PulseAuthority, value: Int, ledger_delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.ledger = (authority.ledger + ledger_delta + authority.epoch + 11) % PULSE_MODULUS
+    return authority.signal
+
+fn pulse_scalar_mix(value: Int) -> Int:
+    return ((value * 29) + 17) % PULSE_MODULUS
+
+converge pulse_mix(value: Int) -> Int:
+    spec reference:
+        return pulse_scalar_mix(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 29) + 17) % PULSE_MODULUS
+    verify random(4)
+
+fn pulse_stage(value: Int) -> Int:
+    return (value + 23) % PULSE_MODULUS
+
+orchestrate pulse_pipeline(value: Int) -> Int:
+    let normalized: Int = kain pulse_mix(value)
+    let staged: Int = rust pulse_stage(normalized)
+    return staged
+
+fn pulse_lane_hint(a: Int, b: Int) -> Int:
+    return ((a * 7) + (b * 13) + 19) % 97
+
+pulse relay_clock every 4ms jitter 1ms:
+    let shard = PulseShard { bias: 3, phase: 5, salt: 7, hot: true }
+    let moved = teleport shard from PulseAuthority to PulseMirror via relay_clock_bus
+    let _pulse_shape = pulse_tick + pulse_dt_ms + pulse_missed + moved.bias + moved.phase
+
+fn fold_cells(cells: ptr<Int>, count: Int) -> Int:
+    var slot: Int = 0
+    var acc: Int = 0
+    while slot < count:
+        acc = (acc + mem_load(ptr_offset(cells, slot, "Int"), "Int")) % PULSE_MODULUS
+        slot = slot + 1
+    return acc
+
+fn main() -> Int:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let rounds: Int = 54000
+    let cell_count: Int = 96
+    let expected: Int = 129981790
+    let authority = PulseAuthority
+    let relay = spawn PulseRelay(bias = 13)
+    let _warm = ask(relay, "Fold", 0)
+    let shards = [
+        PulseShard { bias: 5, phase: 7, salt: 19, hot: true },
+        PulseShard { bias: 11, phase: 13, salt: 23, hot: false },
+        PulseShard { bias: 17, phase: 19, salt: 29, hot: true },
+        PulseShard { bias: 23, phase: 31, salt: 37, hot: true },
+        PulseShard { bias: 29, phase: 41, salt: 43, hot: false },
+        PulseShard { bias: 37, phase: 47, salt: 53, hot: true },
+        PulseShard { bias: 41, phase: 59, salt: 61, hot: true },
+        PulseShard { bias: 43, phase: 67, salt: 71, hot: false }
+    ]
+    let mut cells: ptr<Int> = alloc_zeroed(cell_count, "Int")
+
+    var checksum: Int = 0
+    collapse cells:
+        var i: Int = 0
+        while i < rounds:
+            let lane: Int = i % 8
+            let slot: Int = ((i * 5) + lane) % cell_count
+            let shard = PulseShard {
+                bias: shards[lane].bias,
+                phase: shards[lane].phase,
+                salt: shards[lane].salt,
+                hot: shards[lane].hot
+            }
+            let moved = teleport shard from PulseAuthority to PulseMirror via pulse_hot_bus
+            let old_cell: Int = mem_load(ptr_offset(cells, slot, "Int"), "Int")
+            let staged: Int = pulse_pipeline((checksum + old_cell + moved.bias + moved.phase + i + pulse_lane_hint(i, lane)) % PULSE_MODULUS)
+            let committed: Int = commit_pulse(authority, staged, moved.salt + lane)
+            let _legal: Int = law_status(pulse_in_bounds(committed))
+            let reply: Int = ask(relay, "Fold", (committed + old_cell + PulseMirror.ledger_copy + moved.salt + pulse_lane_hint(slot, lane)) % PULSE_MODULUS)
+            let next_cell: Int = (reply + PulseMirror.signal_copy + PulseMirror.epoch_copy + PulseMirror.ledger_copy + slot + moved.phase) % PULSE_MODULUS
+            mem_store(ptr_offset(cells, slot, "Int"), next_cell, "Int")
+            checksum = (checksum + next_cell + moved.bias + moved.salt + pulse_lane_hint(slot, i)) % PULSE_MODULUS
+            i = i + 1
+        0
+
+    let observed: Int = observe cells:
+        fold_cells(cells, cell_count)
+
+    decay cells
+
+    let final_score: Int = (checksum + observed + PulseMirror.signal_copy + PulseMirror.epoch_copy + PulseMirror.ledger_copy) % PULSE_MODULUS
+    let runtime_shape_ok = patch_journal_count() >= 1 and entangle_propagation_count() >= rounds and runtime_machine_teleport_count() >= rounds and runtime_machine_pulse_total_fire_count() >= 0 and converge_mismatch_count() == 0
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if runtime_shape_ok == false:
+        return 2
+    if final_score != expected:
+        return 1
+    return 0

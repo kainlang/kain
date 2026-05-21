@@ -7,7 +7,9 @@ use crate::c_runtime_shims::{
 };
 use kain_core::ast::{BinaryOp, Block, CallArg, ConvergeSelector, Expr, Stmt};
 use kain_core::error::{KainError, KainResult};
-use kain_core::types::{ResolvedType, TypedConverge, TypedFunction, TypedItem, TypedProgram};
+use kain_core::types::{
+    ResolvedType, TypedActor, TypedConverge, TypedFunction, TypedItem, TypedProgram,
+};
 use kain_core::{lower_typed_program_memory_for_target, CompileTarget};
 use std::collections::HashMap;
 use walrus::{FunctionBuilder, InstrSeqBuilder, LocalId, Module, ModuleConfig, ValType};
@@ -170,6 +172,10 @@ struct WasmCompiler {
     string_table: HashMap<String, u32>,
     /// Struct layouts: struct_name -> (field_name -> offset, total_size)
     struct_layouts: HashMap<String, (HashMap<String, u32>, u32)>,
+    /// Struct field value types: struct_name -> (field_name -> wasm value type)
+    struct_field_types: HashMap<String, HashMap<String, ValType>>,
+    /// Nested layout names for struct fields that themselves point at another layout.
+    struct_field_layout_names: HashMap<String, HashMap<String, String>>,
     /// Enum layouts: enum_name -> (variant_name -> tag, max_payload_size, variant_name -> (field_name -> offset))
     enum_layouts: HashMap<
         String,
@@ -189,6 +195,10 @@ struct WasmCompiler {
     lambda_table: HashMap<u32, (u32, walrus::FunctionId)>,
     /// Lowered world singleton pointers in linear memory.
     world_globals: HashMap<String, u32>,
+    /// Typed actor definitions available to the wasm lane.
+    actors: HashMap<String, TypedActor>,
+    /// Compiled synchronous actor handler entry points for wasm ask/send lowering.
+    actor_handlers: HashMap<String, WasmActorHandler>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -196,6 +206,18 @@ enum WasmConstValue {
     I64(i64),
     I32(i32),
     F64(f64),
+}
+
+#[derive(Debug, Clone)]
+struct WasmActorHandler {
+    actor_name: String,
+    message_name: String,
+    body: Block,
+    params: Vec<(String, ValType)>,
+    reply_ports: HashMap<String, ValType>,
+    result_type: Option<ValType>,
+    func_id: walrus::FunctionId,
+    span: kain_core::span::Span,
 }
 
 impl WasmConstValue {
@@ -236,10 +258,15 @@ impl WasmConstValue {
 // Locals are pre-allocated, so we don't need mutable access during emission
 struct CompilationContext<'a> {
     locals: HashMap<String, LocalId>,
+    actor_locals: HashMap<String, String>,
+    layout_locals: HashMap<String, String>,
+    reply_ports: HashMap<String, ValType>,
     functions: &'a HashMap<String, walrus::FunctionId>,
     constants: &'a HashMap<String, WasmConstValue>,
     string_table: &'a HashMap<String, u32>,
     struct_layouts: &'a HashMap<String, (HashMap<String, u32>, u32)>,
+    struct_field_types: &'a HashMap<String, HashMap<String, ValType>>,
+    struct_field_layout_names: &'a HashMap<String, HashMap<String, String>>,
     enum_layouts: &'a HashMap<
         String,
         (
@@ -618,6 +645,16 @@ impl WasmCompiler {
         let (str_concat_func, _) = module.add_import_func("host", "str_concat", str_concat_type);
         functions.insert("str_concat".to_string(), str_concat_func);
 
+        // str_eq(ptr1: i32, ptr2: i32) -> bool: i32
+        let str_eq_type = module.types.add(&[ValType::I32, ValType::I32], &[ValType::I32]);
+        let (str_eq_func, _) = module.add_import_func("host", "str_eq", str_eq_type);
+        functions.insert("str_eq".to_string(), str_eq_func);
+
+        // char_at(ptr: i32, index: i64) -> ptr: i32
+        let char_at_type = module.types.add(&[ValType::I32, ValType::I64], &[ValType::I32]);
+        let (char_at_func, _) = module.add_import_func("host", "char_at", char_at_type);
+        functions.insert("char_at".to_string(), char_at_func);
+
         // time_now() -> i64
         let time_now_type = module.types.add(&[], &[ValType::I64]);
         let (time_now_func, _) = module.add_import_func("host", "time_now", time_now_type);
@@ -685,12 +722,16 @@ impl WasmCompiler {
             data_offset: 0,
             string_table: HashMap::new(),
             struct_layouts: HashMap::new(),
+            struct_field_types: HashMap::new(),
+            struct_field_layout_names: HashMap::new(),
             enum_layouts: HashMap::new(),
             // heap_ptr, // Unused
             funcref_table: Some(funcref_table),
             lambda_counter: 0,
             lambda_table: HashMap::new(),
             world_globals: HashMap::new(),
+            actors: HashMap::new(),
+            actor_handlers: HashMap::new(),
         }
     }
 
@@ -716,6 +757,10 @@ impl WasmCompiler {
             }
             if let TypedItem::World(w) = item {
                 self.compute_world_layout(w);
+            }
+            if let TypedItem::Actor(actor) = item {
+                self.actors.insert(actor.ast.name.clone(), actor.clone());
+                self.compute_actor_layout(actor);
             }
         }
 
@@ -746,6 +791,14 @@ impl WasmCompiler {
                 }
                 TypedItem::Impl(i) => {
                     for method in &i.ast.methods {
+                        self.collect_strings_in_block(&method.body);
+                    }
+                }
+                TypedItem::Actor(actor) => {
+                    for handler in &actor.ast.handlers {
+                        self.collect_strings_in_block(&handler.body);
+                    }
+                    for method in &actor.ast.methods {
                         self.collect_strings_in_block(&method.body);
                     }
                 }
@@ -782,6 +835,14 @@ impl WasmCompiler {
                         self.collect_lambdas_in_block(&method.body, &mut all_lambdas);
                     }
                 }
+                TypedItem::Actor(actor) => {
+                    for handler in &actor.ast.handlers {
+                        self.collect_lambdas_in_block(&handler.body, &mut all_lambdas);
+                    }
+                    for method in &actor.ast.methods {
+                        self.collect_lambdas_in_block(&method.body, &mut all_lambdas);
+                    }
+                }
                 _ => {}
             }
         }
@@ -799,6 +860,7 @@ impl WasmCompiler {
                 TypedItem::Converge(c) => self.declare_converge(c)?,
                 TypedItem::Orchestrate(o) => self.declare_orchestrate(o)?,
                 TypedItem::Impl(i) => self.declare_impl_methods(i)?,
+                TypedItem::Actor(actor) => self.declare_actor_handlers(actor)?,
                 _ => {}
             }
         }
@@ -824,6 +886,9 @@ impl WasmCompiler {
                 TypedItem::Impl(i) => {
                     self.compile_impl_methods(i)?;
                 }
+                TypedItem::Actor(actor) => {
+                    self.compile_actor_handlers(actor)?;
+                }
                 _ => {}
             }
         }
@@ -841,6 +906,8 @@ impl WasmCompiler {
     fn compute_struct_layout(&mut self, s: &kain_core::types::TypedStruct) {
         let mut offset = 0u32;
         let mut field_offsets = HashMap::new();
+        let mut field_types = HashMap::new();
+        let mut field_layout_names = HashMap::new();
 
         for field in &s.ast.fields {
             // Align to 4 bytes
@@ -848,12 +915,19 @@ impl WasmCompiler {
             field_offsets.insert(field.name.clone(), offset);
 
             // Calculate field size based on type
-            let field_size = self.type_size_of(
-                &s.field_types
-                    .get(&field.name)
-                    .cloned()
-                    .unwrap_or(ResolvedType::Int(kain_core::types::IntSize::I64)),
+            let resolved_type = s
+                .field_types
+                .get(&field.name)
+                .cloned()
+                .unwrap_or(ResolvedType::Int(kain_core::types::IntSize::I64));
+            field_types.insert(
+                field.name.clone(),
+                self.map_heap_value_type_from_resolved_type(&resolved_type),
             );
+            if let Some(layout_name) = self.layout_name_from_resolved_type(&resolved_type) {
+                field_layout_names.insert(field.name.clone(), layout_name);
+            }
+            let field_size = self.type_size_of(&resolved_type);
             offset += field_size;
         }
 
@@ -861,39 +935,891 @@ impl WasmCompiler {
         let total_size = (offset + 3) & !3;
         self.struct_layouts
             .insert(s.ast.name.clone(), (field_offsets, total_size));
+        self.struct_field_types
+            .insert(s.ast.name.clone(), field_types);
+        if !field_layout_names.is_empty() {
+            self.struct_field_layout_names
+                .insert(s.ast.name.clone(), field_layout_names);
+        }
     }
 
     fn compute_component_layout(&mut self, c: &kain_core::types::TypedComponent) {
         let mut offset = 0u32;
         let mut field_offsets = HashMap::new();
+        let mut field_types = HashMap::new();
+        let mut field_layout_names = HashMap::new();
 
         for state in &c.ast.state {
             // Align to 4 bytes
             offset = (offset + 3) & !3;
             field_offsets.insert(state.name.clone(), offset);
 
-            // Assume 8 bytes for now
-            offset += 8;
+            let field_type = self.map_heap_value_type_from_authored_type(&state.ty);
+            field_types.insert(state.name.clone(), field_type);
+            if let Some(layout_name) = self.layout_name_from_authored_type(&state.ty) {
+                field_layout_names.insert(state.name.clone(), layout_name);
+            }
+            offset += self.ast_type_size_of(&state.ty);
         }
 
         let total_size = (offset + 3) & !3;
         self.struct_layouts
             .insert(c.ast.name.clone(), (field_offsets, total_size));
+        self.struct_field_types
+            .insert(c.ast.name.clone(), field_types);
+        if !field_layout_names.is_empty() {
+            self.struct_field_layout_names
+                .insert(c.ast.name.clone(), field_layout_names);
+        }
     }
 
     fn compute_world_layout(&mut self, world: &kain_core::types::TypedWorld) {
         let mut offset = 0u32;
         let mut field_offsets = HashMap::new();
+        let mut field_types = HashMap::new();
+        let mut field_layout_names = HashMap::new();
 
         for state in &world.ast.states {
             offset = (offset + 3) & !3;
             field_offsets.insert(state.name.clone(), offset);
+            field_types.insert(
+                state.name.clone(),
+                self.map_heap_value_type_from_authored_type(&state.ty),
+            );
+            if let Some(layout_name) = self.layout_name_from_authored_type(&state.ty) {
+                field_layout_names.insert(state.name.clone(), layout_name);
+            }
             offset += self.ast_type_size_of(&state.ty);
         }
 
         let total_size = (offset + 3) & !3;
         self.struct_layouts
             .insert(world.ast.name.clone(), (field_offsets, total_size));
+        self.struct_field_types
+            .insert(world.ast.name.clone(), field_types);
+        if !field_layout_names.is_empty() {
+            self.struct_field_layout_names
+                .insert(world.ast.name.clone(), field_layout_names);
+        }
+    }
+
+    fn compute_actor_layout(&mut self, actor: &TypedActor) {
+        let mut offset = 0u32;
+        let mut field_offsets = HashMap::new();
+        let mut field_types = HashMap::new();
+        let mut field_layout_names = HashMap::new();
+
+        for state in &actor.ast.state {
+            offset = (offset + 3) & !3;
+            field_offsets.insert(state.name.clone(), offset);
+            let resolved_type = actor
+                .state_types
+                .get(&state.name)
+                .cloned()
+                .unwrap_or_else(|| ResolvedType::Unknown);
+            let field_type = if resolved_type == ResolvedType::Unknown {
+                self.map_heap_value_type_from_authored_type(&state.ty)
+            } else {
+                self.map_heap_value_type_from_resolved_type(&resolved_type)
+            };
+            field_types.insert(state.name.clone(), field_type);
+            if let Some(layout_name) = self
+                .layout_name_from_resolved_type(&resolved_type)
+                .or_else(|| self.layout_name_from_authored_type(&state.ty))
+            {
+                field_layout_names.insert(state.name.clone(), layout_name);
+            }
+            let field_size = actor
+                .state_types
+                .get(&state.name)
+                .map(|ty| self.type_size_of(ty))
+                .unwrap_or_else(|| self.ast_type_size_of(&state.ty));
+            offset += field_size;
+        }
+
+        let total_size = (offset + 3) & !3;
+        self.struct_layouts
+            .insert(actor.ast.name.clone(), (field_offsets, total_size));
+        self.struct_field_types
+            .insert(actor.ast.name.clone(), field_types);
+        if !field_layout_names.is_empty() {
+            self.struct_field_layout_names
+                .insert(actor.ast.name.clone(), field_layout_names);
+        }
+    }
+
+    fn map_heap_value_type_from_resolved_type(&self, ty: &ResolvedType) -> ValType {
+        match ty {
+            ResolvedType::Bool | ResolvedType::Char => ValType::I32,
+            ResolvedType::Int(_) => ValType::I64,
+            ResolvedType::Float(kain_core::types::FloatSize::F32) => ValType::F32,
+            ResolvedType::Float(kain_core::types::FloatSize::F64) => ValType::F64,
+            ResolvedType::String
+            | ResolvedType::Array(_, _)
+            | ResolvedType::Slice(_)
+            | ResolvedType::Tuple(_)
+            | ResolvedType::Option(_)
+            | ResolvedType::Result(_, _)
+            | ResolvedType::Ref { .. }
+            | ResolvedType::Ptr { .. }
+            | ResolvedType::Function { .. }
+            | ResolvedType::Struct(_, _)
+            | ResolvedType::Enum(_, _) => ValType::I32,
+            _ => self.map_type(ty),
+        }
+    }
+
+    fn map_heap_value_type_from_authored_type(&self, ty: &kain_core::ast::Type) -> ValType {
+        match ty {
+            kain_core::ast::Type::Named { name, .. } => match name.as_str() {
+                "Bool" | "Char" => ValType::I32,
+                "Float32" | "F32" => ValType::F32,
+                "Float" | "Float64" | "F64" => ValType::F64,
+                "String" => ValType::I32,
+                "Int" | "I64" | "U64" | "Isize" | "Usize" | "I32" | "U32" | "I16" | "U16"
+                | "I8" | "U8" => ValType::I64,
+                _ => ValType::I32,
+            },
+            kain_core::ast::Type::Array(_, _, _)
+            | kain_core::ast::Type::Tuple(_, _)
+            | kain_core::ast::Type::Ref { .. }
+            | kain_core::ast::Type::Ptr { .. }
+            | kain_core::ast::Type::Function { .. }
+            | kain_core::ast::Type::Option(_, _)
+            | kain_core::ast::Type::Result(_, _, _)
+            | kain_core::ast::Type::Impl { .. } => ValType::I32,
+            _ => ValType::I64,
+        }
+    }
+
+    fn infer_global_field_val_type(&self, field: &str) -> Option<ValType> {
+        let mut matches = self
+            .struct_field_types
+            .values()
+            .filter_map(|fields| fields.get(field).copied());
+        let first = matches.next()?;
+        if matches.all(|next| next == first) {
+            Some(first)
+        } else {
+            None
+        }
+    }
+
+    fn layout_name_from_resolved_type(&self, ty: &ResolvedType) -> Option<String> {
+        match ty {
+            ResolvedType::Struct(name, _) => Some(name.clone()),
+            ResolvedType::Ref { inner, .. } | ResolvedType::Ptr { inner, .. } => {
+                self.layout_name_from_resolved_type(inner)
+            }
+            _ => None,
+        }
+    }
+
+    fn layout_name_from_authored_type(&self, ty: &kain_core::ast::Type) -> Option<String> {
+        match ty {
+            kain_core::ast::Type::Named { name, .. } => match name.as_str() {
+                "Bool" | "Char" | "Float32" | "F32" | "Float" | "Float64" | "F64" | "String"
+                | "Int" | "I64" | "U64" | "Isize" | "Usize" | "I32" | "U32" | "I16"
+                | "U16" | "I8" | "U8" => None,
+                _ => Some(name.clone()),
+            },
+            kain_core::ast::Type::Ref { inner, .. } | kain_core::ast::Type::Ptr { inner, .. } => {
+                self.layout_name_from_authored_type(inner)
+            }
+            _ => None,
+        }
+    }
+
+    fn actor_handler_key(actor_name: &str, message_name: &str) -> String {
+        format!("{actor_name}::{message_name}")
+    }
+
+    fn is_reply_port_type(&self, ty: &kain_core::ast::Type) -> bool {
+        matches!(
+            ty,
+            kain_core::ast::Type::Named { name, .. }
+                if matches!(name.as_str(), "P" | "ReplyPort" | "KainReplyPort")
+        )
+    }
+
+    fn extract_reply_send_value_expr<'a>(
+        &self,
+        stmt: &'a Stmt,
+        reply_port_name: &str,
+    ) -> Option<&'a Expr> {
+        match stmt {
+            Stmt::Expr(Expr::SendMsg {
+                target,
+                message,
+                data,
+                ..
+            }) => {
+                if message != "Reply" {
+                    return None;
+                }
+                match target.as_ref() {
+                    Expr::Ident(name, _) if name == reply_port_name => data
+                        .iter()
+                        .find(|(field, _)| field == "value")
+                        .map(|(_, value)| value)
+                        .or_else(|| data.first().map(|(_, value)| value)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn infer_actor_expr_wasm_type(
+        &self,
+        actor: &TypedActor,
+        locals: &HashMap<String, ValType>,
+        expr: &Expr,
+    ) -> ValType {
+        match expr {
+            Expr::Int(_, _) => ValType::I64,
+            Expr::None(_) => ValType::I32,
+            Expr::Float(_, _) => ValType::F64,
+            Expr::Bool(_, _) => ValType::I32,
+            Expr::String(_, _) => ValType::I32,
+            Expr::Paren(inner, _) => self.infer_actor_expr_wasm_type(actor, locals, inner),
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => {
+                self.infer_actor_expr_wasm_type(actor, locals, body)
+            }
+            Expr::Teleport { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => self.infer_actor_expr_wasm_type(actor, locals, value),
+            Expr::Ident(name, _) => locals
+                .get(name)
+                .copied()
+                .or_else(|| self.constants.get(name).map(|value| value.val_type()))
+                .unwrap_or(ValType::I64),
+            Expr::Field { object, field, .. } => match object.as_ref() {
+                Expr::Ident(name, _) if name == "self" => actor
+                    .state_types
+                    .get(field)
+                    .map(|ty| self.map_heap_value_type_from_resolved_type(ty))
+                    .unwrap_or_else(|| self.infer_global_field_val_type(field).unwrap_or(ValType::I64)),
+                _ => self.infer_global_field_val_type(field).unwrap_or(ValType::I64),
+            },
+            Expr::Array(_, _)
+            | Expr::Tuple(_, _)
+            | Expr::Struct { .. }
+            | Expr::AggregateInit { .. }
+            | Expr::EnumVariant { .. }
+            | Expr::Spawn { .. }
+            | Expr::JSX(_, _) => ValType::I32,
+            Expr::Binary {
+                op, left, right, ..
+            } => match op {
+                BinaryOp::Eq
+                | BinaryOp::Ne
+                | BinaryOp::Lt
+                | BinaryOp::Gt
+                | BinaryOp::Le
+                | BinaryOp::Ge
+                | BinaryOp::And
+                | BinaryOp::Or => ValType::I32,
+                BinaryOp::Add => {
+                    let left_ty = self.infer_actor_expr_wasm_type(actor, locals, left);
+                    let right_ty = self.infer_actor_expr_wasm_type(actor, locals, right);
+                    if left_ty == ValType::I32 && right_ty == ValType::I32 {
+                        ValType::I32
+                    } else if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+                _ => {
+                    let left_ty = self.infer_actor_expr_wasm_type(actor, locals, left);
+                    let right_ty = self.infer_actor_expr_wasm_type(actor, locals, right);
+                    if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+            },
+            Expr::Unary { op, operand, .. } => match op {
+                kain_core::ast::UnaryOp::Not => ValType::I32,
+                _ => self.infer_actor_expr_wasm_type(actor, locals, operand),
+            },
+            Expr::Call { callee, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    if matches!(name.as_str(), "to_string" | "str_concat" | "char_at" | "str_eq") {
+                        return ValType::I32;
+                    }
+                    if matches!(
+                        name.as_str(),
+                        "__kain_ptr_offset" | "__kain_alloc" | "__kain_realloc" | "__kain_union_wrap"
+                    ) {
+                        return ValType::I32;
+                    }
+                }
+                ValType::I64
+            }
+            Expr::MethodCall { method, args, .. } => match method.as_str() {
+                "is_ok" | "is_err" | "is_some" | "is_none" => ValType::I32,
+                "unwrap_or" => args
+                    .first()
+                    .map(|arg| self.infer_actor_expr_wasm_type(actor, locals, &arg.value))
+                    .unwrap_or(ValType::I64),
+                _ => ValType::I64,
+            },
+            _ => ValType::I64,
+        }
+    }
+
+    fn infer_actor_handler_reply_type(
+        &self,
+        actor: &TypedActor,
+        handler: &kain_core::ast::MessageHandler,
+    ) -> Option<ValType> {
+        let reply_port_name = handler
+            .params
+            .iter()
+            .find(|param| self.is_reply_port_type(&param.ty))
+            .map(|param| param.name.clone())?;
+
+        let mut locals = HashMap::new();
+        for param in &handler.params {
+            locals.insert(param.name.clone(), self.map_authored_type(&param.ty));
+        }
+
+        handler
+            .body
+            .stmts
+            .iter()
+            .rev()
+            .find_map(|stmt| self.extract_reply_send_value_expr(stmt, &reply_port_name))
+            .map(|value| self.infer_actor_expr_wasm_type(actor, &locals, value))
+    }
+
+    fn collect_actor_locals_in_block(
+        &self,
+        block: &Block,
+        actor_locals: &mut HashMap<String, String>,
+    ) {
+        for stmt in &block.stmts {
+            self.collect_actor_locals_in_stmt(stmt, actor_locals);
+        }
+    }
+
+    fn collect_actor_locals_in_stmt(
+        &self,
+        stmt: &Stmt,
+        actor_locals: &mut HashMap<String, String>,
+    ) {
+        match stmt {
+            Stmt::Let { pattern, value, .. } => {
+                if let Some(value) = value {
+                    if let (
+                        kain_core::ast::Pattern::Binding { name, .. },
+                        Expr::Spawn { actor, .. },
+                    ) = (pattern, value)
+                    {
+                        actor_locals.insert(name.clone(), actor.clone());
+                    } else {
+                        self.collect_actor_locals_in_expr(value, actor_locals);
+                    }
+                }
+            }
+            Stmt::Expr(expr) => self.collect_actor_locals_in_expr(expr, actor_locals),
+            Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                self.collect_actor_locals_in_expr(expr, actor_locals);
+            }
+            Stmt::For { iter, body, .. } => {
+                self.collect_actor_locals_in_expr(iter, actor_locals);
+                self.collect_actor_locals_in_block(body, actor_locals);
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                self.collect_actor_locals_in_expr(condition, actor_locals);
+                self.collect_actor_locals_in_block(body, actor_locals);
+            }
+            Stmt::Loop { body, .. } => self.collect_actor_locals_in_block(body, actor_locals),
+            _ => {}
+        }
+    }
+
+    fn collect_actor_locals_in_else(
+        &self,
+        branch: &kain_core::ast::ElseBranch,
+        actor_locals: &mut HashMap<String, String>,
+    ) {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.collect_actor_locals_in_block(block, actor_locals);
+            }
+            kain_core::ast::ElseBranch::ElseIf(condition, then_branch, next) => {
+                self.collect_actor_locals_in_expr(condition, actor_locals);
+                self.collect_actor_locals_in_block(then_branch, actor_locals);
+                if let Some(next) = next {
+                    self.collect_actor_locals_in_else(next, actor_locals);
+                }
+            }
+        }
+    }
+
+    fn collect_actor_locals_in_expr(
+        &self,
+        expr: &Expr,
+        actor_locals: &mut HashMap<String, String>,
+    ) {
+        match expr {
+            Expr::Spawn { .. }
+            | Expr::Int(_, _)
+            | Expr::Float(_, _)
+            | Expr::String(_, _)
+            | Expr::Bool(_, _)
+            | Expr::None(_)
+            | Expr::Ident(_, _)
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. } => {}
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Ref { value: inner, .. }
+            | Expr::AddrOf { value: inner, .. }
+            | Expr::Cast { value: inner, .. }
+            | Expr::Comptime(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Try(inner, _) => self.collect_actor_locals_in_expr(inner, actor_locals),
+            Expr::Teleport { value, .. } => self.collect_actor_locals_in_expr(value, actor_locals),
+            Expr::Binary { left, right, .. } => {
+                self.collect_actor_locals_in_expr(left, actor_locals);
+                self.collect_actor_locals_in_expr(right, actor_locals);
+            }
+            Expr::Unary { operand, .. } => self.collect_actor_locals_in_expr(operand, actor_locals),
+            Expr::Assign { target, value, .. } => {
+                if let (Expr::Ident(name, _), Expr::Spawn { actor, .. }) = (target.as_ref(), value.as_ref()) {
+                    actor_locals.insert(name.clone(), actor.clone());
+                }
+                self.collect_actor_locals_in_expr(target, actor_locals);
+                self.collect_actor_locals_in_expr(value, actor_locals);
+            }
+            Expr::Call { callee, args, .. } => {
+                self.collect_actor_locals_in_expr(callee, actor_locals);
+                for arg in args {
+                    self.collect_actor_locals_in_expr(&arg.value, actor_locals);
+                }
+            }
+            Expr::StageCall { args, .. } => {
+                for arg in args {
+                    self.collect_actor_locals_in_expr(&arg.value, actor_locals);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.collect_actor_locals_in_expr(receiver, actor_locals);
+                for arg in args {
+                    self.collect_actor_locals_in_expr(&arg.value, actor_locals);
+                }
+            }
+            Expr::Field { object, .. } => self.collect_actor_locals_in_expr(object, actor_locals),
+            Expr::Index { object, index, .. } => {
+                self.collect_actor_locals_in_expr(object, actor_locals);
+                self.collect_actor_locals_in_expr(index, actor_locals);
+            }
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    self.collect_actor_locals_in_expr(value, actor_locals);
+                }
+                if let Some(rest) = rest {
+                    self.collect_actor_locals_in_expr(rest, actor_locals);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    self.collect_actor_locals_in_expr(value, actor_locals);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => {}
+                kain_core::ast::EnumVariantFields::Tuple(values) => {
+                    for value in values {
+                        self.collect_actor_locals_in_expr(value, actor_locals);
+                    }
+                }
+                kain_core::ast::EnumVariantFields::Struct(values) => {
+                    for (_, value) in values {
+                        self.collect_actor_locals_in_expr(value, actor_locals);
+                    }
+                }
+            },
+            Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+                for value in values {
+                    self.collect_actor_locals_in_expr(value, actor_locals);
+                }
+            }
+            Expr::Range { start, end, .. } => {
+                if let Some(start) = start {
+                    self.collect_actor_locals_in_expr(start, actor_locals);
+                }
+                if let Some(end) = end {
+                    self.collect_actor_locals_in_expr(end, actor_locals);
+                }
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.collect_actor_locals_in_expr(condition, actor_locals);
+                self.collect_actor_locals_in_block(then_branch, actor_locals);
+                if let Some(else_branch) = else_branch {
+                    self.collect_actor_locals_in_else(else_branch, actor_locals);
+                }
+            }
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                self.collect_actor_locals_in_expr(scrutinee, actor_locals);
+                for arm in arms {
+                    if let Some(guard) = &arm.guard {
+                        self.collect_actor_locals_in_expr(guard, actor_locals);
+                    }
+                    self.collect_actor_locals_in_expr(&arm.body, actor_locals);
+                }
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.collect_actor_locals_in_expr(target, actor_locals);
+                self.collect_actor_locals_in_expr(body, actor_locals);
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                self.collect_actor_locals_in_expr(pointer, actor_locals);
+                self.collect_actor_locals_in_expr(offset, actor_locals);
+            }
+            Expr::MemLoad { pointer, .. }
+            | Expr::Decay { target: pointer, .. }
+            | Expr::Alloc { size: pointer, .. } => {
+                self.collect_actor_locals_in_expr(pointer, actor_locals);
+            }
+            Expr::MemStore { pointer, value, .. } => {
+                self.collect_actor_locals_in_expr(pointer, actor_locals);
+                self.collect_actor_locals_in_expr(value, actor_locals);
+            }
+            Expr::Realloc { pointer, size, .. } => {
+                self.collect_actor_locals_in_expr(pointer, actor_locals);
+                self.collect_actor_locals_in_expr(size, actor_locals);
+            }
+            Expr::SendMsg { target, data, .. } => {
+                self.collect_actor_locals_in_expr(target, actor_locals);
+                for (_, value) in data {
+                    self.collect_actor_locals_in_expr(value, actor_locals);
+                }
+            }
+            Expr::MacroCall { args, .. } => {
+                for arg in args {
+                    self.collect_actor_locals_in_expr(arg, actor_locals);
+                }
+            }
+            Expr::Block(block, _) => self.collect_actor_locals_in_block(block, actor_locals),
+            Expr::Return(Some(value), _) | Expr::Break(Some(value), _) => {
+                self.collect_actor_locals_in_expr(value, actor_locals);
+            }
+            Expr::Return(None, _) | Expr::Break(None, _) | Expr::Continue(_) => {}
+            Expr::Lambda { body, .. } => self.collect_actor_locals_in_expr(body, actor_locals),
+            Expr::JSX(_, _) => {}
+        }
+    }
+
+    fn collect_layout_locals_in_block(
+        &self,
+        block: &Block,
+        layout_locals: &mut HashMap<String, String>,
+    ) {
+        for stmt in &block.stmts {
+            self.collect_layout_locals_in_stmt(stmt, layout_locals);
+        }
+    }
+
+    fn collect_layout_locals_in_stmt(
+        &self,
+        stmt: &Stmt,
+        layout_locals: &mut HashMap<String, String>,
+    ) {
+        match stmt {
+            Stmt::Let {
+                pattern, ty, value, ..
+            } => {
+                if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
+                    let resolved_layout = value
+                        .as_ref()
+                        .and_then(|expr| self.resolve_layout_name_in_layout_scope(layout_locals, expr))
+                        .or_else(|| {
+                            ty.as_ref()
+                                .and_then(|authored_ty| self.layout_name_from_authored_type(authored_ty))
+                        });
+                    if let Some(layout_name) = resolved_layout {
+                        layout_locals.insert(name.clone(), layout_name);
+                    } else {
+                        layout_locals.remove(name);
+                    }
+                }
+                if let Some(value) = value {
+                    self.collect_layout_locals_in_expr(value, layout_locals);
+                }
+            }
+            Stmt::Expr(expr) => self.collect_layout_locals_in_expr(expr, layout_locals),
+            Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                self.collect_layout_locals_in_expr(expr, layout_locals);
+            }
+            Stmt::For { iter, body, .. } => {
+                self.collect_layout_locals_in_expr(iter, layout_locals);
+                self.collect_layout_locals_in_block(body, layout_locals);
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                self.collect_layout_locals_in_expr(condition, layout_locals);
+                self.collect_layout_locals_in_block(body, layout_locals);
+            }
+            Stmt::Loop { body, .. } => self.collect_layout_locals_in_block(body, layout_locals),
+            _ => {}
+        }
+    }
+
+    fn collect_layout_locals_in_else(
+        &self,
+        branch: &kain_core::ast::ElseBranch,
+        layout_locals: &mut HashMap<String, String>,
+    ) {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.collect_layout_locals_in_block(block, layout_locals);
+            }
+            kain_core::ast::ElseBranch::ElseIf(condition, then_branch, next) => {
+                self.collect_layout_locals_in_expr(condition, layout_locals);
+                self.collect_layout_locals_in_block(then_branch, layout_locals);
+                if let Some(next) = next {
+                    self.collect_layout_locals_in_else(next, layout_locals);
+                }
+            }
+        }
+    }
+
+    fn collect_layout_locals_in_expr(
+        &self,
+        expr: &Expr,
+        layout_locals: &mut HashMap<String, String>,
+    ) {
+        match expr {
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Ref { value: inner, .. }
+            | Expr::AddrOf { value: inner, .. }
+            | Expr::Cast { value: inner, .. }
+            | Expr::Comptime(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Try(inner, _) => self.collect_layout_locals_in_expr(inner, layout_locals),
+            Expr::Teleport { value, .. } => self.collect_layout_locals_in_expr(value, layout_locals),
+            Expr::Binary { left, right, .. } => {
+                self.collect_layout_locals_in_expr(left, layout_locals);
+                self.collect_layout_locals_in_expr(right, layout_locals);
+            }
+            Expr::Unary { operand, .. } => self.collect_layout_locals_in_expr(operand, layout_locals),
+            Expr::Assign { target, value, .. } => {
+                if let Expr::Ident(name, _) = target.as_ref() {
+                    if let Some(layout_name) =
+                        self.resolve_layout_name_in_layout_scope(layout_locals, value)
+                    {
+                        layout_locals.insert(name.clone(), layout_name);
+                    } else {
+                        layout_locals.remove(name);
+                    }
+                }
+                self.collect_layout_locals_in_expr(target, layout_locals);
+                self.collect_layout_locals_in_expr(value, layout_locals);
+            }
+            Expr::Call { callee, args, .. } => {
+                self.collect_layout_locals_in_expr(callee, layout_locals);
+                for arg in args {
+                    self.collect_layout_locals_in_expr(&arg.value, layout_locals);
+                }
+            }
+            Expr::StageCall { args, .. } => {
+                for arg in args {
+                    self.collect_layout_locals_in_expr(&arg.value, layout_locals);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.collect_layout_locals_in_expr(receiver, layout_locals);
+                for arg in args {
+                    self.collect_layout_locals_in_expr(&arg.value, layout_locals);
+                }
+            }
+            Expr::Field { object, .. } => self.collect_layout_locals_in_expr(object, layout_locals),
+            Expr::Index { object, index, .. } => {
+                self.collect_layout_locals_in_expr(object, layout_locals);
+                self.collect_layout_locals_in_expr(index, layout_locals);
+            }
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    self.collect_layout_locals_in_expr(value, layout_locals);
+                }
+                if let Some(rest) = rest {
+                    self.collect_layout_locals_in_expr(rest, layout_locals);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    self.collect_layout_locals_in_expr(value, layout_locals);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => {}
+                kain_core::ast::EnumVariantFields::Tuple(items) => {
+                    for item in items {
+                        self.collect_layout_locals_in_expr(item, layout_locals);
+                    }
+                }
+                kain_core::ast::EnumVariantFields::Struct(fields) => {
+                    for (_, value) in fields {
+                        self.collect_layout_locals_in_expr(value, layout_locals);
+                    }
+                }
+            },
+            Expr::Array(items, _) | Expr::Tuple(items, _) | Expr::FString(items, _) => {
+                for item in items {
+                    self.collect_layout_locals_in_expr(item, layout_locals);
+                }
+            }
+            Expr::Range { start, end, .. } => {
+                if let Some(start) = start {
+                    self.collect_layout_locals_in_expr(start, layout_locals);
+                }
+                if let Some(end) = end {
+                    self.collect_layout_locals_in_expr(end, layout_locals);
+                }
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.collect_layout_locals_in_expr(condition, layout_locals);
+                self.collect_layout_locals_in_block(then_branch, layout_locals);
+                if let Some(else_branch) = else_branch {
+                    self.collect_layout_locals_in_else(else_branch, layout_locals);
+                }
+            }
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                self.collect_layout_locals_in_expr(scrutinee, layout_locals);
+                for arm in arms {
+                    if let Some(guard) = &arm.guard {
+                        self.collect_layout_locals_in_expr(guard, layout_locals);
+                    }
+                    self.collect_layout_locals_in_expr(&arm.body, layout_locals);
+                }
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.collect_layout_locals_in_expr(target, layout_locals);
+                self.collect_layout_locals_in_expr(body, layout_locals);
+            }
+            Expr::Decay { target, .. } => self.collect_layout_locals_in_expr(target, layout_locals),
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                self.collect_layout_locals_in_expr(pointer, layout_locals);
+                self.collect_layout_locals_in_expr(offset, layout_locals);
+            }
+            Expr::MemLoad { pointer, .. } => {
+                self.collect_layout_locals_in_expr(pointer, layout_locals);
+            }
+            Expr::MemStore { pointer, value, .. } => {
+                self.collect_layout_locals_in_expr(pointer, layout_locals);
+                self.collect_layout_locals_in_expr(value, layout_locals);
+            }
+            Expr::Alloc { size, .. } => self.collect_layout_locals_in_expr(size, layout_locals),
+            Expr::Realloc { pointer, size, .. } => {
+                self.collect_layout_locals_in_expr(pointer, layout_locals);
+                self.collect_layout_locals_in_expr(size, layout_locals);
+            }
+            Expr::Spawn { init, .. } => {
+                for (_, value) in init {
+                    self.collect_layout_locals_in_expr(value, layout_locals);
+                }
+            }
+            Expr::SendMsg { target, data, .. } => {
+                self.collect_layout_locals_in_expr(target, layout_locals);
+                for (_, value) in data {
+                    self.collect_layout_locals_in_expr(value, layout_locals);
+                }
+            }
+            Expr::MacroCall { args, .. } => {
+                for arg in args {
+                    self.collect_layout_locals_in_expr(arg, layout_locals);
+                }
+            }
+            Expr::Block(block, _) => self.collect_layout_locals_in_block(block, layout_locals),
+            Expr::Return(Some(value), _) | Expr::Break(Some(value), _) => {
+                self.collect_layout_locals_in_expr(value, layout_locals);
+            }
+            Expr::Return(None, _) | Expr::Break(None, _) | Expr::Continue(_) => {}
+            Expr::JSX(_, _)
+            | Expr::Lambda { .. }
+            | Expr::Int(_, _)
+            | Expr::Float(_, _)
+            | Expr::String(_, _)
+            | Expr::Bool(_, _)
+            | Expr::None(_)
+            | Expr::Ident(_, _)
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. } => {}
+        }
+    }
+
+    fn resolve_layout_name_in_layout_scope(
+        &self,
+        layout_locals: &HashMap<String, String>,
+        expr: &Expr,
+    ) -> Option<String> {
+        match expr {
+            Expr::Struct { name, .. } => Some(name.clone()),
+            Expr::AggregateInit { ty, .. } => self.layout_name_from_authored_type(ty),
+            Expr::Spawn { actor, .. } => Some(actor.clone()),
+            Expr::Ident(name, _) => layout_locals
+                .get(name)
+                .cloned()
+                .or_else(|| self.world_globals.contains_key(name).then(|| name.clone())),
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Ref { value: inner, .. }
+            | Expr::AddrOf { value: inner, .. }
+            | Expr::Cast { value: inner, .. }
+            | Expr::Comptime(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Try(inner, _) => self.resolve_layout_name_in_layout_scope(layout_locals, inner),
+            Expr::Teleport { value, .. } => self.resolve_layout_name_in_layout_scope(layout_locals, value),
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => {
+                self.resolve_layout_name_in_layout_scope(layout_locals, body)
+            }
+            Expr::Field { object, field, .. } => {
+                let owner_layout = self.resolve_layout_name_in_layout_scope(layout_locals, object)?;
+                self.struct_field_layout_names
+                    .get(&owner_layout)
+                    .and_then(|fields| fields.get(field))
+                    .cloned()
+            }
+            _ => None,
+        }
     }
 
     fn allocate_world(&mut self, world: &kain_core::types::TypedWorld) -> KainResult<()> {
@@ -961,13 +1887,20 @@ impl WasmCompiler {
 
         let mut locals_map = HashMap::new();
         locals_map.insert("self".to_string(), self_local);
+        let mut layout_locals = HashMap::new();
+        layout_locals.insert("self".to_string(), c.ast.name.clone());
 
         let ctx = CompilationContext {
             locals: locals_map,
+            actor_locals: HashMap::new(),
+            layout_locals,
+            reply_ports: HashMap::new(),
             functions: &self.functions,
             constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
+            struct_field_types: &self.struct_field_types,
+            struct_field_layout_names: &self.struct_field_layout_names,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
@@ -1266,15 +2199,54 @@ impl WasmCompiler {
             Stmt::Let {
                 value: Some(expr), ..
             } => self.collect_strings_in_expr(expr),
-            Stmt::Return(Some(expr), _) => self.collect_strings_in_expr(expr),
+            Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                self.collect_strings_in_expr(expr)
+            }
+            Stmt::For { iter, body, .. } => {
+                self.collect_strings_in_expr(iter);
+                self.collect_strings_in_block(body);
+            }
             Stmt::While {
                 condition, body, ..
             } => {
                 self.collect_strings_in_expr(condition);
                 self.collect_strings_in_block(body);
             }
+            Stmt::Loop { body, .. } => self.collect_strings_in_block(body),
             _ => {}
         }
+    }
+
+    fn collect_strings_in_call_args(&mut self, args: &[kain_core::ast::CallArg]) {
+        for arg in args {
+            self.collect_strings_in_expr(&arg.value);
+        }
+    }
+
+    fn collect_strings_in_enum_variant_fields(
+        &mut self,
+        fields: &kain_core::ast::EnumVariantFields,
+    ) {
+        match fields {
+            kain_core::ast::EnumVariantFields::Unit => {}
+            kain_core::ast::EnumVariantFields::Tuple(values) => {
+                for value in values {
+                    self.collect_strings_in_expr(value);
+                }
+            }
+            kain_core::ast::EnumVariantFields::Struct(fields) => {
+                for (_, value) in fields {
+                    self.collect_strings_in_expr(value);
+                }
+            }
+        }
+    }
+
+    fn collect_strings_in_match_arm(&mut self, arm: &kain_core::ast::MatchArm) {
+        if let Some(guard) = &arm.guard {
+            self.collect_strings_in_expr(guard);
+        }
+        self.collect_strings_in_expr(&arm.body);
     }
 
     fn collect_strings_in_expr(&mut self, expr: &Expr) {
@@ -1282,10 +2254,24 @@ impl WasmCompiler {
             Expr::String(s, _) => {
                 self.allocate_string(s);
             }
+            Expr::FString(parts, _) | Expr::Array(parts, _) | Expr::Tuple(parts, _) => {
+                for part in parts {
+                    self.collect_strings_in_expr(part);
+                }
+            }
+            Expr::MacroCall { args, .. } => {
+                for arg in args {
+                    self.collect_strings_in_expr(arg);
+                }
+            }
             Expr::Binary { left, right, .. } => {
                 self.collect_strings_in_expr(left);
                 self.collect_strings_in_expr(right);
             }
+            Expr::Unary { operand, .. }
+            | Expr::Ref { value: operand, .. }
+            | Expr::AddrOf { value: operand, .. }
+            | Expr::Deref(operand, _) => self.collect_strings_in_expr(operand),
             Expr::Assign { target, value, .. } => {
                 self.collect_strings_in_expr(target);
                 self.collect_strings_in_expr(value);
@@ -1293,24 +2279,78 @@ impl WasmCompiler {
             Expr::Paren(inner, _) => self.collect_strings_in_expr(inner),
             Expr::Call { callee, args, .. } => {
                 self.collect_strings_in_expr(callee);
-                for arg in args {
-                    self.collect_strings_in_expr(&arg.value);
-                }
+                self.collect_strings_in_call_args(args);
             }
             Expr::StageCall { args, .. } => {
-                for arg in args {
-                    self.collect_strings_in_expr(&arg.value);
-                }
+                self.collect_strings_in_call_args(args);
             }
             Expr::MethodCall { receiver, args, .. } => {
                 self.collect_strings_in_expr(receiver);
-                for arg in args {
-                    self.collect_strings_in_expr(&arg.value);
+                self.collect_strings_in_call_args(args);
+            }
+            Expr::Field { object, .. } => self.collect_strings_in_expr(object),
+            Expr::Index { object, index, .. } => {
+                self.collect_strings_in_expr(object);
+                self.collect_strings_in_expr(index);
+            }
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    self.collect_strings_in_expr(value);
+                }
+                if let Some(rest) = rest {
+                    self.collect_strings_in_expr(rest);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    self.collect_strings_in_expr(value);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => {
+                self.collect_strings_in_enum_variant_fields(fields);
+            }
+            Expr::Range { start, end, .. } => {
+                if let Some(start) = start {
+                    self.collect_strings_in_expr(start);
+                }
+                if let Some(end) = end {
+                    self.collect_strings_in_expr(end);
                 }
             }
             Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
                 self.collect_strings_in_expr(target);
                 self.collect_strings_in_expr(body);
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            }
+            | Expr::MemStore {
+                pointer,
+                value: offset,
+                ..
+            } => {
+                self.collect_strings_in_expr(pointer);
+                self.collect_strings_in_expr(offset);
+            }
+            Expr::MemLoad { pointer, .. }
+            | Expr::Decay { target: pointer, .. }
+            | Expr::Alloc {
+                size: pointer, ..
+            } => self.collect_strings_in_expr(pointer),
+            Expr::Realloc { pointer, size, .. } => {
+                self.collect_strings_in_expr(pointer);
+                self.collect_strings_in_expr(size);
+            }
+            Expr::Spawn { init, .. } => {
+                for (_, value) in init {
+                    self.collect_strings_in_expr(value);
+                }
+            }
+            Expr::SendMsg { target, data, .. } => {
+                self.collect_strings_in_expr(target);
+                for (_, value) in data {
+                    self.collect_strings_in_expr(value);
+                }
             }
             Expr::Teleport { value, .. }
             | Expr::Cast { value, .. }
@@ -1318,6 +2358,7 @@ impl WasmCompiler {
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
             | Expr::Try(value, _) => self.collect_strings_in_expr(value),
+            Expr::Block(block, _) => self.collect_strings_in_block(block),
             Expr::If {
                 condition,
                 then_branch,
@@ -1329,6 +2370,18 @@ impl WasmCompiler {
                 if let Some(else_br) = else_branch {
                     self.collect_strings_in_else(else_br);
                 }
+            }
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                self.collect_strings_in_expr(scrutinee);
+                for arm in arms {
+                    self.collect_strings_in_match_arm(arm);
+                }
+            }
+            Expr::Lambda { body, .. } => self.collect_strings_in_expr(body),
+            Expr::Return(Some(value), _) | Expr::Break(Some(value), _) => {
+                self.collect_strings_in_expr(value)
             }
             Expr::JSX(node, _) => {
                 self.collect_strings_in_jsx(node);
@@ -1594,6 +2647,13 @@ impl WasmCompiler {
             locals.insert(param.name.clone(), local_id);
             param_local_ids.push(local_id);
         }
+        let mut layout_locals = HashMap::new();
+        for param in params {
+            if let Some(layout_name) = self.layout_name_from_authored_type(&param.ty) {
+                layout_locals.insert(param.name.clone(), layout_name);
+            }
+        }
+        self.collect_layout_locals_in_expr(body, &mut layout_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -1602,10 +2662,15 @@ impl WasmCompiler {
 
         let ctx = CompilationContext {
             locals,
+            actor_locals: HashMap::new(),
+            layout_locals,
+            reply_ports: HashMap::new(),
             functions: &self.functions,
             constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
+            struct_field_types: &self.struct_field_types,
+            struct_field_layout_names: &self.struct_field_layout_names,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
@@ -1645,6 +2710,383 @@ impl WasmCompiler {
         let lambda_name = format!("__lambda_{}", id);
         self.functions.insert(lambda_name, func_id);
 
+        Ok(())
+    }
+
+    fn coerce_stack_to_val_type(
+        &self,
+        builder: &mut InstrSeqBuilder,
+        from_is_i32: bool,
+        target: ValType,
+    ) {
+        match target {
+            ValType::I32 if !from_is_i32 => {
+                builder.unop(walrus::ir::UnaryOp::I32WrapI64);
+            }
+            ValType::I64 if from_is_i32 => {
+                builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
+            }
+            _ => {}
+        }
+    }
+
+    fn coerce_expr_stack_to_val_type(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        expr: &Expr,
+        target: ValType,
+    ) {
+        self.coerce_stack_to_val_type(builder, self.expr_is_i32_in_context(ctx, expr), target);
+    }
+
+    fn resolve_actor_name_in_context<'a>(
+        &self,
+        ctx: &'a CompilationContext,
+        expr: &'a Expr,
+    ) -> Option<&'a str> {
+        match expr {
+            Expr::Spawn { actor, .. } => Some(actor.as_str()),
+            Expr::Ident(name, _) => ctx.actor_locals.get(name).map(|actor| actor.as_str()),
+            Expr::Paren(inner, _) => self.resolve_actor_name_in_context(ctx, inner),
+            _ => None,
+        }
+    }
+
+    fn actor_handler_result_type_for_call(
+        &self,
+        ctx: &CompilationContext,
+        args: &[CallArg],
+    ) -> Option<ValType> {
+        let actor_name = self.resolve_actor_name_in_context(ctx, &args.first()?.value)?;
+        let message_name = match &args.get(1)?.value {
+            Expr::String(value, _) => value.as_str(),
+            _ => return None,
+        };
+        self.actor_handlers
+            .get(&Self::actor_handler_key(actor_name, message_name))
+            .and_then(|handler| handler.result_type)
+    }
+
+    fn resolve_layout_name_in_context(
+        &self,
+        ctx: &CompilationContext,
+        expr: &Expr,
+    ) -> Option<String> {
+        match expr {
+            Expr::Struct { name, .. } => Some(name.clone()),
+            Expr::AggregateInit { ty, .. } => self.layout_name_from_authored_type(ty),
+            Expr::Spawn { actor, .. } => Some(actor.clone()),
+            Expr::Ident(name, _) => ctx
+                .layout_locals
+                .get(name)
+                .cloned()
+                .or_else(|| ctx.actor_locals.get(name).cloned())
+                .or_else(|| ctx.world_globals.contains_key(name).then(|| name.clone())),
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Ref { value: inner, .. }
+            | Expr::AddrOf { value: inner, .. }
+            | Expr::Cast { value: inner, .. }
+            | Expr::Comptime(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Try(inner, _) => self.resolve_layout_name_in_context(ctx, inner),
+            Expr::Teleport { value, .. } => self.resolve_layout_name_in_context(ctx, value),
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => {
+                self.resolve_layout_name_in_context(ctx, body)
+            }
+            Expr::Field { object, field, .. } => {
+                let owner_layout = self.resolve_layout_name_in_context(ctx, object)?;
+                ctx.struct_field_layout_names
+                    .get(&owner_layout)
+                    .and_then(|fields| fields.get(field))
+                    .cloned()
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_field_offset_in_context(
+        &self,
+        ctx: &CompilationContext,
+        object: &Expr,
+        field: &str,
+    ) -> Result<u32, &'static str> {
+        if let Some(layout_name) = self.resolve_layout_name_in_context(ctx, object) {
+            return ctx
+                .struct_layouts
+                .get(&layout_name)
+                .and_then(|(offsets, _)| offsets.get(field).copied())
+                .ok_or("missing");
+        }
+
+        let mut matches = ctx
+            .struct_layouts
+            .values()
+            .filter_map(|(offsets, _)| offsets.get(field).copied());
+        let Some(offset) = matches.next() else {
+            return Err("missing");
+        };
+        if matches.next().is_some() {
+            return Err("ambiguous");
+        }
+        Ok(offset)
+    }
+
+    fn infer_field_val_type_in_context(
+        &self,
+        ctx: &CompilationContext,
+        object: &Expr,
+        field: &str,
+    ) -> Option<ValType> {
+        if let Some(layout_name) = self.resolve_layout_name_in_context(ctx, object) {
+            return ctx
+                .struct_field_types
+                .get(&layout_name)
+                .and_then(|fields| fields.get(field))
+                .copied();
+        }
+
+        let mut matches = ctx
+            .struct_field_types
+            .values()
+            .filter_map(|fields| fields.get(field).copied());
+        let first = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(first)
+    }
+
+    fn function_result_type(&self, func_id: walrus::FunctionId) -> Option<ValType> {
+        let func = self.module.funcs.get(func_id);
+        let results = self.module.types.results(func.ty());
+        match results {
+            [] => None,
+            [result] => Some(*result),
+            _ => None,
+        }
+    }
+
+    fn infer_expr_wasm_type_in_context(&self, ctx: &CompilationContext, expr: &Expr) -> ValType {
+        match expr {
+            Expr::Field { object, field, .. } => self
+                .infer_field_val_type_in_context(ctx, object, field)
+                .unwrap_or_else(|| self.infer_wasm_type_with_locals(&ctx.locals, expr)),
+            Expr::Call { callee, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(func_id) = ctx.functions.get(name) {
+                        if let Some(result_ty) = self.function_result_type(*func_id) {
+                            return result_ty;
+                        }
+                    }
+                }
+                self.infer_wasm_type_with_locals(&ctx.locals, expr)
+            }
+            Expr::StageCall { function, .. } => ctx
+                .functions
+                .get(function)
+                .and_then(|func_id| self.function_result_type(*func_id))
+                .unwrap_or_else(|| self.infer_wasm_type_with_locals(&ctx.locals, expr)),
+            Expr::MethodCall { method, .. } => ctx
+                .functions
+                .get(method)
+                .and_then(|func_id| self.function_result_type(*func_id))
+                .unwrap_or_else(|| self.infer_wasm_type_with_locals(&ctx.locals, expr)),
+            _ => self.infer_wasm_type_with_locals(&ctx.locals, expr),
+        }
+    }
+
+    fn compile_call_args_for_function(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        func_id: walrus::FunctionId,
+        args: &[CallArg],
+    ) -> KainResult<()> {
+        let func = self.module.funcs.get(func_id);
+        let param_types = self.module.types.params(func.ty()).to_vec();
+        if args.len() != param_types.len() {
+            return Err(KainError::codegen(
+                format!(
+                    "Function arity mismatch in WASM codegen: expected {}, got {}",
+                    param_types.len(),
+                    args.len()
+                ),
+                args.first()
+                    .map(|arg| arg.value.span())
+                    .unwrap_or_default(),
+            ));
+        }
+
+        for (arg, param_ty) in args.iter().zip(param_types.iter().copied()) {
+            self.compile_expr(ctx, builder, &arg.value)?;
+            self.coerce_expr_stack_to_val_type(ctx, builder, &arg.value, param_ty);
+        }
+        Ok(())
+    }
+
+    fn declare_actor_handlers(&mut self, actor: &TypedActor) -> KainResult<()> {
+        for handler in &actor.ast.handlers {
+            let mut wasm_params = vec![ValType::I32];
+            let mut params = Vec::new();
+            let mut reply_ports = HashMap::new();
+            for param in &handler.params {
+                let param_ty = self.map_authored_type(&param.ty);
+                wasm_params.push(param_ty);
+                params.push((param.name.clone(), param_ty));
+                if self.is_reply_port_type(&param.ty) {
+                    if let Some(reply_ty) = self.infer_actor_handler_reply_type(actor, handler) {
+                        reply_ports.insert(param.name.clone(), reply_ty);
+                    }
+                }
+            }
+            let result_type = self.infer_actor_handler_reply_type(actor, handler);
+            let wasm_results = result_type.map(|ty| vec![ty]).unwrap_or_default();
+            let builder =
+                FunctionBuilder::new(&mut self.module.types, &wasm_params, &wasm_results);
+            let mut param_local_ids = Vec::new();
+            for &param_type in &wasm_params {
+                param_local_ids.push(self.module.locals.add(param_type));
+            }
+            let func_id = builder.finish(param_local_ids, &mut self.module.funcs);
+            let key = Self::actor_handler_key(&actor.ast.name, &handler.message_type);
+            self.actor_handlers.insert(
+                key,
+                WasmActorHandler {
+                    actor_name: actor.ast.name.clone(),
+                    message_name: handler.message_type.clone(),
+                    body: handler.body.clone(),
+                    params,
+                    reply_ports,
+                    result_type,
+                    func_id,
+                    span: handler.span,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    fn compile_actor_handlers(&mut self, actor: &TypedActor) -> KainResult<()> {
+        for handler in &actor.ast.handlers {
+            let key = Self::actor_handler_key(&actor.ast.name, &handler.message_type);
+            let Some(handler_info) = self.actor_handlers.get(&key).cloned() else {
+                return Err(KainError::codegen(
+                    format!(
+                        "Missing declared wasm actor handler for '{}.{}'",
+                        actor.ast.name, handler.message_type
+                    ),
+                    handler.span,
+                ));
+            };
+            self.compile_actor_handler_body(actor, &handler_info)?;
+        }
+        Ok(())
+    }
+
+    fn compile_actor_handler_body(
+        &mut self,
+        actor: &TypedActor,
+        handler_info: &WasmActorHandler,
+    ) -> KainResult<()> {
+        let mut wasm_params = vec![ValType::I32];
+        wasm_params.extend(handler_info.params.iter().map(|(_, ty)| *ty));
+        let wasm_results = handler_info.result_type.map(|ty| vec![ty]).unwrap_or_default();
+
+        let mut builder = FunctionBuilder::new(&mut self.module.types, &wasm_params, &wasm_results);
+        let mut locals = HashMap::new();
+        let mut param_local_ids = Vec::new();
+
+        let self_local = self.module.locals.add(ValType::I32);
+        locals.insert("self".to_string(), self_local);
+        param_local_ids.push(self_local);
+
+        for (index, (name, ty)) in handler_info.params.iter().enumerate() {
+            let local_id = self.module.locals.add(wasm_params[index + 1]);
+            locals.insert(name.clone(), local_id);
+            debug_assert_eq!(*ty, wasm_params[index + 1]);
+            param_local_ids.push(local_id);
+        }
+
+        self.preallocate_locals(&handler_info.body, &mut locals);
+        let mut actor_locals = HashMap::new();
+        actor_locals.insert("self".to_string(), actor.ast.name.clone());
+        self.collect_actor_locals_in_block(&handler_info.body, &mut actor_locals);
+        let mut layout_locals = HashMap::new();
+        layout_locals.insert("self".to_string(), actor.ast.name.clone());
+        self.collect_layout_locals_in_block(&handler_info.body, &mut layout_locals);
+
+        let tmp_i32 = self.module.locals.add(ValType::I32);
+        let tmp_i32_2 = self.module.locals.add(ValType::I32);
+        let tmp_i64 = self.module.locals.add(ValType::I64);
+        let tmp_f64 = self.module.locals.add(ValType::F64);
+
+        let ctx = CompilationContext {
+            locals,
+            actor_locals,
+            layout_locals,
+            reply_ports: handler_info.reply_ports.clone(),
+            functions: &self.functions,
+            constants: &self.constants,
+            string_table: &self.string_table,
+            struct_layouts: &self.struct_layouts,
+            struct_field_types: &self.struct_field_types,
+            struct_field_layout_names: &self.struct_field_layout_names,
+            enum_layouts: &self.enum_layouts,
+            memory_id: self.memory_id.unwrap(),
+            heap_ptr_global: self.heap_ptr_global,
+            world_globals: &self.world_globals,
+            tmp_i32,
+            tmp_i32_2,
+            tmp_i64,
+            tmp_f64,
+            funcref_table: self.funcref_table,
+            lambda_table: &self.lambda_table,
+        };
+
+        let mut func_body = builder.func_body();
+        if let Some(result_type) = handler_info.result_type {
+            if handler_info.body.stmts.is_empty() {
+                self.emit_zero_for_val_type(&mut func_body, result_type);
+                func_body.return_();
+            } else {
+                for (index, stmt) in handler_info.body.stmts.iter().enumerate() {
+                    let is_last = index + 1 == handler_info.body.stmts.len();
+                    if !is_last {
+                        self.compile_stmt(&ctx, &mut func_body, stmt)?;
+                        continue;
+                    }
+                    match stmt {
+                        Stmt::Expr(expr) => {
+                            self.compile_expr(&ctx, &mut func_body, expr)?;
+                            self.coerce_expr_stack_to_val_type(&ctx, &mut func_body, expr, result_type);
+                            func_body.return_();
+                        }
+                        Stmt::Return(Some(expr), _) => {
+                            self.compile_expr(&ctx, &mut func_body, expr)?;
+                            self.coerce_expr_stack_to_val_type(&ctx, &mut func_body, expr, result_type);
+                            func_body.return_();
+                        }
+                        Stmt::Return(None, _) => {
+                            self.emit_zero_for_val_type(&mut func_body, result_type);
+                            func_body.return_();
+                        }
+                        _ => {
+                            self.compile_stmt(&ctx, &mut func_body, stmt)?;
+                            self.emit_zero_for_val_type(&mut func_body, result_type);
+                            func_body.return_();
+                        }
+                    }
+                }
+            }
+        } else {
+            self.compile_block(&ctx, &mut func_body, &handler_info.body)?;
+        }
+
+        let temp_func_id = builder.finish(param_local_ids, &mut self.module.funcs);
+        self.replace_reserved_function_body(handler_info.func_id, temp_func_id);
         Ok(())
     }
 
@@ -1867,6 +3309,18 @@ impl WasmCompiler {
         }
 
         self.preallocate_locals(body, &mut text_locals_map);
+        let mut actor_locals = HashMap::new();
+        self.collect_actor_locals_in_block(body, &mut actor_locals);
+        let mut layout_locals = HashMap::new();
+        for (param, param_type) in converge.ast.params.iter().zip(param_types.iter()) {
+            if let Some(layout_name) = self
+                .layout_name_from_resolved_type(param_type)
+                .or_else(|| self.layout_name_from_authored_type(&param.ty))
+            {
+                layout_locals.insert(param.name.clone(), layout_name);
+            }
+        }
+        self.collect_layout_locals_in_block(body, &mut layout_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -1875,10 +3329,15 @@ impl WasmCompiler {
 
         let ctx = CompilationContext {
             locals: text_locals_map,
+            actor_locals,
+            layout_locals,
+            reply_ports: HashMap::new(),
             functions: &self.functions,
             constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
+            struct_field_types: &self.struct_field_types,
+            struct_field_layout_names: &self.struct_field_layout_names,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
@@ -2007,6 +3466,18 @@ impl WasmCompiler {
         }
 
         self.preallocate_locals(body, &mut text_locals_map);
+        let mut actor_locals = HashMap::new();
+        self.collect_actor_locals_in_block(body, &mut actor_locals);
+        let mut layout_locals = HashMap::new();
+        for (param, param_type) in params.iter().zip(param_types.iter()) {
+            if let Some(layout_name) = self
+                .layout_name_from_resolved_type(param_type)
+                .or_else(|| self.layout_name_from_authored_type(&param.ty))
+            {
+                layout_locals.insert(param.name.clone(), layout_name);
+            }
+        }
+        self.collect_layout_locals_in_block(body, &mut layout_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -2015,10 +3486,15 @@ impl WasmCompiler {
 
         let ctx = CompilationContext {
             locals: text_locals_map,
+            actor_locals,
+            layout_locals,
+            reply_ports: HashMap::new(),
             functions: &self.functions,
             constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
+            struct_field_types: &self.struct_field_types,
+            struct_field_layout_names: &self.struct_field_layout_names,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
@@ -2087,6 +3563,15 @@ impl WasmCompiler {
             param_local_ids.push(local_id);
         }
         self.preallocate_locals(body, &mut locals);
+        let mut actor_locals = HashMap::new();
+        self.collect_actor_locals_in_block(body, &mut actor_locals);
+        let mut layout_locals = HashMap::new();
+        for param in params {
+            if let Some(layout_name) = self.layout_name_from_authored_type(&param.ty) {
+                layout_locals.insert(param.name.clone(), layout_name);
+            }
+        }
+        self.collect_layout_locals_in_block(body, &mut layout_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -2094,10 +3579,15 @@ impl WasmCompiler {
         let tmp_f64 = self.module.locals.add(ValType::F64);
         let ctx = CompilationContext {
             locals,
+            actor_locals,
+            layout_locals,
+            reply_ports: HashMap::new(),
             functions: &self.functions,
             constants: &self.constants,
             string_table: &self.string_table,
             struct_layouts: &self.struct_layouts,
+            struct_field_types: &self.struct_field_types,
+            struct_field_layout_names: &self.struct_field_layout_names,
             enum_layouts: &self.enum_layouts,
             memory_id: self.memory_id.unwrap(),
             heap_ptr_global: self.heap_ptr_global,
@@ -2130,32 +3620,33 @@ impl WasmCompiler {
     fn preallocate_locals(&mut self, block: &Block, locals: &mut HashMap<String, LocalId>) {
         for stmt in &block.stmts {
             match stmt {
-                Stmt::Let { pattern, value, .. } => {
-                    // Recursively find bindings and infer type from value
-                    if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
-                        if !locals.contains_key(name) {
-                            // Infer type from the assigned value expression
-                            let val_type = if let Some(expr) = value {
-                                self.infer_wasm_type(expr)
-                            } else {
-                                ValType::I64 // Default for uninitialized
-                            };
-                            let local = self.module.locals.add(val_type);
-                            locals.insert(name.clone(), local);
-                        }
+                Stmt::Let {
+                    pattern, ty, value, ..
+                } => {
+                    let val_type = if let Some(authored_ty) = ty {
+                        self.map_authored_type(authored_ty)
+                    } else if let Some(expr) = value {
+                        self.infer_wasm_type_with_locals(locals, expr)
+                    } else {
+                        ValType::I64
+                    };
+                    self.preallocate_pattern_locals(pattern, locals, val_type);
+                    if let Some(expr) = value {
+                        self.preallocate_locals_in_expr(expr, locals);
                     }
+                }
+                Stmt::Expr(expr) => self.preallocate_locals_in_expr(expr, locals),
+                Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                    self.preallocate_locals_in_expr(expr, locals);
                 }
                 Stmt::While { body, .. } => {
                     self.preallocate_locals(body, locals);
                 }
-                Stmt::For { binding, body, .. } => {
-                    // Allocate loop variable
-                    if let kain_core::ast::Pattern::Binding { name, .. } = binding {
-                        if !locals.contains_key(name) {
-                            let local = self.module.locals.add(ValType::I64);
-                            locals.insert(name.clone(), local);
-                        }
-                    }
+                Stmt::For {
+                    binding, iter, body, ..
+                } => {
+                    self.preallocate_pattern_locals(binding, locals, ValType::I64);
+                    self.preallocate_locals_in_expr(iter, locals);
                     self.preallocate_locals(body, locals);
                 }
                 Stmt::Loop { body, .. } => {
@@ -2163,6 +3654,474 @@ impl WasmCompiler {
                 }
                 _ => {}
             }
+        }
+    }
+
+    fn infer_block_wasm_type_with_locals(
+        &self,
+        locals: &HashMap<String, LocalId>,
+        block: &Block,
+    ) -> ValType {
+        match block.stmts.last() {
+            Some(Stmt::Expr(expr)) => self.infer_wasm_type_with_locals(locals, expr),
+            Some(Stmt::Return(Some(expr), _)) | Some(Stmt::Break(Some(expr), _)) => {
+                self.infer_wasm_type_with_locals(locals, expr)
+            }
+            _ => ValType::I64,
+        }
+    }
+
+    fn infer_else_branch_wasm_type_with_locals(
+        &self,
+        locals: &HashMap<String, LocalId>,
+        branch: &kain_core::ast::ElseBranch,
+    ) -> ValType {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.infer_block_wasm_type_with_locals(locals, block)
+            }
+            kain_core::ast::ElseBranch::ElseIf(_, then_block, next) => {
+                let then_ty = self.infer_block_wasm_type_with_locals(locals, then_block);
+                let else_ty = next
+                    .as_deref()
+                    .map(|next_branch| self.infer_else_branch_wasm_type_with_locals(locals, next_branch))
+                    .unwrap_or(ValType::I64);
+                if then_ty == else_ty {
+                    then_ty
+                } else if then_ty == ValType::F64 || else_ty == ValType::F64 {
+                    ValType::F64
+                } else {
+                    ValType::I64
+                }
+            }
+        }
+    }
+
+    fn infer_wasm_type_with_locals(
+        &self,
+        locals: &HashMap<String, LocalId>,
+        expr: &Expr,
+    ) -> ValType {
+        match expr {
+            Expr::Int(_, _) => ValType::I64,
+            Expr::None(_) => ValType::I32,
+            Expr::Float(_, _) => ValType::F64,
+            Expr::Bool(_, _) => ValType::I32,
+            Expr::String(_, _) => ValType::I32,
+            Expr::Ident(name, _) if name == "None" || self.world_globals.contains_key(name) => {
+                ValType::I32
+            }
+            Expr::Ident(name, _) => locals
+                .get(name)
+                .map(|local| self.module.locals.get(*local).ty())
+                .or_else(|| self.constants.get(name).map(|value| value.val_type()))
+                .unwrap_or(ValType::I64),
+            Expr::Field { field, .. } => self.infer_global_field_val_type(field).unwrap_or(ValType::I64),
+            Expr::Paren(inner, _) => self.infer_wasm_type_with_locals(locals, inner),
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => {
+                self.infer_wasm_type_with_locals(locals, body)
+            }
+            Expr::Teleport { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => self.infer_wasm_type_with_locals(locals, value),
+            Expr::JSX(_, _)
+            | Expr::Array(_, _)
+            | Expr::Tuple(_, _)
+            | Expr::Struct { .. }
+            | Expr::AggregateInit { .. }
+            | Expr::EnumVariant { .. }
+            | Expr::Spawn { .. }
+            | Expr::Alloc { .. }
+            | Expr::Realloc { .. }
+            | Expr::Alloca { .. }
+            | Expr::Ref { .. }
+            | Expr::AddrOf { .. }
+            | Expr::PtrOffset { .. } => ValType::I32,
+            Expr::Block(block, _) => self.infer_block_wasm_type_with_locals(locals, block),
+            Expr::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                let then_ty = self.infer_block_wasm_type_with_locals(locals, then_branch);
+                let else_ty = else_branch
+                    .as_ref()
+                    .map(|branch| self.infer_else_branch_wasm_type_with_locals(locals, branch))
+                    .unwrap_or(ValType::I64);
+                if then_ty == else_ty {
+                    then_ty
+                } else if then_ty == ValType::F64 || else_ty == ValType::F64 {
+                    ValType::F64
+                } else {
+                    ValType::I64
+                }
+            }
+            Expr::Call { callee, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    if name
+                        .chars()
+                        .next()
+                        .map(|c| c.is_uppercase())
+                        .unwrap_or(false)
+                    {
+                        return ValType::I32;
+                    }
+                    if matches!(name.as_str(), "to_string" | "str_concat" | "char_at" | "str_eq")
+                        || name.starts_with("dom_")
+                    {
+                        return ValType::I32;
+                    }
+                    if matches!(
+                        name.as_str(),
+                        "__kain_ptr_offset" | "__kain_alloc" | "__kain_realloc" | "__kain_union_wrap"
+                    ) {
+                        return ValType::I32;
+                    }
+                }
+                ValType::I64
+            }
+            Expr::MethodCall { method, args, .. } => match method.as_str() {
+                "is_ok" | "is_err" | "is_some" | "is_none" => ValType::I32,
+                "unwrap_or" => args
+                    .first()
+                    .map(|arg| self.infer_wasm_type_with_locals(locals, &arg.value))
+                    .unwrap_or(ValType::I64),
+                _ => ValType::I64,
+            },
+            Expr::Binary { op, left, right, .. } => match op {
+                BinaryOp::Eq
+                | BinaryOp::Ne
+                | BinaryOp::Lt
+                | BinaryOp::Gt
+                | BinaryOp::Le
+                | BinaryOp::Ge
+                | BinaryOp::And
+                | BinaryOp::Or => ValType::I32,
+                BinaryOp::Add => {
+                    let left_ty = self.infer_wasm_type_with_locals(locals, left);
+                    let right_ty = self.infer_wasm_type_with_locals(locals, right);
+                    if left_ty == ValType::I32 && right_ty == ValType::I32 {
+                        ValType::I32
+                    } else if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+                _ => {
+                    let left_ty = self.infer_wasm_type_with_locals(locals, left);
+                    let right_ty = self.infer_wasm_type_with_locals(locals, right);
+                    if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+            },
+            Expr::Unary { op, operand, .. } => match op {
+                kain_core::ast::UnaryOp::Not => ValType::I32,
+                _ => self.infer_wasm_type_with_locals(locals, operand),
+            },
+            _ => self.infer_wasm_type(expr),
+        }
+    }
+
+    fn preallocate_pattern_locals(
+        &mut self,
+        pattern: &kain_core::ast::Pattern,
+        locals: &mut HashMap<String, LocalId>,
+        val_type: ValType,
+    ) {
+        match pattern {
+            kain_core::ast::Pattern::Binding { name, .. } => {
+                if !locals.contains_key(name) {
+                    let local = self.module.locals.add(val_type);
+                    locals.insert(name.clone(), local);
+                }
+            }
+            kain_core::ast::Pattern::Tuple(items, _) | kain_core::ast::Pattern::Or(items, _) => {
+                for item in items {
+                    self.preallocate_pattern_locals(item, locals, val_type);
+                }
+            }
+            kain_core::ast::Pattern::Struct { fields, .. } => {
+                for (_, field_pattern) in fields {
+                    self.preallocate_pattern_locals(field_pattern, locals, val_type);
+                }
+            }
+            kain_core::ast::Pattern::Variant { fields, .. } => match fields {
+                kain_core::ast::VariantPatternFields::Unit => {}
+                kain_core::ast::VariantPatternFields::Tuple(items) => {
+                    for item in items {
+                        self.preallocate_pattern_locals(item, locals, val_type);
+                    }
+                }
+                kain_core::ast::VariantPatternFields::Struct(fields) => {
+                    for (_, field_pattern) in fields {
+                        self.preallocate_pattern_locals(field_pattern, locals, val_type);
+                    }
+                }
+            },
+            kain_core::ast::Pattern::Slice { patterns, rest, .. } => {
+                for item in patterns {
+                    self.preallocate_pattern_locals(item, locals, val_type);
+                }
+                if let Some(rest_name) = rest {
+                    if !locals.contains_key(rest_name) {
+                        let local = self.module.locals.add(ValType::I32);
+                        locals.insert(rest_name.clone(), local);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn preallocate_locals_in_else(
+        &mut self,
+        branch: &kain_core::ast::ElseBranch,
+        locals: &mut HashMap<String, LocalId>,
+    ) {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => self.preallocate_locals(block, locals),
+            kain_core::ast::ElseBranch::ElseIf(condition, then_block, next) => {
+                self.preallocate_locals_in_expr(condition, locals);
+                self.preallocate_locals(then_block, locals);
+                if let Some(next) = next {
+                    self.preallocate_locals_in_else(next, locals);
+                }
+            }
+        }
+    }
+
+    fn preallocate_locals_in_expr(
+        &mut self,
+        expr: &Expr,
+        locals: &mut HashMap<String, LocalId>,
+    ) {
+        match expr {
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Comptime(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Try(inner, _) => self.preallocate_locals_in_expr(inner, locals),
+            Expr::Unary { operand, .. }
+            | Expr::Ref { value: operand, .. }
+            | Expr::AddrOf { value: operand, .. }
+            | Expr::Cast { value: operand, .. }
+            | Expr::Teleport { value: operand, .. } => self.preallocate_locals_in_expr(operand, locals),
+            Expr::Binary { left, right, .. } => {
+                self.preallocate_locals_in_expr(left, locals);
+                self.preallocate_locals_in_expr(right, locals);
+            }
+            Expr::Assign { target, value, .. } => {
+                self.preallocate_locals_in_expr(target, locals);
+                self.preallocate_locals_in_expr(value, locals);
+            }
+            Expr::Call { callee, args, .. } => {
+                self.preallocate_locals_in_expr(callee, locals);
+                for arg in args {
+                    self.preallocate_locals_in_expr(&arg.value, locals);
+                }
+            }
+            Expr::StageCall { args, .. } => {
+                for arg in args {
+                    self.preallocate_locals_in_expr(&arg.value, locals);
+                }
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.preallocate_locals_in_expr(receiver, locals);
+                for arg in args {
+                    self.preallocate_locals_in_expr(&arg.value, locals);
+                }
+            }
+            Expr::Field { object, .. } => self.preallocate_locals_in_expr(object, locals),
+            Expr::Index { object, index, .. } => {
+                self.preallocate_locals_in_expr(object, locals);
+                self.preallocate_locals_in_expr(index, locals);
+            }
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    self.preallocate_locals_in_expr(value, locals);
+                }
+                if let Some(rest) = rest {
+                    self.preallocate_locals_in_expr(rest, locals);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    self.preallocate_locals_in_expr(value, locals);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => {}
+                kain_core::ast::EnumVariantFields::Tuple(items) => {
+                    for item in items {
+                        self.preallocate_locals_in_expr(item, locals);
+                    }
+                }
+                kain_core::ast::EnumVariantFields::Struct(fields) => {
+                    for (_, value) in fields {
+                        self.preallocate_locals_in_expr(value, locals);
+                    }
+                }
+            },
+            Expr::Array(items, _) | Expr::Tuple(items, _) | Expr::FString(items, _) => {
+                for item in items {
+                    self.preallocate_locals_in_expr(item, locals);
+                }
+            }
+            Expr::Range { start, end, .. } => {
+                if let Some(start) = start {
+                    self.preallocate_locals_in_expr(start, locals);
+                }
+                if let Some(end) = end {
+                    self.preallocate_locals_in_expr(end, locals);
+                }
+            }
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.preallocate_locals_in_expr(condition, locals);
+                self.preallocate_locals(then_branch, locals);
+                if let Some(else_branch) = else_branch {
+                    self.preallocate_locals_in_else(else_branch, locals);
+                }
+            }
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                self.preallocate_locals_in_expr(scrutinee, locals);
+                for arm in arms {
+                    self.preallocate_pattern_locals(&arm.pattern, locals, ValType::I64);
+                    if let Some(guard) = &arm.guard {
+                        self.preallocate_locals_in_expr(guard, locals);
+                    }
+                    self.preallocate_locals_in_expr(&arm.body, locals);
+                }
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.preallocate_locals_in_expr(target, locals);
+                self.preallocate_locals_in_expr(body, locals);
+            }
+            Expr::Decay { target, .. } => self.preallocate_locals_in_expr(target, locals),
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                self.preallocate_locals_in_expr(pointer, locals);
+                self.preallocate_locals_in_expr(offset, locals);
+            }
+            Expr::MemLoad { pointer, .. } => self.preallocate_locals_in_expr(pointer, locals),
+            Expr::MemStore { pointer, value, .. } => {
+                self.preallocate_locals_in_expr(pointer, locals);
+                self.preallocate_locals_in_expr(value, locals);
+            }
+            Expr::Alloc { size, .. } => self.preallocate_locals_in_expr(size, locals),
+            Expr::Realloc { pointer, size, .. } => {
+                self.preallocate_locals_in_expr(pointer, locals);
+                self.preallocate_locals_in_expr(size, locals);
+            }
+            Expr::Spawn { init, .. } => {
+                for (_, value) in init {
+                    self.preallocate_locals_in_expr(value, locals);
+                }
+            }
+            Expr::SendMsg { target, data, .. } => {
+                self.preallocate_locals_in_expr(target, locals);
+                for (_, value) in data {
+                    self.preallocate_locals_in_expr(value, locals);
+                }
+            }
+            Expr::MacroCall { args, .. } => {
+                for arg in args {
+                    self.preallocate_locals_in_expr(arg, locals);
+                }
+            }
+            Expr::Block(block, _) => self.preallocate_locals(block, locals),
+            Expr::Return(Some(value), _) | Expr::Break(Some(value), _) => {
+                self.preallocate_locals_in_expr(value, locals);
+            }
+            Expr::Return(None, _) | Expr::Break(None, _) => {}
+            Expr::JSX(node, _) => self.preallocate_locals_in_jsx(node, locals),
+            Expr::Lambda { .. }
+            | Expr::Int(_, _)
+            | Expr::Float(_, _)
+            | Expr::String(_, _)
+            | Expr::Bool(_, _)
+            | Expr::None(_)
+            | Expr::Ident(_, _)
+            | Expr::SizeOfType { .. }
+            | Expr::AlignOfType { .. }
+            | Expr::Alloca { .. }
+            | Expr::Uninit { .. }
+            | Expr::Continue(_) => {}
+        }
+    }
+
+    fn preallocate_locals_in_jsx(
+        &mut self,
+        node: &kain_core::ast::JSXNode,
+        locals: &mut HashMap<String, LocalId>,
+    ) {
+        match node {
+            kain_core::ast::JSXNode::Element {
+                attributes,
+                children,
+                ..
+            } => {
+                for attr in attributes {
+                    if let kain_core::ast::JSXAttrValue::Expr(expr) = &attr.value {
+                        self.preallocate_locals_in_expr(expr, locals);
+                    }
+                }
+                for child in children {
+                    self.preallocate_locals_in_jsx(child, locals);
+                }
+            }
+            kain_core::ast::JSXNode::ComponentCall {
+                props, children, ..
+            } => {
+                for attr in props {
+                    if let kain_core::ast::JSXAttrValue::Expr(expr) = &attr.value {
+                        self.preallocate_locals_in_expr(expr, locals);
+                    }
+                }
+                for child in children {
+                    self.preallocate_locals_in_jsx(child, locals);
+                }
+            }
+            kain_core::ast::JSXNode::Fragment(children, _) => {
+                for child in children {
+                    self.preallocate_locals_in_jsx(child, locals);
+                }
+            }
+            kain_core::ast::JSXNode::Expression(expr) => {
+                self.preallocate_locals_in_expr(expr, locals)
+            }
+            kain_core::ast::JSXNode::For { iter, body, .. } => {
+                self.preallocate_locals_in_expr(iter, locals);
+                self.preallocate_locals_in_jsx(body, locals);
+            }
+            kain_core::ast::JSXNode::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.preallocate_locals_in_expr(condition, locals);
+                self.preallocate_locals_in_jsx(then_branch, locals);
+                if let Some(else_branch) = else_branch {
+                    self.preallocate_locals_in_jsx(else_branch, locals);
+                }
+            }
+            kain_core::ast::JSXNode::Text(_, _) => {}
         }
     }
 
@@ -2206,16 +4165,21 @@ impl WasmCompiler {
     fn infer_wasm_type(&self, expr: &Expr) -> ValType {
         match expr {
             Expr::Int(_, _) => ValType::I64,
+            Expr::None(_) => ValType::I32,
             Expr::Float(_, _) => ValType::F64,
             Expr::Bool(_, _) => ValType::I32,
             Expr::String(_, _) => ValType::I32,
-            Expr::Ident(name, _) if self.world_globals.contains_key(name) => ValType::I32,
+            Expr::Ident(name, _) if name == "None" || self.world_globals.contains_key(name) => {
+                ValType::I32
+            }
+            Expr::Field { field, .. } => self.infer_global_field_val_type(field).unwrap_or(ValType::I64),
             Expr::JSX(_, _) => ValType::I32, // JSX nodes are DOM element IDs (i32)
             Expr::Array(_, _)
             | Expr::Tuple(_, _)
             | Expr::Struct { .. }
             | Expr::AggregateInit { .. }
-            | Expr::EnumVariant { .. } => ValType::I32,
+            | Expr::EnumVariant { .. }
+            | Expr::Spawn { .. } => ValType::I32,
             Expr::Paren(inner, _) => self.infer_wasm_type(inner),
             Expr::Observe { body, .. } | Expr::Collapse { body, .. } => self.infer_wasm_type(body),
             Expr::Teleport { value, .. }
@@ -2236,16 +4200,33 @@ impl WasmCompiler {
                         return ValType::I32;
                     }
                     // String functions return i32 (pointers)
-                    if name == "to_string" || name == "str_concat" {
+                    if name == "to_string" || name == "str_concat" || name == "char_at" {
+                        return ValType::I32;
+                    }
+                    if name == "str_eq" {
                         return ValType::I32;
                     }
                     // DOM functions return i32
                     if name.starts_with("dom_") {
                         return ValType::I32;
                     }
+                    if matches!(
+                        name.as_str(),
+                        "__kain_ptr_offset" | "__kain_alloc" | "__kain_realloc" | "__kain_union_wrap"
+                    ) {
+                        return ValType::I32;
+                    }
                 }
                 ValType::I64 // Default for other functions
             }
+            Expr::MethodCall { method, args, .. } => match method.as_str() {
+                "is_ok" | "is_err" | "is_some" | "is_none" => ValType::I32,
+                "unwrap_or" => args
+                    .first()
+                    .map(|arg| self.infer_wasm_type(&arg.value))
+                    .unwrap_or(ValType::I64),
+                _ => ValType::I64,
+            },
             Expr::Binary { op, .. } => {
                 // Most binary ops return same type as operands
                 // Comparisons return bool (i32)
@@ -2324,9 +4305,10 @@ impl WasmCompiler {
     }
 
     fn temp_local_for_expr(&self, ctx: &CompilationContext, expr: &Expr) -> LocalId {
-        match self.infer_wasm_type(expr) {
+        match self.infer_expr_wasm_type_in_context(ctx, expr) {
             ValType::I32 => ctx.tmp_i32,
             ValType::F64 => ctx.tmp_f64,
+            ValType::F32 => ctx.tmp_f64,
             _ => ctx.tmp_i64,
         }
     }
@@ -2340,27 +4322,20 @@ impl WasmCompiler {
         span: kain_core::span::Span,
     ) -> KainResult<()> {
         self.compile_expr_as_i32(ctx, builder, object)?;
-
-        let mut field_offset = None;
-        for (_struct_name, (offsets, _size)) in ctx.struct_layouts.iter() {
-            if let Some(&offset) = offsets.get(field) {
-                field_offset = Some(offset);
-                break;
-            }
+        let field_offset = self
+            .resolve_field_offset_in_context(ctx, object, field)
+            .map_err(|reason| match reason {
+                "ambiguous" => KainError::codegen(
+                    format!("Field '{}' layout is ambiguous in WASM codegen", field),
+                    span,
+                ),
+                _ => KainError::codegen(format!("Field '{}' layout not found", field), span),
+            })?;
+        if field_offset > 0 {
+            builder.i32_const(field_offset as i32);
+            builder.binop(walrus::ir::BinaryOp::I32Add);
         }
-
-        if let Some(offset) = field_offset {
-            if offset > 0 {
-                builder.i32_const(offset as i32);
-                builder.binop(walrus::ir::BinaryOp::I32Add);
-            }
-            Ok(())
-        } else {
-            Err(KainError::codegen(
-                format!("Field '{}' layout not found", field),
-                span,
-            ))
-        }
+        Ok(())
     }
 
     fn emit_store_for_val_type(
@@ -2376,6 +4351,11 @@ impl WasmCompiler {
                 walrus::ir::StoreKind::I32 { atomic: false },
                 walrus::ir::MemArg { align: 4, offset },
             ),
+            ValType::F32 => builder.store(
+                ctx.memory_id,
+                walrus::ir::StoreKind::F32,
+                walrus::ir::MemArg { align: 4, offset },
+            ),
             ValType::F64 => builder.store(
                 ctx.memory_id,
                 walrus::ir::StoreKind::F64,
@@ -2387,6 +4367,518 @@ impl WasmCompiler {
                 walrus::ir::MemArg { align: 8, offset },
             ),
         };
+    }
+
+    fn emit_load_for_val_type(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        val_type: ValType,
+        offset: u32,
+    ) {
+        match val_type {
+            ValType::I32 => builder.load(
+                ctx.memory_id,
+                walrus::ir::LoadKind::I32 { atomic: false },
+                walrus::ir::MemArg { align: 4, offset },
+            ),
+            ValType::F32 => builder.load(
+                ctx.memory_id,
+                walrus::ir::LoadKind::F32,
+                walrus::ir::MemArg { align: 4, offset },
+            ),
+            ValType::F64 => builder.load(
+                ctx.memory_id,
+                walrus::ir::LoadKind::F64,
+                walrus::ir::MemArg { align: 8, offset },
+            ),
+            _ => builder.load(
+                ctx.memory_id,
+                walrus::ir::LoadKind::I64 { atomic: false },
+                walrus::ir::MemArg { align: 8, offset },
+            ),
+        };
+    }
+
+    fn emit_zero_for_val_type(&self, builder: &mut InstrSeqBuilder, val_type: ValType) {
+        match val_type {
+            ValType::I32 => builder.i32_const(0),
+            ValType::F32 => builder.f32_const(0.0),
+            ValType::F64 => builder.f64_const(0.0),
+            _ => builder.i64_const(0),
+        };
+    }
+
+    fn compile_builtin_tagged_value(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        tag: u32,
+        payload: &Expr,
+    ) -> KainResult<()> {
+        let total_size = 16u32;
+        self.emit_alloc(ctx, builder, total_size);
+        builder.drop();
+
+        builder.global_get(ctx.heap_ptr_global);
+        builder.i32_const(total_size as i32);
+        builder.binop(walrus::ir::BinaryOp::I32Sub);
+        builder.i32_const(tag as i32);
+        builder.store(
+            ctx.memory_id,
+            walrus::ir::StoreKind::I32 { atomic: false },
+            walrus::ir::MemArg {
+                align: 4,
+                offset: 0,
+            },
+        );
+
+        builder.global_get(ctx.heap_ptr_global);
+        builder.i32_const(total_size as i32);
+        builder.binop(walrus::ir::BinaryOp::I32Sub);
+        builder.i32_const(8);
+        builder.binop(walrus::ir::BinaryOp::I32Add);
+        self.compile_expr(ctx, builder, payload)?;
+        self.emit_store_for_expr(ctx, builder, payload, 0);
+
+        builder.global_get(ctx.heap_ptr_global);
+        builder.i32_const(total_size as i32);
+        builder.binop(walrus::ir::BinaryOp::I32Sub);
+        Ok(())
+    }
+
+    fn compile_builtin_tagged_constructor_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        func_name: &str,
+        args: &[CallArg],
+        span: kain_core::span::Span,
+    ) -> KainResult<bool> {
+        let tag = match func_name {
+            "Some" | "Ok" => 0u32,
+            "Err" => 1u32,
+            _ => return Ok(false),
+        };
+
+        if args.len() != 1 {
+            return Err(KainError::codegen(
+                format!("Builtin constructor '{}' expects exactly one argument", func_name),
+                span,
+            ));
+        }
+
+        self.compile_builtin_tagged_value(ctx, builder, tag, &args[0].value)?;
+        Ok(true)
+    }
+
+    fn compile_builtin_tagged_method_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        receiver: &Expr,
+        method: &str,
+        args: &[CallArg],
+        span: kain_core::span::Span,
+    ) -> KainResult<bool> {
+        match method {
+            "is_ok" | "is_some" | "is_err" | "is_none" => {
+                if !args.is_empty() {
+                    return Err(KainError::codegen(
+                        format!("Builtin method '{}' expects no arguments", method),
+                        span,
+                    ));
+                }
+
+                self.compile_expr_as_i32(ctx, builder, receiver)?;
+                builder.local_set(ctx.tmp_i32_2);
+
+                let branch_error = std::cell::RefCell::new(None);
+                builder.local_get(ctx.tmp_i32_2);
+                builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                builder.if_else(
+                    None,
+                    |then_builder| {
+                        match method {
+                            "is_none" => then_builder.i32_const(1),
+                            _ => then_builder.i32_const(0),
+                        };
+                    },
+                    |else_builder| {
+                        else_builder.local_get(ctx.tmp_i32_2);
+                        self.emit_load_for_val_type(ctx, else_builder, ValType::I32, 0);
+                        else_builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                        match method {
+                            "is_ok" | "is_some" => {}
+                            "is_err" | "is_none" => {
+                                else_builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                            }
+                            _ => {
+                                *branch_error.borrow_mut() = Some(KainError::codegen(
+                                    format!("Unsupported builtin tagged method '{}'", method),
+                                    span,
+                                ));
+                            }
+                        }
+                    },
+                );
+
+                if let Some(err) = branch_error.into_inner() {
+                    return Err(err);
+                }
+
+                Ok(true)
+            }
+            "unwrap_or" => {
+                if args.len() != 1 {
+                    return Err(KainError::codegen(
+                        "Builtin unwrap_or expects exactly one argument",
+                        span,
+                    ));
+                }
+
+                let result_type = self.infer_wasm_type(&args[0].value);
+                let result_local = match result_type {
+                    ValType::I32 => ctx.tmp_i32,
+                    ValType::F64 => ctx.tmp_f64,
+                    _ => ctx.tmp_i64,
+                };
+
+                self.compile_expr_as_i32(ctx, builder, receiver)?;
+                builder.local_set(ctx.tmp_i32_2);
+
+                let branch_error = std::cell::RefCell::new(None);
+                builder.local_get(ctx.tmp_i32_2);
+                builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                builder.if_else(
+                    None,
+                    |then_builder| {
+                        if let Err(err) = self.compile_expr(ctx, then_builder, &args[0].value) {
+                            *branch_error.borrow_mut() = Some(err);
+                            return;
+                        }
+                        then_builder.local_set(result_local);
+                    },
+                    |else_builder| {
+                        else_builder.local_get(ctx.tmp_i32_2);
+                        self.emit_load_for_val_type(ctx, else_builder, ValType::I32, 0);
+                        else_builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                        else_builder.if_else(
+                            None,
+                            |ok_builder| {
+                                ok_builder.local_get(ctx.tmp_i32_2);
+                                self.emit_load_for_val_type(ctx, ok_builder, result_type, 8);
+                                ok_builder.local_set(result_local);
+                            },
+                            |fallback_builder| {
+                                if let Err(err) =
+                                    self.compile_expr(ctx, fallback_builder, &args[0].value)
+                                {
+                                    *branch_error.borrow_mut() = Some(err);
+                                    return;
+                                }
+                                fallback_builder.local_set(result_local);
+                            },
+                        );
+                    },
+                );
+
+                if let Some(err) = branch_error.into_inner() {
+                    return Err(err);
+                }
+
+                builder.local_get(result_local);
+                Ok(true)
+            }
+            "unwrap" => {
+                if !args.is_empty() {
+                    return Err(KainError::codegen(
+                        "Builtin unwrap expects no arguments",
+                        span,
+                    ));
+                }
+
+                let result_local = ctx.tmp_i64;
+
+                self.compile_expr_as_i32(ctx, builder, receiver)?;
+                builder.local_set(ctx.tmp_i32_2);
+
+                builder.local_get(ctx.tmp_i32_2);
+                builder.unop(walrus::ir::UnaryOp::I32Eqz);
+
+                builder.if_else(
+                    None,
+                    |then_builder| {
+                        self.emit_zero_for_val_type(then_builder, ValType::I64);
+                        then_builder.local_set(result_local);
+                    },
+                    |else_builder| {
+                        else_builder.local_get(ctx.tmp_i32_2);
+                        self.emit_load_for_val_type(ctx, else_builder, ValType::I32, 0);
+                        else_builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                        else_builder.if_else(
+                            None,
+                            |ok_builder| {
+                                ok_builder.local_get(ctx.tmp_i32_2);
+                                self.emit_load_for_val_type(ctx, ok_builder, ValType::I64, 8);
+                                ok_builder.local_set(result_local);
+                            },
+                            |err_builder| {
+                                self.emit_zero_for_val_type(err_builder, ValType::I64);
+                                err_builder.local_set(result_local);
+                            },
+                        );
+                    },
+                );
+
+                builder.local_get(result_local);
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn compile_variant_constructor_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        variant_name: &str,
+        args: &[CallArg],
+        span: kain_core::span::Span,
+    ) -> KainResult<bool> {
+        let mut matched_variant: Option<(String, u32, u32, HashMap<String, u32>)> = None;
+
+        for (enum_name, (tags, max_payload, field_offsets_map)) in ctx.enum_layouts.iter() {
+            if let Some(&tag) = tags.get(variant_name) {
+                if matched_variant.is_some() {
+                    return Err(KainError::codegen(
+                        format!(
+                            "Enum variant constructor '{}' is ambiguous in WASM codegen",
+                            variant_name
+                        ),
+                        span,
+                    ));
+                }
+
+                matched_variant = Some((
+                    enum_name.clone(),
+                    tag,
+                    *max_payload,
+                    field_offsets_map.get(variant_name).cloned().unwrap_or_default(),
+                ));
+            }
+        }
+
+        let Some((enum_name, tag, max_payload, variant_offsets)) = matched_variant else {
+            return Ok(false);
+        };
+
+        if !variant_offsets.is_empty() && args.len() != variant_offsets.len() {
+            return Err(KainError::codegen(
+                format!(
+                    "Enum variant constructor '{}::{}' expected {} payload values but got {}",
+                    enum_name,
+                    variant_name,
+                    variant_offsets.len(),
+                    args.len()
+                ),
+                span,
+            ));
+        }
+
+        let total_size = 4 + max_payload;
+        self.emit_alloc(ctx, builder, total_size);
+        builder.drop();
+
+        let aligned_size = (total_size + 7) & !7;
+
+        builder.global_get(ctx.heap_ptr_global);
+        builder.i32_const(aligned_size as i32);
+        builder.binop(walrus::ir::BinaryOp::I32Sub);
+        builder.i32_const(tag as i32);
+        builder.store(
+            ctx.memory_id,
+            walrus::ir::StoreKind::I32 { atomic: false },
+            walrus::ir::MemArg {
+                align: 4,
+                offset: 0,
+            },
+        );
+
+        for (i, arg) in args.iter().enumerate() {
+            let key = i.to_string();
+            let Some(&offset) = variant_offsets.get(&key) else {
+                return Err(KainError::codegen(
+                    format!(
+                        "Enum variant constructor '{}::{}' is missing tuple offset {}",
+                        enum_name, variant_name, i
+                    ),
+                    span,
+                ));
+            };
+
+            builder.global_get(ctx.heap_ptr_global);
+            builder.i32_const(aligned_size as i32);
+            builder.binop(walrus::ir::BinaryOp::I32Sub);
+            builder.i32_const((4 + offset) as i32);
+            builder.binop(walrus::ir::BinaryOp::I32Add);
+
+            self.compile_expr(ctx, builder, &arg.value)?;
+            self.emit_store_for_expr(ctx, builder, &arg.value, 0);
+        }
+
+        builder.global_get(ctx.heap_ptr_global);
+        builder.i32_const(aligned_size as i32);
+        builder.binop(walrus::ir::BinaryOp::I32Sub);
+
+        Ok(true)
+    }
+
+    fn compile_direct_actor_send(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        target: &Expr,
+        message: &str,
+        data: &[(String, Expr)],
+        span: kain_core::span::Span,
+    ) -> KainResult<bool> {
+        if let Expr::Ident(name, _) = target {
+            if let Some(&reply_type) = ctx.reply_ports.get(name) {
+                if message == "Reply" {
+                    if let Some((_, value_expr)) = data
+                        .iter()
+                        .find(|(field, _)| field == "value")
+                        .or_else(|| data.first())
+                    {
+                        self.compile_expr(ctx, builder, value_expr)?;
+                        self.coerce_expr_stack_to_val_type(ctx, builder, value_expr, reply_type);
+                    } else {
+                        self.emit_zero_for_val_type(builder, reply_type);
+                    }
+                    return Ok(true);
+                }
+            }
+        }
+
+        let Some(actor_name) = self.resolve_actor_name_in_context(ctx, target) else {
+            return Ok(false);
+        };
+        let key = Self::actor_handler_key(actor_name, message);
+        let Some(handler) = self.actor_handlers.get(&key) else {
+            return Ok(false);
+        };
+
+        let data_map: HashMap<&str, &Expr> = data
+            .iter()
+            .map(|(field, value)| (field.as_str(), value))
+            .collect();
+
+        self.compile_expr_as_i32(ctx, builder, target)?;
+        for (param_name, param_ty) in &handler.params {
+            if handler.reply_ports.contains_key(param_name) {
+                if let Some(value_expr) = data_map.get(param_name.as_str()).copied() {
+                    self.compile_expr(ctx, builder, value_expr)?;
+                    self.coerce_expr_stack_to_val_type(ctx, builder, value_expr, *param_ty);
+                } else {
+                    builder.i32_const(0);
+                }
+                continue;
+            }
+
+            let Some(value_expr) = data_map.get(param_name.as_str()).copied() else {
+                return Err(KainError::codegen(
+                    format!(
+                        "WASM actor send '{}.{}' is missing payload field '{}'",
+                        actor_name, message, param_name
+                    ),
+                    span,
+                ));
+            };
+            self.compile_expr(ctx, builder, value_expr)?;
+            self.coerce_expr_stack_to_val_type(ctx, builder, value_expr, *param_ty);
+        }
+
+        builder.call(handler.func_id);
+        if handler.result_type.is_some() {
+            builder.drop();
+        }
+        builder.i64_const(0);
+        Ok(true)
+    }
+
+    fn compile_actor_ask_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        args: &[CallArg],
+        span: kain_core::span::Span,
+    ) -> KainResult<()> {
+        if args.len() != 3 && args.len() != 4 {
+            return Err(KainError::codegen(
+                "ask/ask_timeout expects (actor, message, request[, timeout_ms])",
+                span,
+            ));
+        }
+
+        let Some(actor_name) = self.resolve_actor_name_in_context(ctx, &args[0].value) else {
+            return Err(KainError::codegen(
+                "WASM ask currently requires a directly resolved actor handle local or spawn expression",
+                span,
+            ));
+        };
+        let message_name = match &args[1].value {
+            Expr::String(value, _) => value.as_str(),
+            _ => {
+                return Err(KainError::codegen(
+                    "WASM ask currently requires a literal actor message name",
+                    span,
+                ))
+            }
+        };
+        let key = Self::actor_handler_key(actor_name, message_name);
+        let Some(handler) = self.actor_handlers.get(&key) else {
+            return Err(KainError::codegen(
+                format!("WASM actor handler '{}.{}' was not declared", actor_name, message_name),
+                span,
+            ));
+        };
+        if handler.result_type.is_none() {
+            return Err(KainError::codegen(
+                format!(
+                    "WASM ask requires '{}.{}' to reply through a reply port send",
+                    actor_name, message_name
+                ),
+                span,
+            ));
+        }
+
+        let payload_params: Vec<_> = handler
+            .params
+            .iter()
+            .filter(|(name, _)| !handler.reply_ports.contains_key(name))
+            .collect();
+        if payload_params.len() != 1 {
+            return Err(KainError::codegen(
+                format!(
+                    "WASM ask currently supports one request payload parameter for '{}.{}'",
+                    actor_name, message_name
+                ),
+                span,
+            ));
+        }
+
+        self.compile_expr_as_i32(ctx, builder, &args[0].value)?;
+        for (param_name, param_ty) in &handler.params {
+            if handler.reply_ports.contains_key(param_name) {
+                builder.i32_const(0);
+            } else {
+                self.compile_expr(ctx, builder, &args[2].value)?;
+                self.coerce_expr_stack_to_val_type(ctx, builder, &args[2].value, *param_ty);
+            }
+        }
+        builder.call(handler.func_id);
+        Ok(())
     }
 
     fn stmt_span(stmt: &Stmt) -> kain_core::span::Span {
@@ -2494,83 +4986,95 @@ impl WasmCompiler {
                     _ => "".to_string(),
                 };
 
-                // Get start and end from range expression
-                if let Expr::Range {
-                    start,
-                    end,
-                    inclusive,
-                    ..
-                } = iter
-                {
-                    let start_expr = start.as_ref().map(|e| e.as_ref());
-                    let end_expr = end.as_ref().map(|e| e.as_ref());
-
-                    // Initialize loop variable with start value
-                    if let Some(start_e) = start_expr {
-                        self.compile_expr(ctx, builder, start_e)?;
-                    } else {
-                        builder.i64_const(0);
+                let (start_expr, end_expr, inclusive) = match iter {
+                    Expr::Range {
+                        start,
+                        end,
+                        inclusive,
+                        ..
+                    } => (start.as_deref(), end.as_deref(), *inclusive),
+                    Expr::Call { callee, args, .. }
+                        if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "range") =>
+                    {
+                        match args.len() {
+                            1 => (None, Some(&args[0].value), false),
+                            2 => (Some(&args[0].value), Some(&args[1].value), false),
+                            _ => {
+                                return Err(KainError::codegen(
+                                    "WASM range(...) expects one or two arguments",
+                                    iter.span(),
+                                ));
+                            }
+                        }
                     }
-
-                    if let Some(local_id) = ctx.locals.get(&loop_var) {
-                        builder.local_set(*local_id);
+                    _ => {
+                        return Err(KainError::codegen(
+                            "Only range iterators are supported in WASM codegen",
+                            iter.span(),
+                        ));
                     }
+                };
 
-                    // block { loop { if i >= end: break; body; i++; br loop } }
-                    let loop_error = std::cell::RefCell::new(None);
-                    builder.block(None, |block_builder| {
-                        let block_id = block_builder.id();
+                // Initialize loop variable with start value
+                if let Some(start_e) = start_expr {
+                    self.compile_expr(ctx, builder, start_e)?;
+                } else {
+                    builder.i64_const(0);
+                }
 
-                        block_builder.loop_(None, |loop_builder| {
-                            let loop_id = loop_builder.id();
+                if let Some(local_id) = ctx.locals.get(&loop_var) {
+                    builder.local_set(*local_id);
+                }
 
-                            // Check condition: i < end (or i <= end if inclusive)
-                            if let Some(local_id) = ctx.locals.get(&loop_var) {
-                                loop_builder.local_get(*local_id);
-                            }
+                // block { loop { if i >= end: break; body; i++; br loop } }
+                let loop_error = std::cell::RefCell::new(None);
+                builder.block(None, |block_builder| {
+                    let block_id = block_builder.id();
 
-                            if let Some(end_e) = end_expr {
-                                if let Err(err) = self.compile_expr(ctx, loop_builder, end_e) {
-                                    *loop_error.borrow_mut() = Some(err);
-                                    return;
-                                }
-                            } else {
-                                loop_builder.i64_const(i64::MAX);
-                            }
+                    block_builder.loop_(None, |loop_builder| {
+                        let loop_id = loop_builder.id();
 
-                            // Compare: if i >= end (or i > end if inclusive), break
-                            if *inclusive {
-                                loop_builder.binop(walrus::ir::BinaryOp::I64GtS);
-                            } else {
-                                loop_builder.binop(walrus::ir::BinaryOp::I64GeS);
-                            }
-                            loop_builder.br_if(block_id);
+                        // Check condition: i < end (or i <= end if inclusive)
+                        if let Some(local_id) = ctx.locals.get(&loop_var) {
+                            loop_builder.local_get(*local_id);
+                        }
 
-                            // Execute body
-                            if let Err(err) = self.compile_block(ctx, loop_builder, body) {
+                        if let Some(end_e) = end_expr {
+                            if let Err(err) = self.compile_expr(ctx, loop_builder, end_e) {
                                 *loop_error.borrow_mut() = Some(err);
                                 return;
                             }
+                        } else {
+                            loop_builder.i64_const(i64::MAX);
+                        }
 
-                            // Increment loop variable: i = i + 1
-                            if let Some(local_id) = ctx.locals.get(&loop_var) {
-                                loop_builder.local_get(*local_id);
-                                loop_builder.i64_const(1);
-                                loop_builder.binop(walrus::ir::BinaryOp::I64Add);
-                                loop_builder.local_set(*local_id);
-                            }
+                        // Compare: if i >= end (or i > end if inclusive), break
+                        if inclusive {
+                            loop_builder.binop(walrus::ir::BinaryOp::I64GtS);
+                        } else {
+                            loop_builder.binop(walrus::ir::BinaryOp::I64GeS);
+                        }
+                        loop_builder.br_if(block_id);
 
-                            loop_builder.br(loop_id);
-                        });
+                        // Execute body
+                        if let Err(err) = self.compile_block(ctx, loop_builder, body) {
+                            *loop_error.borrow_mut() = Some(err);
+                            return;
+                        }
+
+                        // Increment loop variable: i = i + 1
+                        if let Some(local_id) = ctx.locals.get(&loop_var) {
+                            loop_builder.local_get(*local_id);
+                            loop_builder.i64_const(1);
+                            loop_builder.binop(walrus::ir::BinaryOp::I64Add);
+                            loop_builder.local_set(*local_id);
+                        }
+
+                        loop_builder.br(loop_id);
                     });
-                    if let Some(err) = loop_error.into_inner() {
-                        return Err(err);
-                    }
-                } else {
-                    return Err(KainError::codegen(
-                        "Only range iterators are supported in WASM codegen",
-                        iter.span(),
-                    ));
+                });
+                if let Some(err) = loop_error.into_inner() {
+                    return Err(err);
                 }
             }
             // Infinite loop: `loop: body` - can be exited with break
@@ -2623,7 +5127,7 @@ impl WasmCompiler {
             Expr::Paren(inner, _) => self.is_string_expr(inner),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
-                    name == "to_string" || name == "str_concat"
+                    name == "to_string" || name == "str_concat" || name == "char_at"
                 } else {
                     false
                 }
@@ -2641,6 +5145,7 @@ impl WasmCompiler {
     // Check if expression produces an i32 (JSX node IDs, bools, etc)
     fn is_i32_expr(&self, expr: &Expr) -> bool {
         match expr {
+            Expr::None(_) => true,
             Expr::JSX(_, _) => true,
             Expr::Bool(_, _) => true,
             Expr::String(_, _) => true, // Strings are i32 pointers
@@ -2648,7 +5153,8 @@ impl WasmCompiler {
             | Expr::Tuple(_, _)
             | Expr::Struct { .. }
             | Expr::AggregateInit { .. }
-            | Expr::EnumVariant { .. } => true,
+            | Expr::EnumVariant { .. }
+            | Expr::Spawn { .. } => true,
             Expr::Paren(inner, _) => self.is_i32_expr(inner),
             Expr::Observe { body, .. } | Expr::Collapse { body, .. } => self.is_i32_expr(body),
             Expr::Teleport { value, .. }
@@ -2667,12 +5173,22 @@ impl WasmCompiler {
                         || name.starts_with("dom_")
                         || name == "to_string"
                         || name == "str_concat"
+                        || name == "char_at"
+                        || name == "str_eq"
                 } else {
                     false
                 }
             }
+            Expr::MethodCall { method, args, .. } => match method.as_str() {
+                "is_ok" | "is_err" | "is_some" | "is_none" => true,
+                "unwrap_or" => args
+                    .first()
+                    .map(|arg| self.is_i32_expr(&arg.value))
+                    .unwrap_or(false),
+                _ => false,
+            },
             // For identifiers, we can't know without context - return false and handle separately
-            Expr::Ident(_, _) => false, // Will be checked via is_i32_ident with context
+            Expr::Ident(name, _) => name == "None", // Other identifiers are checked via context
             _ => false,
         }
     }
@@ -2688,18 +5204,12 @@ impl WasmCompiler {
     }
 
     fn expr_is_i32_in_context(&self, ctx: &CompilationContext, expr: &Expr) -> bool {
-        self.is_string_expr(expr)
-            || self.is_i32_expr(expr)
-            || matches!(expr, Expr::Ident(name, _) if self.is_i32_local(name, &ctx.locals))
-            || matches!(expr, Expr::Ident(name, _) if ctx.world_globals.contains_key(name))
+        self.infer_expr_wasm_type_in_context(ctx, expr) == ValType::I32
             || matches!(
                 expr,
-                Expr::Ident(name, _)
-                    if ctx
-                        .constants
-                        .get(name)
-                        .map(|value| value.val_type() == ValType::I32)
-                        .unwrap_or(false)
+                Expr::Call { callee, args, .. }
+                    if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "ask" || name == "ask_timeout")
+                        && self.actor_handler_result_type_for_call(ctx, args) == Some(ValType::I32)
             )
     }
 
@@ -3067,7 +5577,7 @@ impl WasmCompiler {
                 builder.i64_const(*n);
             }
             Expr::None(_) => {
-                builder.i64_const(0);
+                builder.i32_const(0);
             }
             Expr::Float(f, _) => {
                 builder.f64_const(*f);
@@ -3119,6 +5629,26 @@ impl WasmCompiler {
             Expr::Binary {
                 left, op, right, ..
             } => {
+                let string_binary = self.is_string_expr(left) || self.is_string_expr(right);
+                if string_binary && matches!(op, BinaryOp::Eq | BinaryOp::Ne) {
+                    self.compile_expr_as_i32(ctx, builder, left)?;
+                    self.compile_expr_as_i32(ctx, builder, right)?;
+                    if let Some(func_id) = ctx.functions.get("str_eq") {
+                        builder.call(*func_id);
+                    } else {
+                        builder.i32_const(0);
+                    }
+                    if matches!(op, BinaryOp::Ne) {
+                        builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                    }
+                    return Ok(());
+                }
+
+                let left_ty = self.infer_expr_wasm_type_in_context(ctx, left);
+                let right_ty = self.infer_expr_wasm_type_in_context(ctx, right);
+                let uses_i32 = left_ty == ValType::I32 && right_ty == ValType::I32;
+                let uses_f64 = left_ty == ValType::F64 || right_ty == ValType::F64;
+
                 self.compile_expr(ctx, builder, left)?;
                 self.compile_expr(ctx, builder, right)?;
                 match op {
@@ -3128,63 +5658,145 @@ impl WasmCompiler {
                             if let Some(func_id) = ctx.functions.get("str_concat") {
                                 builder.call(*func_id);
                             }
+                        } else if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Add);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Add);
                         } else {
                             builder.binop(walrus::ir::BinaryOp::I64Add);
                         }
                     }
                     BinaryOp::Sub => {
-                        builder.binop(walrus::ir::BinaryOp::I64Sub);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Sub);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Sub);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64Sub);
+                        }
                     }
                     BinaryOp::Mul => {
-                        builder.binop(walrus::ir::BinaryOp::I64Mul);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Mul);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Mul);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64Mul);
+                        }
                     }
                     BinaryOp::Div => {
-                        builder.binop(walrus::ir::BinaryOp::I64DivS);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Div);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32DivS);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64DivS);
+                        }
                     }
                     BinaryOp::Mod => {
-                        builder.binop(walrus::ir::BinaryOp::I64RemS);
+                        if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32RemS);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64RemS);
+                        }
                     }
                     // Comparison
                     BinaryOp::Eq => {
-                        builder.binop(walrus::ir::BinaryOp::I64Eq);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Eq);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Eq);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64Eq);
+                        }
                     }
                     BinaryOp::Ne => {
-                        builder.binop(walrus::ir::BinaryOp::I64Ne);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Ne);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Ne);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64Ne);
+                        }
                     }
                     BinaryOp::Lt => {
-                        builder.binop(walrus::ir::BinaryOp::I64LtS);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Lt);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32LtS);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64LtS);
+                        }
                     }
                     BinaryOp::Gt => {
-                        builder.binop(walrus::ir::BinaryOp::I64GtS);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Gt);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32GtS);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64GtS);
+                        }
                     }
                     BinaryOp::Le => {
-                        builder.binop(walrus::ir::BinaryOp::I64LeS);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Le);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32LeS);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64LeS);
+                        }
                     }
                     BinaryOp::Ge => {
-                        builder.binop(walrus::ir::BinaryOp::I64GeS);
+                        if uses_f64 {
+                            builder.binop(walrus::ir::BinaryOp::F64Ge);
+                        } else if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32GeS);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64GeS);
+                        }
                     }
                     // Logical (short-circuit would need control flow, treat as bitwise for now)
                     BinaryOp::And => {
-                        builder.binop(walrus::ir::BinaryOp::I64And);
+                        builder.binop(walrus::ir::BinaryOp::I32And);
                     }
                     BinaryOp::Or => {
-                        builder.binop(walrus::ir::BinaryOp::I64Or);
+                        builder.binop(walrus::ir::BinaryOp::I32Or);
                     }
                     // Bitwise
                     BinaryOp::BitAnd => {
-                        builder.binop(walrus::ir::BinaryOp::I64And);
+                        if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32And);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64And);
+                        }
                     }
                     BinaryOp::BitOr => {
-                        builder.binop(walrus::ir::BinaryOp::I64Or);
+                        if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Or);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64Or);
+                        }
                     }
                     BinaryOp::BitXor => {
-                        builder.binop(walrus::ir::BinaryOp::I64Xor);
+                        if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Xor);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64Xor);
+                        }
                     }
                     BinaryOp::Shl => {
-                        builder.binop(walrus::ir::BinaryOp::I64Shl);
+                        if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32Shl);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64Shl);
+                        }
                     }
                     BinaryOp::Shr => {
-                        builder.binop(walrus::ir::BinaryOp::I64ShrS);
+                        if uses_i32 {
+                            builder.binop(walrus::ir::BinaryOp::I32ShrS);
+                        } else {
+                            builder.binop(walrus::ir::BinaryOp::I64ShrS);
+                        }
                     }
                     _ => {}
                 }
@@ -3216,7 +5828,9 @@ impl WasmCompiler {
                 }
             }
             Expr::Ident(name, span) => {
-                if let Some(local_id) = ctx.locals.get(name) {
+                if name == "None" {
+                    builder.i32_const(0);
+                } else if let Some(local_id) = ctx.locals.get(name) {
                     builder.local_get(*local_id);
                 } else if let Some(offset) = ctx.world_globals.get(name) {
                     builder.i32_const(*offset as i32);
@@ -3246,10 +5860,10 @@ impl WasmCompiler {
                     let local_ty = self.module.locals.get(local_id).ty();
                     self.compile_expr(ctx, builder, value)?;
                     match local_ty {
-                        ValType::I32 if !self.is_i32_expr(value) => {
+                        ValType::I32 if !self.expr_is_i32_in_context(ctx, value) => {
                             builder.unop(walrus::ir::UnaryOp::I32WrapI64);
                         }
-                        ValType::I64 if self.is_i32_expr(value) => {
+                        ValType::I64 if self.expr_is_i32_in_context(ctx, value) => {
                             builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
                         }
                         _ => {}
@@ -3278,6 +5892,62 @@ impl WasmCompiler {
                     ));
                 }
             },
+            Expr::Spawn { actor, init, span } => {
+                let typed_actor = self.actors.get(actor).ok_or_else(|| {
+                    KainError::codegen(format!("Unknown actor '{}'", actor), *span)
+                })?;
+                let (field_offsets, total_size) = ctx.struct_layouts.get(actor).cloned().ok_or_else(|| {
+                    KainError::codegen(format!("Actor '{}' layout not found", actor), *span)
+                })?;
+
+                self.emit_alloc(ctx, builder, total_size);
+                builder.local_set(ctx.tmp_i32);
+
+                let provided: HashMap<&str, &Expr> = init
+                    .iter()
+                    .map(|(field_name, value)| (field_name.as_str(), value))
+                    .collect();
+
+                for state in &typed_actor.ast.state {
+                    let Some(&field_offset) = field_offsets.get(&state.name) else {
+                        continue;
+                    };
+                    let value_expr = provided
+                        .get(state.name.as_str())
+                        .copied()
+                        .unwrap_or(&state.initial);
+                    let value_ty = typed_actor
+                        .state_types
+                        .get(&state.name)
+                        .map(|ty| self.map_heap_value_type_from_resolved_type(ty))
+                        .unwrap_or_else(|| self.map_heap_value_type_from_authored_type(&state.ty));
+
+                    builder.local_get(ctx.tmp_i32);
+                    if field_offset != 0 {
+                        builder.i32_const(field_offset as i32);
+                        builder.binop(walrus::ir::BinaryOp::I32Add);
+                    }
+                    self.compile_expr(ctx, builder, value_expr)?;
+                    self.coerce_expr_stack_to_val_type(ctx, builder, value_expr, value_ty);
+                    self.emit_store_for_val_type(ctx, builder, value_ty, 0);
+                }
+
+                builder.local_get(ctx.tmp_i32);
+            }
+            Expr::SendMsg {
+                target,
+                message,
+                data,
+                span,
+            } => {
+                if self.compile_direct_actor_send(ctx, builder, target, message, data, *span)? {
+                    return Ok(());
+                }
+                return Err(KainError::codegen(
+                    format!("Unsupported actor send in WASM codegen: {}", message),
+                    *span,
+                ));
+            }
             Expr::If {
                 condition,
                 then_branch,
@@ -3369,13 +6039,34 @@ impl WasmCompiler {
                         return Ok(());
                     }
 
+                    if func_name == "ask" || func_name == "ask_timeout" {
+                        self.compile_actor_ask_call(ctx, builder, args, *span)?;
+                        return Ok(());
+                    }
+
+                    if self.compile_builtin_tagged_constructor_call(
+                        ctx,
+                        builder,
+                        func_name,
+                        args,
+                        *span,
+                    )? {
+                        return Ok(());
+                    }
+
+                    if self.compile_variant_constructor_call(
+                        ctx,
+                        builder,
+                        func_name,
+                        args,
+                        *span,
+                    )? {
+                        return Ok(());
+                    }
+
                     // Look up function ID
                     if let Some(func_id) = ctx.functions.get(func_name) {
-                        // Compile arguments (push onto stack)
-                        for arg in args {
-                            self.compile_expr(ctx, builder, &arg.value)?;
-                        }
-                        // Emit call instruction
+                        self.compile_call_args_for_function(ctx, builder, *func_id, args)?;
                         builder.call(*func_id);
                     } else {
                         return Err(KainError::codegen(
@@ -3395,9 +6086,7 @@ impl WasmCompiler {
                 function, args, span, ..
             } => {
                 if let Some(func_id) = ctx.functions.get(function) {
-                    for arg in args {
-                        self.compile_expr(ctx, builder, &arg.value)?;
-                    }
+                    self.compile_call_args_for_function(ctx, builder, *func_id, args)?;
                     builder.call(*func_id);
                 } else {
                     return Err(KainError::codegen(
@@ -3413,6 +6102,32 @@ impl WasmCompiler {
                 fields,
                 span,
             } => {
+                if enum_name == "Option" || enum_name == "Result" {
+                    match fields {
+                        kain_core::ast::EnumVariantFields::Unit if variant == "None" => {
+                            builder.i32_const(0);
+                            return Ok(());
+                        }
+                        kain_core::ast::EnumVariantFields::Tuple(exprs)
+                            if exprs.len() == 1
+                                && matches!(variant.as_str(), "Some" | "Ok" | "Err") =>
+                        {
+                            let tag = if variant == "Err" { 1 } else { 0 };
+                            self.compile_builtin_tagged_value(ctx, builder, tag, &exprs[0])?;
+                            return Ok(());
+                        }
+                        _ => {
+                            return Err(KainError::codegen(
+                                format!(
+                                    "Builtin {}::{} shape is not yet supported in WASM codegen",
+                                    enum_name, variant
+                                ),
+                                *span,
+                            ));
+                        }
+                    }
+                }
+
                 if let Some((tags, max_payload, field_offsets_map)) =
                     ctx.enum_layouts.get(enum_name)
                 {
@@ -3537,15 +6252,7 @@ impl WasmCompiler {
                             self.compile_expr(ctx, builder, field_expr)?;
                             // Stack: [field_addr, value]
 
-                            // Store (assumes i64 for now)
-                            builder.store(
-                                ctx.memory_id,
-                                walrus::ir::StoreKind::I64 { atomic: false },
-                                walrus::ir::MemArg {
-                                    align: 8,
-                                    offset: 0,
-                                },
-                            );
+                            self.emit_store_for_expr(ctx, builder, field_expr, 0);
                         }
                     }
 
@@ -3567,17 +6274,11 @@ impl WasmCompiler {
                 field,
                 span,
             } => {
+                let field_type = self
+                    .infer_field_val_type_in_context(ctx, object, field)
+                    .unwrap_or(ValType::I64);
                 self.compile_field_address(ctx, builder, object, field, *span)?;
-
-                // Load value from memory (default to i64)
-                builder.load(
-                    ctx.memory_id,
-                    walrus::ir::LoadKind::I64 { atomic: false },
-                    walrus::ir::MemArg {
-                        align: 8,
-                        offset: 0,
-                    },
-                );
+                self.emit_load_for_val_type(ctx, builder, field_type, 0);
             }
             // Method call: obj.method(args) desugars to Type.method(obj, args)
             Expr::MethodCall {
@@ -3586,6 +6287,17 @@ impl WasmCompiler {
                 args,
                 span,
             } => {
+                if self.compile_builtin_tagged_method_call(
+                    ctx,
+                    builder,
+                    receiver,
+                    method,
+                    args,
+                    *span,
+                )? {
+                    return Ok(());
+                }
+
                 // Compile the receiver (self)
                 self.compile_expr(ctx, builder, receiver)?;
 
@@ -3659,14 +6371,7 @@ impl WasmCompiler {
                     builder.binop(walrus::ir::BinaryOp::I32Add);
 
                     self.compile_expr(ctx, builder, elem)?;
-                    builder.store(
-                        ctx.memory_id,
-                        walrus::ir::StoreKind::I64 { atomic: false },
-                        walrus::ir::MemArg {
-                            align: 8,
-                            offset: 0,
-                        },
-                    );
+                    self.emit_store_for_expr(ctx, builder, elem, 0);
                 }
 
                 // Leave array pointer on stack
@@ -3729,14 +6434,7 @@ impl WasmCompiler {
                     builder.binop(walrus::ir::BinaryOp::I32Add);
 
                     self.compile_expr(ctx, builder, elem)?;
-                    builder.store(
-                        ctx.memory_id,
-                        walrus::ir::StoreKind::I64 { atomic: false },
-                        walrus::ir::MemArg {
-                            align: 8,
-                            offset: 0,
-                        },
-                    );
+                    self.emit_store_for_expr(ctx, builder, elem, 0);
                 }
 
                 // Leave tuple pointer on stack
@@ -4317,30 +7015,37 @@ impl WasmCompiler {
         expr: &Expr,
         offset: u32,
     ) {
-        match expr {
-            Expr::Int(_, _) => {
+        let val_type = self.infer_expr_wasm_type_in_context(ctx, expr);
+        match val_type {
+            ValType::I64 => {
                 builder.store(
                     ctx.memory_id,
                     walrus::ir::StoreKind::I64 { atomic: false },
                     walrus::ir::MemArg { align: 8, offset },
                 );
             }
-            Expr::Float(_, _) => {
+            ValType::F64 => {
                 builder.store(
                     ctx.memory_id,
                     walrus::ir::StoreKind::F64,
                     walrus::ir::MemArg { align: 8, offset },
                 );
             }
-            Expr::Bool(_, _) | Expr::String(_, _) => {
+            ValType::F32 => {
+                builder.store(
+                    ctx.memory_id,
+                    walrus::ir::StoreKind::F32,
+                    walrus::ir::MemArg { align: 4, offset },
+                );
+            }
+            ValType::I32 => {
                 builder.store(
                     ctx.memory_id,
                     walrus::ir::StoreKind::I32 { atomic: false },
                     walrus::ir::MemArg { align: 4, offset },
                 );
             }
-            _ => {
-                // Default to I64 (pointers, arrays, structs, etc)
+            ValType::V128 | ValType::Ref(_) => {
                 builder.store(
                     ctx.memory_id,
                     walrus::ir::StoreKind::I64 { atomic: false },
