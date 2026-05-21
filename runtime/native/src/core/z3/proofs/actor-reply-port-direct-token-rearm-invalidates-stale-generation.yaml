@@ -1,0 +1,50 @@
+version: 1
+id: kain.native.core.proofs.actor_reply_port_direct_token_rearm_invalidates_stale_generation
+kind: find_counterexample
+description: Compiler-lowered direct asks keep actor_id invalid but still rearm the
+  TLS reply-port token by bumping its generation before the next ask publishes
+  the ref, so any direct token captured by a previous ask cannot match the
+  active token.
+tags:
+- actor
+- reply-port
+- direct-token
+- generation
+- invariant
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\actor.c
+  symbol: kain_actor_reply_port_state_prepare_direct_token
+  start_line: 1077
+  reason: direct-token rearm increments the TLS generation and stores it into
+    the reply-port state before the next ask publishes the handle-backed ref
+case:
+  declarations:
+  - name: old_generation
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - old_generation
+    - 1
+  - op: le
+    args:
+    - old_generation
+    - 4294967295
+  claim:
+    op: not
+    args:
+    - op: eq
+      args:
+      - old_generation
+      - op: ite
+        args:
+        - op: eq
+          args:
+          - old_generation
+          - 4294967295
+        - 1
+        - op: add
+          args:
+          - old_generation
+          - 1

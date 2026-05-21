@@ -8926,15 +8926,11 @@ impl LlvmGenerator {
         let use_i64_wait = wait_target_ty == "i64";
         let zero_reply_value = self.zero_value_for_ty(wait_target_ty);
 
-        let reply_port_handle = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i8* @kain_actor_reply_port_new()",
-            reply_port_handle
-        ));
         let reply_port_ref_ptr = self.next_reg();
         self.emit_entry_alloca(&reply_port_ref_ptr, ACTOR_REF_LLVM_TYPE);
+        let reply_port_handle = self.next_reg();
         self.emit(&format!(
-            "  call void @kain_actor_reply_port_actor_ref(i8* {}, {}* {})",
+            "  {} = call i8* @kain_actor_reply_port_prepare_direct({}* {})",
             reply_port_handle, ACTOR_REF_LLVM_TYPE, reply_port_ref_ptr
         ));
         let reply_port_actor_ref = self.next_reg();
@@ -10204,6 +10200,7 @@ impl LlvmGenerator {
         self.emit("declare void @kain_actor_ref_from_id(i64, %KainActorRef*)");
         self.emit("declare i32 @kain_actor_ref_is_live(%KainActorRef*)");
         self.emit("declare i8* @kain_actor_reply_port_new()");
+        self.emit("declare i8* @kain_actor_reply_port_prepare_direct(%KainActorRef*)");
         self.emit("declare i64 @kain_actor_reply_port_actor_id(i8*)");
         self.emit("declare void @kain_actor_reply_port_actor_ref(i8*, %KainActorRef*)");
         self.emit("declare void @kain_actor_reply_port_destroy(i8*)");

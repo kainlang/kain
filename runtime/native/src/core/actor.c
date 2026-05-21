@@ -115,9 +115,11 @@ typedef struct {
     KainActorRef actor_ref;
     KainActorState_Internal* parked_actor;
     int completed;
+    int owner_inline_ready;
     void* reply_data;
     size_t reply_size;
     int references;
+    unsigned int direct_generation;
     unsigned char inline_reply_data[KAIN_ACTOR_REPLY_PORT_INLINE_PAYLOAD_CAPACITY];
 #ifdef _WIN32
     CRITICAL_SECTION lock;
@@ -249,7 +251,14 @@ static void kain_actor_reply_port_state_reset_with_actor_ref(
     KainActorReplyPortState* state,
     const KainActorRef* actor_ref
 );
+static KainActorReplyPortState* kain_actor_reply_port_state_alloc(void);
 static int kain_actor_reply_port_state_try_copy_completed(
+    KainActorReplyPortState* state,
+    void* out_reply_data,
+    size_t out_reply_capacity,
+    size_t* out_reply_size
+);
+static int kain_actor_reply_port_state_try_copy_completed_owner_inline(
     KainActorReplyPortState* state,
     void* out_reply_data,
     size_t out_reply_capacity,
@@ -275,6 +284,10 @@ static void kain_actor_reply_port_state_take_actor_ref(
 );
 static int kain_actor_reply_port_state_bind_synthetic_actor(KainActorReplyPortState* state);
 static int kain_actor_reply_port_state_rearm_synthetic_actor(KainActorReplyPortState* state);
+static int kain_actor_reply_port_state_prepare_direct_token(
+    KainActorReplyPortState* state,
+    KainActorRef* out_actor_ref
+);
 static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPortState* state);
 static void kain_actor_borrowed_message_push(const void* message_data);
 static int kain_actor_borrowed_message_release_match(const void* message_data);
@@ -482,6 +495,19 @@ static int kain_actor_ref_same_identity(const KainActorRef* left, const KainActo
         && left->locality_class == right->locality_class;
 }
 
+static void kain_actor_reply_port_ref_write_direct(
+    KainActorRef* actor_ref,
+    unsigned int generation
+) {
+    if (actor_ref == NULL) {
+        return;
+    }
+    actor_ref->actor_id = KAIN_ACTOR_ID_INVALID;
+    actor_ref->generation = generation;
+    actor_ref->execution_class = KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT;
+    actor_ref->locality_class = KAIN_ACTOR_LOCALITY_LOCAL;
+}
+
 static void kain_actor_reply_port_state_acquire(KainActorReplyPortState* state) {
     if (state == NULL) {
         return;
@@ -586,6 +612,8 @@ static int kain_actor_reply_port_state_complete_copied(
 ) {
     void* heap_copy = NULL;
     int result = -1;
+    int stale_reject = 0;
+    int owner_inline_completion = 0;
 
     if (state == NULL) {
         return -1;
@@ -604,9 +632,13 @@ static int kain_actor_reply_port_state_complete_copied(
     EnterCriticalSection(&state->lock);
     if (expected_actor_ref == NULL || kain_actor_ref_same_identity(&state->actor_ref, expected_actor_ref)) {
         result = 0;
+    } else if (expected_actor_ref != NULL) {
+        stale_reject = 1;
     }
     if (result == 0 && !state->completed) {
         state->completed = 1;
+        owner_inline_completion = g_actor_reply_port_tls == state;
+        state->owner_inline_ready = owner_inline_completion;
         if (reply_size == 0u) {
             state->reply_data = NULL;
             state->reply_size = 0u;
@@ -619,16 +651,22 @@ static int kain_actor_reply_port_state_complete_copied(
             state->reply_data = state->inline_reply_data;
             state->reply_size = reply_size;
         }
-        SetEvent(state->completed_event);
+        if (!owner_inline_completion) {
+            SetEvent(state->completed_event);
+        }
     }
     LeaveCriticalSection(&state->lock);
 #else
     pthread_mutex_lock(&state->lock);
     if (expected_actor_ref == NULL || kain_actor_ref_same_identity(&state->actor_ref, expected_actor_ref)) {
         result = 0;
+    } else if (expected_actor_ref != NULL) {
+        stale_reject = 1;
     }
     if (result == 0 && !state->completed) {
         state->completed = 1;
+        owner_inline_completion = g_actor_reply_port_tls == state;
+        state->owner_inline_ready = owner_inline_completion;
         if (reply_size == 0u) {
             state->reply_data = NULL;
             state->reply_size = 0u;
@@ -641,12 +679,21 @@ static int kain_actor_reply_port_state_complete_copied(
             state->reply_data = state->inline_reply_data;
             state->reply_size = reply_size;
         }
-        pthread_cond_signal(&state->completed_cond);
+        if (!owner_inline_completion) {
+            pthread_cond_signal(&state->completed_cond);
+        }
     }
     pthread_mutex_unlock(&state->lock);
 #endif
     if (heap_copy != NULL) {
         free(heap_copy);
+    }
+    if (stale_reject && expected_actor_ref != NULL) {
+        atomic_fetch_add_explicit(&g_attrition_actor_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_actor_stale_reject(
+            expected_actor_ref->actor_id,
+            expected_actor_ref->generation
+        );
     }
     return result;
 }
@@ -664,6 +711,7 @@ static void kain_actor_reply_port_state_reset_with_actor_ref(
     EnterCriticalSection(&state->lock);
     reply_data_to_free = state->reply_data;
     state->completed = 0;
+    state->owner_inline_ready = 0;
     state->reply_data = NULL;
     state->reply_size = 0u;
     memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
@@ -676,6 +724,7 @@ static void kain_actor_reply_port_state_reset_with_actor_ref(
     pthread_mutex_lock(&state->lock);
     reply_data_to_free = state->reply_data;
     state->completed = 0;
+    state->owner_inline_ready = 0;
     state->reply_data = NULL;
     state->reply_size = 0u;
     memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
@@ -706,6 +755,14 @@ static int kain_actor_reply_port_state_try_copy_completed(
 
     if (state == NULL) {
         return 0;
+    }
+    if (kain_actor_reply_port_state_try_copy_completed_owner_inline(
+            state,
+            out_reply_data,
+            out_reply_capacity,
+            out_reply_size
+        )) {
+        return 1;
     }
 
 #ifdef _WIN32
@@ -745,6 +802,32 @@ static int kain_actor_reply_port_state_try_copy_completed(
 #endif
 
     return completed;
+}
+
+static int kain_actor_reply_port_state_try_copy_completed_owner_inline(
+    KainActorReplyPortState* state,
+    void* out_reply_data,
+    size_t out_reply_capacity,
+    size_t* out_reply_size
+) {
+    size_t bytes_to_copy;
+
+    if (state == NULL || g_actor_reply_port_tls != state || !state->owner_inline_ready) {
+        return 0;
+    }
+    if (out_reply_size != NULL) {
+        *out_reply_size = state->reply_size;
+    }
+    if (out_reply_data == NULL || out_reply_capacity == 0u || state->reply_data == NULL) {
+        return state->completed ? 1 : 0;
+    }
+    bytes_to_copy = state->reply_size < out_reply_capacity
+        ? state->reply_size
+        : out_reply_capacity;
+    if (bytes_to_copy > 0u) {
+        memcpy(out_reply_data, state->reply_data, bytes_to_copy);
+    }
+    return state->completed ? 1 : 0;
 }
 
 static int kain_actor_reply_port_state_wait(
@@ -1041,6 +1124,69 @@ static int kain_actor_reply_port_state_rearm_synthetic_actor(KainActorReplyPortS
     kain_actor_reply_port_state_take_actor_ref(state, &actor_ref);
     kain_actor_reply_port_state_reset(state);
     return kain_actor_reply_port_state_bind_synthetic_actor(state);
+}
+
+static int kain_actor_reply_port_state_prepare_direct_token(
+    KainActorReplyPortState* state,
+    KainActorRef* out_actor_ref
+) {
+    KainActorRef actor_ref;
+    KainActorRef direct_ref;
+    void* reply_data_to_free = NULL;
+    unsigned int next_generation;
+
+    if (state == NULL || out_actor_ref == NULL) {
+        return -1;
+    }
+
+    kain_actor_reply_port_state_copy_actor_ref(state, &actor_ref);
+    if (actor_ref.actor_id != KAIN_ACTOR_ID_INVALID) {
+        kain_actor_reply_port_state_unbind_synthetic_actor(state);
+    }
+
+#ifdef _WIN32
+    EnterCriticalSection(&state->lock);
+    reply_data_to_free = state->reply_data;
+    next_generation = state->direct_generation + 1u;
+    if (next_generation == 0u) {
+        next_generation = 1u;
+    }
+    state->direct_generation = next_generation;
+    state->completed = 0;
+    state->owner_inline_ready = 0;
+    state->reply_data = NULL;
+    state->reply_size = 0u;
+    memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
+    kain_actor_reply_port_ref_write_direct(&direct_ref, next_generation);
+    state->actor_ref = direct_ref;
+    ResetEvent(state->completed_event);
+    LeaveCriticalSection(&state->lock);
+#else
+    pthread_mutex_lock(&state->lock);
+    reply_data_to_free = state->reply_data;
+    next_generation = state->direct_generation + 1u;
+    if (next_generation == 0u) {
+        next_generation = 1u;
+    }
+    state->direct_generation = next_generation;
+    state->completed = 0;
+    state->owner_inline_ready = 0;
+    state->reply_data = NULL;
+    state->reply_size = 0u;
+    memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
+    kain_actor_reply_port_ref_write_direct(&direct_ref, next_generation);
+    state->actor_ref = direct_ref;
+    pthread_mutex_unlock(&state->lock);
+#endif
+
+    if (
+        reply_data_to_free != NULL
+        && !kain_actor_reply_port_state_uses_inline_payload(state, reply_data_to_free)
+    ) {
+        free(reply_data_to_free);
+    }
+    *out_actor_ref = direct_ref;
+    return 0;
 }
 
 static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPortState* state) {
@@ -1873,29 +2019,10 @@ void* kain_actor_reply_port_new(void) {
         return state;
     }
 
-    state = (KainActorReplyPortState*)calloc(1, sizeof(KainActorReplyPortState));
+    state = kain_actor_reply_port_state_alloc();
     if (state == NULL) {
         return NULL;
     }
-
-    kain_actor_ref_zero(&state->actor_ref);
-    state->completed = 0;
-    state->reply_data = NULL;
-    state->reply_size = 0u;
-    state->references = 1;
-    memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
-#ifdef _WIN32
-    InitializeCriticalSection(&state->lock);
-    state->completed_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (state->completed_event == NULL) {
-        DeleteCriticalSection(&state->lock);
-        free(state);
-        return NULL;
-    }
-#else
-    pthread_mutex_init(&state->lock, NULL);
-    pthread_cond_init(&state->completed_cond, NULL);
-#endif
 
     if (kain_actor_reply_port_state_bind_synthetic_actor(state) != 0) {
         kain_actor_reply_port_state_release(state);
@@ -1903,6 +2030,38 @@ void* kain_actor_reply_port_new(void) {
     }
 
     g_actor_reply_port_tls = state;
+    return state;
+}
+
+void* kain_actor_reply_port_prepare_direct(KainActorRef* out_ref) {
+    KainActorReplyPortState* state;
+    int created_state = 0;
+
+    if (out_ref == NULL) {
+        return NULL;
+    }
+    kain_actor_ref_zero(out_ref);
+    kain_actor_runtime_ensure_initialized();
+
+    if (g_actor_reply_port_tls != NULL) {
+        state = g_actor_reply_port_tls;
+    } else {
+        state = kain_actor_reply_port_state_alloc();
+        if (state == NULL) {
+            return NULL;
+        }
+        g_actor_reply_port_tls = state;
+        created_state = 1;
+    }
+
+    if (kain_actor_reply_port_state_prepare_direct_token(state, out_ref) != 0) {
+        if (created_state) {
+            g_actor_reply_port_tls = NULL;
+            kain_actor_reply_port_state_release(state);
+        }
+        kain_actor_ref_zero(out_ref);
+        return NULL;
+    }
     return state;
 }
 
@@ -3644,6 +3803,38 @@ static void kain_scheduler_init(void) {
                       kain_scheduler_worker_thread, NULL);
 #endif
     }
+}
+
+static KainActorReplyPortState* kain_actor_reply_port_state_alloc(void) {
+    KainActorReplyPortState* state =
+        (KainActorReplyPortState*)calloc(1, sizeof(KainActorReplyPortState));
+
+    if (state == NULL) {
+        return NULL;
+    }
+
+    kain_actor_ref_zero(&state->actor_ref);
+    state->completed = 0;
+    state->owner_inline_ready = 0;
+    state->reply_data = NULL;
+    state->reply_size = 0u;
+    state->references = 1;
+    state->direct_generation = 0u;
+    memset(state->inline_reply_data, 0, sizeof(state->inline_reply_data));
+#ifdef _WIN32
+    InitializeCriticalSection(&state->lock);
+    state->completed_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (state->completed_event == NULL) {
+        DeleteCriticalSection(&state->lock);
+        free(state);
+        return NULL;
+    }
+#else
+    pthread_mutex_init(&state->lock, NULL);
+    pthread_cond_init(&state->completed_cond, NULL);
+#endif
+
+    return state;
 }
 
 static void kain_scheduler_shutdown(void) {

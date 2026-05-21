@@ -35,6 +35,7 @@ pub const REQUIRED_NATIVE_ACTOR_SYMBOLS: &[&str] = &[
     "kain_actor_receive",
     "kain_actor_try_receive",
     "kain_actor_reply_port_new",
+    "kain_actor_reply_port_prepare_direct",
     "kain_actor_reply_port_actor_id",
     "kain_actor_reply_port_actor_ref",
     "kain_actor_reply_port_destroy",

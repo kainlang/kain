@@ -1822,8 +1822,10 @@ fn drive() -> Int:
 
     assert!(llvm.contains("%KainActorRef = type { i64, i32, i32, i32 }"));
     assert!(llvm.contains("%KainReplyPort = type { %KainActorRef, i8* }"));
-    assert!(llvm.contains("call i8* @kain_actor_reply_port_new()"));
-    assert!(llvm.contains("call void @kain_actor_reply_port_actor_ref(i8*"));
+    assert!(llvm.contains("declare i8* @kain_actor_reply_port_prepare_direct(%KainActorRef*)"));
+    assert!(llvm.contains("call i8* @kain_actor_reply_port_prepare_direct(%KainActorRef*"));
+    assert!(!llvm.contains("call i8* @kain_actor_reply_port_new()"));
+    assert!(!llvm.contains("call void @kain_actor_reply_port_actor_ref(i8*"));
     assert!(llvm
         .contains("declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)"));
     assert!(llvm.contains("call i32 @kain_actor_ask_send_ref(%KainActorRef* "));

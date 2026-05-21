@@ -423,6 +423,92 @@ int main(void) {
     }
 
     {
+        void* reply_port = NULL;
+        KainActorRef first_direct_ref;
+        KainActorRef stale_direct_ref;
+        KainActorRef rebound_direct_ref;
+        long long first_value = 17;
+        long long second_value = 88;
+        long long received_value = 0;
+
+        memset(&first_direct_ref, 0, sizeof(first_direct_ref));
+        memset(&stale_direct_ref, 0, sizeof(stale_direct_ref));
+        memset(&rebound_direct_ref, 0, sizeof(rebound_direct_ref));
+
+        reply_port = kain_actor_reply_port_prepare_direct(&first_direct_ref);
+        status = expect_true(reply_port != NULL, 400, "direct reply port prepares");
+        if (status != 0) return status;
+        stale_direct_ref = first_direct_ref;
+        status = expect_true(
+            first_direct_ref.actor_id == KAIN_ACTOR_ID_INVALID,
+            401,
+            "direct reply ref keeps invalid actor id"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            first_direct_ref.generation != 0u,
+            402,
+            "direct reply ref receives generation token"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            first_direct_ref.execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT,
+            403,
+            "direct reply ref keeps synthetic execution class"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            first_direct_ref.locality_class == KAIN_ACTOR_LOCALITY_LOCAL,
+            404,
+            "direct reply ref keeps local locality class"
+        );
+        if (status != 0) return status;
+        status = expect_true(!kain_actor_ref_is_live(&first_direct_ref), 405, "direct reply ref is handle-only");
+        if (status != 0) return status;
+        status = expect_true(
+            kain_actor_reply_port_send_handle(reply_port, &first_direct_ref, &first_value, sizeof(first_value)) == 0,
+            406,
+            "direct reply ref accepts handle send"
+        );
+        if (status != 0) return status;
+        received_value = kain_actor_reply_port_wait_i64(reply_port, 1000);
+        status = expect_true(received_value == first_value, 407, "direct reply wait returns first payload");
+        if (status != 0) return status;
+
+        reply_port = kain_actor_reply_port_prepare_direct(&rebound_direct_ref);
+        status = expect_true(reply_port != NULL, 408, "direct reply port rebinds");
+        if (status != 0) return status;
+        status = expect_true(
+            rebound_direct_ref.actor_id == KAIN_ACTOR_ID_INVALID,
+            409,
+            "direct reply ref keeps invalid actor id after rebind"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            rebound_direct_ref.generation != stale_direct_ref.generation,
+            410,
+            "direct reply ref rearm bumps generation"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            kain_actor_reply_port_send_handle(reply_port, &stale_direct_ref, &second_value, sizeof(second_value)) != 0,
+            411,
+            "stale direct reply ref send rejected"
+        );
+        if (status != 0) return status;
+        status = expect_true(
+            kain_actor_reply_port_send_handle(reply_port, &rebound_direct_ref, &second_value, sizeof(second_value)) == 0,
+            412,
+            "rebound direct reply ref accepts handle send"
+        );
+        if (status != 0) return status;
+        received_value = kain_actor_reply_port_wait_i64(reply_port, 1000);
+        status = expect_true(received_value == second_value, 413, "direct reply wait returns rebound payload");
+        if (status != 0) return status;
+        kain_actor_reply_port_destroy(reply_port);
+    }
+
+    {
         AskProbe probe;
         KainActorSpawnConfig config;
         KainActorId actor_id;

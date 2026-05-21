@@ -209,7 +209,13 @@ fn native_actor_abi_defaults_match_runtime_contract() {
         .contains(&"kain_actor_ref_from_id"));
     assert!(contract
         .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_prepare_direct"));
+    assert!(contract
+        .required_runtime_symbols()
         .contains(&"kain_actor_reply_port_actor_ref"));
+    assert!(contract
+        .required_runtime_symbols()
+        .contains(&"kain_actor_reply_port_new"));
     assert!(contract
         .required_runtime_symbols()
         .contains(&"kain_actor_reply_port_send"));

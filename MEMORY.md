@@ -1,5 +1,63 @@
 # Kain Memory
 
+# 2026-05-21 - direct ask reply-port prep and owner-inline completion cut more actor wait overhead
+
+The inline scheduler-lock cut moved the actor frontier, but hot ask/reply traffic was still paying two avoidable taxes: compiler-lowered direct asks still rebound a synthetic actor-table slot just to mint a stale-reply token, and same-thread inline completion still fell back to the reply-port lock/wake path before the owner thread copied the completed payload back out. This pass finished the direct-token lane, added an owner-thread readback fast path, and reran the canonical benchmark suite.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - lowered actor `ask` / `ask_timeout` setup through `kain_actor_reply_port_prepare_direct(...)` instead of `kain_actor_reply_port_new()` plus synthetic-actor ref export
+- `runtime/native/include/actor.h`
+  - exported the compiler-owned `kain_actor_reply_port_prepare_direct(...)` ABI surface
+- `runtime/native/src/core/actor.c`
+  - added direct-token reply-port rearm with generation bump and invalid-actor direct refs
+  - added the owner-thread `owner_inline_ready` completion lane so same-thread inline asks can read back completed payloads without re-taking the reply-port lock or firing a useless wake
+  - kept stale direct replies observable and rejected through generation-tagged `send_handle(...)` matching
+- actor ABI / compiler validation surfaces:
+  - `crates/kain-actor/src/native.rs`
+  - `crates/kain-actor/src/tests.rs`
+  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `runtime/conformance/actor_runtime/test_actor_abi_contract.c`
+- proof surfaces:
+  - `runtime/native/src/core/z3/proofs-experimental/actor-reply-port-direct-token-rearm-invalidates-stale-generation.smt2`
+  - `runtime/native/src/core/z3/proofs-experimental/actor-reply-port-owner-inline-stale-direct-token-rejected.smt2`
+  - `runtime/native/src/core/z3/proofs/actor-reply-port-direct-token-rearm-invalidates-stale-generation.yaml`
+- durable notes:
+  - `research/2026-05-21-actor-frontier-speedup-hunt.md`
+  - `benchmark/assesments/2026-05-21-direct-ask-owner-inline-wait-assessment.md`
+
+Validation:
+
+- `toolchain\\llvm\\bin\\clang.exe -fsyntax-only runtime\\native\\src\\core\\actor.c -I runtime\\native\\include`
+- `cargo test -p kain-actor --target-dir target/codex-actor-direct-token`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test actor_ask_reply --target-dir target/codex-actor-direct-token-codegen -- --nocapture`
+- `mcp__z3_local__.check_smt2(...)` for `actor-reply-port-direct-token-rearm-invalidates-stale-generation.smt2` -> `unsat`
+- `mcp__z3_local__.check_smt2(...)` for `actor-reply-port-owner-inline-stale-direct-token-rejected.smt2` -> `unsat`
+- focused baseline: `benchmark/out/reports/latest_actor_frontier_baseline.llm.md`
+- focused retake: `benchmark/out/reports/latest_actor_owner_inline_wait_combo_9.llm.md`
+- canonical full suite: `python benchmark/run.py --timeout 900` -> `PASS`
+- harness cleanup note: the first full rerun hit a stale Windows `process_stdio_loop.exe` linker/permission failure; removing `benchmark/out/build/process_stdio_loop/kain/process_stdio_loop.exe` and rerunning restored a clean PASS
+- workspace hygiene note: targeted Rust validation initially hit disk exhaustion; deleting agent scratch dirs `.codex-tmp` and `target/codex-*` recovered about `86 GB` and the rerun passed
+
+Measured outcome:
+
+- focused actor before/after:
+  - `actor_ownership_backpressure`: Kain `456.236 ms` -> `309.923 ms`
+  - `semantic_fabric_relay`: Kain `114.217 ms` -> `93.487 ms`
+- canonical full suite (`benchmark/out/reports/latest.llm.md`, generated `2026-05-21T22:22:19.046887+00:00`):
+  - `actor_ownership_backpressure`: Kain `313.311 ms`, C++ `18.673 ms`
+  - `semantic_fabric_relay`: Kain `91.346 ms`, C++ `11.272 ms`
+  - `pulse_teleport_decay_mesh`: Kain `93.919 ms`, C++ `16.827 ms`
+  - `unicode_string_heavy`: Kain `102.749 ms`, C++ `9.917 ms`
+  - `http_server_concurrency`: Kain `73.373 ms`, Rust `50.901 ms`
+
+Durable lesson:
+
+- The direct ask lane was still wasting time on reply-port setup and owner-thread completion plumbing. Cutting that waste bought a real actor win and did not require any benchmark cheat or authored Kain change.
+- The suite is still rich enough that no new benchmark row was needed. The next honest high-value frontier remains the actor semantic cluster (`actor_ownership_backpressure`, `semantic_fabric_relay`, `pulse_teleport_decay_mesh`), with `unicode_string_heavy` now the loudest non-proxy implemented loss.
+- The automation deadline requirement is still satisfied by the live frontier row itself: `benchmark/cases/actor_ownership_backpressure/main.kn` already exercises `deadline_millis(...)` and `deadline_elapsed(...)`.
+
 # 2026-05-21 - inline ask path shed scheduler-lock traffic and the actor frontier moved again
 
 The reply-port and live-snapshot work had already removed obvious ask/reply waste, but same-thread inline microcell asks were still paying scheduler-lock traffic just to discover that no queue admission was needed. This pass cut that scheduler lock from the inline claim path, skipped finish-turn scheduler locking when there was no backlog to requeue, and proved the dequeue ordering so we did not create a double-owner race.

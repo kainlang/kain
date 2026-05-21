@@ -652,6 +652,16 @@ void kain_actor_message_release(void* message_data);
  * ref and returns the state to the TLS cache for the next ask.
  */
 void* kain_actor_reply_port_new(void);
+/*
+ * Compiler-lowered direct ask lane.
+ *
+ * Generated `ask` / `ask_timeout` payloads already carry the stable reply-port
+ * handle, so they do not need a live synthetic actor-table slot just to mint a
+ * generation token for stale-reply rejection. This helper rearms the per-thread
+ * reply-port state directly and writes the generation-tagged token that
+ * `kain_actor_reply_port_send_handle(...)` must match.
+ */
+void* kain_actor_reply_port_prepare_direct(KainActorRef* out_ref);
 KainActorId kain_actor_reply_port_actor_id(void* reply_port_handle);
 void kain_actor_reply_port_actor_ref(void* reply_port_handle, KainActorRef* out_ref);
 void kain_actor_reply_port_destroy(void* reply_port_handle);
@@ -669,9 +679,10 @@ int kain_actor_reply_port_send_ref(
  * Compiler-lowered fast reply lane.
  *
  * Generated `P` payloads may carry both the stable reply-port handle returned by
- * `kain_actor_reply_port_new()` and the generation-tagged ref captured for this
- * ask. The handle lets local replies complete without a global actor-table
- * lookup, while the ref still guards against stale timeout/rearm sends.
+ * `kain_actor_reply_port_new()` / `kain_actor_reply_port_prepare_direct()` and
+ * the generation-tagged ref captured for this ask. The handle lets local
+ * replies complete without a global actor-table lookup, while the ref still
+ * guards against stale timeout/rearm sends.
  */
 int kain_actor_reply_port_send_handle(
     void* reply_port_handle,
