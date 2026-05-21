@@ -1,7 +1,7 @@
 ---
 name: lang-stdlib
 description: >-
-  Use when authoring, explaining, reviewing, or repairing Kain code that consumes the public root `std::*` surface: runtime, actor, alloc, collections, crypto, diagnostics, fs, gen_server, gpu, graphics, graphics::shared, hash, http, http2, input, intent, math, net, platform, process, reload, result, test, text, time, tls, and ui. Use for choosing imports, finding symbols without loading the whole stdlib map, writing Kain examples over stdlib domains, and routing stdlib bugs to runtime/bootstrap owners without changing stdlib implementation underneath.
+  Use when authoring, explaining, reviewing, or repairing Kain code that consumes the public root `std::*` surface: actor, alloc, attrition, bench, build, certify, collections, crypto, diagnostics, fs, gen_server, gpu, graphics, graphics::shared, hash, http, http2, input, intent, math, net, platform, process, proof, reload, result, runtime, test, text, time, tls, and ui. Use for choosing imports, finding symbols without loading the whole stdlib map, writing Kain examples over stdlib domains, and routing stdlib bugs to runtime/bootstrap owners without changing stdlib implementation underneath.
 ---
 
 # Lang Stdlib
@@ -25,6 +25,8 @@ Use the bundled query helper before loading giant generated files:
 python query_stdlib.py --summary
 python query_stdlib.py --imports
 python query_stdlib.py --module math --contains vec3 --limit 40
+python query_stdlib.py --module build --contains task --limit 40
+python query_stdlib.py --module proof --limit 40
 python query_stdlib.py --module ui --contains clipboard --limit 40
 python query_stdlib.py --search fs_read --limit 20
 python query_stdlib.py --search GPU_DESCRIPTOR --kind const --limit 40
@@ -43,9 +45,9 @@ kain run <entry.kn-or-blade> --target llvm
 
 The generated native root profile currently says:
 
-- `modules=27`
-- `public_symbols=1549`
-- `total_symbols=1976`
+- `modules=32`
+- `public_symbols=1598`
+- `total_symbols=2077`
 - `rust_builtins=233`
 - `native_services=36`
 - Scope is top-level `stdlib/*.kn` for LLVM/native root profile.
@@ -56,6 +58,10 @@ Current root imports:
 ```kn
 use std::actor
 use std::alloc
+use std::attrition
+use std::bench
+use std::build
+use std::certify
 use std::collections
 use std::crypto
 use std::diagnostics
@@ -73,6 +79,7 @@ use std::math
 use std::net
 use std::platform
 use std::process
+use std::proof
 use std::reload
 use std::result
 use std::runtime
@@ -114,6 +121,10 @@ Source anchors:
 | Start or stop native services | `std::runtime` | `runtime_init`, `runtime_shutdown`, `runtime_heap_validate` | `runtime-core` if broken |
 | Actors and scheduler telemetry | `std::actor` | `actor_spawn`, `actor_send`, `actor_shutdown`, `actor_scheduler_queue_depth` | `lang-actors`, `lang-systems` |
 | Arena/bump/pool memory helpers | `std::alloc` | `arena_create`, `arena_alloc`, `bump_alloc`, `pool_alloc` | `lang-systems` |
+| Attrition evidence DAG tasks | `std::attrition` | `attrition_task`, `attrition_case`, `attrition_case_named` | `lang-projects`, `test-attrition` |
+| Benchmark evidence DAG tasks | `std::bench` | `bench_task`, `bench_case`, `benchmark_task`, `bench_case_named` | `lang-projects`, `test-bench` |
+| Project/build authority DAGs | `std::build` | `build_graph`, `package`, `blade`, `build_defaults`, `run_defaults`, `build_check`, `native_executable` | `lang-projects` |
+| Certification gates | `std::certify` | `certify_task`, `certify_gate`, `release_gate` | `lang-projects`, `tool-release-readiness` |
 | Maps, queues, slot maps, clamps | `std::collections` | `typed_map_*`, `queue_*`, `slot_map_*`, `int_clamp`, `bool_to_int` | `lang-systems` |
 | Digests and random bytes | `std::crypto` | `sha256`, `hmac_sha256`, `blake3`, `random_bytes_hex` | `lang-interop` if external crypto |
 | Status and error composition | `std::diagnostics` | `status_ok`, `status_failed`, `bool_to_status`, `first_error` | `test-harness` |
@@ -131,6 +142,7 @@ Source anchors:
 | TCP and network platform state | `std::net` | `net_reset`, `tcp_connect`, `tcp_listen`, `tcp_read_text` | `runtime-stdlib` |
 | OS/platform dynamic libraries | `std::platform` | `platform_current_name`, `platform_library_open`, `platform_library_resolve` | `lang-interop` |
 | Processes and PTYs | `std::process` | `process_spec_create`, `process_spawn`, `process_wait`, `process_stdout_text` | `runtime-stdlib` |
+| Proof evidence DAG tasks | `std::proof` | `proof_task`, `proof_obligation`, `z3_proof`, `proof_smt2` | `lang-projects`, `test-harness` |
 | Hot reload generations | `std::reload` | `reload_begin`, `reload_commit`, `reload_generation`, `reload_snapshot_key` | `lang-ui`, `package-kaintana` |
 | Numeric result status codes | `std::result` | `result_ok`, `result_is_error`, `result_combine` | `test-harness` |
 | Test/proof outcomes | `std::test` | `test_bool`, `test_proved`, `test_outcome_ok` | `test-harness` |
@@ -147,6 +159,10 @@ Use this as the one-scan map. Query exact symbols with repo-root `query_stdlib.p
 | --- | --- | --- |
 | `std::actor` | `stdlib/actor.kn` | 74 public actor lifecycle, registry, monitor/link, supervision, scheduler telemetry helpers. Prefer language `actor`/`spawn`/`send`/`ask` for semantic authoring; use `std::actor` when you need runtime service handles or telemetry. |
 | `std::alloc` | `stdlib/alloc.kn` | 27 public bump, arena, and pool allocator structs/functions. Use when authored Kain needs explicit allocation domains beyond raw `alloc_zeroed`; destroy/reset allocators deliberately. |
+| `std::attrition` | `stdlib/attrition.kn` | 3 public build DAG helpers for attrition evidence tasks over runtime abuse, teardown, sabotage, and long-run certification. |
+| `std::bench` | `stdlib/bench.kn` | 4 public build DAG helpers for benchmark evidence tasks and named benchmark cases. |
+| `std::build` | `stdlib/build.kn` | 33 public project authority helpers for `build.kn`: package, blade, defaults, run defaults, platform requirements, task specs, checks, native executables, dependencies, inputs, outputs, axes, telemetry, and certificates. |
+| `std::certify` | `stdlib/certify.kn` | 3 public build DAG helpers for certification and release gates. |
 | `std::collections` | `stdlib/collections.kn` | 87 public helpers for typed string-int maps, queues, deques, priority queues, slot maps, `int_min/max/clamp`, and bool/int conversion. |
 | `std::crypto` | `stdlib/crypto.kn` | 9 public digest/random helpers: SHA-256, HMAC-SHA-256, BLAKE3, random bytes/hex. Use for authored proof/demo crypto, not external provider integration. |
 | `std::diagnostics` | `stdlib/diagnostics.kn` | 18 public status helpers. Use to normalize `0 == ok` style runtime results into Bool/status folds. |
@@ -164,10 +180,11 @@ Use this as the one-scan map. Query exact symbols with repo-root `query_stdlib.p
 | `std::net` | `stdlib/net.kn` | 56 public network platform/capability, TCP client/server, HTTP parsing/server helpers, local status/error helpers. |
 | `std::platform` | `stdlib/platform.kn` | 24 public platform identity and dynamic library open/close/resolve/status helpers. This is Kain's OS contract seam for package/platform work. |
 | `std::process` | `stdlib/process.kn` | 49 public child-process and PTY helpers: specs, args/cwd/env, stdio modes, spawn, poll/wait, stdin/stdout/stderr text/hex, terminate/kill. |
+| `std::proof` | `stdlib/proof.kn` | 4 public build DAG helpers for Z3 proof obligations and SMT2 proof task entries. |
 | `std::reload` | `stdlib/reload.kn` | 31 public hot-reload generation, snapshot, package surface, migration, and lane-class helpers. |
 | `std::result` | `stdlib/result.kn` | 20 public numeric result-code helpers. Use when a runtime service returns status integers and you need stable composition. |
 | `std::runtime` | `stdlib/runtime.kn` | 56 public runtime init/shutdown, heap validation, attrition checkpointing, CPU feature/capability, SIMD lane, converge cache/telemetry, machine teleport/pulse counters. |
-| `std::test` | `stdlib/test.kn` | 17 public test/proof outcome constants and helpers: pass/fail/skip/proved/witness, bool outcome, status combine. |
+| `std::test` | `stdlib/test.kn` | 19 public test/proof outcome constants, helpers, and build DAG test suite constructors: pass/fail/skip/proved/witness, bool outcome, status combine. |
 | `std::text` | `stdlib/text.kn` | 26 public zero-copy text slice and string view helpers: slice/from/view/len/find/contains/trim/materialize. |
 | `std::time` | `stdlib/time.kn` | 8 public native time helpers: now, sleep, deadline, elapsed. |
 | `std::tls` | `stdlib/tls.kn` | 11 public TLS/HTTPS client state and request helpers. |

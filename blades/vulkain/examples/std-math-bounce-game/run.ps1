@@ -12,7 +12,7 @@ Set-StrictMode -Version Latest
 $exampleRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $vulkainRoot = Resolve-Path (Join-Path $exampleRoot "..\..")
 $repoRoot = Resolve-Path (Join-Path $vulkainRoot "..\..")
-$compileScript = Join-Path $repoRoot ".agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1"
+$compileScript = Join-Path $repoRoot ".agents\skills\lang-projects\scripts\compile_kain_project_to_root.ps1"
 $prebuildScript = Join-Path $vulkainRoot "build-vulkain.ps1"
 $rootExe = Join-Path $exampleRoot "vulkain-math-bounce.exe"
 $runtimeCacheRoot = Join-Path $exampleRoot ".kain\native_runtime\cache"

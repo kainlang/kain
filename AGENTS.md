@@ -1,6 +1,6 @@
 ## Ultimate Kain Specimen
 Welcome to kain-lang, an all new language that is currently on average 2x faster than C++ and 8x faster than rust.
-This is the injected north-star example. It is intentionally dense: it teaches agents Kain is allowed to be in one scan. For compile-certified syntax, compare against `blades/kain-example/src/main.kn`, `benchmark/cases/semantic_singularity_crucible/main.kn`, `blades/stdlib-domains/src/main.kn`, `blades/network-domains/src/main.kn`, `blades/math-domains/src/main.kn`, and `benchmark/cases/gpu_graphics_submit/main.kn`. A real `use c::...` lane also needs a blade-local `KAIN.toml` with `[c_ffi]` metadata. (if you update the stdlib or add a new one, update this example)
+This is the injected north-star example. It is intentionally dense: it teaches agents Kain is allowed to be in one scan. For compile-certified syntax, compare against `blades/kain-example/src/main.kn`, `benchmark/cases/semantic_singularity_crucible/main.kn`, `blades/stdlib-domains/src/main.kn`, `blades/network-domains/src/main.kn`, `blades/math-domains/src/main.kn`, and `benchmark/cases/gpu_graphics_submit/main.kn`. Generic runtime-owned `use c::...` imports can resolve automatically; blade/package-owned inline or shared bridges may still carry explicit local bridge metadata. (if you update the stdlib or add a new one, update this example)
 
 
 
@@ -621,7 +621,7 @@ Do not let new Kain files collapse into plain `fn` and `let` soup when the probl
 
 - SKILLS are the most important part of our agent pipeline. Without it, agents will have no idea how to write Kain without going on a scavenger hunt. Treat this pipeline as critical infrastructure. It is in .agents/skills and ensure to be UPDATING IT whenever applicable. New features, things learned, updates, new tricks, pipeline updates etc - the skills need to be updated often when it matters, especially when working on the /crates bootstrap pipeline etc.
 
-- `lang-*`: writing in Kain. Authored `.kn` code, blades, stdlib usage, translation, UI, GPU, actors, ownership, and application-facing command usage.
+- `lang-*`: writing in Kain. Authored `.kn` code, project/build authority, stdlib usage, translation, UI, GPU, actors, ownership, and application-facing command usage.
 - `bootstrap-*`: changing compiler, parser, AST, lowering, semantic wiring, or other bootstrap truth.
 - `runtime-*`: changing native substrate, host bridges, runtime-backed stdlib behavior, and GPU execution/runtime paths.
 - `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.

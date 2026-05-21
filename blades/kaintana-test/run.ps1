@@ -11,7 +11,7 @@ Set-StrictMode -Version Latest
 
 $bladeRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $bladeRoot "..\..")
-$compileScript = Join-Path $repoRoot ".agents\skills\lang-blades\scripts\compile_kain_blade_to_root.ps1"
+$compileScript = Join-Path $repoRoot ".agents\skills\lang-projects\scripts\compile_kain_project_to_root.ps1"
 $kaintanaDesktopBuild = Join-Path $repoRoot "blades\kaintana\build-desktop.ps1"
 $rootExe = Join-Path $bladeRoot "kaintana-test.exe"
 $runtimeCacheRoot = Join-Path $bladeRoot ".kain\native_runtime\cache"

@@ -2037,7 +2037,7 @@ fn build_explicit_task(
                 .first()
                 .cloned()
                 .unwrap_or_else(|| root.join(default_executable_name(blade, root)));
-            let script_path = find_lang_blades_compile_script(root);
+            let script_path = find_lang_projects_compile_script(root);
             if !inputs.iter().any(|path| path == &script_path) {
                 inputs.push(script_path.clone());
             }
@@ -4457,12 +4457,12 @@ fn default_executable_name(blade: Option<&ResolvedBlade>, root: &Path) -> String
     }
 }
 
-fn find_lang_blades_compile_script(start: &Path) -> PathBuf {
+fn find_lang_projects_compile_script(start: &Path) -> PathBuf {
     let relative = Path::new(".agents")
         .join("skills")
-        .join("lang-blades")
+        .join("lang-projects")
         .join("scripts")
-        .join("compile_kain_blade_to_root.ps1");
+        .join("compile_kain_project_to_root.ps1");
     for ancestor in start.ancestors() {
         let candidate = ancestor.join(&relative);
         if candidate.exists() {
@@ -5047,7 +5047,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         assert!(resolved
             .inputs
             .iter()
-            .any(|path| path.ends_with("compile_kain_blade_to_root.ps1")));
+            .any(|path| path.ends_with("compile_kain_project_to_root.ps1")));
         let _ = std::fs::remove_dir_all(root);
     }
 

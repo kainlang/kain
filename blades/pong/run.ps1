@@ -10,7 +10,7 @@ Set-StrictMode -Version Latest
 
 $bladeRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $bladeRoot "..\..")
-$compileScript = Join-Path $repoRoot ".agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1"
+$compileScript = Join-Path $repoRoot ".agents\skills\lang-projects\scripts\compile_kain_project_to_root.ps1"
 $prebuildScript = Join-Path $bladeRoot "build-pong-window.ps1"
 $entry = Join-Path $bladeRoot "src\main.kn"
 $exePath = Join-Path $bladeRoot "pong.exe"

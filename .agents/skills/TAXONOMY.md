@@ -4,7 +4,7 @@ This file is only the live skill split for current agents.
 
 ## Namespaces
 
-- `lang-*`: writing in Kain. Authored `.kn` code, blades, stdlib usage, systems-level actors/effects/ownership/raw memory, interop/OS/native package boundaries, UI, GPU, and translation.
+- `lang-*`: writing in Kain. Authored `.kn` code, project/build authority, stdlib usage, systems-level actors/effects/ownership/raw memory, interop/OS/native package boundaries, UI, GPU, and translation.
 - `bootstrap-*`: changing compiler/frontend/selfhost truth.
 - `runtime-*`: changing native substrate and runtime-backed stdlib behavior.
 - `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.
@@ -19,7 +19,7 @@ This file is only the live skill split for current agents.
 - `lang-interop`
 - `lang-actors`
 - `lang-commands`
-- `lang-blades`
+- `lang-projects`
 - `lang-stdlib`
 - `lang-c-abi-ffi`
 - `lang-ownership`
@@ -48,6 +48,7 @@ This file is only the live skill split for current agents.
 
 - Prefer updating an existing namespaced skill over adding a new micro-skill.
 - Do not create `misc-*`.
+- Use `lang-projects` for `build.kn`, project authority, evidence DAGs, blades/workspaces, portable capsules, and authored project/run/build/test flow. Blades are now a scale mode inside projects, not a top-level skill.
 - Use `lang-systems` for fused actor/effects/ownership/raw-memory authoring; keep `lang-actors` and `lang-ownership` as narrower domain lanes until they are intentionally merged or archived.
 - Use `lang-interop` for Kain-side native/foreign boundaries; keep `lang-c-abi-ffi` as the narrow C ABI card until it is intentionally merged or archived.
 - `tool-build-system` is the single build/Bazel/operator lane.
