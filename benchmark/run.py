@@ -882,9 +882,11 @@ def should_retry_output_lock(stderr: str) -> bool:
     text = stderr.lower()
     return (
         "permission denied" in text
+        or "access is denied" in text
         or "fatal error lnk1104" in text
         or "cannot open file" in text
         or "unable to remove file" in text
+        or "unable to remove stale runtime cache artifact" in text
     )
 
 
@@ -923,6 +925,17 @@ def run_build_command_with_retries(
         stderr=last_result.stderr,
         elapsed_ms=total_elapsed_ms,
     )
+
+
+def wait_for_build_output(path: Path, *, attempts: int | None = None, delay_secs: float = 0.1) -> bool:
+    if path.exists():
+        return True
+    settle_attempts = attempts if attempts is not None else (12 if os.name == "nt" else 1)
+    for _ in range(settle_attempts):
+        time.sleep(delay_secs)
+        if path.exists():
+            return True
+    return False
 
 
 def kain_generated_runtime_root(case: dict[str, Any]) -> Path | None:
@@ -1021,6 +1034,8 @@ def build_kain_case(
         output_paths=sidecar_paths_for_executable(exe_path) + [ll_path],
     )
     produced_exe = ll_path.with_suffix(".exe" if os.name == "nt" else "")
+    wait_for_build_output(ll_path)
+    wait_for_build_output(produced_exe)
     if produced_exe.exists() and produced_exe != exe_path:
         shutil.copyfile(produced_exe, exe_path)
     elif produced_exe.exists():
@@ -1140,6 +1155,7 @@ def build_rust_case(
         timeout=timeout,
         output_paths=sidecar_paths_for_executable(exe_path),
     )
+    wait_for_build_output(exe_path)
     if support_artifacts:
         copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
     ok = result.returncode == 0 and exe_path.exists()
@@ -1222,6 +1238,7 @@ def build_cpp_case(
         timeout=timeout,
         output_paths=sidecar_paths_for_executable(exe_path),
     )
+    wait_for_build_output(exe_path)
     if support_artifacts:
         copy_runtime_sidecar(Path(support_artifacts["shared"]), exe_path)
     ok = result.returncode == 0 and exe_path.exists()

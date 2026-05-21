@@ -1,0 +1,158 @@
+# Kain Benchmark Snapshot
+
+- status: `PASS`
+- generated_at: `2026-05-21T22:37:25.423659+00:00`
+- warmups: `3`
+- timed_runs: `9`
+- languages: `kain, rust, cpp, zig, go, erlang, javascript, python`
+- baseline_mode: `auto`
+- root_snapshot: `benchmark/full_after_direct_ask_harness_fix`
+- full_report: `benchmark/out/reports/latest_full_after_direct_ask_harness_fix.llm.md`
+- json_report: `benchmark/out/reports/latest_full_after_direct_ask_harness_fix.json`
+
+- baseline_cache_hits: `110`
+- baseline_cache_refreshed: `3`
+- baseline_cache_misses: `0`
+
+- history_db: `D:\Kain-Lang\benchmark\out\history\benchmark_history.sqlite3`
+- history_run_id: `68`
+- previous_comparable_run: `none`
+- compared_kain_cases: `0`
+- kain_regressions: `0`
+- alert_regressions: `0`
+
+## Summary
+
+| case | maturity | winner | kain median ms | rust median ms | cpp median ms | zig median ms | go median ms | erlang median ms | javascript median ms | python median ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| contention_wall | proxy | kain | 10.270 | 1784.608 | 1733.497 | 1940.301 | n/a | n/a | 258.446 | 8062.036 |
+| ghost_mirror | semantic-proxy | kain | 11.188 | 35.396 | 34.777 | n/a | n/a | n/a | 394.231 | 264.021 |
+| evolutionary_loop | dispatch-skeleton | kain | 24.881 | 25.177 | 2363.304 | n/a | n/a | n/a | 101.280 | 1080.584 |
+| semantic_fabric_relay | semantic-proxy | cpp | 89.066 | n/a | 10.658 | n/a | n/a | n/a | n/a | n/a |
+| actor_ownership_backpressure | semantic-proxy | cpp | 302.735 | n/a | 18.340 | n/a | n/a | n/a | n/a | n/a |
+| semantic_host_bridge_fusion | semantic-proxy | cpp | 1136.830 | n/a | 855.081 | n/a | n/a | n/a | n/a | n/a |
+| pulse_teleport_decay_mesh | semantic-proxy | cpp | 93.344 | n/a | 16.827 | n/a | n/a | n/a | n/a | n/a |
+| ownership_memory | implemented | rust | 15.693 | 12.178 | 13.218 | n/a | n/a | n/a | 53.915 | 194.891 |
+| branch_dispatch | implemented | kain | 10.139 | 18.949 | 18.425 | 19.863 | n/a | n/a | 82.728 | 948.349 |
+| call_chain | implemented | kain | 15.850 | 33.132 | 31.723 | 39.641 | n/a | n/a | 151.076 | 1968.147 |
+| memory_stream | implemented | cpp | 12.879 | 11.186 | 10.309 | n/a | n/a | n/a | 51.885 | 102.844 |
+| alloc_churn | implemented | kain | 9.784 | 12.385 | 11.405 | n/a | n/a | n/a | 47.109 | 39.553 |
+| stdlib_foundations | kain-stdlib-proof | kain | 14.104 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| scalar_mix | implemented | kain | 9.973 | 17.427 | 16.579 | n/a | n/a | n/a | 57.107 | 298.620 |
+| recursive_sum | implemented | cpp | 112.582 | 10.497 | 9.657 | n/a | n/a | n/a | 48.431 | 111.251 |
+| string_ops | implemented | kain | 9.516 | 11.621 | 11.363 | n/a | n/a | n/a | 54.563 | 316.123 |
+| array_scan | implemented | kain | 9.140 | 11.542 | 11.440 | n/a | n/a | n/a | 64.560 | 720.903 |
+| machine_stones_shatter_loop | implemented | cpp | 14.247 | 15.720 | 13.472 | n/a | n/a | n/a | 72.211 | 1357.560 |
+| ecs_archetype_query | implemented | kain | 9.798 | 50.243 | 44.614 | n/a | 59.636 | n/a | n/a | n/a |
+| zero_copy_binary_wire | implemented | kain | 12.865 | 87.304 | 159.886 | 96.722 | 186.318 | n/a | n/a | n/a |
+| dynamic_vtable_thrashing | dispatch-proxy | kain | 10.178 | 15.880 | 16.365 | n/a | 19.235 | n/a | n/a | n/a |
+| crypto_block_cipher | implemented | kain | 11.210 | 12.218 | 11.705 | n/a | 14.793 | n/a | n/a | n/a |
+| ray_sphere_intersection | implemented | kain | 10.510 | 90.031 | 80.480 | n/a | 158.866 | n/a | n/a | n/a |
+| sim_nbody_gravity | implemented | kain | 10.539 | 11.171 | 10.947 | n/a | n/a | n/a | n/a | n/a |
+| sim_uv_velocity_grid | implemented | cpp | 19.039 | 17.102 | 15.747 | n/a | n/a | n/a | n/a | n/a |
+| sim_cfd_pressure_projection | implemented | kain | 11.073 | 11.198 | 11.532 | n/a | n/a | n/a | n/a | n/a |
+| semantic_singularity | kain-core-pressure | kain | 61.310 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| struct_method | implemented | kain | 12.191 | 14.119 | 12.766 | n/a | n/a | n/a | 54.646 | 546.135 |
+| option_result | implemented | cpp | 11.133 | 12.860 | 10.455 | n/a | n/a | n/a | 49.945 | 177.526 |
+| async_ready_chain | implemented | kain | 10.954 | 11.461 | n/a | n/a | n/a | n/a | n/a | n/a |
+| tcp_loopback_tokio | implemented | kain | 151.105 | 3345.370 | n/a | n/a | n/a | n/a | n/a | n/a |
+| rayon_parallel_reduce | parallel-proxy | kain | 9.484 | 13.939 | n/a | n/a | n/a | n/a | n/a | n/a |
+| simd_lane_mix | implemented | kain | 10.823 | 85.270 | 53.797 | n/a | n/a | n/a | n/a | n/a |
+| native_map_lookup | implemented | zig | 19.370 | 32.063 | 35.709 | 19.350 | n/a | n/a | n/a | n/a |
+| json_manual_roundtrip | implemented | kain | 10.310 | 121.629 | 167.942 | n/a | n/a | n/a | n/a | n/a |
+| filesystem_stream | implemented | kain | 99.728 | 145.672 | 102.832 | n/a | n/a | n/a | n/a | n/a |
+| process_stdio_loop | implemented | kain | 5464.623 | 7786.229 | 10707.843 | n/a | n/a | n/a | n/a | n/a |
+| http_server_concurrency | semantic-proxy | rust | 64.352 | 50.901 | n/a | n/a | n/a | n/a | n/a | n/a |
+| http_server_frameworks | semantic-proxy | kain | 158.737 | 292.905 | n/a | n/a | 224.419 | n/a | n/a | n/a |
+| actor_mailbox_erlang | implemented | kain | 146.408 | n/a | n/a | n/a | n/a | 441.528 | n/a | n/a |
+| unicode_string_heavy | implemented | kain | 9.633 | 11.780 | 9.917 | n/a | n/a | n/a | n/a | n/a |
+| allocator_large_object_churn | implemented | kain | 12.394 | 45.446 | 42.616 | n/a | n/a | n/a | n/a | n/a |
+| gpu_graphics_submit | implemented | kain | 35.612 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| ffi_shared_call_stress | implemented | rust | 54.887 | 53.023 | 54.547 | n/a | n/a | n/a | n/a | n/a |
+
+## Telemetry
+
+| case | primary metric | winner | kain value | rust value | cpp value | zig value | go value | erlang value | javascript value | python value |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| contention_wall | counter increments/s | kain | 9,737,287,970.554 | 56,034,708.347 | 57,686,864.049 | 51,538,395.331 | n/a | n/a | 386,928,622.503 | 12,403,814.927 |
+| ghost_mirror | payload bytes/s | kain | 5,998,235,982.875 | 1,895,928,783.517 | 1,929,679,905.225 | n/a | n/a | n/a | 170,227,478.594 | 254,179,831.014 |
+| semantic_fabric_relay | semantic rounds/s | cpp | 673,661.519 | n/a | 5,629,468.391 | n/a | n/a | n/a | n/a | n/a |
+| actor_ownership_backpressure | semantic rounds/s | cpp | 594,580.400 | n/a | 9,814,452.326 | n/a | n/a | n/a | n/a | n/a |
+| semantic_host_bridge_fusion | bridge rounds/s | cpp | 2,111.134 | n/a | 2,806.753 | n/a | n/a | n/a | n/a | n/a |
+| pulse_teleport_decay_mesh | semantic rounds/s | cpp | 578,505.933 | n/a | 3,209,147.258 | n/a | n/a | n/a | n/a | n/a |
+| sim_nbody_gravity | pair interactions/s | kain | 25,687,690.366 | 24,234,394.722 | 24,729,837.126 | n/a | n/a | n/a | n/a | n/a |
+| sim_uv_velocity_grid | particle-grid checks/s | cpp | 212,984,857.478 | 237,103,564.412 | 257,508,636.456 | n/a | n/a | n/a | n/a | n/a |
+| sim_cfd_pressure_projection | pressure relaxations/s | kain | 7,282,710.787 | 7,201,478.875 | 6,992,655.284 | n/a | n/a | n/a | n/a | n/a |
+| async_ready_chain | ready awaits/s | kain | 91,293,352.931 | 87,249,376.167 | n/a | n/a | n/a | n/a | n/a | n/a |
+| tcp_loopback_tokio | tcp roundtrips/s | kain | 2,647.175 | 119.568 | n/a | n/a | n/a | n/a | n/a | n/a |
+| native_map_lookup | map lookups/s | zig | 61,951,151.517 | 37,426,316.939 | 33,604,973.536 | 62,016,465.372 | n/a | n/a | n/a | n/a |
+| json_manual_roundtrip | json docs/s | kain | 24,249,243.424 | 2,055,435.929 | 1,488,610.935 | n/a | n/a | n/a | n/a | n/a |
+| filesystem_stream | filesystem bytes/s | kain | 102,971,488.391 | 70,495,003.831 | 99,862,592.079 | n/a | n/a | n/a | n/a | n/a |
+| process_stdio_loop | process launches/s | kain | 54.899 | 38.530 | 28.017 | n/a | n/a | n/a | n/a | n/a |
+| http_server_concurrency | http requests/s | rust | 3,729.470 | 4,715.007 | n/a | n/a | n/a | n/a | n/a | n/a |
+| http_server_frameworks | http requests/s | kain | 2,015.917 | 1,092.506 | n/a | n/a | 1,425.902 | n/a | n/a | n/a |
+| actor_mailbox_erlang | actor asks/s | kain | 1,366,043.705 | n/a | n/a | n/a | n/a | 452,972.815 | n/a | n/a |
+| gpu_graphics_submit | submitted vertices/s | kain | 6,739,206.739 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+
+## Stability Alerts
+
+| case | language | median ms | max ms | stability |
+| --- | --- | --- | --- | --- |
+| contention_wall | kain | 10.270 | 111.181 | unstable samples - max 10.83x median, stdev/mean 1.50 |
+| contention_wall | javascript | 258.446 | 730.807 | unstable samples - max 2.83x median, stdev/mean 0.51 |
+| ghost_mirror | kain | 11.188 | 122.947 | unstable samples - max 10.99x median, stdev/mean 1.51 |
+| ghost_mirror | cpp | 34.777 | 115.448 | unstable samples - max 3.32x median, stdev/mean 0.54 |
+| evolutionary_loop | kain | 24.881 | 125.153 | unstable samples - max 5.03x median, stdev/mean 0.88 |
+| evolutionary_loop | javascript | 101.280 | 296.981 | unstable samples - max 2.93x median, stdev/mean 0.48 |
+| semantic_fabric_relay | kain | 89.066 | 190.992 | unstable samples - max 2.14x median |
+| pulse_teleport_decay_mesh | cpp | 16.827 | 333.225 | unstable samples - max 19.80x median, stdev/mean 1.15 |
+| ownership_memory | kain | 15.693 | 142.260 | unstable samples - max 9.07x median, stdev/mean 1.35 |
+| ownership_memory | rust | 12.178 | 100.459 | unstable samples - max 8.25x median, stdev/mean 1.26 |
+| ownership_memory | cpp | 13.218 | 117.933 | unstable samples - max 8.92x median, stdev/mean 1.33 |
+| ownership_memory | javascript | 53.915 | 196.038 | unstable samples - max 3.64x median, stdev/mean 0.59 |
+| branch_dispatch | kain | 10.139 | 112.690 | unstable samples - max 11.11x median, stdev/mean 1.51 |
+| branch_dispatch | cpp | 18.425 | 104.796 | unstable samples - max 5.69x median, stdev/mean 0.97 |
+| branch_dispatch | javascript | 82.728 | 163.275 | unstable samples - max 1.97x median |
+| call_chain | rust | 33.132 | 133.242 | unstable samples - max 4.02x median, stdev/mean 0.71 |
+| call_chain | javascript | 151.076 | 308.999 | unstable samples - max 2.05x median |
+| memory_stream | javascript | 51.885 | 107.228 | unstable samples - max 2.07x median |
+| memory_stream | python | 102.844 | 300.065 | unstable samples - max 2.92x median, stdev/mean 0.49 |
+| alloc_churn | kain | 9.784 | 112.720 | unstable samples - max 11.52x median, stdev/mean 1.52 |
+| alloc_churn | rust | 12.385 | 104.082 | unstable samples - max 8.40x median, stdev/mean 1.27 |
+| alloc_churn | cpp | 11.405 | 102.763 | unstable samples - max 9.01x median, stdev/mean 1.32 |
+| alloc_churn | javascript | 47.109 | 149.168 | unstable samples - max 3.17x median, stdev/mean 0.55 |
+| stdlib_foundations | kain | 14.104 | 134.109 | unstable samples - max 9.51x median, stdev/mean 1.38 |
+| scalar_mix | kain | 9.973 | 109.833 | unstable samples - max 11.01x median, stdev/mean 1.09 |
+| recursive_sum | kain | 112.582 | 239.581 | unstable samples - max 2.13x median, stdev/mean 0.61 |
+| recursive_sum | rust | 10.497 | 101.762 | unstable samples - max 9.69x median, stdev/mean 1.40 |
+| recursive_sum | python | 111.251 | 205.179 | unstable samples - max 1.84x median |
+| string_ops | cpp | 11.363 | 101.659 | unstable samples - max 8.95x median, stdev/mean 1.32 |
+| array_scan | cpp | 11.440 | 101.035 | unstable samples - max 8.83x median, stdev/mean 1.31 |
+| machine_stones_shatter_loop | javascript | 72.211 | 182.648 | unstable samples - max 2.53x median, stdev/mean 0.42 |
+| zero_copy_binary_wire | cpp | 159.886 | 209.107 | unstable samples - stdev/mean 0.36 |
+| dynamic_vtable_thrashing | rust | 15.880 | 102.270 | unstable samples - max 6.44x median, stdev/mean 1.07 |
+| dynamic_vtable_thrashing | cpp | 16.365 | 112.824 | unstable samples - max 6.89x median, stdev/mean 1.12 |
+| ray_sphere_intersection | kain | 10.510 | 115.493 | unstable samples - max 10.99x median, stdev/mean 1.49 |
+| ray_sphere_intersection | rust | 90.031 | 172.368 | unstable samples - max 1.91x median |
+| ray_sphere_intersection | cpp | 80.480 | 170.073 | unstable samples - max 2.11x median |
+| sim_nbody_gravity | rust | 11.171 | 106.098 | unstable samples - max 9.50x median, stdev/mean 1.38 |
+| semantic_singularity | kain | 61.310 | 154.577 | unstable samples - max 2.52x median, stdev/mean 0.41 |
+| struct_method | rust | 14.119 | 99.824 | unstable samples - max 7.07x median, stdev/mean 1.14 |
+| struct_method | cpp | 12.766 | 102.090 | unstable samples - max 8.00x median, stdev/mean 1.22 |
+| struct_method | javascript | 54.646 | 151.133 | unstable samples - max 2.77x median, stdev/mean 0.46 |
+| tcp_loopback_tokio | rust | 3345.370 | 3741.900 | unstable samples - stdev/mean 0.37 |
+| simd_lane_mix | kain | 10.823 | 118.836 | unstable samples - max 10.98x median, stdev/mean 1.49 |
+| simd_lane_mix | rust | 85.270 | 191.874 | unstable samples - max 2.25x median, stdev/mean 0.38 |
+| native_map_lookup | rust | 32.063 | 124.886 | unstable samples - max 3.90x median, stdev/mean 0.69 |
+| native_map_lookup | cpp | 35.709 | 100.122 | unstable samples - max 2.80x median, stdev/mean 0.47 |
+| json_manual_roundtrip | kain | 10.310 | 108.036 | unstable samples - max 10.48x median, stdev/mean 1.45 |
+| filesystem_stream | kain | 99.728 | 211.888 | unstable samples - max 2.12x median, stdev/mean 0.41 |
+| filesystem_stream | rust | 145.672 | 312.849 | unstable samples - max 2.15x median |
+| filesystem_stream | cpp | 102.832 | 209.878 | unstable samples - max 2.04x median |
+| http_server_concurrency | kain | 64.352 | 185.172 | unstable samples - max 2.88x median, stdev/mean 0.51 |
+| http_server_concurrency | rust | 50.901 | 164.316 | unstable samples - max 3.23x median, stdev/mean 0.60 |
+| unicode_string_heavy | rust | 11.780 | 108.799 | unstable samples - max 9.24x median, stdev/mean 1.36 |
+| allocator_large_object_churn | kain | 12.394 | 113.167 | unstable samples - max 9.13x median, stdev/mean 1.35 |
+| allocator_large_object_churn | rust | 45.446 | 134.838 | unstable samples - max 2.97x median, stdev/mean 0.51 |
+| allocator_large_object_churn | cpp | 42.616 | 138.269 | unstable samples - max 3.24x median, stdev/mean 0.66 |
+| ffi_shared_call_stress | kain | 54.887 | 160.126 | unstable samples - max 2.92x median, stdev/mean 0.50 |

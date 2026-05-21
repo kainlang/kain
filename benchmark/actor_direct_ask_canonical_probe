@@ -1,0 +1,44 @@
+# Kain Benchmark Snapshot
+
+- status: `PASS`
+- generated_at: `2026-05-21T22:23:54.566996+00:00`
+- warmups: `3`
+- timed_runs: `9`
+- languages: `kain, cpp`
+- baseline_mode: `auto`
+- root_snapshot: `benchmark/actor_direct_ask_canonical_probe`
+- full_report: `benchmark/out/reports/latest_actor_direct_ask_canonical_probe.llm.md`
+- json_report: `benchmark/out/reports/latest_actor_direct_ask_canonical_probe.json`
+
+- baseline_cache_hits: `0`
+- baseline_cache_refreshed: `2`
+- baseline_cache_misses: `0`
+
+- history_db: `D:\Kain-Lang\benchmark\out\history\benchmark_history.sqlite3`
+- history_run_id: `65`
+- previous_comparable_run: `none`
+- compared_kain_cases: `0`
+- kain_regressions: `0`
+- alert_regressions: `0`
+
+## Summary
+
+| case | maturity | winner | kain median ms | cpp median ms |
+| --- | --- | --- | --- | --- |
+| actor_ownership_backpressure | semantic-proxy | cpp | 340.690 | 18.189 |
+| semantic_fabric_relay | semantic-proxy | cpp | 88.522 | 12.119 |
+
+## Telemetry
+
+| case | primary metric | winner | kain value | cpp value |
+| --- | --- | --- | --- | --- |
+| actor_ownership_backpressure | semantic rounds/s | cpp | 528,339.236 | 9,896,308.677 |
+| semantic_fabric_relay | semantic rounds/s | cpp | 677,801.438 | 4,950,740.136 |
+
+## Stability Alerts
+
+| case | language | median ms | max ms | stability |
+| --- | --- | --- | --- | --- |
+| actor_ownership_backpressure | cpp | 18.189 | 114.911 | unstable samples - max 6.32x median, stdev/mean 1.06 |
+| semantic_fabric_relay | kain | 88.522 | 157.318 | unstable samples - max 1.78x median |
+| semantic_fabric_relay | cpp | 12.119 | 106.740 | unstable samples - max 8.81x median, stdev/mean 1.17 |

@@ -1,0 +1,38 @@
+# Kain Benchmark Snapshot
+
+- status: `PASS`
+- generated_at: `2026-05-21T22:35:45.741055+00:00`
+- warmups: `0`
+- timed_runs: `1`
+- languages: `kain, cpp`
+- baseline_mode: `off`
+- root_snapshot: `benchmark/benchmark_hygiene_probe`
+- full_report: `benchmark/out/reports/latest_benchmark_hygiene_probe.llm.md`
+- json_report: `benchmark/out/reports/latest_benchmark_hygiene_probe.json`
+
+- baseline_cache_hits: `0`
+- baseline_cache_refreshed: `0`
+- baseline_cache_misses: `0`
+
+- history_db: `D:\Kain-Lang\benchmark\out\history\benchmark_history.sqlite3`
+- history_run_id: `67`
+- previous_comparable_run: `none`
+- compared_kain_cases: `0`
+- kain_regressions: `0`
+- alert_regressions: `0`
+
+## Summary
+
+| case | maturity | winner | kain median ms | cpp median ms |
+| --- | --- | --- | --- | --- |
+| pulse_teleport_decay_mesh | semantic-proxy | cpp | 179.446 | 15.427 |
+| semantic_host_bridge_fusion | semantic-proxy | cpp | 1038.149 | 813.190 |
+| branch_dispatch | implemented | kain | 11.685 | 21.087 |
+| scalar_mix | implemented | kain | 12.836 | 17.535 |
+
+## Telemetry
+
+| case | primary metric | winner | kain value | cpp value |
+| --- | --- | --- | --- | --- |
+| pulse_teleport_decay_mesh | semantic rounds/s | cpp | 300,927.022 | 3,500,311.139 |
+| semantic_host_bridge_fusion | bridge rounds/s | cpp | 2,311.807 | 2,951.340 |

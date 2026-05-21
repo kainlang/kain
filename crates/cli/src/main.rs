@@ -4035,7 +4035,7 @@ fn clear_native_runtime_object_cache_slot_best_effort(cache_paths: &NativeRuntim
 }
 
 fn remove_native_runtime_file_with_retry(path: &Path) -> Result<(), String> {
-    let max_attempts = if cfg!(windows) { 3usize } else { 1usize };
+    let max_attempts = if cfg!(windows) { 12usize } else { 1usize };
 
     for attempt in 0..max_attempts {
         match fs::remove_file(path) {
@@ -4102,7 +4102,10 @@ fn remove_native_runtime_object_tmp_files(
         if !entry_name.starts_with(stem) || !entry_name.ends_with(&tmp_suffix) {
             continue;
         }
-        remove_native_runtime_file_with_retry(&entry.path())?;
+        // Stale per-object temp files are never part of the live cache key.
+        // If Windows still has one open after retries, leave it behind and
+        // keep the actual object/depfile/fingerprint lane buildable.
+        let _ = remove_native_runtime_file_with_retry(&entry.path());
     }
     Ok(())
 }
