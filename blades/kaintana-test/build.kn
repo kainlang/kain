@@ -1,3 +1,7 @@
+use std::build
+use std::test
+use std::certify
+
 fn build(ctx: BuildContext) -> BuildGraph:
     let pkg = package("kaintana-test")
         .version("0.1.0")
@@ -21,38 +25,37 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .entry("src/main.kn")
         .target("llvm")
 
-    let check = build_task("check-llvm")
-        .kind("check")
+    let check = build_check("check-llvm")
         .entry("src/main.kn")
         .target("llvm")
+        .axis("target", "llvm")
+        .telemetry("llm.evidence")
         .input("src/main.kn")
         .input("run.ps1")
         .input("build.kn")
 
-    let source_tests = build_task("source-tests")
-        .kind("test")
+    let source_tests = test_suite("source-tests")
         .entry("src/main.kn")
         .target("llvm")
-        .depends_on("check-llvm")
+        .requires("check-llvm")
         .input("src/main.kn")
         .input("build.kn")
 
-    let root_exe = build_task("root-executable")
-        .kind("native-executable")
+    let root_exe = native_executable("root-executable")
         .entry("src/main.kn")
-        .output("$blade/kaintana-test.exe")
-        .depends_on("check-llvm")
-        .depends_on("source-tests")
-        .depends_on("c:kaintana-test:kaintana_desktop_bridge")
+        .root_output("$blade/kaintana-test.exe")
+        .requires("check-llvm")
+        .requires("source-tests")
+        .requires("c:kaintana-test:kaintana_desktop_bridge")
         .input("src/main.kn")
         .input("run.ps1")
         .input("build.kn")
 
-    let certify = build_task("certify")
-        .kind("certify")
-        .depends_on("check-llvm")
-        .depends_on("source-tests")
-        .depends_on("root-executable")
+    let certify = certify_gate("certify")
+        .requires("check-llvm")
+        .requires("source-tests")
+        .requires("root-executable")
+        .certifies("kaintana-test.local")
 
     return build_graph()
         .package(pkg)

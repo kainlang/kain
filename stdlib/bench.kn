@@ -1,0 +1,14 @@
+use std::build
+
+pub fn bench_task(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_BENCHMARK)
+
+pub fn bench_case(id: String) -> BuildTaskSpec:
+    return bench_task(id)
+
+pub fn benchmark_task(id: String) -> BuildTaskSpec:
+    return bench_task(id)
+
+pub fn bench_case_named(id: String, case_name: String) -> BuildTaskSpec:
+    return bench_case(id).arg("--case").arg(case_name)
+

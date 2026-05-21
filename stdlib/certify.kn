@@ -1,0 +1,11 @@
+use std::build
+
+pub fn certify_task(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_CERTIFY)
+
+pub fn certify_gate(id: String) -> BuildTaskSpec:
+    return certify_task(id)
+
+pub fn release_gate(id: String) -> BuildTaskSpec:
+    return certify_task(id)
+

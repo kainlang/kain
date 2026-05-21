@@ -1,0 +1,14 @@
+use std::build
+
+pub fn proof_task(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_PROOF)
+
+pub fn proof_obligation(id: String) -> BuildTaskSpec:
+    return proof_task(id)
+
+pub fn z3_proof(id: String) -> BuildTaskSpec:
+    return proof_task(id)
+
+pub fn proof_smt2(id: String, entry: String) -> BuildTaskSpec:
+    return proof_obligation(id).entry(entry)
+

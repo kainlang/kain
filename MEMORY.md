@@ -1,5 +1,16 @@
 # Kain Memory
 
+# 2026-05-21 - `build.kn` gained first-class Kain std evidence APIs
+
+`build.kn` now has public Kain-facing stdlib contract modules for the evidence graph: `std::build`, `std::proof`, `std::bench`, `std::attrition`, and `std::certify`, with `std::test` extended for `test_suite(...)` / `test_task(...)`. Preferred task constructors are now `build_check(...)`, `test_suite(...)`, `proof_obligation(...)`, `bench_case(...)`, `attrition_case(...)`, `native_executable(...)`, and `certify_gate(...)`; legacy `build_task(...).kind(...)` remains accepted.
+
+What changed:
+
+- `crates/kain-build` and `crates/kain-blades` both extract the first-class constructors, so discovery and planning agree
+- tasks can carry matrix axes, telemetry channels, certificate subjects, and required host capabilities
+- non-dry-run builds skip tasks whose `requires_capability(...)` is not advertised by the host capability set
+- `blades/kloner`, `blades/kaintana`, and `blades/kaintana-test` now dogfood the first-class std API shape
+
 # 2026-05-21 - `build.kn` became an evidence DAG
 
 `crates/kain-build` now treats `build.kn` tasks as evidence DAG nodes, not only build DAG nodes. First-class explicit task kinds now include `test`, `proof`, `benchmark`, `attrition`, `certify`, and `native-executable`; dependency failures gate dependent tasks, and evidence-style tasks emit `kain-evidence.json`.

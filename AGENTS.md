@@ -13,7 +13,12 @@ use std::crypto
 use std::alloc
 use std::diagnostics
 use std::result
+use std::build
 use std::test
+use std::proof
+use std::bench
+use std::attrition
+use std::certify
 use std::time
 use std::intent
 use std::fs

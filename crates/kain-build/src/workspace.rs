@@ -1,7 +1,7 @@
 use blade::{
-    discover_workspace, find_build_script_in, load_effective_kain_manifest, load_kain_manifest,
-    BladeError, BladeWorkspace, KainBuildTaskSection, KainManifest, ResolvedBlade,
-    ResolvedCffiLibrary, FABRIC_MANIFEST_NAME, KAIN_BUILD_SCRIPT_NAMES,
+    discover_workspace, find_build_script_in, load_effective_kain_manifest, BladeError,
+    BladeWorkspace, KainBuildTaskSection, KainManifest, ResolvedBlade, ResolvedCffiLibrary,
+    FABRIC_MANIFEST_NAME, KAIN_BUILD_SCRIPT_NAMES,
 };
 use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
@@ -24,7 +24,7 @@ const DEFAULT_PROFILE: &str = "debug";
 const DEFAULT_ARTIFACT_ROOT: &str = ".kain/out";
 const DEFAULT_CACHE_ROOT: &str = ".kain/cache/build";
 const DEFAULT_REPORT_ROOT: &str = ".kain/reports/build";
-const BUILD_ADAPTER_VERSION: &str = "kain-build-v5";
+const BUILD_ADAPTER_VERSION: &str = "kain-build-v6";
 const BUILD_ARTIFACT_SCHEMA_VERSION: u32 = 2;
 
 pub type BuildResult<T> = Result<T, BuildError>;
@@ -173,6 +173,14 @@ pub struct BuildTask {
     pub depends_on: Vec<String>,
     pub inputs: Vec<PathBuf>,
     pub outputs: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_capabilities: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub matrix_axes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub telemetry: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub certifies: Vec<String>,
     pub cacheable: bool,
     #[serde(skip)]
     adapter: BuildTaskAdapter,
@@ -536,6 +544,14 @@ pub struct BuildTaskExecution {
     pub finished_unix_ms: Option<u128>,
     pub inputs: Vec<PathBuf>,
     pub outputs: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_capabilities: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub matrix_axes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub telemetry: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub certifies: Vec<String>,
     pub message: String,
     pub error: Option<String>,
 }
@@ -625,6 +641,10 @@ pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBui
                 .flat_map(blade_authority_inputs)
                 .collect(),
             outputs: Vec::new(),
+            required_capabilities: Vec::new(),
+            matrix_axes: Vec::new(),
+            telemetry: Vec::new(),
+            certifies: Vec::new(),
             cacheable: false,
             adapter: BuildTaskAdapter::BladeCheck,
         });
@@ -648,6 +668,10 @@ pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBui
             depends_on,
             inputs: vec![manifest_path.clone()],
             outputs: Vec::new(),
+            required_capabilities: Vec::new(),
+            matrix_axes: Vec::new(),
+            telemetry: Vec::new(),
+            certifies: Vec::new(),
             cacheable: false,
             adapter: BuildTaskAdapter::Fabric {
                 manifest_path: manifest_path.clone(),
@@ -668,6 +692,10 @@ pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBui
                 depends_on: vec![validate_id],
                 inputs: vec![manifest_path.clone()],
                 outputs: Vec::new(),
+                required_capabilities: Vec::new(),
+                matrix_axes: Vec::new(),
+                telemetry: Vec::new(),
+                certifies: Vec::new(),
                 cacheable: false,
                 adapter: BuildTaskAdapter::Fabric {
                     manifest_path,
@@ -751,6 +779,10 @@ pub fn plan_kain_file(options: &KainFileBuildOptions) -> BuildResult<BladeBuildP
         depends_on: Vec::new(),
         inputs: vec![source.clone()],
         outputs,
+        required_capabilities: Vec::new(),
+        matrix_axes: Vec::new(),
+        telemetry: Vec::new(),
+        certifies: Vec::new(),
         cacheable: true,
         adapter: BuildTaskAdapter::KainCompile {
             source,
@@ -810,6 +842,10 @@ pub fn plan_kain_rust_file(options: &KainRustBuildOptions) -> BuildResult<BladeB
         depends_on: Vec::new(),
         inputs: vec![source.clone()],
         outputs,
+        required_capabilities: Vec::new(),
+        matrix_axes: Vec::new(),
+        telemetry: Vec::new(),
+        certifies: Vec::new(),
         cacheable: true,
         adapter: BuildTaskAdapter::RustArtifacts {
             source,
@@ -878,6 +914,10 @@ pub fn plan_kain_native_ui(options: &KainNativeUiBuildOptions) -> BuildResult<Bl
         depends_on: Vec::new(),
         inputs: vec![source.clone()],
         outputs,
+        required_capabilities: Vec::new(),
+        matrix_axes: Vec::new(),
+        telemetry: Vec::new(),
+        certifies: Vec::new(),
         cacheable: true,
         adapter: BuildTaskAdapter::NativeUiApp {
             source,
@@ -986,6 +1026,10 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                 task_root.join(format!("{package_name}.rs")),
                 artifact_manifest_path(&task_root),
             ],
+            required_capabilities: Vec::new(),
+            matrix_axes: Vec::new(),
+            telemetry: Vec::new(),
+            certifies: Vec::new(),
             cacheable: true,
             adapter: BuildTaskAdapter::RustArtifacts {
                 source: entry,
@@ -1021,6 +1065,10 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                 depends_on: Vec::new(),
                 inputs: authority_inputs.clone(),
                 outputs,
+                required_capabilities: Vec::new(),
+                matrix_axes: Vec::new(),
+                telemetry: Vec::new(),
+                certifies: Vec::new(),
                 cacheable: true,
                 adapter: BuildTaskAdapter::KainCompile {
                     source: entry.clone(),
@@ -1420,62 +1468,113 @@ fn extract_build_graph_platform_packages(
     graph_source: &str,
 ) -> Vec<KainBuildGraphPlatformPackage> {
     let mut packages = Vec::new();
-    let mut offset = 0usize;
-    while let Some(relative) = source[offset..].find("platform_package") {
-        let function_start = offset + relative + "platform_package".len();
-        if let Some((package, after_call)) = parse_string_call_argument(source, function_start) {
-            let provider =
-                parse_provider_chain(source, after_call).unwrap_or_else(|| "system".to_string());
+    for constructor in PLATFORM_PACKAGE_CONSTRUCTORS {
+        for (args, methods) in scan_string_call_chains(source, constructor) {
+            let Some(package) = args.first() else {
+                continue;
+            };
+            let provider = methods
+                .iter()
+                .find_map(|(method, values, _)| {
+                    (method == "provider")
+                        .then(|| values.first().cloned())
+                        .flatten()
+                })
+                .unwrap_or_else(|| "system".to_string());
             packages.push(KainBuildGraphPlatformPackage {
-                package,
+                package: package.clone(),
                 provider,
                 source: graph_source.to_string(),
             });
-            offset = after_call;
-        } else {
-            offset = function_start;
         }
     }
     sort_build_graph_platform_packages(&mut packages);
     packages
 }
 
+const PLATFORM_PACKAGE_CONSTRUCTORS: &[&str] = &[
+    "platform_package",
+    "build_platform_package",
+    "platform_requirement",
+    "requires_platform_package",
+];
+
+const BUILD_TASK_CONSTRUCTORS: &[(&str, Option<&str>)] = &[
+    ("build_task", None),
+    ("build_check", Some("check")),
+    ("check_task", Some("check")),
+    ("native_executable", Some("native-executable")),
+    ("root_executable", Some("native-executable")),
+    ("build_native_executable", Some("native-executable")),
+    ("test_task", Some("test")),
+    ("test_suite", Some("test")),
+    ("proof_task", Some("proof")),
+    ("proof_obligation", Some("proof")),
+    ("z3_proof", Some("proof")),
+    ("bench_task", Some("benchmark")),
+    ("bench_case", Some("benchmark")),
+    ("benchmark_task", Some("benchmark")),
+    ("attrition_task", Some("attrition")),
+    ("attrition_case", Some("attrition")),
+    ("certify_task", Some("certify")),
+    ("certify_gate", Some("certify")),
+    ("release_gate", Some("certify")),
+];
+
 fn extract_build_graph_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection> {
     let mut tasks = Vec::new();
-    let mut offset = 0usize;
-    while let Some(relative) = source[offset..].find("build_task") {
-        let function_start = offset + relative + "build_task".len();
-        if let Some((id, after_call)) = parse_string_call_argument(source, function_start) {
+    for (constructor, default_kind) in BUILD_TASK_CONSTRUCTORS {
+        for (args, methods) in scan_string_call_chains(source, constructor) {
+            let Some(id) = args.first() else {
+                continue;
+            };
             let mut task = KainBuildTaskSection {
-                id,
+                id: id.clone(),
+                kind: default_kind.unwrap_or_default().to_string(),
                 ..KainBuildTaskSection::default()
             };
-            let mut next_offset = after_call;
-            for (method, value, after_method) in parse_string_method_chain(source, after_call) {
-                next_offset = after_method;
+            for (method, values, _) in methods {
                 match method.as_str() {
-                    "kind" => task.kind = value,
-                    "blade" => task.blade = Some(value),
-                    "entry" => task.entry = Some(PathBuf::from(value)),
-                    "manifest" => task.manifest = Some(PathBuf::from(value)),
-                    "command" => task.command = Some(value),
-                    "arg" | "args" => task.args.push(value),
-                    "cwd" => task.cwd = Some(PathBuf::from(value)),
-                    "target" => task.target = Some(value),
-                    "profile" => task.profile = Some(value),
-                    "input" | "inputs" => task.inputs.push(PathBuf::from(value)),
-                    "output" | "outputs" => task.outputs.push(PathBuf::from(value)),
-                    "depends_on" | "depends" | "dependency" => task.depends_on.push(value),
+                    "kind" => assign_first_string(&values, &mut task.kind),
+                    "blade" => assign_first_optional_string(&values, &mut task.blade),
+                    "entry" => assign_first_optional_path(&values, &mut task.entry),
+                    "manifest" => assign_first_optional_path(&values, &mut task.manifest),
+                    "command" => assign_first_optional_string(&values, &mut task.command),
+                    "arg" | "args" => task.args.extend(values),
+                    "cwd" => assign_first_optional_path(&values, &mut task.cwd),
+                    "target" => assign_first_optional_string(&values, &mut task.target),
+                    "profile" => assign_first_optional_string(&values, &mut task.profile),
+                    "input" | "inputs" => {
+                        task.inputs.extend(values.into_iter().map(PathBuf::from));
+                    }
+                    "output" | "outputs" | "root_output" | "blade_output" | "artifact" => {
+                        task.outputs.extend(values.into_iter().map(PathBuf::from));
+                    }
+                    "depends_on" | "depends" | "dependency" | "requires" | "requires_task" => {
+                        task.depends_on.extend(values);
+                    }
+                    "requires_capability" | "when_capability" | "capability" => {
+                        task.required_capabilities.extend(values);
+                    }
+                    "axis" | "matrix_axis" | "matrix_value" | "matrix" => task
+                        .matrix_axes
+                        .extend(canonical_matrix_axis_values(values)),
+                    "telemetry" | "telemetry_channel" => task.telemetry.extend(values),
+                    "certifies" | "certificate" => task.certifies.extend(values),
+                    "proof_mode" | "mode" => task.args.extend(values),
                     _ => {}
                 }
             }
             tasks.push(task);
-            offset = next_offset;
-        } else {
-            offset = function_start;
         }
     }
     tasks
+}
+
+fn assign_first_string(values: &[String], slot: &mut String) {
+    if let Some(value) = values.first() {
+        *slot = value.clone();
+    }
 }
 
 fn sort_build_graph_platform_packages(packages: &mut Vec<KainBuildGraphPlatformPackage>) {
@@ -1513,13 +1612,71 @@ fn explicit_build_task_signatures(tasks: &[KainBuildTaskSection]) -> Vec<(String
     signatures
 }
 
-fn parse_provider_chain(source: &str, offset: usize) -> Option<String> {
-    parse_string_method_chain(source, offset)
-        .into_iter()
-        .find_map(|(method, value, _)| (method == "provider").then_some(value))
+fn assign_first_optional_string(values: &[String], slot: &mut Option<String>) {
+    if let Some(value) = values.first() {
+        *slot = Some(value.clone());
+    }
 }
 
-fn parse_string_method_chain(source: &str, mut index: usize) -> Vec<(String, String, usize)> {
+fn assign_first_optional_path(values: &[String], slot: &mut Option<PathBuf>) {
+    if let Some(value) = values.first() {
+        *slot = Some(PathBuf::from(value));
+    }
+}
+
+fn canonical_matrix_axis_values(values: Vec<String>) -> Vec<String> {
+    if values.len() == 2 {
+        vec![format!("{}={}", values[0], values[1])]
+    } else {
+        values
+    }
+}
+
+fn scan_string_call_chains(
+    source: &str,
+    function_name: &str,
+) -> Vec<(Vec<String>, Vec<(String, Vec<String>, usize)>)> {
+    let mut matches = Vec::new();
+    let mut offset = 0usize;
+    while let Some(call_start) = find_function_call(source, function_name, offset) {
+        let function_end = call_start + function_name.len();
+        if let Some((args, after_call)) = parse_string_call_arguments(source, function_end) {
+            let methods = parse_string_method_chain(source, after_call);
+            let next_offset = methods
+                .last()
+                .map(|(_, _, after)| *after)
+                .unwrap_or(after_call);
+            matches.push((args, methods));
+            offset = next_offset;
+        } else {
+            offset = function_end;
+        }
+    }
+    matches
+}
+
+fn find_function_call(source: &str, function_name: &str, mut offset: usize) -> Option<usize> {
+    while let Some(relative) = source[offset..].find(function_name) {
+        let start = offset + relative;
+        let before = start
+            .checked_sub(1)
+            .and_then(|index| source.as_bytes().get(index).copied());
+        let after = source.as_bytes().get(start + function_name.len()).copied();
+        if !matches!(before, Some(byte) if is_identifier_byte(byte))
+            && matches!(after, Some(b'(' | b' ' | b'\n' | b'\r' | b'\t'))
+        {
+            return Some(start);
+        }
+        offset = start + function_name.len();
+    }
+    None
+}
+
+fn is_identifier_byte(byte: u8) -> bool {
+    matches!(byte, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_')
+}
+
+fn parse_string_method_chain(source: &str, mut index: usize) -> Vec<(String, Vec<String>, usize)> {
     let bytes = source.as_bytes();
     let mut methods = Vec::new();
     loop {
@@ -1529,10 +1686,7 @@ fn parse_string_method_chain(source: &str, mut index: usize) -> Vec<(String, Str
         }
         index += 1;
         let method_start = index;
-        while matches!(
-            bytes.get(index).copied(),
-            Some(b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_')
-        ) {
+        while matches!(bytes.get(index).copied(), Some(byte) if is_identifier_byte(byte)) {
             index += 1;
         }
         if method_start == index {
@@ -1541,13 +1695,42 @@ fn parse_string_method_chain(source: &str, mut index: usize) -> Vec<(String, Str
         let Some(method) = source.get(method_start..index) else {
             break;
         };
-        let Some((value, after_call)) = parse_string_call_argument(source, index) else {
+        let Some((args, after_call)) = parse_string_call_arguments(source, index) else {
             break;
         };
-        methods.push((method.to_string(), value, after_call));
+        methods.push((method.to_string(), args, after_call));
         index = after_call;
     }
     methods
+}
+
+fn parse_string_call_arguments(source: &str, mut index: usize) -> Option<(Vec<String>, usize)> {
+    let bytes = source.as_bytes();
+    index = skip_ascii_whitespace(bytes, index);
+    if bytes.get(index).copied()? != b'(' {
+        return None;
+    }
+    index += 1;
+    let mut values = Vec::new();
+    loop {
+        index = skip_ascii_whitespace(bytes, index);
+        match bytes.get(index).copied()? {
+            b')' => return Some((values, index + 1)),
+            b'"' => {
+                let (value, after_string) = parse_quoted_string(source, index)?;
+                values.push(value);
+                index = skip_ascii_whitespace(bytes, after_string);
+                match bytes.get(index).copied()? {
+                    b',' => {
+                        index += 1;
+                    }
+                    b')' => return Some((values, index + 1)),
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn select_explicit_build_task_sections(
@@ -1562,22 +1745,6 @@ fn select_explicit_build_task_sections(
     } else {
         Ok(script.explicit_tasks)
     }
-}
-
-fn parse_string_call_argument(source: &str, mut index: usize) -> Option<(String, usize)> {
-    let bytes = source.as_bytes();
-    index = skip_ascii_whitespace(bytes, index);
-    if bytes.get(index).copied()? != b'(' {
-        return None;
-    }
-    index += 1;
-    index = skip_ascii_whitespace(bytes, index);
-    let (value, mut after_string) = parse_quoted_string(source, index)?;
-    after_string = skip_ascii_whitespace(bytes, after_string);
-    if bytes.get(after_string).copied()? != b')' {
-        return None;
-    }
-    Some((value, after_string + 1))
 }
 
 fn parse_quoted_string(source: &str, mut index: usize) -> Option<(String, usize)> {
@@ -1649,6 +1816,10 @@ fn add_c_tasks(
             depends_on: Vec::new(),
             inputs,
             outputs,
+            required_capabilities: Vec::new(),
+            matrix_axes: Vec::new(),
+            telemetry: Vec::new(),
+            certifies: Vec::new(),
             cacheable: true,
             adapter: BuildTaskAdapter::CSharedLibrary {
                 library_name: library.name.clone(),
@@ -1691,6 +1862,10 @@ fn add_cargo_task(
         depends_on: Vec::new(),
         inputs,
         outputs: vec![target_dir.clone()],
+        required_capabilities: Vec::new(),
+        matrix_axes: Vec::new(),
+        telemetry: Vec::new(),
+        certifies: Vec::new(),
         cacheable: true,
         adapter: BuildTaskAdapter::CargoBuild {
             manifest_path: manifest_path.clone(),
@@ -1721,6 +1896,10 @@ fn add_gpu_tasks(tasks: &mut Vec<BuildTask>, config: &BuildWorkspaceConfig, blad
             depends_on: Vec::new(),
             inputs: vec![source.clone()],
             outputs,
+            required_capabilities: Vec::new(),
+            matrix_axes: Vec::new(),
+            telemetry: Vec::new(),
+            certifies: Vec::new(),
             cacheable: true,
             adapter: BuildTaskAdapter::GpuArtifacts {
                 source: source.clone(),
@@ -2094,6 +2273,10 @@ fn build_explicit_task(
             .collect(),
         inputs,
         outputs,
+        required_capabilities: task.required_capabilities.clone(),
+        matrix_axes: task.matrix_axes.clone(),
+        telemetry: task.telemetry.clone(),
+        certifies: task.certifies.clone(),
         cacheable: !matches!(
             kind,
             BuildTaskKind::Node
@@ -2106,6 +2289,37 @@ fn build_explicit_task(
         ),
         adapter,
     })
+}
+
+fn build_host_capability_set(plan: &BladeBuildPlan) -> BTreeSet<String> {
+    let mut capabilities = BTreeSet::new();
+    capabilities.insert("host".to_string());
+    capabilities.insert(format!("host.os.{}", std::env::consts::OS));
+    capabilities.insert(format!("host.arch.{}", std::env::consts::ARCH));
+    capabilities.insert(format!("os.{}", std::env::consts::OS));
+    capabilities.insert(format!("arch.{}", std::env::consts::ARCH));
+    capabilities.insert(format!("lane.{}", plan.lane.as_str()));
+    capabilities.insert(format!("profile.{}", plan.profile));
+    capabilities.insert(format!("target.{}", plan.target));
+    if cfg!(target_arch = "x86_64") {
+        capabilities.insert("cpu.x86_64".to_string());
+    }
+    if cfg!(target_os = "windows") {
+        capabilities.insert("platform.windows".to_string());
+    }
+    capabilities
+}
+
+fn first_missing_required_capability(
+    task: &BuildTask,
+    host_capabilities: &BTreeSet<String>,
+) -> Option<String> {
+    task.required_capabilities
+        .iter()
+        .map(|capability| capability.trim())
+        .filter(|capability| !capability.is_empty())
+        .find(|capability| !host_capabilities.contains(*capability))
+        .map(str::to_string)
 }
 
 fn execute_plan(
@@ -2127,6 +2341,7 @@ fn execute_plan(
     let mut task_statuses = BTreeMap::<String, BuildTaskStatus>::new();
     let mut failed = false;
     let workspace = discover_workspace(&plan.workspace_root)?;
+    let host_capabilities = build_host_capability_set(&plan);
 
     for task in &plan.tasks {
         let execution = if options.dry_run {
@@ -2140,6 +2355,10 @@ fn execute_plan(
                 finished_unix_ms: None,
                 inputs: task.inputs.clone(),
                 outputs: task.outputs.clone(),
+                required_capabilities: task.required_capabilities.clone(),
+                matrix_axes: task.matrix_axes.clone(),
+                telemetry: task.telemetry.clone(),
+                certifies: task.certifies.clone(),
                 message: task.description.clone(),
                 error: None,
             }
@@ -2159,9 +2378,36 @@ fn execute_plan(
                 finished_unix_ms: None,
                 inputs: task.inputs.clone(),
                 outputs: task.outputs.clone(),
+                required_capabilities: task.required_capabilities.clone(),
+                matrix_axes: task.matrix_axes.clone(),
+                telemetry: task.telemetry.clone(),
+                certifies: task.certifies.clone(),
                 message: format!(
                     "skipped because dependency '{}' did not pass",
                     blocking_dependency
+                ),
+                error: None,
+            }
+        } else if let Some(missing_capability) =
+            first_missing_required_capability(task, &host_capabilities)
+        {
+            BuildTaskExecution {
+                id: task.id.clone(),
+                kind: task.kind,
+                blade: task.blade.clone(),
+                status: BuildTaskStatus::Skipped,
+                cache_hit: false,
+                started_unix_ms: None,
+                finished_unix_ms: None,
+                inputs: task.inputs.clone(),
+                outputs: task.outputs.clone(),
+                required_capabilities: task.required_capabilities.clone(),
+                matrix_axes: task.matrix_axes.clone(),
+                telemetry: task.telemetry.clone(),
+                certifies: task.certifies.clone(),
+                message: format!(
+                    "skipped because host does not advertise required capability '{}'",
+                    missing_capability
                 ),
                 error: None,
             }
@@ -2192,6 +2438,10 @@ fn execute_plan(
                 finished_unix_ms: None,
                 inputs: task.inputs.clone(),
                 outputs: task.outputs.clone(),
+                required_capabilities: task.required_capabilities.clone(),
+                matrix_axes: task.matrix_axes.clone(),
+                telemetry: task.telemetry.clone(),
+                certifies: task.certifies.clone(),
                 message: "skipped after previous failure".to_string(),
                 error: None,
             });
@@ -2252,6 +2502,10 @@ fn execute_task(
             finished_unix_ms: Some(unix_timestamp_ms()),
             inputs: task.inputs.clone(),
             outputs: task.outputs.clone(),
+            required_capabilities: task.required_capabilities.clone(),
+            matrix_axes: task.matrix_axes.clone(),
+            telemetry: task.telemetry.clone(),
+            certifies: task.certifies.clone(),
             message: "cache hit".to_string(),
             error: None,
         });
@@ -2412,6 +2666,10 @@ fn execute_task(
                 finished_unix_ms: Some(finished_unix_ms),
                 inputs: task.inputs.clone(),
                 outputs: task.outputs.clone(),
+                required_capabilities: task.required_capabilities.clone(),
+                matrix_axes: task.matrix_axes.clone(),
+                telemetry: task.telemetry.clone(),
+                certifies: task.certifies.clone(),
                 message,
                 error: None,
             })
@@ -2426,6 +2684,10 @@ fn execute_task(
             finished_unix_ms: Some(finished_unix_ms),
             inputs: task.inputs.clone(),
             outputs: task.outputs.clone(),
+            required_capabilities: task.required_capabilities.clone(),
+            matrix_axes: task.matrix_axes.clone(),
+            telemetry: task.telemetry.clone(),
+            certifies: task.certifies.clone(),
             message: "task failed".to_string(),
             error: Some(error.to_string()),
         }),
@@ -4363,6 +4625,87 @@ fn build(ctx: BuildContext) -> BuildGraph:
     }
 
     #[test]
+    fn build_graph_extracts_first_class_std_build_api_tasks() {
+        let source = r#"
+use std::build
+use std::test
+use std::proof
+use std::bench
+use std::attrition
+use std::certify
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let check = build_check("check-llvm")
+        .entry("src/main.kn")
+        .target("llvm")
+        .requires_capability("target.llvm")
+        .axis("target", "llvm")
+        .telemetry("llm")
+    let suite = test_suite("source-tests")
+        .entry("src/main.kn")
+        .requires("check-llvm")
+    let proof = proof_obligation("z3-layout-proof")
+        .entry("z3/proof.kn")
+        .requires("source-tests")
+        .proof_mode("prove-pass")
+    let bench = bench_case("bench-ui")
+        .arg("--case")
+        .arg("kaintana_layout")
+    let abuse = attrition_case("attrition-small")
+        .arg("--scale")
+        .arg("small")
+    let exe = native_executable("root-executable")
+        .entry("src/main.kn")
+        .root_output("$blade/app.exe")
+        .requires("z3-layout-proof")
+    let gate = certify_gate("certify")
+        .requires("root-executable")
+        .requires("bench-ui")
+        .requires("attrition-small")
+        .certifies("release.local")
+    return build_graph().task(check).task(suite).task(proof).task(bench).task(abuse).task(exe).task(gate)
+"#;
+
+        let tasks = extract_build_graph_explicit_tasks(source);
+        assert_eq!(tasks.len(), 7);
+        let by_id = tasks
+            .iter()
+            .map(|task| (task.id.as_str(), task))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(by_id["check-llvm"].kind, "check");
+        assert_eq!(
+            by_id["check-llvm"].required_capabilities,
+            vec!["target.llvm".to_string()]
+        );
+        assert_eq!(
+            by_id["check-llvm"].matrix_axes,
+            vec!["target=llvm".to_string()]
+        );
+        assert_eq!(by_id["source-tests"].kind, "test");
+        assert_eq!(
+            by_id["source-tests"].depends_on,
+            vec!["check-llvm".to_string()]
+        );
+        assert_eq!(by_id["z3-layout-proof"].kind, "proof");
+        assert_eq!(
+            by_id["z3-layout-proof"].args,
+            vec!["prove-pass".to_string()]
+        );
+        assert_eq!(by_id["bench-ui"].kind, "benchmark");
+        assert_eq!(by_id["attrition-small"].kind, "attrition");
+        assert_eq!(by_id["root-executable"].kind, "native-executable");
+        assert_eq!(
+            by_id["root-executable"].outputs,
+            vec![PathBuf::from("$blade/app.exe")]
+        );
+        assert_eq!(by_id["certify"].kind, "certify");
+        assert_eq!(
+            by_id["certify"].certifies,
+            vec!["release.local".to_string()]
+        );
+    }
+
+    #[test]
     fn standalone_task_root_uses_host_lane_target_unit_schema() {
         let root = std::env::current_dir().expect("cwd");
         let config = StandaloneBuildConfig::new(
@@ -4480,7 +4823,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         )
         .expect("write build.kn");
 
-        let manifest = load_kain_manifest(&manifest_path).expect("load manifest");
+        let manifest = blade::load_kain_manifest(&manifest_path).expect("load manifest");
         let selected = select_explicit_build_task_sections(&root, &manifest.build.tasks)
             .expect("select explicit tasks");
         assert_eq!(selected.len(), 1);
@@ -4507,7 +4850,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         )
         .expect("write build.kn");
 
-        let manifest = load_kain_manifest(&manifest_path).expect("load manifest");
+        let manifest = blade::load_kain_manifest(&manifest_path).expect("load manifest");
         let selected = select_explicit_build_task_sections(&root, &manifest.build.tasks)
             .expect("select explicit tasks");
         assert_eq!(selected.len(), 1);
@@ -4772,6 +5115,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
             depends_on: depends_on.into_iter().map(str::to_string).collect(),
             inputs: Vec::new(),
             outputs: Vec::new(),
+            required_capabilities: Vec::new(),
+            matrix_axes: Vec::new(),
+            telemetry: Vec::new(),
+            certifies: Vec::new(),
             cacheable: false,
             adapter: BuildTaskAdapter::BladeCheck,
         }

@@ -1,3 +1,5 @@
+use std::build
+
 pub const TEST_STATUS_PASS: Int = 0
 pub const TEST_STATUS_FAIL: Int = -1
 pub const TEST_STATUS_SKIP: Int = 1
@@ -50,3 +52,9 @@ pub fn test_count_failure(outcome: TestOutcome, count: Int) -> Int:
     if test_outcome_ok(outcome):
         return count
     return count + 1
+
+pub fn test_task(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_TEST)
+
+pub fn test_suite(id: String) -> BuildTaskSpec:
+    return test_task(id)

@@ -91,6 +91,10 @@ pub struct KainBuildTaskSection {
     pub inputs: Vec<PathBuf>,
     pub outputs: Vec<PathBuf>,
     pub depends_on: Vec<String>,
+    pub required_capabilities: Vec<String>,
+    pub matrix_axes: Vec<String>,
+    pub telemetry: Vec<String>,
+    pub certifies: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -1324,42 +1328,93 @@ fn apply_workspace_defaults_from_build_script(source: &str, manifest: &mut KainM
     }
 }
 
+const BUILD_TASK_CONSTRUCTORS: &[(&str, Option<&str>)] = &[
+    ("build_task", None),
+    ("build_check", Some("check")),
+    ("check_task", Some("check")),
+    ("native_executable", Some("native-executable")),
+    ("root_executable", Some("native-executable")),
+    ("build_native_executable", Some("native-executable")),
+    ("test_task", Some("test")),
+    ("test_suite", Some("test")),
+    ("proof_task", Some("proof")),
+    ("proof_obligation", Some("proof")),
+    ("z3_proof", Some("proof")),
+    ("bench_task", Some("benchmark")),
+    ("bench_case", Some("benchmark")),
+    ("benchmark_task", Some("benchmark")),
+    ("attrition_task", Some("attrition")),
+    ("attrition_case", Some("attrition")),
+    ("certify_task", Some("certify")),
+    ("certify_gate", Some("certify")),
+    ("release_gate", Some("certify")),
+];
+
 fn extract_build_script_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection> {
     let mut tasks = Vec::new();
-    for (args, methods) in scan_string_call_chains(source, "build_task") {
-        let Some(id) = args.first() else {
-            continue;
-        };
-        let mut task = KainBuildTaskSection {
-            id: id.clone(),
-            ..KainBuildTaskSection::default()
-        };
-        for (method, values, _) in methods {
-            match method.as_str() {
-                "kind" => {
-                    if let Some(value) = values.first() {
-                        task.kind = value.clone();
+    for (constructor, default_kind) in BUILD_TASK_CONSTRUCTORS {
+        for (args, methods) in scan_string_call_chains(source, constructor) {
+            let Some(id) = args.first() else {
+                continue;
+            };
+            let mut task = KainBuildTaskSection {
+                id: id.clone(),
+                kind: default_kind.unwrap_or_default().to_string(),
+                ..KainBuildTaskSection::default()
+            };
+            for (method, values, _) in methods {
+                match method.as_str() {
+                    "kind" => {
+                        if let Some(value) = values.first() {
+                            task.kind = value.clone();
+                        }
                     }
+                    "blade" => assign_first_string(&values, &mut task.blade),
+                    "entry" => assign_first_path(&values, &mut task.entry),
+                    "manifest" => assign_first_path(&values, &mut task.manifest),
+                    "command" => assign_first_string(&values, &mut task.command),
+                    "arg" | "args" => task.args.extend(values),
+                    "cwd" => assign_first_path(&values, &mut task.cwd),
+                    "target" => assign_first_string(&values, &mut task.target),
+                    "profile" => assign_first_string(&values, &mut task.profile),
+                    "input" | "inputs" => push_unique_paths_from_strings(&mut task.inputs, &values),
+                    "output" | "outputs" | "root_output" | "blade_output" | "artifact" => {
+                        push_unique_paths_from_strings(&mut task.outputs, &values)
+                    }
+                    "depends_on" | "depends" | "dependency" | "requires" | "requires_task" => {
+                        push_unique_strings(&mut task.depends_on, &values)
+                    }
+                    "requires_capability" | "when_capability" | "capability" => {
+                        push_unique_strings(&mut task.required_capabilities, &values)
+                    }
+                    "axis" | "matrix_axis" | "matrix_value" | "matrix" => push_unique_strings(
+                        &mut task.matrix_axes,
+                        &canonical_matrix_axis_values(values),
+                    ),
+                    "telemetry" | "telemetry_channel" => {
+                        push_unique_strings(&mut task.telemetry, &values)
+                    }
+                    "certifies" | "certificate" => {
+                        push_unique_strings(&mut task.certifies, &values)
+                    }
+                    "proof_mode" | "mode" => task.args.extend(values),
+                    _ => {}
                 }
-                "blade" => assign_first_string(&values, &mut task.blade),
-                "entry" => assign_first_path(&values, &mut task.entry),
-                "manifest" => assign_first_path(&values, &mut task.manifest),
-                "command" => assign_first_string(&values, &mut task.command),
-                "arg" | "args" => task.args.extend(values),
-                "cwd" => assign_first_path(&values, &mut task.cwd),
-                "target" => assign_first_string(&values, &mut task.target),
-                "profile" => assign_first_string(&values, &mut task.profile),
-                "input" | "inputs" => push_unique_paths_from_strings(&mut task.inputs, &values),
-                "output" | "outputs" => push_unique_paths_from_strings(&mut task.outputs, &values),
-                "depends_on" | "depends" | "dependency" => {
-                    push_unique_strings(&mut task.depends_on, &values)
-                }
-                _ => {}
             }
+            tasks.push(task);
         }
-        tasks.push(task);
     }
+    tasks.sort_by(|left, right| left.id.cmp(&right.id).then(left.kind.cmp(&right.kind)));
+    tasks.dedup_by(|left, right| left.id == right.id && left.kind == right.kind);
     tasks
+}
+
+fn canonical_matrix_axis_values(values: Vec<String>) -> Vec<String> {
+    if values.len() == 2 {
+        vec![format!("{}={}", values[0], values[1])]
+    } else {
+        values
+    }
 }
 
 fn merge_kain_manifest(mut base: KainManifest, overlay: KainManifest) -> KainManifest {
@@ -1834,6 +1889,68 @@ fn build(ctx: BuildContext) -> BuildGraph:
         assert_eq!(manifest.run.args, vec!["--demo"]);
         assert_eq!(manifest.build.tasks.len(), 1);
         assert_eq!(manifest.build.tasks[0].id, "script-check");
+    }
+
+    #[test]
+    fn build_script_manifest_extracts_first_class_std_build_api_tasks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let blade_root = tmp.path().join("probe");
+        kfs::create_dir_all(blade_root.join("src")).unwrap();
+        kfs::write_text(
+            blade_root.join("build.kn"),
+            r#"
+use std::build
+use std::test
+use std::proof
+use std::certify
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("probe").entry("src/main.kn").source_root("src").build_target("llvm")
+    let check = build_check("check-llvm").entry("src/main.kn").target("llvm")
+    let suite = test_suite("source-tests").entry("src/main.kn").requires("check-llvm")
+    let proof = proof_obligation("z3-proof")
+        .entry("z3/proof.kn")
+        .requires("source-tests")
+        .requires_capability("target.llvm")
+        .axis("target", "llvm")
+    let gate = certify_gate("certify").requires("z3-proof").certifies("probe.local")
+    return build_graph().blade(spec).task(check).task(suite).task(proof).task(gate)
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            blade_root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .unwrap();
+
+        let manifest = load_effective_kain_manifest(&blade_root)
+            .unwrap()
+            .expect("effective manifest");
+        assert_eq!(manifest.build.tasks.len(), 4);
+        let by_id = manifest
+            .build
+            .tasks
+            .iter()
+            .map(|task| (task.id.as_str(), task))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(by_id["check-llvm"].kind, "check");
+        assert_eq!(by_id["source-tests"].kind, "test");
+        assert_eq!(
+            by_id["source-tests"].depends_on,
+            vec!["check-llvm".to_string()]
+        );
+        assert_eq!(by_id["z3-proof"].kind, "proof");
+        assert_eq!(
+            by_id["z3-proof"].required_capabilities,
+            vec!["target.llvm".to_string()]
+        );
+        assert_eq!(
+            by_id["z3-proof"].matrix_axes,
+            vec!["target=llvm".to_string()]
+        );
+        assert_eq!(by_id["certify"].kind, "certify");
+        assert_eq!(by_id["certify"].certifies, vec!["probe.local".to_string()]);
     }
 
     #[test]

@@ -1,0 +1,400 @@
+pub const BUILD_KIND_CHECK: String = "check"
+pub const BUILD_KIND_NATIVE_EXECUTABLE: String = "native-executable"
+pub const BUILD_KIND_TEST: String = "test"
+pub const BUILD_KIND_PROOF: String = "proof"
+pub const BUILD_KIND_BENCHMARK: String = "benchmark"
+pub const BUILD_KIND_ATTRITION: String = "attrition"
+pub const BUILD_KIND_CERTIFY: String = "certify"
+
+pub struct BuildContext:
+    workspace_root: String
+    blade_root: String
+    host: String
+    target: String
+    lane: String
+    profile: String
+
+pub struct PackageSpec:
+    name: String
+    version_value: String
+    description_value: String
+
+pub struct BladeSpec:
+    name: String
+    kind_value: String
+    entry_path: String
+    source_roots: Array<String>
+    module_roots: Array<String>
+    build_targets: Array<String>
+    dependencies: Array<String>
+
+pub struct BuildDefaultsSpec:
+    entry_path: String
+    artifact_root_path: String
+    cache_root_path: String
+    profile_value: String
+    target_value: String
+
+pub struct RunDefaultsSpec:
+    entry_path: String
+    target_value: String
+    args: Array<String>
+    watch_paths: Array<String>
+
+pub struct PlatformPackageSpec:
+    name: String
+    provider_value: String
+
+pub struct BuildTaskSpec:
+    id: String
+    kind_value: String
+    blade_name: String
+    entry_path: String
+    manifest_path: String
+    command_value: String
+    cwd_path: String
+    target_value: String
+    profile_value: String
+    args: Array<String>
+    inputs: Array<String>
+    outputs: Array<String>
+    dependencies: Array<String>
+    required_capabilities: Array<String>
+    matrix_axes: Array<String>
+    telemetry_channels: Array<String>
+    certificate_subjects: Array<String>
+
+pub struct BuildGraphSpec:
+    packages: Array<PackageSpec>
+    blades: Array<BladeSpec>
+    tasks: Array<BuildTaskSpec>
+    platform_packages: Array<PlatformPackageSpec>
+
+pub type BuildGraph = BuildGraphSpec
+pub type BuildTask = BuildTaskSpec
+
+pub fn build_graph() -> BuildGraphSpec:
+    return BuildGraphSpec {
+        packages: [],
+        blades: [],
+        tasks: [],
+        platform_packages: []
+    }
+
+pub fn package(name: String) -> PackageSpec:
+    return PackageSpec { name: name, version_value: "", description_value: "" }
+
+pub fn blade(name: String) -> BladeSpec:
+    return BladeSpec {
+        name: name,
+        kind_value: "",
+        entry_path: "",
+        source_roots: [],
+        module_roots: [],
+        build_targets: [],
+        dependencies: []
+    }
+
+pub fn build_defaults() -> BuildDefaultsSpec:
+    return BuildDefaultsSpec {
+        entry_path: "",
+        artifact_root_path: "",
+        cache_root_path: "",
+        profile_value: "",
+        target_value: ""
+    }
+
+pub fn run_defaults() -> RunDefaultsSpec:
+    return RunDefaultsSpec { entry_path: "", target_value: "", args: [], watch_paths: [] }
+
+pub fn platform_package(name: String) -> PlatformPackageSpec:
+    return PlatformPackageSpec { name: name, provider_value: "system" }
+
+pub fn build_platform_package(name: String) -> PlatformPackageSpec:
+    return platform_package(name)
+
+pub fn platform_requirement(name: String) -> PlatformPackageSpec:
+    return platform_package(name)
+
+pub fn requires_platform_package(name: String) -> PlatformPackageSpec:
+    return platform_package(name)
+
+pub fn build_task_of_kind(id: String, kind: String) -> BuildTaskSpec:
+    return BuildTaskSpec {
+        id: id,
+        kind_value: kind,
+        blade_name: "",
+        entry_path: "",
+        manifest_path: "",
+        command_value: "",
+        cwd_path: "",
+        target_value: "",
+        profile_value: "",
+        args: [],
+        inputs: [],
+        outputs: [],
+        dependencies: [],
+        required_capabilities: [],
+        matrix_axes: [],
+        telemetry_channels: [],
+        certificate_subjects: []
+    }
+
+pub fn build_task(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, "")
+
+pub fn build_check(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_CHECK)
+
+pub fn check_task(id: String) -> BuildTaskSpec:
+    return build_check(id)
+
+pub fn native_executable(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_NATIVE_EXECUTABLE)
+
+pub fn root_executable(id: String) -> BuildTaskSpec:
+    return native_executable(id)
+
+pub fn build_native_executable(id: String) -> BuildTaskSpec:
+    return native_executable(id)
+
+impl PackageSpec:
+    fn version(_self: Self_, value: String) -> PackageSpec:
+        let mut next = _self
+        next.version_value = value
+        return next
+
+    fn description(_self: Self_, value: String) -> PackageSpec:
+        let mut next = _self
+        next.description_value = value
+        return next
+
+impl BladeSpec:
+    fn kind(_self: Self_, value: String) -> BladeSpec:
+        let mut next = _self
+        next.kind_value = value
+        return next
+
+    fn entry(_self: Self_, path: String) -> BladeSpec:
+        let mut next = _self
+        next.entry_path = path
+        return next
+
+    fn source_root(_self: Self_, path: String) -> BladeSpec:
+        let mut next = _self
+        push(next.source_roots, path)
+        return next
+
+    fn module_root(_self: Self_, path: String) -> BladeSpec:
+        let mut next = _self
+        push(next.module_roots, path)
+        return next
+
+    fn build_target(_self: Self_, target: String) -> BladeSpec:
+        let mut next = _self
+        push(next.build_targets, target)
+        return next
+
+    fn dependency(_self: Self_, name: String) -> BladeSpec:
+        let mut next = _self
+        push(next.dependencies, name)
+        return next
+
+impl BuildDefaultsSpec:
+    fn entry(_self: Self_, path: String) -> BuildDefaultsSpec:
+        let mut next = _self
+        next.entry_path = path
+        return next
+
+    fn artifact_root(_self: Self_, path: String) -> BuildDefaultsSpec:
+        let mut next = _self
+        next.artifact_root_path = path
+        return next
+
+    fn cache_root(_self: Self_, path: String) -> BuildDefaultsSpec:
+        let mut next = _self
+        next.cache_root_path = path
+        return next
+
+    fn profile(_self: Self_, value: String) -> BuildDefaultsSpec:
+        let mut next = _self
+        next.profile_value = value
+        return next
+
+    fn target(_self: Self_, value: String) -> BuildDefaultsSpec:
+        let mut next = _self
+        next.target_value = value
+        return next
+
+impl RunDefaultsSpec:
+    fn entry(_self: Self_, path: String) -> RunDefaultsSpec:
+        let mut next = _self
+        next.entry_path = path
+        return next
+
+    fn target(_self: Self_, value: String) -> RunDefaultsSpec:
+        let mut next = _self
+        next.target_value = value
+        return next
+
+    fn arg(_self: Self_, value: String) -> RunDefaultsSpec:
+        let mut next = _self
+        push(next.args, value)
+        return next
+
+    fn watch(_self: Self_, path: String) -> RunDefaultsSpec:
+        let mut next = _self
+        push(next.watch_paths, path)
+        return next
+
+impl PlatformPackageSpec:
+    fn provider(_self: Self_, value: String) -> PlatformPackageSpec:
+        let mut next = _self
+        next.provider_value = value
+        return next
+
+impl BuildTaskSpec:
+    fn kind(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.kind_value = value
+        return next
+
+    fn blade(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.blade_name = value
+        return next
+
+    fn entry(_self: Self_, path: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.entry_path = path
+        return next
+
+    fn manifest(_self: Self_, path: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.manifest_path = path
+        return next
+
+    fn command(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.command_value = value
+        return next
+
+    fn arg(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.args, value)
+        return next
+
+    fn cwd(_self: Self_, path: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.cwd_path = path
+        return next
+
+    fn target(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.target_value = value
+        return next
+
+    fn profile(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        next.profile_value = value
+        return next
+
+    fn input(_self: Self_, path: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.inputs, path)
+        return next
+
+    fn output(_self: Self_, path: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.outputs, path)
+        return next
+
+    fn root_output(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.output(path)
+
+    fn blade_output(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.output(path)
+
+    fn artifact(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.output(path)
+
+    fn depends_on(_self: Self_, task_id: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.dependencies, task_id)
+        return next
+
+    fn requires(_self: Self_, task_id: String) -> BuildTaskSpec:
+        return _self.depends_on(task_id)
+
+    fn requires_task(_self: Self_, task_id: String) -> BuildTaskSpec:
+        return _self.depends_on(task_id)
+
+    fn requires_capability(_self: Self_, capability: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.required_capabilities, capability)
+        return next
+
+    fn when_capability(_self: Self_, capability: String) -> BuildTaskSpec:
+        return _self.requires_capability(capability)
+
+    fn capability(_self: Self_, capability: String) -> BuildTaskSpec:
+        return _self.requires_capability(capability)
+
+    fn axis(_self: Self_, key: String, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.matrix_axes, key + "=" + value)
+        return next
+
+    fn matrix_axis(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.matrix_axes, value)
+        return next
+
+    fn matrix_value(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.matrix_axis(value)
+
+    fn telemetry(_self: Self_, channel: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.telemetry_channels, channel)
+        return next
+
+    fn telemetry_channel(_self: Self_, channel: String) -> BuildTaskSpec:
+        return _self.telemetry(channel)
+
+    fn certifies(_self: Self_, subject: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.certificate_subjects, subject)
+        return next
+
+    fn proof_mode(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.arg(value)
+
+    fn mode(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.arg(value)
+
+impl BuildGraphSpec:
+    fn package(_self: Self_, value: PackageSpec) -> BuildGraphSpec:
+        let mut next = _self
+        push(next.packages, value)
+        return next
+
+    fn blade(_self: Self_, value: BladeSpec) -> BuildGraphSpec:
+        let mut next = _self
+        push(next.blades, value)
+        return next
+
+    fn task(_self: Self_, value: BuildTaskSpec) -> BuildGraphSpec:
+        let mut next = _self
+        push(next.tasks, value)
+        return next
+
+    fn require(_self: Self_, value: PlatformPackageSpec) -> BuildGraphSpec:
+        let mut next = _self
+        push(next.platform_packages, value)
+        return next
+
+    fn defaults(_self: Self_, value: BuildDefaultsSpec) -> BuildGraphSpec:
+        return _self
+
+    fn run(_self: Self_, value: RunDefaultsSpec) -> BuildGraphSpec:
+        return _self

@@ -1,0 +1,11 @@
+use std::build
+
+pub fn attrition_task(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_ATTRITION)
+
+pub fn attrition_case(id: String) -> BuildTaskSpec:
+    return attrition_task(id)
+
+pub fn attrition_case_named(id: String, case_name: String) -> BuildTaskSpec:
+    return attrition_case(id).arg("--case").arg(case_name)
+
