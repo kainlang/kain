@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kain Blades System"
+  short_description: "Work on Kain blade workspace discovery and integrations."
+  default_prompt: "Use this skill when changing Kain blades, kain equip, blade manifests, or Fabric/FFI/module-resolution blade integrations."

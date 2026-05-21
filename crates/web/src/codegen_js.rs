@@ -461,8 +461,12 @@ impl JSGen {
                 self.gen_expr(value);
             }
 
-            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => {
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.write("(() => { void ");
+                self.gen_expr(target);
+                self.write("; return ");
                 self.gen_expr(body);
+                self.write("; })()");
             }
 
             Expr::Teleport { value, .. }

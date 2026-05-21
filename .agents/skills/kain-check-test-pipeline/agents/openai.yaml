@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kain Check/Test Pipeline"
+  short_description: "Work on Kain's source checking and compiletest-style harness."
+  default_prompt: "Use this when changing Kain's kain-check or kain-test crates, CLI check/test commands, or source validation fixtures."

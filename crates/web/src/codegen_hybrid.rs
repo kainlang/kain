@@ -84,8 +84,17 @@ pub fn generate(program: &TypedProgram) -> KainResult<HybridOutput> {
                     js_items.push(item.clone());
                 }
             }
-            // Structs & enums go to both for interop
-            TypedItem::Struct(_) | TypedItem::Enum(_) => {
+            // Shared semantic/data items go to both sides so wasm exports keep their
+            // intent/world/type dependencies while JS/TS still have author-time symbols.
+            TypedItem::Struct(_)
+            | TypedItem::Enum(_)
+            | TypedItem::Const(_)
+            | TypedItem::Impl(_)
+            | TypedItem::World(_)
+            | TypedItem::Patch(_)
+            | TypedItem::Law(_)
+            | TypedItem::Converge(_)
+            | TypedItem::Orchestrate(_) => {
                 wasm_items.push(item.clone());
                 js_items.push(item.clone());
             }

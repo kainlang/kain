@@ -1405,6 +1405,18 @@ impl TSGen {
                 self.write(")");
             }
 
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                self.write("(() => { void ");
+                self.gen_expr(target);
+                self.write("; return ");
+                self.gen_expr(body);
+                self.write("; })()");
+            }
+
+            Expr::Teleport { value, .. } | Expr::Comptime(value, _) | Expr::AsyncBlock(value, _) => {
+                self.gen_expr(value);
+            }
+
             // --- Error propagation: unwrap to throw in TS ---
             Expr::Try(inner, _) => {
                 self.write("(() => { const __r = ");
@@ -1416,6 +1428,18 @@ impl TSGen {
             Expr::Await(inner, _) => {
                 self.write("await ");
                 self.gen_expr(inner);
+            }
+
+            Expr::StageCall { function, args, .. } => {
+                self.write(function);
+                self.write("(");
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        self.write(", ");
+                    }
+                    self.gen_expr(&arg.value);
+                }
+                self.write(")");
             }
 
             // --- Range: emit as a lazy iterator helper ---
@@ -1440,11 +1464,6 @@ impl TSGen {
                     self.write("0");
                 }
                 self.write(")");
-            }
-
-            // --- Comptime: evaluate inline (values already folded by the time we codegen) ---
-            Expr::Comptime(inner, _) => {
-                self.gen_expr(inner);
             }
 
             // --- Return/Break/Continue as expressions (rare but valid in some positions) ---
@@ -1492,6 +1511,12 @@ impl TSGen {
                     self.gen_expr(expr);
                 }
                 self.write(")");
+            }
+
+            Expr::Decay { target, .. } => {
+                self.write("(() => { void ");
+                self.gen_expr(target);
+                self.write("; return 0; })()");
             }
 
             // --- Macro calls: translate common macros to JS equivalents ---

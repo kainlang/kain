@@ -10,6 +10,8 @@ use kain_driver::DriverSession;
 use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::process::{Command, Stdio};
+use std::io::Write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -19,6 +21,8 @@ pub enum KainTestMode {
     RunPass,
     RunFail,
     KainTest,
+    ProvePass,
+    ProveSat,
 }
 
 impl KainTestMode {
@@ -29,6 +33,8 @@ impl KainTestMode {
             Self::RunPass => "run-pass",
             Self::RunFail => "run-fail",
             Self::KainTest => "kain-test",
+            Self::ProvePass => "prove-pass",
+            Self::ProveSat => "prove-sat",
         }
     }
 
@@ -39,6 +45,8 @@ impl KainTestMode {
             "run" | "run-pass" => Some(Self::RunPass),
             "run-fail" => Some(Self::RunFail),
             "test" | "kain-test" => Some(Self::KainTest),
+            "prove" | "prove-pass" | "proof" | "proof-pass" => Some(Self::ProvePass),
+            "prove-sat" | "proof-sat" | "witness" => Some(Self::ProveSat),
             _ => None,
         }
     }
@@ -88,6 +96,8 @@ pub struct KainTestCaseReport {
     pub skip_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proof: Option<KainProofEvidence>,
 }
 
 impl KainTestCaseReport {
@@ -115,12 +125,45 @@ impl KainTestSuiteReport {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KainProofEvidence {
+    pub solver: String,
+    pub expected: String,
+    pub actual: String,
+    pub obligation_lines: usize,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct TestDirectives {
     mode: Option<KainTestMode>,
     target: Option<CompileTarget>,
     expected_error: Option<String>,
     skip_reason: Option<String>,
+    proof_expectation: Option<ProofExpectation>,
+    smt2_lines: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProofExpectation {
+    Unsat,
+    Sat,
+}
+
+impl ProofExpectation {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Unsat => "unsat",
+            Self::Sat => "sat",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "unsat" | "proved" | "proof" => Some(Self::Unsat),
+            "sat" | "witness" | "counterexample" => Some(Self::Sat),
+            _ => None,
+        }
+    }
 }
 
 pub fn run_path(path: &Path, options: &KainTestOptions) -> KainTestSuiteReport {
@@ -144,6 +187,7 @@ pub fn run_path(path: &Path, options: &KainTestOptions) -> KainTestSuiteReport {
                     expected_error: None,
                     skip_reason: None,
                     error: Some(error),
+                    proof: None,
                 }],
             };
         }
@@ -177,6 +221,7 @@ pub fn run_file(path: &Path, options: &KainTestOptions) -> KainTestCaseReport {
             expected_error: None,
             skip_reason: None,
             error: Some(format!("failed to read source: {error}")),
+            proof: None,
         },
     }
 }
@@ -207,32 +252,38 @@ pub fn run_source(
                 expected_error,
                 skip_reason: Some(skip_reason),
                 error: None,
+                proof: None,
             };
         }
     }
 
-    let result = match mode {
-        KainTestMode::CheckPass => run_check_pass(source_name, source, target),
+    let proof_result = match mode {
+        KainTestMode::CheckPass => TestExecution::from_result(run_check_pass(source_name, source, target)),
         KainTestMode::CheckFail => {
-            run_check_fail(source_name, source, target, expected_error.as_deref())
+            TestExecution::from_result(run_check_fail(source_name, source, target, expected_error.as_deref()))
         }
-        KainTestMode::RunPass => run_interpret_expect_pass(source),
-        KainTestMode::RunFail => run_interpret_expect_fail(source, expected_error.as_deref()),
-        KainTestMode::KainTest => run_kain_tests(source),
+        KainTestMode::RunPass => TestExecution::from_result(run_interpret_expect_pass(source)),
+        KainTestMode::RunFail => {
+            TestExecution::from_result(run_interpret_expect_fail(source, expected_error.as_deref()))
+        }
+        KainTestMode::KainTest => TestExecution::from_result(run_kain_tests(source)),
+        KainTestMode::ProvePass => run_proof_obligation(&directives, ProofExpectation::Unsat),
+        KainTestMode::ProveSat => run_proof_obligation(&directives, ProofExpectation::Sat),
     };
 
     KainTestCaseReport {
         path: source_name.to_string(),
         mode: mode.as_str().to_string(),
         target: compile_target_name(report_target).to_string(),
-        status: if result.is_ok() {
+        status: if proof_result.error.is_none() {
             KainTestStatus::Passed
         } else {
             KainTestStatus::Failed
         },
         expected_error,
         skip_reason: None,
-        error: result.err(),
+        error: proof_result.error,
+        proof: proof_result.proof,
     }
 }
 
@@ -240,7 +291,23 @@ fn report_target_for_mode(mode: KainTestMode, directive_target: CompileTarget) -
     match mode {
         KainTestMode::RunPass | KainTestMode::RunFail => CompileTarget::Interpret,
         KainTestMode::KainTest => CompileTarget::Test,
+        KainTestMode::ProvePass | KainTestMode::ProveSat => CompileTarget::Test,
         KainTestMode::CheckPass | KainTestMode::CheckFail => directive_target,
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct TestExecution {
+    error: Option<String>,
+    proof: Option<KainProofEvidence>,
+}
+
+impl TestExecution {
+    fn from_result(result: Result<(), String>) -> Self {
+        Self {
+            error: result.err(),
+            proof: None,
+        }
     }
 }
 
@@ -293,6 +360,111 @@ fn run_kain_tests(source: &str) -> Result<(), String> {
     runtime::run_tests(&checked.typed).map_err(|error| error.to_string())
 }
 
+fn run_proof_obligation(
+    directives: &TestDirectives,
+    default_expectation: ProofExpectation,
+) -> TestExecution {
+    let expectation = directives.proof_expectation.unwrap_or(default_expectation);
+    if directives.smt2_lines.is_empty() {
+        return TestExecution {
+            error: Some("proof mode expected at least one `//@ smt2:` directive".to_string()),
+            proof: None,
+        };
+    }
+
+    let solver = std::env::var("KAIN_Z3").unwrap_or_else(|_| "z3".to_string());
+    let mut smt2 = String::from("(set-option :timeout 5000)\n");
+    for line in &directives.smt2_lines {
+        smt2.push_str(line);
+        smt2.push('\n');
+    }
+    if !smt2.contains("(check-sat") {
+        smt2.push_str("(check-sat)\n");
+    }
+
+    let mut child = match Command::new(&solver)
+        .arg("-in")
+        .arg("-smt2")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            return TestExecution {
+                error: Some(format!(
+                    "failed to launch Z3 solver '{solver}': {error}; set KAIN_Z3 to the solver path"
+                )),
+                proof: None,
+            }
+        }
+    };
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        if let Err(error) = stdin.write_all(smt2.as_bytes()) {
+            return TestExecution {
+                error: Some(format!("failed to send SMT2 to Z3: {error}")),
+                proof: None,
+            };
+        }
+    }
+
+    let output = match child.wait_with_output() {
+        Ok(output) => output,
+        Err(error) => {
+            return TestExecution {
+                error: Some(format!("failed to wait for Z3: {error}")),
+                proof: None,
+            }
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let actual = stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| matches!(*line, "sat" | "unsat" | "unknown"))
+        .unwrap_or("missing-result")
+        .to_string();
+    let evidence = KainProofEvidence {
+        solver,
+        expected: expectation.as_str().to_string(),
+        actual: actual.clone(),
+        obligation_lines: directives.smt2_lines.len(),
+    };
+
+    if !output.status.success() {
+        return TestExecution {
+            error: Some(format!(
+                "Z3 exited with status {}; stderr: {}",
+                output.status,
+                stderr.trim()
+            )),
+            proof: Some(evidence),
+        };
+    }
+
+    if actual != expectation.as_str() {
+        return TestExecution {
+            error: Some(format!(
+                "proof expected {}, got {}; stdout: {}; stderr: {}",
+                expectation.as_str(),
+                actual,
+                stdout.trim(),
+                stderr.trim()
+            )),
+            proof: Some(evidence),
+        };
+    }
+
+    TestExecution {
+        error: None,
+        proof: Some(evidence),
+    }
+}
+
 fn ensure_expected_error(actual: &str, expected: Option<&str>) -> Result<(), String> {
     if let Some(expected) = expected {
         if !actual.contains(expected) {
@@ -334,6 +506,12 @@ fn parse_directives(source: &str) -> TestDirectives {
                 "target" => directives.target = kain_driver::parse_compile_target(raw_value),
                 "error" | "expect-error" => {
                     directives.expected_error = Some(raw_value.to_string());
+                }
+                "proof-expect" | "expect-proof" => {
+                    directives.proof_expectation = ProofExpectation::parse(raw_value);
+                }
+                "smt2" => {
+                    directives.smt2_lines.push(raw_value.to_string());
                 }
                 "ignore" | "skip" => {
                     directives.skip_reason = Some(if raw_value.is_empty() {
