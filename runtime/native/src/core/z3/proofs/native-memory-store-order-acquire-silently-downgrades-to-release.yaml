@@ -1,0 +1,68 @@
+name: native-memory-store-order-acquire-silently-downgrades-to-release
+surface: runtime
+subsystem: memory
+source_file: runtime/native/src/core/memory.c
+source_function: kain_memory_store_order_from_code
+source_lines: "352-364"
+
+description: |
+  kain_memory_store_order_from_code maps all of ACQUIRE, RELEASE, and ACQ_REL
+  to memory_order_release. This is technically correct per C11 (stores cannot
+  use acquire or acq_rel orderings), but it is a silent remap with no diagnostic.
+
+  A Kain programmer who writes:
+    __kain_atomic_store_ordered(ptr, value, KAIN_MEMORY_ORDER_ACQUIRE)
+  silently gets RELEASE semantics instead of an error or warning.
+
+  The more dangerous case is ACQ_REL on a store: a programmer who wants
+  bidirectional fencing on a store (which is only meaningful for RMW ops)
+  silently gets only the release half. This makes sequencing bugs harder to audit.
+
+  Additionally, kain_memory_failure_order_from_code maps ACQ_REL -> acquire,
+  which means a Kain user calling compare_exchange with both success_ordering=RELAXED
+  and failure_ordering=SEQ_CST gets C11 UB (see companion proof).
+
+claim: |
+  There EXISTS a user_ordering in [0..4] where
+  store_mapping(user_ordering) != user_expected_ordering,
+  specifically: ACQUIRE(1) -> RELEASE(2) with no diagnostic.
+
+expected: sat
+
+smt2: |
+  (set-logic ALL)
+  (declare-const user_ordering Int)
+  (declare-const c11_ordering Int)
+  (define-fun RELAXED () Int 0)
+  (define-fun ACQUIRE () Int 1)
+  (define-fun RELEASE () Int 2)
+  (define-fun ACQ_REL () Int 3)
+  (define-fun SEQ_CST () Int 4)
+  (define-fun store_mapping ((code Int)) Int
+    (ite (= code RELAXED) RELAXED
+    (ite (= code RELEASE) RELEASE
+    (ite (= code ACQUIRE) RELEASE
+    (ite (= code ACQ_REL) RELEASE
+         SEQ_CST)))))
+  (assert (= user_ordering ACQUIRE))
+  (assert (= c11_ordering (store_mapping user_ordering)))
+  (assert (not (= c11_ordering user_ordering)))
+  (check-sat)
+  ; sat witness: user_ordering=1 (ACQUIRE), c11_ordering=2 (RELEASE)
+
+result: sat
+witness:
+  user_ordering: 1   # ACQUIRE
+  c11_ordering: 2    # RELEASE (silently remapped)
+  delta: 1           # ordering code changed with no diagnostic
+
+severity: Medium
+categories: [developer-experience, correctness, soundness]
+status: Solver-Proved
+suggested_fix: |
+  Add a diagnostic assertion in debug builds when user_ordering is ACQUIRE or
+  ACQ_REL for a plain store (not compare_exchange):
+    KAIN_ASSERT(ordering != KAIN_MEMORY_ORDER_ACQUIRE && ordering != KAIN_MEMORY_ORDER_ACQ_REL,
+      "Acquire/acq_rel ordering is invalid for stores; use release or seq_cst");
+  In release builds, the current silent remap to release is semantically safe per
+  C11, but the missing diagnostic is a developer-experience hazard.

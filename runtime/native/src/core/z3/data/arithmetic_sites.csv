@@ -13,20 +13,20 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 95,realtime.c,realtime_count_array_objects,3024,*|+,malloc(,,1,json = (char*)malloc((size_t)length + 1u);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | sentinel/null byte style increment
 95,reflection.c,json_parse,981,*,realloc(,,1,"types = (KainTypeSchema*)realloc(payload->types, (size_t)new_capacity * sizeof(KainTypeSchema));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | pointer or indexed arithmetic
 95,reflection.c,json_parse,1004,*,realloc(,,1,"items = (KainItemMetadata*)realloc(payload->items, (size_t)new_capacity * sizeof(KainItemMetadata));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | pointer or indexed arithmetic
-95,stdlib_abi.c,abi_fs_metadata_text,3016,*,memcpy(,,1,"memcpy(output->block_words, left_cv, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | pointer or indexed arithmetic
-95,stdlib_abi.c,abi_fs_metadata_text,3017,*|+,memcpy(,,1,"memcpy(output->block_words + 8, right_cv, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | pointer or indexed arithmetic
+95,stdlib_abi.c,abi_fs_metadata_text,3079,*,memcpy(,,1,"memcpy(output->block_words, left_cv, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | pointer or indexed arithmetic
+95,stdlib_abi.c,abi_fs_metadata_text,3080,*|+,memcpy(,,1,"memcpy(output->block_words + 8, right_cv, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | pointer or indexed arithmetic
 95,wire.c,abi_wire_zero_copy_binary_checksum,121,*|+,calloc(,,1,"(int32_t*)calloc((size_t)KAIN_WIRE_WORD3_MOD + 1u, sizeof(int32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site | sentinel/null byte style increment
 90,net_system.c,abi_http_request_set_body_text,2072,*|+,malloc(,,0,request->body = (unsigned char*)malloc(request->body_length + 1u);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
 85,core.c,kain_map_resize,1508,*,calloc(,,1,"new_entries = (MapEntry*)calloc((size_t)new_capacity, sizeof(MapEntry));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
 85,net_system.c,abi_net_wide_from_utf8,1584,*,malloc(,,1,wide = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)needed);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
 85,stdlib_abi.c,abi_fs_builder_appendf,1550,+,snprintf(,,1,"vsnprintf(builder->data + builder->length, (size_t)written + 1, format, args);",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site | sentinel/null byte style increment | pointer or indexed arithmetic
-85,stdlib_abi.c,abi_fs_metadata_text,2769,*,malloc(,,1,buffer = (unsigned char*)malloc((size_t)length);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
-85,stdlib_abi.c,abi_fs_metadata_text,2937,*,memcpy(,,1,"memcpy(state, cv, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
-85,stdlib_abi.c,abi_fs_metadata_text,2938,*|+,memcpy(,,1,"memcpy(state + 8, ABI_BLAKE3_IV, 4u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
-85,stdlib_abi.c,abi_fs_metadata_text,2943,*,memcpy(,,1,"memcpy(msg, block_words, 16u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
-85,stdlib_abi.c,abi_fs_metadata_text,2964,*,memcpy(,,1,"memcpy(cv, words, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
-85,stdlib_abi.c,abi_fs_metadata_text,2999,*,memcpy(,,1,"memcpy(cv, compressed, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
-85,stdlib_abi.c,abi_fs_metadata_text,3065,*|+,memmove(,,1,"memmove(cvs + (write_index * 8u), cvs + (read_index * 8u), 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+85,stdlib_abi.c,abi_fs_metadata_text,2832,*,malloc(,,1,buffer = (unsigned char*)malloc((size_t)length);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+85,stdlib_abi.c,abi_fs_metadata_text,3000,*,memcpy(,,1,"memcpy(state, cv, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+85,stdlib_abi.c,abi_fs_metadata_text,3001,*|+,memcpy(,,1,"memcpy(state + 8, ABI_BLAKE3_IV, 4u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+85,stdlib_abi.c,abi_fs_metadata_text,3006,*,memcpy(,,1,"memcpy(msg, block_words, 16u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+85,stdlib_abi.c,abi_fs_metadata_text,3027,*,memcpy(,,1,"memcpy(cv, words, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+85,stdlib_abi.c,abi_fs_metadata_text,3062,*,memcpy(,,1,"memcpy(cv, compressed, 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+85,stdlib_abi.c,abi_fs_metadata_text,3128,*|+,memmove(,,1,"memmove(cvs + (write_index * 8u), cvs + (read_index * 8u), 8u * sizeof(uint32_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
 80,core.c,map_new,1573,*,calloc(,,0,"map->entries = (MapEntry*)calloc(16, sizeof(MapEntry));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | pointer or indexed arithmetic
 80,json.c,json_dup_range,105,*|+,malloc(,,0,char* out = (char*)malloc(length + 1u);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | sentinel/null byte style increment
 80,json.c,json_buffer_reserve,412,*,realloc(,,0,"data = (char*)realloc(buffer->data, capacity);",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow | pointer or indexed arithmetic
@@ -49,22 +49,22 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 75,reflection.c,json_parse,1056,<<,,,1,((uint64_t)bytes[5] << 40u) |,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
 75,reflection.c,json_parse,1057,<<,,,1,((uint64_t)bytes[6] << 48u) |,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
 75,reflection.c,json_parse,1058,<<,,,1,((uint64_t)bytes[7] << 56u);,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
-75,stdlib_abi.c,abi_fs_metadata_text,2871,<<,,,1,((uint32_t)bytes[1] << 8u) |,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
-75,stdlib_abi.c,abi_fs_metadata_text,2872,<<,,,1,((uint32_t)bytes[2] << 16u) |,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
-75,stdlib_abi.c,abi_fs_metadata_text,2873,<<,,,1,((uint32_t)bytes[3] << 24u);,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
+75,stdlib_abi.c,abi_fs_metadata_text,2934,<<,,,1,((uint32_t)bytes[1] << 8u) |,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
+75,stdlib_abi.c,abi_fs_metadata_text,2935,<<,,,1,((uint32_t)bytes[2] << 16u) |,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
+75,stdlib_abi.c,abi_fs_metadata_text,2936,<<,,,1,((uint32_t)bytes[3] << 24u);,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site | pointer or indexed arithmetic
 75,wire.c,abi_wire_zero_copy_binary_checksum,116,*,,,1,(KAIN_WIRE_WORD3_MOD * (int64_t)KAIN_WIRE_PERIOD_WRAP_COUNTS[block]);,no nearby overflow or range guard | multiplication can amplify overflow | explicit cast in arithmetic site | pointer or indexed arithmetic
-70,actor.c,kain_actor_reply_port_state_bind_synthetic_actor,1023,*,calloc(,,0,"actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_mailbox_append_copied_locked,1576,*,malloc(,,0,node = (MessageNode*)malloc(sizeof(MessageNode));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,2325,*,calloc(,,0,"KainActorState_Internal* actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3155,*,malloc(,,0,KainActorMonitor* monitor = (KainActorMonitor*)malloc(sizeof(KainActorMonitor));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3272,*,malloc(,,0,KainActorLink* link_a = (KainActorLink*)malloc(sizeof(KainActorLink));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3285,*,malloc(,,0,KainActorLink* link_b = (KainActorLink*)malloc(sizeof(KainActorLink));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3479,*,malloc(,,0,entry = (KainActorRegistryEntry*)malloc(sizeof(KainActorRegistryEntry));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3619,*,memset(,,0,"memset(snapshot, 0, sizeof(*snapshot));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3788,*,malloc(,,0,g_scheduler.worker_threads = (HANDLE*)malloc(sizeof(HANDLE) * KAIN_SCHEDULER_WORKER_COUNT);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3789,*,malloc(,,0,g_scheduler.worker_thread_ids = (DWORD*)malloc(sizeof(DWORD) * KAIN_SCHEDULER_WORKER_COUNT);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3793,*,malloc(,,0,g_scheduler.worker_threads = (pthread_t*)malloc(sizeof(pthread_t) * KAIN_SCHEDULER_WORKER_COUNT);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,actor.c,kain_actor_thread_proc,3825,*,calloc(,,0,"(KainActorReplyPortState*)calloc(1, sizeof(KainActorReplyPortState));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_reply_port_state_bind_synthetic_actor,1055,*,calloc(,,0,"actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_mailbox_append_copied_locked,1632,*,malloc(,,0,node = (MessageNode*)malloc(sizeof(MessageNode));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,2381,*,calloc(,,0,"KainActorState_Internal* actor = (KainActorState_Internal*)calloc(1, sizeof(KainActorState_Internal));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3211,*,malloc(,,0,KainActorMonitor* monitor = (KainActorMonitor*)malloc(sizeof(KainActorMonitor));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3332,*,malloc(,,0,KainActorLink* link_a = (KainActorLink*)malloc(sizeof(KainActorLink));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3345,*,malloc(,,0,KainActorLink* link_b = (KainActorLink*)malloc(sizeof(KainActorLink));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3539,*,malloc(,,0,entry = (KainActorRegistryEntry*)malloc(sizeof(KainActorRegistryEntry));,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3679,*,memset(,,0,"memset(snapshot, 0, sizeof(*snapshot));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3848,*,malloc(,,0,g_scheduler.worker_threads = (HANDLE*)malloc(sizeof(HANDLE) * KAIN_SCHEDULER_WORKER_COUNT);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3849,*,malloc(,,0,g_scheduler.worker_thread_ids = (DWORD*)malloc(sizeof(DWORD) * KAIN_SCHEDULER_WORKER_COUNT);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3853,*,malloc(,,0,g_scheduler.worker_threads = (pthread_t*)malloc(sizeof(pthread_t) * KAIN_SCHEDULER_WORKER_COUNT);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,actor.c,kain_actor_thread_proc,3885,*,calloc(,,0,"(KainActorReplyPortState*)calloc(1, sizeof(KainActorReplyPortState));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,async.c,kain_async_release_task_record_locked,480,*,memset(,,0,"memset(task, 0, sizeof(*task));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,async.c,kain_async_release_timer_record_locked,493,*,memset(,,0,"memset(timer, 0, sizeof(*timer));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,async.c,kain_async_allocate_task_record,536,*,memset(,,0,"memset(record, 0, sizeof(*record));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
@@ -108,6 +108,7 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 70,memory.c,__kain_alloc,542,*,calloc(,,0,"header = (KainAllocHeader*)calloc(1, allocation_size);",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,memory.c,__kain_alloc,544,*,malloc(,,0,header = (KainAllocHeader*)malloc(allocation_size);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,memory.c,__kain_realloc,575,*,realloc(,,0,"void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,memory.c,__kain_realloc,623,*,malloc(,,0,new_header = (KainAllocHeader*)malloc(allocation_size);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,net_system.c,abi_net_encode_hex,723,*|+,,,0,output[index * 2u + 1u] = alphabet[bytes[index] & 0x0F];,no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
 70,net_system.c,abi_net_append_bytes,760,*|+,memcpy(,,0,"memcpy(*buffer + *length, bytes, byte_count);",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,net_system.c,abi_net_parse_url,1082,*,memset(,,0,"memset(parsed, 0, sizeof(*parsed));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
@@ -130,11 +131,11 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 70,renderer_session.c,renderer_session_init,79,*,memset(,,0,"memset(session, 0, sizeof(*session));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,stdlib_abi.c,abi_patch_record_i64,1198,*,memset(,,0,"memset(entry, 0, sizeof(*entry));",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
 70,stdlib_abi.c,abi_fs_builder_append,1523,+,memcpy(,,0,"memcpy(builder->data + builder->length, text, length + 1);",no nearby overflow or range guard | size math feeds allocation or copy sink | sentinel/null byte style increment | pointer or indexed arithmetic
-70,stdlib_abi.c,abi_fs_metadata_text,2285,*,malloc(,,0,heap_buffer = (char*)malloc(buffer_size);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,stdlib_abi.c,abi_fs_metadata_text,2348,*,snprintf(,,0,"if (snprintf(pattern, sizeof(pattern), ""%s\\*"", path) < 0) {",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
-70,stdlib_abi.c,abi_fs_metadata_text,2683,>>|*|+,,,0,digest[state_index * 4 + 1] = (unsigned char)(ctx->state[state_index] >> 16);,no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
-70,stdlib_abi.c,abi_fs_metadata_text,2716,*|+,,,0,output[index * 2u + 1u] = ABI_CRYPTO_HEX[bytes[index] & 0x0fu];,no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
-70,stdlib_abi.c,abi_fs_metadata_text,3136,*|+,,,0,output[index * 2 + 1] = hex[digest[index] & 0x0f];,no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
+70,stdlib_abi.c,abi_fs_metadata_text,2348,*,malloc(,,0,heap_buffer = (char*)malloc(buffer_size);,no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,stdlib_abi.c,abi_fs_metadata_text,2411,*,snprintf(,,0,"if (snprintf(pattern, sizeof(pattern), ""%s\\*"", path) < 0) {",no nearby overflow or range guard | size math feeds allocation or copy sink | multiplication can amplify overflow
+70,stdlib_abi.c,abi_fs_metadata_text,2746,>>|*|+,,,0,digest[state_index * 4 + 1] = (unsigned char)(ctx->state[state_index] >> 16);,no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
+70,stdlib_abi.c,abi_fs_metadata_text,2779,*|+,,,0,output[index * 2u + 1u] = ABI_CRYPTO_HEX[bytes[index] & 0x0fu];,no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
+70,stdlib_abi.c,abi_fs_metadata_text,3199,*|+,,,0,output[index * 2 + 1] = hex[digest[index] & 0x0f];,no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment | pointer or indexed arithmetic
 65,bitfield.c,__kain_bitfield_get,57,+,memcpy(,,1,"memcpy(&unit, base + unit_offset, sizeof(uint64_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site
 65,bitfield.c,__kain_bitfield_set,110,+,memcpy(,,1,"memcpy(&unit, base + unit_offset, sizeof(uint64_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site
 65,bitfield.c,__kain_bitfield_set,125,+,memcpy(,,1,"memcpy(base + unit_offset, &unit, sizeof(uint64_t));",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site
@@ -150,12 +151,12 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 65,ownership.c,kain_ownership_clear_slot_unlocked,244,<<,,,1,~(UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS));,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site
 65,ownership.c,kain_ownership_upsert_unlocked,345,<<,,,1,uint64_t bit = UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS);,no nearby overflow or range guard | shift-based growth math | explicit cast in arithmetic site
 65,reflection.c,json_parse,1168,*,,,1,(size_hint * (uint64_t)KAIN_REFLECTION_FIELD_SIZE_HINT) |,no nearby overflow or range guard | multiplication can amplify overflow | explicit cast in arithmetic site
-65,services.c,kain_service_registry_format_list,1106,+,memcpy(,,1,"memcpy(out + written, line, (size_t)line_len);",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site
-65,stdlib_abi.c,abi_fs_metadata_text,2448,-,snprintf(,,1,"snprintf(buffer, buffer_size, ""%s/%s-%lu-%lld-%d"", base, prefix, (unsigned long)getpid(), (long long)time(NULL), attempt);",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site
-65,stdlib_abi.c,abi_fs_metadata_text,2763,*,,,1,if (length < 0 || length > (int64_t)(16 * 1024 * 1024)) {,no nearby overflow or range guard | multiplication can amplify overflow | explicit cast in arithmetic site
-60,actor.c,kain_actor_low_bit_index_u64,324,>>|*,,,0,return debruijn_index[(one_hot * 0x03f79d71b4cb0a89ULL) >> 58u];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,actor.c,kain_actor_thread_proc,3040,*,,,0,KainActorState_Internal* actor = g_actor_table.actors[actor_index];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,actor.c,kain_actor_thread_proc,3083,*,,,0,KainActorRegistryEntry* entry = g_actor_registry.buckets[actor_index];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+65,services.c,kain_service_registry_format_list,1242,+,memcpy(,,1,"memcpy(out + written, line, (size_t)line_len);",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site
+65,stdlib_abi.c,abi_fs_metadata_text,2511,-,snprintf(,,1,"snprintf(buffer, buffer_size, ""%s/%s-%lu-%lld-%d"", base, prefix, (unsigned long)getpid(), (long long)time(NULL), attempt);",no nearby overflow or range guard | size math feeds allocation or copy sink | explicit cast in arithmetic site
+65,stdlib_abi.c,abi_fs_metadata_text,2826,*,,,1,if (length < 0 || length > (int64_t)(16 * 1024 * 1024)) {,no nearby overflow or range guard | multiplication can amplify overflow | explicit cast in arithmetic site
+60,actor.c,kain_actor_low_bit_index_u64,325,>>|*,,,0,return debruijn_index[(one_hot * 0x03f79d71b4cb0a89ULL) >> 58u];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,actor.c,kain_actor_thread_proc,3096,*,,,0,KainActorState_Internal* actor = g_actor_table.actors[actor_index];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,actor.c,kain_actor_thread_proc,3139,*,,,0,KainActorRegistryEntry* entry = g_actor_registry.buckets[actor_index];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,async.c,kain_async_low_bit_index_u64,296,>>|*,,,0,return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,async.c,kain_async_timer_thread_proc,1173,<<,,,0,g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));,no nearby overflow or range guard | shift-based growth math | pointer or indexed arithmetic
 60,async.c,kain_async_timer_thread_proc,1194,<<,,,0,g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));,no nearby overflow or range guard | shift-based growth math | pointer or indexed arithmetic
@@ -228,7 +229,7 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 60,ownership.c,kain_ownership_end_collapse_slot_unlocked,666,*,,,0,KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,ownership.c,kain_ownership_begin_share_slot_unlocked,706,*,,,0,KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,ownership.c,kain_ownership_end_share_slot_unlocked,756,*,,,0,KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,ownership.c,kain_ownership_decay_slot_unlocked,796,*,,,0,KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,ownership.c,kain_ownership_decay_slot_unlocked,797,*,,,0,KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,process_system.c,abi_process_low_bit_index_u64,299,>>|*,,,0,return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,process_system.c,abi_process_decode_hex,536,*,,,0,int high = abi_process_hex_value(bytes_hex[index * 2u]);,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,process_system.c,abi_process_decode_hex,542,<<,,,0,decoded[index] = (unsigned char)((high << 4) | low);,no nearby overflow or range guard | shift-based growth math | pointer or indexed arithmetic
@@ -258,26 +259,26 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 60,stdlib_abi.c,abi_patch_undo_last,1228,*,,,0,KainNativePatchJournalEntry* entry = &g_kain_native_patch_journal[index];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
 60,stdlib_abi.c,abi_fs_string_with_len,1334,*|+,,,0,"char* result = (char*)kain_alloc_rc(length + 1, 1);",no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment
 60,stdlib_abi.c,abi_fs_builder_finish,1557,*,,,0,"const char* result = abi_fs_string_with_len(builder->data, builder->length);",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_create_parent_dirs,1604,+,memcpy(,,0,"memcpy(buffer, path, length + 1);",no nearby overflow or range guard | size math feeds allocation or copy sink | sentinel/null byte style increment
-60,stdlib_abi.c,abi_fs_metadata_text,2209,+,memcpy(,,0,"memcpy(buffer, path, length + 1);",no nearby overflow or range guard | size math feeds allocation or copy sink | sentinel/null byte style increment
-60,stdlib_abi.c,abi_fs_metadata_text,2682,>>|*,,,0,digest[state_index * 4] = (unsigned char)(ctx->state[state_index] >> 24);,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2684,>>|*|+,,,0,digest[state_index * 4 + 2] = (unsigned char)(ctx->state[state_index] >> 8);,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2685,*|+,,,0,digest[state_index * 4 + 3] = (unsigned char)(ctx->state[state_index]);,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2691,*,,,0,"static void abi_crypto_sha256_bytes(const unsigned char* data, size_t length, unsigned char digest[32]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2715,>>|*,,,0,output[index * 2u] = ABI_CRYPTO_HEX[bytes[index] >> 4u];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2718,*,,,0,output[length * 2u] = '\0';,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2883,*,,,0,"static void abi_blake3_block_words(const unsigned char* block, size_t block_len, uint32_t words[16]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2891,*|+,,,0,words[index] = abi_blake3_load32_le(padded + (index * 4u));,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2967,*,,,0,"static void abi_blake3_output_bytes(const KainNativeBlake3Output* output, unsigned char digest[ABI_BLAKE3_OUT_LEN]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,2979,*|+,,,0,"abi_blake3_store32_le(digest + (index * 4u), words[index]);",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,3029,*,,,0,"static void abi_crypto_blake3_bytes(const unsigned char* input, size_t length, unsigned char digest[ABI_BLAKE3_OUT_LEN]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-60,stdlib_abi.c,abi_fs_metadata_text,3060,*|+,,,0,"abi_blake3_parent_cv(cvs + (read_index * 8u), cvs + ((read_index + 1u) * 8u), cvs + (write_index * 8u));",no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment
-60,stdlib_abi.c,abi_fs_metadata_text,3135,>>|*,,,0,output[index * 2] = hex[digest[index] >> 4];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
-55,actor.c,kain_actor_thread_proc,3046,+,,,1,pending_mailbox_message_count += (uint64_t)actor->mailbox.count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-55,actor.c,kain_actor_thread_proc,3047,+,,,1,pending_mailbox_cached_nodes += (uint64_t)actor->mailbox.free_node_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-55,actor.c,kain_actor_thread_proc,3057,+,,,1,actor_restart_attempt_count_total += (uint64_t)actor->restart_attempt_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-55,actor.c,kain_actor_thread_proc,3058,+,,,1,actor_strategy_shutdown_count_total += (uint64_t)actor->strategy_shutdown_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-55,actor.c,kain_actor_thread_proc,3059,+,,,1,actor_escalation_count_total += (uint64_t)actor->escalation_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_create_parent_dirs,1671,+,memcpy(,,0,"memcpy(buffer, path, length + 1);",no nearby overflow or range guard | size math feeds allocation or copy sink | sentinel/null byte style increment
+60,stdlib_abi.c,abi_fs_metadata_text,2278,+,memcpy(,,0,"memcpy(buffer, path, length + 1);",no nearby overflow or range guard | size math feeds allocation or copy sink | sentinel/null byte style increment
+60,stdlib_abi.c,abi_fs_metadata_text,2745,>>|*,,,0,digest[state_index * 4] = (unsigned char)(ctx->state[state_index] >> 24);,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,2747,>>|*|+,,,0,digest[state_index * 4 + 2] = (unsigned char)(ctx->state[state_index] >> 8);,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,2748,*|+,,,0,digest[state_index * 4 + 3] = (unsigned char)(ctx->state[state_index]);,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,2754,*,,,0,"static void abi_crypto_sha256_bytes(const unsigned char* data, size_t length, unsigned char digest[32]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,2778,>>|*,,,0,output[index * 2u] = ABI_CRYPTO_HEX[bytes[index] >> 4u];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,2781,*,,,0,output[length * 2u] = '\0';,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,2946,*,,,0,"static void abi_blake3_block_words(const unsigned char* block, size_t block_len, uint32_t words[16]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,2954,*|+,,,0,words[index] = abi_blake3_load32_le(padded + (index * 4u));,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,3030,*,,,0,"static void abi_blake3_output_bytes(const KainNativeBlake3Output* output, unsigned char digest[ABI_BLAKE3_OUT_LEN]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,3042,*|+,,,0,"abi_blake3_store32_le(digest + (index * 4u), words[index]);",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,3092,*,,,0,"static void abi_crypto_blake3_bytes(const unsigned char* input, size_t length, unsigned char digest[ABI_BLAKE3_OUT_LEN]) {",no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+60,stdlib_abi.c,abi_fs_metadata_text,3123,*|+,,,0,"abi_blake3_parent_cv(cvs + (read_index * 8u), cvs + ((read_index + 1u) * 8u), cvs + (write_index * 8u));",no nearby overflow or range guard | multiplication can amplify overflow | sentinel/null byte style increment
+60,stdlib_abi.c,abi_fs_metadata_text,3198,>>|*,,,0,output[index * 2] = hex[digest[index] >> 4];,no nearby overflow or range guard | multiplication can amplify overflow | pointer or indexed arithmetic
+55,actor.c,kain_actor_thread_proc,3102,+,,,1,pending_mailbox_message_count += (uint64_t)actor->mailbox.count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
+55,actor.c,kain_actor_thread_proc,3103,+,,,1,pending_mailbox_cached_nodes += (uint64_t)actor->mailbox.free_node_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
+55,actor.c,kain_actor_thread_proc,3113,+,,,1,actor_restart_attempt_count_total += (uint64_t)actor->restart_attempt_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
+55,actor.c,kain_actor_thread_proc,3114,+,,,1,actor_strategy_shutdown_count_total += (uint64_t)actor->strategy_shutdown_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
+55,actor.c,kain_actor_thread_proc,3115,+,,,1,actor_escalation_count_total += (uint64_t)actor->escalation_count;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
 55,attrition.c,kain_attrition_fragmentation_noise_locked,207,+,,,1,noise_bytes = (size_t)(1u + ((g_kain_attrition_state.allocation_count ^ g_kain_attrition_state.config.seed) % max_bytes));,no nearby overflow or range guard | explicit cast in arithmetic site | sentinel/null byte style increment
 55,core.c,kain_map_rebuild_tiny_dispatch,1096,+,,,1,for (entry_index = 0u; entry_index < (uint64_t)map->capacity; ++entry_index) {,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
 55,core.c,kain_map_find_slot,1439,+,,,1,for (probe_offset = 0u; probe_offset < (uint64_t)map->capacity; probe_offset += 8u) {,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
@@ -303,24 +304,24 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 55,stdlib_abi.c,abi_tagged_payload_copy,701,-,,,1,(size_t)(out_payload_size - tagged->payload_size),no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
 55,stdlib_abi.c,abi_future_await_payload_copy,845,-,,,1,(size_t)(out_payload_size - future->payload_size),no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
 55,stdlib_abi.c,abi_fs_builder_appendf,1552,+,,,1,builder->length += (size_t)written;,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-55,stdlib_abi.c,abi_fs_metadata_text,2940,>>,,,1,state[13] = (uint32_t)(counter >> 32u);,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-55,stdlib_abi.c,abi_fs_metadata_text,3006,-,,,1,output->block_len = (uint32_t)(length - offset);,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-55,stdlib_abi.c,abi_fs_metadata_text,3043,*,malloc(,SIZE_MAX,1,cvs = (uint32_t*)malloc(chunk_count * 8u * sizeof(uint32_t));,size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
+55,stdlib_abi.c,abi_fs_metadata_text,3003,>>,,,1,state[13] = (uint32_t)(counter >> 32u);,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
+55,stdlib_abi.c,abi_fs_metadata_text,3069,-,,,1,output->block_len = (uint32_t)(length - offset);,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
+55,stdlib_abi.c,abi_fs_metadata_text,3106,*,malloc(,SIZE_MAX,1,cvs = (uint32_t*)malloc(chunk_count * 8u * sizeof(uint32_t));,size math feeds allocation or copy sink | multiplication can amplify overflow | explicit cast in arithmetic site
 55,wire.c,abi_wire_zero_copy_binary_checksum,141,-,,,1,: (int64_t)suffix_counts[KAIN_WIRE_WORD3_MOD - shift];,no nearby overflow or range guard | explicit cast in arithmetic site | pointer or indexed arithmetic
-50,actor.c,kain_attrition_actor_update_peak,154,*,,,0,"atomic_uint_least64_t* peak_counter,",no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_borrowed_message_release_match,407,-,,,0,if (g_actor_borrowed_message_stack[index - 1u] == message_data) {,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
-50,actor.c,kain_actor_borrowed_message_release_match,410,-,,,0,g_actor_borrowed_message_stack[tail_index - 1u] =,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
-50,actor.c,kain_actor_reply_port_state_try_copy_completed,752,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_reply_port_state_try_copy_completed_owner_inline,811,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_reply_port_state_wait,838,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_mailbox_init,1454,*,,,0,"static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_table_insert,1803,*|+,,,0,id = (KainActorId)(word_index * KAIN_ACTOR_TABLE_WORD_BITS + bit_index);,no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_thread_proc,2206,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_thread_proc,3425,*,,,0,"static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_thread_proc,3590,*,,,0,size_t kain_actor_mailbox_count(const KainActorMailbox* mailbox) {,no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_thread_proc,3597,*,,,0,size_t kain_actor_mailbox_capacity(const KainActorMailbox* mailbox) {,no nearby overflow or range guard | multiplication can amplify overflow
-50,actor.c,kain_actor_thread_proc,4214,+,,,0,child->restart_attempt_count = child->restart_attempt_count + 1;,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
-50,actor.c,kain_actor_thread_proc,4215,+,,,0,child->supervisor.restart_count = child->supervisor.restart_count + 1;,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,actor.c,kain_attrition_actor_update_peak,155,*,,,0,"atomic_uint_least64_t* peak_counter,",no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_borrowed_message_release_match,439,-,,,0,if (g_actor_borrowed_message_stack[index - 1u] == message_data) {,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,actor.c,kain_actor_borrowed_message_release_match,442,-,,,0,g_actor_borrowed_message_stack[tail_index - 1u] =,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,actor.c,kain_actor_reply_port_state_try_copy_completed,784,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_reply_port_state_try_copy_completed_owner_inline,843,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_reply_port_state_wait,870,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_mailbox_init,1510,*,,,0,"static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_table_insert,1859,*|+,,,0,id = (KainActorId)(word_index * KAIN_ACTOR_TABLE_WORD_BITS + bit_index);,no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_thread_proc,2262,*,,,0,size_t* out_reply_size,no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_thread_proc,3485,*,,,0,"static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_thread_proc,3650,*,,,0,size_t kain_actor_mailbox_count(const KainActorMailbox* mailbox) {,no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_thread_proc,3657,*,,,0,size_t kain_actor_mailbox_capacity(const KainActorMailbox* mailbox) {,no nearby overflow or range guard | multiplication can amplify overflow
+50,actor.c,kain_actor_thread_proc,4274,+,,,0,child->restart_attempt_count = child->restart_attempt_count + 1;,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,actor.c,kain_actor_thread_proc,4275,+,,,0,child->supervisor.restart_count = child->supervisor.restart_count + 1;,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
 50,async.c,kain_async_attrition_update_peak,133,*,,,0,"atomic_uint_least64_t* peak_counter,",no nearby overflow or range guard | multiplication can amplify overflow
 50,async.c,kain_async_index_insert,304,*,,,0,"uint32_t* index_table,",no nearby overflow or range guard | multiplication can amplify overflow
 50,async.c,kain_async_find_free_task_slot,324,*,,,0,static int kain_async_find_free_task_slot(uint32_t* out_slot) {,no nearby overflow or range guard | multiplication can amplify overflow
@@ -468,7 +469,7 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 50,memory.c,__kain_volatile_load,306,*,,,0,"void __kain_volatile_load(const void* ptr, void* out, size_t size) {",no nearby overflow or range guard | multiplication can amplify overflow
 50,memory.c,__kain_volatile_store,314,*,,,0,"void __kain_volatile_store(void* ptr, const void* value, size_t size) {",no nearby overflow or range guard | multiplication can amplify overflow
 50,memory.c,__kain_alloc,520,*,,,0,"void* __kain_alloc(size_t size, size_t stride, int zeroed) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,memory.c,__kain_realloc,624,*|+,,,0,"((char*)__kain_alloc_payload_from_header(new_header)) + old_payload_size,",no nearby overflow or range guard | multiplication can amplify overflow
+50,memory.c,__kain_realloc,638,*|+,,,0,"((char*)payload) + old_payload_size,",no nearby overflow or range guard | multiplication can amplify overflow
 50,net_system.c,abi_net_parse_content_length_header,178,*,,,0,"static int abi_net_parse_content_length_header(const char* text, size_t* out_length) {",no nearby overflow or range guard | multiplication can amplify overflow
 50,net_system.c,abi_net_header_key_eq_ci,213,*,,,0,"static int abi_net_header_key_eq_ci(const unsigned char* text, size_t length, const char* expected) {",no nearby overflow or range guard | multiplication can amplify overflow
 50,net_system.c,abi_net_find_http_header_end,229,*,,,0,"static const unsigned char* abi_net_find_http_header_end(const unsigned char* bytes, size_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
@@ -647,15 +648,14 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 50,scene.c,backend_descriptor_init,143,*,,,0,"ZeroMemory(descriptor, sizeof(*descriptor));",no nearby overflow or range guard | multiplication can amplify overflow
 50,scene.c,display_descriptor_init,150,*,,,0,"ZeroMemory(descriptor, sizeof(*descriptor));",no nearby overflow or range guard | multiplication can amplify overflow
 50,scene.c,device_descriptor_init,157,*,,,0,"ZeroMemory(descriptor, sizeof(*descriptor));",no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_copy_text,25,*,,,0,"static void kain_copy_text(char* out, size_t out_size, const char* text) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_magic_prefix_state,74,*,,,0,uint64_t folded0 = (word0 ^ length) * magic;,no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_key_metadata_ascii_lower,84,*,,,0,"size_t* out_length,",no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_descriptor_copy,159,*,,,0,"ZeroMemory(destination, sizeof(*destination));",no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_registry_init,610,*,,,0,"ZeroMemory(registry, sizeof(*registry));",no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_registry_register,686,*,,,0,"ZeroMemory(descriptor, sizeof(*descriptor));",no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_registry_probe_native_net_service,778,*,,,0,int* out_probe_passed,no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_registry_probe_native_process_service,800,*,,,0,int* out_probe_passed,no nearby overflow or range guard | multiplication can amplify overflow
-50,services.c,kain_service_registry_validate_required,953,*,,,0,int* diagnostic_count,no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_copy_text,26,*,,,0,"static void kain_copy_text(char* out, size_t out_size, const char* text) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_service_magic_prefix_state,75,*,,,0,uint64_t folded0 = (word0 ^ length) * magic;,no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_service_key_metadata_ascii_lower,85,*,,,0,"size_t* out_length,",no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_service_descriptor_copy,160,*,,,0,"ZeroMemory(destination, sizeof(*destination));",no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_service_registry_init,762,*,,,0,"ZeroMemory(registry, sizeof(*registry));",no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_service_registry_probe_native_net_service,898,*,,,0,int* out_probe_passed,no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_service_registry_probe_native_process_service,920,*,,,0,int* out_probe_passed,no nearby overflow or range guard | multiplication can amplify overflow
+50,services.c,kain_service_registry_validate_required,1083,*,,,0,int* diagnostic_count,no nearby overflow or range guard | multiplication can amplify overflow
 50,simd.c,kain_simd_dot_avx2_raw,189,+,memcpy(,,0,"__builtin_memcpy(&left_values, left + index, sizeof(left_values));",no nearby overflow or range guard | size math feeds allocation or copy sink
 50,simd.c,kain_simd_dot_avx2_raw,190,+,memcpy(,,0,"__builtin_memcpy(&right_values, right + index, sizeof(right_values));",no nearby overflow or range guard | size math feeds allocation or copy sink
 50,simd.c,kain_simd_affine_stats_avx2_raw,226,+,memcpy(,,0,"__builtin_memcpy(&left_values, left + index, sizeof(left_values));",no nearby overflow or range guard | size math feeds allocation or copy sink
@@ -696,41 +696,45 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 50,stdlib_abi.c,abi_fs_copy_message,1348,*,,,0,"static void abi_fs_copy_message(char* destination, size_t destination_size, const char* source) {",no nearby overflow or range guard | multiplication can amplify overflow
 50,stdlib_abi.c,abi_fs_builder_reserve,1473,*,,,0,"static int abi_fs_builder_reserve(KainNativeFsTextBuilder* builder, size_t additional) {",no nearby overflow or range guard | multiplication can amplify overflow
 50,stdlib_abi.c,abi_fs_builder_reserve,1504,*,realloc(,SIZE_MAX,0,"grown = (char*)realloc(builder->data, next_capacity);",size math feeds allocation or copy sink | multiplication can amplify overflow | pointer or indexed arithmetic
-50,stdlib_abi.c,abi_fs_write_mode_len,1654,*,,,0,"static int64_t abi_fs_write_mode_len(const char* path, const char* content, size_t length, const char* mode) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_read_text_range,1732,*,,,0,"const char* abi_fs_read_text_range(const char* path, int64_t offset, int64_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_write_text_len,1774,*,,,0,"int64_t abi_fs_write_text_len(const char* path, const char* content, int64_t content_length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_append_text_len,1786,*,,,0,"int64_t abi_fs_append_text_len(const char* path, const char* content, int64_t content_length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_read_byte_range_hex,1801,*,,,0,"const char* abi_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_read_byte_range_hex,1839,*,,,0,"if (abi_fs_builder_reserve(&builder, read_count * 2) != 0) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_read_bytes_hex,1857,*,,,0,const char* abi_fs_read_bytes_hex(const char* path) {,no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_write_bytes_hex,1888,*,,,0,"int64_t abi_fs_write_bytes_hex(const char* path, const char* hex) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_write_bytes_hex,1911,+,,,0,int lo = abi_fs_hex_value(hex[index + 1]);,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
-50,stdlib_abi.c,abi_fs_metadata_text,2042,*,,,0,"if (_snprintf_s(pattern, sizeof(pattern), _TRUNCATE, ""%s\\*"", path) < 0) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2074,*,,,0,"if (_snprintf_s(pattern, sizeof(pattern), _TRUNCATE, ""%s\\*"", path) < 0) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2267,*,,,0,"int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2281,*,,,0,if (buffer_size > 1024 * 1024) {,no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2282,*,,,0,buffer_size = 1024 * 1024;,no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2431,*,,,0,"static void abi_fs_temp_base(char* buffer, size_t buffer_size) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2439,*,,,0,"static void abi_fs_temp_path(char* buffer, size_t buffer_size, const char* prefix, int attempt) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2496,*,,,0,"int64_t abi_fs_atomic_write_text_len(const char* path, const char* content, int64_t content_length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2567,*,,,0,size_t base = index * 4;,no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2640,*,,,0,"static void abi_sha256_update(KainNativeSha256* ctx, const unsigned char* data, size_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2700,*,,,0,"static const char* abi_crypto_hex_string_from_bytes(const unsigned char* bytes, size_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2710,*|+,malloc(,SIZE_MAX,0,output = (char*)malloc((length * 2u) + 1u);,size math feeds allocation or copy sink | multiplication can amplify overflow | sentinel/null byte style increment
-50,stdlib_abi.c,abi_fs_metadata_text,2724,*,,,0,"static int abi_crypto_fill_random(unsigned char* buffer, size_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2737,+,memcpy(,,0,"memcpy(buffer + offset, &word, take);",no nearby overflow or range guard | size math feeds allocation or copy sink
-50,stdlib_abi.c,abi_fs_metadata_text,2760,*,,,0,const char* abi_crypto_random_bytes_hex(int64_t length) {,no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2782,*,,,0,"const char* abi_crypto_sha256_text(const char* text, int64_t text_length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2792,*,,,0,"abi_crypto_sha256_bytes((const unsigned char*)text, length, digest);",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2796,*,,,0,"const char* abi_crypto_hmac_sha256_text(const char* key, int64_t key_length, const char* message, int64_t message_length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2816,*,,,0,"abi_crypto_sha256_bytes((const unsigned char*)key, key_len, key_block);",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2866,<<|>>|-,,,0,return (value >> count) | (value << (32u - count));,no nearby overflow or range guard | shift-based growth math
-50,stdlib_abi.c,abi_fs_metadata_text,2869,*,,,0,static uint32_t abi_blake3_load32_le(const unsigned char* bytes) {,no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,2876,*,,,0,"static void abi_blake3_store32_le(unsigned char* bytes, uint32_t word) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,3050,*,,,0,size_t offset = chunk_index * ABI_BLAKE3_CHUNK_LEN;,no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,3054,*|+,,,0,"abi_blake3_output_chaining_value(&output, cvs + (chunk_index * 8u));",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,3078,*,,,0,"const char* abi_crypto_blake3_text(const char* text, int64_t text_length) {",no nearby overflow or range guard | multiplication can amplify overflow
-50,stdlib_abi.c,abi_fs_metadata_text,3088,*,,,0,"abi_crypto_blake3_bytes((const unsigned char*)text, length, digest);",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_creation_root_span,1580,*,,,0,static size_t abi_fs_creation_root_span(const char* path) {,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_creation_root_span,1595,+,,,0,&& abi_fs_is_separator(path[index + 1])) {,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,stdlib_abi.c,abi_fs_creation_root_span,1599,+,,,0,&& (path[index + 1] == 'N' || path[index + 1] == 'n'),no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,stdlib_abi.c,abi_fs_creation_root_span,1605,+,,,0,&& path[index + 1] == ':',no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,stdlib_abi.c,abi_fs_write_mode_len,1722,*,,,0,"static int64_t abi_fs_write_mode_len(const char* path, const char* content, size_t length, const char* mode) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_read_text_range,1800,*,,,0,"const char* abi_fs_read_text_range(const char* path, int64_t offset, int64_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_write_text_len,1842,*,,,0,"int64_t abi_fs_write_text_len(const char* path, const char* content, int64_t content_length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_append_text_len,1854,*,,,0,"int64_t abi_fs_append_text_len(const char* path, const char* content, int64_t content_length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_read_byte_range_hex,1869,*,,,0,"const char* abi_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_read_byte_range_hex,1907,*,,,0,"if (abi_fs_builder_reserve(&builder, read_count * 2) != 0) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_read_bytes_hex,1925,*,,,0,const char* abi_fs_read_bytes_hex(const char* path) {,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_write_bytes_hex,1956,*,,,0,"int64_t abi_fs_write_bytes_hex(const char* path, const char* hex) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_write_bytes_hex,1979,+,,,0,int lo = abi_fs_hex_value(hex[index + 1]);,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
+50,stdlib_abi.c,abi_fs_metadata_text,2110,*,,,0,"if (_snprintf_s(pattern, sizeof(pattern), _TRUNCATE, ""%s\\*"", path) < 0) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2142,*,,,0,"if (_snprintf_s(pattern, sizeof(pattern), _TRUNCATE, ""%s\\*"", path) < 0) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2330,*,,,0,"int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2344,*,,,0,if (buffer_size > 1024 * 1024) {,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2345,*,,,0,buffer_size = 1024 * 1024;,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2494,*,,,0,"static void abi_fs_temp_base(char* buffer, size_t buffer_size) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2502,*,,,0,"static void abi_fs_temp_path(char* buffer, size_t buffer_size, const char* prefix, int attempt) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2559,*,,,0,"int64_t abi_fs_atomic_write_text_len(const char* path, const char* content, int64_t content_length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2630,*,,,0,size_t base = index * 4;,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2703,*,,,0,"static void abi_sha256_update(KainNativeSha256* ctx, const unsigned char* data, size_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2763,*,,,0,"static const char* abi_crypto_hex_string_from_bytes(const unsigned char* bytes, size_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2773,*|+,malloc(,SIZE_MAX,0,output = (char*)malloc((length * 2u) + 1u);,size math feeds allocation or copy sink | multiplication can amplify overflow | sentinel/null byte style increment
+50,stdlib_abi.c,abi_fs_metadata_text,2787,*,,,0,"static int abi_crypto_fill_random(unsigned char* buffer, size_t length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2800,+,memcpy(,,0,"memcpy(buffer + offset, &word, take);",no nearby overflow or range guard | size math feeds allocation or copy sink
+50,stdlib_abi.c,abi_fs_metadata_text,2823,*,,,0,const char* abi_crypto_random_bytes_hex(int64_t length) {,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2845,*,,,0,"const char* abi_crypto_sha256_text(const char* text, int64_t text_length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2855,*,,,0,"abi_crypto_sha256_bytes((const unsigned char*)text, length, digest);",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2859,*,,,0,"const char* abi_crypto_hmac_sha256_text(const char* key, int64_t key_length, const char* message, int64_t message_length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2879,*,,,0,"abi_crypto_sha256_bytes((const unsigned char*)key, key_len, key_block);",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2929,<<|>>|-,,,0,return (value >> count) | (value << (32u - count));,no nearby overflow or range guard | shift-based growth math
+50,stdlib_abi.c,abi_fs_metadata_text,2932,*,,,0,static uint32_t abi_blake3_load32_le(const unsigned char* bytes) {,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,2939,*,,,0,"static void abi_blake3_store32_le(unsigned char* bytes, uint32_t word) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,3113,*,,,0,size_t offset = chunk_index * ABI_BLAKE3_CHUNK_LEN;,no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,3117,*|+,,,0,"abi_blake3_output_chaining_value(&output, cvs + (chunk_index * 8u));",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,3141,*,,,0,"const char* abi_crypto_blake3_text(const char* text, int64_t text_length) {",no nearby overflow or range guard | multiplication can amplify overflow
+50,stdlib_abi.c,abi_fs_metadata_text,3151,*,,,0,"abi_crypto_blake3_bytes((const unsigned char*)text, length, digest);",no nearby overflow or range guard | multiplication can amplify overflow
 50,wire.c,abi_wire_zero_copy_binary_checksum,120,*,,,0,int32_t* suffix_counts =,no nearby overflow or range guard | multiplication can amplify overflow
 50,wire.c,abi_wire_zero_copy_binary_checksum,133,+,,,0,suffix_counts[period_index] += suffix_counts[period_index + 1];,no nearby overflow or range guard | sentinel/null byte style increment | pointer or indexed arithmetic
 50,wire.c,abi_wire_zero_copy_binary_checksum,145,*,,,0,(KAIN_WIRE_WORD3_MOD * wrap_count);,no nearby overflow or range guard | multiplication can amplify overflow
@@ -781,26 +785,26 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 45,process_system.c,abi_process_spec_destroy,2232,-,,,1,slot = (uint32_t)(spec - g_specs);,no nearby overflow or range guard | explicit cast in arithmetic site
 45,realtime.c,graphics_bundle_inline_list_contains,112,-,,,1,token_length = (size_t)(token_end - token_start);,no nearby overflow or range guard | explicit cast in arithmetic site
 45,realtime.c,realtime_copy_string_value,174,-,,,1,length = (size_t)(end_quote - value_start);,no nearby overflow or range guard | explicit cast in arithmetic site
-45,services.c,kain_service_registry_format_list,1107,+,,,1,written += (size_t)line_len;,no nearby overflow or range guard | explicit cast in arithmetic site
+45,services.c,kain_service_registry_format_list,1243,+,,,1,written += (size_t)line_len;,no nearby overflow or range guard | explicit cast in arithmetic site
 45,stdlib_abi.c,abi_copy_payload_allocation,626,+,,,1,allocation_size = sizeof(KainNativeTaggedValue) + (size_t)payload_size;,no nearby overflow or range guard | explicit cast in arithmetic site
-45,stdlib_abi.c,abi_fs_read_byte_range_hex,1850,-,,,1,remaining -= (int64_t)read_count;,no nearby overflow or range guard | explicit cast in arithmetic site
-45,stdlib_abi.c,abi_fs_metadata_text,2313,+,,,1,copied += (int64_t)read_count;,no nearby overflow or range guard | explicit cast in arithmetic site
-45,stdlib_abi.c,abi_fs_metadata_text,2446,-,,,1,"_snprintf_s(buffer, buffer_size, _TRUNCATE, ""%s\\%s-%lu-%lld-%d"", base, prefix, (unsigned long)GetCurrentProcessId(), (long long)time(NULL), attempt);",no nearby overflow or range guard | explicit cast in arithmetic site
-45,stdlib_abi.c,abi_fs_metadata_text,3053,+,,,1,"abi_blake3_chunk_output(input + offset, chunk_len, (uint64_t)chunk_index, &output);",no nearby overflow or range guard | explicit cast in arithmetic site
-40,actor.c,kain_actor_reply_port_state_bind_synthetic_actor,1036,-,,,0,"kain_actor_copy_name(actor->name, sizeof(actor->name), ""kain-reply-port"");",no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_mailbox_take_cached_node,1533,-,,,0,mailbox->free_node_count--;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_mailbox_cache_or_free_node,1550,+,,,0,mailbox->free_node_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_mailbox_append_copied_locked,1605,+,,,0,mailbox->count++;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_thread_proc,3037,+,,,0,actor_occupancy_popcount += kain_attrition_actor_popcount_u64(g_actor_table.occupancy_words[word_index]);,no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_thread_proc,3049,+,,,0,actor_supervised_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
-40,actor.c,kain_actor_thread_proc,3052,+,,,0,actor_in_scheduler_turn_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
-40,actor.c,kain_actor_thread_proc,3055,+,,,0,actor_supervision_limit_hit_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
-40,actor.c,kain_actor_thread_proc,3062,+,,,0,actor_monitor_edge_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
-40,actor.c,kain_actor_thread_proc,3067,+,,,0,actor_link_edge_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
-40,actor.c,kain_actor_thread_proc,4246,+,,,0,supervisor->escalation_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_thread_proc,4289,+,,,0,supervisor->strategy_shutdown_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_thread_proc,4303,+,,,0,supervisor->strategy_shutdown_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,actor.c,kain_actor_thread_proc,4335,+,,,0,supervisor->observed_child_exit_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
+45,stdlib_abi.c,abi_fs_read_byte_range_hex,1918,-,,,1,remaining -= (int64_t)read_count;,no nearby overflow or range guard | explicit cast in arithmetic site
+45,stdlib_abi.c,abi_fs_metadata_text,2376,+,,,1,copied += (int64_t)read_count;,no nearby overflow or range guard | explicit cast in arithmetic site
+45,stdlib_abi.c,abi_fs_metadata_text,2509,-,,,1,"_snprintf_s(buffer, buffer_size, _TRUNCATE, ""%s\\%s-%lu-%lld-%d"", base, prefix, (unsigned long)GetCurrentProcessId(), (long long)time(NULL), attempt);",no nearby overflow or range guard | explicit cast in arithmetic site
+45,stdlib_abi.c,abi_fs_metadata_text,3116,+,,,1,"abi_blake3_chunk_output(input + offset, chunk_len, (uint64_t)chunk_index, &output);",no nearby overflow or range guard | explicit cast in arithmetic site
+40,actor.c,kain_actor_reply_port_state_bind_synthetic_actor,1068,-,,,0,"kain_actor_copy_name(actor->name, sizeof(actor->name), ""kain-reply-port"");",no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_mailbox_take_cached_node,1589,-,,,0,mailbox->free_node_count--;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_mailbox_cache_or_free_node,1606,+,,,0,mailbox->free_node_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_mailbox_append_copied_locked,1661,+,,,0,mailbox->count++;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_thread_proc,3093,+,,,0,actor_occupancy_popcount += kain_attrition_actor_popcount_u64(g_actor_table.occupancy_words[word_index]);,no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_thread_proc,3105,+,,,0,actor_supervised_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,actor.c,kain_actor_thread_proc,3108,+,,,0,actor_in_scheduler_turn_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,actor.c,kain_actor_thread_proc,3111,+,,,0,actor_supervision_limit_hit_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,actor.c,kain_actor_thread_proc,3118,+,,,0,actor_monitor_edge_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,actor.c,kain_actor_thread_proc,3123,+,,,0,actor_link_edge_count += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,actor.c,kain_actor_thread_proc,4306,+,,,0,supervisor->escalation_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_thread_proc,4349,+,,,0,supervisor->strategy_shutdown_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_thread_proc,4363,+,,,0,supervisor->strategy_shutdown_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,actor.c,kain_actor_thread_proc,4395,+,,,0,supervisor->observed_child_exit_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
 40,async.c,kain_async_index_insert,311,+,,,0,uint32_t encoded_slot = slot + 1u;,no nearby overflow or range guard | sentinel/null byte style increment
 40,async.c,kain_async_find_task_locked,406,-,,,0,slot = encoded_slot - 1u;,no nearby overflow or range guard | sentinel/null byte style increment
 40,async.c,kain_async_find_timer_locked,433,-,,,0,slot = encoded_slot - 1u;,no nearby overflow or range guard | sentinel/null byte style increment
@@ -926,7 +930,6 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 40,machine_stones.c,kain_machine_pulse_snapshot,376,-,,,0,elapsed_ns = now_ns >= slot->last_ns ? now_ns - slot->last_ns : 0u;,no nearby overflow or range guard | pointer or indexed arithmetic
 40,machine_stones.c,kain_machine_pulse_snapshot,379,+,,,0,slot->tick += advanced;,no nearby overflow or range guard | pointer or indexed arithmetic
 40,machine_stones.c,kain_machine_pulse_start,424,+,,,0,++slot->fire_count;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,memory.c,__kain_realloc,614,*,realloc(,kain_add_overflow|kain_mul_overflow|overflow,0,"new_header = (KainAllocHeader*)realloc(old_header, allocation_size);",size math feeds allocation or copy sink | multiplication can amplify overflow
 40,net_system.c,abi_net_index_insert,361,+,,,0,uint32_t encoded_slot = slot + 1u;,no nearby overflow or range guard | sentinel/null byte style increment
 40,net_system.c,abi_net_append_bytes,753,*,realloc(,SIZE_MAX,0,"resized = (unsigned char*)realloc(*buffer, next_capacity);",size math feeds allocation or copy sink | multiplication can amplify overflow
 40,net_system.c,abi_net_connection,780,-,,,0,slot = encoded_slot - 1u;,no nearby overflow or range guard | sentinel/null byte style increment
@@ -1039,42 +1042,356 @@ risk_score,file,function,line,operators,alloc_hits,guard_hits,has_cast,expressio
 40,scene.c,runtime_append_text,27,+,,,0,if (offset + text_len + 1 > out_cap) {,no nearby overflow or range guard | sentinel/null byte style increment
 40,scene.c,runtime_append_text,35,+,,,0,out[offset + text_len] = '\0';,no nearby overflow or range guard | pointer or indexed arithmetic
 40,scene.c,kain_scene_query_result_append_hit,132,+,,,0,result->hit_count += 1;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_lookup_mutable,633,+,,,0,for (i = 0; i < registry->service_count; ++i) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_register,699,+,,,0,registry->service_count++;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_lookup,743,+,,,0,for (i = 0; i < registry->service_count; i++) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_refresh_runtime_probe_statuses,830,+,,,0,for (i = 0; i < registry->service_count; ++i) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_register_native_runtime_services,873,+,,,0,for (i = 0; i < sizeof(g_kain_native_runtime_service_catalog) / sizeof(g_kain_native_runtime_service_catalog[0]); ++i) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_count_by_status,920,+,,,0,for (i = 0; i < registry->service_count; i++) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_count_by_requirement,940,+,,,0,for (i = 0; i < registry->service_count; i++) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_validate_required,967,+,,,0,for (i = 0; i < registry->service_count; i++) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_validate_required_collector,1030,+,,,0,for (i = 0; i < registry->service_count; i++) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_format_list,1088,+,,,0,for (i = 0; i < registry->service_count; i++) {,no nearby overflow or range guard | pointer or indexed arithmetic
-40,services.c,kain_service_registry_print,1126,+,,,0,for (i = 0; i < registry->service_count; i++) {,no nearby overflow or range guard | pointer or indexed arithmetic
+40,services.c,kain_service_registry_commit_descriptor_unlocked,321,+,,,0,"service_count + 1,",no nearby overflow or range guard | sentinel/null byte style increment
+40,services.c,kain_service_registry_register_native_runtime_services,995,+,,,0,for (i = 0; i < sizeof(g_kain_native_runtime_service_catalog) / sizeof(g_kain_native_runtime_service_catalog[0]); ++i) {,no nearby overflow or range guard | pointer or indexed arithmetic
 40,stdlib_abi.c,abi_copy_text,110,+,,,0,index += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
 40,stdlib_abi.c,abi_actor_send,969,+,,,0,message.data_size = data_payload == 0 ? 0 : strlen(data_payload) + 1;,no nearby overflow or range guard | sentinel/null byte style increment
 40,stdlib_abi.c,abi_patch_last_path,1245,-,,,0,return string_new(g_kain_native_patch_journal[g_kain_native_patch_journal_count - 1].path);,no nearby overflow or range guard | pointer or indexed arithmetic
 40,stdlib_abi.c,abi_fs_copy_message,1359,-,,,0,destination[destination_size - 1] = '\0';,no nearby overflow or range guard | pointer or indexed arithmetic
 40,stdlib_abi.c,abi_fs_builder_append,1524,+,,,0,builder->length += length;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_read_byte_range_hex,1846,>>|+,,,0,builder.data[builder.length++] = digits[(buffer[index] >> 4) & 0xF];,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_read_byte_range_hex,1847,+,,,0,builder.data[builder.length++] = digits[buffer[index] & 0xF];,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2576,-,,,0,"abi_sha256_rotr(words[index - 15], 7) ^",no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2577,-,,,0,"abi_sha256_rotr(words[index - 15], 18) ^",no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2578,>>|-,,,0,(words[index - 15] >> 3);,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2580,-,,,0,"abi_sha256_rotr(words[index - 2], 17) ^",no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2581,-,,,0,"abi_sha256_rotr(words[index - 2], 19) ^",no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2582,>>|-,,,0,(words[index - 2] >> 10);,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2583,+|-,,,0,words[index] = words[index - 16] + s0 + words[index - 7] + s1;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2600,+,,,0,uint32_t temp1 = h + s1 + ch + ABI_SHA256_K[index] + words[index];,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2657,+,,,0,ctx->data[index++] = 0x80;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2660,+,,,0,ctx->data[index++] = 0;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2666,+,,,0,ctx->data[index++] = 0;,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2878,>>,,,0,bytes[1] = (unsigned char)(word >> 8u);,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2879,>>,,,0,bytes[2] = (unsigned char)(word >> 16u);,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2880,>>,,,0,bytes[3] = (unsigned char)(word >> 24u);,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2949,+,,,0,out[index] = state[index] ^ state[index + 8u];,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,2950,+,,,0,out[index + 8u] = state[index + 8u] ^ cv[index];,no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,3004,+|-,,,0,"abi_blake3_block_words(input == 0 ? 0 : input + offset, length - offset, output->block_words);",no nearby overflow or range guard | pointer or indexed arithmetic
-40,stdlib_abi.c,abi_fs_metadata_text,3030,+|-,,,0,size_t chunk_count = length == 0 ? 1u : ((length + ABI_BLAKE3_CHUNK_LEN - 1u) / ABI_BLAKE3_CHUNK_LEN);,no nearby overflow or range guard | sentinel/null byte style increment
-40,stdlib_abi.c,abi_fs_metadata_text,3059,+,,,0,while ((read_index + 1u) < chunk_count) {,no nearby overflow or range guard | sentinel/null byte style increment
+40,stdlib_abi.c,abi_fs_creation_root_span,1593,+,,,0,if (length > index + 1u,no nearby overflow or range guard | sentinel/null byte style increment
+40,stdlib_abi.c,abi_fs_creation_root_span,1600,+,,,0,&& (path[index + 2] == 'C' || path[index + 2] == 'c'),no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_creation_root_span,1601,+,,,0,&& abi_fs_is_separator(path[index + 3])) {,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_creation_root_span,1606,+,,,0,&& abi_fs_is_separator(path[index + 2])) {,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_creation_root_span,1614,+,,,0,index += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,stdlib_abi.c,abi_fs_creation_root_span,1620,+,,,0,index += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,stdlib_abi.c,abi_fs_creation_root_span,1624,+,,,0,index += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,stdlib_abi.c,abi_fs_creation_root_span,1629,+,,,0,index += 1u;,no nearby overflow or range guard | sentinel/null byte style increment
+40,stdlib_abi.c,abi_fs_create_parent_dirs,1676,-,,,0,if (index <= root_span || abi_fs_is_separator(buffer[index - 1])) {,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_read_byte_range_hex,1914,>>|+,,,0,builder.data[builder.length++] = digits[(buffer[index] >> 4) & 0xF];,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_read_byte_range_hex,1915,+,,,0,builder.data[builder.length++] = digits[buffer[index] & 0xF];,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2283,-,,,0,if (index <= root_span || abi_fs_is_separator(buffer[index - 1])) {,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2639,-,,,0,"abi_sha256_rotr(words[index - 15], 7) ^",no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2640,-,,,0,"abi_sha256_rotr(words[index - 15], 18) ^",no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2641,>>|-,,,0,(words[index - 15] >> 3);,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2643,-,,,0,"abi_sha256_rotr(words[index - 2], 17) ^",no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2644,-,,,0,"abi_sha256_rotr(words[index - 2], 19) ^",no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2645,>>|-,,,0,(words[index - 2] >> 10);,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2646,+|-,,,0,words[index] = words[index - 16] + s0 + words[index - 7] + s1;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2663,+,,,0,uint32_t temp1 = h + s1 + ch + ABI_SHA256_K[index] + words[index];,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2720,+,,,0,ctx->data[index++] = 0x80;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2723,+,,,0,ctx->data[index++] = 0;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2729,+,,,0,ctx->data[index++] = 0;,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2941,>>,,,0,bytes[1] = (unsigned char)(word >> 8u);,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2942,>>,,,0,bytes[2] = (unsigned char)(word >> 16u);,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,2943,>>,,,0,bytes[3] = (unsigned char)(word >> 24u);,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,3012,+,,,0,out[index] = state[index] ^ state[index + 8u];,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,3013,+,,,0,out[index + 8u] = state[index + 8u] ^ cv[index];,no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,3067,+|-,,,0,"abi_blake3_block_words(input == 0 ? 0 : input + offset, length - offset, output->block_words);",no nearby overflow or range guard | pointer or indexed arithmetic
+40,stdlib_abi.c,abi_fs_metadata_text,3093,+|-,,,0,size_t chunk_count = length == 0 ? 1u : ((length + ABI_BLAKE3_CHUNK_LEN - 1u) / ABI_BLAKE3_CHUNK_LEN);,no nearby overflow or range guard | sentinel/null byte style increment
+40,stdlib_abi.c,abi_fs_metadata_text,3122,+,,,0,while ((read_index + 1u) < chunk_count) {,no nearby overflow or range guard | sentinel/null byte style increment
 40,wire.c,abi_wire_zero_copy_binary_checksum,130,+,,,0,suffix_counts[fold.word3_base] += 1;,no nearby overflow or range guard | pointer or indexed arithmetic
-35,stdlib_abi.c,abi_fs_metadata_text,3039,*,,SIZE_MAX,1,if (chunk_count > (SIZE_MAX / (8u * sizeof(uint32_t)))) {,multiplication can amplify overflow | explicit cast in arithmetic site
+35,stdlib_abi.c,abi_fs_metadata_text,3102,*,,SIZE_MAX,1,if (chunk_count > (SIZE_MAX / (8u * sizeof(uint32_t)))) {,multiplication can amplify overflow | explicit cast in arithmetic site
+30,actor.c,kain_actor_borrowed_message_release_match,438,-,,,0,for (index = g_actor_borrowed_message_depth; index > 0u; --index) {,no nearby overflow or range guard
+30,actor.c,kain_actor_borrowed_message_release_match,441,+,,,0,for (tail_index = index; tail_index < g_actor_borrowed_message_depth; ++tail_index) {,no nearby overflow or range guard
+30,actor.c,kain_actor_reply_port_state_wait,893,+,,,0,for (spin_index = 0u; spin_index < KAIN_ACTOR_REPLY_PORT_WAIT_SPINS; ++spin_index) {,no nearby overflow or range guard
+30,actor.c,kain_actor_runtime_init,1278,+,,,0,kain_actor_reply_port_spin_pause(spin_index++);,no nearby overflow or range guard
+30,actor.c,kain_actor_runtime_shutdown,1435,+,,,0,for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_runtime_shutdown,1455,+,,,0,for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_runtime_shutdown,1481,+,,,0,for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_mailbox_append_copied_locked,1625,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/actor-mailbox-bounded-send-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,actor.c,kain_actor_table_insert,1850,-,,,0,/* Find first free slot with a reserved-invalid-slot bitset. */,no nearby overflow or range guard
+30,actor.c,kain_actor_table_insert,1851,+,,,0,for (word_index = 0u; word_index < KAIN_ACTOR_TABLE_WORD_COUNT; ++word_index) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,2464,-,,,0,/* The compiler-owned actor state is reference-counted user data.,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3092,+,,,0,for (word_index = 0u; word_index < KAIN_ACTOR_TABLE_WORD_COUNT; ++word_index) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3095,+,,,0,for (actor_index = 0u; actor_index < KAIN_ACTOR_TABLE_SIZE; ++actor_index) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3138,+,,,0,for (actor_index = 0u; actor_index < KAIN_ACTOR_REGISTRY_SIZE; ++actor_index) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3273,+,,,0,for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3468,+,,,0,for (int i = 0; i < KAIN_ACTOR_REGISTRY_SIZE; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3926,+,,,0,for (int i = 0; i < KAIN_SCHEDULER_WORKER_COUNT; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3935,+,,,0,for (int i = 0; i < KAIN_SCHEDULER_WORKER_COUNT; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,3947,+,,,0,for (int i = 0; i < KAIN_SCHEDULER_WORKER_COUNT; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,4234,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/actor-supervision-restart-count-stays-within-window-limit.yaml */,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,4343,+,,,0,for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {,no nearby overflow or range guard
+30,actor.c,kain_actor_thread_proc,4357,+,,,0,for (int i = 0; i < KAIN_ACTOR_TABLE_SIZE; i++) {,no nearby overflow or range guard
+30,async.c,kain_async_index_insert,313,+,,,0,for (probe = 0u; probe < index_capacity; ++probe) {,no nearby overflow or range guard
+30,async.c,kain_async_index_insert,314,+,,,0,uint32_t candidate_index = (start_index + probe) & index_mask;,no nearby overflow or range guard
+30,async.c,kain_async_find_free_task_slot,329,+,,,0,for (word_index = 0u; word_index < KAIN_ASYNC_TASK_WORD_COUNT; ++word_index) {,no nearby overflow or range guard
+30,async.c,kain_async_find_free_timer_slot,346,+,,,0,for (word_index = 0u; word_index < KAIN_ASYNC_TIMER_WORD_COUNT; ++word_index) {,no nearby overflow or range guard
+30,async.c,kain_async_rebuild_task_index,361,+,,,0,for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {,no nearby overflow or range guard
+30,async.c,kain_async_rebuild_timer_index,377,+,,,0,for (slot = 0u; slot < KAIN_ASYNC_MAX_TIMERS; ++slot) {,no nearby overflow or range guard
+30,async.c,kain_async_find_task_locked,399,+,,,0,for (probe = 0u; probe < KAIN_ASYNC_TASK_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,async.c,kain_async_find_task_locked,400,+,,,0,uint32_t candidate_index = (start_index + probe) & KAIN_ASYNC_TASK_INDEX_MASK;,no nearby overflow or range guard
+30,async.c,kain_async_find_timer_locked,426,+,,,0,for (probe = 0u; probe < KAIN_ASYNC_TIMER_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,async.c,kain_async_find_timer_locked,427,+,,,0,uint32_t candidate_index = (start_index + probe) & KAIN_ASYNC_TIMER_INDEX_MASK;,no nearby overflow or range guard
+30,async.c,kain_async_timer_thread_proc,1406,+,,,0,for (word_index = 0u; word_index < KAIN_ASYNC_TASK_WORD_COUNT; ++word_index) {,no nearby overflow or range guard
+30,async.c,kain_async_timer_thread_proc,1409,+,,,0,for (word_index = 0u; word_index < KAIN_ASYNC_TIMER_WORD_COUNT; ++word_index) {,no nearby overflow or range guard
+30,async.c,kain_async_timer_thread_proc,1412,+,,,0,for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {,no nearby overflow or range guard
+30,async.c,kain_async_timer_thread_proc,1427,+,,,0,for (slot = 0u; slot < KAIN_ASYNC_MAX_TIMERS; ++slot) {,no nearby overflow or range guard
+30,attrition.c,kain_attrition_state_reset_locked,130,+,,,0,for (index = 0u; index < KAIN_ATTRITION_QUARANTINE_CAPACITY_MAX; ++index) {,no nearby overflow or range guard
+30,attrition.c,kain_attrition_state_reset_locked,137,+,,,0,for (index = 0u; index < KAIN_ATTRITION_FRAGMENTATION_RING_CAPACITY; ++index) {,no nearby overflow or range guard
+30,attrition.c,kain_attrition_fragmentation_noise_locked,217,-,,,0,g_kain_attrition_state.fragmentation_noise_live_bytes -=,no nearby overflow or range guard
+30,attrition.c,kain_attrition_runtime_copy_events,396,+|-,,,0,start_index = (g_kain_attrition_state.event_next_index + KAIN_ATTRITION_EVENT_RING_CAPACITY - count),no nearby overflow or range guard
+30,attrition.c,kain_attrition_runtime_copy_events,398,+,,,0,for (i = 0u; i < count; ++i) {,no nearby overflow or range guard
+30,attrition.c,kain_attrition_runtime_copy_events,400,+,,,0,(start_index + i) % KAIN_ATTRITION_EVENT_RING_CAPACITY,no nearby overflow or range guard
+30,attrition.c,kain_attrition_note_rc_free,745,-,,,0,g_kain_attrition_state.live_runtime_bytes -= total_bytes;,no nearby overflow or range guard
+30,bitfield.c,__kain_bitfield_get,63,>>,,,0,uint64_t shifted = unit >> bit_offset;,no nearby overflow or range guard
+30,compatibility.c,kain_copy_text,38,-,,,0,length = out_cap - 1;,no nearby overflow or range guard
+30,contract.c,contract_copy_cstr,227,-,,,0,length = out_cap - 1;,no nearby overflow or range guard
+30,contract.c,contract_count_bits,236,+,,,0,count += (value & UINT64_C(1)) != 0 ? 1 : 0;,no nearby overflow or range guard
+30,contract.c,contract_find_service_spec,253,+,,,0,for (i = 0; i < g_kain_runtime_service_spec_count; ++i) {,no nearby overflow or range guard
+30,contract.c,contract_append_message,277,-,,,0,value_length = out_cap - length - 1;,no nearby overflow or range guard
+30,contract.c,contract_count_array_objects,349,+,,,0,count += 1;,no nearby overflow or range guard
+30,contract.c,contract_analyze_services,678,+,,,0,for (i = 0; i < g_kain_runtime_service_spec_count; ++i) {,no nearby overflow or range guard
+30,contract.c,contract_analyze_services,956,+,,,0,for (i = 0; i < legacy_validation.warning_count; i++) {,no nearby overflow or range guard
+30,converge.c,kain_converge_lowbit_lane,65,+,,,0,index += 1;,no nearby overflow or range guard
+30,core.c,kain_alloc_rc,120,+,,,0,size_t total_size = sizeof(RcHeader) + size;,no nearby overflow or range guard
+30,core.c,kain_string_concat_parts,423,+,,,0,for (index = 0u; index < count; ++index) {,no nearby overflow or range guard
+30,core.c,kain_string_concat_parts,450,+,,,0,for (index = 0u; index < count; ++index) {,no nearby overflow or range guard
+30,core.c,to_string,467,+,,,0,cursor = buf + text_length;,no nearby overflow or range guard
+30,core.c,stdin_read_exact,741,+,,,0,"size_t read_count = fread(buffer + offset, 1, remaining, stdin);",no nearby overflow or range guard
+30,core.c,stdin_read_exact,745,+,,,0,offset += read_count;,no nearby overflow or range guard
+30,core.c,stdin_read_exact,746,-,,,0,remaining -= read_count;,no nearby overflow or range guard
+30,core.c,byte_at,952,-,,,0,if (!s || index < 0) return -1;,no nearby overflow or range guard
+30,core.c,kain_map_rebuild_tiny_dispatch,1127,+,,,0,for (probe_index = 0u; probe_index < occupied_count; ++probe_index) {,no nearby overflow or range guard
+30,core.c,kain_map_growth_threshold,1235,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-map-growth-threshold-stays-below-capacity.yaml */,no nearby overflow or range guard
+30,core.c,kain_map_growth_threshold,1236,>>|-,,,0,return capacity - (capacity >> 2u);,no nearby overflow or range guard
+30,core.c,kain_map_resize,1525,+,,,0,for (i = 0; i < old_capacity; ++i) {,no nearby overflow or range guard
+30,core.c,map_set,1601,<<,,SIZE_MAX,0,uint64_t new_capacity = current_capacity << 1u;,shift-based growth math | sentinel/null byte style increment
+30,core.c,map_set,1629,<<,,SIZE_MAX,0,uint64_t new_capacity = current_capacity << 1u;,shift-based growth math | sentinel/null byte style increment
+30,core.c,map_set_static_prehashed,1680,<<,,SIZE_MAX,0,uint64_t new_capacity = current_capacity << 1u;,shift-based growth math | sentinel/null byte style increment
+30,core.c,map_set_static_prehashed,1708,<<,,SIZE_MAX,0,uint64_t new_capacity = current_capacity << 1u;,shift-based growth math | sentinel/null byte style increment
+30,core.c,map_get_prehashed,1781,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-map-linear-probe-empty-slot-precludes-later-match.yaml */,no nearby overflow or range guard
+30,core.c,socket_recv,1981,-,,,0,"len = recv((SOCKET)sock, buf, sizeof(buf) - 1, 0);",no nearby overflow or range guard
+30,cpu.c,abi_cpu_set_current_thread_affinity,377,-,,,0,"return pthread_setaffinity_np(pthread_self(), sizeof(set), &set) == 0 ? 0 : -1;",no nearby overflow or range guard
+30,cpu.c,abi_vm_protect,476,-,,,0,"return VirtualProtect(ptr, (SIZE_T)byte_count, (DWORD)abi_vm_protection_mode(mode), &old_protect) != 0 ? 0 : -1;",no nearby overflow or range guard
+30,diagnostics.c,kain_copy_text,22,-,,,0,length = out_size - 1;,no nearby overflow or range guard
+30,diagnostics.c,kain_startup_validation_result_format,368,+|-,,,0,"out + written, out_size - written);",no nearby overflow or range guard
+30,entangle.c,entangle_registry_register,38,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-entangle-register-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,entangle.c,entangle_registry_register,75,+,,,0,g_kain_entangle_binding_count += 1;,no nearby overflow or range guard
+30,fanout.c,__kain_fanout_i64,283,-,,,0,int worker_count = kain_fanout_cpu_worker_count(end - start);,no nearby overflow or range guard
+30,fanout.c,__kain_fanout_i64,285,+,,,0,for (int64_t index = start; index < end; ++index) {,no nearby overflow or range guard
+30,fanout.c,__kain_fanout_i64,302,-,,,0,int helper_count = worker_count - 1;,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_release_session_resources,157,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_BUFFERS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_release_session_resources,160,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_SHADERS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_find_session,240,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_SESSIONS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_find_buffer,256,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_BUFFERS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_find_shader,272,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_SHADERS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_find_mesh,288,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_MESHES; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_find_pipeline,304,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_PIPELINES; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_decode_hex,343,+,,,0,for (index = 0; index < length; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_decode_hex,359,+,,,0,for (index = 0; index < byte_count; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_reset,457,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_SESSIONS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_session_create,478,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_SESSIONS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_session_create,505,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_session_count,527,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_SESSIONS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_session_count,529,+,,,0,count += 1;,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_buffer_create,686,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-graphics-buffer-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_buffer_create,690,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_buffer_create,695,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_BUFFERS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_buffer_create,720,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_shader_register_bytes,834,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_shader_register_bytes,839,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_SHADERS; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_shader_register_bytes,875,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_mesh_create,1000,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_mesh_create,1005,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_MESHES; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_mesh_create,1027,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_pipeline_create,1087,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_pipeline_create,1092,+,,,0,for (index = 0; index < ABI_GRAPHICS_MAX_PIPELINES; index += 1) {,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_pipeline_create,1125,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_draw_mesh,1167,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-graphics-draw-command-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,graphics_system.c,abi_graphics_draw_mesh,1171,-,,,0,"""capacity-exceeded"",",no nearby overflow or range guard
+30,host_bridge.c,kain_copy_text,21,-,,,0,length = out_cap - 1;,no nearby overflow or range guard
+30,host_bridge.c,kain_host_bridge_unregister_module,271,-,,,0,module_index = -1;,no nearby overflow or range guard
+30,host_bridge.c,kain_host_bridge_unregister_module,301,+,,,0,write_index += 1;,no nearby overflow or range guard
+30,host_bridge.c,kain_host_bridge_count_services_for_module,413,+,,,0,count += 1;,no nearby overflow or range guard
+30,input_system.c,abi_input_name_index,141,+,,,0,for (i = 0; i < count; i++) {,no nearby overflow or range guard
+30,input_system.c,abi_input_session_count,398,+,,,0,count += 1;,no nearby overflow or range guard
+30,json_benchmark.c,abi_json_manual_roundtrip_literal_checksum,55,+,,,0,for (index = 0; index < remainder; index += 1) {,no nearby overflow or range guard
+30,json_benchmark.c,abi_json_manual_roundtrip_literal_checksum,59,+,,,0,"acc = kain_json_mod_add_small(acc, payload_base + (index % 7LL), modulus);",no nearby overflow or range guard
+30,machine_stones.c,kain_machine_pulse_slot,239,+,,,0,for (probe = 0u; probe < KAIN_MACHINE_PULSE_SLOT_COUNT; ++probe) {,no nearby overflow or range guard
+30,machine_stones.c,kain_machine_pulse_slot,240,+,,,0,uint32_t index = (start + probe) & KAIN_MACHINE_PULSE_SLOT_MASK;,no nearby overflow or range guard
+30,machine_stones.c,kain_machine_pulse_stop_all,457,+,,,0,for (i = 0u; i < KAIN_MACHINE_PULSE_SLOT_COUNT; ++i) {,no nearby overflow or range guard
+30,machine_stones.c,kain_machine_shatter_lane_ptr,562,*|+,,overflow,0,return (void*)(buffer->data + byte_offset);,multiplication can amplify overflow | pointer or indexed arithmetic
+30,machine_stones.c,kain_machine_shatter_lane_base,580,*|+,,overflow,0,return (void*)(buffer->data + byte_offset);,multiplication can amplify overflow | pointer or indexed arithmetic
+30,memory.c,kain_alloc_cache_take,76,+|-,,,0,KAIN_ALLOC_CACHE_BYTES -= sizeof(KainAllocHeader) + payload_size;,no nearby overflow or range guard
+30,memory.c,kain_alloc_cache_release,97,-,,,0,KAIN_ALLOC_CACHE_BYTES > KAIN_ALLOC_CACHE_MAX_BYTES - allocation_size) {,no nearby overflow or range guard
+30,memory.c,kain_alloc_cache_release,107,+,,,0,KAIN_ALLOC_CACHE_BYTES += allocation_size;,no nearby overflow or range guard
+30,memory.c,__kain_volatile_load,309,+,,,0,for (size_t index = 0; index < size; ++index) {,no nearby overflow or range guard
+30,memory.c,__kain_volatile_store,317,+,,,0,for (size_t index = 0; index < size; ++index) {,no nearby overflow or range guard
+30,memory.c,__kain_realloc,640,-,,,0,new_payload_size - old_payload_size,no nearby overflow or range guard
+30,net_system.c,abi_net_parse_content_length_header,190,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-net-content-length-requires-nonnegative-parse.yaml */,no nearby overflow or range guard
+30,net_system.c,abi_net_header_key_eq_ci,224,+,,,0,++index;,no nearby overflow or range guard
+30,net_system.c,abi_net_find_http_header_end,234,+,,,0,for (index = 0u; index + 3u < length; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_find_http_header_end,236,+,,,0,return bytes + index;,no nearby overflow or range guard
+30,net_system.c,abi_net_parse_content_length_slice,250,+,,,0,++index;,no nearby overflow or range guard
+30,net_system.c,abi_net_parse_content_length_slice,265,+,,,0,++index;,no nearby overflow or range guard
+30,net_system.c,abi_net_index_insert,363,+,,,0,for (probe = 0u; probe < index_capacity; ++probe) {,no nearby overflow or range guard
+30,net_system.c,abi_net_index_insert,364,+,,,0,uint32_t candidate_index = (start_index + probe) & index_mask;,no nearby overflow or range guard
+30,net_system.c,abi_net_rebuild_connection_index,388,+,,,0,for (slot = 0u; slot < ABI_NET_MAX_CONNECTIONS; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_rebuild_listener_index,404,+,,,0,for (slot = 0u; slot < ABI_NET_MAX_LISTENERS; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_rebuild_request_index,420,+,,,0,for (slot = 0u; slot < ABI_NET_MAX_HTTP_REQUESTS; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_rebuild_response_index,436,+,,,0,for (slot = 0u; slot < ABI_NET_MAX_HTTP_RESPONSES; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_rebuild_server_index,452,+,,,0,for (slot = 0u; slot < ABI_NET_MAX_HTTP_SERVERS; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_send_all,662,-,,,0,int chunk = (int)((length - sent) > 32768u ? 32768u : (length - sent));,no nearby overflow or range guard
+30,net_system.c,abi_net_decode_hex,696,+,,,0,for (index = 0; index < length; index += 2u) {,no nearby overflow or range guard
+30,net_system.c,abi_net_encode_hex,721,+,,,0,for (index = 0u; index < length; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_connection,773,+,,,0,for (probe = 0u; probe < ABI_NET_CONNECTION_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,net_system.c,abi_net_connection,774,+,,,0,uint32_t candidate_index = (start_index + probe) & ABI_NET_CONNECTION_INDEX_MASK;,no nearby overflow or range guard
+30,net_system.c,abi_net_listener,825,+,,,0,for (probe = 0u; probe < ABI_NET_LISTENER_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,net_system.c,abi_net_listener,826,+,,,0,uint32_t candidate_index = (start_index + probe) & ABI_NET_LISTENER_INDEX_MASK;,no nearby overflow or range guard
+30,net_system.c,abi_net_request,878,+,,,0,for (probe = 0u; probe < ABI_NET_REQUEST_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,net_system.c,abi_net_request,879,+,,,0,uint32_t candidate_index = (start_index + probe) & ABI_NET_REQUEST_INDEX_MASK;,no nearby overflow or range guard
+30,net_system.c,abi_net_response,933,+,,,0,for (probe = 0u; probe < ABI_NET_RESPONSE_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,net_system.c,abi_net_response,934,+,,,0,uint32_t candidate_index = (start_index + probe) & ABI_NET_RESPONSE_INDEX_MASK;,no nearby overflow or range guard
+30,net_system.c,abi_net_server,985,+,,,0,for (probe = 0u; probe < ABI_NET_SERVER_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,net_system.c,abi_net_server,986,+,,,0,uint32_t candidate_index = (start_index + probe) & ABI_NET_SERVER_INDEX_MASK;,no nearby overflow or range guard
+30,net_system.c,abi_net_find_header,1065,+,,,0,for (index = 0; index < header_count; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_store_http_response,1415,+,,,0,for (index = 0; index < header_count && index < ABI_NET_MAX_HEADERS; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_send_raw_http_client,1467,-,,,0,"""%s %s %s\r\nHost: %s\r\nConnection: close\r\nContent-Length: %llu\r\n"",",no nearby overflow or range guard
+30,net_system.c,abi_net_reset,1764,+,,,0,for (index = 0u; index < ABI_NET_MAX_CONNECTIONS; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_reset,1769,+,,,0,for (index = 0u; index < ABI_NET_MAX_LISTENERS; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_reset,1774,+,,,0,for (index = 0u; index < ABI_NET_MAX_HTTP_REQUESTS; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_reset,1782,+,,,0,for (index = 0u; index < ABI_NET_MAX_HTTP_RESPONSES; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_net_reset,1787,+,,,0,for (index = 0u; index < ABI_NET_MAX_HTTP_SERVERS; ++index) {,no nearby overflow or range guard
+30,net_system.c,abi_http_server_pump_batch,2380,-,,,0,"return abi_net_fail(ABI_NET_INVALID_ARGUMENT, ""invalid-batch"", ""HTTP batch request count must be positive"");",no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2476,+,,,0,++accepted_count;,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2658,+,,,0,for (slot = 0; slot < rounds; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2682,-,,,0,"""HTTP/1.1 200 OK\r\nContent-Length: %llu\r\nConnection: close\r\n\r\n%s"",",no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2711,+,,,0,for (slot = 0; slot < active_workers; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2722,+,,,0,for (slot = 0; slot < active_workers; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2750,+,,,0,for (slot = 0; slot < active_workers; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2754,+,,,0,for (slot = 0; slot < active_workers; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2769,+,,,0,++index;,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2774,+,,,0,for (slot = 0; slot < active_workers; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2783,+,,,0,for (slot = 0; slot < active_workers; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2788,+,,,0,for (slot = 0; slot < rounds; ++slot) {,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2812,+,,,0,++pending_count;,no nearby overflow or range guard
+30,net_system.c,abi_net_http_concurrency_server_thread,2924,-,,,0,"""HTTP/1.1 %lld OK\r\nContent-Length: %llu\r\nConnection: close\r\n"",",no nearby overflow or range guard
+30,ownership.c,kain_ownership_index_insert_unlocked,127,+,,,0,for (uint32_t probe = 0u; probe < KAIN_OWNERSHIP_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,ownership.c,kain_ownership_index_insert_unlocked,128,+,,,0,uint32_t candidate_index = (index + probe) & KAIN_OWNERSHIP_INDEX_MASK;,no nearby overflow or range guard
+30,ownership.c,kain_ownership_index_remove_unlocked,167,+,,,0,for (uint32_t probe = 0u; probe < KAIN_OWNERSHIP_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,ownership.c,kain_ownership_index_remove_unlocked,168,+,,,0,uint32_t candidate_index = (index + probe) & KAIN_OWNERSHIP_INDEX_MASK;,no nearby overflow or range guard
+30,ownership.c,kain_ownership_rebuild_pointer_index_unlocked,187,+,,,0,for (uint32_t slot = 0u; slot < KAIN_OWNERSHIP_MAX_REGIONS; ++slot) {,no nearby overflow or range guard
+30,ownership.c,kain_ownership_find_slot,205,+,,,0,for (uint32_t probe = 0u; probe < KAIN_OWNERSHIP_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,ownership.c,kain_ownership_find_slot,206,+,,,0,uint32_t candidate_index = (index + probe) & KAIN_OWNERSHIP_INDEX_MASK;,no nearby overflow or range guard
+30,ownership.c,kain_ownership_find_free_slot,248,+,,,0,for (uint32_t word_index = 0u; word_index < KAIN_OWNERSHIP_WORD_COUNT; ++word_index) {,no nearby overflow or range guard
+30,ownership.c,kain_ownership_helper_slot_from_token_unlocked,288,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-slot-token-stays-within-registry-capacity.yaml */,no nearby overflow or range guard
+30,ownership.c,kain_ownership_helper_slot_from_token_unlocked,294,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-fast-path-requires-heap-slot-match.yaml */,no nearby overflow or range guard
+30,ownership.c,__kain_ownership_register_helper_allocation,390,-,,,0,int slot = -1;,no nearby overflow or range guard
+30,ownership.c,__kain_ownership_relocate_helper_allocation,455,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-realloc-slot-fast-path-rejects-non-idle-region.yaml */,no nearby overflow or range guard
+30,process_system.c,abi_process_index_insert,316,+,,,0,for (probe = 0u; probe < index_capacity; ++probe) {,no nearby overflow or range guard
+30,process_system.c,abi_process_index_insert,317,+,,,0,uint32_t candidate_index = (start_index + probe) & index_mask;,no nearby overflow or range guard
+30,process_system.c,abi_process_rebuild_spec_index,350,+,,,0,for (slot = 0u; slot < ABI_PROCESS_MAX_SPECS; ++slot) {,no nearby overflow or range guard
+30,process_system.c,abi_process_rebuild_process_index,366,+,,,0,for (slot = 0u; slot < ABI_PROCESS_MAX_PROCESSES; ++slot) {,no nearby overflow or range guard
+30,process_system.c,abi_process_spec_lookup,386,+,,,0,for (probe = 0u; probe < ABI_PROCESS_SPEC_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,process_system.c,abi_process_spec_lookup,387,+,,,0,uint32_t candidate_index = (start_index + probe) & ABI_PROCESS_SPEC_INDEX_MASK;,no nearby overflow or range guard
+30,process_system.c,abi_process_lookup,410,+,,,0,for (probe = 0u; probe < ABI_PROCESS_PROCESS_INDEX_CAPACITY; ++probe) {,no nearby overflow or range guard
+30,process_system.c,abi_process_lookup,411,+,,,0,uint32_t candidate_index = (start_index + probe) & ABI_PROCESS_PROCESS_INDEX_MASK;,no nearby overflow or range guard
+30,process_system.c,abi_process_capture_append,483,+,memcpy(,overflow,0,"memcpy(capture->bytes + capture->length, bytes, to_copy);",size math feeds allocation or copy sink | pointer or indexed arithmetic
+30,process_system.c,abi_process_decode_hex,535,+,,,0,for (index = 0u; index < hex_length / 2u; index++) {,no nearby overflow or range guard
+30,process_system.c,abi_process_encode_hex,566,+,,,0,for (index = 0u; index < byte_length; index++) {,no nearby overflow or range guard
+30,process_system.c,abi_process_utf8_to_wide,683,-,,,0,"if (MultiByteToWideChar(CP_UTF8, 0, utf8_text, -1, wide_text, required_length) <= 0) {",no nearby overflow or range guard
+30,process_system.c,abi_process_utf8_buffer_append_chars,820,+,,,0,for (index = 0u; index < count; index++) {,no nearby overflow or range guard
+30,process_system.c,abi_process_utf8_buffer_append_text,844,+,memcpy(,overflow,0,"memcpy(buffer->text + buffer->length, text, text_length);",size math feeds allocation or copy sink | pointer or indexed arithmetic
+30,process_system.c,abi_process_build_environment_block_w,1123,+,,,0,for (entry_index = 0u; entry_index < entries.count; entry_index++) {,no nearby overflow or range guard
+30,process_system.c,abi_process_build_environment_block_w,1159,+,,,0,for (index = 0u; index < entries.count; index++) {,no nearby overflow or range guard
+30,process_system.c,abi_process_build_environment_block_w,1162,+,,,0,output_cursor += entry_length;,no nearby overflow or range guard
+30,process_system.c,abi_process_windows_cache_init,1262,+,,,0,"command_shell_path_buffer + command_shell_length,",no nearby overflow or range guard
+30,process_system.c,abi_process_drain_stream_handle,1419,+,,,0,if (chunk_length + bytes_read > chunk_capacity) {,no nearby overflow or range guard
+30,process_system.c,abi_process_drain_stream_handle,1421,+,,,0,while (next_capacity < chunk_length + bytes_read) {,no nearby overflow or range guard
+30,process_system.c,abi_process_drain_stream_handle,1431,+,,,0,chunk_length += bytes_read;,no nearby overflow or range guard
+30,process_system.c,abi_process_write_handle_bytes,1645,-,,,0,DWORD request = (DWORD)((byte_length - total_written) > 32768u ? 32768u : (byte_length - total_written));,no nearby overflow or range guard
+30,process_system.c,abi_process_write_handle_bytes,1646,+,,,0,"if (!WriteFile(write_handle, bytes + total_written, request, &bytes_written, 0)) {",no nearby overflow or range guard
+30,process_system.c,abi_process_write_handle_bytes,1652,+,,,0,total_written += bytes_written;,no nearby overflow or range guard
+30,process_system.c,abi_process_reset,2075,+,,,0,for (index = 0; index < ABI_PROCESS_MAX_PROCESSES; index++) {,no nearby overflow or range guard
+30,process_system.c,kain_attrition_process_fill_snapshot,2118,+,,,0,for (slot = 0u; slot < ABI_PROCESS_MAX_PROCESSES; ++slot) {,no nearby overflow or range guard
+30,process_system.c,abi_process_spec_add_arg,2263,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-process-argument-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,process_system.c,abi_process_spec_set_env,2321,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-process-environment-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,252,+,,,0,++count;,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,336,+,,,0,++count;,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,395,+,,,0,"total += graphics_bundle_count_string_array(refs_value, refs_end);",no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,464,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-realtime-binding-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,472,+,,,0,++count;,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,526,+,,,0,for (i = 0; i < binding_count; ++i) {,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,769,+,,,0,for (i = 0; i < binding_count; ++i) {,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,777,+,,,0,++count;,no nearby overflow or range guard
+30,realtime.c,realtime_count_array_objects,791,+,,,0,for (i = 0; i < binding_count; ++i) {,no nearby overflow or range guard
+30,reflection.c,kain_reflection_get_items_by_kind,480,+,,,0,count++;,no nearby overflow or range guard
+30,reflection.c,json_parse,1086,+,,,0,token.hi = reflection_token_load_le64(bytes + 8);,no nearby overflow or range guard
+30,reflection.c,json_parse,1392,+,,,0,field_count++;,no nearby overflow or range guard
+30,reflection.c,reflection_copy_text,1794,-,,,0,length = out_size - 1;,no nearby overflow or range guard
+30,renderer_backend.c,kain_renderer_backend_lookup,62,+,,,0,for (index = 0; index < kain_renderer_backend_count(); ++index) {,no nearby overflow or range guard
+30,renderer_backend.c,kain_renderer_backend_default,76,+,,,0,for (index = 0; index < kain_renderer_backend_count(); ++index) {,no nearby overflow or range guard
+30,scene.c,runtime_append_text,28,-,,,0,text_len = out_cap - offset - 1;,no nearby overflow or range guard
+30,services.c,kain_copy_text,41,-,,,0,length = out_size - 1;,no nearby overflow or range guard
+30,services.c,kain_service_key_metadata_ascii_lower,97,+,,,0,for (i = 0u; i < prefix_length; ++i) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_lock,228,+,,,0,kain_service_registry_spin_pause(spin_index++);,no nearby overflow or range guard
+30,services.c,kain_service_registry_find_mutable_unlocked,275,+,,,0,for (i = 0; i < service_count; ++i) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_commit_descriptor_unlocked,289,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-services-commit-gate-prevents-slot-overwrite.yaml */,no nearby overflow or range guard
+30,services.c,kain_service_registry_canonicalize_key,667,-,,,0,"if (key_length == 15u && kain_text_equals_ci(key, ""native.app-host"")) {",no nearby overflow or range guard
+30,services.c,kain_service_registry_canonicalize_key,722,-,,,0,"if (key_length == 26u && kain_text_equals_ci(key, ""native.ui.compiled-bundle"")) {",no nearby overflow or range guard
+30,services.c,kain_service_registry_lookup,871,+,,,0,for (i = 0; i < service_count; i++) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_refresh_runtime_probe_statuses,952,+,,,0,for (i = 0; i < service_count; ++i) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_count_by_status,1048,+,,,0,for (i = 0; i < service_count; i++) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_count_by_status,1050,+,,,0,count++;,no nearby overflow or range guard
+30,services.c,kain_service_registry_count_by_requirement,1070,+,,,0,for (i = 0; i < service_count; i++) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_count_by_requirement,1072,+,,,0,count++;,no nearby overflow or range guard
+30,services.c,kain_service_registry_validate_required,1099,+,,,0,for (i = 0; i < service_count; i++) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_validate_required_collector,1164,+,,,0,for (i = 0; i < service_count; i++) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_format_list,1224,+,,,0,for (i = 0; i < service_count; i++) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_format_list,1238,+|-,,,0,if (written + line_len >= out_size - 1) {,no nearby overflow or range guard
+30,services.c,kain_service_registry_print,1264,+,,,0,for (i = 0; i < service_count; i++) {,no nearby overflow or range guard
+30,simd.c,kain_simd_dot_scalar_raw,49,+,,,0,index += 1;,no nearby overflow or range guard
+30,simd.c,kain_simd_affine_stats_scalar_raw,65,+,,,0,index += 1;,no nearby overflow or range guard
+30,simd.c,kain_simd_dot_avx2_raw,184,+,,,0,while (index + 4 <= cells) {,no nearby overflow or range guard
+30,simd.c,kain_simd_dot_avx2_raw,197,+,,,0,index += 4;,no nearby overflow or range guard
+30,simd.c,kain_simd_dot_avx2_raw,204,+,,,0,index += 1;,no nearby overflow or range guard
+30,simd.c,kain_simd_affine_stats_avx2_raw,222,+,,,0,while (index + 4 <= cells) {,no nearby overflow or range guard
+30,simd.c,kain_simd_affine_stats_avx2_raw,234,+,,,0,index += 4;,no nearby overflow or range guard
+30,simd.c,kain_simd_affine_stats_avx2_raw,245,+,,,0,index += 1;,no nearby overflow or range guard
+30,simd.c,kain_simd_dot_avx512_raw,266,+,,,0,while (index + 8 <= cells) {,no nearby overflow or range guard
+30,simd.c,kain_simd_dot_avx512_raw,279,+,,,0,index += 8;,no nearby overflow or range guard
+30,simd.c,kain_simd_dot_avx512_raw,286,+,,,0,index += 1;,no nearby overflow or range guard
+30,simd.c,kain_simd_affine_stats_avx512_raw,304,+,,,0,while (index + 8 <= cells) {,no nearby overflow or range guard
+30,simd.c,kain_simd_affine_stats_avx512_raw,316,+,,,0,index += 8;,no nearby overflow or range guard
+30,simd.c,kain_simd_affine_stats_avx512_raw,329,+,,,0,index += 1;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_attrition_json_write_events,400,+,,,0,for (index = 0u; index < count; ++index) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_copy_actor_name,924,+,,,0,index++;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_patch_record_i64,1193,-,,,0,/* Proof: runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-count-stays-within-capacity.yaml */,no nearby overflow or range guard
+30,stdlib_abi.c,abi_patch_record_i64,1206,+,,,0,g_kain_native_patch_journal_count += 1;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_patch_commit,1213,+,,,0,for (index = 0; index < g_kain_native_patch_journal_count; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_patch_undo_last,1227,-,,,0,for (index = g_kain_native_patch_journal_count - 1; index >= 0; index--) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_entangle_record_i64,1260,+,,,0,g_kain_native_entangle_propagation_count += 1;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_converge_record_i64,1280,+,,,0,g_kain_native_converge_mismatch_count += 1;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_converge_record_bool,1290,+,,,0,g_kain_native_converge_mismatch_count += 1;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_orchestrate_stage_begin,1303,+,,,0,g_kain_native_orchestrate_stage_count += 1;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_copy_message,1358,-,,,0,"strncpy(destination, source, destination_size - 1);",no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_creation_root_span,1596,+,,,0,index += 2u;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_creation_root_span,1597,+,,,0,if (length > index + 3u,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_creation_root_span,1602,+,,,0,index += 4u;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_creation_root_span,1603,+,,,0,} else if (length > index + 2u,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_creation_root_span,1607,+,,,0,return index + 3u;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_creation_root_span,1618,+,,,0,for (; index < length; ++segment) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_create_parent_dirs,1673,+,,,0,for (index = root_span; index < length; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_read_byte_range_hex,1913,+,,,0,for (index = 0; index < read_count; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_write_bytes_hex,1977,+,,,0,for (index = 0; index < length; index += 2) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2280,+,,,0,for (index = root_span; index <= length; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2629,+,,,0,for (index = 0; index < 16; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2637,+,,,0,for (index = 16; index < 64; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2658,+,,,0,for (index = 0; index < 64; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2705,+,,,0,for (index = 0; index < length; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2744,+,,,0,for (state_index = 0; state_index < 8; state_index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2777,+,,,0,for (index = 0; index < length; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2795,-,,,0,size_t remaining = length - offset;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2801,+,,,0,offset += take;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2810,+|-,,,0,"size_t read_count = fread(buffer + offset, 1, length - offset, random_file);",no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2816,+,,,0,offset += read_count;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2884,+,,,0,for (index = 0; index < sizeof(key_block); index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2953,+,,,0,for (index = 0; index < 16; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,2983,+,,,0,for (index = 0; index < 16; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3007,+,,,0,for (index = 0; index < 7; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3011,+,,,0,for (index = 0; index < 8; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3041,+,,,0,for (index = 0; index < 8; index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3058,-,,,0,while ((length - offset) > ABI_BLAKE3_BLOCK_LEN) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3060,+,,,0,"abi_blake3_block_words(input + offset, ABI_BLAKE3_BLOCK_LEN, words);",no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3063,+,,,0,offset += ABI_BLAKE3_BLOCK_LEN;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3111,+,,,0,for (chunk_index = 0; chunk_index < chunk_count; chunk_index++) {,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3114,-,,,0,size_t remaining = length - offset;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3124,+,,,0,read_index += 2u;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3125,+,,,0,write_index++;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3129,+,,,0,write_index++;,no nearby overflow or range guard
+30,stdlib_abi.c,abi_fs_metadata_text,3197,+,,,0,for (index = 0; index < 32; index++) {,no nearby overflow or range guard
+30,wire.c,abi_wire_zero_copy_binary_checksum,126,+,,,0,for (period_index = 0; period_index < KAIN_WIRE_PERIOD; period_index += 1) {,no nearby overflow or range guard
+30,wire.c,abi_wire_zero_copy_binary_checksum,132,-,,,0,for (period_index = KAIN_WIRE_WORD3_MOD - 1; period_index >= 0; period_index -= 1) {,no nearby overflow or range guard
+30,wire.c,abi_wire_zero_copy_binary_checksum,153,+,,,0,for (period_index = 0; period_index < remainder; period_index += 1) {,no nearby overflow or range guard

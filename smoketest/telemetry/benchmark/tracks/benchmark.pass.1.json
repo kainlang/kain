@@ -1,0 +1,23 @@
+{
+  "mode": "benchmark",
+  "category": "benchmark",
+  "track": "benchmark.pass.1",
+  "lane": "telemetry_flow",
+  "offset": 5001,
+  "status": 0,
+  "ok": 1,
+  "started_ms": 23,
+  "ended_ms": 24,
+  "elapsed_ms": 1,
+  "track_checksum": 465244,
+  "composition_checksum": 860193537,
+  "cpu_feature_fingerprint": -7409408978278525106,
+  "patch_journal_count": 256,
+  "entangle_propagation_count": 1575,
+  "converge_mismatch_count": 0,
+  "runtime_converge_telemetry_count": 2,
+  "runtime_machine_teleport_count": 527,
+  "runtime_machine_pulse_total_fire_count": 2,
+  "actor_scheduler_queue_depth": 0,
+  "actor_scheduler_total_enqueued": 0
+}

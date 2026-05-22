@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 
 from _runtime_scan_common import (
     ALLOC_SINK_TOKENS,
@@ -22,6 +23,8 @@ from _runtime_scan_common import (
     write_json_and_csv,
 )
 
+INIT_STATE_RE = re.compile(r"\binitialized\b|\binit_state\b")
+
 
 def analyze_function(func: dict) -> dict:
     body = func["body"]
@@ -33,6 +36,9 @@ def analyze_function(func: dict) -> dict:
     lock_hits = [token for token in LOCK_TOKENS if token in body]
     once_hits = [token for token in ONCE_TOKENS if token in body]
     atomic_hits = [token for token in ATOMIC_TOKENS if token in body]
+    has_lock = bool(lock_hits)
+    has_once = bool(once_hits) or func["name"].endswith("_once") or func["name"].endswith("_init_once")
+    has_atomic = bool(atomic_hits)
     destroy_hits = [token for token in DESTROY_TOKENS if token in body]
     alloc_hits = [token for token in ALLOC_SINK_TOKENS if token in body]
     arithmetic_lines = 0
@@ -49,7 +55,7 @@ def analyze_function(func: dict) -> dict:
             arithmetic_lines += 1
         if "ptr" in stripped or "->" in stripped or "[" in stripped:
             pointer_lines += 1
-        if "initialized" in stripped:
+        if INIT_STATE_RE.search(stripped):
             init_flag_lines += 1
         if "g_" in stripped and "=" in stripped:
             global_write_lines += 1
@@ -68,16 +74,16 @@ def analyze_function(func: dict) -> dict:
     if alloc_hits and not guard_hits:
         score += 20
         reasons.append("allocation or copy sink with no explicit overflow guard")
-    if init_flag_lines and not (lock_hits or once_hits or atomic_hits):
+    if init_flag_lines and not (has_lock or has_once or has_atomic):
         score += 35
         reasons.append("lazy init flag with no obvious synchronization")
-    if global_write_lines and not (lock_hits or once_hits or atomic_hits):
+    if global_write_lines and not (has_lock or has_once or has_atomic):
         score += 20
         reasons.append("writes global state without obvious synchronization")
-    if count_like_writes and not (lock_hits or atomic_hits):
+    if count_like_writes and not (has_lock or has_atomic):
         score += 20
         reasons.append("count-like increment with no lock or atomic")
-    if destroy_hits and "unlock" in body and not once_hits:
+    if destroy_hits and "unlock" in body and not has_once:
         score += 10
         reasons.append("destructive teardown after lock release")
 

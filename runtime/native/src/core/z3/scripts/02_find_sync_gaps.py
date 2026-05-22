@@ -21,6 +21,7 @@ from _runtime_scan_common import (
 COUNT_WRITE_RE = re.compile(r"(\b\w*count\w*\b\s*(?:\+\+|\+=\s*1))|(\b\w*count\w*\b\s*=\s*\b\w*count\w*\b\s*\+\s*1)")
 GLOBAL_WRITE_RE = re.compile(r"\bg_[A-Za-z_]\w*\b\s*=")
 SHARED_SLOT_RE = re.compile(r"\[\s*[^]]*count[^]]*\s*\]")
+INIT_STATE_RE = re.compile(r"\binitialized\b|\binit_state\b")
 
 
 def analyze_function(func: dict) -> list[dict]:
@@ -28,9 +29,13 @@ def analyze_function(func: dict) -> list[dict]:
     lines = func["lines"]
     findings: list[dict] = []
     has_lock = any(token in body for token in LOCK_TOKENS)
-    has_once = any(token in body for token in ONCE_TOKENS)
+    has_once = any(token in body for token in ONCE_TOKENS) or func["name"].endswith("_once") or func["name"].endswith("_init_once")
     has_atomic = any(token in body for token in ATOMIC_TOKENS)
-    init_mentions = [idx for idx, line in enumerate(lines, start=func["start_line"]) if "initialized" in line]
+    init_mentions = [
+        idx
+        for idx, line in enumerate(lines, start=func["start_line"])
+        if INIT_STATE_RE.search(line)
+    ]
     destroy_mentions = [idx for idx, line in enumerate(lines, start=func["start_line"]) if any(token in line for token in DESTROY_TOKENS)]
     count_mentions = [idx for idx, line in enumerate(lines, start=func["start_line"]) if COUNT_WRITE_RE.search(line)]
     global_writes = [idx for idx, line in enumerate(lines, start=func["start_line"]) if GLOBAL_WRITE_RE.search(line)]

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 #ifndef _WIN32
+#include <sched.h>
 #include <strings.h>
 #endif
 
@@ -170,6 +171,157 @@ static void kain_service_descriptor_copy(
     destination->abi_version = source->abi_version;
     destination->function_table = source->function_table;
     kain_service_descriptor_refresh_key_metadata(destination);
+}
+
+static void kain_service_registry_spin_pause(unsigned int spin_index) {
+#ifdef _WIN32
+    if ((spin_index & 63u) == 63u) {
+        SwitchToThread();
+    } else {
+        YieldProcessor();
+    }
+#else
+    if ((spin_index & 63u) == 63u) {
+        sched_yield();
+    } else {
+#if defined(__i386__) || defined(__x86_64__)
+        __asm__ __volatile__("pause" ::: "memory");
+#endif
+    }
+#endif
+}
+
+static int kain_service_registry_is_initialized(
+    const KainServiceRegistry* registry
+) {
+    return registry != NULL &&
+           atomic_load_explicit(&registry->initialized, memory_order_acquire) != 0u;
+}
+
+static int kain_service_registry_count_load(
+    const KainServiceRegistry* registry
+) {
+    if (registry == NULL) {
+        return 0;
+    }
+    return atomic_load_explicit(&registry->service_count, memory_order_acquire);
+}
+
+static void kain_service_registry_lock(KainServiceRegistry* registry) {
+    unsigned int spin_index = 0u;
+
+    if (registry == NULL) {
+        return;
+    }
+
+    for (;;) {
+        unsigned int expected = 0u;
+        if (atomic_compare_exchange_weak_explicit(
+                &registry->mutation_gate,
+                &expected,
+                1u,
+                memory_order_acquire,
+                memory_order_relaxed
+            )) {
+            return;
+        }
+        kain_service_registry_spin_pause(spin_index++);
+    }
+}
+
+static void kain_service_registry_unlock(KainServiceRegistry* registry) {
+    if (registry == NULL) {
+        return;
+    }
+    atomic_store_explicit(&registry->mutation_gate, 0u, memory_order_release);
+}
+
+static void kain_service_registry_ensure_initialized(
+    KainServiceRegistry* registry
+) {
+    if (registry == NULL || kain_service_registry_is_initialized(registry)) {
+        return;
+    }
+
+    kain_service_registry_lock(registry);
+    if (!kain_service_registry_is_initialized(registry)) {
+        memset(registry->services, 0, sizeof(registry->services));
+        atomic_store_explicit(&registry->service_count, 0, memory_order_relaxed);
+        atomic_store_explicit(&registry->initialized, 1u, memory_order_release);
+    }
+    kain_service_registry_unlock(registry);
+}
+
+static KainServiceDescriptor* kain_service_registry_find_mutable_unlocked(
+    KainServiceRegistry* registry,
+    const char* canonical_key
+) {
+    size_t canonical_key_length;
+    uint64_t canonical_key_state;
+    int service_count;
+    int i;
+
+    if (!registry || !canonical_key) {
+        return NULL;
+    }
+
+    kain_service_key_metadata_ascii_lower(
+        canonical_key,
+        &canonical_key_length,
+        &canonical_key_state
+    );
+
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; ++i) {
+        if (kain_service_descriptor_matches_lookup(
+                &registry->services[i],
+                canonical_key,
+                canonical_key_length,
+                canonical_key_state
+            )) {
+            return &registry->services[i];
+        }
+    }
+
+    return NULL;
+}
+
+/* Proof: runtime/native/src/core/z3/proofs/native-services-commit-gate-prevents-slot-overwrite.yaml */
+static int kain_service_registry_commit_descriptor_unlocked(
+    KainServiceRegistry* registry,
+    const KainServiceDescriptor* source,
+    int allow_refresh
+) {
+    KainServiceDescriptor* existing;
+    KainServiceDescriptor* destination;
+    int service_count;
+
+    if (!registry || !source || !source->key[0]) {
+        return -1;
+    }
+
+    existing = kain_service_registry_find_mutable_unlocked(registry, source->key);
+    if (existing != NULL) {
+        if (!allow_refresh) {
+            return -3;
+        }
+        kain_service_descriptor_copy(existing, source);
+        return 0;
+    }
+
+    service_count = kain_service_registry_count_load(registry);
+    if (service_count >= KAIN_SERVICE_REGISTRY_MAX_SERVICES) {
+        return -2;
+    }
+
+    destination = &registry->services[service_count];
+    kain_service_descriptor_copy(destination, source);
+    atomic_store_explicit(
+        &registry->service_count,
+        service_count + 1,
+        memory_order_release
+    );
+    return 0;
 }
 
 #if defined(__clang__)
@@ -608,40 +760,19 @@ void kain_service_registry_init(KainServiceRegistry* registry) {
         return;
     }
     ZeroMemory(registry, sizeof(*registry));
-    registry->initialized = 1;
+    atomic_init(&registry->initialized, 1u);
+    atomic_init(&registry->mutation_gate, 0u);
+    atomic_init(&registry->service_count, 0);
 }
 
 static KainServiceDescriptor* kain_service_registry_lookup_mutable(
     KainServiceRegistry* registry,
     const char* key
 ) {
-    const char* canonical_key = kain_service_registry_canonicalize_key(key);
-    size_t canonical_key_length;
-    uint64_t canonical_key_state;
-    int i;
-
-    if (!registry || !canonical_key) {
-        return NULL;
-    }
-
-    kain_service_key_metadata_ascii_lower(
-        canonical_key,
-        &canonical_key_length,
-        &canonical_key_state
+    return kain_service_registry_find_mutable_unlocked(
+        registry,
+        kain_service_registry_canonicalize_key(key)
     );
-
-    for (i = 0; i < registry->service_count; ++i) {
-        if (kain_service_descriptor_matches_lookup(
-                &registry->services[i],
-                canonical_key,
-                canonical_key_length,
-                canonical_key_state
-            )) {
-            return &registry->services[i];
-        }
-    }
-
-    return NULL;
 }
 
 int kain_service_registry_register(
@@ -655,8 +786,9 @@ int kain_service_registry_register(
     unsigned int abi_version,
     void* function_table
 ) {
-    KainServiceDescriptor* descriptor;
     const char* canonical_key;
+    KainServiceDescriptor source;
+    int result;
 
     if (!registry || !key || !name) {
         return -1;
@@ -667,37 +799,31 @@ int kain_service_registry_register(
         return -1;
     }
 
-    if (!registry->initialized) {
-        kain_service_registry_init(registry);
-    }
+    kain_service_registry_ensure_initialized(registry);
 
-    /* Check if registry is full */
-    if (registry->service_count >= KAIN_SERVICE_REGISTRY_MAX_SERVICES) {
-        return -2;
-    }
+    memset(&source, 0, sizeof(source));
+    kain_copy_text(source.key, sizeof(source.key), canonical_key);
+    kain_copy_text(source.name, sizeof(source.name), name);
+    kain_copy_text(source.description, sizeof(source.description), description);
+    source.provider = provider;
+    source.status = status;
+    source.requirement = requirement;
+    source.abi_version = abi_version;
+    source.function_table = function_table;
+    kain_service_descriptor_refresh_key_metadata(&source);
 
-    /* Check if service already exists */
     if (kain_service_registry_lookup(registry, canonical_key) != NULL) {
         return -3;
     }
 
-    /* Register the service */
-    descriptor = &registry->services[registry->service_count];
-    ZeroMemory(descriptor, sizeof(*descriptor));
-
-    kain_copy_text(descriptor->key, sizeof(descriptor->key), canonical_key);
-    kain_copy_text(descriptor->name, sizeof(descriptor->name), name);
-    kain_copy_text(descriptor->description, sizeof(descriptor->description), description);
-
-    descriptor->provider = provider;
-    descriptor->status = status;
-    descriptor->requirement = requirement;
-    descriptor->abi_version = abi_version;
-    descriptor->function_table = function_table;
-    kain_service_descriptor_refresh_key_metadata(descriptor);
-
-    registry->service_count++;
-    return 0;
+    kain_service_registry_lock(registry);
+    result = kain_service_registry_commit_descriptor_unlocked(
+        registry,
+        &source,
+        0
+    );
+    kain_service_registry_unlock(registry);
+    return result;
 }
 
 int kain_service_registry_register_descriptor(
@@ -729,6 +855,7 @@ const KainServiceDescriptor* kain_service_registry_lookup(
     const char* canonical_key = kain_service_registry_canonicalize_key(key);
     size_t canonical_key_length;
     uint64_t canonical_key_state;
+    int service_count;
 
     if (!registry || !canonical_key) {
         return NULL;
@@ -740,7 +867,8 @@ const KainServiceDescriptor* kain_service_registry_lookup(
         &canonical_key_state
     );
 
-    for (i = 0; i < registry->service_count; i++) {
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; i++) {
         if (kain_service_descriptor_matches_lookup(
                 &registry->services[i],
                 canonical_key,
@@ -758,19 +886,11 @@ static int kain_service_registry_register_or_refresh_descriptor(
     KainServiceRegistry* registry,
     const KainServiceDescriptor* descriptor
 ) {
-    KainServiceDescriptor* existing;
-
     if (!registry || !descriptor) {
         return -1;
     }
-
-    existing = kain_service_registry_lookup_mutable(registry, descriptor->key);
-    if (existing) {
-        kain_service_descriptor_copy(existing, descriptor);
-        return 0;
-    }
-
-    return kain_service_registry_register_descriptor(registry, descriptor);
+    kain_service_registry_ensure_initialized(registry);
+    return kain_service_registry_commit_descriptor_unlocked(registry, descriptor, 1);
 }
 
 static int kain_service_registry_probe_native_net_service(
@@ -822,12 +942,14 @@ static void kain_service_registry_refresh_runtime_probe_statuses(
     KainServiceRegistry* registry
 ) {
     int i;
+    int service_count;
 
     if (!registry) {
         return;
     }
 
-    for (i = 0; i < registry->service_count; ++i) {
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; ++i) {
         KainServiceDescriptor* service = &registry->services[i];
         int probe_passed;
         int probed = 0;
@@ -861,25 +983,29 @@ int kain_service_registry_register_native_runtime_services(
     KainServiceRegistry* registry
 ) {
     size_t i;
+    int result = 0;
 
     if (!registry) {
         return -1;
     }
 
-    if (!registry->initialized) {
-        kain_service_registry_init(registry);
-    }
+    kain_service_registry_ensure_initialized(registry);
+    kain_service_registry_lock(registry);
 
     for (i = 0; i < sizeof(g_kain_native_runtime_service_catalog) / sizeof(g_kain_native_runtime_service_catalog[0]); ++i) {
-        if (kain_service_registry_register_or_refresh_descriptor(
-                registry,
-                &g_kain_native_runtime_service_catalog[i]
-            ) != 0) {
+        result = kain_service_registry_commit_descriptor_unlocked(
+            registry,
+            &g_kain_native_runtime_service_catalog[i],
+            1
+        );
+        if (result != 0) {
+            kain_service_registry_unlock(registry);
             return -1;
         }
     }
 
     kain_service_registry_refresh_runtime_probe_statuses(registry);
+    kain_service_registry_unlock(registry);
 
     return (int)(sizeof(g_kain_native_runtime_service_catalog) / sizeof(g_kain_native_runtime_service_catalog[0]));
 }
@@ -912,12 +1038,14 @@ int kain_service_registry_count_by_status(
 ) {
     int count = 0;
     int i;
+    int service_count;
 
     if (!registry) {
         return 0;
     }
 
-    for (i = 0; i < registry->service_count; i++) {
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; i++) {
         if (registry->services[i].status == status) {
             count++;
         }
@@ -932,12 +1060,14 @@ int kain_service_registry_count_by_requirement(
 ) {
     int count = 0;
     int i;
+    int service_count;
 
     if (!registry) {
         return 0;
     }
 
-    for (i = 0; i < registry->service_count; i++) {
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; i++) {
         if (registry->services[i].requirement == requirement) {
             count++;
         }
@@ -955,6 +1085,7 @@ int kain_service_registry_validate_required(
     int i;
     int failures = 0;
     int diag_idx = 0;
+    int service_count;
 
     if (!registry) {
         return -1;
@@ -964,7 +1095,8 @@ int kain_service_registry_validate_required(
         *diagnostic_count = 0;
     }
 
-    for (i = 0; i < registry->service_count; i++) {
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; i++) {
         const KainServiceDescriptor* service = &registry->services[i];
 
         /* Only check required services */
@@ -1022,12 +1154,14 @@ int kain_service_registry_validate_required_collector(
 ) {
     int i;
     int failures = 0;
+    int service_count;
 
     if (!registry || !collector) {
         return -1;
     }
 
-    for (i = 0; i < registry->service_count; i++) {
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; i++) {
         const KainServiceDescriptor* service = &registry->services[i];
 
         /* Only check required services */
@@ -1078,6 +1212,7 @@ int kain_service_registry_format_list(
 ) {
     int i;
     size_t written = 0;
+    int service_count;
 
     if (!registry || !out || out_size == 0) {
         return 0;
@@ -1085,7 +1220,8 @@ int kain_service_registry_format_list(
 
     out[0] = '\0';
 
-    for (i = 0; i < registry->service_count; i++) {
+    service_count = kain_service_registry_count_load(registry);
+    for (i = 0; i < service_count; i++) {
         const KainServiceDescriptor* service = &registry->services[i];
         char line[256];
         int line_len;
@@ -1113,17 +1249,19 @@ int kain_service_registry_format_list(
 
 void kain_service_registry_print(const KainServiceRegistry* registry) {
     int i;
+    int service_count;
 
     if (!registry) {
         printf("Service registry is NULL\n");
         return;
     }
 
+    service_count = kain_service_registry_count_load(registry);
     printf("=== KAIN Service Registry ===\n");
     printf("Services registered: %d / %d\n\n",
-        registry->service_count, KAIN_SERVICE_REGISTRY_MAX_SERVICES);
+        service_count, KAIN_SERVICE_REGISTRY_MAX_SERVICES);
 
-    for (i = 0; i < registry->service_count; i++) {
+    for (i = 0; i < service_count; i++) {
         const KainServiceDescriptor* service = &registry->services[i];
 
         printf("Service %d:\n", i + 1);
@@ -1143,8 +1281,6 @@ void kain_service_registry_print(const KainServiceRegistry* registry) {
 }
 
 KainServiceRegistry* kain_service_registry_global(void) {
-    if (!g_service_registry.initialized) {
-        kain_service_registry_init(&g_service_registry);
-    }
+    kain_service_registry_ensure_initialized(&g_service_registry);
     return &g_service_registry;
 }

@@ -1,0 +1,91 @@
+name: native-memory-cas-failure-order-stronger-than-success-ub
+surface: runtime
+subsystem: memory
+source_file: runtime/native/src/core/memory.c
+source_function: __kain_atomic_compare_exchange_ordered
+source_lines: "444-462"
+
+description: |
+  __kain_atomic_compare_exchange_ordered maps Kain ordering codes to C11 memory
+  orders using kain_memory_order_from_code (for success) and
+  kain_memory_failure_order_from_code (for failure).
+
+  C11 7.17.7.4 requires: the failure memory order shall not be stronger than the
+  success memory order, and shall be neither memory_order_release nor
+  memory_order_acq_rel.
+
+  The mapping of kain_memory_failure_order_from_code correctly prevents release
+  and acq_rel from being used as failure orderings, but it does NOT enforce the
+  strength constraint: failure_order <= success_order.
+
+  Z3 counterexample:
+    kain_success = RELAXED (0)  -> C11 memory_order_relaxed (strength 0)
+    kain_failure = SEQ_CST  (4) -> C11 memory_order_seq_cst (strength 5)
+    5 > 0: failure stronger than success. C11 UB.
+
+  The function passes both orderings directly to
+  atomic_compare_exchange_strong_explicit without clamping failure_order to
+  min(failure_order, success_order). Any Kain programmer who passes mismatched
+  orderings gets silent UB.
+
+claim: |
+  There EXISTS a pair (kain_success, kain_failure) in [0..4] x [0..4] where
+  failure_c11(kain_failure) > success_c11(kain_success), violating C11 7.17.7.4.
+
+expected: sat
+
+smt2: |
+  (set-logic ALL)
+  (declare-const kain_success Int)
+  (declare-const kain_failure Int)
+  (define-fun RELAXED () Int 0)
+  (define-fun ACQUIRE () Int 1)
+  (define-fun RELEASE () Int 2)
+  (define-fun ACQ_REL () Int 3)
+  (define-fun SEQ_CST () Int 4)
+  (define-fun c11_relaxed () Int 0)
+  (define-fun c11_acquire () Int 2)
+  (define-fun c11_release () Int 3)
+  (define-fun c11_acq_rel () Int 4)
+  (define-fun c11_seq_cst () Int 5)
+  (define-fun success_c11 ((k Int)) Int
+    (ite (= k RELAXED) c11_relaxed
+    (ite (= k ACQUIRE) c11_acquire
+    (ite (= k RELEASE) c11_release
+    (ite (= k ACQ_REL) c11_acq_rel
+         c11_seq_cst)))))
+  (define-fun failure_c11 ((k Int)) Int
+    (ite (= k RELAXED) c11_relaxed
+    (ite (= k RELEASE) c11_acquire
+    (ite (= k ACQUIRE) c11_acquire
+    (ite (= k ACQ_REL) c11_acquire
+         c11_seq_cst)))))
+  (declare-const violation Bool)
+  (assert (= violation
+    (> (failure_c11 kain_failure) (success_c11 kain_success))))
+  (assert violation)
+  (assert (>= kain_success 0)) (assert (<= kain_success 4))
+  (assert (>= kain_failure 0)) (assert (<= kain_failure 4))
+  (check-sat)
+  ; sat witness: kain_success=0 (RELAXED), kain_failure=4 (SEQ_CST)
+  ; failure_c11=seq_cst(5) > success_c11=relaxed(0) => C11 UB
+
+result: sat
+witness:
+  kain_success: 0   # RELAXED -> c11 relaxed (0)
+  kain_failure: 4   # SEQ_CST -> c11 seq_cst (5)
+  violation: true
+  c11_failure_strength: 5
+  c11_success_strength: 0
+  violation_delta: 5
+
+severity: High
+categories: [correctness, UB, soundness]
+status: Solver-Proved
+suggested_fix: |
+  In kain_memory_failure_order_from_code, clamp failure_order to be no stronger
+  than success_order before passing to atomic_compare_exchange_strong_explicit.
+  Alternatively, add an assertion that failure_order <= success_order in debug
+  builds and silently clamp in release builds:
+    failure_order = min(failure_order, success_order)  (by strength)
+  Or: add a diagnostic and return 0 (false) if the ordering constraint is violated.

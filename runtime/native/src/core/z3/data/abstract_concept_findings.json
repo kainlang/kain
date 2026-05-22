@@ -1,0 +1,52 @@
+[
+  {
+    "contract": "cache-bytes-integrity",
+    "severity": "Medium",
+    "expected": "unsat",
+    "actual": "unsat",
+    "passed": true,
+    "bug_confirmed": false,
+    "invariant_broken": false,
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\abstract_cache-bytes-integrity.smt2"
+  },
+  {
+    "contract": "occupied-decayed-transient",
+    "severity": "Low",
+    "expected": "sat",
+    "actual": "sat",
+    "passed": true,
+    "bug_confirmed": true,
+    "invariant_broken": false,
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\abstract_occupied-decayed-transient.smt2"
+  },
+  {
+    "contract": "index-injection-free",
+    "severity": "Medium",
+    "expected": "unsat",
+    "actual": "unsat",
+    "passed": true,
+    "bug_confirmed": false,
+    "invariant_broken": false,
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\abstract_index-injection-free.smt2"
+  },
+  {
+    "contract": "lock-ordering-inversion",
+    "severity": "High",
+    "expected": "unsat",
+    "actual": "unsat",
+    "passed": true,
+    "bug_confirmed": false,
+    "invariant_broken": false,
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\abstract_lock-ordering-inversion.smt2"
+  },
+  {
+    "contract": "cas-failure-order-c11-ub",
+    "severity": "High",
+    "expected": "sat",
+    "actual": "sat",
+    "passed": true,
+    "bug_confirmed": true,
+    "invariant_broken": false,
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\abstract_cas-failure-order-c11-ub.smt2"
+  }
+]

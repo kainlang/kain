@@ -50,7 +50,8 @@ typedef struct {
 } KainActorTable;
 
 static KainActorTable g_actor_table = {0};
-static int g_actor_runtime_initialized = 0;
+/* Proof: runtime/native/src/core/z3/proofs/actor-runtime-atomic-once-prevents-double-enter.yaml */
+static atomic_uint g_actor_runtime_init_state = 0u;
 
 /* Actor registry */
 #define KAIN_ACTOR_REGISTRY_SIZE KAIN_ACTOR_REGISTRY_CAPACITY
@@ -340,6 +341,37 @@ static void kain_actor_reply_port_spin_pause(unsigned int spin_index) {
 #endif
     }
 #endif
+}
+
+enum {
+    KAIN_ACTOR_RUNTIME_INIT_STATE_COLD = 0u,
+    KAIN_ACTOR_RUNTIME_INIT_STATE_BUSY = 1u,
+    KAIN_ACTOR_RUNTIME_INIT_STATE_READY = 2u,
+};
+
+static unsigned int kain_actor_runtime_init_state_load(void) {
+    return atomic_load_explicit(
+        &g_actor_runtime_init_state,
+        memory_order_acquire
+    );
+}
+
+static int kain_actor_runtime_try_transition(
+    unsigned int expected_state,
+    unsigned int next_state
+) {
+    return atomic_compare_exchange_strong_explicit(
+        &g_actor_runtime_init_state,
+        &expected_state,
+        next_state,
+        memory_order_acq_rel,
+        memory_order_acquire
+    );
+}
+
+static int kain_actor_runtime_is_initialized(void) {
+    return kain_actor_runtime_init_state_load() ==
+           KAIN_ACTOR_RUNTIME_INIT_STATE_READY;
 }
 
 static int kain_actor_scheduler_flag_load(const int* value) {
@@ -1235,8 +1267,23 @@ static void kain_actor_reply_port_state_unbind_synthetic_actor(KainActorReplyPor
  * Must be called before any actor operations.
  */
 void kain_actor_runtime_init(void) {
-    if (g_actor_runtime_initialized) {
-        return;
+    unsigned int spin_index = 0u;
+
+    for (;;) {
+        unsigned int state = kain_actor_runtime_init_state_load();
+        if (state == KAIN_ACTOR_RUNTIME_INIT_STATE_READY) {
+            return;
+        }
+        if (state == KAIN_ACTOR_RUNTIME_INIT_STATE_BUSY) {
+            kain_actor_reply_port_spin_pause(spin_index++);
+            continue;
+        }
+        if (kain_actor_runtime_try_transition(
+                KAIN_ACTOR_RUNTIME_INIT_STATE_COLD,
+                KAIN_ACTOR_RUNTIME_INIT_STATE_BUSY
+            )) {
+            break;
+        }
     }
 
 #ifdef _WIN32
@@ -1260,13 +1307,15 @@ void kain_actor_runtime_init(void) {
         kain_scheduler_init();
     }
 
-    g_actor_runtime_initialized = 1;
+    atomic_store_explicit(
+        &g_actor_runtime_init_state,
+        KAIN_ACTOR_RUNTIME_INIT_STATE_READY,
+        memory_order_release
+    );
 }
 
 static void kain_actor_runtime_ensure_initialized(void) {
-    if (!g_actor_runtime_initialized) {
-        kain_actor_runtime_init();
-    }
+    kain_actor_runtime_init();
 }
 
 KainActorAbiDescriptor kain_actor_abi_descriptor(void) {
@@ -1363,7 +1412,10 @@ int kain_actor_ref_is_live(const KainActorRef* actor_ref) {
  * Terminates all actors and cleans up resources.
  */
 void kain_actor_runtime_shutdown(void) {
-    if (!g_actor_runtime_initialized) {
+    if (!kain_actor_runtime_try_transition(
+            KAIN_ACTOR_RUNTIME_INIT_STATE_READY,
+            KAIN_ACTOR_RUNTIME_INIT_STATE_BUSY
+        )) {
         return;
     }
 
@@ -1444,7 +1496,11 @@ void kain_actor_runtime_shutdown(void) {
     pthread_mutex_destroy(&g_actor_registry.lock);
 #endif
 
-    g_actor_runtime_initialized = 0;
+    atomic_store_explicit(
+        &g_actor_runtime_init_state,
+        KAIN_ACTOR_RUNTIME_INIT_STATE_COLD,
+        memory_order_release
+    );
 }
 
 /*
@@ -3023,7 +3079,7 @@ void kain_attrition_actor_fill_snapshot(KainAttritionSnapshot* snapshot) {
         &g_attrition_reply_port_peak_count,
         memory_order_relaxed);
 
-    if (!g_actor_runtime_initialized) {
+    if (!kain_actor_runtime_is_initialized()) {
         return;
     }
 
@@ -3622,7 +3678,7 @@ void kain_actor_scheduler_snapshot(KainActorSchedulerSnapshot* snapshot) {
 
     memset(snapshot, 0, sizeof(*snapshot));
 
-    if (!g_actor_runtime_initialized) {
+    if (!kain_actor_runtime_is_initialized()) {
         return;
     }
 

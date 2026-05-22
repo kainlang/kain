@@ -1,0 +1,20 @@
+{
+  "actor_ready_plain_ns_per_call": 1.264125,
+  "actor_ready_atomic_ns_per_call": 1.272995,
+  "actor_ready_os_once_ns_per_call": 3.276905,
+  "service_populate_plain_ns_per_catalog": 272.627,
+  "service_populate_locked_entry_ns_per_catalog": 697.8945,
+  "service_populate_locked_batch_ns_per_catalog": 277.3595,
+  "service_lookup_plain_ns_per_lookup": 15.699835,
+  "service_lookup_atomic_ns_per_lookup": 15.16589,
+  "sink": 718599802,
+  "actor_atomic_vs_os_once_speedup": 2.574169576471235,
+  "actor_atomic_vs_plain_regression": 1.0070167111638486,
+  "service_locked_batch_vs_locked_entry_speedup": 2.5162091076743356,
+  "service_lookup_atomic_vs_plain_regression": 0.9659904069055503,
+  "bench_config": {
+    "actor_iterations": 20000000,
+    "service_iterations": 200000,
+    "lookup_iterations": 20000000
+  }
+}

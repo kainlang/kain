@@ -37,6 +37,16 @@ clang -c \
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
+    -o "$OUTPUT_DIR/runtime_attrition.o" \
+    "$RUNTIME_DIR/native/src/core/attrition.c"
+
+clang -c \
+    -I"$RUNTIME_DIR/native/include" \
+    -o "$OUTPUT_DIR/runtime_async.o" \
+    "$RUNTIME_DIR/native/src/core/async.c"
+
+clang -c \
+    -I"$RUNTIME_DIR/native/include" \
     -o "$OUTPUT_DIR/runtime_services.o" \
     "$RUNTIME_DIR/native/src/core/services.c"
 
@@ -78,6 +88,8 @@ clang \
     "$OUTPUT_DIR/kain_runtime_core.o" \
     "$OUTPUT_DIR/runtime_version.o" \
     "$OUTPUT_DIR/runtime_diagnostics.o" \
+    "$OUTPUT_DIR/runtime_attrition.o" \
+    "$OUTPUT_DIR/runtime_async.o" \
     "$OUTPUT_DIR/runtime_services.o" \
     "$OUTPUT_DIR/runtime_actor.o" \
     "$OUTPUT_DIR/abi_net_system.o" \
@@ -93,4 +105,3 @@ echo "Output: $OUTPUT_DIR/test_service_registry"
 echo ""
 echo "Running test..."
 "$OUTPUT_DIR/test_service_registry"
-

@@ -96,6 +96,8 @@ def main() -> None:
     args = parser.parse_args()
 
     ensure_output_dirs()
+    for stale_path in GENERATED_DIR.glob("*.smt2"):
+        stale_path.unlink()
     sync_rows = load_rows(DATA_DIR / "sync_findings.json")
     arithmetic_rows = load_rows(DATA_DIR / "arithmetic_sites.json")
     results: list[dict] = []

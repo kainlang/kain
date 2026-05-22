@@ -524,6 +524,8 @@ This codebase is too unsafe and too cross-layer for unaided human intuition to b
 - Use `$tool-z3-black-magic` when the task is exploratory optimization, alien math, perfect hashes, bit hacks, branch elimination, or solver-guided replacement algorithms.
 - Use `$tool-z3-bug-hunter` when the task is exploratory bug discovery, weird edge-case pressure, or solver-backed defect triage that should be logged to `BUGS.md` rather than fixed inline.
 - Passing tests are useful telemetry. They are not proof.
+- IF USING Z3 TO VERIFY OR OPTIMIZE - MAKE SURE TO LEAVE A COMMENT IN THE CODE THAT POINTS TO THE PROOF 
+- example snippet -   /* Proof: runtime/native/src/core/z3/proofs/actor-supervision-restart-count-stays-within-window-limit.yaml */
 
 The old unit-test mindset checks a few numbers we remembered to write down. The Kain standard asks the solver to search the entire state space. If a buffer rule is `length + byte_count + slack < capacity`, encode the real bounds and make Z3 prove the violation impossible.
 

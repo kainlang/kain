@@ -1,0 +1,9 @@
+score,kind,file,function,line,details
+75,state-write-without-read-guard,ownership.c,kain_ownership_clear_slot_unlocked,225,Function writes to region->state (DECAYED) but contains no state read/check before writing; may bypass state guard
+65,decay-state-write-without-observer-check,ownership.c,kain_ownership_clear_slot_unlocked,240,DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write
+65,decay-state-write-without-observer-check,ownership.c,kain_ownership_status_for_busy_region,267,DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write
+65,decay-state-write-without-observer-check,ownership.c,kain_ownership_begin_observe_slot_unlocked,524,DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write
+65,decay-state-write-without-observer-check,ownership.c,kain_ownership_begin_collapse_slot_unlocked,618,DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write
+65,decay-state-write-without-observer-check,ownership.c,kain_ownership_begin_share_slot_unlocked,708,DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write
+65,decay-state-write-without-observer-check,ownership.c,kain_ownership_decay_slot_unlocked,799,DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write
+65,decay-state-write-without-observer-check,ownership.c,kain_ownership_decay_slot_unlocked,823,DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write

@@ -1,4 +1,10 @@
-"""Shared helpers for the native-core Z3 bounty-hunter scripts."""
+"""
+Shared helpers for the native-core Z3 bounty-hunter scripts.
+
+This module is intentionally dense: it owns all pattern catalogues, token
+collections, function extractor logic, SMT2 generation utilities, and abstract
+concept helpers used across scripts 01-08 (and any future additions).
+"""
 
 from __future__ import annotations
 
@@ -41,6 +47,69 @@ SIZE_TERMS = (
     "body",
     "path",
     "mask",
+    "word",
+    "bucket",
+    "threshold",
+    "limit",
+    "bound",
+    "allocation",
+    "region",
+)
+
+# ── Memory ordering tokens ─────────────────────────────────────────────────
+MEMORY_ORDER_TOKENS = (
+    "memory_order_relaxed",
+    "memory_order_acquire",
+    "memory_order_release",
+    "memory_order_acq_rel",
+    "memory_order_seq_cst",
+    "KAIN_MEMORY_ORDER_RELAXED",
+    "KAIN_MEMORY_ORDER_ACQUIRE",
+    "KAIN_MEMORY_ORDER_RELEASE",
+    "KAIN_MEMORY_ORDER_ACQ_REL",
+    "KAIN_MEMORY_ORDER_SEQ_CST",
+)
+ATOMIC_ORDERING_FUNCS = (
+    "kain_memory_order_from_code",
+    "kain_memory_load_order_from_code",
+    "kain_memory_store_order_from_code",
+    "kain_memory_failure_order_from_code",
+)
+CAS_OPERATION_TOKENS = (
+    "atomic_compare_exchange_strong_explicit",
+    "atomic_compare_exchange_weak_explicit",
+    "atomic_compare_exchange_strong",
+    "atomic_compare_exchange_weak",
+)
+
+# ── Ownership state machine tokens ────────────────────────────────────────
+OWNERSHIP_STATE_TOKENS = (
+    "KAIN_OWNERSHIP_STATE_IDLE",
+    "KAIN_OWNERSHIP_STATE_OBSERVED",
+    "KAIN_OWNERSHIP_STATE_COLLAPSED",
+    "KAIN_OWNERSHIP_STATE_SHARED",
+    "KAIN_OWNERSHIP_STATE_DECAYED",
+)
+OWNERSHIP_ERROR_TOKENS = (
+    "KAIN_OWNERSHIP_ERR_CAPACITY",
+    "KAIN_OWNERSHIP_ERR_OVERFLOW",
+    "KAIN_OWNERSHIP_ERR_OBSERVED",
+    "KAIN_OWNERSHIP_ERR_COLLAPSED",
+    "KAIN_OWNERSHIP_ERR_DECAYED",
+    "KAIN_OWNERSHIP_ERR_NOT_FOUND",
+    "KAIN_OWNERSHIP_ERR_INVALID",
+)
+
+# ── Abstract concept categories for Z3 model classification ───────────────
+CONCEPT_CATEGORIES = (
+    "bounds",         # index/offset/pointer arithmetic
+    "race",           # concurrent state mutation
+    "ordering",       # memory ordering semantics
+    "state-machine",  # ownership/actor state transitions
+    "invariant",      # mathematical invariant claims
+    "aliasing",       # pointer aliasing / escape analysis
+    "overflow",       # arithmetic overflow/underflow
+    "ub",             # C11/C23 undefined behavior
 )
 GUARD_TOKENS = (
     "SIZE_MAX",
@@ -54,12 +123,20 @@ GUARD_TOKENS = (
     "S64_MIN",
     "S32_MAX",
     "S32_MIN",
+    "UINT32_MAX",
+    "UINT16_MAX",
     "overflow",
     "underflow",
     "kain_add_overflow",
     "kain_mul_overflow",
     "kain_sub_underflow",
     "abi_net_size_add_overflow",
+    # Ownership-specific guards
+    "KAIN_OWNERSHIP_MAX_REGIONS",
+    "KAIN_OWNERSHIP_INDEX_CAPACITY",
+    # Cache bounds
+    "KAIN_ALLOC_CACHE_MAX_BYTES",
+    "KAIN_ALLOC_CACHE_MAX_NODES",
 )
 LOCK_TOKENS = (
     "pthread_mutex_lock(",
@@ -81,6 +158,8 @@ ATOMIC_TOKENS = (
     "atomic_",
     "__atomic_",
     "Interlocked",
+    "_state_load(",
+    "_count_load(",
 )
 DESTROY_TOKENS = (
     "pthread_mutex_destroy(",
@@ -275,3 +354,53 @@ def function_line_excerpt(lines: list[str], limit: int = 3) -> str:
         if len(payload) >= limit:
             break
     return " || ".join(payload)
+
+
+def extract_multi_line_window(lines: list[str], center: int, before: int = 4, after: int = 8) -> str:
+    """Extract a window of lines centered on `center` for multi-line expression analysis."""
+    start = max(0, center - before)
+    end = min(len(lines), center + after + 1)
+    return "\n".join(lines[start:end])
+
+
+def has_nearby_token(lines: list[str], line_index: int, tokens: Iterable[str], window: int = 8) -> bool:
+    """Return True if any token appears within `window` lines of `line_index`."""
+    start = max(0, line_index - window)
+    end = min(len(lines), line_index + window + 1)
+    window_text = "\n".join(lines[start:end])
+    return any(token in window_text for token in tokens)
+
+
+def count_distinct_states(body: str, state_tokens: Iterable[str]) -> int:
+    """Count how many distinct state tokens appear in a function body."""
+    return sum(1 for token in state_tokens if token in body)
+
+
+def smt2_bitvec_const(name: str, bits: int, value: int) -> str:
+    """Generate an SMT2 bitvec constant assertion."""
+    hex_digits = bits // 4
+    hex_val = format(value & ((1 << bits) - 1), f"0{hex_digits}x")
+    return f"(declare-const {name} (_ BitVec {bits}))\n(assert (= {name} #x{hex_val}))"
+
+
+def smt2_range_check_claim(var: str, bits: int, lo: int, hi: int) -> str:
+    """Generate an SMT2 range-check claim: lo <= var < hi (unsigned)."""
+    hex_digits = bits // 4
+    lo_hex = format(lo & ((1 << bits) - 1), f"0{hex_digits}x")
+    hi_hex = format(hi & ((1 << bits) - 1), f"0{hex_digits}x")
+    return (
+        f"(assert (bvuge {var} #x{lo_hex}))\n"
+        f"(assert (bvult {var} #x{hi_hex}))"
+    )
+
+
+def make_smt2_document(logic: str, declarations: list[str], assertions: list[str], comment: str = "") -> str:
+    """Assemble a complete SMT2 document from parts."""
+    parts = [f"(set-logic {logic})"]
+    if comment:
+        for line in comment.splitlines():
+            parts.append(f"; {line}")
+    parts.extend(declarations)
+    parts.extend(assertions)
+    parts.append("(check-sat)")
+    return "\n".join(parts) + "\n"

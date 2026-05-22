@@ -1,0 +1,66 @@
+[
+  {
+    "score": 75,
+    "kind": "state-write-without-read-guard",
+    "file": "ownership.c",
+    "function": "kain_ownership_clear_slot_unlocked",
+    "line": 225,
+    "details": "Function writes to region->state (DECAYED) but contains no state read/check before writing; may bypass state guard"
+  },
+  {
+    "score": 65,
+    "kind": "decay-state-write-without-observer-check",
+    "file": "ownership.c",
+    "function": "kain_ownership_clear_slot_unlocked",
+    "line": 240,
+    "details": "DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write"
+  },
+  {
+    "score": 65,
+    "kind": "decay-state-write-without-observer-check",
+    "file": "ownership.c",
+    "function": "kain_ownership_status_for_busy_region",
+    "line": 267,
+    "details": "DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write"
+  },
+  {
+    "score": 65,
+    "kind": "decay-state-write-without-observer-check",
+    "file": "ownership.c",
+    "function": "kain_ownership_begin_observe_slot_unlocked",
+    "line": 524,
+    "details": "DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write"
+  },
+  {
+    "score": 65,
+    "kind": "decay-state-write-without-observer-check",
+    "file": "ownership.c",
+    "function": "kain_ownership_begin_collapse_slot_unlocked",
+    "line": 618,
+    "details": "DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write"
+  },
+  {
+    "score": 65,
+    "kind": "decay-state-write-without-observer-check",
+    "file": "ownership.c",
+    "function": "kain_ownership_begin_share_slot_unlocked",
+    "line": 708,
+    "details": "DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write"
+  },
+  {
+    "score": 65,
+    "kind": "decay-state-write-without-observer-check",
+    "file": "ownership.c",
+    "function": "kain_ownership_decay_slot_unlocked",
+    "line": 799,
+    "details": "DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write"
+  },
+  {
+    "score": 65,
+    "kind": "decay-state-write-without-observer-check",
+    "file": "ownership.c",
+    "function": "kain_ownership_decay_slot_unlocked",
+    "line": 823,
+    "details": "DECAYED state assigned without nearby observer count check; verify that observers==0 is guaranteed before this write"
+  }
+]

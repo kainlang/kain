@@ -2,46 +2,6 @@
   {
     "score": 95,
     "kind": "plain-init-race",
-    "file": "actor.c",
-    "function": "kain_actor_runtime_init",
-    "start_line": 1231,
-    "evidence_line": 1238,
-    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
-    "excerpt": "/* || * Initialize Actor Runtime || *"
-  },
-  {
-    "score": 95,
-    "kind": "plain-init-race",
-    "file": "actor.c",
-    "function": "kain_actor_runtime_ensure_initialized",
-    "start_line": 1265,
-    "evidence_line": 1266,
-    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
-    "excerpt": "static void kain_actor_runtime_ensure_initialized(void) { || if (!g_actor_runtime_initialized) { || kain_actor_runtime_init();"
-  },
-  {
-    "score": 95,
-    "kind": "plain-init-race",
-    "file": "attrition.c",
-    "function": "kain_attrition_init_once",
-    "start_line": 242,
-    "evidence_line": 247,
-    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
-    "excerpt": "static BOOL CALLBACK kain_attrition_init_once(PINIT_ONCE init_once, PVOID parameter, PVOID* context) { || (void)init_once; || (void)parameter;"
-  },
-  {
-    "score": 95,
-    "kind": "plain-init-race",
-    "file": "attrition.c",
-    "function": "kain_attrition_init_once",
-    "start_line": 251,
-    "evidence_line": 253,
-    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
-    "excerpt": "static void kain_attrition_init_once(void) { || pthread_mutex_init(&g_kain_attrition_state.lock, NULL); || g_kain_attrition_state.initialized = 1;"
-  },
-  {
-    "score": 95,
-    "kind": "plain-init-race",
     "file": "core.c",
     "function": "init_winsock",
     "start_line": 1883,
@@ -78,16 +38,6 @@
     "evidence_line": 467,
     "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
     "excerpt": "static void abi_net_init_winsock(void) { || static int initialized = 0; || if (!initialized) {"
-  },
-  {
-    "score": 95,
-    "kind": "plain-init-race",
-    "file": "services.c",
-    "function": "kain_service_registry_init",
-    "start_line": 605,
-    "evidence_line": 611,
-    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
-    "excerpt": "void kain_service_registry_init(KainServiceRegistry* registry) { || if (!registry) { || return;"
   },
   {
     "score": 92,
@@ -382,16 +332,6 @@
   {
     "score": 92,
     "kind": "shared-slot-overwrite",
-    "file": "services.c",
-    "function": "kain_service_registry_register",
-    "start_line": 646,
-    "evidence_line": 685,
-    "details": "count-derived slot selection and count increment both happen without synchronization",
-    "excerpt": "int kain_service_registry_register( || KainServiceRegistry* registry, || const char* key,"
-  },
-  {
-    "score": 92,
-    "kind": "shared-slot-overwrite",
     "file": "stdlib_abi.c",
     "function": "abi_patch_record_i64",
     "start_line": 1190,
@@ -404,8 +344,8 @@
     "kind": "lost-update-counter",
     "file": "actor.c",
     "function": "kain_actor_mailbox_cache_or_free_node",
-    "start_line": 1537,
-    "evidence_line": 1550,
+    "start_line": 1593,
+    "evidence_line": 1606,
     "details": "count-like state mutates without lock or atomic primitive",
     "excerpt": "static void kain_actor_mailbox_cache_or_free_node(KainActorMailbox* mailbox, MessageNode* node) { || if (node == NULL) { || return;"
   },
@@ -414,8 +354,8 @@
     "kind": "lost-update-counter",
     "file": "actor.c",
     "function": "kain_actor_mailbox_append_copied_locked",
-    "start_line": 1556,
-    "evidence_line": 1605,
+    "start_line": 1612,
+    "evidence_line": 1661,
     "details": "count-like state mutates without lock or atomic primitive",
     "excerpt": "static int kain_actor_mailbox_append_copied_locked( || KainActorMailbox* mailbox, || const KainActorMessage* message"
   },
@@ -882,36 +822,6 @@
   {
     "score": 88,
     "kind": "lost-update-counter",
-    "file": "services.c",
-    "function": "kain_service_registry_register",
-    "start_line": 646,
-    "evidence_line": 699,
-    "details": "count-like state mutates without lock or atomic primitive",
-    "excerpt": "int kain_service_registry_register( || KainServiceRegistry* registry, || const char* key,"
-  },
-  {
-    "score": 88,
-    "kind": "lost-update-counter",
-    "file": "services.c",
-    "function": "kain_service_registry_count_by_status",
-    "start_line": 908,
-    "evidence_line": 922,
-    "details": "count-like state mutates without lock or atomic primitive",
-    "excerpt": "int kain_service_registry_count_by_status( || const KainServiceRegistry* registry, || KainServiceStatus status"
-  },
-  {
-    "score": 88,
-    "kind": "lost-update-counter",
-    "file": "services.c",
-    "function": "kain_service_registry_count_by_requirement",
-    "start_line": 928,
-    "evidence_line": 942,
-    "details": "count-like state mutates without lock or atomic primitive",
-    "excerpt": "int kain_service_registry_count_by_requirement( || const KainServiceRegistry* registry, || KainServiceRequirement requirement"
-  },
-  {
-    "score": 88,
-    "kind": "lost-update-counter",
     "file": "stdlib_abi.c",
     "function": "abi_patch_record_i64",
     "start_line": 1190,
@@ -964,20 +874,10 @@
     "kind": "unsynced-global-write",
     "file": "actor.c",
     "function": "kain_actor_borrowed_message_release_match",
-    "start_line": 399,
-    "evidence_line": 403,
+    "start_line": 431,
+    "evidence_line": 435,
     "details": "writes global state without lock, once primitive, or atomic primitive",
     "excerpt": "static int kain_actor_borrowed_message_release_match(const void* message_data) { || unsigned int index; || if (message_data == NULL || g_actor_borrowed_message_depth == 0u) {"
-  },
-  {
-    "score": 75,
-    "kind": "unsynced-global-write",
-    "file": "actor.c",
-    "function": "kain_actor_runtime_init",
-    "start_line": 1231,
-    "evidence_line": 1256,
-    "details": "writes global state without lock, once primitive, or atomic primitive",
-    "excerpt": "/* || * Initialize Actor Runtime || *"
   },
   {
     "score": 75,
@@ -1184,8 +1084,8 @@
     "kind": "teardown-after-unlock",
     "file": "actor.c",
     "function": "kain_actor_reply_port_state_complete_copied",
-    "start_line": 606,
-    "evidence_line": 689,
+    "start_line": 638,
+    "evidence_line": 721,
     "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
     "excerpt": "static int kain_actor_reply_port_state_complete_copied( || KainActorReplyPortState* state, || const KainActorRef* expected_actor_ref,"
   },
@@ -1194,8 +1094,8 @@
     "kind": "teardown-after-unlock",
     "file": "actor.c",
     "function": "kain_actor_reply_port_state_reset_with_actor_ref",
-    "start_line": 700,
-    "evidence_line": 740,
+    "start_line": 732,
+    "evidence_line": 772,
     "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
     "excerpt": "static void kain_actor_reply_port_state_reset_with_actor_ref( || KainActorReplyPortState* state, || const KainActorRef* actor_ref"
   },
@@ -1204,8 +1104,8 @@
     "kind": "teardown-after-unlock",
     "file": "actor.c",
     "function": "kain_actor_reply_port_state_release",
-    "start_line": 935,
-    "evidence_line": 960,
+    "start_line": 967,
+    "evidence_line": 992,
     "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
     "excerpt": "static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) { || int should_destroy = 0; || void* reply_data_to_free = NULL;"
   },
@@ -1214,8 +1114,8 @@
     "kind": "teardown-after-unlock",
     "file": "actor.c",
     "function": "kain_actor_reply_port_state_prepare_direct_token",
-    "start_line": 1130,
-    "evidence_line": 1189,
+    "start_line": 1162,
+    "evidence_line": 1221,
     "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
     "excerpt": "static int kain_actor_reply_port_state_prepare_direct_token( || KainActorReplyPortState* state, || KainActorRef* out_actor_ref"
   },
@@ -1224,8 +1124,8 @@
     "kind": "teardown-after-unlock",
     "file": "actor.c",
     "function": "kain_actor_runtime_shutdown",
-    "start_line": 1359,
-    "evidence_line": 1432,
+    "start_line": 1408,
+    "evidence_line": 1484,
     "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
     "excerpt": "/* || * Shutdown Actor Runtime || *"
   },
@@ -1234,8 +1134,8 @@
     "kind": "teardown-after-unlock",
     "file": "actor.c",
     "function": "kain_actor_thread_proc",
-    "start_line": 1880,
-    "evidence_line": 2370,
+    "start_line": 1936,
+    "evidence_line": 2426,
     "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
     "excerpt": "static DWORD WINAPI kain_actor_thread_proc(LPVOID param) { || #else || static void* kain_actor_thread_proc(void* param) {"
   },
@@ -1305,8 +1205,8 @@
     "file": "ownership.c",
     "function": "kain_ownership_decay_slot_unlocked",
     "start_line": 790,
-    "evidence_line": 812,
+    "evidence_line": 813,
     "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
-    "excerpt": "static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_helper_slot) { || if (slot < 0) { || return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);"
+    "excerpt": "static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_helper_slot) { || (void)reclaim_helper_slot; || if (slot < 0) {"
   }
 ]

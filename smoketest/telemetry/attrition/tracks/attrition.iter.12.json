@@ -1,0 +1,23 @@
+{
+  "mode": "attrition",
+  "category": "attrition",
+  "track": "attrition.iter.12",
+  "lane": "telemetry_flow",
+  "offset": 6012,
+  "status": 0,
+  "ok": 1,
+  "started_ms": 37,
+  "ended_ms": 38,
+  "elapsed_ms": 1,
+  "track_checksum": 559270,
+  "composition_checksum": 153762487,
+  "cpu_feature_fingerprint": -7409408978278525106,
+  "patch_journal_count": 256,
+  "entangle_propagation_count": 3870,
+  "converge_mismatch_count": 0,
+  "runtime_converge_telemetry_count": 13,
+  "runtime_machine_teleport_count": 1293,
+  "runtime_machine_pulse_total_fire_count": 3,
+  "actor_scheduler_queue_depth": 0,
+  "actor_scheduler_total_enqueued": 0
+}

@@ -1,46 +1,6 @@
 [
   {
     "proof_kind": "plain-init-race",
-    "file": "actor.c",
-    "function": "kain_actor_runtime_init",
-    "evidence_line": 1238,
-    "score": 95,
-    "result": "sat",
-    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\actor.c__kain_actor_runtime_init__plain_init_race.smt2",
-    "model": "{\"initial_initialized\": \"False\", \"read_a\": \"False\", \"read_b\": \"False\"}"
-  },
-  {
-    "proof_kind": "plain-init-race",
-    "file": "actor.c",
-    "function": "kain_actor_runtime_ensure_initialized",
-    "evidence_line": 1266,
-    "score": 95,
-    "result": "sat",
-    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\actor.c__kain_actor_runtime_ensure_initialized__plain_init_race.smt2",
-    "model": "{\"initial_initialized\": \"False\", \"read_a\": \"False\", \"read_b\": \"False\"}"
-  },
-  {
-    "proof_kind": "plain-init-race",
-    "file": "attrition.c",
-    "function": "kain_attrition_init_once",
-    "evidence_line": 247,
-    "score": 95,
-    "result": "sat",
-    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\attrition.c__kain_attrition_init_once__plain_init_race.smt2",
-    "model": "{\"initial_initialized\": \"False\", \"read_a\": \"False\", \"read_b\": \"False\"}"
-  },
-  {
-    "proof_kind": "plain-init-race",
-    "file": "attrition.c",
-    "function": "kain_attrition_init_once",
-    "evidence_line": 253,
-    "score": 95,
-    "result": "sat",
-    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\attrition.c__kain_attrition_init_once__plain_init_race.smt2",
-    "model": "{\"initial_initialized\": \"False\", \"read_a\": \"False\", \"read_b\": \"False\"}"
-  },
-  {
-    "proof_kind": "plain-init-race",
     "file": "core.c",
     "function": "init_winsock",
     "evidence_line": 1884,
@@ -77,16 +37,6 @@
     "score": 95,
     "result": "sat",
     "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\net_system.c__abi_net_init_winsock__plain_init_race.smt2",
-    "model": "{\"initial_initialized\": \"False\", \"read_a\": \"False\", \"read_b\": \"False\"}"
-  },
-  {
-    "proof_kind": "plain-init-race",
-    "file": "services.c",
-    "function": "kain_service_registry_init",
-    "evidence_line": 611,
-    "score": 95,
-    "result": "sat",
-    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\services.c__kain_service_registry_init__plain_init_race.smt2",
     "model": "{\"initial_initialized\": \"False\", \"read_a\": \"False\", \"read_b\": \"False\"}"
   },
   {
@@ -197,6 +147,56 @@
     "score": 92,
     "result": "sat",
     "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\input_system.c__abi_input_reduce_event__lost_update.smt2",
+    "model": "{\"a_writes_last\": \"False\", \"initial_count\": \"0\", \"read_a\": \"0\", \"read_b\": \"0\"}"
+  },
+  {
+    "proof_kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_bind_action",
+    "evidence_line": 423,
+    "score": 92,
+    "result": "sat",
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\input_system.c__abi_input_bind_action__lost_update.smt2",
+    "model": "{\"a_writes_last\": \"False\", \"initial_count\": \"0\", \"read_a\": \"0\", \"read_b\": \"0\"}"
+  },
+  {
+    "proof_kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_bind_axis",
+    "evidence_line": 454,
+    "score": 92,
+    "result": "sat",
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\input_system.c__abi_input_bind_axis__lost_update.smt2",
+    "model": "{\"a_writes_last\": \"False\", \"initial_count\": \"0\", \"read_a\": \"0\", \"read_b\": \"0\"}"
+  },
+  {
+    "proof_kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_push_event",
+    "evidence_line": 487,
+    "score": 92,
+    "result": "sat",
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\input_system.c__abi_input_push_event__lost_update.smt2",
+    "model": "{\"a_writes_last\": \"False\", \"initial_count\": \"0\", \"read_a\": \"0\", \"read_b\": \"0\"}"
+  },
+  {
+    "proof_kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_push_agent_intent",
+    "evidence_line": 525,
+    "score": 92,
+    "result": "sat",
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\input_system.c__abi_input_push_agent_intent__lost_update.smt2",
+    "model": "{\"a_writes_last\": \"False\", \"initial_count\": \"0\", \"read_a\": \"0\", \"read_b\": \"0\"}"
+  },
+  {
+    "proof_kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_replay_trace",
+    "evidence_line": 698,
+    "score": 92,
+    "result": "sat",
+    "proof_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\generated\\auto_z3\\input_system.c__abi_input_replay_trace__lost_update.smt2",
     "model": "{\"a_writes_last\": \"False\", \"initial_count\": \"0\", \"read_a\": \"0\", \"read_b\": \"0\"}"
   },
   {

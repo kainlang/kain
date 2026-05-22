@@ -1,12 +1,15 @@
 """
 run_pipeline.py
 ────────────────
-Runs the full BPF verifier analysis pipeline in order:
+Runs the full Kain native-core formal analysis pipeline in order:
   01 → Catalog range-touching functions
   02 → Find sync gaps
-  03 → Arithmetic risk scan
-  04 → Auto Z3 proofs
-  05 → Branch condition extraction
+  03 → Arithmetic overflow risk scan
+  04 → Auto-generate Z3 proofs from scan outputs
+  05 → Branch condition range-narrowing analysis (BPF verifier compat)
+  06 → Memory ordering audit (CAS failure-order violations, silent remaps)
+  07 → Ownership state machine audit (transition guards, observer invariants)
+  08 → Abstract concept prover (invariant-first, independent of C patterns)
 
 Usage:
   python run_pipeline.py [--verifier PATH] [--skip 04] [--only 03]
@@ -26,11 +29,14 @@ DATA_DIR = SCRIPTS_DIR.parent / "data"
 VERIFIER_DEFAULT = SCRIPTS_DIR.parent.parent.parent / "verifier.c"
 
 PIPELINE = [
-    ("01", "01_catalog_range_functions.py",   "Catalog range-touching functions"),
-    ("02", "02_find_sync_gaps.py",            "Find sync gaps in call sites"),
-    ("03", "03_arithmetic_scanner.py",         "Arithmetic overflow risk scan"),
-    ("04", "04_auto_z3_prover.py",            "Auto-generate and run Z3 proofs"),
-    ("05", "05_branch_condition_extractor.py", "Extract branch condition narrowing"),
+    ("01", "01_catalog_range_functions.py",      "Catalog range-touching functions"),
+    ("02", "02_find_sync_gaps.py",               "Find sync gaps in call sites"),
+    ("03", "03_arithmetic_scanner.py",            "Arithmetic overflow risk scan"),
+    ("04", "04_auto_z3_prover.py",               "Auto-generate and run Z3 proofs"),
+    ("05", "05_branch_condition_extractor.py",    "Extract branch condition narrowing"),
+    ("06", "06_memory_order_auditor.py",          "Memory ordering audit (CAS/store/failure-order)"),
+    ("07", "07_ownership_state_machine_auditor.py","Ownership state machine audit"),
+    ("08", "08_abstract_concept_prover.py",       "Abstract concept prover (invariant-first Z3)"),
 ]
 
 
@@ -43,8 +49,8 @@ def main():
 
     console = Console()
     console.print(Panel.fit(
-        "[bold cyan]BPF Verifier Formal Analysis Pipeline[/bold cyan]\n"
-        "[dim]kernel/bpf/verifier.c — Z3-backed security audit[/dim]",
+        "[bold cyan]Kain Native Core Formal Analysis Pipeline[/bold cyan]\n"
+        "[dim]runtime/native/src/core — Z3-backed security and correctness audit[/dim]",
         border_style="cyan",
     ))
 

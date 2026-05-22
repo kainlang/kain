@@ -4,6 +4,7 @@
 #include "version.h"
 #include "diagnostics.h"
 #include <stddef.h>
+#include <stdatomic.h>
 #include <stdint.h>
 
 /*
@@ -120,8 +121,9 @@ typedef struct {
 #define KAIN_SERVICE_REGISTRY_MAX_SERVICES 64
 
 typedef struct {
-    int initialized;
-    int service_count;
+    atomic_uint initialized;
+    atomic_uint mutation_gate;
+    atomic_int service_count;
     KainServiceDescriptor services[KAIN_SERVICE_REGISTRY_MAX_SERVICES];
 } KainServiceRegistry;
 

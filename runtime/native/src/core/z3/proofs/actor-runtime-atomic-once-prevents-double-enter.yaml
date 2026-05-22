@@ -1,0 +1,48 @@
+version: 1
+id: kain.native.core.proofs.actor_runtime_atomic_once_prevents_double_enter
+kind: check_smt2
+description: The actor runtime's atomic once-state gate prevents two concurrent first callers from both entering initialization.
+tags:
+- native-runtime
+- actor
+- initialization
+- atomic-once
+- race
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_runtime_init
+  start_line: 1268
+  reason: The cold -> busy transition is claimed with a single atomic compare-exchange before lock and scheduler initialization proceeds.
+case:
+  smt2: |
+    (set-logic ALL)
+
+    (declare-const order_ab Bool)
+
+    (define-fun cold () Int 0)
+    (define-fun busy () Int 1)
+
+    (define-fun claim ((state Int)) Int
+      (ite (= state cold) busy state))
+
+    (define-fun state_after_first () Int
+      (claim cold))
+
+    (define-fun thread_a_seen () Int
+      (ite order_ab cold state_after_first))
+
+    (define-fun thread_b_seen () Int
+      (ite order_ab state_after_first cold))
+
+    (define-fun thread_a_enters_init () Bool
+      (= thread_a_seen cold))
+
+    (define-fun thread_b_enters_init () Bool
+      (= thread_b_seen cold))
+
+    ; Violation query: both first callers enter init.
+    (assert thread_a_enters_init)
+    (assert thread_b_enters_init)
+    (check-sat)
+  include_model: false
+  include_stats: false
