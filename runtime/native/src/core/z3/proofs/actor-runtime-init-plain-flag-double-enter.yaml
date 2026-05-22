@@ -1,0 +1,43 @@
+version: 1
+id: kain.native.core.proofs.actor_runtime_init_plain_flag_double_enter
+kind: check_smt2
+description: The actor runtime uses a plain initialized flag with no once-guard, allowing concurrent first use to enter initialization twice and reinitialize scheduler and lock state.
+tags:
+- native-runtime
+- actor
+- initialization
+- race
+- scheduler
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_runtime_init
+  start_line: 1237
+  reason: The function checks and writes g_actor_runtime_initialized without a lock, atomic primitive, or once helper before it initializes global locks and the scheduler.
+case:
+  smt2: |
+    (set-logic ALL)
+
+    (declare-const initial_initialized Bool)
+    (declare-const thread_a_seen_initialized Bool)
+    (declare-const thread_b_seen_initialized Bool)
+
+    ; First-use race: both threads observe the old plain flag before either write.
+    (assert (= initial_initialized false))
+    (assert (= thread_a_seen_initialized initial_initialized))
+    (assert (= thread_b_seen_initialized initial_initialized))
+
+    (define-fun thread_enters_init ((seen_initialized Bool)) Bool
+      (not seen_initialized))
+
+    (define-fun init_count () Int
+      (+ (ite (thread_enters_init thread_a_seen_initialized) 1 0)
+         (ite (thread_enters_init thread_b_seen_initialized) 1 0)))
+
+    ; Safety contract: actor runtime global initialization should execute at most once.
+    (define-fun safety_invariant ((count Int)) Bool
+      (<= count 1))
+
+    (assert (not (safety_invariant init_count)))
+    (check-sat)
+  include_model: true
+  include_stats: false

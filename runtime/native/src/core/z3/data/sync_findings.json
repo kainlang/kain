@@ -1,0 +1,1312 @@
+[
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "actor.c",
+    "function": "kain_actor_runtime_init",
+    "start_line": 1231,
+    "evidence_line": 1238,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "/* || * Initialize Actor Runtime || *"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "actor.c",
+    "function": "kain_actor_runtime_ensure_initialized",
+    "start_line": 1265,
+    "evidence_line": 1266,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "static void kain_actor_runtime_ensure_initialized(void) { || if (!g_actor_runtime_initialized) { || kain_actor_runtime_init();"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "attrition.c",
+    "function": "kain_attrition_init_once",
+    "start_line": 242,
+    "evidence_line": 247,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "static BOOL CALLBACK kain_attrition_init_once(PINIT_ONCE init_once, PVOID parameter, PVOID* context) { || (void)init_once; || (void)parameter;"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "attrition.c",
+    "function": "kain_attrition_init_once",
+    "start_line": 251,
+    "evidence_line": 253,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "static void kain_attrition_init_once(void) { || pthread_mutex_init(&g_kain_attrition_state.lock, NULL); || g_kain_attrition_state.initialized = 1;"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "core.c",
+    "function": "init_winsock",
+    "start_line": 1883,
+    "evidence_line": 1884,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "static void init_winsock(void) { || static int initialized = 0; || if (!initialized) {"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "fanout.c",
+    "function": "kain_fanout_runtime_init",
+    "start_line": 200,
+    "evidence_line": 203,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "static int kain_fanout_runtime_init(void) { || KainFanoutRuntime* runtime = &g_kain_fanout_runtime; || if (runtime->initialized) {"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_registry_init",
+    "start_line": 55,
+    "evidence_line": 61,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "void kain_host_bridge_registry_init(KainHostBridgeRegistry* registry) { || if (!registry) { || return;"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "net_system.c",
+    "function": "abi_net_init_winsock",
+    "start_line": 466,
+    "evidence_line": 467,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "static void abi_net_init_winsock(void) { || static int initialized = 0; || if (!initialized) {"
+  },
+  {
+    "score": 95,
+    "kind": "plain-init-race",
+    "file": "services.c",
+    "function": "kain_service_registry_init",
+    "start_line": 605,
+    "evidence_line": 611,
+    "details": "lazy init flag is checked and/or written without lock, once primitive, or atomic guard",
+    "excerpt": "void kain_service_registry_init(KainServiceRegistry* registry) { || if (!registry) { || return;"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "contract.c",
+    "function": "contract_add_warning",
+    "start_line": 284,
+    "evidence_line": 296,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static void contract_add_warning( || KainRuntimeContractValidation* validation, || const char* warning"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "core.c",
+    "function": "kain_map_rebuild_tiny_dispatch",
+    "start_line": 1075,
+    "evidence_line": 1102,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static void kain_map_rebuild_tiny_dispatch(KainMap* map) { || uint64_t fingerprints[KAIN_MAP_TINY_MAX_COUNT]; || uint8_t entry_indices[KAIN_MAP_TINY_MAX_COUNT];"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "diagnostics.c",
+    "function": "kain_diagnostic_collector_add",
+    "start_line": 157,
+    "evidence_line": 171,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int kain_diagnostic_collector_add( || KainDiagnosticCollector* collector, || const KainDiagnostic* diag"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "entangle.c",
+    "function": "entangle_registry_register",
+    "start_line": 31,
+    "evidence_line": 74,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int entangle_registry_register( || const char* authority, || const char* mirror,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_draw_mesh",
+    "start_line": 1141,
+    "evidence_line": 1176,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_graphics_draw_mesh( || int64_t session_id, || int64_t pipeline_id,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_module_add_required_service",
+    "start_line": 82,
+    "evidence_line": 94,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int kain_host_bridge_module_add_required_service( || KainHostBridgeModuleDescriptor* descriptor, || const char* service_key"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_install_module",
+    "start_line": 163,
+    "evidence_line": 211,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int kain_host_bridge_install_module( || KainHostBridgeRegistry* registry, || const KainServiceRegistry* runtime_services,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_register_service",
+    "start_line": 306,
+    "evidence_line": 364,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int kain_host_bridge_register_service( || KainHostBridgeRegistry* registry, || const KainHostBridgeServiceDescriptor* descriptor,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_name_add",
+    "start_line": 148,
+    "evidence_line": 159,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static int abi_input_name_add(char names[][ABI_INPUT_MAX_KEY], int64_t* count, int64_t capacity, const char* name) { || if (abi_input_text_empty(name)) { || return 0;"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_axis_add",
+    "start_line": 239,
+    "evidence_line": 254,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static int abi_input_axis_add(KainNativeInputSession* session, const char* axis, double value) { || int64_t i; || if (!session || abi_input_text_empty(axis)) {"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_reduce_event",
+    "start_line": 298,
+    "evidence_line": 309,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static void abi_input_reduce_event(KainNativeInputSession* session, const KainNativeInputEvent* event) { || const KainNativeInputBinding* action_binding; || const KainNativeInputBinding* axis_binding;"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_bind_action",
+    "start_line": 404,
+    "evidence_line": 423,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_input_bind_action( || int64_t session_id, || const char* source_kind,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_bind_axis",
+    "start_line": 434,
+    "evidence_line": 454,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_input_bind_axis( || int64_t session_id, || const char* source_kind,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_push_event",
+    "start_line": 465,
+    "evidence_line": 487,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_input_push_event( || int64_t session_id, || const char* source_kind,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_push_agent_intent",
+    "start_line": 506,
+    "evidence_line": 525,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_input_push_agent_intent( || int64_t session_id, || const char* source_id,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "input_system.c",
+    "function": "abi_input_replay_trace",
+    "start_line": 672,
+    "evidence_line": 698,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_input_replay_trace(int64_t session_id, const char* trace_text) { || char* buffer; || char* line;"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "json.c",
+    "function": "json_object_set_value",
+    "start_line": 360,
+    "evidence_line": 382,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static void json_object_set_value(KainJsonValue* object, const char* key, KainJsonValue* value) { || int64_t i; || if (!object || object->kind != KAIN_JSON_OBJECT || !key || !value) {"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "json.c",
+    "function": "json_parse_array",
+    "start_line": 683,
+    "evidence_line": 698,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "} || static KainJsonValue* json_parse_array(KainJsonParser* parser) { || KainJsonValue* array = json_value_new(KAIN_JSON_ARRAY);"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "json.c",
+    "function": "json_parse_value_inner",
+    "start_line": 750,
+    "evidence_line": 921,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static KainJsonValue* json_parse_value_inner(KainJsonParser* parser) { || char* text; || json_skip_ws(parser);"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "net_system.c",
+    "function": "abi_net_set_header",
+    "start_line": 1039,
+    "evidence_line": 1054,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static void abi_net_set_header(KainNativeNetHeader* headers, int64_t* header_count, const char* key, const char* value) { || int64_t index; || if (headers == 0 || header_count == 0 || key == 0 || key[0] == '\\0') {"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "net_system.c",
+    "function": "abi_http_server_route_actor",
+    "start_line": 2286,
+    "evidence_line": 2296,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_http_server_route_actor(int64_t server_id, const char* method, const char* path, int64_t actor_id, const char* message_kind) { || KainNativeHttpServer* server = abi_net_server(server_id); || KainNativeHttpRoute* route;"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "process_system.c",
+    "function": "abi_process_wide_entry_list_push",
+    "start_line": 969,
+    "evidence_line": 1000,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static int abi_process_wide_entry_list_push( || KainNativeProcessWideEntryList* list, || wchar_t* entry"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "process_system.c",
+    "function": "abi_process_spec_append_direct_arg",
+    "start_line": 1561,
+    "evidence_line": 1573,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static int abi_process_spec_append_direct_arg( || KainNativeProcessSpec* spec, || const char* argument"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "process_system.c",
+    "function": "abi_process_spec_add_arg",
+    "start_line": 2246,
+    "evidence_line": 2272,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_process_spec_add_arg(int64_t spec_id, const char* argument) { || KainNativeProcessSpec* spec = abi_process_spec_lookup(spec_id); || if (spec == 0) {"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "process_system.c",
+    "function": "abi_process_spec_set_env",
+    "start_line": 2296,
+    "evidence_line": 2329,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_process_spec_set_env(int64_t spec_id, const char* key, const char* value) { || KainNativeProcessSpec* spec = abi_process_spec_lookup(spec_id); || int64_t index;"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "realtime.c",
+    "function": "realtime_count_array_objects",
+    "start_line": 235,
+    "evidence_line": 314,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "static int realtime_count_array_objects( || const char* array_start, || const char* array_end"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "reflection.c",
+    "function": "kain_reflection_get_items_by_kind",
+    "start_line": 463,
+    "evidence_line": 478,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int kain_reflection_get_items_by_kind( || const KainReflectionPayload* payload, || KainItemKind kind,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "reflection.c",
+    "function": "json_parse",
+    "start_line": 682,
+    "evidence_line": 1441,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "/* Minimal JSON parser implementation */ || static int json_parse(JsonParser* parser, const char* json) { || parser->json = json;"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "scene.c",
+    "function": "kain_scene_query_result_append_hit",
+    "start_line": 120,
+    "evidence_line": 131,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int kain_scene_query_result_append_hit( || KainSceneQueryResult* result, || const KainSceneQueryHit* hit"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "services.c",
+    "function": "kain_service_registry_register",
+    "start_line": 646,
+    "evidence_line": 685,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int kain_service_registry_register( || KainServiceRegistry* registry, || const char* key,"
+  },
+  {
+    "score": 92,
+    "kind": "shared-slot-overwrite",
+    "file": "stdlib_abi.c",
+    "function": "abi_patch_record_i64",
+    "start_line": 1190,
+    "evidence_line": 1197,
+    "details": "count-derived slot selection and count increment both happen without synchronization",
+    "excerpt": "int64_t abi_patch_record_i64(const char* patch_name, const char* path, int64_t old_value, int64_t new_value) { || KainNativePatchJournalEntry* entry; || /* Proof: runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-count-stays-within-capacity.yaml */"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "actor.c",
+    "function": "kain_actor_mailbox_cache_or_free_node",
+    "start_line": 1537,
+    "evidence_line": 1550,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void kain_actor_mailbox_cache_or_free_node(KainActorMailbox* mailbox, MessageNode* node) { || if (node == NULL) { || return;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "actor.c",
+    "function": "kain_actor_mailbox_append_copied_locked",
+    "start_line": 1556,
+    "evidence_line": 1605,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int kain_actor_mailbox_append_copied_locked( || KainActorMailbox* mailbox, || const KainActorMessage* message"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "attrition.c",
+    "function": "kain_attrition_record_event_locked",
+    "start_line": 185,
+    "evidence_line": 196,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint64_t arg0, uint64_t arg1, uint64_t arg2) { || KainAttritionEvent* event = &g_kain_attrition_state.events[g_kain_attrition_state.event_next_index]; || event->event_index = g_kain_attrition_state.event_write_count + 1u;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "attrition.c",
+    "function": "kain_attrition_fragmentation_noise_locked",
+    "start_line": 198,
+    "evidence_line": 224,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void kain_attrition_fragmentation_noise_locked(void) { || uint64_t max_bytes = g_kain_attrition_state.config.fragmentation_noise_max_bytes; || void* noise_block;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "attrition.c",
+    "function": "kain_attrition_heap_release",
+    "start_line": 559,
+    "evidence_line": 591,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_attrition_heap_release(void* raw_header, size_t total_bytes) { || size_t slot; || KainAttritionQuarantineEntry* entry;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "contract.c",
+    "function": "contract_add_warning",
+    "start_line": 284,
+    "evidence_line": 300,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void contract_add_warning( || KainRuntimeContractValidation* validation, || const char* warning"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "contract.c",
+    "function": "contract_count_array_objects",
+    "start_line": 314,
+    "evidence_line": 349,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int contract_count_array_objects( || const char* array_start, || const char* array_end"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "core.c",
+    "function": "rc_retain",
+    "start_line": 149,
+    "evidence_line": 165,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "void rc_retain(void* ptr) { || RcHeader* header; || if (!ptr || kain_rc_is_immediate_handle(ptr)) return;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "core.c",
+    "function": "rc_weak_retain",
+    "start_line": 168,
+    "evidence_line": 171,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "void rc_weak_retain(void* ptr) { || if (!ptr || kain_rc_is_immediate_handle(ptr)) return; || get_header(ptr)->weak_count++;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "core.c",
+    "function": "weak_upgrade",
+    "start_line": 224,
+    "evidence_line": 242,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "void* weak_upgrade(void* ptr) { || RcHeader* header; || if (!ptr) return NULL;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "core.c",
+    "function": "kain_map_rebuild_tiny_dispatch",
+    "start_line": 1075,
+    "evidence_line": 1108,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void kain_map_rebuild_tiny_dispatch(KainMap* map) { || uint64_t fingerprints[KAIN_MAP_TINY_MAX_COUNT]; || uint8_t entry_indices[KAIN_MAP_TINY_MAX_COUNT];"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "core.c",
+    "function": "kain_map_insert_prehashed",
+    "start_line": 1459,
+    "evidence_line": 1495,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int kain_map_insert_prehashed( || KainMap* map, || char* key,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "diagnostics.c",
+    "function": "kain_diagnostic_collector_add",
+    "start_line": 157,
+    "evidence_line": 172,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_diagnostic_collector_add( || KainDiagnosticCollector* collector, || const KainDiagnostic* diag"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "entangle.c",
+    "function": "entangle_registry_register",
+    "start_line": 31,
+    "evidence_line": 75,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int entangle_registry_register( || const char* authority, || const char* mirror,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_session_count",
+    "start_line": 523,
+    "evidence_line": 529,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_graphics_session_count(void) { || int64_t index; || int64_t count = 0;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_buffer_create",
+    "start_line": 661,
+    "evidence_line": 712,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_graphics_buffer_create( || int64_t session_id, || const char* kind,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_shader_register_bytes",
+    "start_line": 801,
+    "evidence_line": 866,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int64_t abi_graphics_shader_register_bytes( || int64_t session_id, || const char* key,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_mesh_create",
+    "start_line": 968,
+    "evidence_line": 1019,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_graphics_mesh_create( || int64_t session_id, || const char* label,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_pipeline_create",
+    "start_line": 1049,
+    "evidence_line": 1109,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_graphics_pipeline_create( || int64_t session_id, || const char* label,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_draw_mesh",
+    "start_line": 1141,
+    "evidence_line": 1182,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_graphics_draw_mesh( || int64_t session_id, || int64_t pipeline_id,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_module_add_required_service",
+    "start_line": 82,
+    "evidence_line": 98,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_host_bridge_module_add_required_service( || KainHostBridgeModuleDescriptor* descriptor, || const char* service_key"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_install_module",
+    "start_line": 163,
+    "evidence_line": 215,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_host_bridge_install_module( || KainHostBridgeRegistry* registry, || const KainServiceRegistry* runtime_services,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_register_service",
+    "start_line": 306,
+    "evidence_line": 366,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_host_bridge_register_service( || KainHostBridgeRegistry* registry, || const KainHostBridgeServiceDescriptor* descriptor,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "host_bridge.c",
+    "function": "kain_host_bridge_count_services_for_module",
+    "start_line": 401,
+    "evidence_line": 413,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_host_bridge_count_services_for_module( || const KainHostBridgeRegistry* registry, || const char* module_id"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_name_add",
+    "start_line": 148,
+    "evidence_line": 160,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int abi_input_name_add(char names[][ABI_INPUT_MAX_KEY], int64_t* count, int64_t capacity, const char* name) { || if (abi_input_text_empty(name)) { || return 0;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_axis_add",
+    "start_line": 239,
+    "evidence_line": 256,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int abi_input_axis_add(KainNativeInputSession* session, const char* axis, double value) { || int64_t i; || if (!session || abi_input_text_empty(axis)) {"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_reduce_event",
+    "start_line": 298,
+    "evidence_line": 313,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void abi_input_reduce_event(KainNativeInputSession* session, const KainNativeInputEvent* event) { || const KainNativeInputBinding* action_binding; || const KainNativeInputBinding* axis_binding;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_session_count",
+    "start_line": 392,
+    "evidence_line": 398,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_input_session_count(void) { || int i; || int64_t count = 0;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_bind_action",
+    "start_line": 404,
+    "evidence_line": 423,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_input_bind_action( || int64_t session_id, || const char* source_kind,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_bind_axis",
+    "start_line": 434,
+    "evidence_line": 454,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_input_bind_axis( || int64_t session_id, || const char* source_kind,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_push_event",
+    "start_line": 465,
+    "evidence_line": 487,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_input_push_event( || int64_t session_id, || const char* source_kind,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_push_agent_intent",
+    "start_line": 506,
+    "evidence_line": 525,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_input_push_agent_intent( || int64_t session_id, || const char* source_id,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "input_system.c",
+    "function": "abi_input_replay_trace",
+    "start_line": 672,
+    "evidence_line": 698,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_input_replay_trace(int64_t session_id, const char* trace_text) { || char* buffer; || char* line;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "json.c",
+    "function": "json_object_set_value",
+    "start_line": 360,
+    "evidence_line": 388,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void json_object_set_value(KainJsonValue* object, const char* key, KainJsonValue* value) { || int64_t i; || if (!object || object->kind != KAIN_JSON_OBJECT || !key || !value) {"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "json.c",
+    "function": "json_parse_array",
+    "start_line": 683,
+    "evidence_line": 698,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "} || static KainJsonValue* json_parse_array(KainJsonParser* parser) { || KainJsonValue* array = json_value_new(KAIN_JSON_ARRAY);"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "json.c",
+    "function": "json_parse_value_inner",
+    "start_line": 750,
+    "evidence_line": 921,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static KainJsonValue* json_parse_value_inner(KainJsonParser* parser) { || char* text; || json_skip_ws(parser);"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "net_system.c",
+    "function": "abi_net_set_header",
+    "start_line": 1039,
+    "evidence_line": 1057,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static void abi_net_set_header(KainNativeNetHeader* headers, int64_t* header_count, const char* key, const char* value) { || int64_t index; || if (headers == 0 || header_count == 0 || key == 0 || key[0] == '\\0') {"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "net_system.c",
+    "function": "abi_net_store_http_response",
+    "start_line": 1391,
+    "evidence_line": 1417,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int64_t abi_net_store_http_response( || int64_t status_code, || const char* protocol_name,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "net_system.c",
+    "function": "abi_http_server_route_actor",
+    "start_line": 2286,
+    "evidence_line": 2296,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_http_server_route_actor(int64_t server_id, const char* method, const char* path, int64_t actor_id, const char* message_kind) { || KainNativeHttpServer* server = abi_net_server(server_id); || KainNativeHttpRoute* route;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "process_system.c",
+    "function": "abi_process_utf8_buffer_append_quoted_argument",
+    "start_line": 859,
+    "evidence_line": 890,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int abi_process_utf8_buffer_append_quoted_argument( || KainNativeProcessUtf8Buffer* buffer, || const char* argument"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "process_system.c",
+    "function": "abi_process_wide_entry_list_push",
+    "start_line": 969,
+    "evidence_line": 1001,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int abi_process_wide_entry_list_push( || KainNativeProcessWideEntryList* list, || wchar_t* entry"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "process_system.c",
+    "function": "abi_process_spec_append_direct_arg",
+    "start_line": 1561,
+    "evidence_line": 1577,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int abi_process_spec_append_direct_arg( || KainNativeProcessSpec* spec, || const char* argument"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "process_system.c",
+    "function": "abi_process_spec_add_arg",
+    "start_line": 2246,
+    "evidence_line": 2276,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_process_spec_add_arg(int64_t spec_id, const char* argument) { || KainNativeProcessSpec* spec = abi_process_spec_lookup(spec_id); || if (spec == 0) {"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "process_system.c",
+    "function": "abi_process_spec_set_env",
+    "start_line": 2296,
+    "evidence_line": 2340,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_process_spec_set_env(int64_t spec_id, const char* key, const char* value) { || KainNativeProcessSpec* spec = abi_process_spec_lookup(spec_id); || int64_t index;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "realtime.c",
+    "function": "realtime_count_array_objects",
+    "start_line": 235,
+    "evidence_line": 314,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "static int realtime_count_array_objects( || const char* array_start, || const char* array_end"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "reflection.c",
+    "function": "kain_reflection_get_items_by_kind",
+    "start_line": 463,
+    "evidence_line": 480,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_reflection_get_items_by_kind( || const KainReflectionPayload* payload, || KainItemKind kind,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "reflection.c",
+    "function": "json_parse",
+    "start_line": 682,
+    "evidence_line": 1392,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "/* Minimal JSON parser implementation */ || static int json_parse(JsonParser* parser, const char* json) { || parser->json = json;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "scene.c",
+    "function": "kain_scene_query_result_append_hit",
+    "start_line": 120,
+    "evidence_line": 132,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_scene_query_result_append_hit( || KainSceneQueryResult* result, || const KainSceneQueryHit* hit"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "services.c",
+    "function": "kain_service_registry_register",
+    "start_line": 646,
+    "evidence_line": 699,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_service_registry_register( || KainServiceRegistry* registry, || const char* key,"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "services.c",
+    "function": "kain_service_registry_count_by_status",
+    "start_line": 908,
+    "evidence_line": 922,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_service_registry_count_by_status( || const KainServiceRegistry* registry, || KainServiceStatus status"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "services.c",
+    "function": "kain_service_registry_count_by_requirement",
+    "start_line": 928,
+    "evidence_line": 942,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int kain_service_registry_count_by_requirement( || const KainServiceRegistry* registry, || KainServiceRequirement requirement"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "stdlib_abi.c",
+    "function": "abi_patch_record_i64",
+    "start_line": 1190,
+    "evidence_line": 1206,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_patch_record_i64(const char* patch_name, const char* path, int64_t old_value, int64_t new_value) { || KainNativePatchJournalEntry* entry; || /* Proof: runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-count-stays-within-capacity.yaml */"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "stdlib_abi.c",
+    "function": "abi_entangle_record_i64",
+    "start_line": 1247,
+    "evidence_line": 1260,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_entangle_record_i64(const char* authority, const char* mirror, int64_t value) { || (void)value; || abi_copy_text("
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "stdlib_abi.c",
+    "function": "abi_converge_record_i64",
+    "start_line": 1275,
+    "evidence_line": 1280,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_converge_record_i64(const char* converge_name, const char* lane_name, int64_t spec_value, int64_t fast_value) { || (void)converge_name; || (void)lane_name;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "stdlib_abi.c",
+    "function": "abi_converge_record_bool",
+    "start_line": 1285,
+    "evidence_line": 1290,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_converge_record_bool(const char* converge_name, const char* lane_name, int fast_matches) { || (void)converge_name; || (void)lane_name;"
+  },
+  {
+    "score": 88,
+    "kind": "lost-update-counter",
+    "file": "stdlib_abi.c",
+    "function": "abi_orchestrate_stage_begin",
+    "start_line": 1299,
+    "evidence_line": 1303,
+    "details": "count-like state mutates without lock or atomic primitive",
+    "excerpt": "int64_t abi_orchestrate_stage_begin(const char* runtime_name, const char* function_name) { || (void)runtime_name; || (void)function_name;"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "actor.c",
+    "function": "kain_actor_borrowed_message_release_match",
+    "start_line": 399,
+    "evidence_line": 403,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int kain_actor_borrowed_message_release_match(const void* message_data) { || unsigned int index; || if (message_data == NULL || g_actor_borrowed_message_depth == 0u) {"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "actor.c",
+    "function": "kain_actor_runtime_init",
+    "start_line": 1231,
+    "evidence_line": 1256,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "/* || * Initialize Actor Runtime || *"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "async.c",
+    "function": "kain_async_runtime_init_impl",
+    "start_line": 227,
+    "evidence_line": 236,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static void kain_async_runtime_init_impl(void) { || memset(g_async_tasks, 0, sizeof(g_async_tasks)); || memset(g_async_timers, 0, sizeof(g_async_timers));"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "core.c",
+    "function": "emit_diagnostic",
+    "start_line": 66,
+    "evidence_line": 75,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static void emit_diagnostic( || KainDiagSubsystem subsystem, || KainDiagSeverity severity,"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "core.c",
+    "function": "runtime_clear_last_diagnostic",
+    "start_line": 2027,
+    "evidence_line": 2029,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "void runtime_clear_last_diagnostic(void) { || g_last_diagnostic_valid = 0; || }"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "cpu.c",
+    "function": "abi_cpu_feature_mask",
+    "start_line": 149,
+    "evidence_line": 152,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "uint64_t abi_cpu_feature_mask(void) { || if (!g_kain_native_cpu_feature_mask_initialized) { || g_kain_native_cpu_feature_mask = abi_cpu_detect_feature_mask();"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "entangle.c",
+    "function": "entangle_registry_reset",
+    "start_line": 22,
+    "evidence_line": 25,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "void entangle_registry_reset(void) { || memset(g_kain_entangle_bindings, 0, sizeof(g_kain_entangle_bindings)); || g_kain_entangle_binding_count = 0;"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_set_status",
+    "start_line": 182,
+    "evidence_line": 188,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_graphics_set_status( || int64_t status, || const char* kind,"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "graphics_system.c",
+    "function": "abi_graphics_reset",
+    "start_line": 454,
+    "evidence_line": 461,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "int64_t abi_graphics_reset(void) { || int64_t index; || for (index = 0; index < ABI_GRAPHICS_MAX_SESSIONS; index += 1) {"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "input_system.c",
+    "function": "abi_input_ok",
+    "start_line": 100,
+    "evidence_line": 102,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_input_ok(void) { || g_last_status = ABI_INPUT_OK; || abi_input_copy(g_last_error_kind, sizeof(g_last_error_kind), \"ok\");"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "input_system.c",
+    "function": "abi_input_fail",
+    "start_line": 107,
+    "evidence_line": 109,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_input_fail(int64_t status, const char* kind, const char* message) { || g_last_status = status; || abi_input_copy(g_last_error_kind, sizeof(g_last_error_kind), kind ? kind : \"error\");"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "input_system.c",
+    "function": "abi_input_reset",
+    "start_line": 361,
+    "evidence_line": 364,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "int64_t abi_input_reset(void) { || memset(g_sessions, 0, sizeof(g_sessions)); || g_next_session_id = 1;"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "json.c",
+    "function": "json_register_value",
+    "start_line": 61,
+    "evidence_line": 73,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static void json_register_value(KainJsonValue* value) { || KainJsonRegistryNode* node; || if (!value) {"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "net_system.c",
+    "function": "abi_net_ok",
+    "start_line": 555,
+    "evidence_line": 557,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_net_ok(void) { || g_last_status = ABI_NET_OK; || abi_net_copy(g_last_error_kind, sizeof(g_last_error_kind), \"ok\");"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "net_system.c",
+    "function": "abi_net_fail",
+    "start_line": 562,
+    "evidence_line": 564,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_net_fail(int64_t status, const char* kind, const char* message) { || g_last_status = status; || abi_net_copy(g_last_error_kind, sizeof(g_last_error_kind), kind ? kind : \"error\");"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "net_system.c",
+    "function": "abi_net_reset",
+    "start_line": 1761,
+    "evidence_line": 1802,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "int64_t abi_net_reset(void) { || size_t index; || for (index = 0u; index < ABI_NET_MAX_CONNECTIONS; ++index) {"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "process_system.c",
+    "function": "abi_process_ok",
+    "start_line": 198,
+    "evidence_line": 200,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_process_ok(void) { || g_last_status = ABI_PROCESS_OK; || abi_process_copy(g_last_error_kind, sizeof(g_last_error_kind), \"ok\");"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "process_system.c",
+    "function": "abi_process_find_free_spec_slot",
+    "start_line": 326,
+    "evidence_line": 328,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int abi_process_find_free_spec_slot(uint32_t* out_slot) { || if (out_slot == 0 || g_spec_occupancy_bits == UINT64_MAX) { || return 0;"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "process_system.c",
+    "function": "abi_process_find_free_process_slot",
+    "start_line": 336,
+    "evidence_line": 338,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int abi_process_find_free_process_slot(uint32_t* out_slot) { || if (out_slot == 0 || g_process_occupancy_bits == UINT64_MAX) { || return 0;"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "process_system.c",
+    "function": "abi_process_reset",
+    "start_line": 2072,
+    "evidence_line": 2084,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "int64_t abi_process_reset(void) { || int index; || for (index = 0; index < ABI_PROCESS_MAX_PROCESSES; index++) {"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "stdlib_abi.c",
+    "function": "abi_fs_fail",
+    "start_line": 1395,
+    "evidence_line": 1400,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_fs_fail(const char* operation, const char* path) { || int error_code = errno; || char message[512];"
+  },
+  {
+    "score": 75,
+    "kind": "unsynced-global-write",
+    "file": "stdlib_abi.c",
+    "function": "abi_fs_ok",
+    "start_line": 1424,
+    "evidence_line": 1426,
+    "details": "writes global state without lock, once primitive, or atomic primitive",
+    "excerpt": "static int64_t abi_fs_ok(void) { || g_kain_native_fs_last_status = 0; || abi_fs_copy_message(g_kain_native_fs_last_error_kind, sizeof(g_kain_native_fs_last_error_kind), \"ok\");"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "actor.c",
+    "function": "kain_actor_reply_port_state_complete_copied",
+    "start_line": 606,
+    "evidence_line": 689,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "static int kain_actor_reply_port_state_complete_copied( || KainActorReplyPortState* state, || const KainActorRef* expected_actor_ref,"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "actor.c",
+    "function": "kain_actor_reply_port_state_reset_with_actor_ref",
+    "start_line": 700,
+    "evidence_line": 740,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "static void kain_actor_reply_port_state_reset_with_actor_ref( || KainActorReplyPortState* state, || const KainActorRef* actor_ref"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "actor.c",
+    "function": "kain_actor_reply_port_state_release",
+    "start_line": 935,
+    "evidence_line": 960,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "static void kain_actor_reply_port_state_release(KainActorReplyPortState* state) { || int should_destroy = 0; || void* reply_data_to_free = NULL;"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "actor.c",
+    "function": "kain_actor_reply_port_state_prepare_direct_token",
+    "start_line": 1130,
+    "evidence_line": 1189,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "static int kain_actor_reply_port_state_prepare_direct_token( || KainActorReplyPortState* state, || KainActorRef* out_actor_ref"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "actor.c",
+    "function": "kain_actor_runtime_shutdown",
+    "start_line": 1359,
+    "evidence_line": 1432,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "/* || * Shutdown Actor Runtime || *"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "actor.c",
+    "function": "kain_actor_thread_proc",
+    "start_line": 1880,
+    "evidence_line": 2370,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "static DWORD WINAPI kain_actor_thread_proc(LPVOID param) { || #else || static void* kain_actor_thread_proc(void* param) {"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "async.c",
+    "function": "kain_async_timer_thread_proc",
+    "start_line": 857,
+    "evidence_line": 1209,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "static DWORD WINAPI kain_async_timer_thread_proc(LPVOID parameter) { || KainAsyncTimerRecord* timer = (KainAsyncTimerRecord*)parameter; || #else"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "attrition.c",
+    "function": "kain_attrition_heap_release",
+    "start_line": 559,
+    "evidence_line": 567,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "int kain_attrition_heap_release(void* raw_header, size_t total_bytes) { || size_t slot; || KainAttritionQuarantineEntry* entry;"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "attrition.c",
+    "function": "kain_attrition_note_rc_free",
+    "start_line": 732,
+    "evidence_line": 733,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "void kain_attrition_note_rc_free(size_t total_bytes) { || if (!kain_attrition_enabled_fast()) { || return;"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "core.c",
+    "function": "mq_pop",
+    "start_line": 1844,
+    "evidence_line": 1878,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "int mq_pop(void* mq_ptr, long long* out_tag, void** out_data) { || MessageQueue* mq = (MessageQueue*)mq_ptr; || MessageNode* node;"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "fanout.c",
+    "function": "kain_fanout_runtime_shutdown",
+    "start_line": 338,
+    "evidence_line": 354,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "void kain_fanout_runtime_shutdown(void) { || KainFanoutRuntime* runtime = &g_kain_fanout_runtime; || if (!runtime->initialized) {"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "machine_stones.c",
+    "function": "kain_machine_pulse_stop_all",
+    "start_line": 440,
+    "evidence_line": 447,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "void kain_machine_pulse_stop_all(void) { || uint32_t i; || atomic_store_explicit(&g_machine_pulse_stop_requested, 1, memory_order_release);"
+  },
+  {
+    "score": 55,
+    "kind": "teardown-after-unlock",
+    "file": "ownership.c",
+    "function": "kain_ownership_decay_slot_unlocked",
+    "start_line": 790,
+    "evidence_line": 812,
+    "details": "tears down synchronization or heap state after unlocking; review lifetime assumptions",
+    "excerpt": "static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_helper_slot) { || if (slot < 0) { || return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);"
+  }
+]

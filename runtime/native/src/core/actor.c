@@ -3218,9 +3218,11 @@ static void kain_actor_notify_monitors(KainActorState_Internal* actor) {
         KainActorState_Internal* other = g_actor_table.actors[i];
         if (other == NULL) continue;
 
-        KainActorMonitor* monitor = other->monitors;
-        while (monitor != NULL) {
+        KainActorMonitor** monitor_ptr = &other->monitors;
+        while (*monitor_ptr != NULL) {
+            KainActorMonitor* monitor = *monitor_ptr;
             if (monitor->monitored_id == actor->actor_id) {
+                *monitor_ptr = monitor->next;
                 /* Send exit notification message with exit reason encoded in type_tag */
                 KainActorMessage msg = {0};
                 msg.type_tag = 0xDEAD0000ULL | (unsigned long long)actor->exit_reason;
@@ -3228,8 +3230,10 @@ static void kain_actor_notify_monitors(KainActorState_Internal* actor) {
                 msg.data = NULL;
                 msg.data_size = 0;
                 kain_actor_send(other->actor_id, &msg, NULL);
+                free(monitor);
+                continue;
             }
-            monitor = monitor->next;
+            monitor_ptr = &monitor->next;
         }
     }
 }
@@ -3652,7 +3656,7 @@ void kain_actor_scheduler_snapshot(KainActorSchedulerSnapshot* snapshot) {
  * Provides a work-stealing scheduler with a fixed pool of worker threads
  * to avoid unbounded thread creation.
  *
- * Requirements: 6.5, 6.6
+ *
  */
 
 #ifdef _WIN32
@@ -4112,7 +4116,7 @@ KainActorId kain_actor_spawn(
  *
  * Implements restart, shutdown, and escalation policies for supervisors.
  *
- * Requirements: 6.2, 6.3, 6.4
+ *
  */
 
 /*

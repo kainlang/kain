@@ -2284,6 +2284,95 @@ entangle Physics.hp <-> Hud.hp_display with single_writer
     }
 
     #[test]
+    fn compile_realtime_bundle_supports_repeated_selected_imports_from_blade_module_root() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_dir = temp.path().join("src");
+        let telemetry_dir = main_dir.join("telemetry");
+        let main_path = main_dir.join("main.kn");
+        let flow_path = telemetry_dir.join("flow.kn");
+        fs::create_dir_all(&telemetry_dir).expect("telemetry dir");
+        fs::write(
+            temp.path().join("KAIN.toml"),
+            r#"
+[package]
+name = "smoke-import"
+version = "0.1.0"
+
+[blade]
+name = "smoke-import"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src", "src/telemetry"]
+module_roots = ["src", "src/telemetry"]
+"#,
+        )
+        .expect("manifest");
+        fs::write(
+            &main_path,
+            r#"
+use flow::flow_lane
+use flow::benchmark_lane
+
+fn smoke_total() -> Int:
+    return flow_lane() + benchmark_lane()
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &flow_path,
+            r#"
+component SmokePanel():
+    render <panel title="Telemetry Flow" />
+
+world Authority:
+    state signal: Int = 7
+    surface native_ui => SmokePanel
+
+world Mirror:
+    state signal_copy: Int = 7
+    surface web => SmokePanel
+
+entangle Authority.signal <-> Mirror.signal_copy with single_writer
+
+pub fn flow_lane() -> Int:
+    return 11
+
+pub fn benchmark_lane() -> Int:
+    return 13
+"#,
+        )
+        .expect("flow source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            DriverSession::default().compile_realtime_app_bundle_with_source_path(
+                &source,
+                Some(&main_path),
+                CompileTarget::Rust,
+                None,
+            )
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let output =
+            result.expect("repeated selected imports should not replay module entanglements");
+        assert_eq!(
+            output
+                .bundle
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
+            Some("Authority")
+        );
+        assert_eq!(output.bundle.entanglements.len(), 1);
+        assert_eq!(output.bundle.entanglements[0].authority, "Authority.signal");
+        assert_eq!(output.bundle.entanglements[0].mirror, "Mirror.signal_copy");
+    }
+
+    #[test]
     fn compile_realtime_bundle_selects_single_web_world_for_web_targets() {
         let source = r#"
 world Studio:

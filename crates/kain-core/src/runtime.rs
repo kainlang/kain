@@ -25,9 +25,10 @@ use kain_ownership::{
 };
 use once_cell::sync::Lazy;
 use std::any::Any;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Read};
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -513,6 +514,7 @@ pub struct Env {
     entanglements: EntangleGraph,
     components: HashMap<String, Component>,
     inline_modules: HashMap<String, Vec<Item>>,
+    loaded_filesystem_modules: BTreeSet<PathBuf>,
     /// Methods: type_name -> method_name -> function
     methods: HashMap<String, HashMap<String, Function>>,
     #[allow(dead_code)]
@@ -549,6 +551,7 @@ impl Env {
             entanglements: EntangleGraph::default(),
             components: HashMap::new(),
             inline_modules: HashMap::new(),
+            loaded_filesystem_modules: BTreeSet::new(),
             methods: HashMap::new(),
             actors: HashMap::new(),
             actor_ids: ActorIdAllocator::default(),
@@ -4490,9 +4493,29 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     let mut parser = Parser::new(&tokens, &span_mapper, &filename);
     let program = parser.parse()?;
 
-    let items = select_filesystem_import_items(program.items, u, selected_item.as_deref())?;
-    for item in items {
-        env.register_item(&item)?;
+    let selected_items = if selected_item.is_some() {
+        Some(select_filesystem_import_items(
+            program.items.clone(),
+            u,
+            selected_item.as_deref(),
+        )?)
+    } else {
+        None
+    };
+    let canonical_file_path = std::fs::canonicalize(&file_path).unwrap_or(file_path);
+    let first_load = env.loaded_filesystem_modules.insert(canonical_file_path);
+    if first_load {
+        for item in program.items {
+            env.register_item(&item)?;
+        }
+    }
+
+    if u.alias.is_some() {
+        if let Some(items) = selected_items {
+            for item in items {
+                env.register_item(&item)?;
+            }
+        }
     }
 
     Ok(())
@@ -5956,6 +5979,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             let components = env.components.clone();
             let actor_defs = env.actor_defs.clone();
             let inline_modules = env.inline_modules.clone();
+            let loaded_filesystem_modules = env.loaded_filesystem_modules.clone();
             let methods = env.methods.clone();
             let patches = env.patches.clone();
             let patch_undo_modes = env.patch_undo_modes.clone();
@@ -5984,6 +6008,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     entanglements,
                     components,
                     inline_modules,
+                    loaded_filesystem_modules,
                     methods,
                     actors: HashMap::new(),
                     actor_ids: ActorIdAllocator::starting_after(

@@ -93,6 +93,10 @@ static int test_heap_region_transitions(void) {
     if (!expect_ptr("__kain_realloc after collapse end", grown)) {
         return 0;
     }
+    if (grown[0] != 41 || grown[1] != 0) {
+        printf("FAIL: realloc did not preserve old bytes or zero-fill new bytes\n");
+        return 0;
+    }
     value = grown;
     value[1] = 42;
 
@@ -100,16 +104,16 @@ static int test_heap_region_transitions(void) {
         return 0;
     }
     if (!expect_status(
-            "heap is terminal after decay",
+            "heap slot is reclaimed after decay",
             __kain_ownership_state(value),
-            KAIN_OWNERSHIP_STATE_DECAYED
+            KAIN_OWNERSHIP_ERR_NOT_FOUND
         )) {
         return 0;
     }
     if (!expect_status(
-            "second decay rejected",
+            "second decay sees reclaimed heap slot",
             __kain_ownership_decay(value),
-            KAIN_OWNERSHIP_ERR_DECAYED
+            KAIN_OWNERSHIP_ERR_NOT_FOUND
         )) {
         return 0;
     }

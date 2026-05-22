@@ -789,6 +789,7 @@ int __kain_ownership_end_share_helper(void* ptr) {
 }
 
 static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_helper_slot) {
+    (void)reclaim_helper_slot;
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -813,11 +814,10 @@ static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_h
         if (free_status != 0) {
             return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
         }
-        if (reclaim_helper_slot) {
-            /* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-decay-reclaims-slot.yaml */
-            kain_ownership_clear_slot_unlocked(slot);
-            return KAIN_OWNERSHIP_OK;
-        }
+        /* Heap decay consumes the helper allocation, so the registry entry must
+         * vanish with it instead of pinning a freed pointer. */
+        kain_ownership_clear_slot_unlocked(slot);
+        return KAIN_OWNERSHIP_OK;
     }
 
     region->state = KAIN_OWNERSHIP_STATE_DECAYED;

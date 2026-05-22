@@ -84,6 +84,21 @@ cc_test(
 )
 
 cc_test(
+    name = "native_test_stdlib_abi_fs",
+    srcs = ["native/tests/test_stdlib_abi_fs.c"],
+    copts = platform_select(
+        windows = WINDOWS_COPTS,
+        linux = POSIX_C_COPTS,
+        macos = POSIX_C_COPTS,
+    ),
+    defines = platform_select(
+        linux = RUNTIME_TEST_LINUX_DEFINES,
+        macos = RUNTIME_TEST_LINUX_DEFINES,
+    ),
+    deps = [":native_core_runtime"],
+)
+
+cc_test(
     name = "native_test_fanout_runtime",
     srcs = ["native/tests/test_fanout_runtime.c"],
     copts = platform_select(
@@ -149,6 +164,7 @@ test_suite(
         ":native_test_actor_monitor_link",
         ":native_test_actor_supervision",
         ":native_test_ownership_memory",
+        ":native_test_stdlib_abi_fs",
         ":native_test_fanout_runtime",
         ":native_test_machine_stones",
         ":native_test_map_lookup",

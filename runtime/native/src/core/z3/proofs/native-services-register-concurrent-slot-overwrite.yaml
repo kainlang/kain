@@ -1,0 +1,52 @@
+version: 1
+id: kain.native.core.proofs.native_services_register_concurrent_slot_overwrite
+kind: check_smt2
+description: Service registration is unsynchronized, so two concurrent successful registrations can choose the same slot and collapse two increments into one.
+tags:
+- native-runtime
+- services
+- registry
+- race
+- lost-update
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\services.c
+  symbol: kain_service_registry_register
+  start_line: 647
+  reason: The function selects registry->services[registry->service_count] and then increments registry->service_count without any lock or atomic primitive around the full registration sequence.
+case:
+  smt2: |
+    (set-logic ALL)
+
+    (declare-const initial_count Int)
+    (declare-const key_a Int)
+    (declare-const key_b Int)
+    (declare-const read_a Int)
+    (declare-const read_b Int)
+    (declare-const a_writes_last Bool)
+
+    ; Both registrations are distinct and individually valid.
+    (assert (>= initial_count 0))
+    (assert (< initial_count 63))
+    (assert (not (= key_a key_b)))
+
+    ; Two threads race through the same unsynchronized shared counter.
+    (assert (= read_a initial_count))
+    (assert (= read_b initial_count))
+
+    (define-fun slot_a () Int read_a)
+    (define-fun slot_b () Int read_b)
+    (define-fun next_a () Int (+ read_a 1))
+    (define-fun next_b () Int (+ read_b 1))
+    (define-fun final_count () Int
+      (ite a_writes_last next_a next_b))
+
+    ; Safety contract: two successful registrations must occupy distinct slots
+    ; and advance service_count by two.
+    (define-fun safety_invariant ((count Int) (left_slot Int) (right_slot Int)) Bool
+      (and (= count (+ initial_count 2))
+           (not (= left_slot right_slot))))
+
+    (assert (not (safety_invariant final_count slot_a slot_b)))
+    (check-sat)
+  include_model: true
+  include_stats: false

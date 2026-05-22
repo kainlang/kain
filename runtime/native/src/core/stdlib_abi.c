@@ -1559,6 +1559,14 @@ static const char* abi_fs_builder_finish(KainNativeFsTextBuilder* builder) {
     return result != 0 ? result : string_new("");
 }
 
+static int abi_fs_is_separator(char ch) {
+    return ch == '/' || ch == '\\';
+}
+
+static int abi_fs_is_ascii_drive_letter(char ch) {
+    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
+}
+
 static int abi_fs_path_is_absolute(const char* path) {
     if (path == 0 || path[0] == '\0') {
         return 0;
@@ -1567,6 +1575,64 @@ static int abi_fs_path_is_absolute(const char* path) {
         return 1;
     }
     return strlen(path) > 2 && path[1] == ':';
+}
+
+static size_t abi_fs_creation_root_span(const char* path) {
+    size_t length = 0u;
+    if (path == 0 || path[0] == '\0') {
+        return 0u;
+    }
+    length = strlen(path);
+#ifdef _WIN32
+    if (abi_fs_is_ascii_drive_letter(path[0]) && path[1] == ':') {
+        return abi_fs_is_separator(path[2]) ? 3u : 2u;
+    }
+
+    if (abi_fs_is_separator(path[0]) && abi_fs_is_separator(path[1])) {
+        size_t index = 2u;
+        if (length > index + 1u
+            && (path[index] == '?' || path[index] == '.')
+            && abi_fs_is_separator(path[index + 1])) {
+            index += 2u;
+            if (length > index + 3u
+                && (path[index] == 'U' || path[index] == 'u')
+                && (path[index + 1] == 'N' || path[index + 1] == 'n')
+                && (path[index + 2] == 'C' || path[index + 2] == 'c')
+                && abi_fs_is_separator(path[index + 3])) {
+                index += 4u;
+            } else if (length > index + 2u
+                       && abi_fs_is_ascii_drive_letter(path[index])
+                       && path[index + 1] == ':'
+                       && abi_fs_is_separator(path[index + 2])) {
+                return index + 3u;
+            } else {
+                return length;
+            }
+        }
+
+        while (index < length && abi_fs_is_separator(path[index])) {
+            index += 1u;
+        }
+
+        int segment = 0;
+        for (; index < length; ++segment) {
+            while (index < length && !abi_fs_is_separator(path[index])) {
+                index += 1u;
+            }
+            if (segment == 1) {
+                while (index < length && abi_fs_is_separator(path[index])) {
+                    index += 1u;
+                }
+                return index;
+            }
+            while (index < length && abi_fs_is_separator(path[index])) {
+                index += 1u;
+            }
+        }
+        return index;
+    }
+#endif
+    return abi_fs_is_separator(path[0]) ? 1u : 0u;
 }
 
 static int64_t abi_fs_create_one_dir(const char* path) {
@@ -1592,6 +1658,7 @@ static int64_t abi_fs_create_parent_dirs(const char* path) {
     char buffer[4096];
     size_t length;
     size_t index;
+    size_t root_span;
     if (path == 0 || path[0] == '\0') {
         return 0;
     }
@@ -1602,10 +1669,11 @@ static int64_t abi_fs_create_parent_dirs(const char* path) {
         return -1;
     }
     memcpy(buffer, path, length + 1);
-    for (index = 1; index < length; index++) {
-        if (buffer[index] == '/' || buffer[index] == '\\') {
+    root_span = abi_fs_creation_root_span(buffer);
+    for (index = root_span; index < length; index++) {
+        if (abi_fs_is_separator(buffer[index])) {
             char saved = buffer[index];
-            if (index == 2 && buffer[1] == ':') {
+            if (index <= root_span || abi_fs_is_separator(buffer[index - 1])) {
                 continue;
             }
             buffer[index] = '\0';
@@ -2197,6 +2265,7 @@ int64_t abi_fs_create_dir_all(const char* path) {
     char buffer[4096];
     size_t length;
     size_t index;
+    size_t root_span;
     if (path == 0 || path[0] == '\0') {
         errno = EINVAL;
         return abi_fs_fail("create_dir_all", path);
@@ -2207,23 +2276,17 @@ int64_t abi_fs_create_dir_all(const char* path) {
         return abi_fs_fail("create_dir_all", path);
     }
     memcpy(buffer, path, length + 1);
-    for (index = 1; index <= length; index++) {
-        if (buffer[index] == '/' || buffer[index] == '\\' || buffer[index] == '\0') {
+    root_span = abi_fs_creation_root_span(buffer);
+    for (index = root_span; index <= length; index++) {
+        if (abi_fs_is_separator(buffer[index]) || buffer[index] == '\0') {
             char saved = buffer[index];
-            if (index == 2 && buffer[1] == ':') {
+            if (index <= root_span || abi_fs_is_separator(buffer[index - 1])) {
                 continue;
             }
             buffer[index] = '\0';
-            if (buffer[0] != '\0' && !abi_fs_path_is_absolute(buffer)) {
-                if (abi_fs_create_one_dir(buffer) != 0) {
-                    buffer[index] = saved;
-                    return abi_fs_fail("create_dir_all", buffer);
-                }
-            } else if (strlen(buffer) > 3) {
-                if (abi_fs_create_one_dir(buffer) != 0) {
-                    buffer[index] = saved;
-                    return abi_fs_fail("create_dir_all", buffer);
-                }
+            if (buffer[0] != '\0' && abi_fs_create_one_dir(buffer) != 0) {
+                buffer[index] = saved;
+                return abi_fs_fail("create_dir_all", buffer);
             }
             buffer[index] = saved;
         }

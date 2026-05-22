@@ -579,10 +579,13 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
 
     size_t new_payload_size = 0;
     size_t allocation_size = 0;
+    size_t bytes_to_copy = 0;
     KainAllocHeader* old_header = __kain_alloc_header_from_payload(ptr);
     KainAllocHeader* new_header = NULL;
     size_t old_payload_size = 0;
     uint16_t slot_token = 0u;
+    void* payload = NULL;
+    int relocate_status = KAIN_OWNERSHIP_OK;
 
     if (!__kain_alloc_header_is_valid(old_header)) {
         errno = EINVAL;
@@ -611,28 +614,55 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
         return NULL;
     }
 
-    new_header = (KainAllocHeader*)realloc(old_header, allocation_size);
+    if (new_payload_size == old_payload_size) {
+        return ptr;
+    }
+
+    new_header = kain_alloc_cache_take(new_payload_size);
+    if (new_header == NULL) {
+        new_header = (KainAllocHeader*)malloc(allocation_size);
+    }
     if (new_header == NULL) {
         return NULL;
     }
 
     new_header->metadata.payload_size = new_payload_size;
-    __kain_alloc_header_set_magic_and_slot(new_header, slot_token);
+    payload = __kain_alloc_payload_from_header(new_header);
+    bytes_to_copy = old_payload_size < new_payload_size ? old_payload_size : new_payload_size;
+    if (bytes_to_copy != 0u) {
+        memcpy(payload, ptr, bytes_to_copy);
+    }
 
     if (zeroed_new && new_payload_size > old_payload_size) {
         memset(
-            ((char*)__kain_alloc_payload_from_header(new_header)) + old_payload_size,
+            ((char*)payload) + old_payload_size,
             0,
             new_payload_size - old_payload_size
         );
     }
 
-    void* payload = __kain_alloc_payload_from_header(new_header);
-    if (__kain_ownership_relocate_helper_allocation(ptr, payload, new_payload_size, slot_token)
-        != KAIN_OWNERSHIP_OK) {
-        return payload;
+    __kain_alloc_header_set_magic_and_slot(new_header, slot_token);
+    relocate_status =
+        __kain_ownership_relocate_helper_allocation(ptr, payload, new_payload_size, slot_token);
+    if (relocate_status != KAIN_OWNERSHIP_OK) {
+        new_header->metadata.magic_and_slot = 0;
+        if (!kain_alloc_cache_release(new_header, new_payload_size)) {
+            new_header->metadata.payload_size = 0;
+            free(new_header);
+        }
+        errno =
+            relocate_status == KAIN_OWNERSHIP_ERR_NOT_FOUND
+                || relocate_status == KAIN_OWNERSHIP_ERR_INVALID
+            ? EINVAL
+            : EBUSY;
+        return NULL;
     }
 
+    old_header->metadata.magic_and_slot = 0;
+    if (!kain_alloc_cache_release(old_header, old_payload_size)) {
+        old_header->metadata.payload_size = 0;
+        free(old_header);
+    }
     return payload;
 }
 
