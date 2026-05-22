@@ -1,0 +1,21 @@
+version: 1
+id: kain.native.core.proofs.actor_shift_amount_in_valid_range_from_modulo_64
+kind: check_smt2
+description: Modulo-64 on actor_id produces a value in [0, 63], which is always safe as a shift amount.
+tags:
+- actor
+- shift-safety
+- UB-prevention
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_table_mark_occupied_unlocked
+  start_line: 1915
+  reason: Shift amount modulo-64 calculation
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const actor_id (_ BitVec 64))
+    (define-fun shift_amount () (_ BitVec 64)
+      (bvurem actor_id #x0000000000000040))
+    (assert (bvuge shift_amount #x0000000000000040))
+    (check-sat)

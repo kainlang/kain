@@ -1,0 +1,42 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_clear_slot_clears_occupied_before_decayed
+kind: check_smt2
+description: The ownership slot-clear helper now clears occupied before
+  publishing the DECAYED state, so the helper no longer admits an
+  OCCUPIED=1/DECAYED transient even if a future agent experiments with a
+  lock-free read path.
+tags:
+- native-runtime
+- ownership
+- ordering
+- decay
+- lock-free-future
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\ownership.c
+  symbol: kain_ownership_clear_slot_unlocked
+  start_line: 226
+  reason: occupied flips low before DECAYED is published, so no step in the
+    helper can satisfy occupied=1 and state=DECAYED simultaneously
+case:
+  smt2: '(set-logic QF_LIA)
+
+    (declare-const step Int)
+
+    (define-fun IDLE () Int 0)
+    (define-fun DECAYED () Int 5)
+
+    (assert (>= step 0))
+    (assert (<= step 6))
+
+    (define-fun occupied_after_step ((s Int)) Int
+      (ite (>= s 5) 0 1))
+
+    (define-fun state_after_step ((s Int)) Int
+      (ite (>= s 6) DECAYED IDLE))
+
+    (assert (= (occupied_after_step step) 1))
+    (assert (= (state_after_step step) DECAYED))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

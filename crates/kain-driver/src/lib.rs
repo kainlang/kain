@@ -448,6 +448,13 @@ impl DriverSession {
             .unwrap_or_default()
     }
 
+    pub fn frontend_full_source(&self) -> Option<String> {
+        self.last_frontend_bundle
+            .borrow()
+            .as_ref()
+            .map(|bundle| bundle.full_source.clone())
+    }
+
     pub fn frontend_advisories(&self) -> Vec<String> {
         self.frontend_advisories.borrow().clone()
     }
@@ -500,17 +507,26 @@ impl DriverSession {
                 resolved_world.root_component.as_deref().unwrap_or("<none>")
             );
         }
-        let prepared_ui_source = prepare_frontend_source_for_target(source, source_path, target)?;
+        let ui_source = if let Some(bundle_source) = self
+            .last_frontend_bundle
+            .borrow()
+            .as_ref()
+            .map(|bundle| bundle.full_source.clone())
+        {
+            bundle_source
+        } else {
+            prepare_frontend_source_for_target(source, source_path, target)?
+        };
         if trace_realtime_bundle {
             eprintln!(
-                "[kain-driver][realtime] prepared_ui_source_ms={} bytes={}",
+                "[kain-driver][realtime] ui_source_ms={} bytes={}",
                 trace_started.elapsed().as_millis(),
-                prepared_ui_source.len()
+                ui_source.len()
             );
         }
         let ui_output = if let Some(root_component) = resolved_world.root_component.as_deref() {
-            Some(kain_core::build_ui_output_from_source(
-                &prepared_ui_source,
+            Some(build_ui_output_from_frontend_bundle_source(
+                &ui_source,
                 root_component,
             )?)
         } else {
@@ -1157,6 +1173,39 @@ fn assemble_frontend_source_bundle(
         origins,
         watch_inputs: discover_frontend_watch_inputs(entry_path, module_sources),
     }
+}
+
+fn strip_use_items_from_program(program: &mut Program) {
+    program.items = strip_use_items(&program.items);
+}
+
+fn strip_use_items(items: &[Item]) -> Vec<Item> {
+    items.iter().filter_map(strip_use_item).collect()
+}
+
+fn strip_use_item(item: &Item) -> Option<Item> {
+    match item {
+        Item::Use(_) => None,
+        Item::Mod(module) => {
+            let mut filtered = module.clone();
+            filtered.inline = module.inline.as_ref().map(|inline| strip_use_items(inline));
+            Some(Item::Mod(filtered))
+        }
+        _ => Some(item.clone()),
+    }
+}
+
+fn build_ui_output_from_frontend_bundle_source(
+    source: &str,
+    root_component: &str,
+) -> Result<kain_ui::UiBuildOutput, KainError> {
+    let tokens = Lexer::new(source).tokenize()?;
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    let mut parser = Parser::new(&tokens, &span_mapper, "<ui-source-bundle>");
+    let mut program = parser.parse()?;
+    comptime::eval_program(&mut program)?;
+    strip_use_items_from_program(&mut program);
+    kain_core::build_ui_output_from_program(&program, root_component)
 }
 
 fn parse_frontend_program(source: &str, filename: &str) -> Result<Program, KainError> {
@@ -2370,6 +2419,95 @@ pub fn benchmark_lane() -> Int:
         assert_eq!(output.bundle.entanglements.len(), 1);
         assert_eq!(output.bundle.entanglements[0].authority, "Authority.signal");
         assert_eq!(output.bundle.entanglements[0].mirror, "Mirror.signal_copy");
+    }
+
+    #[test]
+    fn compile_realtime_bundle_for_llvm_uses_full_frontend_bundle_for_imported_ui_roots() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_dir = temp.path().join("src");
+        let telemetry_dir = main_dir.join("telemetry");
+        let main_path = main_dir.join("main.kn");
+        let flow_path = telemetry_dir.join("flow.kn");
+        fs::create_dir_all(&telemetry_dir).expect("telemetry dir");
+        fs::write(
+            temp.path().join("KAIN.toml"),
+            r#"
+[package]
+name = "smoke-import"
+version = "0.1.0"
+
+[blade]
+name = "smoke-import"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src", "src/telemetry"]
+module_roots = ["src", "src/telemetry"]
+"#,
+        )
+        .expect("manifest");
+        fs::write(
+            &main_path,
+            r#"
+use flow::flow_lane
+use flow::benchmark_lane
+
+fn smoke_total() -> Int:
+    return flow_lane() + benchmark_lane()
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &flow_path,
+            r#"
+component SmokePanel():
+    render <panel title="Telemetry Flow" />
+
+world Authority:
+    state signal: Int = 7
+    surface native_ui => SmokePanel
+
+world Mirror:
+    state signal_copy: Int = 7
+    surface web => SmokePanel
+
+entangle Authority.signal <-> Mirror.signal_copy with single_writer
+
+pub fn flow_lane() -> Int:
+    return 11
+
+pub fn benchmark_lane() -> Int:
+    return 13
+"#,
+        )
+        .expect("flow source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            DriverSession::default().compile_realtime_app_bundle_with_source_path(
+                &source,
+                Some(&main_path),
+                CompileTarget::Llvm,
+                None,
+            )
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let output = result.expect(
+            "llvm realtime bundles should reuse the assembled frontend source for imported UI roots",
+        );
+        assert_eq!(
+            output
+                .bundle
+                .active_world
+                .as_ref()
+                .map(|world| world.name.as_str()),
+            Some("Authority")
+        );
+        assert_eq!(output.bundle.entanglements.len(), 1);
+        assert!(output.bundle.ui_contracts.is_some());
     }
 
     #[test]

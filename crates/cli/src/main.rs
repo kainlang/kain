@@ -1119,8 +1119,12 @@ fn run_source_with_session(
                     let mut cmd = std::process::Command::new(&clang_cmd);
                     let mut runtime_link_libs = Vec::new();
                     let mut runtime_artifacts = NativeRuntimeCompiledArtifacts::default();
+                    let cffi_source = session
+                        .frontend_full_source()
+                        .unwrap_or_else(|| source.clone());
                     let cffi_link_inputs = match resolve_c_ffi_native_link_inputs(
-                        &source,
+                        &cffi_source,
+                        source_path,
                         &clang_cmd,
                         &native_toolchain_tuning,
                     ) {
@@ -3625,11 +3629,17 @@ fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>
 
 fn resolve_c_ffi_native_link_inputs(
     source: &str,
+    source_path: Option<&Path>,
     clang_cmd: &str,
     native_toolchain_tuning: &NativeToolchainTuning,
 ) -> Result<CffiNativeLinkInputs, String> {
+    let prepare_dir = source_path
+        .and_then(|path| path.parent())
+        .filter(|path| !path.as_os_str().is_empty())
+        .map(Path::to_path_buf)
+        .or_else(|| std::env::current_dir().ok());
     let prepare = CPrepareContext {
-        current_dir: std::env::current_dir().ok(),
+        current_dir: prepare_dir,
         manifest_path: None,
     };
     let outputs = kain_c_ffi::import_libraries_for_source(
@@ -4701,14 +4711,17 @@ mod tests {
     use super::{
         build_native_runtime_archive_fingerprint, build_native_runtime_compile_fingerprint,
         build_native_runtime_object_cache_paths, default_native_runtime_link_libs,
-        default_runtime_cache_root, load_native_runtime_manifest,
+        default_runtime_cache_root, find_bundled_clang, load_native_runtime_manifest,
         native_runtime_object_cache_is_fresh, parse_native_runtime_depfile,
-        parse_native_toolchain_tuning, platform_link_libs, resolve_native_runtime_archive_groups,
+        parse_native_toolchain_tuning, platform_link_libs, resolve_c_ffi_native_link_inputs,
+        resolve_native_runtime_archive_groups,
         runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
         NativeRuntimeArchiveManifest, NativeRuntimeArchiver, NativeRuntimeArchiverFlavor,
         NativeRuntimeLinkManifest, NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup,
         ResolvedNativeRuntimeBundle,
     };
+    use kain_core::CompileTarget;
+    use kain_driver::DriverSession;
     use std::{fs, path::Path, path::PathBuf, thread::sleep, time::Duration};
 
     #[test]
@@ -5057,6 +5070,106 @@ macos = ["Cocoa"]
             &cache_paths,
             &fingerprint
         ));
+    }
+
+    #[test]
+    fn c_ffi_native_link_inputs_follow_imported_helper_modules_from_frontend_bundle() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let src_dir = temp_dir.path().join("src");
+        let native_dir = temp_dir.path().join("native");
+        fs::create_dir_all(&src_dir).expect("src dir");
+        fs::create_dir_all(&native_dir).expect("native dir");
+
+        let main_path = src_dir.join("main.kn");
+        let helper_path = src_dir.join("helper.kn");
+        let header_path = native_dir.join("tiny.h");
+        let source_path = native_dir.join("tiny.c");
+        let manifest_path = temp_dir.path().join("KAIN.toml");
+
+        fs::write(
+            &manifest_path,
+            r#"
+[package]
+name = "cffi-helper-smoke"
+version = "0.1.0"
+
+[blade]
+name = "cffi-helper-smoke"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "tiny"
+tier = "inline"
+header = "native/tiny.h"
+sources = ["native/tiny.c"]
+include_paths = ["native"]
+"#,
+        )
+        .expect("manifest");
+        fs::write(&header_path, "int tiny_add(int value);\n").expect("header");
+        fs::write(&source_path, "int tiny_add(int value) { return value + 1; }\n")
+            .expect("native source");
+        fs::write(
+            &main_path,
+            r#"
+use helper::helper_lane
+
+fn main() -> Int:
+    return helper_lane()
+"#,
+        )
+        .expect("main");
+        fs::write(
+            &helper_path,
+            r#"
+use c::tiny
+
+pub fn helper_lane() -> Int:
+    return tiny_add(41)
+"#,
+        )
+        .expect("helper");
+
+        let source = fs::read_to_string(&main_path).expect("read main");
+        let previous_dir = std::env::current_dir().expect("cwd");
+        let session = DriverSession::new();
+        let frontend_source = (|| {
+            std::env::set_current_dir(temp_dir.path()).expect("set cwd");
+            session
+                .compile_with_source_path(&source, Some(main_path.as_path()), CompileTarget::Llvm)
+                .expect("compile main");
+            session
+                .frontend_full_source()
+                .expect("frontend bundle source should exist")
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        assert!(frontend_source.contains("use c::tiny"));
+
+        let clang_cmd = find_bundled_clang().unwrap_or_else(|| "clang".to_string());
+        let tuning =
+            parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
+        let link_inputs = resolve_c_ffi_native_link_inputs(
+            &frontend_source,
+            Some(main_path.as_path()),
+            &clang_cmd,
+            &tuning,
+        )
+        .expect("helper-import c ffi link inputs");
+
+        assert_eq!(link_inputs.link_inputs.len(), 1);
+        assert_eq!(
+            link_inputs.link_inputs[0]
+                .extension()
+                .and_then(|value| value.to_str()),
+            Some("bc")
+        );
+        assert!(link_inputs.link_inputs[0].exists());
     }
 }
 

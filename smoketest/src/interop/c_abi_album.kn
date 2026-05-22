@@ -1,0 +1,49 @@
+use std::runtime
+use c::smoketest_c_abi_album
+use c_bridge::smoke_c_bridge_score
+use converge::smoke_mix_pair
+use types::SmokeLane
+use types::SmokePacket
+use types::smoke_weighted_checksum
+
+const SMOKE_C_ABI_ALBUM_MODULUS: Int = 1000000007
+
+pub fn smoke_c_abi_album_score(seed: Int, rounds: Int) -> Int:
+    let native_score = smoketest_c_abi_album_score(seed, rounds)
+    let command_count = smoketest_c_abi_album_command_count(seed + 3, rounds + 1)
+    let ring_tail = smoketest_c_abi_album_ring_tail(seed + command_count + 5, rounds + 2)
+    let signature = smoketest_c_abi_album_signature(seed, rounds)
+    let signature_span = smoketest_c_abi_album_signature_span(seed, rounds)
+    let hot = smoketest_c_abi_album_hot(seed + ring_tail, rounds + 1)
+    let bridged = smoke_c_bridge_score(native_score + command_count, ring_tail + 1)
+    let mixed = smoke_mix_pair(native_score + bridged, signature_span + command_count + ring_tail)
+    let packet = SmokePacket {
+        id: 30,
+        lane: SmokeLane::CAbiAlbum,
+        payload: (native_score + command_count + ring_tail + mixed) % SMOKE_C_ABI_ALBUM_MODULUS,
+        tag: signature,
+        hot: hot
+    }
+    return (smoke_weighted_checksum(packet) + native_score + command_count + ring_tail + bridged + mixed + signature_span) % SMOKE_C_ABI_ALBUM_MODULUS
+
+pub fn smoke_c_abi_album_lane() -> Int:
+    let signature_a = smoketest_c_abi_album_signature(23, 8)
+    let signature_b = smoketest_c_abi_album_signature(31, 6)
+    let signature_span_a = smoketest_c_abi_album_signature_span(23, 8)
+    let command_count = smoketest_c_abi_album_command_count(23, 8)
+    let ring_tail = smoketest_c_abi_album_ring_tail(23, 8)
+    let hot = smoketest_c_abi_album_hot(23, 8)
+    let score = smoke_c_abi_album_score(23, 8)
+    if signature_a == signature_b:
+        return 1
+    if signature_span_a < 32:
+        return 2
+    if command_count < 4:
+        return 3
+    if ring_tail <= 0:
+        return 4
+    if hot == false:
+        return 5
+    if score <= command_count:
+        return 6
+    return 0

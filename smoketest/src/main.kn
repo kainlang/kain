@@ -38,6 +38,7 @@ use platform_lane::smoke_platform_lane
 
 // Interop track
 use c_bridge::smoke_c_bridge_lane
+use c_abi_album::smoke_c_abi_album_lane
 
 // Telemetry tracks
 use report::smoke_telemetry_mode
@@ -108,7 +109,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 31
+    let total_tracks: Int = 32
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -373,11 +374,20 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_bridge, "interop.c_bridge")
     succeeded_tracks = succeeded_tracks + 1
 
+    let started_c_abi_album = now_millis()
+    let lane_c_abi_album = smoke_c_abi_album_lane()
+    let ended_c_abi_album = now_millis()
+    composition_checksum = smoke_record_track(mode, "interop", "interop.c_abi_album", "c_abi_album", 30, 3000, lane_c_abi_album, started_c_abi_album, ended_c_abi_album, composition_checksum)
+    let e_c_abi_album = smoke_first_error(3000, lane_c_abi_album)
+    if e_c_abi_album != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_c_abi_album, "interop.c_abi_album")
+    succeeded_tracks = succeeded_tracks + 1
+
     let started_headless = now_millis()
     let lane_headless = smoke_headless_host_lane(mode)
     let ended_headless = now_millis()
-    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.headless_host", "headless_host", 30, 3000, lane_headless, started_headless, ended_headless, composition_checksum)
-    let e_headless = smoke_first_error(3000, lane_headless)
+    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.headless_host", "headless_host", 31, 3100, lane_headless, started_headless, ended_headless, composition_checksum)
+    let e_headless = smoke_first_error(3100, lane_headless)
     if e_headless != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_headless, "telemetry.headless_host")
     succeeded_tracks = succeeded_tracks + 1
@@ -385,8 +395,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_flow = now_millis()
     let lane_flow = smoke_telemetry_flow_lane(mode)
     let ended_flow = now_millis()
-    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.novel_flow", "telemetry_flow", 31, 3100, lane_flow, started_flow, ended_flow, composition_checksum)
-    let e_flow = smoke_first_error(3100, lane_flow)
+    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.novel_flow", "telemetry_flow", 32, 3200, lane_flow, started_flow, ended_flow, composition_checksum)
+    let e_flow = smoke_first_error(3200, lane_flow)
     if e_flow != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_flow, "telemetry.novel_flow")
     succeeded_tracks = succeeded_tracks + 1

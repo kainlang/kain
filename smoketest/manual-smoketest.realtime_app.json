@@ -1,0 +1,460 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "render": {
+    "scenes": [],
+    "materials": []
+  },
+  "patches": [
+    {
+      "name": "smoke_commit_signal",
+      "mutation_paths": [
+        "authority.epoch",
+        "authority.health",
+        "authority.signal"
+      ],
+      "undo_mode": "best_effort",
+      "collaboration_event": "patch.smoke_commit_signal"
+    },
+    {
+      "name": "smoke_telemetry_commit_signal",
+      "mutation_paths": [
+        "authority.epoch",
+        "authority.health",
+        "authority.signal"
+      ],
+      "undo_mode": "best_effort",
+      "collaboration_event": "patch.smoke_telemetry_commit_signal"
+    }
+  ],
+  "laws": [
+    {
+      "name": "smoke_health_positive",
+      "symbol": "smoke_health_positive",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    },
+    {
+      "name": "smoke_signal_in_bounds",
+      "symbol": "smoke_signal_in_bounds",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    }
+  ],
+  "converges": [
+    {
+      "name": "smoke_mix",
+      "dispatcher_symbol": "smoke_mix",
+      "spec_lane": {
+        "lane_name": "reference",
+        "kind": "spec",
+        "symbol": "smoke_mix__reference"
+      },
+      "fast_lanes": [
+        {
+          "lane_name": "llvm_lane",
+          "kind": "fast",
+          "selector": "target:llvm",
+          "symbol": "smoke_mix__llvm_lane"
+        },
+        {
+          "lane_name": "interpret_lane",
+          "kind": "fast",
+          "selector": "target:interpret",
+          "symbol": "smoke_mix__interpret_lane"
+        }
+      ],
+      "verify_random_count": 8
+    }
+  ],
+  "worlds": [
+    {
+      "name": "SmokeAuthority",
+      "state_slots": [
+        {
+          "name": "signal",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health",
+          "type_name": "Int",
+          "initial_expr": "100"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "SmokePanel",
+          "surface_key": "world.SmokeAuthority.native_ui"
+        }
+      ]
+    },
+    {
+      "name": "SmokeMirror",
+      "state_slots": [
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health_copy",
+          "type_name": "Int",
+          "initial_expr": "100"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokePanel",
+          "surface_key": "world.SmokeMirror.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokePatchAuthority",
+      "state_slots": [
+        {
+          "name": "signal",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health",
+          "type_name": "Int",
+          "initial_expr": "100"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokePatchPanel",
+          "surface_key": "world.SmokePatchAuthority.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokePatchMirror",
+      "state_slots": [
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health_copy",
+          "type_name": "Int",
+          "initial_expr": "100"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokePatchPanel",
+          "surface_key": "world.SmokePatchMirror.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokePulseAuthority",
+      "state_slots": [
+        {
+          "name": "signal",
+          "type_name": "Int",
+          "initial_expr": "1"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokePulsePanel",
+          "surface_key": "world.SmokePulseAuthority.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokePulseMirror",
+      "state_slots": [
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "1"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokePulsePanel",
+          "surface_key": "world.SmokePulseMirror.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokeTelemetryAuthority",
+      "state_slots": [
+        {
+          "name": "signal",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health",
+          "type_name": "Int",
+          "initial_expr": "100"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokeTelemetryPanel",
+          "surface_key": "world.SmokeTelemetryAuthority.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokeTelemetryMirror",
+      "state_slots": [
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health_copy",
+          "type_name": "Int",
+          "initial_expr": "100"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokeTelemetryPanel",
+          "surface_key": "world.SmokeTelemetryMirror.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokeTeleportAuthority",
+      "state_slots": [
+        {
+          "name": "signal",
+          "type_name": "Int",
+          "initial_expr": "1"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokeTeleportPanel",
+          "surface_key": "world.SmokeTeleportAuthority.web"
+        }
+      ]
+    },
+    {
+      "name": "SmokeTeleportMirror",
+      "state_slots": [
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "1"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SmokeTeleportPanel",
+          "surface_key": "world.SmokeTeleportMirror.web"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "SmokeAuthority",
+    "state_slots": [
+      {
+        "name": "signal",
+        "type_name": "Int",
+        "initial_expr": "1"
+      },
+      {
+        "name": "epoch",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "health",
+        "type_name": "Int",
+        "initial_expr": "100"
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "SmokePanel",
+        "surface_key": "world.SmokeAuthority.native_ui"
+      }
+    ]
+  },
+  "entanglements": [
+    {
+      "authority": "SmokeAuthority.epoch",
+      "mirror": "SmokeMirror.epoch_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokeAuthority.health",
+      "mirror": "SmokeMirror.health_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokeAuthority.signal",
+      "mirror": "SmokeMirror.signal_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokePatchAuthority.epoch",
+      "mirror": "SmokePatchMirror.epoch_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokePatchAuthority.health",
+      "mirror": "SmokePatchMirror.health_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokePatchAuthority.signal",
+      "mirror": "SmokePatchMirror.signal_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokeTelemetryAuthority.epoch",
+      "mirror": "SmokeTelemetryMirror.epoch_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokeTelemetryAuthority.health",
+      "mirror": "SmokeTelemetryMirror.health_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "SmokeTelemetryAuthority.signal",
+      "mirror": "SmokeTelemetryMirror.signal_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    }
+  ],
+  "orchestrations": [
+    {
+      "name": "smoke_pipeline",
+      "return_type": "Int",
+      "stages": [
+        {
+          "runtime": "kain",
+          "function": "smoke_mix",
+          "binding_name": "normalized"
+        },
+        {
+          "runtime": "rust",
+          "function": "smoke_stage_bias",
+          "binding_name": "biased"
+        }
+      ]
+    }
+  ],
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "converge.dispatch",
+    "law.invariants",
+    "orchestrate.pipeline",
+    "patch.transactions",
+    "scene.actors",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "requirements": [
+    "converge.dispatch",
+    "host.raw-native",
+    "law.invariants",
+    "orchestrate.pipeline",
+    "patch.transactions",
+    "runtime.contract.bundle",
+    "shader.bundle.metadata",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 2,
+        "identity_key": "2",
+        "kind": "component:SmokePanel",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}

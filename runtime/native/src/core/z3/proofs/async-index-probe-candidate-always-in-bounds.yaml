@@ -1,0 +1,44 @@
+name: async-index-probe-candidate-always-in-bounds
+surface: runtime
+subsystem: async
+source_file: runtime/native/src/core/async.c
+source_function: kain_async_index_insert
+source_lines: "313-314"
+
+description: |
+  async.c:314: candidate_index = (start_index + probe) & index_mask
+  
+  The index table uses power-of-two capacity with a bitmask for probe walking.
+  For task index: KAIN_ASYNC_TASK_INDEX_CAPACITY=512, MASK=511 (0x1FF).
+  For timer index: KAIN_ASYNC_TIMER_INDEX_CAPACITY=512, MASK=511.
+  
+  (start_index + probe) & 511 is always in [0, 511] for any u32 start/probe,
+  because bitwise AND with 0x1FF zeroes all bits above position 8.
+  The table has 512 entries indexed [0..511]. No OOB access possible.
+  
+  A compile-time #if guard (async.c:40-44) also enforces that INDEX_CAPACITY
+  is a power-of-two, ensuring MASK = CAPACITY - 1 has all low bits set.
+
+claim: |
+  For any uint32 start_index, probe:
+  (start_index + probe) & 0x1FF < 512
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const start_index (_ BitVec 32))
+  (declare-const probe (_ BitVec 32))
+  (define-fun candidate_index () (_ BitVec 32)
+    (bvand (bvadd start_index probe) #x000001ff))
+  (assert (bvuge candidate_index #x00000200))
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, bounds, arithmetic]
+status: Formally-Verified-Safe
+note: |
+  This proof holds for any power-of-two capacity up to 2^32.
+  The compile-time assertion at async.c:40-44 independently enforces the
+  power-of-two invariant, so no runtime can produce a non-power-of-two mask.

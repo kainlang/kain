@@ -1,0 +1,53 @@
+name: json-surrogate-pair-decode-codepoint-in-unicode-range
+surface: runtime
+subsystem: json
+source_file: runtime/native/src/core/json.c
+source_function: json_parse_string_raw
+source_lines: "627"
+
+description: |
+  json.c:627:
+    codepoint = 0x10000u + (((codepoint - 0xd800u) << 10) | (low - 0xdc00u));
+  
+  This is the JSON UTF-16 surrogate pair decode formula. Inputs are:
+    - codepoint (high surrogate) in [0xD800, 0xDBFF]
+    - low (low surrogate) in [0xDC00, 0xDFFF]
+  
+  The formula produces a Unicode supplementary codepoint. The question is:
+  can the result exceed 0x10FFFF (the maximum valid Unicode codepoint)?
+  
+  Proof:
+    max_high_offset = 0xDBFF - 0xD800 = 0x3FF
+    max_low_offset  = 0xDFFF - 0xDC00 = 0x3FF
+    max_result = 0x10000 + (0x3FF << 10) | 0x3FF = 0x10000 + 0xFFC00 | 0x3FF
+               = 0x10000 + 0xFFFFF = 0x10FFFF (exactly the Unicode max)
+  
+  Z3 proves: for all valid high/low surrogate pairs, decoded codepoint <= 0x10FFFF.
+
+claim: |
+  For all high in [0xD800, 0xDBFF] and low in [0xDC00, 0xDFFF]:
+  0x10000 + ((high - 0xD800) << 10) | (low - 0xDC00) <= 0x10FFFF
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_LIA)
+  (declare-const high Int)
+  (declare-const low Int)
+  (assert (>= high 55296))   ; 0xD800
+  (assert (<= high 56319))   ; 0xDBFF
+  (assert (>= low 56320))    ; 0xDC00
+  (assert (<= low 57343))    ; 0xDFFF
+  (assert (> (+ 65536 (+ (* (- high 55296) 1024) (- low 56320))) 1114111))
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, unicode, parsing]
+status: Formally-Verified-Safe
+note: |
+  The json_buffer_append_utf8 function at json.c:442 also independently
+  guards against codepoints in [0xD800, 0xDFFF] and above 0x10FFFF by
+  emitting the Unicode replacement character (U+FFFD). So even if this
+  decode somehow produced an invalid codepoint, the downstream writer
+  has a second-layer guard.

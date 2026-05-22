@@ -1,0 +1,34 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.memory_atomic_store_validation_rejects_acquire_and_acqrel
+kind: check_smt2
+description: The LLVM lowering now rejects acquire and acq_rel orderings for
+  plain atomic stores instead of silently remapping them to release.
+tags:
+- llvm
+- memory
+- atomic
+- store
+- validation
+source:
+  path: D:\Kain-Lang\crates\kain-sys-codegen\src\codegen_llvm\mod.rs
+  symbol: validate_atomic_store_ordering
+  start_line: 7082
+  reason: accepted store orderings are restricted to relaxed, release, and
+    seq_cst before an LLVM store instruction is emitted
+case:
+  smt2: '(set-logic QF_LIA)
+
+    (declare-const code Int)
+
+    (assert (>= code 0))
+    (assert (<= code 4))
+
+    (define-fun accepted_store ((c Int)) Bool
+      (or (= c 0) (= c 2) (= c 4)))
+
+    (assert (accepted_store code))
+    (assert (or (= code 1) (= code 3)))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

@@ -2688,6 +2688,60 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_println_keeps_pooled_newlines_borrowed_until_scope_cleanup() {
+    let source = r#"
+fn main() -> Int:
+    println(str(1))
+    println(str(2))
+    return 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let main_ir = llvm_function_ir(&llvm, "define i64 @main()");
+    let pooled_newline_load = "load i8*, i8** %__kain_pooled_literal_0.addr";
+    let stdout_write = "call void @stdout_write(i8*";
+    let mut search = main_ir;
+
+    for window_index in 0..2 {
+        let load_index = search
+            .find(pooled_newline_load)
+            .expect("println should reuse the pooled newline literal");
+        let load_line_start = search[..load_index]
+            .rfind('\n')
+            .map(|idx| idx + 1)
+            .unwrap_or(0);
+        let load_window = &search[load_line_start..];
+        let load_line_end = load_window
+            .find('\n')
+            .expect("pooled newline load should stay on one line");
+        let load_line = &load_window[..load_line_end];
+        let register_end = load_line
+            .find(" = load i8*, i8**")
+            .expect("pooled newline load should expose its SSA register");
+        let pooled_newline_reg = load_line[..register_end].trim();
+        let stdout_index = load_window
+            .find(stdout_write)
+            .expect("pooled newline should flow into stdout_write");
+        let before_write = &load_window[..stdout_index];
+        assert!(
+            !before_write.contains(&format!(
+                "call void @rc_release(i8* {})",
+                pooled_newline_reg
+            )),
+            "pooled newline {} should stay borrowed before stdout_write window {}:\n{}",
+            pooled_newline_reg,
+            window_index,
+            before_write
+        );
+        search = &load_window[stdout_index + stdout_write.len()..];
+    }
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "println-pooled-newline-borrowed");
+}
+
+#[test]
 fn llvm_lowers_byte_at_on_known_strings_without_runtime_helper_calls() {
     let source = r#"
 fn parse_positive_int(text: String, start: Int) -> Int:

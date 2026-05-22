@@ -1,7 +1,7 @@
 {
   "mode": "benchmark",
   "status": 0,
-  "elapsed_ms": 69,
+  "elapsed_ms": 59,
   "summary_exists": 1,
   "summary_path": "D:/Kain-Lang/smoketest/telemetry/benchmark/summary.json",
   "output_dir": "D:/Kain-Lang/smoketest/telemetry/benchmark",
@@ -18,8 +18,8 @@
   "error_type": "",
   "error_message": "",
   "stdout_len": 0,
-  "stderr_len": 0,
-  "runner_checksum": 677452,
+  "stderr_len": 720,
+  "runner_checksum": 677422,
   "probe": {
   "ok": 1,
   "python": "D:/Kain-Lang/target/codex-smoketest-telemetry-benchmark/debug/kain.exe",

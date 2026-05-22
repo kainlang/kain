@@ -1,0 +1,22 @@
+version: 1
+id: kain.native.core.proofs.actor_generation_zero_never_stored_after_skip_guard
+kind: check_smt2
+description: Generation 0 is reserved. The skip guard ensures that when next_generation wraps to 0, it skips to 1. Stored next_generation is never 0.
+tags:
+- actor
+- generation
+- ABA-prevention
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_table_find_free_slot_unlocked
+  start_line: 1862
+  reason: Skip guard next_generation == 0u -> 1u
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const generation (_ BitVec 32))
+    (define-fun next_raw () (_ BitVec 32) (bvadd generation #x00000001))
+    (define-fun stored () (_ BitVec 32)
+      (ite (= next_raw #x00000000) #x00000001 next_raw))
+    (assert (= stored #x00000000))
+    (check-sat)

@@ -237,9 +237,13 @@ static void kain_ownership_clear_slot_unlocked(int slot) {
     region->ptr = NULL;
     region->size = 0;
     region->kind = 0;
-    region->state = KAIN_OWNERSHIP_STATE_DECAYED;
     region->observers = 0;
+    /* Keep OCCUPIED=0 ahead of DECAYED so future lock-free readers cannot see
+     * an alive-looking slot that already published terminal state.
+     * Proof: runtime/native/src/core/z3/proofs/native-ownership-clear-slot-clears-occupied-before-decayed.yaml
+     */
     region->occupied = 0;
+    region->state = KAIN_OWNERSHIP_STATE_DECAYED;
     KAIN_OWNERSHIP_OCCUPANCY_WORDS[(uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS] &=
         ~(UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS));
 }

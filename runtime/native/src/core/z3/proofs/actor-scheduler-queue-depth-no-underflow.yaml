@@ -1,0 +1,22 @@
+version: 1
+id: kain.native.core.proofs.actor_scheduler_queue_depth_decrement_no_underflow
+kind: check_smt2
+description: kain_scheduler_dequeue checks queue_depth == 0 and returns early, so queue_depth-- cannot underflow.
+tags:
+- actor
+- scheduler
+- underflow-prevention
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_scheduler_dequeue
+  start_line: 4138
+  reason: queue_depth early-return check before decrement
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const queue_depth (_ BitVec 64))
+    (assert (bvuge queue_depth #x0000000000000001))
+    (define-fun decremented () (_ BitVec 64)
+      (bvsub queue_depth #x0000000000000001))
+    (assert (bvugt decremented queue_depth))
+    (check-sat)

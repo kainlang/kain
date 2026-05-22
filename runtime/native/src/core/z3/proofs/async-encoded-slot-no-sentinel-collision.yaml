@@ -1,0 +1,41 @@
+name: async-encoded-slot-no-sentinel-collision
+surface: runtime
+subsystem: async
+source_file: runtime/native/src/core/async.c
+source_function: kain_async_index_insert
+source_lines: "311"
+
+description: |
+  async.c:311: uint32_t encoded_slot = slot + 1u;
+  The async index tables use 0 as the sentinel (empty slot) value.
+  encoded_slot is computed as slot + 1u, so if slot == UINT32_MAX (0xFFFFFFFF),
+  encoded_slot would wrap to 0 and collide with the sentinel.
+
+  However, slot always comes from kain_async_find_free_task_slot or
+  kain_async_find_free_timer_slot, which returns values in [0, MAX-1]:
+    - KAIN_ASYNC_MAX_TASKS  = 256 -> slot in [0, 255]
+    - KAIN_ASYNC_MAX_TIMERS = 256 -> slot in [0, 255]
+  So encoded_slot is in [1, 256] and cannot reach 0.
+
+claim: |
+  For all slot in [0, KAIN_ASYNC_MAX_TASKS-1]:
+  encoded_slot = slot + 1u != 0 (no sentinel collision)
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const slot (_ BitVec 32))
+  (assert (bvult slot #x00000100))
+  (define-fun encoded_slot () (_ BitVec 32) (bvadd slot #x00000001))
+  (assert (= encoded_slot #x00000000))
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, bounds, arithmetic]
+status: Formally-Verified-Safe
+note: |
+  The encoding is safe as long as KAIN_ASYNC_MAX_TASKS and KAIN_ASYNC_MAX_TIMERS
+  remain <= UINT32_MAX. If the capacity is ever raised above UINT32_MAX, the
+  slot type must be widened and this proof must be re-run.

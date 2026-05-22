@@ -1,0 +1,57 @@
+name: json-buffer-reserve-size_t-addition-overflow
+surface: runtime
+subsystem: json
+source_file: runtime/native/src/core/json.c
+source_function: json_buffer_reserve
+source_lines: "397-418"
+
+description: |
+  json.c:404: needed = buffer->len + extra + 1u;
+  
+  All three operands are size_t (uint64_t on 64-bit). If len and extra are
+  both large, their sum (and the +1) can wrap to a value smaller than extra.
+  
+  When needed wraps:
+    - The guard `if (needed <= buffer->cap)` may spuriously pass (small needed
+      compares less than a valid cap value).
+    - The doubling loop computes a tiny `capacity`.
+    - realloc(buffer->data, tiny_capacity) is called.
+    - json_buffer_append_n then writes 'length' bytes into the tiny allocation.
+    - HEAP BUFFER OVERFLOW.
+  
+  Z3 witness: len = 0xFFFFFFFFFFFFFFFE, extra = 1
+    needed = (0xFFFFFFFFFFFFFFFE + 1 + 1) = 0 (wraps)
+    needed (0) < extra (1) -- buffer treated as needing no growth.
+
+claim: |
+  For any len, extra (u64 < UINT64_MAX): len + extra + 1 >= extra (no wrap).
+
+expected: sat (bug is real -- claim is violated by witness above)
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const len (_ BitVec 64))
+  (declare-const extra (_ BitVec 64))
+  (define-fun needed () (_ BitVec 64)
+    (bvadd (bvadd len extra) #x0000000000000001))
+  (assert (bvult needed extra))
+  (check-sat)
+
+result: sat
+witness:
+  len: "0xFFFFFFFFFFFFFFFE"  # UINT64_MAX - 1
+  extra: "0x0000000000000001"  # 1
+  needed_result: "0x0000000000000000"  # needed wraps to 0
+  risk: "realloc called with capacity=0, subsequent memcpy writes past buffer"
+
+severity: High
+categories: [correctness, heap-overflow, size_t-overflow, parsing]
+status: Solver-Proved
+suggested_follow_up: |
+  In json_buffer_reserve, add a size_t overflow guard before computing needed:
+    if (extra > SIZE_MAX - buffer->len - 1u) { return 0; }
+    needed = buffer->len + extra + 1u;
+  This ensures needed never wraps. In practice, JSON buffers in this runtime
+  are limited by the size of the input document, so the overflow requires
+  an adversarially large document, but the path is reachable from any untrusted
+  JSON input processed by json_buffer_append_n with attacker-controlled length.

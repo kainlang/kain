@@ -1,0 +1,74 @@
+name: json-object-capacity-doubling-signed-int64-overflow
+surface: runtime
+subsystem: json
+source_file: runtime/native/src/core/json.c
+source_function: json_object_reserve
+source_lines: "311-315"
+
+description: |
+  json.c:311:
+    capacity = object->field_capacity > 0 ? object->field_capacity * 2 : 8;
+  
+  json.c:315:
+    fields = (KainJsonEntry*)realloc(object->fields, (size_t)capacity * sizeof(KainJsonEntry));
+  
+  `capacity` is int64_t (signed 64-bit). The expression `capacity * 2` where
+  `capacity > INT64_MAX / 2` is signed integer overflow -- C11 6.5 UB. The
+  compiler may delete the overflow check, assume the multiplication always
+  produces a positive value, and emit a realloc call with a wrong size.
+  
+  Concretely: if capacity = 0x4000000000000000 (4611686018427387904),
+  then capacity * 2 = 0x8000000000000000 (INT64_MIN = -9223372036854775808).
+  Cast to size_t: 0x8000000000000000 as size_t = 9223372036854775808 bytes.
+  On most systems realloc will fail, but then the NULL check passes null to
+  realloc again in future calls. If a platform realloc does succeed with
+  a huge size, the result is a massive allocation; if it fails silently,
+  the grow fails and the outer code returns 0 (OOM), which is correct behavior
+  -- but the UB itself means the compiler is allowed to behave arbitrarily.
+  
+  Typical trigger path: deeply nested JSON objects or adversarial JSON input
+  that repeatedly appends to the same object, doubling capacity each time,
+  until capacity crosses INT64_MAX/2.
+  
+  Z3 witness: capacity = 0x4000000000000000
+    capacity * 2 (signed 64-bit BV multiply) = 0x8000000000000000 = INT64_MIN
+
+claim: |
+  capacity * 2 >= 0 for all capacity > 0 (signed 64-bit)
+  -- This claim is VIOLATED by the witness.
+
+expected: sat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const capacity (_ BitVec 64))
+  ; capacity > INT64_MAX/2 so doubling overflows signed int64
+  (assert (bvsgt capacity #x3fffffffffffffff))
+  (assert (bvslt capacity #x7fffffffffffffff))
+  ; capacity * 2 wraps to negative
+  (define-fun doubled () (_ BitVec 64) (bvmul capacity #x0000000000000002))
+  (assert (bvslt doubled #x0000000000000000))
+  (check-sat)
+
+result: sat
+witness:
+  capacity: "0x4000000000000000"  # 4611686018427387904 = INT64_MAX/2 + 1
+  doubled_result: "0x8000000000000000"  # INT64_MIN = -9223372036854775808 (signed overflow UB)
+  passed_to_realloc: "(size_t)INT64_MIN = 9223372036854775808 bytes on 64-bit"
+
+severity: Medium
+categories: [correctness, signed-overflow, UB, parsing]
+status: Solver-Proved
+suggested_follow_up: |
+  Option 1: Change capacity to size_t (unsigned) in json_object_reserve and
+  json_array_reserve, so doubling wraps unsigned (defined behavior) and the
+  NULL-return from realloc is the failure signal.
+  
+  Option 2: Add an explicit guard before doubling:
+    if (capacity > (int64_t)(SIZE_MAX / (2 * sizeof(KainJsonEntry)))) { return 0; }
+  
+  Option 3: Use a size helper that checks overflow before multiplying:
+    if (kain_add_overflow_i64(capacity, capacity, &doubled)) { return 0; }
+  
+  Same fix applies to json_array_reserve (json.c:334) which has the identical
+  capacity * 2 pattern with int64_t capacity.

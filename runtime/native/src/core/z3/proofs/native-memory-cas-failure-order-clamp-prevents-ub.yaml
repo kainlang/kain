@@ -1,0 +1,64 @@
+version: 1
+id: kain.native.core.proofs.native_memory_cas_failure_order_clamp_prevents_ub
+kind: check_smt2
+description: The native runtime atomic compare_exchange helper now normalizes
+  invalid failure-order shapes and clamps any stronger-than-success request
+  before the C11 primitive is invoked, so the helper never forwards a UB-causing
+  failure ordering.
+tags:
+- native-runtime
+- memory
+- atomic
+- compare-exchange
+- c11
+- ordering
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\memory.c
+  symbol: __kain_atomic_compare_exchange_ordered
+  start_line: 568
+  reason: kain_memory_clamp_failure_order_code canonicalizes the failure ordering
+    into the valid failure set and enforces failure_strength <= success_strength
+    before atomic_compare_exchange_strong_explicit executes
+case:
+  smt2: '(set-logic QF_LIA)
+
+    (declare-const success Int)
+    (declare-const failure Int)
+
+    (define-fun RELAXED () Int 0)
+    (define-fun ACQUIRE () Int 1)
+    (define-fun RELEASE () Int 2)
+    (define-fun ACQ_REL () Int 3)
+    (define-fun SEQ_CST () Int 4)
+
+    (assert (>= success 0))
+    (assert (<= success 4))
+    (assert (>= failure 0))
+    (assert (<= failure 4))
+
+    (define-fun success_strength ((code Int)) Int
+      (ite (= code RELAXED) 0
+      (ite (= code ACQUIRE) 2
+      (ite (= code RELEASE) 3
+      (ite (= code ACQ_REL) 4 5)))))
+
+    (define-fun normalize_failure ((code Int)) Int
+      (ite (= code RELAXED) RELAXED
+      (ite (= code ACQUIRE) ACQUIRE
+      (ite (= code SEQ_CST) SEQ_CST ACQUIRE))))
+
+    (define-fun failure_strength ((code Int)) Int
+      (ite (= code RELAXED) 0
+      (ite (= code SEQ_CST) 5 2)))
+
+    (define-fun clamp_failure ((succ Int) (fail Int)) Int
+      (let ((normalized (normalize_failure fail)))
+        (ite (<= (failure_strength normalized) (success_strength succ))
+             normalized
+             (ite (>= (success_strength succ) 2) ACQUIRE RELAXED))))
+
+    (assert (> (failure_strength (clamp_failure success failure)) (success_strength success)))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

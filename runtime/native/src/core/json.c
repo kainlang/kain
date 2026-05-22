@@ -308,6 +308,10 @@ static int json_object_reserve(KainJsonValue* object, int64_t needed) {
     if (needed <= object->field_capacity) {
         return 1;
     }
+    /* Z3-BUG: capacity * 2 is signed int64_t overflow UB when capacity > INT64_MAX/2.
+     * Witness: capacity=0x4000000000000000 -> doubled=INT64_MIN (wraps negative).
+     * Fix: use size_t for capacity, or guard with overflow check before multiply.
+     * Bug proof: z3/proofs/json-object-capacity-doubling-signed-int64-overflow.yaml (sat) */
     capacity = object->field_capacity > 0 ? object->field_capacity * 2 : 8;
     while (capacity < needed) {
         capacity *= 2;
@@ -331,6 +335,9 @@ static int json_array_reserve(KainJsonValue* array, int64_t needed) {
     if (needed <= array->item_capacity) {
         return 1;
     }
+    /* Z3-BUG: identical signed int64_t capacity * 2 overflow as json_object_reserve.
+     * Witness: capacity=0x4000000000000000 -> doubled=INT64_MIN (wraps negative).
+     * Bug proof: z3/proofs/json-object-capacity-doubling-signed-int64-overflow.yaml (sat) */
     capacity = array->item_capacity > 0 ? array->item_capacity * 2 : 8;
     while (capacity < needed) {
         capacity *= 2;
@@ -401,6 +408,12 @@ static int json_buffer_reserve(JsonBuffer* buffer, size_t extra) {
     if (!buffer) {
         return 0;
     }
+    /* Z3-BUG: size_t addition overflow -- len + extra + 1 wraps to 0 if len or
+     * extra are near UINT64_MAX. Witness: len=UINT64_MAX-1, extra=1 -> needed=0.
+     * When needed=0 < cap, the guard passes and the caller writes 'length' bytes
+     * into an undersized buffer -- HEAP OVERFLOW from adversarial JSON input.
+     * Fix: guard with: if (extra > SIZE_MAX - buffer->len - 1u) { return 0; }
+     * Bug proof: z3/proofs/json-buffer-reserve-size_t-addition-overflow.yaml (sat) */
     needed = buffer->len + extra + 1u;
     if (needed <= buffer->cap) {
         return 1;
@@ -624,6 +637,10 @@ static char* json_parse_string_raw(KainJsonParser* parser) {
                                 low >= 0xdc00u &&
                                 low <= 0xdfffu) {
                                 parser->cursor += 6;
+                                /* Z3-PROVED: surrogate pair decode always produces codepoint in
+                                 * [0x10000, 0x10FFFF] for valid high=[0xD800,0xDBFF] and
+                                 * low=[0xDC00,0xDFFF]. Result fits in unsigned int (max 0x10FFFF).
+                                 * Proof: z3/proofs/json-surrogate-pair-decode-codepoint-in-unicode-range.yaml (unsat) */
                                 codepoint = 0x10000u + (((codepoint - 0xd800u) << 10) | (low - 0xdc00u));
                             } else {
                                 codepoint = 0xfffdu;

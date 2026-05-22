@@ -11,10 +11,12 @@
  */
 
 #include "../../include/memory.h"
+#include "../../include/diagnostics.h"
 #include "../../include/ownership.h"
 #include <errno.h>
 #include <stddef.h>
 #include <stdatomic.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -28,6 +30,9 @@ static KainAllocHeader* KAIN_ALLOC_CACHE[KAIN_ALLOC_CACHE_BUCKETS];
 static size_t KAIN_ALLOC_CACHE_BYTES = 0;
 static size_t KAIN_ALLOC_CACHE_NODES = 0;
 static atomic_flag KAIN_ALLOC_CACHE_LOCK = ATOMIC_FLAG_INIT;
+static atomic_flag KAIN_ATOMIC_STORE_INVALID_ORDER_WARNED = ATOMIC_FLAG_INIT;
+static atomic_flag KAIN_ATOMIC_COMPARE_EXCHANGE_FAILURE_SHAPE_WARNED = ATOMIC_FLAG_INIT;
+static atomic_flag KAIN_ATOMIC_COMPARE_EXCHANGE_FAILURE_CLAMP_WARNED = ATOMIC_FLAG_INIT;
 
 _Static_assert(sizeof(KainAllocHeader) == 16u, "KainAllocHeader proof constants require 16-byte header accounting.");
 
@@ -335,6 +340,111 @@ static memory_order kain_memory_order_from_code(int64_t ordering) {
     }
 }
 
+static const char* kain_memory_order_name_from_code(int64_t ordering) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+        return "relaxed";
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+        return "acquire";
+    case KAIN_MEMORY_ORDER_RELEASE:
+        return "release";
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+        return "acq_rel";
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+    default:
+        return "seq_cst";
+    }
+}
+
+static void kain_memory_emit_ordering_warning_once(
+    atomic_flag* gate,
+    const char* message,
+    const char* detail
+) {
+    KainDiagnostic diag;
+    if (atomic_flag_test_and_set_explicit(gate, memory_order_relaxed)) {
+        return;
+    }
+    kain_diagnostic_create(
+        &diag,
+        KAIN_DIAG_SUBSYSTEM_MEMORY,
+        KAIN_DIAG_SEVERITY_WARNING,
+        KAIN_DIAG_CODE_GENERIC_ERROR,
+        message,
+        detail,
+        "runtime/native/src/core/memory.c"
+    );
+    kain_diagnostic_print(&diag);
+}
+
+static int kain_memory_c11_success_strength(int64_t ordering) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+        return 0;
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+        return 2;
+    case KAIN_MEMORY_ORDER_RELEASE:
+        return 3;
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+        return 4;
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+    default:
+        return 5;
+    }
+}
+
+static int kain_memory_c11_failure_strength(int64_t ordering) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+        return 0;
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+        return 5;
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+    case KAIN_MEMORY_ORDER_RELEASE:
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+    default:
+        return 2;
+    }
+}
+
+static int64_t kain_memory_normalize_failure_order_code(int64_t ordering, int* warned_invalid_shape) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+        return ordering;
+    case KAIN_MEMORY_ORDER_RELEASE:
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+        if (warned_invalid_shape != NULL) {
+            *warned_invalid_shape = 1;
+        }
+        return KAIN_MEMORY_ORDER_ACQUIRE;
+    default:
+        return KAIN_MEMORY_ORDER_SEQ_CST;
+    }
+}
+
+static int64_t kain_memory_clamp_failure_order_code(
+    int64_t success_ordering,
+    int64_t failure_ordering,
+    int* warned_invalid_shape,
+    int* warned_clamp
+) {
+    int64_t normalized_failure =
+        kain_memory_normalize_failure_order_code(failure_ordering, warned_invalid_shape);
+    if (kain_memory_c11_failure_strength(normalized_failure) <=
+        kain_memory_c11_success_strength(success_ordering)) {
+        return normalized_failure;
+    }
+    if (warned_clamp != NULL) {
+        *warned_clamp = 1;
+    }
+    return kain_memory_c11_success_strength(success_ordering) >=
+            kain_memory_c11_failure_strength(KAIN_MEMORY_ORDER_ACQUIRE)
+        ? KAIN_MEMORY_ORDER_ACQUIRE
+        : KAIN_MEMORY_ORDER_RELAXED;
+}
+
 static memory_order kain_memory_load_order_from_code(int64_t ordering) {
     switch (ordering) {
     case KAIN_MEMORY_ORDER_RELAXED:
@@ -384,6 +494,20 @@ int64_t __kain_atomic_load_ordered(const void* ptr, int64_t ordering) {
 
 void __kain_atomic_store_ordered(void* ptr, int64_t value, int64_t ordering) {
     atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    if (ordering == KAIN_MEMORY_ORDER_ACQUIRE || ordering == KAIN_MEMORY_ORDER_ACQ_REL) {
+        char detail[KAIN_DIAG_DETAIL_MAX];
+        snprintf(
+            detail,
+            sizeof(detail),
+            "atomic_store requested %s; plain stores only accept relaxed, release, or seq_cst. The runtime ABI helper will canonicalize this call to release semantics.",
+            kain_memory_order_name_from_code(ordering)
+        );
+        kain_memory_emit_ordering_warning_once(
+            &KAIN_ATOMIC_STORE_INVALID_ORDER_WARNED,
+            "atomic_store received an invalid ordering for a plain store",
+            detail
+        );
+    }
     atomic_store_explicit(cell, (int_least64_t)value, kain_memory_store_order_from_code(ordering));
 }
 
@@ -450,12 +574,51 @@ int __kain_atomic_compare_exchange_ordered(
 ) {
     atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
     int_least64_t expected_value = (int_least64_t)expected;
+    int warned_invalid_shape = 0;
+    int warned_clamp = 0;
+    /* Proof: runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-clamp-prevents-ub.yaml */
+    int64_t normalized_failure_ordering = kain_memory_clamp_failure_order_code(
+        success_ordering,
+        failure_ordering,
+        &warned_invalid_shape,
+        &warned_clamp
+    );
+    if (warned_invalid_shape) {
+        char detail[KAIN_DIAG_DETAIL_MAX];
+        snprintf(
+            detail,
+            sizeof(detail),
+            "atomic_compare_exchange requested failure ordering %s. Failure orderings cannot be release or acq_rel, so the runtime ABI helper canonicalized it to acquire before executing the C11 primitive.",
+            kain_memory_order_name_from_code(failure_ordering)
+        );
+        kain_memory_emit_ordering_warning_once(
+            &KAIN_ATOMIC_COMPARE_EXCHANGE_FAILURE_SHAPE_WARNED,
+            "atomic_compare_exchange failure ordering shape was invalid",
+            detail
+        );
+    }
+    if (warned_clamp) {
+        char detail[KAIN_DIAG_DETAIL_MAX];
+        snprintf(
+            detail,
+            sizeof(detail),
+            "atomic_compare_exchange requested success=%s and failure=%s. The runtime ABI helper clamped the failure ordering to %s so the C11 primitive never sees failure stronger than success.",
+            kain_memory_order_name_from_code(success_ordering),
+            kain_memory_order_name_from_code(failure_ordering),
+            kain_memory_order_name_from_code(normalized_failure_ordering)
+        );
+        kain_memory_emit_ordering_warning_once(
+            &KAIN_ATOMIC_COMPARE_EXCHANGE_FAILURE_CLAMP_WARNED,
+            "atomic_compare_exchange failure ordering was stronger than success",
+            detail
+        );
+    }
     return atomic_compare_exchange_strong_explicit(
                cell,
                &expected_value,
                (int_least64_t)desired,
                kain_memory_order_from_code(success_ordering),
-               kain_memory_failure_order_from_code(failure_ordering)
+               kain_memory_failure_order_from_code(normalized_failure_ordering)
            )
         ? 1
         : 0;

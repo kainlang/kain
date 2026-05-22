@@ -5989,6 +5989,16 @@ impl LlvmGenerator {
         (reg_rc, "i8*".to_string())
     }
 
+    fn string_literal_release_after_use(&self) -> bool {
+        self.entry_preamble_insert_offset.is_none() || self.scopes.is_empty()
+    }
+
+    fn compile_string_literal_value(&mut self, s: &str) -> (String, bool) {
+        let release_after_use = self.string_literal_release_after_use();
+        let (value, _) = self.compile_string_literal(s);
+        (value, release_after_use)
+    }
+
     fn compile_static_c_string_literal(&mut self, s: &str) -> String {
         let global_name = self.intern_string_global_name(s);
 
@@ -7014,7 +7024,7 @@ impl LlvmGenerator {
 
     fn atomic_ordering_code_from_expr(&self, expr: &Expr, span: Span) -> KainResult<i64> {
         match expr {
-            Expr::Int(value, _) => Ok(*value),
+            Expr::Int(value, _) => Self::validate_atomic_ordering_code(*value, span),
             Expr::String(value, _) => match Self::atomic_ordering_code_from_name(value) {
                 Some(code) => Ok(code),
                 None => Err(KainError::codegen(
@@ -7045,6 +7055,84 @@ impl LlvmGenerator {
             "seq_cst" | "seqcst" | "sequentially_consistent" => Some(4),
             _ => None,
         }
+    }
+
+    fn atomic_ordering_name_from_code(code: i64) -> &'static str {
+        match code {
+            0 => "relaxed",
+            1 => "acquire",
+            2 => "release",
+            3 => "acq_rel",
+            4 => "seq_cst",
+            _ => "invalid",
+        }
+    }
+
+    fn validate_atomic_ordering_code(code: i64, span: Span) -> KainResult<i64> {
+        if (0..=4).contains(&code) {
+            Ok(code)
+        } else {
+            Err(KainError::codegen(
+                format!("Atomic ordering code {code} is outside the Kain ABI range 0..=4"),
+                span,
+            ))
+        }
+    }
+
+    fn atomic_ordering_strength(code: i64) -> i64 {
+        match code {
+            0 => 0,
+            1 => 2,
+            2 => 3,
+            3 => 4,
+            _ => 5,
+        }
+    }
+
+    fn validate_atomic_store_ordering(code: i64, span: Span) -> KainResult<i64> {
+        let code = Self::validate_atomic_ordering_code(code, span)?;
+        match code {
+            0 | 2 | 4 => Ok(code),
+            1 | 3 => Err(KainError::codegen(
+                format!(
+                    "atomic_store only supports relaxed, release, or seq_cst orderings; got {}",
+                    Self::atomic_ordering_name_from_code(code)
+                ),
+                span,
+            )),
+            _ => unreachable!(),
+        }
+    }
+
+    fn validate_atomic_compare_exchange_failure_ordering(
+        success_code: i64,
+        failure_code: i64,
+        span: Span,
+    ) -> KainResult<i64> {
+        let success_code = Self::validate_atomic_ordering_code(success_code, span)?;
+        let failure_code = Self::validate_atomic_ordering_code(failure_code, span)?;
+        if matches!(failure_code, 2 | 3) {
+            return Err(KainError::codegen(
+                format!(
+                    "atomic_compare_exchange failure ordering cannot be release or acq_rel; got {}",
+                    Self::atomic_ordering_name_from_code(failure_code)
+                ),
+                span,
+            ));
+        }
+        if Self::atomic_ordering_strength(failure_code)
+            > Self::atomic_ordering_strength(success_code)
+        {
+            return Err(KainError::codegen(
+                format!(
+                    "atomic_compare_exchange failure ordering {} must not be stronger than the success ordering {}",
+                    Self::atomic_ordering_name_from_code(failure_code),
+                    Self::atomic_ordering_name_from_code(success_code)
+                ),
+                span,
+            ));
+        }
+        Ok(failure_code)
     }
 
     fn llvm_atomic_load_ordering(code: i64) -> &'static str {
@@ -7107,8 +7195,11 @@ impl LlvmGenerator {
     ) -> KainResult<(String, String)> {
         let typed_ptr = self.compile_atomic_i64_pointer(pointer)?;
         let value = self.compile_expr_as_i64(value)?;
-        let ordering =
-            Self::llvm_atomic_store_ordering(self.atomic_ordering_code_from_expr(ordering, span)?);
+        let ordering_code = Self::validate_atomic_store_ordering(
+            self.atomic_ordering_code_from_expr(ordering, span)?,
+            span,
+        )?;
+        let ordering = Self::llvm_atomic_store_ordering(ordering_code);
         self.emit(&format!(
             "  store atomic i64 {}, i64* {} {}, align 8",
             value, typed_ptr, ordering
@@ -7148,12 +7239,14 @@ impl LlvmGenerator {
         let typed_ptr = self.compile_atomic_i64_pointer(pointer)?;
         let expected = self.compile_expr_as_i64(expected)?;
         let desired = self.compile_expr_as_i64(desired)?;
-        let success_ordering = Self::llvm_atomic_rmw_ordering(
-            self.atomic_ordering_code_from_expr(success_ordering, span)?,
-        );
-        let failure_ordering = Self::llvm_atomic_failure_ordering(
+        let success_code = self.atomic_ordering_code_from_expr(success_ordering, span)?;
+        let failure_code = Self::validate_atomic_compare_exchange_failure_ordering(
+            success_code,
             self.atomic_ordering_code_from_expr(failure_ordering, span)?,
-        );
+            span,
+        )?;
+        let success_ordering = Self::llvm_atomic_rmw_ordering(success_code);
+        let failure_ordering = Self::llvm_atomic_failure_ordering(failure_code);
         let cmpxchg = self.next_reg();
         self.emit(&format!(
             "  {} = cmpxchg i64* {}, i64 {}, i64 {} {} {}",
@@ -14354,12 +14447,14 @@ impl LlvmGenerator {
 
         let (mut text, mut release_text) = self.compile_expr_as_string_value(&args[0].value)?;
         if intrinsic_name == "println" {
-            let (newline, _) = self.compile_string_literal("\n");
+            let (newline, release_newline) = self.compile_string_literal_value("\n");
             let with_newline = self.concat_strings(&text, &newline);
             if release_text {
                 self.emit_release(&text, "i8*");
             }
-            self.emit_release(&newline, "i8*");
+            if release_newline {
+                self.emit_release(&newline, "i8*");
+            }
             text = with_newline;
             release_text = true;
         }
@@ -14408,22 +14503,29 @@ impl LlvmGenerator {
                     args
                 };
 
-                let (mut acc, _) = self.compile_string_literal("");
+                let (mut acc, mut release_acc) = self.compile_string_literal_value("");
                 for arg in format_args {
                     let (text, release_text) = self.compile_expr_as_string_value(arg)?;
                     let next = self.concat_strings(&acc, &text);
-                    self.emit_release(&acc, "i8*");
+                    if release_acc {
+                        self.emit_release(&acc, "i8*");
+                    }
                     if release_text {
                         self.emit_release(&text, "i8*");
                     }
                     acc = next;
+                    release_acc = true;
                 }
 
                 if name == "__kain_writeln_fmt" {
-                    let (newline, _) = self.compile_string_literal("\n");
+                    let (newline, release_newline) = self.compile_string_literal_value("\n");
                     let next = self.concat_strings(&acc, &newline);
-                    self.emit_release(&acc, "i8*");
-                    self.emit_release(&newline, "i8*");
+                    if release_acc {
+                        self.emit_release(&acc, "i8*");
+                    }
+                    if release_newline {
+                        self.emit_release(&newline, "i8*");
+                    }
                     acc = next;
                 }
 
@@ -14451,15 +14553,18 @@ impl LlvmGenerator {
             Expr::Bool(b, _) => Ok((if *b { "1".into() } else { "0".into() }, "i1".to_string())),
             Expr::String(s, _) => Ok(self.compile_string_literal(s)),
             Expr::FString(parts, _) => {
-                let (mut acc, _) = self.compile_string_literal("");
+                let (mut acc, mut release_acc) = self.compile_string_literal_value("");
                 for part in parts {
                     let (text, release_text) = self.compile_expr_as_string_value(part)?;
                     let next = self.concat_strings(&acc, &text);
-                    self.emit_release(&acc, "i8*");
+                    if release_acc {
+                        self.emit_release(&acc, "i8*");
+                    }
                     if release_text {
                         self.emit_release(&text, "i8*");
                     }
                     acc = next;
+                    release_acc = true;
                 }
                 Ok((acc, "i8*".to_string()))
             }
@@ -16469,6 +16574,20 @@ mod tests {
     use kain_core::parser::Parser;
     use kain_core::types;
 
+    fn generate_llvm_or_error(source: &str) -> Result<String, String> {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .map_err(|err| err.to_string())?;
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-test>")
+            .parse()
+            .map_err(|err| err.to_string())?;
+        let typed = types::check(&ast, &mapper, "<llvm-test>").map_err(|err| err.to_string())?;
+        generate(&typed)
+            .map(|bytes| String::from_utf8(bytes).expect("utf8 llvm output"))
+            .map_err(|err| err.to_string())
+    }
+
     #[test]
     fn remaps_rounding_builtins_to_runtime_wrappers() {
         assert_eq!(
@@ -16597,5 +16716,45 @@ fn main() -> Int:
         let window = &llvm[window_start..call_index];
 
         assert!(window.contains("call void @rc_retain(i8*"));
+    }
+
+    #[test]
+    fn rejects_invalid_atomic_store_ordering_for_llvm() {
+        let source = r#"
+fn demo(slot: ptr<Int>) -> Int with Unsafe:
+    atomic_store(slot, 1, "Int", "acquire")
+    return 0
+"#;
+
+        let err =
+            generate_llvm_or_error(source).expect_err("invalid atomic_store ordering should fail");
+        assert!(err.contains("atomic_store only supports relaxed, release, or seq_cst orderings"));
+        assert!(err.contains("acquire"));
+    }
+
+    #[test]
+    fn rejects_invalid_compare_exchange_failure_shape_for_llvm() {
+        let source = r#"
+fn demo(slot: ptr<Int>) -> Bool with Unsafe:
+    return atomic_compare_exchange(slot, 0, 1, "Int", "seq_cst", "release")
+"#;
+
+        let err = generate_llvm_or_error(source).expect_err("release failure ordering should fail");
+        assert!(err.contains("failure ordering cannot be release or acq_rel"));
+        assert!(err.contains("release"));
+    }
+
+    #[test]
+    fn rejects_compare_exchange_failure_ordering_stronger_than_success_for_llvm() {
+        let source = r#"
+fn demo(slot: ptr<Int>) -> Bool with Unsafe:
+    return atomic_compare_exchange(slot, 0, 1, "Int", "relaxed", "seq_cst")
+"#;
+
+        let err = generate_llvm_or_error(source)
+            .expect_err("failure ordering stronger than success should fail");
+        assert!(err.contains(
+            "failure ordering seq_cst must not be stronger than the success ordering relaxed"
+        ));
     }
 }

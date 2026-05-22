@@ -81,3 +81,45 @@
 - Minimal repro: `cargo run -q -p cli --bin kain -- blades build . --json --clean` in `D:\\Kain-Lang\\smoketest`, or any HLSL-target fragment shader that calls `fbm2(uv, octaves)`.
 - Evidence: `smoketest:gpu-hlsl` failed in `smoketest/.kain/reports/build/session-1779448114057-30408.json` with `Unsupported function call in shader: 'fbm2'`.
 - Suggested direction: Teach the HLSL backend to lower `fbm2` (and likely adjacent std math shader helpers), or emit an earlier target-specific diagnostic during `check` so authors know which shader helpers are unavailable before the GPU artifact task runs.
+
+---
+
+## 2026-05-22 - runtime / smoketest certification
+
+### Native RC release-underflow diagnostics still leak through successful smoketest telemetry lanes
+- Categories: correctness, developer-experience, runtime
+- Status: Active
+- Surface: runtime
+- Symptom: `album-attrition`, `album-benchmark`, and `telemetry-full` all succeeded, but each task message still printed repeated native runtime `[MEMORY] ERROR: RC release underflow` diagnostics with code `9002`.
+- Workflow impact: The C ABI album, telemetry flow, and full smoketest DAG now certify successfully, but the runtime still emits memory-failure noise on the most important proving-ground path. That makes it harder to trust a green certification run at a glance, because stderr looks like teardown corruption even when exit status is `0`.
+- Minimal repro: `D:\\Kain-Lang\\target\\codex-smoketest-cabi-driverfix\\debug\\kain.exe blades build smoketest --json`
+- Evidence: `smoketest/.kain/reports/build/session-1779457854992-28372.json` shows `smoketest:album-attrition`, `smoketest:album-benchmark`, and `smoketest:telemetry-full` succeeding while their task messages include repeated `RC release underflow` diagnostics; the embedded run reports include `session-1779458535954-22196.json`, `session-1779458747313-7452.json`, and `session-1779458958960-39684.json`.
+- Suggested direction: Root-cause the surviving signed ref-count teardown path and either eliminate the underflow or promote it into a fail-fast runtime/attrition result so certification cannot look clean while the native substrate still reports RC corruption.
+
+---
+
+## 2026-05-22 - run reporting / telemetry workflow
+
+### `kain run` reports success even when an interpret-target `main() -> Int` returns nonzero
+- Categories: correctness, developer-experience, tooling
+- Status: Active
+- Surface: tooling
+- Symptom: the outer run report records `status: "succeeded"` and `exit_code: 0` even when the Kain program's numeric output is a nonzero failure code such as `3001`.
+- Workflow impact: The smoketest telemetry runner can look green at the `kain run` / build-task layer while `telemetry/full/summary.json` says the album failed, which makes certification triage materially harder.
+- Minimal repro: `cargo run -q -p cli --bin kain -- run smoketest/telemetry/run_smoketest_mode.kn --target interpret -- --mode full --executable D:/Kain-Lang/smoketest/smoketest.exe --output-dir D:/Kain-Lang/smoketest/telemetry/full` when the inner executable returns a nonzero album failure code.
+- Evidence: `smoketest/.kain/reports/run/session-1779458958960-39684.json` records `status: "succeeded"`, `exit_code: 0`, and `output: "3001"` for the failed full-mode run; the corresponding `smoketest/telemetry/full/summary.json` from that run reported `failure_code: 3001` and `failure_track: "interop.c_abi_album"`.
+- Suggested direction: Treat a nonzero numeric `main() -> Int` result as a failed run status for interpret-target `kain run`, or add a separate explicit failure field that build/telemetry tasks honor instead of only the host process exit code.
+
+---
+
+## 2026-05-22 - project helper / native executable
+
+### `native_executable` can fail under the default Bazel-resolved `kain.exe` even when the same project compiles cleanly with a working CLI binary
+- Categories: correctness, developer-experience, build
+- Status: Active
+- Surface: build
+- Symptom: the `compile_kain_project_to_root.ps1` helper can fail with `clang: error: no such file or directory: 'D:\\Kain-Lang\\smoketest\\smoketest.ll'` during the root-executable link step, despite the compile step having just printed `Compiled to: D:\\Kain-Lang\\smoketest\\smoketest.ll ...`.
+- Workflow impact: `smoketest:root-executable` can fail inside `kain blades build smoketest --json` unless the run is forced to use a known-good CLI binary through `KAIN_BIN`, which undermines confidence in the default project authority path.
+- Minimal repro: `kain blades build smoketest --json` from `D:\\Kain-Lang` with the default `native_executable` helper resolution path; compare with rerunning the same build while setting `KAIN_BIN=D:\\Kain-Lang\\target\\codex-smoketest-cabi-driverfix\\debug\\kain.exe`.
+- Evidence: `smoketest/.kain/reports/build/session-1779459491862-32992.json` failed at `smoketest:root-executable`, and `smoketest/.kain/out/llvm/x86_64-windows/dev/x86_64-windows/smoketest/smoketest-root-executable/kain-evidence.json` captured the missing-`.ll` clang error. The same DAG later succeeded as `smoketest/.kain/reports/build/session-1779460677572-36848.json` when `KAIN_BIN` pointed at the cargo-built CLI.
+- Suggested direction: Audit the Bazel-resolved CLI / helper-script path for raw-native output staging so the emitted `.ll` survives through the clang link step, or let `native_executable` prefer an explicitly resolved working `kain.exe` without requiring a manual env override.

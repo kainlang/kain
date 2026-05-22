@@ -308,8 +308,16 @@ static int kain_async_index_insert(
     uint32_t slot
 ) {
     uint32_t start_index = kain_async_index_start_slot(id, index_mask);
+    /* Z3-PROVED: encoded_slot != 0 for all valid slots [0, MAX_TASKS-1].
+     * sentinel=0 collision is impossible since slot+1 in [1,256] can never
+     * reach 0 via u32 addition when slot < KAIN_ASYNC_MAX_TASKS=256.
+     * Proof: z3/proofs/async-encoded-slot-no-sentinel-collision.yaml (unsat) */
     uint32_t encoded_slot = slot + 1u;
     uint32_t probe;
+    /* Z3-PROVED: (start_index + probe) & index_mask always in [0, capacity-1]
+     * for any u32 start/probe when capacity is a power-of-two (enforced by
+     * compile-time #if at async.c:40-44). Bitwise AND with mask cannot exceed mask.
+     * Proof: z3/proofs/async-index-probe-candidate-always-in-bounds.yaml (unsat) */
     for (probe = 0u; probe < index_capacity; ++probe) {
         uint32_t candidate_index = (start_index + probe) & index_mask;
         uint32_t candidate = index_table[candidate_index];
@@ -329,6 +337,9 @@ static int kain_async_find_free_task_slot(uint32_t* out_slot) {
     for (word_index = 0u; word_index < KAIN_ASYNC_TASK_WORD_COUNT; ++word_index) {
         uint64_t free_mask = ~g_async_task_occupancy_words[word_index];
         if (free_mask != 0u) {
+        /* Z3-PROVED: word_index * 64 + bit_index in [0, MAX_TASKS-1] = [0, 255]
+         * for word_index in [0,3] and bit_index in [0,63]. Cannot OOB the task table.
+         * Proof: z3/proofs/async-free-slot-index-within-max-tasks.yaml (unsat) */
             *out_slot = word_index * KAIN_ASYNC_SLOT_WORD_BITS + (uint32_t)kain_async_low_bit_index_u64(
                 kain_async_isolate_low_bit_u64(free_mask)
             );

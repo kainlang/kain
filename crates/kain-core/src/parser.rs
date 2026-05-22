@@ -5562,22 +5562,10 @@ impl<'a> Parser<'a> {
             .get(1)
             .copied()
             .unwrap_or_else(|| Self::default_compare_exchange_failure_ordering(success_ordering));
-        (
-            ty,
-            success_ordering,
-            Self::sanitize_compare_exchange_failure_ordering(failure_ordering),
-        )
+        (ty, success_ordering, failure_ordering)
     }
 
     fn default_compare_exchange_failure_ordering(ordering: AtomicOrdering) -> AtomicOrdering {
-        match ordering {
-            AtomicOrdering::Release => AtomicOrdering::Relaxed,
-            AtomicOrdering::AcqRel => AtomicOrdering::Acquire,
-            other => other,
-        }
-    }
-
-    fn sanitize_compare_exchange_failure_ordering(ordering: AtomicOrdering) -> AtomicOrdering {
         match ordering {
             AtomicOrdering::Release => AtomicOrdering::Relaxed,
             AtomicOrdering::AcqRel => AtomicOrdering::Acquire,
@@ -9977,5 +9965,57 @@ mod tests {
         };
         assert!(matches!(fanout_start.as_ref(), Expr::Int(0, _)));
         assert!(matches!(fanout_end.as_ref(), Expr::Int(7, _)));
+    }
+
+    #[test]
+    fn compare_exchange_preserves_explicit_failure_ordering_for_later_validation() {
+        let program = parse_program(
+            "fn demo(slot: ptr<Int>) -> Bool with Unsafe:\n    return atomic_compare_exchange(slot, 0, 1, \"Int\", \"release\", \"release\")\n",
+        )
+        .expect("program should parse compare_exchange ordering literals");
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+        let Stmt::Return(
+            Some(Expr::AtomicCompareExchange {
+                success_ordering,
+                failure_ordering,
+                ..
+            }),
+            _,
+        ) = &function.body.stmts[0]
+        else {
+            panic!("expected compare_exchange return");
+        };
+
+        assert_eq!(*success_ordering, AtomicOrdering::Release);
+        assert_eq!(*failure_ordering, AtomicOrdering::Release);
+    }
+
+    #[test]
+    fn compare_exchange_default_failure_ordering_still_tracks_success_ordering() {
+        let program = parse_program(
+            "fn demo(slot: ptr<Int>) -> Bool with Unsafe:\n    return atomic_compare_exchange(slot, 0, 1, \"Int\", \"release\")\n",
+        )
+        .expect("program should parse compare_exchange default failure ordering");
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+        let Stmt::Return(
+            Some(Expr::AtomicCompareExchange {
+                success_ordering,
+                failure_ordering,
+                ..
+            }),
+            _,
+        ) = &function.body.stmts[0]
+        else {
+            panic!("expected compare_exchange return");
+        };
+
+        assert_eq!(*success_ordering, AtomicOrdering::Release);
+        assert_eq!(*failure_ordering, AtomicOrdering::Relaxed);
     }
 }

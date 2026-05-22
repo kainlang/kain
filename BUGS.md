@@ -5,16 +5,16 @@
 
 - Categories: correctness, soundness, UB
 - Severity: High
-- Status: Solver-Proved
+- Status: Fixed in tree (2026-05-22)
 - Surface: runtime
-- Trigger: Kain user calls `__kain_atomic_compare_exchange_ordered` with `success_ordering=KAIN_MEMORY_ORDER_RELAXED` and any failure ordering that maps to a C11 strength greater than relaxed (e.g. `KAIN_MEMORY_ORDER_SEQ_CST`).
-- Symptom: Silent C11 undefined behavior. `atomic_compare_exchange_strong_explicit` is invoked with `failure_order > success_order` in C11 enum strength, violating C11 7.17.7.4. The behavior of the program is undefined; compilers may eliminate the surrounding code or produce incorrect machine code.
-- Why this is a bug: Z3 solver found witness `kain_success=0` (RELAXED→c11_relaxed, strength 0) and `kain_failure=4` (SEQ_CST→c11_seq_cst, strength 5). `5 > 0` violates C11 7.17.7.4. The implementation calls `atomic_compare_exchange_strong_explicit` directly with the two mapped orderings without validating `failure_order ≤ success_order`. No clamping, no diagnostic.
-- Minimal repro: `__kain_atomic_compare_exchange_ordered(ptr, expected, desired, KAIN_MEMORY_ORDER_RELAXED, KAIN_MEMORY_ORDER_SEQ_CST)`
-- Evidence: Z3 `sat` model — `kain_success=0, kain_failure=4, violation=true, c11_failure_strength=5, c11_success_strength=0, delta=5`
-- Z3 angle: The contract `∀(s,f)∈[0..4]²: failure_c11(f) ≤ success_c11(s)` is **sat** (violated). Witness found in < 30ms.
-- Z3 Proof: [native-memory-cas-failure-order-stronger-than-success-ub.yaml](file:///d:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-stronger-than-success-ub.yaml)
-- Suggested follow-up: In `__kain_atomic_compare_exchange_ordered` (memory.c:444-462), clamp `failure_ordering` before the `kain_memory_failure_order_from_code` call so failure_c11 never exceeds success_c11. Add a `KAIN_ASSERT` in debug builds that fires when the ordering constraint is violated before UB occurs.
+- Trigger: Historical runtime ABI calls or old lowering paths could request a compare_exchange failure ordering whose C11 strength exceeded the chosen success ordering.
+- Symptom: Silent C11 undefined behavior. `atomic_compare_exchange_strong_explicit` could be invoked with `failure_order > success_order`, violating C11 7.17.7.4.
+- Why this was a bug: The old helper forwarded success and failure orderings without validating `failure_order <= success_order`, so bad pairs were able to reach the C11 primitive directly.
+- Minimal repro: Historical bug only. Example shape: `__kain_atomic_compare_exchange_ordered(ptr, expected, desired, KAIN_MEMORY_ORDER_RELAXED, KAIN_MEMORY_ORDER_SEQ_CST)`.
+- Evidence: Historical Z3 counterexample admitted a relaxed success ordering paired with a stronger failure ordering, which violates the compare_exchange contract.
+- Historical counterexample: [native-memory-cas-failure-order-stronger-than-success-ub.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-stronger-than-success-ub.yaml)
+- Fix landed: The runtime now normalizes invalid failure-order shapes, clamps any stronger-than-success failure ordering before the C11 primitive executes, and emits warning-once diagnostics when it had to repair the request. LLVM lowering now rejects invalid failure orderings up front, and the parser preserves explicit failure orderings so the lowering validation is not silently masked.
+- Regression evidence: [native-memory-cas-failure-order-clamp-prevents-ub.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-clamp-prevents-ub.yaml), [memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml), `cargo test -p kain-core compare_exchange_ -- --nocapture`, `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
 
 ---
 
@@ -22,16 +22,16 @@
 
 - Categories: developer-experience, correctness
 - Severity: Medium
-- Status: Solver-Proved
+- Status: Fixed in tree (2026-05-22)
 - Surface: runtime
-- Trigger: Kain user passes `KAIN_MEMORY_ORDER_ACQUIRE` or `KAIN_MEMORY_ORDER_ACQ_REL` to `__kain_atomic_store_ordered`.
-- Symptom: The store silently uses `memory_order_release` instead of the requested ordering. No compile-time or runtime diagnostic is emitted. ACQ_REL on a store loses the acquire half entirely with no warning.
-- Why this is a bug: Z3 proof: `store_mapping(ACQUIRE=1) → RELEASE=2`. The user-specified Kain ordering constant (1) differs from the C11 ordering actually applied (2) with no diagnostic. For ACQ_REL, the acquire half of the intended bidirectional fence is silently dropped.
-- Minimal repro: `__kain_atomic_store_ordered(ptr, value, KAIN_MEMORY_ORDER_ACQUIRE)` — the applied C11 ordering is `memory_order_release`, not `memory_order_acquire`.
-- Evidence: Z3 `sat` model — `user_ordering=1 (ACQUIRE), c11_ordering=2 (RELEASE), delta=1`
-- Z3 angle: `∃user_ordering: store_mapping(user_ordering) ≠ user_ordering` is **sat**. Witness: ACQUIRE→RELEASE.
-- Z3 Proof: [native-memory-store-order-acquire-silently-downgrades-to-release.yaml](file:///d:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-store-order-acquire-silently-downgrades-to-release.yaml)
-- Suggested follow-up: Add `KAIN_ASSERT` or `KAIN_DIAGNOSTICS_WARN` in `kain_memory_store_order_from_code` (memory.c:352) for ACQUIRE/ACQ_REL inputs. Consider making the Kain type system reject invalid store orderings at the language level so the mapping function never receives a semantically-invalid code.
+- Trigger: Historical callers passed `KAIN_MEMORY_ORDER_ACQUIRE` or `KAIN_MEMORY_ORDER_ACQ_REL` to `__kain_atomic_store_ordered`, or lowering handed those invalid orderings to the plain-store ABI path.
+- Symptom: The store silently used release semantics instead of surfacing a diagnostic. ACQ_REL on a store lost its acquire half with no warning.
+- Why this was a bug: The old runtime mapping accepted invalid plain-store orderings and remapped them to release without any compile-time or runtime signal.
+- Minimal repro: Historical bug only. Example shape: `__kain_atomic_store_ordered(ptr, value, KAIN_MEMORY_ORDER_ACQUIRE)`.
+- Evidence: Historical Z3 counterexample admitted the silent `ACQUIRE -> RELEASE` remap.
+- Historical counterexample: [native-memory-store-order-acquire-silently-downgrades-to-release.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-store-order-acquire-silently-downgrades-to-release.yaml)
+- Fix landed: The runtime now emits a warning once before canonicalizing invalid plain-store orderings to release semantics, and LLVM lowering rejects acquire/acq_rel orderings for plain stores instead of silently remapping them.
+- Regression evidence: [memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml), `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
 
 ---
 
@@ -41,16 +41,16 @@
 
 - Categories: ordering, soundness
 - Severity: Low
-- Status: Solver-Proved
+- Status: Fixed in tree (2026-05-22)
 - Surface: ownership
-- Trigger: Future code adds a lock-free fast-path reader to the ownership registry that reads `occupied` and `state` fields without holding `KAIN_OWNERSHIP_REGISTRY_LOCK`.
-- Symptom: The lock-free reader could observe `occupied=1, state=DECAYED` as a stable-looking state since `kain_ownership_clear_slot_unlocked` writes `state=DECAYED` (line 240) before `occupied=0` (line 242). Under the current single-lock model this transient is never visible externally. If a lock-free reader is added, the ordering creates a semantic hole.
-- Why this is a bug (potential): Z3 proves `occupied=1, state=DECAYED` is **sat** (geometrically reachable as a transient). A lock-free reader between lines 240–242 would see a logically inconsistent region (alive but decayed). The fix: write `occupied=0` BEFORE `state=DECAYED`.
-- Minimal repro: Not currently triggerable without a lock-free reader — this is a documented future-risk proof.
-- Evidence: Z3 `sat` with model `occupied=1, state=5 (DECAYED)` — the intermediate is real.
-- Z3 angle: The transient occupancy×state combination is **sat** (exists). Safe ONLY because the lock makes it invisible.
-- Z3 Proof: [native-ownership-clear-slot-occupied-decayed-write-order-assumption.yaml](file:///d:/Kain-Lang/runtime/native/src/core/z3/proofs/native-ownership-clear-slot-occupied-decayed-write-order-assumption.yaml)
-- Suggested follow-up: Add a comment above `kain_ownership_clear_slot_unlocked` documenting the write-ordering invariant and the lock dependency. If any lock-free fast path is ever added, reorder writes: `occupied=0` first, then `state=DECAYED`, then clear the occupancy bitmap bit.
+- Trigger: Historical `kain_ownership_clear_slot_unlocked` published `state=DECAYED` before clearing `occupied`.
+- Symptom: A future or accidental lock-free reader could observe `occupied=1` and `state=DECAYED` together and misread the slot as still alive while already terminal.
+- Why this was a bug: The historical write order admitted the transient `occupied=1, state=DECAYED`, which was safe only because the current registry stayed under one lock.
+- Minimal repro: Historical write-order hazard only.
+- Evidence: Historical Z3 counterexample admitted `occupied=1, state=DECAYED`.
+- Historical counterexample: [native-ownership-clear-slot-occupied-decayed-write-order-assumption.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-ownership-clear-slot-occupied-decayed-write-order-assumption.yaml)
+- Fix landed: `kain_ownership_clear_slot_unlocked` now clears `occupied` before publishing `DECAYED` and leaves a proof breadcrumb in the helper, so the transient is gone even if a future agent experiments with a lock-free read path.
+- Regression evidence: [native-ownership-clear-slot-clears-occupied-before-decayed.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-ownership-clear-slot-clears-occupied-before-decayed.yaml), `bazel test //runtime:native_test_ownership_memory`
 
 ## 2026-05-22 - runtime/ownership
 ### Stale Pointer Aliasing & Registry Capacity Leak in Decay

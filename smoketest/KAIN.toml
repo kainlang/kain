@@ -53,3 +53,11 @@ header = "native/smoketest_interop_bridge.h"
 sources = ["native/smoketest_interop_bridge.c"]
 include_paths = ["native"]
 defines = ["_CRT_SECURE_NO_WARNINGS"]
+
+[[c_ffi.libraries]]
+name = "smoketest_c_abi_album"
+tier = "inline"
+header = "native/smoketest_c_abi_album.h"
+sources = ["native/smoketest_c_abi_album.c"]
+include_paths = ["native"]
+defines = ["_CRT_SECURE_NO_WARNINGS"]

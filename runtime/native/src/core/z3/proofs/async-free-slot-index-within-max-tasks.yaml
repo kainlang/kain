@@ -1,0 +1,44 @@
+name: async-free-slot-index-within-max-tasks
+surface: runtime
+subsystem: async
+source_file: runtime/native/src/core/async.c
+source_function: kain_async_find_free_task_slot
+source_lines: "329-338"
+
+description: |
+  async.c:332-334:
+    *out_slot = word_index * KAIN_ASYNC_SLOT_WORD_BITS +
+                kain_async_low_bit_index_u64(kain_async_isolate_low_bit_u64(free_mask));
+  
+  The slot index is computed as word_index * 64 + bit_index where:
+    - word_index is in [0, KAIN_ASYNC_TASK_WORD_COUNT-1] = [0, 3]
+    - bit_index from low_bit_index_u64 is in [0, 63]
+  
+  Maximum value: 3 * 64 + 63 = 255 = KAIN_ASYNC_MAX_TASKS - 1.
+  The result never exceeds the task table bounds.
+
+claim: |
+  For all word_index in [0, 3] and bit_index in [0, 63]:
+  word_index * 64 + bit_index < 256 (= KAIN_ASYNC_MAX_TASKS)
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_LIA)
+  (declare-const word_index Int)
+  (declare-const bit_index Int)
+  (assert (>= word_index 0))
+  (assert (<= word_index 3))
+  (assert (>= bit_index 0))
+  (assert (<= bit_index 63))
+  (assert (>= (+ (* word_index 64) bit_index) 256))
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, bounds, arithmetic]
+status: Formally-Verified-Safe
+note: |
+  Symmetric proof applies to kain_async_find_free_timer_slot with
+  KAIN_ASYNC_MAX_TIMERS = 256 and KAIN_ASYNC_TIMER_WORD_COUNT = 4.
+  If MAX_TASKS or MAX_TIMERS change, re-run this proof with updated bounds.

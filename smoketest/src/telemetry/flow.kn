@@ -6,6 +6,7 @@ use std::fs
 use std::intent
 use std::time
 use actor::SmokeRelay
+use c_abi_album::smoke_c_abi_album_score
 use c_bridge::smoke_c_bridge_score
 use shatter::SmokeShard
 use shatter::smoke_shard_score
@@ -170,8 +171,9 @@ pub fn smoke_novel_flow_score(rounds: Int) -> Int with Unsafe:
     if runtime_converge_telemetry_count() < 1:
         return -3
 
-    let bridge_tail = smoke_c_bridge_score(checksum + observed, selected_lane + queue_score + 1)
-    return (checksum + observed + bridge_tail + queue_score + selected_lane + len(readback) + actor_scheduler_total_enqueued()) % SMOKE_FLOW_MODULUS
+    let album_score = smoke_c_abi_album_score(checksum + observed + queue_score, (rounds % 7) + 5)
+    let bridge_tail = smoke_c_bridge_score(checksum + observed + album_score, selected_lane + queue_score + 1)
+    return (checksum + observed + album_score + bridge_tail + queue_score + selected_lane + len(readback) + actor_scheduler_total_enqueued()) % SMOKE_FLOW_MODULUS
 
 pub fn smoke_telemetry_flow_lane(mode: String) -> Int with Unsafe:
     let score = smoke_novel_flow_score(48)
@@ -226,7 +228,7 @@ pub fn smoke_run_benchmark_mode() -> Int with Unsafe:
         let track_id = 5000 + pass_index
         let track_checksum = smoke_telemetry_track_checksum(
             track_id,
-            31,
+            32,
             status,
             elapsed_ms,
             track_name
@@ -327,7 +329,7 @@ pub fn smoke_run_attrition_mode() -> Int with Unsafe:
         let track_id = 6000 + iteration
         let track_checksum = smoke_telemetry_track_checksum(
             track_id,
-            31,
+            32,
             status,
             elapsed_ms,
             track_name

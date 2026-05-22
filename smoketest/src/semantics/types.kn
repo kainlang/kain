@@ -33,6 +33,7 @@ enum SmokeLane:
     Diagnostics
     Platform
     CBridge
+    CAbiAlbum
     HeadlessHost
     TelemetryFlow
 
@@ -86,8 +87,9 @@ pub fn smoke_lane_rank(lane: SmokeLane) -> Int:
         SmokeLane::Diagnostics => 27
         SmokeLane::Platform => 28
         SmokeLane::CBridge => 29
-        SmokeLane::HeadlessHost => 30
-        SmokeLane::TelemetryFlow => 31
+        SmokeLane::CAbiAlbum => 30
+        SmokeLane::HeadlessHost => 31
+        SmokeLane::TelemetryFlow => 32
         _ => 0
 
 pub fn smoke_lane_name(lane: SmokeLane) -> String:
@@ -121,6 +123,7 @@ pub fn smoke_lane_name(lane: SmokeLane) -> String:
         SmokeLane::Diagnostics => "diagnostics"
         SmokeLane::Platform => "platform"
         SmokeLane::CBridge => "c_bridge"
+        SmokeLane::CAbiAlbum => "c_abi_album"
         SmokeLane::HeadlessHost => "headless_host"
         SmokeLane::TelemetryFlow => "telemetry_flow"
         _ => "unknown"
@@ -143,10 +146,12 @@ pub fn smoke_types_lane() -> Int:
         return 3
     if smoke_lane_rank(SmokeLane::CBridge) != 29:
         return 4
+    if smoke_lane_rank(SmokeLane::CAbiAlbum) != 30:
+        return 5
     let checksum: SmokeChecksum = (packet.id + packet.payload) % SMOKE_MODULUS
     if checksum != 43:
-        return 5
+        return 6
     let wc = smoke_weighted_checksum(packet)
     if wc <= 0:
-        return 6
+        return 7
     return 0

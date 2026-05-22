@@ -1,78 +1,33 @@
-name: native-ownership-occupied-decayed-transient-state-observable-under-partial-clear
-surface: runtime
-subsystem: ownership
-source_file: runtime/native/src/core/ownership.c
-source_function: kain_ownership_clear_slot_unlocked
-source_lines: "226-244"
+version: 1
+id: kain.native.core.proofs.native_ownership_clear_slot_occupied_decayed_write_order_assumption
+kind: check_smt2
+description: Historical counterexample for the old slot-clear write order. Before
+  the proactive reorder landed, the helper could temporarily publish
+  OCCUPIED=1 and STATE=DECAYED at the same time, which was safe only because the
+  registry stayed under a single lock.
+tags:
+- native-runtime
+- ownership
+- ordering
+- decay
+- historical-counterexample
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\ownership.c
+  symbol: kain_ownership_clear_slot_unlocked
+  start_line: 226
+  reason: Historical bug model for the pre-fix write order that published
+    DECAYED before clearing occupied
+case:
+  smt2: |
+    (set-logic QF_LIA)
 
-description: |
-  kain_ownership_clear_slot_unlocked writes to the region struct in this order:
-    1. Calls kain_ownership_index_remove_unlocked (writes TOMBSTONE to index)
-    2. region->ptr = NULL
-    3. region->size = 0
-    4. region->kind = 0
-    5. region->state = KAIN_OWNERSHIP_STATE_DECAYED
-    6. region->observers = 0
-    7. region->occupied = 0                          <-- LAST
-    8. Clears occupancy word bit
+    (define-fun DECAYED () Int 5)
+    (declare-const occupied Int)
+    (declare-const state Int)
 
-  Between writes 5 (state=DECAYED) and 7 (occupied=0), the region is in a
-  transient state where state==DECAYED but occupied==1. Any reader that checks
-  occupied before checking state will see an "occupied DECAYED" region.
+    (assert (= occupied 1))
+    (assert (= state DECAYED))
 
-  This function is called under the ownership registry lock. As long as the
-  lock is held throughout any caller that inspects this region's state, the
-  transient is never visible externally. However:
-
-  1. kain_ownership_state_unlocked (line 858) reads state while under lock --
-     SAFE for current callers.
-  2. The occupancy bitmap words (KAIN_OWNERSHIP_OCCUPANCY_WORDS) are cleared
-     AFTER region->occupied = 0. A theoretical reader using the bitmap fast-path
-     (kain_ownership_find_free_slot) could miss the just-freed slot if it reads
-     the bitmap between the region struct write and the bitmap clear. BUT
-     kain_ownership_find_free_slot is only called from kain_ownership_upsert_unlocked
-     which requires the lock. So the bitmap clear ordering is safe under lock.
-
-  The transient IS safe in the current single-lock model. This proof documents
-  the assumption and the ordering contract for future agents who might add
-  lock-free fast paths.
-
-claim: |
-  The Z3 state machine model shows that an OCCUPIED=1 AND STATE=DECAYED region
-  is reachable as a transient intermediate state during clear_slot (sat), but
-  is NOT reachable as a stable post-operation state (unsat for that claim).
-
-expected: sat  # transient is real (acknowledged, not a bug)
-
-smt2: |
-  (set-logic ALL)
-  (define-fun DECAYED () Int 5)
-  (declare-const occupied Int)
-  (declare-const state Int)
-  ; Transient: occupied=1, state=DECAYED (mid-clear_slot, before occupied=0 write)
-  (assert (= occupied 1))
-  (assert (= state DECAYED))
-  (check-sat)
-  ; sat = transient state is geometrically possible (not logically impossible)
-  ; This is intentional: documents the write-ordering assumption
-
-result: sat
-witness:
-  occupied: 1
-  state: 5  # DECAYED
-  note: transient intermediate during clear_slot -- safe under lock
-
-severity: Low
-categories: [correctness, ordering, soundness]
-status: Solver-Proved
-note: |
-  This is NOT a bug in the current single-lock implementation. It is a proof
-  that the implementation has an implicit write-ordering assumption:
-  kain_ownership_clear_slot_unlocked must be called under the registry lock,
-  AND no future lock-free reader may inspect occupied/state without the lock.
-  If a lock-free fast-path reader is ever added, this ordering becomes a real bug.
-suggested_follow_up: |
-  If any future agent adds a lock-free read path to the ownership registry,
-  re-examine kain_ownership_clear_slot_unlocked write ordering. Consider
-  writing occupied=0 BEFORE state=DECAYED so the region appears free before
-  it appears decayed (prevents OCCUPIED=1 AND DECAYED=true window).
+    (check-sat)
+  include_model: true
+  include_stats: false
