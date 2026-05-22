@@ -4,6 +4,7 @@ use std::text
 use std::graphics
 use std::reload
 use std::ui
+use c::kaintana_desktop_bridge
 use desktop_adapter::kaintana_desktop_scene_begin
 use types::KAINTANA_ERR_ARENA_EXHAUSTED
 use types::KAINTANA_ERR_NODE_CAPACITY

@@ -553,6 +553,20 @@ impl CppGen {
                     self.write_line("}");
                 }
             }
+            Stmt::Fanout {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
+                if let Pattern::Binding { name, .. } = binding {
+                    self.write_line(&format!("for (auto {} : {}) {{", name, self.gen_expr(iter)));
+                    self.push_indent();
+                    self.gen_block(body);
+                    self.pop_indent();
+                    self.write_line("}");
+                }
+            }
 
             Stmt::While {
                 condition, body, ..

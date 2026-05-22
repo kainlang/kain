@@ -19,6 +19,6 @@ shader compute BuildKnSmokeStep(id: UVec3) -> Vec4:
 
     let index = id.x
     let input_value = src[index]
-    let pulse = input_value * 0.75 + input_value * input_value * 0.125
-    dst[index] = pulse
-    return vec4(pulse, pulse * 0.5, 1.0 - pulse * 0.25, 1.0)
+    let wave = input_value * 0.75 + input_value * input_value * 0.125
+    dst[index] = wave
+    return vec4(wave, wave * 0.5, 1.0 - wave * 0.25, 1.0)

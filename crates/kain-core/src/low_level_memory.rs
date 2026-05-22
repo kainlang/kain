@@ -899,6 +899,19 @@ fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> V
                 span: *span,
             });
         }
+        Stmt::Fanout {
+            binding,
+            iter,
+            body,
+            span,
+        } => {
+            out.push(Stmt::Fanout {
+                binding: binding.clone(),
+                iter: lower_expr_memory_with_ctx(iter, ctx),
+                body: lower_block_memory_with_ctx(body, ctx),
+                span: *span,
+            });
+        }
         Stmt::While {
             condition,
             body,
@@ -975,6 +988,70 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             ],
             span,
         ),
+        Expr::AtomicLoad {
+            pointer, load_ty, ..
+        } => {
+            let call = helper_call(
+                "__kain_atomic_load_seqcst",
+                vec![lower_expr_memory_with_ctx(pointer, ctx)],
+                span,
+            );
+            if let Some(ty) = load_ty.as_ref() {
+                Expr::Cast {
+                    value: Box::new(call),
+                    target: lower_type_memory(ty),
+                    span,
+                }
+            } else {
+                call
+            }
+        }
+        Expr::AtomicStore { pointer, value, .. } => helper_call(
+            "__kain_atomic_store_seqcst",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+            ],
+            span,
+        ),
+        Expr::AtomicAdd { pointer, value, .. } => helper_call(
+            "__kain_atomic_add_seqcst",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+            ],
+            span,
+        ),
+        Expr::AtomicSub { pointer, value, .. } => helper_call(
+            "__kain_atomic_sub_seqcst",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+            ],
+            span,
+        ),
+        Expr::AtomicExchange { pointer, value, .. } => helper_call(
+            "__kain_atomic_exchange_seqcst",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+            ],
+            span,
+        ),
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => helper_call(
+            "__kain_atomic_compare_exchange_seqcst",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(expected, ctx),
+                lower_expr_memory_with_ctx(desired, ctx),
+            ],
+            span,
+        ),
         Expr::SizeOfType { target, .. } => Expr::Int(
             size_literal_i64_or_panic(
                 estimate_type_size(target, ctx.layouts),
@@ -1028,6 +1105,11 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
         },
         Expr::Decay { target, span } => Expr::Decay {
             target: Box::new(lower_expr_memory_with_ctx(target, ctx)),
+            span: *span,
+        },
+        Expr::Share { target, body, span } => Expr::Share {
+            target: Box::new(lower_expr_memory_with_ctx(target, ctx)),
+            body: Box::new(lower_expr_memory_with_ctx(body, ctx)),
             span: *span,
         },
         Expr::Teleport {
@@ -2724,7 +2806,7 @@ fn first_memory_stmt_context(stmt: &Stmt, owner: &str) -> Option<String> {
             expr,
             format!("{owner} return contains a raw memory operation"),
         ),
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             if let Some(context) = first_memory_expr_context(
                 iter,
                 format!("{owner} loop iterator contains a raw memory operation"),
@@ -2757,6 +2839,16 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::PtrOffset { .. } => Some(format!("{base}: pointer offset expression")),
         Expr::MemLoad { .. } => Some(format!("{base}: raw memory load expression")),
         Expr::MemStore { .. } => Some(format!("{base}: raw memory store expression")),
+        Expr::AtomicLoad { .. } => Some(format!("{base}: seqcst atomic load expression")),
+        Expr::AtomicStore { .. } => Some(format!("{base}: seqcst atomic store expression")),
+        Expr::AtomicAdd { .. } => Some(format!("{base}: seqcst atomic add expression")),
+        Expr::AtomicSub { .. } => Some(format!("{base}: seqcst atomic sub expression")),
+        Expr::AtomicExchange { .. } => {
+            Some(format!("{base}: seqcst atomic exchange expression"))
+        }
+        Expr::AtomicCompareExchange { .. } => {
+            Some(format!("{base}: seqcst atomic compare_exchange expression"))
+        }
         Expr::SizeOfType { .. }
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }
@@ -2772,6 +2864,7 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::Observe { .. } => Some(format!("{base}: ownership observe expression")),
         Expr::Collapse { .. } => Some(format!("{base}: ownership collapse expression")),
         Expr::Decay { .. } => Some(format!("{base}: ownership decay expression")),
+        Expr::Share { .. } => Some(format!("{base}: ownership share expression")),
         Expr::Teleport { value, .. } => first_memory_expr_context(value, base),
         Expr::AggregateInit { fields, .. } => first_memory_expr_context_from_pairs(fields, base),
         Expr::Binary { left, right, .. } => {

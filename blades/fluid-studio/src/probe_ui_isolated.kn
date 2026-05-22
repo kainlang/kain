@@ -1,0 +1,12 @@
+use c::kaintana_desktop_bridge
+use fluid_studio_ui::*
+
+component ProbePanel():
+    render <panel title="Probe" />
+
+world ProbeAuthority:
+    state signal: Int = 1
+    surface native_ui => ProbePanel
+
+fn main() -> Int:
+    return 0

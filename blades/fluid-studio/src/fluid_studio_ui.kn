@@ -178,6 +178,7 @@ pub fn fluid_render_ui(ctx: KaintanaContext, spec: KaintanaWindowSpec, session: 
     next = hue_slider.ctx
 
     return FluidStudioUiFrame {
+        ctx: next,
         particle_count_value: particle_slider.value,
         solver_iterations_value: iteration_slider.value,
         swirl_value: swirl_slider.value,

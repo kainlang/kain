@@ -1,2 +1,10 @@
 #!/usr/bin/env python3
-print("{\"ok\": true, \"lane\": \"fabric\"}")
+
+def run(fabric_inputs):
+    return {
+        "summary": {
+            "ok": True,
+            "lane": "fabric",
+            "input_keys": sorted(fabric_inputs.keys()),
+        }
+    }

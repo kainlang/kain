@@ -1,4 +1,3 @@
-use fluid_studio_sim::FluidSimulationResult
 use fluid_studio_state::*
 use std::math
 use vulkain::vulkain_frames_presented

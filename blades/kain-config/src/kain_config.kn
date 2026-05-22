@@ -9,16 +9,15 @@ pub fn config_load_json_file(path: String) -> Any:
     return fsx_read_json_file(path)
 
 pub fn config_parse_truthy_text(raw_value: String, default_value: Bool) -> Bool:
-    let normalized = raw_value.trim().to_ascii_lowercase()
-    if len(normalized) == 0:
+    if len(raw_value) == 0:
         return default_value
-    if normalized == "1":
+    if raw_value == "1":
         return true
-    if normalized == "true":
+    if raw_value == "true" or raw_value == "TRUE" or raw_value == "True":
         return true
-    if normalized == "yes":
+    if raw_value == "yes" or raw_value == "YES" or raw_value == "Yes":
         return true
-    if normalized == "on":
+    if raw_value == "on" or raw_value == "ON" or raw_value == "On":
         return true
     return false
 
@@ -29,22 +28,20 @@ pub fn config_parse_csv(csv_text: String) -> Array<String>:
     while index < len(csv_text):
         let ch = char_at(csv_text, index)
         if ch == ",":
-            let trimmed = current.trim()
-            if len(trimmed) > 0:
-                push(items, trimmed)
+            if len(current) > 0:
+                push(items, current)
             current = ""
         else:
             current = current + ch
         index = index + 1
-    let final_piece = current.trim()
-    if len(final_piece) > 0:
-        push(items, final_piece)
+    if len(current) > 0:
+        push(items, current)
     return items
 
 pub fn config_env_string(keys: Array<String>, default_value: String) -> String:
     let index = 0
     while index < len(keys):
-        let value = env(keys[index]).trim()
+        let value = env(keys[index])
         if len(value) > 0:
             return value
         index = index + 1

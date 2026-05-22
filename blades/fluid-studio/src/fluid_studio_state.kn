@@ -1,7 +1,4 @@
-use kain_config::config_int_setting
-use kain_config::config_load_json_file
-use kain_config::config_resolve_path_field
-use kain_config::config_string_setting
+use kain_json::json_parse_text
 use std::fs
 use std::hash
 use std::math
@@ -121,6 +118,7 @@ pub struct FluidUiFonts:
     micro_font: Int
 
 pub struct FluidStudioUiFrame:
+    ctx: KaintanaContext
     particle_count_value: Float
     solver_iterations_value: Float
     swirl_value: Float
@@ -143,6 +141,65 @@ pub struct FluidStudioSession:
     preset_b: FluidPreset
     preset_c: FluidPreset
     preset_d: FluidPreset
+
+fn fluid_is_absolute_path(path: String) -> Bool:
+    if len(path) == 0:
+        return false
+    if len(path) >= 2 and char_at(path, 0) == "\\" and char_at(path, 1) == "\\":
+        return true
+    if char_at(path, 0) == "/":
+        return true
+    if len(path) >= 2 and char_at(path, 1) == ":":
+        return true
+    return false
+
+fn fluid_string_prefix(text: String, count: Int) -> String:
+    let output = ""
+    let index = 0
+    while index < len(text) and index < count:
+        output = output + char_at(text, index)
+        index = index + 1
+    return output
+
+fn fluid_last_path_separator(path: String) -> Int:
+    let last_sep = -1
+    let index = 0
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            last_sep = index
+        index = index + 1
+    return last_sep
+
+fn fluid_path_parent(path: String) -> String:
+    let last_sep = fluid_last_path_separator(path)
+    if last_sep < 0:
+        return ""
+    if last_sep == 0:
+        return fluid_string_prefix(path, 1)
+    return fluid_string_prefix(path, last_sep)
+
+fn fluid_resolve_from_base(base: String, raw_path: String) -> String:
+    if len(raw_path) == 0:
+        return base
+    if fluid_is_absolute_path(raw_path):
+        return raw_path
+    return fs_path_join(base, raw_path)
+
+fn fluid_string_setting(container: Any, key: String, default_value: String) -> String:
+    if !json_has(container, key):
+        return default_value
+    return json_get_string(container, key)
+
+fn fluid_int_setting(container: Any, key: String, default_value: Int) -> Int:
+    if !json_has(container, key):
+        return default_value
+    return json_get_int(container, key)
+
+fn fluid_float_setting(container: Any, key: String, default_value: Float) -> Float:
+    if !json_has(container, key):
+        return default_value
+    return json_get_float(container, key)
 
 fn fluid_is_digit_char(ch: String) -> Bool:
     return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
@@ -300,7 +357,7 @@ pub fn fluid_config_path() -> String:
     return fluid_env_string_or_default("FLUID_STUDIO_CONFIG", FLUID_STUDIO_DEFAULT_CONFIG_PATH)
 
 pub fn fluid_load_catalog(path: String) -> Any:
-    return config_load_json_file(path)
+    return json_parse_text(fs_read_text(path))
 
 pub fn fluid_preset_count(catalog: Any) -> Int:
     if !json_has(catalog, "presets"):
@@ -309,20 +366,20 @@ pub fn fluid_preset_count(catalog: Any) -> Int:
 
 pub fn fluid_preset_from_json(entry: Any, fallback: FluidPreset) -> FluidPreset:
     return FluidPreset {
-        id: config_string_setting(entry, "id", fallback.id),
-        label: config_string_setting(entry, "label", fallback.label),
-        description: config_string_setting(entry, "description", fallback.description),
-        particle_count: fluid_clamp_particles(config_int_setting(entry, "particle_count", fallback.particle_count)),
-        solver_iterations: fluid_clamp_iterations(config_int_setting(entry, "solver_iterations", fallback.solver_iterations)),
-        swirl_gain: math_clamp(json_get_float(entry, "swirl_gain"), 0.0, 1.0),
-        buoyancy: math_clamp(json_get_float(entry, "buoyancy"), 0.0, 1.0),
-        dissipation: math_clamp(json_get_float(entry, "dissipation"), 0.80, 1.0),
-        impulse: math_clamp(json_get_float(entry, "impulse"), 0.0, 1.0),
-        temperature: math_clamp(json_get_float(entry, "temperature"), 0.0, 1.0),
-        hue: math_clamp(json_get_float(entry, "hue"), 0.0, 1.0),
-        mesh_scale_milli: config_int_setting(entry, "mesh_scale_milli", fallback.mesh_scale_milli),
-        mesh_twist_milli: config_int_setting(entry, "mesh_twist_milli", fallback.mesh_twist_milli),
-        energy: config_int_setting(entry, "energy", fallback.energy),
+        id: fluid_string_setting(entry, "id", fallback.id),
+        label: fluid_string_setting(entry, "label", fallback.label),
+        description: fluid_string_setting(entry, "description", fallback.description),
+        particle_count: fluid_clamp_particles(fluid_int_setting(entry, "particle_count", fallback.particle_count)),
+        solver_iterations: fluid_clamp_iterations(fluid_int_setting(entry, "solver_iterations", fallback.solver_iterations)),
+        swirl_gain: math_clamp(fluid_float_setting(entry, "swirl_gain", fallback.swirl_gain), 0.0, 1.0),
+        buoyancy: math_clamp(fluid_float_setting(entry, "buoyancy", fallback.buoyancy), 0.0, 1.0),
+        dissipation: math_clamp(fluid_float_setting(entry, "dissipation", fallback.dissipation), 0.80, 1.0),
+        impulse: math_clamp(fluid_float_setting(entry, "impulse", fallback.impulse), 0.0, 1.0),
+        temperature: math_clamp(fluid_float_setting(entry, "temperature", fallback.temperature), 0.0, 1.0),
+        hue: math_clamp(fluid_float_setting(entry, "hue", fallback.hue), 0.0, 1.0),
+        mesh_scale_milli: fluid_int_setting(entry, "mesh_scale_milli", fallback.mesh_scale_milli),
+        mesh_twist_milli: fluid_int_setting(entry, "mesh_twist_milli", fallback.mesh_twist_milli),
+        energy: fluid_int_setting(entry, "energy", fallback.energy),
     }
 
 pub fn fluid_preset_at(catalog: Any, index: Int) -> FluidPreset:
@@ -344,51 +401,51 @@ pub fn fluid_preset_lookup(catalog: Any, preset_id: String) -> FluidPreset:
     return fluid_preset_at(catalog, 0)
 
 pub fn fluid_settings_from_catalog(catalog: Any, config_path: String) -> FluidStudioSettings:
-    let base_dir = path_parent(config_path)
+    let base_dir = fluid_path_parent(config_path)
     let app = json_get(catalog, "app")
     let render_json = json_get(catalog, "render")
     let sim = json_get(catalog, "sim")
     let fallback = fluid_preset_at(catalog, 0)
     let render = FluidRenderProfile {
-        clear_red: config_int_setting(render_json, "clear_red", 5),
-        clear_green: config_int_setting(render_json, "clear_green", 9),
-        clear_blue: config_int_setting(render_json, "clear_blue", 16),
-        accent_red: config_int_setting(render_json, "accent_red", 82),
-        accent_green: config_int_setting(render_json, "accent_green", 220),
-        accent_blue: config_int_setting(render_json, "accent_blue", 255),
-        vertex_shader_path: config_resolve_path_field(base_dir, render_json, "vertex_shader_path", "../../vulkain/.kain/gpu/basic_window/vulkain_basic.vert.spv"),
-        fragment_shader_path: config_resolve_path_field(base_dir, render_json, "fragment_shader_path", "../.kain/gpu/fluid_studio/fluid_surface.frag.spv"),
-        fragment_entry_point: config_string_setting(render_json, "fragment_entry_point", "FluidStudioMeshSurface"),
+        clear_red: fluid_int_setting(render_json, "clear_red", 5),
+        clear_green: fluid_int_setting(render_json, "clear_green", 9),
+        clear_blue: fluid_int_setting(render_json, "clear_blue", 16),
+        accent_red: fluid_int_setting(render_json, "accent_red", 82),
+        accent_green: fluid_int_setting(render_json, "accent_green", 220),
+        accent_blue: fluid_int_setting(render_json, "accent_blue", 255),
+        vertex_shader_path: fluid_resolve_from_base(base_dir, fluid_string_setting(render_json, "vertex_shader_path", "../../vulkain/.kain/gpu/basic_window/vulkain_basic.vert.spv")),
+        fragment_shader_path: fluid_resolve_from_base(base_dir, fluid_string_setting(render_json, "fragment_shader_path", "../.kain/gpu/fluid_studio/fluid_surface.frag.spv")),
+        fragment_entry_point: fluid_string_setting(render_json, "fragment_entry_point", "FluidStudioMeshSurface"),
     }
     return FluidStudioSettings {
-        title: config_string_setting(app, "title", "Fluid Studio // Data-Driven GPU Hydro Lab"),
-        theme_name: config_string_setting(app, "theme_name", "tidal-oxide"),
-        revision_key: config_string_setting(app, "revision_key", "fluid-studio-realtime-3d-v1"),
-        width: config_int_setting(app, "width", 1728),
-        height: config_int_setting(app, "height", 1032),
-        frame_budget: fluid_frame_budget_or_default(config_int_setting(app, "frame_budget", 180)),
-        target_fps: config_int_setting(app, "target_fps", 120),
+        title: fluid_string_setting(app, "title", "Fluid Studio // Data-Driven GPU Hydro Lab"),
+        theme_name: fluid_string_setting(app, "theme_name", "tidal-oxide"),
+        revision_key: fluid_string_setting(app, "revision_key", "fluid-studio-realtime-3d-v1"),
+        width: fluid_int_setting(app, "width", 1728),
+        height: fluid_int_setting(app, "height", 1032),
+        frame_budget: fluid_frame_budget_or_default(fluid_int_setting(app, "frame_budget", 180)),
+        target_fps: fluid_int_setting(app, "target_fps", 120),
         config_path: config_path,
-        run_root: config_resolve_path_field(base_dir, app, "run_root", "../.kain/run"),
-        frame_report_path: config_resolve_path_field(base_dir, app, "frame_report_path", "../.kain/run/fluid_studio_frame.txt"),
-        scene_report_path: config_resolve_path_field(base_dir, app, "scene_report_path", "../.kain/run/fluid_studio_scene.txt"),
-        host_report_path: config_resolve_path_field(base_dir, app, "host_report_path", "../.kain/run/fluid_studio_host.txt"),
-        export_json_path: config_resolve_path_field(base_dir, app, "export_json_path", "../.kain/run/fluid_studio_export.json"),
-        vulkain_report_path: config_resolve_path_field(base_dir, app, "vulkain_report_path", "../.kain/run/fluid_studio_vulkain.txt"),
-        screenshot_path: config_resolve_path_field(base_dir, app, "screenshot_path", "../.kain/run/fluid_studio.png"),
-        shader_output_root: config_resolve_path_field(base_dir, app, "shader_output_root", "../.kain/gpu/fluid_studio"),
-        surface_entry_path: config_resolve_path_field(base_dir, app, "surface_entry_path", "../src/fluid_surface.frag.kn"),
-        compute_entry_path: config_resolve_path_field(base_dir, app, "compute_entry_path", "../src/fluid_compute.kn"),
-        active_preset_id: config_string_setting(sim, "default_preset", fallback.id),
-        particle_count: fluid_clamp_particles(config_int_setting(sim, "particle_count", fallback.particle_count)),
-        solver_iterations: fluid_clamp_iterations(config_int_setting(sim, "solver_iterations", fallback.solver_iterations)),
-        grid_width: config_int_setting(sim, "grid_width", 128),
-        grid_height: config_int_setting(sim, "grid_height", 128),
-        grid_depth: config_int_setting(sim, "grid_depth", 48),
-        frame_count: config_int_setting(sim, "frame_count", 240),
-        present_frames: config_int_setting(sim, "present_frames", 180),
-        camera_yaw_milli: config_int_setting(sim, "camera_yaw_milli", 860),
-        camera_pitch_milli: config_int_setting(sim, "camera_pitch_milli", -260),
+        run_root: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "run_root", "../.kain/run")),
+        frame_report_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "frame_report_path", "../.kain/run/fluid_studio_frame.txt")),
+        scene_report_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "scene_report_path", "../.kain/run/fluid_studio_scene.txt")),
+        host_report_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "host_report_path", "../.kain/run/fluid_studio_host.txt")),
+        export_json_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "export_json_path", "../.kain/run/fluid_studio_export.json")),
+        vulkain_report_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "vulkain_report_path", "../.kain/run/fluid_studio_vulkain.txt")),
+        screenshot_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "screenshot_path", "../.kain/run/fluid_studio.png")),
+        shader_output_root: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "shader_output_root", "../.kain/gpu/fluid_studio")),
+        surface_entry_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "surface_entry_path", "../src/fluid_surface.frag.kn")),
+        compute_entry_path: fluid_resolve_from_base(base_dir, fluid_string_setting(app, "compute_entry_path", "../src/fluid_compute.kn")),
+        active_preset_id: fluid_string_setting(sim, "default_preset", fallback.id),
+        particle_count: fluid_clamp_particles(fluid_int_setting(sim, "particle_count", fallback.particle_count)),
+        solver_iterations: fluid_clamp_iterations(fluid_int_setting(sim, "solver_iterations", fallback.solver_iterations)),
+        grid_width: fluid_int_setting(sim, "grid_width", 128),
+        grid_height: fluid_int_setting(sim, "grid_height", 128),
+        grid_depth: fluid_int_setting(sim, "grid_depth", 48),
+        frame_count: fluid_int_setting(sim, "frame_count", 240),
+        present_frames: fluid_int_setting(sim, "present_frames", 180),
+        camera_yaw_milli: fluid_int_setting(sim, "camera_yaw_milli", 860),
+        camera_pitch_milli: fluid_int_setting(sim, "camera_pitch_milli", -260),
         render: render,
     }
 

@@ -158,6 +158,6 @@ The first real adopters are:
 - `blades/kloner/build.kn`: check, source-test, root executable, certify.
 - `blades/kaintana/build.kn`: check, source-test, Z3 proof, root executable, certify.
 - `blades/kaintana-test/build.kn`: consumer check, source-test, root executable, certify.
-- `blades/build-kn-system-smoke/build.kn`: script-only root workspace authority, nested blade discovery via `workspace_defaults()`, polyglot adapter tasks, evidence DAG execution, capability skip behavior, and negative planner fixtures.
+- `blades/build-kn-system-smoke/build.kn`: script-only root workspace authority, nested blade discovery via `workspace_defaults()`, polyglot adapter tasks, evidence DAG execution, coexistence with auto-discovered Fabric validate/run tasks, capability skip behavior, and negative planner fixtures.
 
 These scripts intentionally keep C-FFI libraries in `KAIN.toml` until that metadata is promoted into build script authority. The task graph itself now lives in `build.kn`.

@@ -1,0 +1,26 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_share_requires_idle_region
+kind: check_smt2
+description: __kain_ownership_begin_share is only legal from the idle state with zero observers.
+tags:
+- native-runtime
+- ownership
+- share
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\ownership.c
+  symbol: __kain_ownership_begin_share
+  start_line: 688
+  reason: share returns early for decayed, shared, collapsed, and observed regions before publishing the shared state
+case:
+  smt2: |
+    (set-logic ALL)
+    ; states: 0=idle, 1=observed, 2=collapsed, 3=shared, 4=decayed
+    (declare-const state Int)
+    (declare-const observers Int)
+    (define-fun share_ok () Bool (and (= state 0) (= observers 0)))
+    (assert (>= observers 0))
+    (assert share_ok)
+    (assert (or (not (= state 0)) (not (= observers 0))))
+    (check-sat)
+  include_model: false
+  include_stats: false

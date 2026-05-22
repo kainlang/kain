@@ -8,6 +8,7 @@
 #include "../include/memory.h"
 #include "../include/ownership.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 static int expect_status(const char* label, int actual, int expected) {
     if (actual != expected) {
@@ -175,6 +176,75 @@ static int test_imported_region_transitions(void) {
     return 1;
 }
 
+static int test_shared_region_transitions(void) {
+    printf("\n=== Test 3: shared region ownership transitions ===\n");
+
+    int* value = (int*)__kain_alloc(1, sizeof(int), 1);
+    if (!expect_ptr("__kain_alloc for share", value)) {
+        return 0;
+    }
+
+    if (!expect_status(
+            "begin share",
+            __kain_ownership_begin_share(value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "state reports shared",
+            __kain_ownership_state(value),
+            KAIN_OWNERSHIP_STATE_SHARED
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "observe rejected while shared",
+            __kain_ownership_begin_observe(value),
+            KAIN_OWNERSHIP_ERR_COLLAPSED
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "collapse rejected while shared",
+            __kain_ownership_begin_collapse(value),
+            KAIN_OWNERSHIP_ERR_COLLAPSED
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "decay rejected while shared",
+            __kain_ownership_decay(value),
+            KAIN_OWNERSHIP_ERR_COLLAPSED
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "end share",
+            __kain_ownership_end_share(value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "share returns to idle",
+            __kain_ownership_state(value),
+            KAIN_OWNERSHIP_STATE_IDLE
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "helper decay after share",
+            __kain_ownership_decay_helper(value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+
+    printf("PASS: shared regions gate observe/collapse/decay until fanout join closes them\n");
+    return 1;
+}
+
 typedef struct SpoofedHelperPrefixCell {
     uint64_t fake_magic_and_slot;
     size_t fake_payload_size;
@@ -182,80 +252,93 @@ typedef struct SpoofedHelperPrefixCell {
 } SpoofedHelperPrefixCell;
 
 static int test_imported_path_ignores_spoofed_helper_header(void) {
-    printf("\n=== Test 3: imported path ignores spoofed helper header bytes ===\n");
+    printf("\n=== Test 4: imported path ignores spoofed helper header bytes ===\n");
 
-    SpoofedHelperPrefixCell spoofed = {0};
-    spoofed.fake_magic_and_slot = __kain_alloc_header_magic_with_slot(1u);
-    spoofed.fake_payload_size = sizeof(int);
-    spoofed.value = 19;
+    SpoofedHelperPrefixCell* spoofed = (SpoofedHelperPrefixCell*)malloc(sizeof(SpoofedHelperPrefixCell));
+    if (!expect_ptr("malloc spoofed imported cell", spoofed)) {
+        return 0;
+    }
+    spoofed->fake_magic_and_slot = __kain_alloc_header_magic_with_slot(UINT16_MAX);
+    spoofed->fake_payload_size = sizeof(int);
+    spoofed->value = 19;
 
     if (!expect_status(
             "ensure imported for spoofed pointer",
-            __kain_ownership_ensure_imported(&spoofed.value),
+            __kain_ownership_ensure_imported(&spoofed->value),
             KAIN_OWNERSHIP_OK
         )) {
+        free(spoofed);
         return 0;
     }
     if (!expect_status(
             "helper fast path rejects spoofed imported pointer",
-            __kain_ownership_begin_observe_helper(&spoofed.value),
+            __kain_ownership_begin_observe_helper(&spoofed->value),
             KAIN_OWNERSHIP_ERR_NOT_FOUND
         )) {
+        free(spoofed);
         return 0;
     }
     if (!expect_status(
             "generic observe uses imported registry path",
-            __kain_ownership_begin_observe(&spoofed.value),
+            __kain_ownership_begin_observe(&spoofed->value),
             KAIN_OWNERSHIP_OK
         )) {
+        free(spoofed);
         return 0;
     }
     if (!expect_status(
             "generic end observe uses imported registry path",
-            __kain_ownership_end_observe(&spoofed.value),
+            __kain_ownership_end_observe(&spoofed->value),
             KAIN_OWNERSHIP_OK
         )) {
+        free(spoofed);
         return 0;
     }
     if (!expect_status(
             "generic collapse uses imported registry path",
-            __kain_ownership_begin_collapse(&spoofed.value),
+            __kain_ownership_begin_collapse(&spoofed->value),
             KAIN_OWNERSHIP_OK
         )) {
+        free(spoofed);
         return 0;
     }
     if (!expect_status(
             "generic end collapse uses imported registry path",
-            __kain_ownership_end_collapse(&spoofed.value),
+            __kain_ownership_end_collapse(&spoofed->value),
             KAIN_OWNERSHIP_OK
         )) {
+        free(spoofed);
         return 0;
     }
     if (!expect_status(
             "generic decay uses imported registry path",
-            __kain_ownership_decay(&spoofed.value),
+            __kain_ownership_decay(&spoofed->value),
             KAIN_OWNERSHIP_OK
         )) {
+        free(spoofed);
         return 0;
     }
     if (!expect_status(
             "spoofed imported pointer reaches decayed state",
-            __kain_ownership_state(&spoofed.value),
+            __kain_ownership_state(&spoofed->value),
             KAIN_OWNERSHIP_STATE_DECAYED
         )) {
+        free(spoofed);
         return 0;
     }
-    if (spoofed.value != 19) {
+    if (spoofed->value != 19) {
         printf("FAIL: spoofed imported decay mutated local storage\n");
+        free(spoofed);
         return 0;
     }
 
+    free(spoofed);
     printf("PASS: imported registry path ignores spoofed helper-looking prefixes\n");
     return 1;
 }
 
 static int test_helper_decay_reclaims_registry_slots(void) {
-    printf("\n=== Test 4: helper decay reclaims registry slots ===\n");
+    printf("\n=== Test 5: helper decay reclaims registry slots ===\n");
 
     uint16_t first_slot_token = 0u;
     int saw_reuse = 0;
@@ -302,7 +385,7 @@ static int test_helper_decay_reclaims_registry_slots(void) {
 }
 
 static int test_large_zeroed_alloc_reuses_clean_cached_block(void) {
-    printf("\n=== Test 5: large zeroed helper allocation cache preserves zero-fill ===\n");
+    printf("\n=== Test 6: large zeroed helper allocation cache preserves zero-fill ===\n");
 
     int* first = (int*)__kain_alloc(512, sizeof(int), 1);
     if (!expect_ptr("first large zeroed allocation", first)) {
@@ -351,6 +434,8 @@ int main(void) {
     passed += test_heap_region_transitions();
     total++;
     passed += test_imported_region_transitions();
+    total++;
+    passed += test_shared_region_transitions();
     total++;
     passed += test_imported_path_ignores_spoofed_helper_header();
     total++;

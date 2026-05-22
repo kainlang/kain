@@ -1,12 +1,66 @@
+use std::fs
 use kain_json::json_parse_text
 use kain_json::json_to_text
+
+pub fn fsx_string_prefix(text: String, count: Int) -> String:
+    let output = ""
+    let index = 0
+    while index < len(text) and index < count:
+        output = output + char_at(text, index)
+        index = index + 1
+    return output
+
+pub fn fsx_string_suffix_from(text: String, start: Int) -> String:
+    let output = ""
+    let index = start
+    while index < len(text):
+        output = output + char_at(text, index)
+        index = index + 1
+    return output
+
+pub fn fsx_last_path_separator(path: String) -> Int:
+    let last_sep = -1
+    let index = 0
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            last_sep = index
+        index = index + 1
+    return last_sep
+
+pub fn fsx_path_parent(path: String) -> String:
+    let last_sep = fsx_last_path_separator(path)
+    if last_sep < 0:
+        return ""
+    if last_sep == 0:
+        return fsx_string_prefix(path, 1)
+    return fsx_string_prefix(path, last_sep)
+
+pub fn fsx_path_file_name(path: String) -> String:
+    let last_sep = fsx_last_path_separator(path)
+    if last_sep < 0:
+        return path
+    return fsx_string_suffix_from(path, last_sep + 1)
+
+pub fn fsx_path_extension(path: String) -> String:
+    let file_name = fsx_path_file_name(path)
+    let last_dot = -1
+    let index = 0
+    while index < len(file_name):
+        if char_at(file_name, index) == ".":
+            last_dot = index
+        index = index + 1
+    if last_dot < 0 or last_dot + 1 >= len(file_name):
+        return ""
+    return fsx_string_suffix_from(file_name, last_dot + 1)
 
 pub fn fsx_is_absolute_path(path: String) -> Bool:
     if len(path) == 0:
         return false
-    if path.starts_with("\\\\"):
-        return true
-    if path.starts_with("/"):
+    if len(path) >= 2:
+        if char_at(path, 0) == "\\" and char_at(path, 1) == "\\":
+            return true
+    if char_at(path, 0) == "/":
         return true
     if len(path) >= 2:
         if char_at(path, 1) == ":":
@@ -14,31 +68,30 @@ pub fn fsx_is_absolute_path(path: String) -> Bool:
     return false
 
 pub fn fsx_resolve_from_base(base: String, raw_path: String) -> String:
-    let trimmed = raw_path.trim()
-    if len(trimmed) == 0:
+    if len(raw_path) == 0:
         return base
-    if fsx_is_absolute_path(trimmed):
-        return trimmed
-    return path_join(base, trimmed)
+    if fsx_is_absolute_path(raw_path):
+        return raw_path
+    return fs_path_join(base, raw_path)
 
 pub fn fsx_ensure_parent_dir(path: String) -> String:
-    let parent = path_parent(path)
+    let parent = fsx_path_parent(path)
     if len(parent) > 0:
-        create_dir_all(parent)
+        fs_create_dir_all(parent)
     return parent
 
 pub fn fsx_write_text_with_parent(path: String, content: String) -> String:
     let _parent = fsx_ensure_parent_dir(path)
-    write_file(path, content)
+    fs_write_text(path, content)
     return path
 
 pub fn fsx_read_text_if_exists(path: String, fallback: String) -> String:
-    if file_exists(path):
-        return read_file(path)
+    if fs_exists(path):
+        return fs_read_text(path)
     return fallback
 
 pub fn fsx_read_json_file(path: String) -> Any:
-    return json_parse_text(read_file(path))
+    return json_parse_text(fs_read_text(path))
 
 pub fn fsx_write_json_file(path: String, value: Any) -> String:
     return fsx_write_text_with_parent(path, json_to_text(value))
@@ -47,7 +100,7 @@ pub fn fsx_temp_json_path(prefix: String) -> String:
     return fs_temp_file(prefix) + ".json"
 
 pub fn fsx_is_text_like_file(path_name: String) -> Bool:
-    let ext = path_extension(path_name).trim().to_ascii_lowercase()
+    let ext = fsx_path_extension(path_name)
     if ext == "kn":
         return true
     if ext == "md":

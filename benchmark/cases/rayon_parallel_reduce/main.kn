@@ -3,64 +3,40 @@ const RAYON_REDUCE_MODULUS: Int = 1000000007
 const RAYON_REDUCE_EXPECTED: Int = 987976414
 const RAYON_REDUCE_LANE_MODULUS: Int = 1000003
 const RAYON_REDUCE_CHUNK: Int = 8
-const RAYON_REDUCE_AFFINE_STEP: Int = 249
 const RAYON_REDUCE_RESIDUE_STEP: Int = 31
-const RAYON_REDUCE_RESIDUE_SUM: Int = 28
+const RAYON_REDUCE_WORKERS: Int = 32
 
 fn rayon_reduce_lane_value(index: Int) -> Int:
     return ((index * RAYON_REDUCE_RESIDUE_STEP) + (index / RAYON_REDUCE_CHUNK)) % RAYON_REDUCE_LANE_MODULUS
 
-fn rayon_reduce_scalar_checksum(iterations: Int, modulus: Int) -> Int:
-    var acc: Int = 0
-    var i: Int = 0
-    while i < iterations:
-        let lane: Int = rayon_reduce_lane_value(i)
-        acc = (acc + lane) % modulus
-        i = i + 1
-    return acc
+fn rayon_reduce_parallel_checksum(iterations: Int, modulus: Int) -> Int:
+    let mut partials: ptr<Int> = alloc_zeroed(RAYON_REDUCE_WORKERS, "Int")
 
-fn rayon_reduce_floor_wrap_sum_for_residue(q_count: Int, residue: Int) -> Int:
-    let residue_bias: Int = RAYON_REDUCE_RESIDUE_STEP * residue
-    var q: Int = 0
-    var floor_sum: Int = 0
-    while q < q_count:
-        let level: Int = ((RAYON_REDUCE_AFFINE_STEP * q) + residue_bias) / RAYON_REDUCE_LANE_MODULUS
-        let next_numerator: Int = (((level + 1) * RAYON_REDUCE_LANE_MODULUS) - residue_bias) + (RAYON_REDUCE_AFFINE_STEP - 1)
-        var next_q: Int = next_numerator / RAYON_REDUCE_AFFINE_STEP
-        if next_q <= q:
-            next_q = q + 1
-        if next_q > q_count:
-            next_q = q_count
-        floor_sum = floor_sum + (level * (next_q - q))
-        q = next_q
-    return floor_sum
+    share partials:
+        fanout worker in 0..RAYON_REDUCE_WORKERS:
+            let chunk_start: Int = (worker * iterations) / RAYON_REDUCE_WORKERS
+            let chunk_end: Int = ((worker + 1) * iterations) / RAYON_REDUCE_WORKERS
+            let slot: ptr<Int> = ptr_offset(partials, worker, "Int")
+            var local_sum: Int = 0
+            var i: Int = chunk_start
+            while i < chunk_end:
+                local_sum = (local_sum + rayon_reduce_lane_value(i)) % modulus
+                i = i + 1
+            atomic_store(slot, local_sum)
 
-fn rayon_reduce_affine_floor_checksum(iterations: Int, modulus: Int) -> Int:
-    if iterations != RAYON_REDUCE_ITERATIONS:
-        return rayon_reduce_scalar_checksum(iterations, modulus)
-    if modulus != RAYON_REDUCE_MODULUS:
-        return rayon_reduce_scalar_checksum(iterations, modulus)
-    let q_count: Int = iterations / RAYON_REDUCE_CHUNK
-    let q_sum: Int = (q_count * (q_count - 1)) / 2
-    var floor_sum: Int = 0
-    var residue: Int = 0
-    while residue < RAYON_REDUCE_CHUNK:
-        floor_sum = floor_sum + rayon_reduce_floor_wrap_sum_for_residue(q_count, residue)
-        residue = residue + 1
-    let chunk_sum: Int = RAYON_REDUCE_CHUNK * RAYON_REDUCE_AFFINE_STEP * q_sum
-    let residue_sum: Int = RAYON_REDUCE_RESIDUE_STEP * RAYON_REDUCE_RESIDUE_SUM * q_count
-    let affine_sum: Int = chunk_sum + residue_sum
-    let wrapped: Int = affine_sum - (RAYON_REDUCE_LANE_MODULUS * floor_sum)
-    return wrapped % modulus
-
-converge rayon_reduce_checksum(iterations: Int, modulus: Int) -> Int:
-    spec reference:
-        return rayon_reduce_scalar_checksum(iterations, modulus)
-    fast affine_floor_sum_lane when target("llvm"):
-        return rayon_reduce_affine_floor_checksum(iterations, modulus)
+    let total: Int = observe partials:
+        var worker: Int = 0
+        var acc: Int = 0
+        while worker < RAYON_REDUCE_WORKERS:
+            let slot: ptr<Int> = ptr_offset(partials, worker, "Int")
+            acc = (acc + mem_load(slot, "Int")) % modulus
+            worker = worker + 1
+        acc
+    decay partials
+    return total
 
 fn main() -> Int:
-    let acc: Int = rayon_reduce_checksum(RAYON_REDUCE_ITERATIONS, RAYON_REDUCE_MODULUS)
+    let acc: Int = rayon_reduce_parallel_checksum(RAYON_REDUCE_ITERATIONS, RAYON_REDUCE_MODULUS)
 
     if acc != RAYON_REDUCE_EXPECTED:
         return 1

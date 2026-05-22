@@ -2,19 +2,14 @@ fn main() -> Int:
     let worker_count: Int = 100
     let iterations_per_worker: Int = 1000000
     let expected: Int = 100000000
-    let counter_cells: Int = 1
-    let mut counter: ptr<Int> = alloc_zeroed(counter_cells, "Int")
+    let mut counter: ptr<Int> = alloc_zeroed(1, "Int")
 
-    var worker: Int = 0
-    while worker < worker_count:
-        collapse counter:
+    share counter:
+        fanout worker in 0..worker_count:
             var i: Int = 0
             while i < iterations_per_worker:
-                let current: Int = mem_load(counter, "Int")
-                mem_store(counter, current + 1, "Int")
+                let _prev: Int = atomic_add(counter, 1)
                 i = i + 1
-            0
-        worker = worker + 1
 
     let final_value: Int = observe counter:
         mem_load(counter, "Int")

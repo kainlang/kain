@@ -11,6 +11,7 @@ pub const OWNERSHIP_CAPABILITY: &str = "memory.ownership";
 pub const COLLAPSE_KEYWORD: &str = "collapse";
 pub const OBSERVE_KEYWORD: &str = "observe";
 pub const DECAY_KEYWORD: &str = "decay";
+pub const SHARE_KEYWORD: &str = "share";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum OwnershipRegionKind {
@@ -72,6 +73,7 @@ pub enum OwnershipState {
     Idle,
     Observed(ActiveObserverCount),
     Collapsed,
+    Shared,
     Decayed,
 }
 
@@ -95,6 +97,10 @@ impl OwnershipState {
         matches!(self, Self::Idle)
     }
 
+    pub fn can_share(self) -> bool {
+        matches!(self, Self::Idle)
+    }
+
     pub fn can_decay(self) -> bool {
         matches!(self, Self::Idle)
     }
@@ -109,6 +115,8 @@ impl OwnershipState {
             OwnershipTransition::EndObserve => self.end_observe(),
             OwnershipTransition::BeginCollapse => self.begin_collapse(),
             OwnershipTransition::EndCollapse => self.end_collapse(),
+            OwnershipTransition::BeginShare => self.begin_share(),
+            OwnershipTransition::EndShare => self.end_share(),
             OwnershipTransition::Decay => self.decay(),
         }
     }
@@ -118,6 +126,7 @@ impl OwnershipState {
             Self::Idle => Ok(Self::Observed(ActiveObserverCount::new(1)?)),
             Self::Observed(readers) => Ok(Self::Observed(readers.increment()?)),
             Self::Collapsed => Err(OwnershipTransitionError::CannotObserveCollapsed),
+            Self::Shared => Err(OwnershipTransitionError::CannotObserveShared),
             Self::Decayed => Err(OwnershipTransitionError::CannotObserveDecayed),
         }
     }
@@ -128,7 +137,7 @@ impl OwnershipState {
                 .decrement()
                 .map(Self::Observed)
                 .unwrap_or(Self::Idle)),
-            Self::Idle | Self::Collapsed | Self::Decayed => {
+            Self::Idle | Self::Collapsed | Self::Shared | Self::Decayed => {
                 Err(OwnershipTransitionError::CannotEndObserveWhenNotObserved)
             }
         }
@@ -141,6 +150,7 @@ impl OwnershipState {
                 readers: readers.get(),
             }),
             Self::Collapsed => Err(OwnershipTransitionError::CannotCollapseAlreadyCollapsed),
+            Self::Shared => Err(OwnershipTransitionError::CannotCollapseWhileShared),
             Self::Decayed => Err(OwnershipTransitionError::CannotCollapseDecayed),
         }
     }
@@ -148,8 +158,29 @@ impl OwnershipState {
     fn end_collapse(self) -> Result<Self, OwnershipTransitionError> {
         match self {
             Self::Collapsed => Ok(Self::Idle),
-            Self::Idle | Self::Observed(_) | Self::Decayed => {
+            Self::Idle | Self::Observed(_) | Self::Shared | Self::Decayed => {
                 Err(OwnershipTransitionError::CannotEndCollapseWhenNotCollapsed)
+            }
+        }
+    }
+
+    fn begin_share(self) -> Result<Self, OwnershipTransitionError> {
+        match self {
+            Self::Idle => Ok(Self::Shared),
+            Self::Observed(readers) => Err(OwnershipTransitionError::CannotShareWhileObserved {
+                readers: readers.get(),
+            }),
+            Self::Collapsed => Err(OwnershipTransitionError::CannotShareWhileCollapsed),
+            Self::Shared => Err(OwnershipTransitionError::CannotShareAlreadyShared),
+            Self::Decayed => Err(OwnershipTransitionError::CannotShareDecayed),
+        }
+    }
+
+    fn end_share(self) -> Result<Self, OwnershipTransitionError> {
+        match self {
+            Self::Shared => Ok(Self::Idle),
+            Self::Idle | Self::Observed(_) | Self::Collapsed | Self::Decayed => {
+                Err(OwnershipTransitionError::CannotEndShareWhenNotShared)
             }
         }
     }
@@ -161,6 +192,7 @@ impl OwnershipState {
                 readers: readers.get(),
             }),
             Self::Collapsed => Err(OwnershipTransitionError::CannotDecayWhileCollapsed),
+            Self::Shared => Err(OwnershipTransitionError::CannotDecayWhileShared),
             Self::Decayed => Err(OwnershipTransitionError::CannotDecayAlreadyDecayed),
         }
     }
@@ -172,6 +204,8 @@ pub enum OwnershipTransition {
     EndObserve,
     BeginCollapse,
     EndCollapse,
+    BeginShare,
+    EndShare,
     Decay,
 }
 
@@ -183,6 +217,8 @@ pub enum OwnershipTransitionError {
     ObserverCountOverflow,
     #[error("cannot observe a collapsed ownership region")]
     CannotObserveCollapsed,
+    #[error("cannot observe a shared ownership region")]
+    CannotObserveShared,
     #[error("cannot observe a decayed ownership region")]
     CannotObserveDecayed,
     #[error("cannot end observe when the region is not observed")]
@@ -191,14 +227,28 @@ pub enum OwnershipTransitionError {
     CannotCollapseWhileObserved { readers: u32 },
     #[error("cannot collapse an already collapsed ownership region")]
     CannotCollapseAlreadyCollapsed,
+    #[error("cannot collapse a shared ownership region")]
+    CannotCollapseWhileShared,
     #[error("cannot collapse a decayed ownership region")]
     CannotCollapseDecayed,
     #[error("cannot end collapse when the region is not collapsed")]
     CannotEndCollapseWhenNotCollapsed,
+    #[error("cannot share an observed ownership region with {readers} active observers")]
+    CannotShareWhileObserved { readers: u32 },
+    #[error("cannot share a collapsed ownership region")]
+    CannotShareWhileCollapsed,
+    #[error("cannot share an already shared ownership region")]
+    CannotShareAlreadyShared,
+    #[error("cannot share a decayed ownership region")]
+    CannotShareDecayed,
+    #[error("cannot end share when the region is not shared")]
+    CannotEndShareWhenNotShared,
     #[error("cannot decay an observed ownership region with {readers} active observers")]
     CannotDecayWhileObserved { readers: u32 },
     #[error("cannot decay a collapsed ownership region")]
     CannotDecayWhileCollapsed,
+    #[error("cannot decay a shared ownership region")]
+    CannotDecayWhileShared,
     #[error("cannot decay an already decayed ownership region")]
     CannotDecayAlreadyDecayed,
 }
@@ -242,6 +292,21 @@ impl CollapseMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ShareMode {
+    AtomicSeqCst,
+    Unsupported,
+}
+
+impl ShareMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::AtomicSeqCst => "atomic_seqcst",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DecayMode {
     LifetimeEnd,
     FreeHeap,
@@ -265,6 +330,7 @@ pub struct OwnershipPolicy {
     pub region_kind: OwnershipRegionKind,
     pub observe_mode: ObserveMode,
     pub collapse_mode: CollapseMode,
+    pub share_mode: ShareMode,
     pub decay_mode: DecayMode,
 }
 
@@ -273,12 +339,14 @@ impl OwnershipPolicy {
         region_kind: OwnershipRegionKind,
         observe_mode: ObserveMode,
         collapse_mode: CollapseMode,
+        share_mode: ShareMode,
         decay_mode: DecayMode,
     ) -> Self {
         Self {
             region_kind,
             observe_mode,
             collapse_mode,
+            share_mode,
             decay_mode,
         }
     }
@@ -299,6 +367,10 @@ impl OwnershipPolicy {
         self.collapse_mode != CollapseMode::Unsupported
     }
 
+    pub fn supports_share(self) -> bool {
+        self.share_mode != ShareMode::Unsupported
+    }
+
     pub fn supports_decay(self) -> bool {
         self.decay_mode != DecayMode::Unsupported
     }
@@ -314,6 +386,9 @@ impl OwnershipPolicy {
             ) || matches!(
                 self.collapse_mode,
                 CollapseMode::ExclusiveToken | CollapseMode::GraphExclusive
+            ) || matches!(
+                self.share_mode,
+                ShareMode::AtomicSeqCst
             ) || matches!(
                 self.decay_mode,
                 DecayMode::FreeHeap | DecayMode::ReleaseStrong
@@ -332,42 +407,49 @@ pub const OWNERSHIP_POLICY_TABLE: &[OwnershipPolicy] = &[
         OwnershipRegionKind::LocalAlloca,
         ObserveMode::ReadonlyBorrow,
         CollapseMode::ScopedNoAlias,
+        ShareMode::Unsupported,
         DecayMode::LifetimeEnd,
     ),
     OwnershipPolicy::new(
         OwnershipRegionKind::HeapAllocation,
         ObserveMode::ReadonlyBorrow,
         CollapseMode::ScopedNoAlias,
+        ShareMode::AtomicSeqCst,
         DecayMode::FreeHeap,
     ),
     OwnershipPolicy::new(
         OwnershipRegionKind::RcObject,
         ObserveMode::ReadonlyBorrow,
         CollapseMode::ExclusiveToken,
+        ShareMode::Unsupported,
         DecayMode::ReleaseStrong,
     ),
     OwnershipPolicy::new(
         OwnershipRegionKind::WorldState,
         ObserveMode::Snapshot,
         CollapseMode::GraphExclusive,
+        ShareMode::Unsupported,
         DecayMode::Unsupported,
     ),
     OwnershipPolicy::new(
         OwnershipRegionKind::EntangledAuthority,
         ObserveMode::Snapshot,
         CollapseMode::GraphExclusive,
+        ShareMode::Unsupported,
         DecayMode::Unsupported,
     ),
     OwnershipPolicy::new(
         OwnershipRegionKind::EntangledMirror,
         ObserveMode::Snapshot,
         CollapseMode::Unsupported,
+        ShareMode::Unsupported,
         DecayMode::Unsupported,
     ),
     OwnershipPolicy::new(
         OwnershipRegionKind::ImportedPointer,
         ObserveMode::ReadonlyBorrow,
         CollapseMode::ScopedNoAlias,
+        ShareMode::AtomicSeqCst,
         DecayMode::LifetimeEnd,
     ),
 ];
@@ -469,6 +551,14 @@ mod tests {
             Err(OwnershipTransitionError::CannotDecayWhileCollapsed)
         );
 
+        let shared = OwnershipState::Idle
+            .apply(OwnershipTransition::BeginShare)
+            .expect("share");
+        assert_eq!(
+            shared.apply(OwnershipTransition::Decay),
+            Err(OwnershipTransitionError::CannotDecayWhileShared)
+        );
+
         let decayed = OwnershipState::Idle
             .apply(OwnershipTransition::Decay)
             .expect("decay");
@@ -497,7 +587,36 @@ mod tests {
         let imported = OwnershipPolicy::for_region(OwnershipRegionKind::ImportedPointer);
         assert_eq!(imported.observe_mode, ObserveMode::ReadonlyBorrow);
         assert_eq!(imported.collapse_mode, CollapseMode::ScopedNoAlias);
+        assert_eq!(imported.share_mode, ShareMode::AtomicSeqCst);
         assert_eq!(imported.decay_mode, DecayMode::LifetimeEnd);
+    }
+
+    #[test]
+    fn share_requires_an_idle_region_and_balances_back_to_idle() {
+        let observed = OwnershipState::Idle
+            .apply(OwnershipTransition::BeginObserve)
+            .expect("observe");
+        assert_eq!(
+            observed.apply(OwnershipTransition::BeginShare),
+            Err(OwnershipTransitionError::CannotShareWhileObserved { readers: 1 })
+        );
+
+        let collapsed = OwnershipState::Idle
+            .apply(OwnershipTransition::BeginCollapse)
+            .expect("collapse");
+        assert_eq!(
+            collapsed.apply(OwnershipTransition::BeginShare),
+            Err(OwnershipTransitionError::CannotShareWhileCollapsed)
+        );
+
+        let shared = OwnershipState::Idle
+            .apply(OwnershipTransition::BeginShare)
+            .expect("share");
+        assert_eq!(shared, OwnershipState::Shared);
+        assert_eq!(
+            shared.apply(OwnershipTransition::EndShare),
+            Ok(OwnershipState::Idle)
+        );
     }
 
     #[test]

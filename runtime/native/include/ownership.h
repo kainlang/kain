@@ -22,7 +22,8 @@ enum {
     KAIN_OWNERSHIP_STATE_IDLE = 0,
     KAIN_OWNERSHIP_STATE_OBSERVED = 1,
     KAIN_OWNERSHIP_STATE_COLLAPSED = 2,
-    KAIN_OWNERSHIP_STATE_DECAYED = 3,
+    KAIN_OWNERSHIP_STATE_SHARED = 3,
+    KAIN_OWNERSHIP_STATE_DECAYED = 4,
 };
 
 enum {
@@ -54,11 +55,15 @@ int __kain_ownership_begin_observe(const void* ptr);
 int __kain_ownership_end_observe(const void* ptr);
 int __kain_ownership_begin_collapse(void* ptr);
 int __kain_ownership_end_collapse(void* ptr);
+int __kain_ownership_begin_share(void* ptr);
+int __kain_ownership_end_share(void* ptr);
 int __kain_ownership_decay(void* ptr);
 int __kain_ownership_begin_observe_helper(const void* ptr);
 int __kain_ownership_end_observe_helper(const void* ptr);
 int __kain_ownership_begin_collapse_helper(void* ptr);
 int __kain_ownership_end_collapse_helper(void* ptr);
+int __kain_ownership_begin_share_helper(void* ptr);
+int __kain_ownership_end_share_helper(void* ptr);
 int __kain_ownership_decay_helper(void* ptr);
 int __kain_ownership_state(const void* ptr);
 

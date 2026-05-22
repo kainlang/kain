@@ -470,38 +470,14 @@ pub fn kaintana_render_focus_ring(session_id: Int, node_id: Int, theme: Kaintana
 
 pub fn kaintana_write_frame_report(session_id: Int, spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String) -> Int:
     fs_create_dir_all(".kain/run")
-    let content =
-        "framework=" + kaintana_framework_name() + "\n" +
-        "version=" + str(kaintana_framework_version()) + "\n" +
-        "headline=" + headline + "\n" +
-        "theme=" + theme.name + "\n" +
-        "draw_commands=" + str(ui_draw_command_count(session_id)) + "\n" +
-        "presented_draws=" + str(ui_host_presented_draw_count(session_id)) + "\n" +
-        "reload_generation=" + str(reload_generation(session_id)) + "\n" +
-        "reload_key=" + reload_key(session_id) + "\n" +
-        "reload_lane=" + reload_lane_presentation() + "\n"
+    let content = "framework=" + kaintana_framework_name() + "\n" + "version=" + str(kaintana_framework_version()) + "\n" + "headline=" + headline + "\n" + "theme=" + theme.name + "\n" + "draw_commands=" + str(ui_draw_command_count(session_id)) + "\n" + "presented_draws=" + str(ui_host_presented_draw_count(session_id)) + "\n" + "reload_generation=" + str(reload_generation(session_id)) + "\n" + "reload_key=" + reload_key(session_id) + "\n" + "reload_lane=" + reload_lane_presentation() + "\n"
     fs_write_text(spec.frame_report_path, content)
     return 1
 
 pub fn kaintana_write_harness_artifacts(session_id: Int, action_session_id: Int, spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String, harness: KaintanaHarnessSpec) -> Int:
     fs_create_dir_all(".kain/run")
     let snapshot = reload_snapshot(session_id)
-    let snapshot_text =
-        "headline=" + headline + "\n" +
-        "theme=" + theme.name + "\n" +
-        "package_surface=" + reload_package_surface() + "\n" +
-        "generation=" + str(snapshot.generation) + "\n" +
-        "revision_key=" + snapshot.revision_key + "\n" +
-        "state_migration=" + reload_default_state_migration() + "\n" +
-        "actor_quiesce=" + reload_default_actor_quiesce() + "\n" +
-        "gpu_swap=" + reload_gpu_swap_boundary() + "\n" +
-        "restart_mode=" + reload_default_restart_mode() + "\n" +
-        "lane.presentation=" + reload_lane_presentation() + "\n" +
-        "lane.structural=" + reload_lane_structural() + "\n" +
-        "lane.actor=" + reload_lane_actor() + "\n" +
-        "lane.gpu=" + reload_lane_gpu() + "\n" +
-        "action.frames=" + str(kaintana_action_frame_index(action_session_id)) + "\n" +
-        "action.events=" + str(kaintana_action_event_count(action_session_id)) + "\n"
+    let snapshot_text = "headline=" + headline + "\n" + "theme=" + theme.name + "\n" + "package_surface=" + reload_package_surface() + "\n" + "generation=" + str(snapshot.generation) + "\n" + "revision_key=" + snapshot.revision_key + "\n" + "state_migration=" + reload_default_state_migration() + "\n" + "actor_quiesce=" + reload_default_actor_quiesce() + "\n" + "gpu_swap=" + reload_gpu_swap_boundary() + "\n" + "restart_mode=" + reload_default_restart_mode() + "\n" + "lane.presentation=" + reload_lane_presentation() + "\n" + "lane.structural=" + reload_lane_structural() + "\n" + "lane.actor=" + reload_lane_actor() + "\n" + "lane.gpu=" + reload_lane_gpu() + "\n" + "action.frames=" + str(kaintana_action_frame_index(action_session_id)) + "\n" + "action.events=" + str(kaintana_action_event_count(action_session_id)) + "\n"
     fs_write_text(harness.snapshot_path, snapshot_text)
     fs_write_text(harness.input_trace_path, kaintana_action_trace_text(action_session_id))
     return 1

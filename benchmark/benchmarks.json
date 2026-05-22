@@ -6,9 +6,9 @@
     {
       "id": "contention_wall",
       "title": "Contention Wall",
-      "description": "Rust drives 100 OS threads through one shared AtomicI64. Kain currently has no user-level OS-thread fanout in LLVM, so this is the zero-lock collapse proxy over the same total increment count.",
-      "maturity": "proxy",
-      "fairness_note": "Do not read this as a completed concurrency win. It is the benchmark shape Kain must graduate toward once collapse can be shared safely across spawned workers.",
+      "description": "Rust drives 100 OS threads through one shared AtomicI64. Kain now drives the same increment count through compiler-owned share/fanout lowering and seq-cst atomics over the native OS-thread runtime.",
+      "maturity": "implemented",
+      "fairness_note": "Both native rows now use real shared-memory fanout and seq-cst atomic updates against one counter. JavaScript and Python still disclose scalar proxies because their stock dependency-free rows would otherwise measure runtime startup and scheduler tax more than the counter hotspot.",
       "language_notes": {
         "javascript": "Dependency-free Node uses a scalar proxy here so worker startup and SharedArrayBuffer scheduling do not dominate the case.",
         "python": "Dependency-free CPython uses a scalar proxy here because locked threads would mostly measure GIL and lock scheduling overhead."
@@ -752,11 +752,11 @@
     {
       "id": "rayon_parallel_reduce",
       "title": "Rayon Parallel Reduce",
-      "description": "Large deterministic integer reduction. Rust uses Rayon parallel iterators; Kain keeps the equivalent scalar reduction as the converge spec and lets LLVM use a proof-backed affine floor-sum reducer for the closed deterministic lane.",
-      "maturity": "parallel-proxy",
-      "fairness_note": "Do not read this as a completed parallel Kain comparison yet. This case exists to track the gap against Rayon until Kain LLVM exposes proven user-level data-parallel fanout; the current Kain LLVM fast lane is a disclosed semantic arithmetic collapse of the same deterministic reduction.",
+      "description": "Large deterministic integer reduction. Rust uses Rayon parallel iterators; Kain now partitions the same reduction across compiler-owned share/fanout workers and folds per-worker partials after the join.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows now perform real multicore reduction work. Kain uses explicit share/fanout plus per-worker partial slots instead of Rayon iterators, but each row computes the same deterministic checksum over 4000000 elements.",
       "language_notes": {
-        "kain": "Preserves rayon_reduce_scalar_checksum as the converge spec and uses benchmark/cases/rayon_parallel_reduce/proofs-experimental/rayon-affine-floor-sum-reducer.smt2 for the target(\"llvm\") affine floor-sum lane over 4000000 iterations.",
+        "kain": "Uses compiler-owned share/fanout lowering over 32 workers, writes one partial checksum per worker through atomic_store, and folds the partial slots after observe/decay closes the shared region.",
         "rust": "Cargo release build with rayon; intentionally Kain/Rust-only per the parallel-runtime comparison."
       },
       "languages": {

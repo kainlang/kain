@@ -1,0 +1,39 @@
+shader fragment SpirvCapabilitySpectrum(uv: Vec2) -> Vec4:
+    uniform accent: Vec3 @0
+    let centered = vec2(uv.x * 2.0 - 1.0, uv.y * 2.0 - 1.0)
+    let radius = sqrt(centered.x * centered.x + centered.y * centered.y)
+    let ring = clamp(1.0 - abs(radius - 0.58) * 7.0, 0.0, 1.0)
+    let wave = sin(uv.x * 18.0 + accent.x * 0.01) * 0.5 + 0.5
+    let phase_mix = cos(uv.y * 14.0 + accent.y * 0.01) * 0.5 + 0.5
+    let cross = clamp(1.0 - abs(centered.x * centered.y) * 9.0, 0.0, 1.0)
+    return vec4(
+        clamp(wave * 0.65 + ring * 0.35 + accent.x * 0.0012, 0.0, 1.0),
+        clamp(phase_mix * 0.55 + cross * 0.35 + accent.y * 0.0011, 0.0, 1.0),
+        clamp(ring * 0.45 + cross * 0.25 + accent.z * 0.0010, 0.0, 1.0),
+        1.0
+    )
+
+shader compute SpirvCapabilityTensor(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [8, 8, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("spirv_capability_tensor", "spectrum_fold", ["src"], ["dst"], false),
+            ],
+        )
+
+    let index = id.x
+    let seed = src[index]
+    let folded = seed * 0.72 + seed * seed * 0.11
+    dst[index] = folded
+    return vec4(folded, 0.25 + folded * 0.5, 1.0 - folded * 0.3, 1.0)

@@ -7015,6 +7015,7 @@ fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> bool {
             expr_contains_runtime_best_effort_effects(iter)
                 || block_contains_runtime_best_effort_effects(body)
         }
+        Stmt::Fanout { .. } => true,
         Stmt::While {
             condition, body, ..
         } => {
@@ -7140,7 +7141,27 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(value)
         }
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::AtomicLoad { pointer, .. } => expr_contains_runtime_best_effort_effects(pointer),
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            expr_contains_runtime_best_effort_effects(pointer)
+                || expr_contains_runtime_best_effort_effects(value)
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            expr_contains_runtime_best_effort_effects(pointer)
+                || expr_contains_runtime_best_effort_effects(expected)
+                || expr_contains_runtime_best_effort_effects(desired)
+        }
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             expr_contains_runtime_best_effort_effects(target)
                 || expr_contains_runtime_best_effort_effects(body)
         }

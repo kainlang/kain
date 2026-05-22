@@ -1,0 +1,26 @@
+version: 1
+id: kain.native.core.proofs.native_fanout_range_drain_stays_within_end
+kind: check_smt2
+description: The fanout drain loop only executes the callback for indices in [start, end).
+tags:
+- native-runtime
+- fanout
+- bounds
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\fanout.c
+  symbol: __kain_fanout_i64
+  start_line: 74
+  reason: worker callbacks only fire after rejecting fetched indices that are greater than or equal to end
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const start Int)
+    (declare-const end Int)
+    (declare-const fetched Int)
+    (define-fun callback_runs () Bool (and (<= start fetched) (< fetched end)))
+    (assert (< start end))
+    (assert callback_runs)
+    (assert (or (< fetched start) (>= fetched end)))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -15,6 +15,7 @@ use kain_actor::{
 };
 use kain_ownership::{
     OwnershipPolicy, OwnershipRegionKind, COLLAPSE_KEYWORD, DECAY_KEYWORD, OBSERVE_KEYWORD,
+    SHARE_KEYWORD,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -341,6 +342,8 @@ pub struct TypeEnv<'a> {
     methods: HashMap<String, HashMap<String, ResolvedType>>,
     enum_variants: HashMap<String, HashMap<String, EnumVariantTypeInfo>>,
     entangle_endpoints: HashSet<String>,
+    shared_region_depth: usize,
+    fanout_depth: usize,
     span_mapper: &'a SpanMapper,
     filename: &'a str,
 }
@@ -356,6 +359,8 @@ impl<'a> TypeEnv<'a> {
             methods: HashMap::new(),
             enum_variants: HashMap::new(),
             entangle_endpoints: HashSet::new(),
+            shared_region_depth: 0,
+            fanout_depth: 0,
             span_mapper,
             filename,
         };
@@ -559,6 +564,30 @@ impl<'a> TypeEnv<'a> {
         self.methods
             .get(type_name)
             .and_then(|methods| methods.get(method_name))
+    }
+
+    fn push_shared_region(&mut self) {
+        self.shared_region_depth += 1;
+    }
+
+    fn pop_shared_region(&mut self) {
+        self.shared_region_depth = self.shared_region_depth.saturating_sub(1);
+    }
+
+    fn in_shared_region(&self) -> bool {
+        self.shared_region_depth > 0
+    }
+
+    fn push_fanout(&mut self) {
+        self.fanout_depth += 1;
+    }
+
+    fn pop_fanout(&mut self) {
+        self.fanout_depth = self.fanout_depth.saturating_sub(1);
+    }
+
+    fn in_fanout(&self) -> bool {
+        self.fanout_depth > 0
     }
 
     pub fn lookup_enum_variant_fields(
@@ -3725,7 +3754,7 @@ fn collect_patch_mutation_paths_from_stmt(stmt: &Stmt, output: &mut Vec<String>)
                 collect_patch_mutation_paths_from_expr(value, output);
             }
         }
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             collect_patch_mutation_paths_from_expr(iter, output);
             for stmt in &body.stmts {
                 collect_patch_mutation_paths_from_stmt(stmt, output);
@@ -3853,6 +3882,26 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
             collect_patch_mutation_paths_from_expr(pointer, output);
             collect_patch_mutation_paths_from_expr(value, output);
         }
+        Expr::AtomicLoad { pointer, .. } => {
+            collect_patch_mutation_paths_from_expr(pointer, output);
+        }
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            collect_patch_mutation_paths_from_expr(pointer, output);
+            collect_patch_mutation_paths_from_expr(value, output);
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            collect_patch_mutation_paths_from_expr(pointer, output);
+            collect_patch_mutation_paths_from_expr(expected, output);
+            collect_patch_mutation_paths_from_expr(desired, output);
+        }
         Expr::PtrOffset {
             pointer, offset, ..
         } => {
@@ -3866,7 +3915,9 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
         | Expr::Teleport { value: pointer, .. }
         | Expr::Cast { value: pointer, .. }
         | Expr::Comptime(pointer, _) => collect_patch_mutation_paths_from_expr(pointer, output),
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             collect_patch_mutation_paths_from_expr(target, output);
             collect_patch_mutation_paths_from_expr(body, output);
         }
@@ -3958,6 +4009,7 @@ fn stmt_requires_best_effort_patch_mode(stmt: &Stmt) -> bool {
             expr_requires_best_effort_patch_mode(iter)
                 || body.stmts.iter().any(stmt_requires_best_effort_patch_mode)
         }
+        Stmt::Fanout { .. } => true,
         Stmt::While {
             condition, body, ..
         } => {
@@ -4086,7 +4138,27 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
             expr_requires_best_effort_patch_mode(pointer)
                 || expr_requires_best_effort_patch_mode(value)
         }
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::AtomicLoad { pointer, .. } => expr_requires_best_effort_patch_mode(pointer),
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            expr_requires_best_effort_patch_mode(pointer)
+                || expr_requires_best_effort_patch_mode(value)
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            expr_requires_best_effort_patch_mode(pointer)
+                || expr_requires_best_effort_patch_mode(expected)
+                || expr_requires_best_effort_patch_mode(desired)
+        }
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             expr_requires_best_effort_patch_mode(target)
                 || expr_requires_best_effort_patch_mode(body)
         }
@@ -4195,7 +4267,7 @@ fn first_stage_call_in_stmt(stmt: &Stmt) -> Option<Span> {
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().and_then(first_stage_call_in_expr)
         }
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             first_stage_call_in_expr(iter).or_else(|| first_stage_call_in_block(body))
         }
         Stmt::While {
@@ -4305,6 +4377,21 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         Expr::MemStore { pointer, value, .. } => {
             first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(value))
         }
+        Expr::AtomicLoad { pointer, .. } => first_stage_call_in_expr(pointer),
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(value))
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => first_stage_call_in_expr(pointer)
+            .or_else(|| first_stage_call_in_expr(expected))
+            .or_else(|| first_stage_call_in_expr(desired)),
         Expr::PtrOffset {
             pointer, offset, ..
         } => first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(offset)),
@@ -4313,7 +4400,9 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
             target: pointer, ..
         }
         | Expr::Teleport { value: pointer, .. } => first_stage_call_in_expr(pointer),
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             first_stage_call_in_expr(target).or_else(|| first_stage_call_in_expr(body))
         }
         Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => init
@@ -4963,6 +5052,78 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             bind_pattern_types(env, binding, &item_ty)?;
             check_block_semantics(env, body, ctx)?;
             env.pop_scope();
+        }
+        Stmt::Fanout {
+            binding,
+            iter,
+            body,
+            span,
+        } => {
+            if !env.in_shared_region() {
+                return Err(env.type_error(
+                    "fanout requires an enclosing share scope in v1",
+                    *span,
+                ));
+            }
+            if env.in_fanout() {
+                return Err(env.type_error(
+                    "nested fanout is not supported in v1",
+                    *span,
+                ));
+            }
+            if ownership_block_contains_early_exit(body) {
+                return Err(env.type_error(
+                    "fanout bodies do not support return, break, or continue in v1",
+                    *span,
+                ));
+            }
+            let iter_ty = infer_expr_type(env, iter, Some(ctx))?;
+            let item_ty = match iter_ty {
+                ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => *inner,
+                ResolvedType::Ref { mutable, inner } => match *inner {
+                    ResolvedType::Array(item, _) | ResolvedType::Slice(item) => ResolvedType::Ref {
+                        mutable,
+                        inner: item,
+                    },
+                    ResolvedType::String => ResolvedType::Ref {
+                        mutable,
+                        inner: Box::new(ResolvedType::String),
+                    },
+                    other => {
+                        return Err(env.type_error(
+                            format!(
+                                "fanout expects an iterable reference, found &{}",
+                                describe_type(&other)
+                            ),
+                            *span,
+                        ))
+                    }
+                },
+                ResolvedType::String => ResolvedType::String,
+                ResolvedType::Option(inner) if matches!(inner.as_ref(), ResolvedType::Unknown) => {
+                    ResolvedType::Unknown
+                }
+                ResolvedType::Struct(_, _) | ResolvedType::Generic(_) => ResolvedType::Unknown,
+                ResolvedType::Unknown => ResolvedType::Unknown,
+                other => {
+                    return Err(env.type_error(
+                        format!(
+                            "fanout expects an iterable value, found {}",
+                            describe_type(&other)
+                        ),
+                        *span,
+                    ))
+                }
+            };
+            env.push_scope();
+            env.push_fanout();
+            let result = (|| {
+                bind_pattern_types(env, binding, &item_ty)?;
+                check_block_semantics(env, body, ctx)
+            })();
+            env.pop_fanout();
+            env.pop_scope();
+            result?;
         }
         Stmt::Loop { body, .. } => {
             env.push_scope();
@@ -5627,6 +5788,12 @@ fn infer_expr_type(
             load_ty,
             span,
         } => {
+            if env.in_shared_region() {
+                return Err(env.type_error(
+                    "mem_load is not allowed inside share scopes; use atomic_load in v1",
+                    *span,
+                ));
+            }
             if let Some(load_ty) = load_ty {
                 return resolve_type_in_env(env, load_ty);
             }
@@ -5649,6 +5816,12 @@ fn infer_expr_type(
             store_ty,
             span,
         } => {
+            if env.in_shared_region() {
+                return Err(env.type_error(
+                    "mem_store is not allowed inside share scopes; use atomic_store in v1",
+                    *span,
+                ));
+            }
             let expected_ty = if let Some(store_ty) = store_ty {
                 resolve_type_in_env(env, store_ty)?
             } else {
@@ -5676,6 +5849,118 @@ fn infer_expr_type(
             )?;
             Ok(ResolvedType::Unit)
         }
+        Expr::AtomicLoad {
+            pointer,
+            load_ty,
+            span,
+        } => {
+            if !env.in_shared_region() {
+                return Err(env.type_error(
+                    "atomic_load requires an enclosing share scope in v1",
+                    *span,
+                ));
+            }
+            infer_atomic_element_type(env, pointer, load_ty.as_ref(), ctx, *span, "atomic_load")
+        }
+        Expr::AtomicStore {
+            pointer,
+            value,
+            store_ty,
+            span,
+        } => {
+            if !env.in_shared_region() {
+                return Err(env.type_error(
+                    "atomic_store requires an enclosing share scope in v1",
+                    *span,
+                ));
+            }
+            let expected_ty =
+                infer_atomic_element_type(env, pointer, store_ty.as_ref(), ctx, *span, "atomic_store")?;
+            let value_ty = infer_expr_type(env, value, ctx)?;
+            ensure_type_compatible(
+                env,
+                &expected_ty,
+                &value_ty,
+                value.span(),
+                "atomic_store value",
+            )?;
+            Ok(ResolvedType::Unit)
+        }
+        Expr::AtomicAdd {
+            pointer,
+            value,
+            op_ty,
+            span,
+        }
+        | Expr::AtomicSub {
+            pointer,
+            value,
+            op_ty,
+            span,
+        }
+        | Expr::AtomicExchange {
+            pointer,
+            value,
+            op_ty,
+            span,
+        } => {
+            if !env.in_shared_region() {
+                return Err(env.type_error(
+                    "seqcst atomic operations require an enclosing share scope in v1",
+                    *span,
+                ));
+            }
+            let expected_ty =
+                infer_atomic_element_type(env, pointer, op_ty.as_ref(), ctx, *span, "atomic operation")?;
+            let value_ty = infer_expr_type(env, value, ctx)?;
+            ensure_type_compatible(
+                env,
+                &expected_ty,
+                &value_ty,
+                value.span(),
+                "atomic operation value",
+            )?;
+            Ok(expected_ty)
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            op_ty,
+            span,
+        } => {
+            if !env.in_shared_region() {
+                return Err(env.type_error(
+                    "atomic_compare_exchange requires an enclosing share scope in v1",
+                    *span,
+                ));
+            }
+            let expected_ty = infer_atomic_element_type(
+                env,
+                pointer,
+                op_ty.as_ref(),
+                ctx,
+                *span,
+                "atomic_compare_exchange",
+            )?;
+            let compare_ty = infer_expr_type(env, expected, ctx)?;
+            ensure_type_compatible(
+                env,
+                &expected_ty,
+                &compare_ty,
+                expected.span(),
+                "atomic_compare_exchange expected value",
+            )?;
+            let desired_ty = infer_expr_type(env, desired, ctx)?;
+            ensure_type_compatible(
+                env,
+                &expected_ty,
+                &desired_ty,
+                desired.span(),
+                "atomic_compare_exchange desired value",
+            )?;
+            Ok(ResolvedType::Bool)
+        }
         Expr::SizeOfType { .. } | Expr::AlignOfType { .. } => Ok(ResolvedType::Int(IntSize::I64)),
         Expr::Alloca { ty, .. } => Ok(ResolvedType::Ptr {
             mutable: true,
@@ -5701,18 +5986,50 @@ fn infer_expr_type(
             ),
         }),
         Expr::Observe { target, body, span } => {
+            if env.in_shared_region() {
+                return Err(env.type_error(
+                    "observe is not allowed inside share scopes in v1",
+                    *span,
+                ));
+            }
             validate_ownership_target(env, target, OBSERVE_KEYWORD, *span)?;
             ensure_ownership_scope_has_structured_exit(env, body, OBSERVE_KEYWORD, *span)?;
             infer_expr_type(env, body, ctx)
         }
         Expr::Collapse { target, body, span } => {
+            if env.in_shared_region() {
+                return Err(env.type_error(
+                    "collapse is not allowed inside share scopes in v1",
+                    *span,
+                ));
+            }
             validate_ownership_target(env, target, COLLAPSE_KEYWORD, *span)?;
             ensure_ownership_scope_has_structured_exit(env, body, COLLAPSE_KEYWORD, *span)?;
             infer_expr_type(env, body, ctx)
         }
         Expr::Decay { target, span } => {
+            if env.in_shared_region() {
+                return Err(env.type_error(
+                    "decay is not allowed inside share scopes in v1",
+                    *span,
+                ));
+            }
             validate_ownership_target(env, target, DECAY_KEYWORD, *span)?;
             Ok(ResolvedType::Unit)
+        }
+        Expr::Share { target, body, span } => {
+            if env.in_fanout() {
+                return Err(env.type_error(
+                    "share scopes cannot begin inside fanout bodies in v1",
+                    *span,
+                ));
+            }
+            validate_ownership_target(env, target, SHARE_KEYWORD, *span)?;
+            ensure_ownership_scope_has_structured_exit(env, body, SHARE_KEYWORD, *span)?;
+            env.push_shared_region();
+            let result = infer_expr_type(env, body, ctx);
+            env.pop_shared_region();
+            result
         }
         Expr::Teleport {
             value,
@@ -5865,6 +6182,7 @@ fn validate_ownership_target(
         OBSERVE_KEYWORD => policy.supports_observe(),
         COLLAPSE_KEYWORD => policy.supports_collapse(),
         DECAY_KEYWORD => policy.supports_decay(),
+        SHARE_KEYWORD => policy.supports_share(),
         _ => false,
     };
     if !supported {
@@ -5884,6 +6202,72 @@ fn validate_ownership_target(
             target.span(),
         )),
     }
+}
+
+fn resolve_atomic_pointer_element_type(
+    env: &TypeEnv,
+    pointer_ty: ResolvedType,
+    span: Span,
+    operation: &str,
+) -> KainResult<ResolvedType> {
+    match pointer_ty {
+        ResolvedType::Ptr { inner, .. } | ResolvedType::Ref { inner, .. } => Ok(*inner),
+        ResolvedType::Unknown => Ok(ResolvedType::Unknown),
+        other => Err(env.type_error(
+            format!("{operation} expects a pointer, found {}", describe_type(&other)),
+            span,
+        )),
+    }
+}
+
+fn ensure_supported_atomic_type(
+    env: &TypeEnv,
+    ty: &ResolvedType,
+    span: Span,
+    operation: &str,
+) -> KainResult<()> {
+    match peel_shared_refs(ty) {
+        ResolvedType::Bool
+        | ResolvedType::Int(IntSize::I32)
+        | ResolvedType::Int(IntSize::I64)
+        | ResolvedType::Int(IntSize::U32)
+        | ResolvedType::Int(IntSize::U64)
+        | ResolvedType::Unknown => Ok(()),
+        other => Err(env.type_error(
+            format!(
+                "{operation} only supports Bool, I32, I64, U32, and U64 in v1, found {}",
+                describe_type(other)
+            ),
+            span,
+        )),
+    }
+}
+
+fn infer_atomic_element_type(
+    env: &mut TypeEnv,
+    pointer: &Expr,
+    explicit_ty: Option<&Type>,
+    ctx: Option<&SemanticContext>,
+    span: Span,
+    operation: &str,
+) -> KainResult<ResolvedType> {
+    let pointer_ty = infer_expr_type(env, pointer, ctx)?;
+    let pointee_ty = resolve_atomic_pointer_element_type(env, pointer_ty, span, operation)?;
+    let resolved = if let Some(explicit_ty) = explicit_ty {
+        let explicit = resolve_type_in_env(env, explicit_ty)?;
+        ensure_type_compatible(
+            env,
+            &pointee_ty,
+            &explicit,
+            span,
+            &format!("{operation} pointer element"),
+        )?;
+        explicit
+    } else {
+        pointee_ty
+    };
+    ensure_supported_atomic_type(env, &resolved, span, operation)?;
+    Ok(resolved)
 }
 
 fn ensure_ownership_scope_has_structured_exit(
@@ -5914,7 +6298,7 @@ fn ownership_stmt_contains_early_exit(stmt: &Stmt) -> bool {
             .as_ref()
             .is_some_and(ownership_expr_contains_early_exit),
         Stmt::Expr(expr) => ownership_expr_contains_early_exit(expr),
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             ownership_expr_contains_early_exit(iter) || ownership_block_contains_early_exit(body)
         }
         Stmt::While {
@@ -6035,11 +6419,30 @@ fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
         Expr::MemStore { pointer, value, .. } => {
             ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(value)
         }
+        Expr::AtomicLoad { pointer, .. } => ownership_expr_contains_early_exit(pointer),
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(value)
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            ownership_expr_contains_early_exit(pointer)
+                || ownership_expr_contains_early_exit(expected)
+                || ownership_expr_contains_early_exit(desired)
+        }
         Expr::Alloc { size, .. } => ownership_expr_contains_early_exit(size),
         Expr::Realloc { pointer, size, .. } => {
             ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(size)
         }
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             ownership_expr_contains_early_exit(target) || ownership_expr_contains_early_exit(body)
         }
         Expr::SendMsg { target, data, .. } => {

@@ -301,6 +301,45 @@ void __kain_mem_store(void* ptr, const void* value, size_t size) {
     memcpy(ptr, value, size);
 }
 
+int64_t __kain_atomic_load_seqcst(const void* ptr) {
+    const atomic_int_least64_t* cell = (const atomic_int_least64_t*)ptr;
+    return (int64_t)atomic_load_explicit(cell, memory_order_seq_cst);
+}
+
+void __kain_atomic_store_seqcst(void* ptr, int64_t value) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    atomic_store_explicit(cell, (int_least64_t)value, memory_order_seq_cst);
+}
+
+int64_t __kain_atomic_add_seqcst(void* ptr, int64_t delta) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    return (int64_t)atomic_fetch_add_explicit(cell, (int_least64_t)delta, memory_order_seq_cst);
+}
+
+int64_t __kain_atomic_sub_seqcst(void* ptr, int64_t delta) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    return (int64_t)atomic_fetch_sub_explicit(cell, (int_least64_t)delta, memory_order_seq_cst);
+}
+
+int64_t __kain_atomic_exchange_seqcst(void* ptr, int64_t value) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    return (int64_t)atomic_exchange_explicit(cell, (int_least64_t)value, memory_order_seq_cst);
+}
+
+int __kain_atomic_compare_exchange_seqcst(void* ptr, int64_t expected, int64_t desired) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    int_least64_t expected_value = (int_least64_t)expected;
+    return atomic_compare_exchange_strong_explicit(
+               cell,
+               &expected_value,
+               (int_least64_t)desired,
+               memory_order_seq_cst,
+               memory_order_seq_cst
+           )
+        ? 1
+        : 0;
+}
+
 /* ============================================================================
  * Category 3: Allocation Operations
  * ============================================================================ */

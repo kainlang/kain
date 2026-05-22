@@ -7,6 +7,7 @@ This lab exists to prove that a root `build.kn` can:
 - discover nested blades through `workspace_defaults()`
 - own explicit test, proof, benchmark, attrition, certify, and root executable tasks
 - drive hidden adapter lanes such as `cargo`, `c-shared-library`, `gpu`, `fabric-validate`, `node`, and `bun`
+- coexist with auto-discovered `KAIN.fabric.toml` validate/run tasks in the same workspace
 - skip impossible capability-gated work without poisoning the successful evidence path
 - reject planner failures such as duplicate task ids and output collisions
 

@@ -1,0 +1,6 @@
+use c::kaintana_desktop_bridge
+use fluid_studio_sim::*
+use fluid_studio_ui::*
+
+fn main() -> Int:
+    return 0

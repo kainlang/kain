@@ -110,6 +110,10 @@ pub enum TokenKind {
     Observe,
     #[token("decay")]
     Decay,
+    #[token("share")]
+    Share,
+    #[token("fanout")]
+    Fanout,
 
     // === Testing ===
     #[token("test")]

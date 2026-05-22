@@ -34,6 +34,7 @@ sources = [
     "native/src/core/async.c",
     "native/src/core/compatibility.c",
     "native/src/core/host_bridge.c",
+    "native/src/core/fanout.c",
     "native/src/core/memory.c",
     "native/src/core/ownership.c",
     "native/src/core/bitfield.c",
@@ -106,6 +107,24 @@ provider = "native-core"
 requirement = "required"
 status = "available"
 description = "Native collapse/observe/decay guards for helper-owned heap regions and imported pointer lifetimes"
+
+[[services]]
+key = "memory.shared-fanout"
+name = "Shared Fanout Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Native shared-memory fanout over real OS threads for compiler-owned share/fanout lowering"
+
+[[services]]
+key = "memory.atomic-seqcst"
+name = "SeqCst Atomic Cells"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Canonical seq-cst atomic cell ABI for native shared-memory fanout and LLVM fallback surfaces"
 
 [[services]]
 key = "base.diagnostics"

@@ -1663,6 +1663,19 @@ impl SourceFormatter {
                 ),
                 &self.format_statement_sequence(&body.stmts)?,
             ),
+            Stmt::Fanout {
+                binding,
+                iter,
+                body,
+                ..
+            } => self.format_header_with_body(
+                &format!(
+                    "fanout {} in {}",
+                    self.format_pattern(binding)?,
+                    self.format_expr(iter)?
+                ),
+                &self.format_statement_sequence(&body.stmts)?,
+            ),
             Stmt::While {
                 condition, body, ..
             } => self.format_header_with_body(
@@ -1914,6 +1927,73 @@ impl SourceFormatter {
                     self.format_expr(value)?
                 ),
             },
+            Expr::AtomicLoad {
+                pointer, load_ty, ..
+            } => match load_ty {
+                Some(ty) => format!(
+                    "atomic_load({}, {})",
+                    self.format_expr(pointer)?,
+                    self.quote_string(&self.format_type(ty))
+                ),
+                None => format!("atomic_load({})", self.format_expr(pointer)?),
+            },
+            Expr::AtomicStore {
+                pointer,
+                value,
+                store_ty,
+                ..
+            } => match store_ty {
+                Some(ty) => format!(
+                    "atomic_store({}, {}, {})",
+                    self.format_expr(pointer)?,
+                    self.format_expr(value)?,
+                    self.quote_string(&self.format_type(ty))
+                ),
+                None => format!(
+                    "atomic_store({}, {})",
+                    self.format_expr(pointer)?,
+                    self.format_expr(value)?
+                ),
+            },
+            Expr::AtomicAdd {
+                pointer,
+                value,
+                op_ty,
+                ..
+            } => self.format_atomic_binary_call("atomic_add", pointer, value, op_ty.as_ref())?,
+            Expr::AtomicSub {
+                pointer,
+                value,
+                op_ty,
+                ..
+            } => self.format_atomic_binary_call("atomic_sub", pointer, value, op_ty.as_ref())?,
+            Expr::AtomicExchange {
+                pointer,
+                value,
+                op_ty,
+                ..
+            } => self.format_atomic_binary_call("atomic_exchange", pointer, value, op_ty.as_ref())?,
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                op_ty,
+                ..
+            } => match op_ty {
+                Some(ty) => format!(
+                    "atomic_compare_exchange({}, {}, {}, {})",
+                    self.format_expr(pointer)?,
+                    self.format_expr(expected)?,
+                    self.format_expr(desired)?,
+                    self.quote_string(&self.format_type(ty))
+                ),
+                None => format!(
+                    "atomic_compare_exchange({}, {}, {})",
+                    self.format_expr(pointer)?,
+                    self.format_expr(expected)?,
+                    self.format_expr(desired)?
+                ),
+            },
             Expr::SizeOfType { target, .. } => {
                 format!(
                     "sizeof_type({})",
@@ -1984,6 +2064,16 @@ impl SourceFormatter {
             }
             Expr::Decay { target, .. } => {
                 format!("decay {}", self.format_expr_with_prec(target, 13)?)
+            }
+            Expr::Share { target, body, .. } => {
+                if let Expr::Block(block, _) = body.as_ref() {
+                    let head = format!("share {}", self.format_expr(target)?);
+                    self.format_header_with_block(&head, block)?
+                } else {
+                    return Err(KainError::runtime(
+                        "Kain formatter cannot emit non-block share expressions in v1",
+                    ));
+                }
             }
             Expr::Teleport {
                 value,
@@ -2873,6 +2963,28 @@ impl SourceFormatter {
             UnaryOp::RefMut => "&mut ",
             UnaryOp::Deref => "*",
         }
+    }
+
+    fn format_atomic_binary_call(
+        &self,
+        name: &str,
+        pointer: &Expr,
+        value: &Expr,
+        op_ty: Option<&Type>,
+    ) -> KainResult<String> {
+        Ok(match op_ty {
+            Some(ty) => format!(
+                "{name}({}, {}, {})",
+                self.format_expr(pointer)?,
+                self.format_expr(value)?,
+                self.quote_string(&self.format_type(ty))
+            ),
+            None => format!(
+                "{name}({}, {})",
+                self.format_expr(pointer)?,
+                self.format_expr(value)?
+            ),
+        })
     }
 
     fn format_header_with_block(&self, header: &str, block: &Block) -> KainResult<String> {

@@ -622,6 +622,12 @@ impl CGen {
                     Span::default(),
                 ));
             }
+            Stmt::Fanout { .. } => {
+                return Err(self.unsupported(
+                    "C backend does not yet support KAIN fanout loops".to_string(),
+                    Span::default(),
+                ));
+            }
             Stmt::While {
                 condition, body, ..
             } => {

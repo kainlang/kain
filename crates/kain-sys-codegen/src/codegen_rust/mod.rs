@@ -1985,6 +1985,19 @@ impl RustGen {
                 self.pop_indent();
                 self.write_line("}");
             }
+            Stmt::Fanout {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
+                let pat = self.gen_pattern(binding);
+                self.write_line(&format!("for {} in {} {{", pat, self.gen_expr(iter)));
+                self.push_indent();
+                self.gen_block(body);
+                self.pop_indent();
+                self.write_line("}");
+            }
             Stmt::While {
                 condition, body, ..
             } => {
@@ -2084,6 +2097,19 @@ impl RustGen {
             }
             Stmt::Continue(_) => "continue;".to_string(),
             Stmt::For {
+                binding,
+                iter,
+                body,
+                ..
+            } => {
+                format!(
+                    "for {} in {} {}",
+                    self.gen_pattern(binding),
+                    self.gen_expr(iter),
+                    self.gen_block_expr(body)
+                )
+            }
+            Stmt::Fanout {
                 binding,
                 iter,
                 body,
@@ -2469,6 +2495,80 @@ impl RustGen {
                 let ty = store_ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
                 format!("unsafe {{ std::ptr::write(({}) as *mut {}, {}) }}", self.gen_expr(pointer), ty, self.gen_expr(value))
             }
+            Expr::AtomicLoad { pointer, load_ty, .. } => {
+                let ty = load_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!("__kain_atomic_load_seqcst::<{}>({})", ty, self.gen_expr(pointer))
+            }
+            Expr::AtomicStore { pointer, value, store_ty, .. } => {
+                let ty = store_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_store_seqcst::<{}>({}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(value)
+                )
+            }
+            Expr::AtomicAdd { pointer, value, op_ty, .. } => {
+                let ty = op_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_add_seqcst::<{}>({}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(value)
+                )
+            }
+            Expr::AtomicSub { pointer, value, op_ty, .. } => {
+                let ty = op_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_sub_seqcst::<{}>({}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(value)
+                )
+            }
+            Expr::AtomicExchange { pointer, value, op_ty, .. } => {
+                let ty = op_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_exchange_seqcst::<{}>({}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(value)
+                )
+            }
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                op_ty,
+                ..
+            } => {
+                let ty = op_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_compare_exchange_seqcst::<{}>({}, {}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(expected),
+                    self.gen_expr(desired)
+                )
+            }
             Expr::SizeOfType { target, .. } => format!("size_of::<{}>() as i64", self.map_type(target)),
             Expr::AlignOfType { target, .. } => format!("std::mem::align_of::<{}>() as i64", self.map_type(target)),
             Expr::Alloca { ty, .. } => format!("Box::into_raw(Box::new(unsafe {{ std::mem::MaybeUninit::<{}>::zeroed().assume_init() }}))", self.map_type(ty)),
@@ -2483,6 +2583,9 @@ impl RustGen {
             }
             Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
                 format!("{{ let _kain_ownership_target = {}; {} }}", self.gen_expr(target), self.gen_expr(body))
+            }
+            Expr::Share { target, body, .. } => {
+                format!("{{ let _kain_shared_target = {}; {} }}", self.gen_expr(target), self.gen_expr(body))
             }
             Expr::Decay { target, .. } => {
                 format!("{{ let _kain_ownership_target = {}; () }}", self.gen_expr(target))
@@ -2873,7 +2976,7 @@ impl RustGen {
                         self.collect_mutated_bindings_in_expr(value, names);
                     }
                 }
-                Stmt::For { iter, body, .. } => {
+                Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                     self.collect_mutated_bindings_in_expr(iter, names);
                     self.collect_mutated_bindings_in_stmts(&body.stmts, names);
                 }
@@ -3010,12 +3113,32 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(pointer, names);
                 self.collect_mutated_bindings_in_expr(value, names);
             }
+            Expr::AtomicLoad { pointer, .. } => self.collect_mutated_bindings_in_expr(pointer, names),
+            Expr::AtomicStore { pointer, value, .. }
+            | Expr::AtomicAdd { pointer, value, .. }
+            | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicExchange { pointer, value, .. } => {
+                self.collect_mutated_bindings_in_expr(pointer, names);
+                self.collect_mutated_bindings_in_expr(value, names);
+            }
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                ..
+            } => {
+                self.collect_mutated_bindings_in_expr(pointer, names);
+                self.collect_mutated_bindings_in_expr(expected, names);
+                self.collect_mutated_bindings_in_expr(desired, names);
+            }
             Expr::Alloc { size, .. } => self.collect_mutated_bindings_in_expr(size, names),
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_mutated_bindings_in_expr(pointer, names);
                 self.collect_mutated_bindings_in_expr(size, names);
             }
-            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            Expr::Observe { target, body, .. }
+            | Expr::Collapse { target, body, .. }
+            | Expr::Share { target, body, .. } => {
                 self.collect_mutated_bindings_in_expr(target, names);
                 self.collect_mutated_bindings_in_expr(body, names);
             }

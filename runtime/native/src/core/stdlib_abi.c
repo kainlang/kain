@@ -16,6 +16,7 @@
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
 #include "../../include/entangle.h"
+#include "../../include/fanout.h"
 
 #include <stddef.h>
 #include <errno.h>
@@ -555,6 +556,7 @@ int64_t abi_runtime_shutdown(void) {
 #if KAIN_RUNTIME_INIT_ACTOR_SHUTDOWN
     kain_actor_runtime_shutdown();
 #endif
+    kain_fanout_runtime_shutdown();
     if (abi_attrition_capture_enabled()) {
         kain_attrition_runtime_checkpoint(
             "case-end",

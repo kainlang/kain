@@ -1,5 +1,44 @@
 # Kain Memory
 
+# 2026-05-21 - `blades/spirv-visualizer` is now the SPIR-V capability viewport blade
+
+`blades/spirv-visualizer` now exists as a data-driven GPU/SPIR-V visualizer blade that can load arbitrary SPIR-V inputs, default to a known-good Kain-authored sample fragment shader, and present through the reusable `blades/vulkain` Vulkan bridge without baking app policy into Vulkain itself.
+
+What changed:
+
+- added `blades/spirv-visualizer/`
+  - `build.kn`, `KAIN.toml`, and `run.ps1` for a first-class blade/workspace launch surface
+  - `config/spirv_visualizer.runtime.json` for data-driven window, scan-root, shader-default, and artifact-path policy
+  - `shaders/spirv_visualizer_samples.kn` as the canonical sample SPIR-V authoring surface
+  - `src/main.kn` as the authored Kain viewport: worlds/entangle/actor/patch/law/converge/orchestrate semantics plus SPIR-V discovery, direct-pair selection, and Vulkain proxy fallback
+- wired the blade to `blades/vulkain`
+  - default finite smoke seeds `vulkain_basic.vert.spv` plus the sample fragment entrypoint `SpirvCapabilitySpectrum`
+  - explicit overrides now support raw SPIR-V, vertex, fragment, shader bundle, realtime bundle, entrypoint, config, and scan-root injection through `run.ps1` env wiring
+- taught the blade to accept the older working local compiler/runtime lane
+  - replaced unsupported iterator `for ... in ...` lowering with indexed `while` loops
+  - replaced unsupported string helpers (`trim`, `to_ascii_lowercase`, `starts_with`, `ends_with`, `contains`) with manual logic where needed
+  - replaced unresolved path intrinsics (`path_join`, `path_parent`, `path_stem`, `path_file_name`, `path_extension`, `cwd`, `create_dir_all`, `path_is_dir`) with stdlib-backed `fs_*` calls plus local path helpers
+- patched shared helper blades so this older LLVM lane can still dogfood data-driven blades
+  - `blades/kain-fsx/src/kain_fsx.kn` now uses `std::fs` wrappers plus local path parsing instead of unresolved path intrinsics
+  - `blades/kain-config/src/kain_config.kn` now avoids the unsupported trim/case-normalization helpers in env/csv parsing
+- runtime-output lesson:
+  - the heavier custom report/catalog sidecars triggered allocator noise in the older runtime lane, so the blade now treats `.kain/run/spirv_visualizer_presenter_report.txt` as the authoritative runtime artifact and omits the flaky extra sidecars from the hot path
+
+Validation:
+
+- `D:\\Kain-Lang\\target\\debug\\kain.exe check D:\\Kain-Lang\\blades\\spirv-visualizer\\src\\main.kn --target llvm`
+- `D:\\Kain-Lang\\target\\debug\\kain.exe gpu-artifacts D:\\Kain-Lang\\blades\\spirv-visualizer\\shaders\\spirv_visualizer_samples.kn --output D:\\Kain-Lang\\blades\\spirv-visualizer\\.kain\\gpu\\samples\\spirv_visualizer_samples`
+- `powershell -ExecutionPolicy Bypass -File D:\\Kain-Lang\\blades\\vulkain\\build-vulkain.ps1 -KainBin D:\\Kain-Lang\\target\\debug\\kain.exe`
+- `powershell -ExecutionPolicy Bypass -File .\\blades\\spirv-visualizer\\run.ps1 -KainBin D:\\Kain-Lang\\target\\debug\\kain.exe -FrameBudget 12`
+  - result: `PASS`, exit `0`
+  - `.kain/run/spirv_visualizer_presenter_report.txt`: `title=SPIR-V Capability Visualizer // Kain // direct pair`, `fragment_entry_point=SpirvCapabilitySpectrum`, `frames_presented=12`, `last_error=ok`
+
+Durable lesson:
+
+- On this checkout, a fresh repo-wide compiler build can still fail in unrelated `kain-core` work. Reusing an already-built `target\\debug\\kain.exe` via `-KainBin` is an acceptable validation lane for GPU blades when the local source tree is red outside the blade task.
+- The current older LLVM/runtime lane is still hostile to a handful of convenience helpers in authored Kain. For blade code that must run today, prefer manual string/path helpers, explicit `fs_*` stdlib calls, and indexed loops over newer sugar.
+- For short-lived Vulkan proof windows, trust the blade-local presenter report (`frames_presented`, entry points, `last_error`) more than MCP window discovery.
+
 # 2026-05-21 - direct ask reply-port prep and owner-inline completion cut more actor wait overhead
 
 The inline scheduler-lock cut moved the actor frontier, but hot ask/reply traffic was still paying two avoidable taxes: compiler-lowered direct asks still rebound a synthetic actor-table slot just to mint a stale-reply token, and same-thread inline completion still fell back to the reply-port lock/wake path before the owner thread copied the completed payload back out. This pass finished the direct-token lane, added an owner-thread readback fast path, and reran the canonical benchmark suite.

@@ -1,38 +1,4 @@
-[package]
-name = "kaintana-test"
-version = "0.1.0"
-description = "Consumer proof blade for the Kaintana framework."
-
-[blade]
-name = "kaintana-test"
-entry = "src/main.kn"
-source_roots = ["src"]
-module_roots = ["src"]
-build_targets = ["llvm"]
-
-[[blade.dependencies]]
-name = "kaintana"
-kind = "kain"
-
-[run]
-entry = "src/main.kn"
-target = "llvm"
-
-[build]
-entry = "src/main.kn"
-artifact_root = ".kain/out"
-cache_root = ".kain/cache/build"
-profile = "debug"
-
-[[build.tasks]]
-id = "check-llvm"
-kind = "check"
-entry = "src/main.kn"
-target = "llvm"
-inputs = [
-  "src/main.kn",
-  "run.ps1",
-]
+# build.kn owns package, blade, build, and run authority for kaintana-test.
 
 [c_ffi]
 

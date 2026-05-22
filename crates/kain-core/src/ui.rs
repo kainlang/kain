@@ -1147,9 +1147,49 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
             render_authored_expr_contract(target),
             render_authored_expr_contract(body)
         ),
+        Expr::Share { target, body, .. } => format!(
+            "share {}: {}",
+            render_authored_expr_contract(target),
+            render_authored_expr_contract(body)
+        ),
         Expr::Decay { target, .. } => {
             format!("decay {}", render_authored_expr_contract(target))
         }
+        Expr::AtomicLoad { pointer, .. } => format!(
+            "atomic_load({})",
+            render_authored_expr_contract(pointer)
+        ),
+        Expr::AtomicStore { pointer, value, .. } => format!(
+            "atomic_store({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
+        ),
+        Expr::AtomicAdd { pointer, value, .. } => format!(
+            "atomic_add({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
+        ),
+        Expr::AtomicSub { pointer, value, .. } => format!(
+            "atomic_sub({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
+        ),
+        Expr::AtomicExchange { pointer, value, .. } => format!(
+            "atomic_exchange({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
+        ),
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => format!(
+            "atomic_compare_exchange({}, {}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(expected),
+            render_authored_expr_contract(desired)
+        ),
         Expr::Teleport {
             value,
             source_world,

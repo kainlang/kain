@@ -6,3 +6,5 @@ edition = "2021"
 [[bin]]
 name = "build_kn_system_smoke_cargo"
 path = "src/main.rs"
+
+[workspace]

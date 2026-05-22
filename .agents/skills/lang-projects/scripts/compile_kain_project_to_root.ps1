@@ -19,14 +19,44 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Resolve-Path (Join-Path $scriptDir "..\..\..\..")
+function Normalize-PathValue {
+    param([string]$PathValue)
+
+    if (!$PathValue) {
+        return $PathValue
+    }
+
+    $providerPrefix = "Microsoft.PowerShell.Core\FileSystem::"
+    if ($PathValue.StartsWith($providerPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return Normalize-PathValue $PathValue.Substring($providerPrefix.Length)
+    }
+
+    if ($PathValue.StartsWith("\\?\UNC\")) {
+        return "\" + $PathValue.Substring(7)
+    }
+
+    if ($PathValue.StartsWith("\\?\")) {
+        return $PathValue.Substring(4)
+    }
+
+    return $PathValue
+}
+
+function Resolve-NormalizedPath {
+    param([string]$PathValue)
+
+    return (Normalize-PathValue ((Resolve-Path $PathValue).Path))
+}
+
+$scriptPath = Normalize-PathValue $MyInvocation.MyCommand.Path
+$scriptDir = Split-Path -Parent $scriptPath
+$repoRoot = Resolve-NormalizedPath (Join-Path $scriptDir "..\..\..\..")
 
 function Resolve-KainBinary {
     param([string]$Requested)
 
     if ($Requested -and (Test-Path $Requested)) {
-        return (Resolve-Path $Requested).Path
+        return (Resolve-NormalizedPath $Requested)
     }
 
     if ($CompilerBuild -eq "bazel" -or $CompilerBuild -eq "auto") {
@@ -107,14 +137,14 @@ function Resolve-KainBinary {
         throw "Expected built Kain binary was not found: $built"
     }
 
-    return (Resolve-Path $built).Path
+    return (Resolve-NormalizedPath $built)
 }
 
 function Find-ProjectRoot {
     param([string]$StartDir)
 
-    $current = (Resolve-Path $StartDir).Path
-    $repo = (Resolve-Path $repoRoot).Path
+    $current = Resolve-NormalizedPath $StartDir
+    $repo = Resolve-NormalizedPath $repoRoot
 
     while ($current -and $current.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase)) {
         if (
@@ -133,7 +163,7 @@ function Find-ProjectRoot {
         $current = $parent
     }
 
-    return (Split-Path -Parent (Split-Path -Parent (Resolve-Path $StartDir).Path))
+    return (Split-Path -Parent (Split-Path -Parent (Resolve-NormalizedPath $StartDir)))
 }
 
 function Move-GeneratedBuildSidecars {
@@ -160,7 +190,7 @@ function Move-GeneratedBuildSidecars {
     foreach ($sidecar in $sidecars) {
         if (Test-Path $sidecar) {
             $destination = Join-Path $ArtifactDir ([System.IO.Path]::GetFileName($sidecar))
-            if ((Resolve-Path $sidecar).Path -ne $destination) {
+            if ((Resolve-NormalizedPath $sidecar) -ne (Normalize-PathValue $destination)) {
                 Move-Item -LiteralPath $sidecar -Destination $destination -Force
             }
         }
@@ -168,15 +198,28 @@ function Move-GeneratedBuildSidecars {
 }
 
 $entryPath = if ([System.IO.Path]::IsPathRooted($Entry)) {
-    Resolve-Path $Entry
+    Resolve-NormalizedPath $Entry
 } else {
-    Resolve-Path (Join-Path $repoRoot $Entry)
+    Resolve-NormalizedPath (Join-Path $repoRoot $Entry)
+}
+
+if ($OutputName) {
+    $OutputName = Normalize-PathValue $OutputName
+}
+if ($KainBin) {
+    $KainBin = Normalize-PathValue $KainBin
+}
+if ($ArtifactRoot) {
+    $ArtifactRoot = Normalize-PathValue $ArtifactRoot
+}
+if ($RuntimeManifestPath) {
+    $RuntimeManifestPath = Normalize-PathValue $RuntimeManifestPath
 }
 
 if (!$OutputName) {
-    $baseName = [System.IO.Path]::GetFileNameWithoutExtension((Split-Path -Parent (Split-Path -Parent $entryPath.Path)))
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension((Split-Path -Parent (Split-Path -Parent $entryPath)))
     if (!$baseName) {
-        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($entryPath.Path)
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($entryPath)
     }
     $OutputName = "$baseName.exe"
 }
@@ -185,7 +228,7 @@ if (![System.IO.Path]::GetExtension($OutputName)) {
     $OutputName = "$OutputName.exe"
 }
 
-$projectRoot = Find-ProjectRoot -StartDir (Split-Path -Parent $entryPath.Path)
+$projectRoot = Find-ProjectRoot -StartDir (Split-Path -Parent $entryPath)
 $artifactRootPath = if ($ArtifactRoot) {
     if ([System.IO.Path]::IsPathRooted($ArtifactRoot)) {
         $ArtifactRoot
@@ -217,24 +260,24 @@ if (!(Test-Path $artifactDir)) {
 $resolvedKain = Resolve-KainBinary -Requested $KainBin
 $runtimeManifestForBuild = if ($RuntimeManifestPath) {
     if ([System.IO.Path]::IsPathRooted($RuntimeManifestPath)) {
-        Resolve-Path $RuntimeManifestPath
+        Resolve-NormalizedPath $RuntimeManifestPath
     } else {
-        Resolve-Path (Join-Path $repoRoot $RuntimeManifestPath)
+        Resolve-NormalizedPath (Join-Path $repoRoot $RuntimeManifestPath)
     }
 } else {
-    Resolve-Path (Join-Path $repoRoot "runtime\native_core_runtime.toml")
+    Resolve-NormalizedPath (Join-Path $repoRoot "runtime\native_core_runtime.toml")
 }
 $previousRuntimeManifestPath = $env:KAIN_RUNTIME_MANIFEST_PATH
-$env:KAIN_RUNTIME_MANIFEST_PATH = $runtimeManifestForBuild.Path
+$env:KAIN_RUNTIME_MANIFEST_PATH = $runtimeManifestForBuild
 
 Push-Location $projectRoot
 try {
-    & $resolvedKain check $entryPath.Path --target llvm
+    & $resolvedKain check $entryPath --target llvm
     if ($LASTEXITCODE -ne 0) {
         throw "kain check failed with exit code $LASTEXITCODE"
     }
 
-    & $resolvedKain $entryPath.Path -t llvm -o $outputExe
+    & $resolvedKain $entryPath -t llvm -o $outputExe
     if ($LASTEXITCODE -ne 0) {
         throw "native LLVM compile failed with exit code $LASTEXITCODE"
     }

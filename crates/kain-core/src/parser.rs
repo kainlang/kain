@@ -8,7 +8,7 @@ use crate::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
 use crate::language_features::{default_language_capabilities, LanguageCapabilities};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::span::Span;
-use kain_ownership::{COLLAPSE_KEYWORD, OBSERVE_KEYWORD};
+use kain_ownership::{COLLAPSE_KEYWORD, OBSERVE_KEYWORD, SHARE_KEYWORD};
 
 /// Maximum number of errors to accumulate before bailing out.
 /// Prevents runaway error accumulation from freezing the compiler.
@@ -65,6 +65,8 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "collapse",
     "observe",
     "decay",
+    "share",
+    "fanout",
     "axiom",
     "pulse",
     "shatter",
@@ -674,6 +676,8 @@ impl<'a> Parser<'a> {
             TokenKind::Collapse => Some("collapse".to_string()),
             TokenKind::Observe => Some("observe".to_string()),
             TokenKind::Decay => Some("decay".to_string()),
+            TokenKind::Share => Some("share".to_string()),
+            TokenKind::Fanout => Some("fanout".to_string()),
             TokenKind::Test => Some("test".to_string()),
             TokenKind::Pure => Some("Pure".to_string()),
             TokenKind::Io => Some("IO".to_string()),
@@ -3774,6 +3778,7 @@ impl<'a> Parser<'a> {
             TokenKind::Var => self.parse_var(),
             TokenKind::Return => self.parse_return(),
             TokenKind::For => self.parse_for(),
+            TokenKind::Fanout => self.parse_fanout(),
             TokenKind::While => self.parse_while(),
             TokenKind::Loop => self.parse_loop(),
             TokenKind::Break => self.parse_break(),
@@ -3848,6 +3853,26 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
         Ok(Stmt::For {
+            binding: Pattern::Binding {
+                name,
+                mutable: false,
+                span: start,
+            },
+            iter,
+            body,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_fanout(&mut self) -> KainResult<Stmt> {
+        let start = self.current_span();
+        self.expect(TokenKind::Fanout)?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::In)?;
+        let iter = self.parse_expr()?;
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        Ok(Stmt::Fanout {
             binding: Pattern::Binding {
                 name,
                 mutable: false,
@@ -4004,6 +4029,7 @@ impl<'a> Parser<'a> {
             TokenKind::Observe => self.parse_scoped_ownership_expr(OBSERVE_KEYWORD),
             TokenKind::Collapse => self.parse_scoped_ownership_expr(COLLAPSE_KEYWORD),
             TokenKind::Decay => self.parse_decay_expr(),
+            TokenKind::Share => self.parse_scoped_ownership_expr(SHARE_KEYWORD),
             TokenKind::Ident(ref name) if name == "teleport" => self.parse_teleport_expr(),
             TokenKind::Amp => {
                 let s = self.current_span();
@@ -4168,6 +4194,11 @@ impl<'a> Parser<'a> {
                 span,
             }),
             COLLAPSE_KEYWORD => Ok(Expr::Collapse {
+                target: Box::new(target),
+                body: Box::new(body),
+                span,
+            }),
+            SHARE_KEYWORD => Ok(Expr::Share {
                 target: Box::new(target),
                 body: Box::new(body),
                 span,
@@ -5030,6 +5061,85 @@ impl<'a> Parser<'a> {
                             pointer: Box::new(pointer),
                             value: Box::new(value),
                             store_ty,
+                            span,
+                        };
+                    }
+                    ("atomic_load", 1 | 2) => {
+                        let mut values = args.into_iter();
+                        let pointer = values.next().expect("atomic_load must have arg").value;
+                        let load_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        return Expr::AtomicLoad {
+                            pointer: Box::new(pointer),
+                            load_ty,
+                            span,
+                        };
+                    }
+                    ("atomic_store", 2 | 3) => {
+                        let mut values = args.into_iter();
+                        let pointer = values.next().expect("atomic_store must have first arg").value;
+                        let value = values.next().expect("atomic_store must have second arg").value;
+                        let store_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        return Expr::AtomicStore {
+                            pointer: Box::new(pointer),
+                            value: Box::new(value),
+                            store_ty,
+                            span,
+                        };
+                    }
+                    ("atomic_add" | "atomic_sub" | "atomic_exchange", 2 | 3) => {
+                        let mut values = args.into_iter();
+                        let pointer = values.next().expect("atomic op must have first arg").value;
+                        let value = values.next().expect("atomic op must have second arg").value;
+                        let op_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        return match name.as_str() {
+                            "atomic_add" => Expr::AtomicAdd {
+                                pointer: Box::new(pointer),
+                                value: Box::new(value),
+                                op_ty,
+                                span,
+                            },
+                            "atomic_sub" => Expr::AtomicSub {
+                                pointer: Box::new(pointer),
+                                value: Box::new(value),
+                                op_ty,
+                                span,
+                            },
+                            _ => Expr::AtomicExchange {
+                                pointer: Box::new(pointer),
+                                value: Box::new(value),
+                                op_ty,
+                                span,
+                            },
+                        };
+                    }
+                    ("atomic_compare_exchange", 3 | 4) => {
+                        let mut values = args.into_iter();
+                        let pointer = values
+                            .next()
+                            .expect("atomic_compare_exchange must have first arg")
+                            .value;
+                        let expected = values
+                            .next()
+                            .expect("atomic_compare_exchange must have second arg")
+                            .value;
+                        let desired = values
+                            .next()
+                            .expect("atomic_compare_exchange must have third arg")
+                            .value;
+                        let op_ty = values
+                            .next()
+                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        return Expr::AtomicCompareExchange {
+                            pointer: Box::new(pointer),
+                            expected: Box::new(expected),
+                            desired: Box::new(desired),
+                            op_ty,
                             span,
                         };
                     }
@@ -6011,7 +6121,7 @@ impl<'a> Parser<'a> {
                  TokenKind::Mod | TokenKind::Use | TokenKind::True | TokenKind::False | TokenKind::None |
                  TokenKind::Spawn | TokenKind::Send | TokenKind::Receive | TokenKind::Emit |
                  TokenKind::Comptime | TokenKind::Macro | TokenKind::Vertex | TokenKind::Fragment |
-                 TokenKind::Collapse | TokenKind::Observe | TokenKind::Decay |
+                 TokenKind::Collapse | TokenKind::Observe | TokenKind::Decay | TokenKind::Share | TokenKind::Fanout |
                  TokenKind::Test | TokenKind::Pure | TokenKind::Io | TokenKind::AsyncKw | TokenKind::Async |
                  TokenKind::Gpu | TokenKind::Reactive | TokenKind::Unsafe) => {
                 Err(self.parser_error(

@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
+use std::time::Instant;
 
 use kain_core::ast::{Expr, Item, Program, ShaderStage, Use, WorldSurfaceKind};
 use kain_core::error::KainError;
@@ -344,9 +345,43 @@ impl DriverSession {
         target: CompileTarget,
         root_component: Option<&str>,
     ) -> Result<RealtimeAppBundleOutput, KainError> {
+        let trace_realtime_bundle = std::env::var("KAIN_DRIVER_TRACE_REALTIME_BUNDLE")
+            .map(|value| {
+                let normalized = value.trim().to_ascii_lowercase();
+                !normalized.is_empty() && normalized != "0" && normalized != "false"
+            })
+            .unwrap_or(false);
+        let trace_started = Instant::now();
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] start target={target:?} root_component={}",
+                root_component.unwrap_or("<auto>")
+            );
+        }
         let typed = self.frontend_to_typed_program(source, target)?;
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] typed_program_ms={}",
+                trace_started.elapsed().as_millis()
+            );
+        }
         let resolved_world = resolve_world_selection(&typed, target, root_component)?;
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] resolved_world_ms={} active_world={} root_component={}",
+                trace_started.elapsed().as_millis(),
+                resolved_world.active_world_name.as_deref().unwrap_or("<none>"),
+                resolved_world.root_component.as_deref().unwrap_or("<none>")
+            );
+        }
         let prepared_ui_source = prepare_frontend_source_for_target(source, target)?;
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] prepared_ui_source_ms={} bytes={}",
+                trace_started.elapsed().as_millis(),
+                prepared_ui_source.len()
+            );
+        }
         let ui_output = if let Some(root_component) = resolved_world.root_component.as_deref() {
             Some(kain_core::build_ui_output_from_source(
                 &prepared_ui_source,
@@ -355,16 +390,42 @@ impl DriverSession {
         } else {
             None
         };
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] ui_output_ms={} has_ui={}",
+                trace_started.elapsed().as_millis(),
+                ui_output.is_some()
+            );
+        }
         let mut bundle = emit_realtime_app_bundle(&typed, ui_output.as_ref(), target);
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] emit_bundle_ms={}",
+                trace_started.elapsed().as_millis()
+            );
+        }
         apply_active_world_selection_to_realtime_bundle(
             &mut bundle,
             resolved_world.active_world_name.as_deref(),
         )?;
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] active_world_ms={}",
+                trace_started.elapsed().as_millis()
+            );
+        }
         let bundle_json = realtime_app_bundle_to_json(&bundle).map_err(|err| {
             KainError::runtime(format!(
                 "Failed to serialize realtime app bundle JSON: {err}"
             ))
         })?;
+        if trace_realtime_bundle {
+            eprintln!(
+                "[kain-driver][realtime] bundle_json_ms={} bytes={}",
+                trace_started.elapsed().as_millis(),
+                bundle_json.len()
+            );
+        }
         Ok(RealtimeAppBundleOutput {
             bundle,
             bundle_json,

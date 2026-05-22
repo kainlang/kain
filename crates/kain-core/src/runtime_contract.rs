@@ -431,7 +431,7 @@ fn collect_runtime_capabilities(
         capabilities.push(runtime_capability(
             OWNERSHIP_CAPABILITY,
             "kain-ownership",
-            Some("Program uses compiler-owned collapse/observe/decay memory ownership scopes."),
+            Some("Program uses compiler-owned collapse/observe/decay/share memory ownership scopes."),
         ));
     }
 
@@ -641,6 +641,20 @@ fn collect_runtime_capabilities(
                 "runtime/native",
                 Some("Program targets the raw native runtime lane."),
             ));
+            if summary.shared_fanout_ops > 0 {
+                capabilities.push(runtime_capability(
+                    "memory.shared-fanout",
+                    "runtime/native",
+                    Some("Program uses compiler-owned share/fanout shared-memory execution over native OS threads."),
+                ));
+            }
+            if summary.atomic_seqcst_ops > 0 {
+                capabilities.push(runtime_capability(
+                    "memory.atomic-seqcst",
+                    "runtime/native",
+                    Some("Program uses compiler-owned seq-cst atomic memory operations."),
+                ));
+            }
             if raw_native_needs_platform_host(summary) {
                 capabilities.push(runtime_capability(
                     "native.viewport-host",
@@ -741,6 +755,20 @@ fn runtime_service_bindings_for_target(
     }
 
     if matches!(target, CompileTarget::C | CompileTarget::Llvm) {
+        if summary.shared_fanout_ops > 0 {
+            bindings.push(runtime_service_binding(
+                "memory.shared-fanout",
+                "runtime/native",
+                "raw-native",
+            ));
+        }
+        if summary.atomic_seqcst_ops > 0 {
+            bindings.push(runtime_service_binding(
+                "memory.atomic-seqcst",
+                "runtime/native",
+                "raw-native",
+            ));
+        }
         if raw_native_needs_ui_bundle(summary) {
             bindings.push(runtime_service_binding(
                 "ui.bundle",
@@ -1565,6 +1593,8 @@ struct ItemSummary {
     graph_runtimes: usize,
     editor_modules: usize,
     ownership_ops: usize,
+    shared_fanout_ops: usize,
+    atomic_seqcst_ops: usize,
 }
 
 fn summarize_items(items: &[TypedItem]) -> ItemSummary {
@@ -1584,7 +1614,7 @@ fn stmt_contains_ownership_expr(stmt: &Stmt) -> bool {
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_ownership_expr)
         }
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             expr_contains_ownership_expr(iter) || block_contains_ownership_expr(body)
         }
         Stmt::While {
@@ -1600,6 +1630,7 @@ fn expr_contains_ownership_expr(expr: &Expr) -> bool {
         Expr::Observe { .. }
         | Expr::Collapse { .. }
         | Expr::Decay { .. }
+        | Expr::Share { .. }
         | Expr::Teleport { .. } => true,
         Expr::Binary { left, right, .. } => {
             expr_contains_ownership_expr(left) || expr_contains_ownership_expr(right)
@@ -1697,6 +1728,23 @@ fn expr_contains_ownership_expr(expr: &Expr) -> bool {
         Expr::MemStore { pointer, value, .. } => {
             expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(value)
         }
+        Expr::AtomicLoad { pointer, .. } => expr_contains_ownership_expr(pointer),
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(value)
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            expr_contains_ownership_expr(pointer)
+                || expr_contains_ownership_expr(expected)
+                || expr_contains_ownership_expr(desired)
+        }
         Expr::Alloc { size, .. } => expr_contains_ownership_expr(size),
         Expr::Realloc { pointer, size, .. } => {
             expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(size)
@@ -1712,6 +1760,347 @@ fn expr_contains_ownership_expr(expr: &Expr) -> bool {
             .any(|(_, value)| expr_contains_ownership_expr(value)),
         Expr::Block(block, _) => block_contains_ownership_expr(block),
         _ => false,
+    }
+}
+
+fn block_contains_shared_fanout_expr(block: &Block) -> bool {
+    block.stmts.iter().any(stmt_contains_shared_fanout_expr)
+}
+
+fn stmt_contains_shared_fanout_expr(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_shared_fanout_expr),
+        Stmt::Expr(expr) => expr_contains_shared_fanout_expr(expr),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => {
+            value.as_ref().is_some_and(expr_contains_shared_fanout_expr)
+        }
+        Stmt::For { iter, body, .. } => {
+            expr_contains_shared_fanout_expr(iter) || block_contains_shared_fanout_expr(body)
+        }
+        Stmt::Fanout { .. } => true,
+        Stmt::While {
+            condition, body, ..
+        } => expr_contains_shared_fanout_expr(condition) || block_contains_shared_fanout_expr(body),
+        Stmt::Loop { body, .. } => block_contains_shared_fanout_expr(body),
+        Stmt::Item(_) | Stmt::Continue(_) => false,
+    }
+}
+
+fn expr_contains_shared_fanout_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Share { .. } => true,
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            expr_contains_shared_fanout_expr(target) || expr_contains_shared_fanout_expr(body)
+        }
+        Expr::Decay { target, .. } => expr_contains_shared_fanout_expr(target),
+        Expr::Binary { left, right, .. } => {
+            expr_contains_shared_fanout_expr(left) || expr_contains_shared_fanout_expr(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Cast { value: operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Comptime(operand, _)
+        | Expr::Paren(operand, _) => expr_contains_shared_fanout_expr(operand),
+        Expr::Call { callee, args, .. } => {
+            expr_contains_shared_fanout_expr(callee)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_shared_fanout_expr(&arg.value))
+        }
+        Expr::StageCall { args, .. } => args
+            .iter()
+            .any(|arg| expr_contains_shared_fanout_expr(&arg.value)),
+        Expr::MacroCall { args, .. } => args.iter().any(expr_contains_shared_fanout_expr),
+        Expr::MethodCall { receiver, args, .. } => {
+            expr_contains_shared_fanout_expr(receiver)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_shared_fanout_expr(&arg.value))
+        }
+        Expr::Field { object, .. } => expr_contains_shared_fanout_expr(object),
+        Expr::Index { object, index, .. } => {
+            expr_contains_shared_fanout_expr(object) || expr_contains_shared_fanout_expr(index)
+        }
+        Expr::Assign { target, value, .. } => {
+            expr_contains_shared_fanout_expr(target) || expr_contains_shared_fanout_expr(value)
+        }
+        Expr::Struct { fields, rest, .. } => {
+            fields
+                .iter()
+                .any(|(_, value)| expr_contains_shared_fanout_expr(value))
+                || rest
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_shared_fanout_expr(value))
+        }
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| expr_contains_shared_fanout_expr(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            crate::ast::EnumVariantFields::Unit => false,
+            crate::ast::EnumVariantFields::Tuple(values) => {
+                values.iter().any(expr_contains_shared_fanout_expr)
+            }
+            crate::ast::EnumVariantFields::Struct(values) => values
+                .iter()
+                .any(|(_, value)| expr_contains_shared_fanout_expr(value)),
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            values.iter().any(expr_contains_shared_fanout_expr)
+        }
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|value| expr_contains_shared_fanout_expr(value))
+                || end
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_shared_fanout_expr(value))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_contains_shared_fanout_expr(condition)
+                || block_contains_shared_fanout_expr(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_shared_fanout_expr(branch))
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            expr_contains_shared_fanout_expr(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard
+                        .as_ref()
+                        .is_some_and(expr_contains_shared_fanout_expr)
+                        || expr_contains_shared_fanout_expr(&arm.body)
+                })
+        }
+        Expr::Lambda { body, .. } => expr_contains_shared_fanout_expr(body),
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(offset),
+        Expr::MemLoad { pointer, .. } => expr_contains_shared_fanout_expr(pointer),
+        Expr::MemStore { pointer, value, .. } => {
+            expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(value)
+        }
+        Expr::AtomicLoad { pointer, .. } => expr_contains_shared_fanout_expr(pointer),
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(value)
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            expr_contains_shared_fanout_expr(pointer)
+                || expr_contains_shared_fanout_expr(expected)
+                || expr_contains_shared_fanout_expr(desired)
+        }
+        Expr::Alloc { size, .. } => expr_contains_shared_fanout_expr(size),
+        Expr::Realloc { pointer, size, .. } => {
+            expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(size)
+        }
+        Expr::SendMsg { target, data, .. } => {
+            expr_contains_shared_fanout_expr(target)
+                || data
+                    .iter()
+                    .any(|(_, value)| expr_contains_shared_fanout_expr(value))
+        }
+        Expr::Spawn { init, .. } => init
+            .iter()
+            .any(|(_, value)| expr_contains_shared_fanout_expr(value)),
+        Expr::Block(block, _) => block_contains_shared_fanout_expr(block),
+        _ => false,
+    }
+}
+
+fn else_branch_contains_shared_fanout_expr(branch: &crate::ast::ElseBranch) -> bool {
+    match branch {
+        crate::ast::ElseBranch::Else(block) => block_contains_shared_fanout_expr(block),
+        crate::ast::ElseBranch::ElseIf(condition, block, next) => {
+            expr_contains_shared_fanout_expr(condition)
+                || block_contains_shared_fanout_expr(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_shared_fanout_expr(branch))
+        }
+    }
+}
+
+fn block_contains_atomic_seqcst_expr(block: &Block) -> bool {
+    block.stmts.iter().any(stmt_contains_atomic_seqcst_expr)
+}
+
+fn stmt_contains_atomic_seqcst_expr(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_atomic_seqcst_expr),
+        Stmt::Expr(expr) => expr_contains_atomic_seqcst_expr(expr),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => {
+            value.as_ref().is_some_and(expr_contains_atomic_seqcst_expr)
+        }
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
+            expr_contains_atomic_seqcst_expr(iter) || block_contains_atomic_seqcst_expr(body)
+        }
+        Stmt::While {
+            condition, body, ..
+        } => expr_contains_atomic_seqcst_expr(condition) || block_contains_atomic_seqcst_expr(body),
+        Stmt::Loop { body, .. } => block_contains_atomic_seqcst_expr(body),
+        Stmt::Item(_) | Stmt::Continue(_) => false,
+    }
+}
+
+fn expr_contains_atomic_seqcst_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::AtomicLoad { .. }
+        | Expr::AtomicStore { .. }
+        | Expr::AtomicAdd { .. }
+        | Expr::AtomicSub { .. }
+        | Expr::AtomicExchange { .. }
+        | Expr::AtomicCompareExchange { .. } => true,
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
+            expr_contains_atomic_seqcst_expr(target) || expr_contains_atomic_seqcst_expr(body)
+        }
+        Expr::Decay { target, .. } => expr_contains_atomic_seqcst_expr(target),
+        Expr::Binary { left, right, .. } => {
+            expr_contains_atomic_seqcst_expr(left) || expr_contains_atomic_seqcst_expr(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Cast { value: operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Comptime(operand, _)
+        | Expr::Paren(operand, _) => expr_contains_atomic_seqcst_expr(operand),
+        Expr::Call { callee, args, .. } => {
+            expr_contains_atomic_seqcst_expr(callee)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_atomic_seqcst_expr(&arg.value))
+        }
+        Expr::StageCall { args, .. } => args
+            .iter()
+            .any(|arg| expr_contains_atomic_seqcst_expr(&arg.value)),
+        Expr::MacroCall { args, .. } => args.iter().any(expr_contains_atomic_seqcst_expr),
+        Expr::MethodCall { receiver, args, .. } => {
+            expr_contains_atomic_seqcst_expr(receiver)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_atomic_seqcst_expr(&arg.value))
+        }
+        Expr::Field { object, .. } => expr_contains_atomic_seqcst_expr(object),
+        Expr::Index { object, index, .. } => {
+            expr_contains_atomic_seqcst_expr(object) || expr_contains_atomic_seqcst_expr(index)
+        }
+        Expr::Assign { target, value, .. } => {
+            expr_contains_atomic_seqcst_expr(target) || expr_contains_atomic_seqcst_expr(value)
+        }
+        Expr::Struct { fields, rest, .. } => {
+            fields
+                .iter()
+                .any(|(_, value)| expr_contains_atomic_seqcst_expr(value))
+                || rest
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_atomic_seqcst_expr(value))
+        }
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| expr_contains_atomic_seqcst_expr(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            crate::ast::EnumVariantFields::Unit => false,
+            crate::ast::EnumVariantFields::Tuple(values) => {
+                values.iter().any(expr_contains_atomic_seqcst_expr)
+            }
+            crate::ast::EnumVariantFields::Struct(values) => values
+                .iter()
+                .any(|(_, value)| expr_contains_atomic_seqcst_expr(value)),
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            values.iter().any(expr_contains_atomic_seqcst_expr)
+        }
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|value| expr_contains_atomic_seqcst_expr(value))
+                || end
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_atomic_seqcst_expr(value))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_contains_atomic_seqcst_expr(condition)
+                || block_contains_atomic_seqcst_expr(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_atomic_seqcst_expr(branch))
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            expr_contains_atomic_seqcst_expr(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard
+                        .as_ref()
+                        .is_some_and(expr_contains_atomic_seqcst_expr)
+                        || expr_contains_atomic_seqcst_expr(&arm.body)
+                })
+        }
+        Expr::Lambda { body, .. } => expr_contains_atomic_seqcst_expr(body),
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => expr_contains_atomic_seqcst_expr(pointer) || expr_contains_atomic_seqcst_expr(offset),
+        Expr::MemLoad { pointer, .. } => expr_contains_atomic_seqcst_expr(pointer),
+        Expr::MemStore { pointer, value, .. } => {
+            expr_contains_atomic_seqcst_expr(pointer) || expr_contains_atomic_seqcst_expr(value)
+        }
+        Expr::Alloc { size, .. } => expr_contains_atomic_seqcst_expr(size),
+        Expr::Realloc { pointer, size, .. } => {
+            expr_contains_atomic_seqcst_expr(pointer) || expr_contains_atomic_seqcst_expr(size)
+        }
+        Expr::SendMsg { target, data, .. } => {
+            expr_contains_atomic_seqcst_expr(target)
+                || data
+                    .iter()
+                    .any(|(_, value)| expr_contains_atomic_seqcst_expr(value))
+        }
+        Expr::Spawn { init, .. } => init
+            .iter()
+            .any(|(_, value)| expr_contains_atomic_seqcst_expr(value)),
+        Expr::Block(block, _) => block_contains_atomic_seqcst_expr(block),
+        _ => false,
+    }
+}
+
+fn else_branch_contains_atomic_seqcst_expr(branch: &crate::ast::ElseBranch) -> bool {
+    match branch {
+        crate::ast::ElseBranch::Else(block) => block_contains_atomic_seqcst_expr(block),
+        crate::ast::ElseBranch::ElseIf(condition, block, next) => {
+            expr_contains_atomic_seqcst_expr(condition)
+                || block_contains_atomic_seqcst_expr(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_atomic_seqcst_expr(branch))
+        }
     }
 }
 
@@ -1739,7 +2128,7 @@ fn stmt_contains_teleport_expr(stmt: &Stmt) -> bool {
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_teleport_expr)
         }
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             expr_contains_teleport_expr(iter) || block_contains_teleport_expr(body)
         }
         Stmt::While {
@@ -1753,7 +2142,9 @@ fn stmt_contains_teleport_expr(stmt: &Stmt) -> bool {
 fn expr_contains_teleport_expr(expr: &Expr) -> bool {
     match expr {
         Expr::Teleport { .. } => true,
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             expr_contains_teleport_expr(target) || expr_contains_teleport_expr(body)
         }
         Expr::Decay { target, .. } => expr_contains_teleport_expr(target),
@@ -1853,6 +2244,23 @@ fn expr_contains_teleport_expr(expr: &Expr) -> bool {
         Expr::MemStore { pointer, value, .. } => {
             expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(value)
         }
+        Expr::AtomicLoad { pointer, .. } => expr_contains_teleport_expr(pointer),
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(value)
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            expr_contains_teleport_expr(pointer)
+                || expr_contains_teleport_expr(expected)
+                || expr_contains_teleport_expr(desired)
+        }
         Expr::Alloc { size, .. } => expr_contains_teleport_expr(size),
         Expr::Realloc { pointer, size, .. } => {
             expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(size)
@@ -1891,6 +2299,12 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
                 if block_contains_ownership_expr(&function.ast.body) {
                     summary.ownership_ops += 1;
                 }
+                if block_contains_shared_fanout_expr(&function.ast.body) {
+                    summary.shared_fanout_ops += 1;
+                }
+                if block_contains_atomic_seqcst_expr(&function.ast.body) {
+                    summary.atomic_seqcst_ops += 1;
+                }
                 if block_contains_teleport_expr(&function.ast.body) {
                     summary.teleports += 1;
                 }
@@ -1905,6 +2319,12 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
                 summary.pulses += 1;
                 if block_contains_ownership_expr(&pulse.ast.body) {
                     summary.ownership_ops += 1;
+                }
+                if block_contains_shared_fanout_expr(&pulse.ast.body) {
+                    summary.shared_fanout_ops += 1;
+                }
+                if block_contains_atomic_seqcst_expr(&pulse.ast.body) {
+                    summary.atomic_seqcst_ops += 1;
                 }
                 if block_contains_teleport_expr(&pulse.ast.body) {
                     summary.teleports += 1;

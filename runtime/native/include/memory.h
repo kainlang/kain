@@ -279,6 +279,20 @@ void __kain_mem_load(const void* ptr, void* out, size_t size);
  */
 void __kain_mem_store(void* ptr, const void* value, size_t size);
 
+/*
+ * __kain_atomic_*_seqcst
+ *
+ * Canonical seq-cst atomic helpers over 64-bit storage cells. The LLVM backend
+ * lowers authored atomics directly where possible; these helpers keep the native
+ * ABI truthful for runtime-backed and fallback surfaces.
+ */
+int64_t __kain_atomic_load_seqcst(const void* ptr);
+void __kain_atomic_store_seqcst(void* ptr, int64_t value);
+int64_t __kain_atomic_add_seqcst(void* ptr, int64_t delta);
+int64_t __kain_atomic_sub_seqcst(void* ptr, int64_t delta);
+int64_t __kain_atomic_exchange_seqcst(void* ptr, int64_t value);
+int __kain_atomic_compare_exchange_seqcst(void* ptr, int64_t expected, int64_t desired);
+
 /* ============================================================================
  * Category 3: Allocation Operations
  * ============================================================================ */

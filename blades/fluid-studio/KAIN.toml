@@ -15,9 +15,7 @@ source_roots = [
   "../kaintana/src/platform/vulkan",
   "../kaintana/src/platform/winit",
   "../vulkain/src",
-  "../kain-config/src",
   "../kain-json/src",
-  "../kain-fsx/src",
 ]
 module_roots = [
   "src",
@@ -28,9 +26,7 @@ module_roots = [
   "../kaintana/src/platform/vulkan",
   "../kaintana/src/platform/winit",
   "../vulkain/src",
-  "../kain-config/src",
   "../kain-json/src",
-  "../kain-fsx/src",
 ]
 build_targets = ["llvm", "spirv"]
 
@@ -43,15 +39,7 @@ name = "vulkain"
 kind = "kain"
 
 [[blade.dependencies]]
-name = "kain-config"
-kind = "kain"
-
-[[blade.dependencies]]
 name = "kain-json"
-kind = "kain"
-
-[[blade.dependencies]]
-name = "kain-fsx"
 kind = "kain"
 
 [run]

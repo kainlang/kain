@@ -1359,6 +1359,13 @@ pub enum Stmt {
         body: Block,
         span: Span,
     },
+    /// `fanout binding in iter: body`
+    Fanout {
+        binding: Pattern,
+        iter: Expr,
+        body: Block,
+        span: Span,
+    },
     /// `while cond: body`
     While {
         condition: Expr,
@@ -1548,6 +1555,42 @@ pub enum Expr {
         store_ty: Option<Type>,
         span: Span,
     },
+    AtomicLoad {
+        pointer: Box<Expr>,
+        load_ty: Option<Type>,
+        span: Span,
+    },
+    AtomicStore {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        store_ty: Option<Type>,
+        span: Span,
+    },
+    AtomicAdd {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        op_ty: Option<Type>,
+        span: Span,
+    },
+    AtomicSub {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        op_ty: Option<Type>,
+        span: Span,
+    },
+    AtomicExchange {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        op_ty: Option<Type>,
+        span: Span,
+    },
+    AtomicCompareExchange {
+        pointer: Box<Expr>,
+        expected: Box<Expr>,
+        desired: Box<Expr>,
+        op_ty: Option<Type>,
+        span: Span,
+    },
 
     /// Layout-backed size query: `sizeof_type("T")`
     SizeOfType {
@@ -1605,6 +1648,11 @@ pub enum Expr {
     /// Deterministic ownership destruction: `decay ptr`
     Decay {
         target: Box<Expr>,
+        span: Span,
+    },
+    Share {
+        target: Box<Expr>,
+        body: Box<Expr>,
         span: Span,
     },
 
@@ -1705,6 +1753,12 @@ impl Expr {
             | Expr::PtrOffset { span: s, .. }
             | Expr::MemLoad { span: s, .. }
             | Expr::MemStore { span: s, .. }
+            | Expr::AtomicLoad { span: s, .. }
+            | Expr::AtomicStore { span: s, .. }
+            | Expr::AtomicAdd { span: s, .. }
+            | Expr::AtomicSub { span: s, .. }
+            | Expr::AtomicExchange { span: s, .. }
+            | Expr::AtomicCompareExchange { span: s, .. }
             | Expr::SizeOfType { span: s, .. }
             | Expr::AlignOfType { span: s, .. }
             | Expr::Alloca { span: s, .. }
@@ -1714,6 +1768,7 @@ impl Expr {
             | Expr::Observe { span: s, .. }
             | Expr::Collapse { span: s, .. }
             | Expr::Decay { span: s, .. }
+            | Expr::Share { span: s, .. }
             | Expr::Teleport { span: s, .. }
             | Expr::Cast { span: s, .. }
             | Expr::Try(_, s)
@@ -2972,6 +3027,64 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
                 collect_type_names_from_type(ty, out);
             }
         }
+        Expr::AtomicLoad {
+            pointer, load_ty, ..
+        } => {
+            collect_type_names_from_expr(pointer, out);
+            if let Some(ty) = load_ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
+        Expr::AtomicStore {
+            pointer,
+            value,
+            store_ty,
+            ..
+        } => {
+            collect_type_names_from_expr(pointer, out);
+            collect_type_names_from_expr(value, out);
+            if let Some(ty) = store_ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
+        Expr::AtomicAdd {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicSub {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicExchange {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => {
+            collect_type_names_from_expr(pointer, out);
+            collect_type_names_from_expr(value, out);
+            if let Some(ty) = op_ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            op_ty,
+            ..
+        } => {
+            collect_type_names_from_expr(pointer, out);
+            collect_type_names_from_expr(expected, out);
+            collect_type_names_from_expr(desired, out);
+            if let Some(ty) = op_ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
         Expr::SizeOfType { target, .. } => {
             collect_type_names_from_type(target, out);
         }
@@ -2996,7 +3109,9 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
                 collect_type_names_from_type(ty, out);
             }
         }
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             collect_type_names_from_expr(target, out);
             collect_type_names_from_expr(body, out);
         }
@@ -3053,6 +3168,16 @@ fn collect_type_names_from_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
             collect_type_names_from_expr(expr, out);
         }
         Stmt::For {
+            iter,
+            body,
+            binding,
+            ..
+        } => {
+            collect_type_names_from_pattern(binding, out);
+            collect_type_names_from_expr(iter, out);
+            collect_type_names_from_block(body, out);
+        }
+        Stmt::Fanout {
             iter,
             body,
             binding,

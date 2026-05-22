@@ -29,6 +29,8 @@ EXPECTED_TASK_IDS = {
     "build-kn-system-smoke:attrition-json",
     "build-kn-system-smoke:certify",
     "smoke-helper:helper-check",
+    "fabric-validate:kain-fabric",
+    "fabric-run:kain-fabric",
 }
 
 
@@ -241,6 +243,19 @@ def assert_actual_build(blade: str, lab_root: Path, env: dict[str, str]) -> None
     assert_file(lab_root / "outputs" / "bun" / "bun-ish.json")
     assert_file(lab_root / "outputs" / "evidence" / "benchmark.json")
     assert_file(lab_root / "outputs" / "evidence" / "attrition.json")
+    fabric_report_roots = sorted((lab_root / "outputs" / "fabric" / "reports").glob("session-*/report.json"))
+    if not fabric_report_roots:
+        raise RuntimeError("fabric-run did not materialize a Fabric report")
+    latest_fabric_report = fabric_report_roots[-1]
+    assert_file(latest_fabric_report)
+    fabric_report = json.loads(latest_fabric_report.read_text(encoding="utf-8"))
+    if fabric_report["status"] != "succeeded":
+        raise RuntimeError(f"Fabric report did not succeed: {latest_fabric_report}")
+    if not fabric_report["step_results"]:
+        raise RuntimeError("Fabric report did not record any step results")
+    fabric_step = fabric_report["step_results"][0]
+    if fabric_step["status"] != "succeeded":
+        raise RuntimeError(f"Fabric step did not succeed: {fabric_step}")
 
     cargo_task = find_task(report, "build-kn-system-smoke:cargo-helper")
     cargo_output_root = Path(cargo_task["outputs"][0])

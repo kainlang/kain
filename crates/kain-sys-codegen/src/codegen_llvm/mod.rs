@@ -373,6 +373,8 @@ struct LlvmGenerator {
     output: String,
     reg_count: usize,
     label_count: usize,
+    deferred_function_defs: Vec<String>,
+    fanout_function_counter: usize,
     /// Maps variable names to (stack_ptr, type)
     locals: HashMap<String, (String, String)>,
     /// Pointer-like locals whose provenance is solver-proved helper-owned and may
@@ -481,12 +483,52 @@ struct LlvmGenerator {
     original_pointer_let_types: HashMap<Span, Type>,
 }
 
+#[derive(Clone)]
+struct LlvmFunctionState {
+    output: String,
+    reg_count: usize,
+    label_count: usize,
+    locals: HashMap<String, (String, String)>,
+    helper_owned_pointer_locals: HashMap<String, OwnershipPointerProvenance>,
+    ephemeral_owned_pointer_locals: HashMap<String, EphemeralOwnershipLocalWitness>,
+    ephemeral_candidate_scopes: Vec<HashSet<String>>,
+    ephemeral_zero_init_elision_scopes: Vec<HashSet<String>>,
+    known_i64_literal_scopes: Vec<HashMap<String, i64>>,
+    known_nonnegative_i64_scopes: Vec<HashSet<String>>,
+    forwarded_mem_slot_scopes: Vec<HashMap<String, ForwardedMemSlot>>,
+    fixed_array_candidate_scopes: Vec<HashSet<String>>,
+    stack_shatter_candidate_scopes: Vec<HashSet<String>>,
+    literal_map_candidate_scopes: Vec<HashSet<String>>,
+    borrowed_locals: HashSet<String>,
+    json_handle_locals: HashSet<String>,
+    loop_stack: Vec<(String, String)>,
+    scopes: Vec<Vec<String>>,
+    current_block: String,
+    current_return_type: Option<String>,
+    actor_return_label: Option<String>,
+    actor_return_slot: Option<String>,
+    string_locals: HashSet<String>,
+    string_length_values: HashMap<String, String>,
+    pooled_string_literal_slots: HashMap<String, String>,
+    shattered_array_locals: HashMap<String, ShatteredArrayLocal>,
+    fixed_array_locals: HashMap<String, FixedArrayLocal>,
+    sealed_literal_map_locals: HashMap<String, LiteralMapLocal>,
+    active_loop_index_bounds: Vec<HashMap<String, LoopIndexBounds>>,
+    current_patch_name: Option<String>,
+    const_init_blocks: HashMap<String, String>,
+    entry_alloca_insert_offset: Option<usize>,
+    entry_preamble_insert_offset: Option<usize>,
+    entry_hoisted_const_inits: HashSet<String>,
+}
+
 impl LlvmGenerator {
     fn new() -> Self {
         Self {
             output: String::new(),
             reg_count: 0,
             label_count: 0,
+            deferred_function_defs: Vec::new(),
+            fanout_function_counter: 0,
             locals: HashMap::new(),
             helper_owned_pointer_locals: HashMap::new(),
             ephemeral_owned_pointer_locals: HashMap::new(),
@@ -539,6 +581,120 @@ impl LlvmGenerator {
             entry_hoisted_const_inits: HashSet::new(),
             original_pointer_let_types: HashMap::new(),
         }
+    }
+
+    fn save_function_state(&self) -> LlvmFunctionState {
+        LlvmFunctionState {
+            output: self.output.clone(),
+            reg_count: self.reg_count,
+            label_count: self.label_count,
+            locals: self.locals.clone(),
+            helper_owned_pointer_locals: self.helper_owned_pointer_locals.clone(),
+            ephemeral_owned_pointer_locals: self.ephemeral_owned_pointer_locals.clone(),
+            ephemeral_candidate_scopes: self.ephemeral_candidate_scopes.clone(),
+            ephemeral_zero_init_elision_scopes: self.ephemeral_zero_init_elision_scopes.clone(),
+            known_i64_literal_scopes: self.known_i64_literal_scopes.clone(),
+            known_nonnegative_i64_scopes: self.known_nonnegative_i64_scopes.clone(),
+            forwarded_mem_slot_scopes: self.forwarded_mem_slot_scopes.clone(),
+            fixed_array_candidate_scopes: self.fixed_array_candidate_scopes.clone(),
+            stack_shatter_candidate_scopes: self.stack_shatter_candidate_scopes.clone(),
+            literal_map_candidate_scopes: self.literal_map_candidate_scopes.clone(),
+            borrowed_locals: self.borrowed_locals.clone(),
+            json_handle_locals: self.json_handle_locals.clone(),
+            loop_stack: self.loop_stack.clone(),
+            scopes: self.scopes.clone(),
+            current_block: self.current_block.clone(),
+            current_return_type: self.current_return_type.clone(),
+            actor_return_label: self.actor_return_label.clone(),
+            actor_return_slot: self.actor_return_slot.clone(),
+            string_locals: self.string_locals.clone(),
+            string_length_values: self.string_length_values.clone(),
+            pooled_string_literal_slots: self.pooled_string_literal_slots.clone(),
+            shattered_array_locals: self.shattered_array_locals.clone(),
+            fixed_array_locals: self.fixed_array_locals.clone(),
+            sealed_literal_map_locals: self.sealed_literal_map_locals.clone(),
+            active_loop_index_bounds: self.active_loop_index_bounds.clone(),
+            current_patch_name: self.current_patch_name.clone(),
+            const_init_blocks: self.const_init_blocks.clone(),
+            entry_alloca_insert_offset: self.entry_alloca_insert_offset,
+            entry_preamble_insert_offset: self.entry_preamble_insert_offset,
+            entry_hoisted_const_inits: self.entry_hoisted_const_inits.clone(),
+        }
+    }
+
+    fn restore_function_state(&mut self, state: LlvmFunctionState) {
+        self.output = state.output;
+        self.reg_count = state.reg_count;
+        self.label_count = state.label_count;
+        self.locals = state.locals;
+        self.helper_owned_pointer_locals = state.helper_owned_pointer_locals;
+        self.ephemeral_owned_pointer_locals = state.ephemeral_owned_pointer_locals;
+        self.ephemeral_candidate_scopes = state.ephemeral_candidate_scopes;
+        self.ephemeral_zero_init_elision_scopes = state.ephemeral_zero_init_elision_scopes;
+        self.known_i64_literal_scopes = state.known_i64_literal_scopes;
+        self.known_nonnegative_i64_scopes = state.known_nonnegative_i64_scopes;
+        self.forwarded_mem_slot_scopes = state.forwarded_mem_slot_scopes;
+        self.fixed_array_candidate_scopes = state.fixed_array_candidate_scopes;
+        self.stack_shatter_candidate_scopes = state.stack_shatter_candidate_scopes;
+        self.literal_map_candidate_scopes = state.literal_map_candidate_scopes;
+        self.borrowed_locals = state.borrowed_locals;
+        self.json_handle_locals = state.json_handle_locals;
+        self.loop_stack = state.loop_stack;
+        self.scopes = state.scopes;
+        self.current_block = state.current_block;
+        self.current_return_type = state.current_return_type;
+        self.actor_return_label = state.actor_return_label;
+        self.actor_return_slot = state.actor_return_slot;
+        self.string_locals = state.string_locals;
+        self.string_length_values = state.string_length_values;
+        self.pooled_string_literal_slots = state.pooled_string_literal_slots;
+        self.shattered_array_locals = state.shattered_array_locals;
+        self.fixed_array_locals = state.fixed_array_locals;
+        self.sealed_literal_map_locals = state.sealed_literal_map_locals;
+        self.active_loop_index_bounds = state.active_loop_index_bounds;
+        self.current_patch_name = state.current_patch_name;
+        self.const_init_blocks = state.const_init_blocks;
+        self.entry_alloca_insert_offset = state.entry_alloca_insert_offset;
+        self.entry_preamble_insert_offset = state.entry_preamble_insert_offset;
+        self.entry_hoisted_const_inits = state.entry_hoisted_const_inits;
+    }
+
+    fn reset_for_isolated_function_codegen(&mut self, return_type: &str) {
+        self.output.clear();
+        self.reg_count = 0;
+        self.label_count = 0;
+        self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
+        self.ephemeral_owned_pointer_locals.clear();
+        self.ephemeral_candidate_scopes.clear();
+        self.ephemeral_zero_init_elision_scopes.clear();
+        self.known_i64_literal_scopes.clear();
+        self.known_nonnegative_i64_scopes.clear();
+        self.forwarded_mem_slot_scopes.clear();
+        self.fixed_array_candidate_scopes.clear();
+        self.stack_shatter_candidate_scopes.clear();
+        self.literal_map_candidate_scopes.clear();
+        self.borrowed_locals.clear();
+        self.json_handle_locals.clear();
+        self.loop_stack.clear();
+        self.scopes.clear();
+        self.scopes.push(Vec::new());
+        self.current_block = "entry".to_string();
+        self.current_return_type = Some(return_type.to_string());
+        self.actor_return_label = None;
+        self.actor_return_slot = None;
+        self.string_locals.clear();
+        self.string_length_values.clear();
+        self.pooled_string_literal_slots.clear();
+        self.shattered_array_locals.clear();
+        self.fixed_array_locals.clear();
+        self.sealed_literal_map_locals.clear();
+        self.active_loop_index_bounds.clear();
+        self.current_patch_name = None;
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
     }
 
     fn collect_original_pointer_let_type_hints(&mut self, program: &TypedProgram) {
@@ -693,7 +849,7 @@ impl LlvmGenerator {
                 }
             }
             Stmt::Continue(_) => {}
-            Stmt::For { iter, body, .. } => {
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                 self.collect_pointer_let_types_from_expr(iter);
                 self.collect_pointer_let_types_from_block(body);
             }
@@ -842,12 +998,32 @@ impl LlvmGenerator {
                 self.collect_pointer_let_types_from_expr(pointer);
                 self.collect_pointer_let_types_from_expr(value);
             }
+            Expr::AtomicLoad { pointer, .. } => self.collect_pointer_let_types_from_expr(pointer),
+            Expr::AtomicStore { pointer, value, .. }
+            | Expr::AtomicAdd { pointer, value, .. }
+            | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicExchange { pointer, value, .. } => {
+                self.collect_pointer_let_types_from_expr(pointer);
+                self.collect_pointer_let_types_from_expr(value);
+            }
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                ..
+            } => {
+                self.collect_pointer_let_types_from_expr(pointer);
+                self.collect_pointer_let_types_from_expr(expected);
+                self.collect_pointer_let_types_from_expr(desired);
+            }
             Expr::Alloc { size, .. } => self.collect_pointer_let_types_from_expr(size),
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_pointer_let_types_from_expr(pointer);
                 self.collect_pointer_let_types_from_expr(size);
             }
-            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            Expr::Observe { target, body, .. }
+            | Expr::Collapse { target, body, .. }
+            | Expr::Share { target, body, .. } => {
                 self.collect_pointer_let_types_from_expr(target);
                 self.collect_pointer_let_types_from_expr(body);
             }
@@ -2370,6 +2546,7 @@ impl LlvmGenerator {
             | Expr::Cast { value, .. }
             | Expr::Observe { target: value, .. }
             | Expr::Collapse { target: value, .. }
+            | Expr::Share { target: value, .. }
             | Expr::Decay { target: value, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(value, target)
             }
@@ -2385,6 +2562,26 @@ impl LlvmGenerator {
             Expr::MemStore { pointer, value, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
                     || Self::expr_has_loop_that_mentions_identifier(value, target)
+            }
+            Expr::AtomicLoad { pointer, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+            }
+            Expr::AtomicStore { pointer, value, .. }
+            | Expr::AtomicAdd { pointer, value, .. }
+            | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicExchange { pointer, value, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+                    || Self::expr_has_loop_that_mentions_identifier(value, target)
+            }
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                ..
+            } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+                    || Self::expr_has_loop_that_mentions_identifier(expected, target)
+                    || Self::expr_has_loop_that_mentions_identifier(desired, target)
             }
             Expr::Alloc { size, .. } => Self::expr_has_loop_that_mentions_identifier(size, target),
             Expr::Realloc { pointer, size, .. } => {
@@ -2444,7 +2641,7 @@ impl LlvmGenerator {
                     || Self::debug_mentions_identifier(body, target)
                     || Self::block_has_loop_that_mentions_identifier(body, target)
             }
-            Stmt::For { iter, body, .. } => {
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                 Self::debug_mentions_identifier(iter, target)
                     || Self::debug_mentions_identifier(body, target)
                     || Self::block_has_loop_that_mentions_identifier(body, target)
@@ -2653,6 +2850,26 @@ impl LlvmGenerator {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
                 Self::collect_expr_assigned_identifier_names(value, assigned);
             }
+            Expr::AtomicLoad { pointer, .. } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+            }
+            Expr::AtomicStore { pointer, value, .. }
+            | Expr::AtomicAdd { pointer, value, .. }
+            | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicExchange { pointer, value, .. } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+                Self::collect_expr_assigned_identifier_names(value, assigned);
+            }
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                ..
+            } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+                Self::collect_expr_assigned_identifier_names(expected, assigned);
+                Self::collect_expr_assigned_identifier_names(desired, assigned);
+            }
             Expr::Alloc { size, .. } => {
                 Self::collect_expr_assigned_identifier_names(size, assigned);
             }
@@ -2660,7 +2877,9 @@ impl LlvmGenerator {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
                 Self::collect_expr_assigned_identifier_names(size, assigned);
             }
-            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            Expr::Observe { target, body, .. }
+            | Expr::Collapse { target, body, .. }
+            | Expr::Share { target, body, .. } => {
                 Self::collect_expr_assigned_identifier_names(target, assigned);
                 Self::collect_expr_assigned_identifier_names(body, assigned);
             }
@@ -2732,7 +2951,7 @@ impl LlvmGenerator {
                 Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                     Self::collect_expr_assigned_identifier_names(expr, assigned);
                 }
-                Stmt::For { iter, body, .. } => {
+                Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                     Self::collect_expr_assigned_identifier_names(iter, assigned);
                     Self::collect_block_assigned_identifier_names(body, assigned);
                 }
@@ -3220,6 +3439,32 @@ impl LlvmGenerator {
                         && Self::expr_is_safe_for_ephemeral_local(pointer, target)))
                     && Self::expr_is_safe_for_ephemeral_local(value, target)
             }
+            Expr::AtomicLoad { pointer, .. } => {
+                Self::expr_is_ephemeral_target_address(pointer, target)
+                    || (!Self::expr_is_exact_target_pointer(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(pointer, target))
+            }
+            Expr::AtomicStore { pointer, value, .. }
+            | Expr::AtomicAdd { pointer, value, .. }
+            | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicExchange { pointer, value, .. } => {
+                (Self::expr_is_ephemeral_target_address(pointer, target)
+                    || (!Self::expr_is_exact_target_pointer(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(pointer, target)))
+                    && Self::expr_is_safe_for_ephemeral_local(value, target)
+            }
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                ..
+            } => {
+                (Self::expr_is_ephemeral_target_address(pointer, target)
+                    || (!Self::expr_is_exact_target_pointer(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(pointer, target)))
+                    && Self::expr_is_safe_for_ephemeral_local(expected, target)
+                    && Self::expr_is_safe_for_ephemeral_local(desired, target)
+            }
             Expr::Alloc { size, .. } => Self::expr_is_safe_for_ephemeral_local(size, target),
             Expr::Realloc { pointer, size, .. } => {
                 Self::expr_is_safe_for_ephemeral_local(pointer, target)
@@ -3231,6 +3476,15 @@ impl LlvmGenerator {
                 ..
             }
             | Expr::Collapse {
+                target: observe_target,
+                body,
+                ..
+            } => {
+                !Self::expr_is_exact_target_pointer(observe_target, target)
+                    && Self::expr_is_safe_for_ephemeral_local(observe_target, target)
+                    && Self::expr_is_safe_for_ephemeral_local(body, target)
+            }
+            Expr::Share {
                 target: observe_target,
                 body,
                 ..
@@ -3279,7 +3533,7 @@ impl LlvmGenerator {
                 Self::expr_is_safe_for_ephemeral_local(expr, target)
             }
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
-            Stmt::For { iter, body, .. } => {
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                 Self::expr_is_safe_for_ephemeral_local(iter, target)
                     && Self::block_is_safe_for_ephemeral_local(body, target)
             }
@@ -3624,7 +3878,7 @@ impl LlvmGenerator {
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
-            Stmt::For { iter, body, .. } => {
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                 Self::expr_is_safe_fixed_array_use(iter, target)
                     && Self::block_is_safe_fixed_array_use(body, target)
             }
@@ -3828,7 +4082,7 @@ impl LlvmGenerator {
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
-            Stmt::For { iter, body, .. } => {
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                 Self::expr_is_safe_stack_shatter_use(iter, target)
                     && Self::block_is_safe_stack_shatter_use(body, target)
             }
@@ -4017,7 +4271,7 @@ impl LlvmGenerator {
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
-            Stmt::For { iter, body, .. } => {
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                 Self::expr_is_safe_literal_map_use(iter, target)
                     && Self::block_is_safe_literal_map_use(body, target)
             }
@@ -6585,6 +6839,239 @@ impl LlvmGenerator {
         Ok(("0".to_string(), "void".to_string()))
     }
 
+    fn emit_abort_on_nonzero_i32_status(&mut self, status: &str) {
+        let ok = self.next_reg();
+        self.emit(&format!("  {} = icmp eq i32 {}, 0", ok, status));
+        let continue_label = self.next_label();
+        let abort_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            ok, continue_label, abort_label
+        ));
+        self.emit_label(&abort_label);
+        self.emit("  call void @abort()");
+        self.emit("  unreachable");
+        self.emit_label(&continue_label);
+    }
+
+    fn compile_range_iter_bounds(
+        &mut self,
+        iter: &Expr,
+        span: Span,
+        loop_kind: &str,
+    ) -> KainResult<(String, String)> {
+        match iter {
+            Expr::Call { callee, args, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    if name == "range" && args.len() == 2 {
+                        let (start, _) = self.compile_expr(&args[0].value)?;
+                        let (end, _) = self.compile_expr(&args[1].value)?;
+                        Ok((start, end))
+                    } else {
+                        Err(KainError::codegen(
+                            format!("Unsupported call in {} loop", loop_kind),
+                            span,
+                        ))
+                    }
+                } else {
+                    Err(KainError::codegen(
+                        format!("Unsupported call in {} loop", loop_kind),
+                        span,
+                    ))
+                }
+            }
+            Expr::Range {
+                start,
+                end,
+                inclusive,
+                ..
+            } => {
+                let start_value = if let Some(expr) = start {
+                    self.compile_expr(expr)?.0
+                } else {
+                    "0".to_string()
+                };
+                let mut end_value = if let Some(expr) = end {
+                    self.compile_expr(expr)?.0
+                } else {
+                    "9223372036854775807".to_string()
+                };
+                if *inclusive {
+                    let inclusive_end = self.next_reg();
+                    self.emit(&format!("  {} = add i64 {}, 1", inclusive_end, end_value));
+                    end_value = inclusive_end;
+                }
+                Ok((start_value, end_value))
+            }
+            _ => Err(KainError::codegen(
+                format!("Unsupported iterator in {} loop", loop_kind),
+                span,
+            )),
+        }
+    }
+
+    fn compile_fanout_worker_function(
+        &mut self,
+        worker_name: &str,
+        context_ty: Option<&str>,
+        captures: &[(String, String)],
+        binding_name: &str,
+        body: &Block,
+    ) -> KainResult<()> {
+        let saved_state = self.save_function_state();
+        self.reset_for_isolated_function_codegen("void");
+
+        let build_result = (|| -> KainResult<String> {
+            self.emit(&format!(
+                "define internal void @{}(i8* %ctx_arg, i64 %index_arg) {{",
+                worker_name
+            ));
+            self.emit_label("entry");
+
+            if let Some(context_ty) = context_ty {
+                let typed_ctx = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* %ctx_arg to {}*",
+                    typed_ctx, context_ty
+                ));
+                for (index, (capture_name, capture_ty)) in captures.iter().enumerate() {
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
+                        field_ptr, context_ty, context_ty, typed_ctx, index
+                    ));
+                    let slot_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = load {}*, {}** {}",
+                        slot_ptr, capture_ty, capture_ty, field_ptr
+                    ));
+                    self.locals
+                        .insert(capture_name.clone(), (slot_ptr, capture_ty.clone()));
+                    self.borrowed_locals.insert(capture_name.clone());
+                    if let Some(scope) = self.scopes.last_mut() {
+                        scope.push(capture_name.clone());
+                    }
+                }
+            }
+
+            let binding_addr = format!("%{}.addr_{}", binding_name, self.reg_count);
+            self.reg_count += 1;
+            self.emit_entry_alloca(&binding_addr, "i64");
+            self.emit(&format!("  store i64 %index_arg, i64* {}", binding_addr));
+            self.locals
+                .insert(binding_name.to_string(), (binding_addr, "i64".to_string()));
+            if let Some(scope) = self.scopes.last_mut() {
+                scope.push(binding_name.to_string());
+            }
+
+            self.compile_block(body)?;
+            self.emit_scope_exit();
+            self.emit("  ret void");
+            self.emit("}");
+            self.emit("");
+            Ok(self.output.clone())
+        })();
+
+        self.restore_function_state(saved_state);
+        match build_result {
+            Ok(worker_ir) => {
+                self.deferred_function_defs.push(worker_ir);
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    fn compile_fanout_stmt(
+        &mut self,
+        binding: &Pattern,
+        iter: &Expr,
+        body: &Block,
+        span: Span,
+    ) -> KainResult<()> {
+        let binding_name = if let Pattern::Binding { name, .. } = binding {
+            name.as_str()
+        } else {
+            "worker"
+        };
+        let (start_value, end_value) = self.compile_range_iter_bounds(iter, span, "fanout")?;
+
+        let mut capture_names: Vec<String> = self
+            .locals
+            .keys()
+            .filter(|name| name.as_str() != binding_name && Self::debug_mentions_identifier(body, name))
+            .cloned()
+            .collect();
+        capture_names.sort();
+        capture_names.dedup();
+
+        let capture_defs: Vec<(String, String)> = capture_names
+            .iter()
+            .filter_map(|name| {
+                self.locals
+                    .get(name)
+                    .cloned()
+                    .map(|(addr, ty)| (name.clone(), addr, ty))
+            })
+            .map(|(name, _addr, ty)| (name, ty))
+            .collect();
+        let context_ty = if capture_defs.is_empty() {
+            None
+        } else {
+            Some(format!(
+                "{{ {} }}",
+                capture_defs
+                    .iter()
+                    .map(|(_, ty)| format!("{}*", ty))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        };
+
+        let fanout_id = self.fanout_function_counter;
+        self.fanout_function_counter += 1;
+        let worker_name = format!("__kain_fanout_worker_{}", fanout_id);
+        self.compile_fanout_worker_function(
+            &worker_name,
+            context_ty.as_deref(),
+            &capture_defs,
+            binding_name,
+            body,
+        )?;
+
+        let ctx_value = if let Some(context_ty) = context_ty.as_deref() {
+            let ctx_addr = format!("%__kain_fanout_ctx_{}", fanout_id);
+            self.emit_entry_alloca(&ctx_addr, context_ty);
+            for (index, capture_name) in capture_names.iter().enumerate() {
+                let Some((addr, ty)) = self.locals.get(capture_name).cloned() else {
+                    continue;
+                };
+                let field_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
+                    field_ptr, context_ty, context_ty, ctx_addr, index
+                ));
+                self.emit(&format!("  store {}* {}, {}** {}", ty, addr, ty, field_ptr));
+            }
+            let ctx_i8 = self.next_reg();
+            self.emit(&format!(
+                "  {} = bitcast {}* {} to i8*",
+                ctx_i8, context_ty, ctx_addr
+            ));
+            ctx_i8
+        } else {
+            "null".to_string()
+        };
+
+        let status = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i32 @__kain_fanout_i64(i64 {}, i64 {}, i8* {}, void (i8*, i64)* @{})",
+            status, start_value, end_value, ctx_value, worker_name
+        ));
+        self.emit_abort_on_nonzero_i32_status(&status);
+        Ok(())
+    }
+
     fn compile_payload_pointer_from_value(
         &mut self,
         value: &str,
@@ -8439,6 +8926,157 @@ impl LlvmGenerator {
                 }
                 Some(self.compile_runtime_mem_store(&args[0].value, &args[1].value, span))
             }
+            "__kain_atomic_load_seqcst" => {
+                if args.len() != 1 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_load_seqcst expects 1 argument",
+                        span,
+                    )));
+                }
+                let compiled_ptr = match self.compile_expr(&args[0].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                let loaded = self.next_reg();
+                self.emit(&format!(
+                    "  {} = load atomic i64, i64* {} seq_cst, align 8",
+                    loaded, typed_ptr
+                ));
+                Some(Ok((loaded, "i64".to_string())))
+            }
+            "__kain_atomic_store_seqcst" => {
+                if args.len() != 2 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_store_seqcst expects 2 arguments",
+                        span,
+                    )));
+                }
+                let compiled_ptr = match self.compile_expr(&args[0].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                let value = match self.compile_expr_as_i64(&args[1].value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err)),
+                };
+                self.emit(&format!(
+                    "  store atomic i64 {}, i64* {} seq_cst, align 8",
+                    value, typed_ptr
+                ));
+                Some(Ok(("0".to_string(), "void".to_string())))
+            }
+            "__kain_atomic_add_seqcst" => {
+                if args.len() != 2 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_add_seqcst expects 2 arguments",
+                        span,
+                    )));
+                }
+                let compiled_ptr = match self.compile_expr(&args[0].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                let value = match self.compile_expr_as_i64(&args[1].value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err)),
+                };
+                let previous = self.next_reg();
+                self.emit(&format!(
+                    "  {} = atomicrmw add i64* {}, i64 {} seq_cst",
+                    previous, typed_ptr, value
+                ));
+                Some(Ok((previous, "i64".to_string())))
+            }
+            "__kain_atomic_sub_seqcst" => {
+                if args.len() != 2 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_sub_seqcst expects 2 arguments",
+                        span,
+                    )));
+                }
+                let compiled_ptr = match self.compile_expr(&args[0].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                let value = match self.compile_expr_as_i64(&args[1].value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err)),
+                };
+                let previous = self.next_reg();
+                self.emit(&format!(
+                    "  {} = atomicrmw sub i64* {}, i64 {} seq_cst",
+                    previous, typed_ptr, value
+                ));
+                Some(Ok((previous, "i64".to_string())))
+            }
+            "__kain_atomic_exchange_seqcst" => {
+                if args.len() != 2 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_exchange_seqcst expects 2 arguments",
+                        span,
+                    )));
+                }
+                let compiled_ptr = match self.compile_expr(&args[0].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                let value = match self.compile_expr_as_i64(&args[1].value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err)),
+                };
+                let previous = self.next_reg();
+                self.emit(&format!(
+                    "  {} = atomicrmw xchg i64* {}, i64 {} seq_cst",
+                    previous, typed_ptr, value
+                ));
+                Some(Ok((previous, "i64".to_string())))
+            }
+            "__kain_atomic_compare_exchange_seqcst" => {
+                if args.len() != 3 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_compare_exchange_seqcst expects 3 arguments",
+                        span,
+                    )));
+                }
+                let compiled_ptr = match self.compile_expr(&args[0].value) {
+                    Ok(pair) => pair,
+                    Err(err) => return Some(Err(err)),
+                };
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                let expected = match self.compile_expr_as_i64(&args[1].value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err)),
+                };
+                let desired = match self.compile_expr_as_i64(&args[2].value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err)),
+                };
+                let cmpxchg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = cmpxchg i64* {}, i64 {}, i64 {} seq_cst seq_cst",
+                    cmpxchg, typed_ptr, expected, desired
+                ));
+                let success = self.next_reg();
+                self.emit(&format!("  {} = extractvalue {{ i64, i1 }} {}, 1", success, cmpxchg));
+                Some(Ok((success, "i1".to_string())))
+            }
             "__kain_field_ptr" => {
                 // Canonical ABI: i8* __kain_field_ptr(i8* ptr, const char* field, size_t offset)
                 // Requirements: 1.4, 3.2
@@ -9803,6 +10441,9 @@ impl LlvmGenerator {
 
         // 4. Compile Items
         self.compile_typed_items(&program.items)?;
+        for deferred in self.deferred_function_defs.clone() {
+            self.output.push_str(&deferred);
+        }
 
         // 5. Emit String Constants
         // Clone strings to avoid borrow issues
@@ -10233,6 +10874,12 @@ impl LlvmGenerator {
         self.emit("; Category 2: Memory Load/Store Operations");
         self.emit("declare void @__kain_mem_load(i8*, i8*, i64)");
         self.emit("declare void @__kain_mem_store(i8*, i8*, i64)");
+        self.emit("declare i64 @__kain_atomic_load_seqcst(i8*)");
+        self.emit("declare void @__kain_atomic_store_seqcst(i8*, i64)");
+        self.emit("declare i64 @__kain_atomic_add_seqcst(i8*, i64)");
+        self.emit("declare i64 @__kain_atomic_sub_seqcst(i8*, i64)");
+        self.emit("declare i64 @__kain_atomic_exchange_seqcst(i8*, i64)");
+        self.emit("declare i1 @__kain_atomic_compare_exchange_seqcst(i8*, i64, i64)");
         self.emit("");
         self.emit("; Category 3: Allocation Operations");
         self.emit("declare noalias i8* @__kain_alloc(i64, i64, i32) allocsize(0,1)");
@@ -10247,13 +10894,18 @@ impl LlvmGenerator {
         self.emit("declare i32 @__kain_ownership_end_observe(i8*)");
         self.emit("declare i32 @__kain_ownership_begin_collapse(i8*)");
         self.emit("declare i32 @__kain_ownership_end_collapse(i8*)");
+        self.emit("declare i32 @__kain_ownership_begin_share(i8*)");
+        self.emit("declare i32 @__kain_ownership_end_share(i8*)");
         self.emit("declare i32 @__kain_ownership_decay(i8*)");
         self.emit("declare i32 @__kain_ownership_begin_observe_helper(i8*)");
         self.emit("declare i32 @__kain_ownership_end_observe_helper(i8*)");
         self.emit("declare i32 @__kain_ownership_begin_collapse_helper(i8*)");
         self.emit("declare i32 @__kain_ownership_end_collapse_helper(i8*)");
+        self.emit("declare i32 @__kain_ownership_begin_share_helper(i8*)");
+        self.emit("declare i32 @__kain_ownership_end_share_helper(i8*)");
         self.emit("declare i32 @__kain_ownership_decay_helper(i8*)");
         self.emit("declare i32 @__kain_ownership_state(i8*)");
+        self.emit("declare i32 @__kain_fanout_i64(i64, i64, i8*, void (i8*, i64)*)");
 
         // LLVM math intrinsics used by compiler-owned numeric fast paths.
         self.emit("declare double @llvm.floor.f64(double)");
@@ -12461,6 +13113,14 @@ impl LlvmGenerator {
                 self.emit(&format!("  br label %{}", label_cond));
                 self.emit_label(&label_end);
             }
+            Stmt::Fanout {
+                binding,
+                iter,
+                body,
+                span,
+            } => {
+                self.compile_fanout_stmt(binding, iter, body, *span)?;
+            }
             _ => {}
         }
         Ok(())
@@ -13254,6 +13914,14 @@ impl LlvmGenerator {
                 "__kain_ownership_begin_collapse_helper",
                 "__kain_ownership_end_collapse",
                 "__kain_ownership_end_collapse_helper",
+            ),
+            Expr::Share { target, body, .. } => self.compile_scoped_ownership_expr(
+                target,
+                body,
+                "__kain_ownership_begin_share",
+                "__kain_ownership_begin_share_helper",
+                "__kain_ownership_end_share",
+                "__kain_ownership_end_share_helper",
             ),
             Expr::Decay { target, .. } => self.compile_decay_expr(target),
             Expr::Teleport {
