@@ -1,11 +1,11 @@
-use layout::kaintana_inset
+use kaintana::kaintana_inset
 use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect
 use kaintana_ui::*
 
 fn modal_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_button(ui(ctx), label)
+    let b0 = kaintana_button(kaintana_ui_state(ctx), label)
     let b1 = kaintana_button_key(b0, key)
     let b2 = kaintana_button_rect(b1, rect)
     let b3 = kaintana_button_font(b2, font, 23.0)
@@ -13,7 +13,7 @@ fn modal_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: St
     return result.ctx
 
 fn modal_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
-    let l0 = kaintana_label(ui(ctx), text)
+    let l0 = kaintana_label(kaintana_ui_state(ctx), text)
     let l1 = kaintana_label_key(l0, key)
     let l2 = kaintana_label_rect(l1, rect)
     let l3 = kaintana_label_font(l2, font, 22.0)
@@ -21,7 +21,7 @@ fn modal_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: Stri
     return result.ctx
 
 fn modal_panel(ctx: KaintanaContext, rect: KaintanaRect, key: String, title: String, font: Int) -> KaintanaContext:
-    let p0 = kaintana_panel(ui(ctx), title)
+    let p0 = kaintana_panel(kaintana_ui_state(ctx), title)
     let p1 = kaintana_panel_key(p0, key)
     let p2 = kaintana_panel_rect(p1, rect)
     let p3 = kaintana_panel_font(p2, font, 25.0)

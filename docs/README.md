@@ -107,6 +107,8 @@ These files define the truth that the guides are derived from:
 | `reference/dcc-parity-matrix.md` | Flagship KSculpt and KPainter parity inventory plus validator entrypoint |
 | `reference/command-matrix.md` | CLI command matrix and canonical command entrypoints |
 | `reference/target-matrix.md` | Compile targets, aliases, and output families |
+| `reference/kain-vs-rust-assessment.md` | Blunt assessment of Kain versus Rust on metal access, versatility, and overall strength |
+| `reference/kain-systems-programming-roadmap.md` | Current systems-programming status, toy-state diagnosis, and phased roadmap to Kain's endgame metal tier |
 | `reference/troubleshooting.md` | Common failures and operator fixes |
 | `reference/glossary.md` | Shared Kain terminology |
 

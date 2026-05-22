@@ -1829,7 +1829,8 @@ fn drive() -> Int:
     assert!(llvm
         .contains("declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)"));
     assert!(llvm.contains("call i32 @kain_actor_ask_send_ref(%KainActorRef* "));
-    assert!(llvm.contains("declare i32 @kain_actor_reply_port_send_handle(i8*, %KainActorRef*, i8*, i64)"));
+    assert!(llvm
+        .contains("declare i32 @kain_actor_reply_port_send_handle(i8*, %KainActorRef*, i8*, i64)"));
     assert!(llvm.contains("call i32 @kain_actor_reply_port_send_handle(i8* "));
     assert!(llvm.contains("call i64 @kain_actor_reply_port_wait_i64(i8*"));
     assert!(llvm.contains("call void @kain_actor_reply_port_destroy(i8*"));

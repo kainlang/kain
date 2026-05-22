@@ -1358,12 +1358,23 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             iter,
             body,
             ..
+        }
+        | kain_core::ast::Stmt::Fanout {
+            binding,
+            iter,
+            body,
+            ..
         } => {
+            let keyword = if matches!(stmt, kain_core::ast::Stmt::Fanout { .. }) {
+                "fanout"
+            } else {
+                "for"
+            };
             write_multiline(
                 output,
                 indent,
                 &format!(
-                    "for {} in {}:",
+                    "{keyword} {} in {}:",
                     pattern_to_string(binding),
                     expr_to_string(iter)
                 ),
@@ -1729,6 +1740,7 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
             expr_to_string(offset)
         ),
         Expr::MemLoad { pointer, .. } => format!("mem_load({})", expr_to_string(pointer)),
+        Expr::VolatileLoad { pointer, .. } => format!("volatile_load({})", expr_to_string(pointer)),
         Expr::MemStore { pointer, value, .. } => {
             format!(
                 "mem_store({}, {})",
@@ -1736,6 +1748,75 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
                 expr_to_string(value)
             )
         }
+        Expr::VolatileStore { pointer, value, .. } => {
+            format!(
+                "volatile_store({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicLoad { pointer, .. } => format!("atomic_load({})", expr_to_string(pointer)),
+        Expr::AtomicStore { pointer, value, .. } => {
+            format!(
+                "atomic_store({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicAdd { pointer, value, .. } => {
+            format!(
+                "atomic_add({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicSub { pointer, value, .. } => {
+            format!(
+                "atomic_sub({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicAnd { pointer, value, .. } => {
+            format!(
+                "atomic_and({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicOr { pointer, value, .. } => {
+            format!(
+                "atomic_or({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicXor { pointer, value, .. } => {
+            format!(
+                "atomic_xor({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicExchange { pointer, value, .. } => {
+            format!(
+                "atomic_exchange({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => format!(
+            "atomic_compare_exchange({}, {}, {})",
+            expr_to_string(pointer),
+            expr_to_string(expected),
+            expr_to_string(desired)
+        ),
+        Expr::AtomicFence { .. } => "atomic_fence()".to_string(),
         Expr::SizeOfType { target, .. } => {
             format!("sizeof_type({:?})", type_to_string(target))
         }
@@ -1782,6 +1863,20 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
             }
             other => format!(
                 "collapse {}: {}",
+                expr_to_string(target),
+                expr_to_string(other)
+            ),
+        },
+        Expr::Share { target, body, .. } => match body.as_ref() {
+            Expr::Block(block, _) => {
+                format!(
+                    "share {}:\n{}",
+                    expr_to_string(target),
+                    block_to_string(block, 1)
+                )
+            }
+            other => format!(
+                "share {}: {}",
                 expr_to_string(target),
                 expr_to_string(other)
             ),

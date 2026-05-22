@@ -1,0 +1,108 @@
+# Fixed-width integer masks and bit intrinsics over Kain's native Int lane.
+
+const U8_MASK: Int = 255
+const U16_MASK: Int = 65535
+const U32_MASK: Int = 4294967295
+const I8_MIN: Int = -128
+const I8_MAX: Int = 127
+const I16_MIN: Int = -32768
+const I16_MAX: Int = 32767
+const I32_MIN: Int = -2147483648
+const I32_MAX: Int = 2147483647
+
+pub fn u8(value: Int) -> Int:
+    return value & U8_MASK
+
+pub fn u16(value: Int) -> Int:
+    return value & U16_MASK
+
+pub fn u32(value: Int) -> Int:
+    return value & U32_MASK
+
+pub fn i8(value: Int) -> Int:
+    let lane = value & U8_MASK
+    if lane > I8_MAX:
+        return lane - 256
+    return lane
+
+pub fn i16(value: Int) -> Int:
+    let lane = value & U16_MASK
+    if lane > I16_MAX:
+        return lane - 65536
+    return lane
+
+pub fn i32(value: Int) -> Int:
+    let lane = value & U32_MASK
+    if lane > I32_MAX:
+        return lane - 4294967296
+    return lane
+
+pub fn wrapping_add_u32(left: Int, right: Int) -> Int:
+    return (left + right) & U32_MASK
+
+pub fn wrapping_sub_u32(left: Int, right: Int) -> Int:
+    return (left - right) & U32_MASK
+
+pub fn wrapping_mul_u32(left: Int, right: Int) -> Int:
+    return (left * right) & U32_MASK
+
+pub fn overflowing_add_u32(left: Int, right: Int) -> Bool:
+    return (left & U32_MASK) + (right & U32_MASK) > U32_MASK
+
+pub fn overflowing_mul_u32(left: Int, right: Int) -> Bool:
+    let lhs = left & U32_MASK
+    let rhs = right & U32_MASK
+    if lhs == 0:
+        return false
+    return rhs > (U32_MASK / lhs)
+
+pub fn rotl32(value: Int, bits: Int) -> Int:
+    let shift = bits & 31
+    let lane = value & U32_MASK
+    if shift == 0:
+        return lane
+    return ((lane << shift) | (lane >> (32 - shift))) & U32_MASK
+
+pub fn rotr32(value: Int, bits: Int) -> Int:
+    let shift = bits & 31
+    let lane = value & U32_MASK
+    if shift == 0:
+        return lane
+    return ((lane >> shift) | (lane << (32 - shift))) & U32_MASK
+
+pub fn popcount32(value: Int) -> Int:
+    var lane = value & U32_MASK
+    var count: Int = 0
+    while lane != 0:
+        count = count + (lane & 1)
+        lane = lane >> 1
+    return count
+
+pub fn clz32(value: Int) -> Int:
+    var bit: Int = 31
+    var count: Int = 0
+    let lane = value & U32_MASK
+    while bit >= 0:
+        if ((lane >> bit) & 1) == 1:
+            return count
+        count = count + 1
+        bit = bit - 1
+    return count
+
+pub fn ctz32(value: Int) -> Int:
+    var bit: Int = 0
+    let lane = value & U32_MASK
+    while bit < 32:
+        if ((lane >> bit) & 1) == 1:
+            return bit
+        bit = bit + 1
+    return 32
+
+pub fn bswap32(value: Int) -> Int:
+    let lane = value & U32_MASK
+    let b0 = (lane & 255) << 24
+    let b1 = ((lane >> 8) & 255) << 16
+    let b2 = ((lane >> 16) & 255) << 8
+    let b3 = (lane >> 24) & 255
+    return (b0 | b1 | b2 | b3) & U32_MASK
+

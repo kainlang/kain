@@ -1,0 +1,94 @@
+# Machine-level CPU, topology, and VM primitives for systems blades.
+
+@extern
+fn abi_cpu_pause() -> Int
+
+@extern
+fn abi_cpu_rdtsc() -> Int
+
+@extern
+fn abi_cpu_cpuid_lane(leaf: Int, subleaf: Int, lane: Int) -> Int
+
+@extern
+fn abi_cpu_prefetch_read(address: ptr<Int>, locality: Int) -> Unit
+
+@extern
+fn abi_cpu_prefetch_write(address: ptr<Int>, locality: Int) -> Unit
+
+@extern
+fn abi_cpu_logical_count() -> Int
+
+@extern
+fn abi_cpu_current_thread_id() -> Int
+
+@extern
+fn abi_cpu_set_current_thread_affinity(core_index: Int) -> Int
+
+@extern
+fn abi_vm_page_size() -> Int
+
+@extern
+fn abi_vm_map(byte_count: Int) -> ptr<Int>
+
+@extern
+fn abi_vm_unmap(address: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_vm_protect(address: ptr<Int>, byte_count: Int, mode: Int) -> Int
+
+pub fn pause() -> Int:
+    return abi_cpu_pause()
+
+pub fn rdtsc() -> Int:
+    return abi_cpu_rdtsc()
+
+pub fn cpuid_eax(leaf: Int, subleaf: Int) -> Int:
+    return abi_cpu_cpuid_lane(leaf, subleaf, 0)
+
+pub fn cpuid_ebx(leaf: Int, subleaf: Int) -> Int:
+    return abi_cpu_cpuid_lane(leaf, subleaf, 1)
+
+pub fn cpuid_ecx(leaf: Int, subleaf: Int) -> Int:
+    return abi_cpu_cpuid_lane(leaf, subleaf, 2)
+
+pub fn cpuid_edx(leaf: Int, subleaf: Int) -> Int:
+    return abi_cpu_cpuid_lane(leaf, subleaf, 3)
+
+pub fn prefetch_read(address: ptr<Int>, locality: Int) -> Unit:
+    abi_cpu_prefetch_read(address, locality)
+
+pub fn prefetch_write(address: ptr<Int>, locality: Int) -> Unit:
+    abi_cpu_prefetch_write(address, locality)
+
+pub fn cpu_logical_count() -> Int:
+    return abi_cpu_logical_count()
+
+pub fn current_thread_id() -> Int:
+    return abi_cpu_current_thread_id()
+
+pub fn set_current_thread_affinity(core_index: Int) -> Int with Unsafe:
+    return abi_cpu_set_current_thread_affinity(core_index)
+
+pub fn vm_page_size() -> Int:
+    return abi_vm_page_size()
+
+pub fn vm_map(byte_count: Int) -> ptr<Int> with Unsafe:
+    return abi_vm_map(byte_count)
+
+pub fn vm_unmap(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_unmap(address, byte_count)
+
+pub fn vm_protect_none(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_protect(address, byte_count, 0)
+
+pub fn vm_protect_read(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_protect(address, byte_count, 1)
+
+pub fn vm_protect_read_write(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_protect(address, byte_count, 2)
+
+pub fn vm_protect_execute_read(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_protect(address, byte_count, 3)
+
+pub fn vm_protect_execute_read_write(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_protect(address, byte_count, 4)

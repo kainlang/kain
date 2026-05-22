@@ -988,11 +988,11 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             ],
             span,
         ),
-        Expr::AtomicLoad {
+        Expr::VolatileLoad {
             pointer, load_ty, ..
         } => {
             let call = helper_call(
-                "__kain_atomic_load_seqcst",
+                "__kain_volatile_load",
                 vec![lower_expr_memory_with_ctx(pointer, ctx)],
                 span,
             );
@@ -1006,35 +1006,133 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 call
             }
         }
-        Expr::AtomicStore { pointer, value, .. } => helper_call(
-            "__kain_atomic_store_seqcst",
+        Expr::VolatileStore { pointer, value, .. } => helper_call(
+            "__kain_volatile_store",
             vec![
                 lower_expr_memory_with_ctx(pointer, ctx),
                 lower_expr_memory_with_ctx(value, ctx),
             ],
             span,
         ),
-        Expr::AtomicAdd { pointer, value, .. } => helper_call(
-            "__kain_atomic_add_seqcst",
+        Expr::AtomicLoad {
+            pointer,
+            load_ty,
+            ordering,
+            ..
+        } => {
+            let call = helper_call(
+                "__kain_atomic_load_ordered",
+                vec![
+                    lower_expr_memory_with_ctx(pointer, ctx),
+                    atomic_ordering_literal(*ordering, span),
+                ],
+                span,
+            );
+            if let Some(ty) = load_ty.as_ref() {
+                Expr::Cast {
+                    value: Box::new(call),
+                    target: lower_type_memory(ty),
+                    span,
+                }
+            } else {
+                call
+            }
+        }
+        Expr::AtomicStore {
+            pointer,
+            value,
+            ordering,
+            ..
+        } => helper_call(
+            "__kain_atomic_store_ordered",
             vec![
                 lower_expr_memory_with_ctx(pointer, ctx),
                 lower_expr_memory_with_ctx(value, ctx),
+                atomic_ordering_literal(*ordering, span),
             ],
             span,
         ),
-        Expr::AtomicSub { pointer, value, .. } => helper_call(
-            "__kain_atomic_sub_seqcst",
+        Expr::AtomicAdd {
+            pointer,
+            value,
+            ordering,
+            ..
+        } => helper_call(
+            "__kain_atomic_add_ordered",
             vec![
                 lower_expr_memory_with_ctx(pointer, ctx),
                 lower_expr_memory_with_ctx(value, ctx),
+                atomic_ordering_literal(*ordering, span),
             ],
             span,
         ),
-        Expr::AtomicExchange { pointer, value, .. } => helper_call(
-            "__kain_atomic_exchange_seqcst",
+        Expr::AtomicSub {
+            pointer,
+            value,
+            ordering,
+            ..
+        } => helper_call(
+            "__kain_atomic_sub_ordered",
             vec![
                 lower_expr_memory_with_ctx(pointer, ctx),
                 lower_expr_memory_with_ctx(value, ctx),
+                atomic_ordering_literal(*ordering, span),
+            ],
+            span,
+        ),
+        Expr::AtomicAnd {
+            pointer,
+            value,
+            ordering,
+            ..
+        } => helper_call(
+            "__kain_atomic_and_ordered",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+                atomic_ordering_literal(*ordering, span),
+            ],
+            span,
+        ),
+        Expr::AtomicOr {
+            pointer,
+            value,
+            ordering,
+            ..
+        } => helper_call(
+            "__kain_atomic_or_ordered",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+                atomic_ordering_literal(*ordering, span),
+            ],
+            span,
+        ),
+        Expr::AtomicXor {
+            pointer,
+            value,
+            ordering,
+            ..
+        } => helper_call(
+            "__kain_atomic_xor_ordered",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+                atomic_ordering_literal(*ordering, span),
+            ],
+            span,
+        ),
+        Expr::AtomicExchange {
+            pointer,
+            value,
+            ordering,
+            ..
+        } => helper_call(
+            "__kain_atomic_exchange_ordered",
+            vec![
+                lower_expr_memory_with_ctx(pointer, ctx),
+                lower_expr_memory_with_ctx(value, ctx),
+                atomic_ordering_literal(*ordering, span),
             ],
             span,
         ),
@@ -1042,14 +1140,23 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             pointer,
             expected,
             desired,
+            success_ordering,
+            failure_ordering,
             ..
         } => helper_call(
-            "__kain_atomic_compare_exchange_seqcst",
+            "__kain_atomic_compare_exchange_ordered",
             vec![
                 lower_expr_memory_with_ctx(pointer, ctx),
                 lower_expr_memory_with_ctx(expected, ctx),
                 lower_expr_memory_with_ctx(desired, ctx),
+                atomic_ordering_literal(*success_ordering, span),
+                atomic_ordering_literal(*failure_ordering, span),
             ],
+            span,
+        ),
+        Expr::AtomicFence { ordering, .. } => helper_call(
+            "__kain_atomic_fence",
+            vec![atomic_ordering_literal(*ordering, span)],
             span,
         ),
         Expr::SizeOfType { target, .. } => Expr::Int(
@@ -2224,6 +2331,10 @@ fn helper_call(name: &str, args: Vec<Expr>, span: Span) -> Expr {
     }
 }
 
+fn atomic_ordering_literal(ordering: AtomicOrdering, span: Span) -> Expr {
+    Expr::Int(ordering.abi_code(), span)
+}
+
 fn memory_stride_for_type(ty: Option<&Type>, layouts: &LayoutRegistry) -> Option<i64> {
     ty.map(|ty| {
         size_literal_i64_or_panic(
@@ -2839,16 +2950,20 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         Expr::PtrOffset { .. } => Some(format!("{base}: pointer offset expression")),
         Expr::MemLoad { .. } => Some(format!("{base}: raw memory load expression")),
         Expr::MemStore { .. } => Some(format!("{base}: raw memory store expression")),
-        Expr::AtomicLoad { .. } => Some(format!("{base}: seqcst atomic load expression")),
-        Expr::AtomicStore { .. } => Some(format!("{base}: seqcst atomic store expression")),
-        Expr::AtomicAdd { .. } => Some(format!("{base}: seqcst atomic add expression")),
-        Expr::AtomicSub { .. } => Some(format!("{base}: seqcst atomic sub expression")),
-        Expr::AtomicExchange { .. } => {
-            Some(format!("{base}: seqcst atomic exchange expression"))
-        }
+        Expr::VolatileLoad { .. } => Some(format!("{base}: volatile memory load expression")),
+        Expr::VolatileStore { .. } => Some(format!("{base}: volatile memory store expression")),
+        Expr::AtomicLoad { .. } => Some(format!("{base}: atomic load expression")),
+        Expr::AtomicStore { .. } => Some(format!("{base}: atomic store expression")),
+        Expr::AtomicAdd { .. } => Some(format!("{base}: atomic add expression")),
+        Expr::AtomicSub { .. } => Some(format!("{base}: atomic sub expression")),
+        Expr::AtomicAnd { .. } => Some(format!("{base}: atomic and expression")),
+        Expr::AtomicOr { .. } => Some(format!("{base}: atomic or expression")),
+        Expr::AtomicXor { .. } => Some(format!("{base}: atomic xor expression")),
+        Expr::AtomicExchange { .. } => Some(format!("{base}: atomic exchange expression")),
         Expr::AtomicCompareExchange { .. } => {
-            Some(format!("{base}: seqcst atomic compare_exchange expression"))
+            Some(format!("{base}: atomic compare_exchange expression"))
         }
+        Expr::AtomicFence { .. } => Some(format!("{base}: atomic fence expression")),
         Expr::SizeOfType { .. }
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }

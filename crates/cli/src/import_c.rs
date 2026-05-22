@@ -672,12 +672,23 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             iter,
             body,
             ..
+        }
+        | kain_core::ast::Stmt::Fanout {
+            binding,
+            iter,
+            body,
+            ..
         } => {
+            let keyword = if matches!(stmt, kain_core::ast::Stmt::Fanout { .. }) {
+                "fanout"
+            } else {
+                "for"
+            };
             write_line(
                 output,
                 indent,
                 &format!(
-                    "for {} in {}:",
+                    "{keyword} {} in {}:",
                     pattern_to_string(binding),
                     expr_to_string(iter)
                 ),
@@ -1093,6 +1104,192 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 expr_to_string(value)
             ),
         },
+        kain_core::ast::Expr::VolatileLoad {
+            pointer, load_ty, ..
+        } => match load_ty {
+            Some(ty) => format!(
+                "volatile_load({}, \"{}\")",
+                expr_to_string(pointer),
+                type_to_string(ty)
+            ),
+            None => format!("volatile_load({})", expr_to_string(pointer)),
+        },
+        kain_core::ast::Expr::VolatileStore {
+            pointer,
+            value,
+            store_ty,
+            ..
+        } => match store_ty {
+            Some(ty) => format!(
+                "volatile_store({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "volatile_store({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicLoad {
+            pointer, load_ty, ..
+        } => match load_ty {
+            Some(ty) => format!(
+                "atomic_load({}, \"{}\")",
+                expr_to_string(pointer),
+                type_to_string(ty)
+            ),
+            None => format!("atomic_load({})", expr_to_string(pointer)),
+        },
+        kain_core::ast::Expr::AtomicStore {
+            pointer,
+            value,
+            store_ty,
+            ..
+        } => match store_ty {
+            Some(ty) => format!(
+                "atomic_store({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_store({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicAdd {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => match op_ty {
+            Some(ty) => format!(
+                "atomic_add({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_add({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicSub {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => match op_ty {
+            Some(ty) => format!(
+                "atomic_sub({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_sub({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicAnd {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => match op_ty {
+            Some(ty) => format!(
+                "atomic_and({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_and({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicOr {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => match op_ty {
+            Some(ty) => format!(
+                "atomic_or({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_or({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicXor {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => match op_ty {
+            Some(ty) => format!(
+                "atomic_xor({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_xor({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicExchange {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => match op_ty {
+            Some(ty) => format!(
+                "atomic_exchange({}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(value),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_exchange({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            ),
+        },
+        kain_core::ast::Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            op_ty,
+            ..
+        } => match op_ty {
+            Some(ty) => format!(
+                "atomic_compare_exchange({}, {}, {}, \"{}\")",
+                expr_to_string(pointer),
+                expr_to_string(expected),
+                expr_to_string(desired),
+                type_to_string(ty)
+            ),
+            None => format!(
+                "atomic_compare_exchange({}, {}, {})",
+                expr_to_string(pointer),
+                expr_to_string(expected),
+                expr_to_string(desired)
+            ),
+        },
+        kain_core::ast::Expr::AtomicFence { .. } => "atomic_fence()".to_string(),
         kain_core::ast::Expr::SizeOfType { target, .. } => {
             format!("sizeof_type(\"{}\")", type_to_string(target))
         }
@@ -1147,6 +1344,9 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 expr_to_string(target),
                 expr_to_string(body)
             )
+        }
+        kain_core::ast::Expr::Share { target, body, .. } => {
+            format!("share {}: {}", expr_to_string(target), expr_to_string(body))
         }
         kain_core::ast::Expr::Decay { target, .. } => {
             format!("decay {}", expr_to_string(target))

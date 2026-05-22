@@ -1,12 +1,12 @@
-use layout::kaintana_column_slot
-use layout::kaintana_inset
+use kaintana::kaintana_column_slot
+use kaintana::kaintana_inset
 use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect
 use kaintana_ui::*
 
 fn todo_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
-    let l0 = kaintana_label(ui(ctx), text)
+    let l0 = kaintana_label(kaintana_ui_state(ctx), text)
     let l1 = kaintana_label_key(l0, key)
     let l2 = kaintana_label_rect(l1, rect)
     let l3 = kaintana_label_font(l2, font, 22.0)
@@ -14,7 +14,7 @@ fn todo_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: Strin
     return result.ctx
 
 fn todo_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_button(ui(ctx), label)
+    let b0 = kaintana_button(kaintana_ui_state(ctx), label)
     let b1 = kaintana_button_key(b0, key)
     let b2 = kaintana_button_rect(b1, rect)
     let b3 = kaintana_button_font(b2, font, 24.0)
@@ -33,7 +33,7 @@ fn todo_row(ctx: KaintanaContext, row: KaintanaRect, toggle_key: String, label_k
 
 pub fn kaintana_example_todo_list(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
     var next = ctx
-    let p0 = kaintana_panel(ui(next), "To-Do List")
+    let p0 = kaintana_panel(kaintana_ui_state(next), "To-Do List")
     let p1 = kaintana_panel_key(p0, "example.todo.panel")
     let p2 = kaintana_panel_rect(p1, rect)
     let p3 = kaintana_panel_font(p2, title_font, 26.0)

@@ -11,6 +11,11 @@ pub struct FilesystemModuleResolution {
     pub tried_paths: Vec<PathBuf>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FilesystemModuleResolutionContext {
+    pub importer_file: Option<PathBuf>,
+}
+
 pub fn find_stdlib_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
@@ -79,7 +84,17 @@ pub fn resolve_stdlib_module_file(module_name: &str) -> Option<PathBuf> {
 pub fn resolve_filesystem_module_file(
     path_segments: &[String],
 ) -> Option<FilesystemModuleResolution> {
-    let candidates = filesystem_module_candidates(path_segments);
+    resolve_filesystem_module_file_with_context(
+        path_segments,
+        &FilesystemModuleResolutionContext::default(),
+    )
+}
+
+pub fn resolve_filesystem_module_file_with_context(
+    path_segments: &[String],
+    context: &FilesystemModuleResolutionContext,
+) -> Option<FilesystemModuleResolution> {
+    let candidates = filesystem_module_candidates_with_context(path_segments, context);
     let fallback_start = filesystem_item_import_fallback_start(path_segments, candidates.len());
 
     for (index, candidate) in candidates.iter().enumerate() {
@@ -102,6 +117,16 @@ pub fn resolve_filesystem_module_file(
 }
 
 pub fn filesystem_module_candidates(path_segments: &[String]) -> Vec<PathBuf> {
+    filesystem_module_candidates_with_context(
+        path_segments,
+        &FilesystemModuleResolutionContext::default(),
+    )
+}
+
+pub fn filesystem_module_candidates_with_context(
+    path_segments: &[String],
+    context: &FilesystemModuleResolutionContext,
+) -> Vec<PathBuf> {
     if path_segments.is_empty() {
         return Vec::new();
     }
@@ -133,16 +158,72 @@ pub fn filesystem_module_candidates(path_segments: &[String]) -> Vec<PathBuf> {
         push_unique_path(&mut candidates, module_base_path.with_extension("god"));
     }
 
-    append_blade_module_candidates(&mut candidates, path_segments);
+    append_context_module_candidates(&mut candidates, path_segments, context);
 
     candidates
 }
 
-fn append_blade_module_candidates(candidates: &mut Vec<PathBuf>, path_segments: &[String]) {
-    let Ok(current_dir) = std::env::current_dir() else {
+fn append_context_module_candidates(
+    candidates: &mut Vec<PathBuf>,
+    path_segments: &[String],
+    context: &FilesystemModuleResolutionContext,
+) {
+    if let Some(importer_file) = context.importer_file.as_deref() {
+        append_importer_relative_candidates(candidates, path_segments, importer_file);
+    }
+    append_blade_module_candidates(candidates, path_segments, context);
+}
+
+fn append_importer_relative_candidates(
+    candidates: &mut Vec<PathBuf>,
+    path_segments: &[String],
+    importer_file: &Path,
+) {
+    let Some(importer_dir) = importer_file.parent() else {
         return;
     };
-    let Ok(module_roots) = blade::discover_blade_module_roots_from(current_dir) else {
+    let path = path_segments.join("/");
+    let base_path = Path::new(&path);
+    let module_base = path_segments
+        .first()
+        .map(|segment| segment.as_str())
+        .unwrap_or(path.as_str());
+    let module_base_path = Path::new(module_base);
+
+    let mut current = importer_dir.to_path_buf();
+    loop {
+        push_unique_path(candidates, current.join(&path).with_extension("kn"));
+        push_unique_path(candidates, current.join("src").join(&path).with_extension("kn"));
+        push_unique_path(
+            candidates,
+            current.join("src").join("core").join(module_base).with_extension("kn"),
+        );
+        push_unique_path(candidates, current.join(format!("{path}.kn")));
+        push_unique_path(candidates, current.join(base_path).with_extension("god"));
+
+        if path_segments.len() > 1 {
+            push_unique_path(candidates, current.join(module_base).with_extension("kn"));
+            push_unique_path(
+                candidates,
+                current.join("src").join(module_base).with_extension("kn"),
+            );
+            push_unique_path(candidates, current.join(module_base_path).with_extension("god"));
+        }
+
+        let Some(parent) = current.parent() else {
+            break;
+        };
+        current = parent.to_path_buf();
+    }
+}
+
+fn append_blade_module_candidates(
+    candidates: &mut Vec<PathBuf>,
+    path_segments: &[String],
+    context: &FilesystemModuleResolutionContext,
+) {
+    let start = context.importer_file.as_deref().unwrap_or_else(|| Path::new("."));
+    let Ok(module_roots) = blade::discover_blade_module_roots_from(start) else {
         return;
     };
     append_blade_module_candidates_for_roots(candidates, path_segments, &module_roots);

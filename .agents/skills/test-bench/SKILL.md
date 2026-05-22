@@ -1,3 +1,9 @@
+---
+name: test-bench
+description: >-
+  Use when running, extending, debugging, validating, or reviewing Kain's benchmark pipeline under `benchmark/`, including benchmark manifests, wrappers, reports, cache behavior, history, and case-specific runner behavior.
+---
+
 # Kain Benchmark Pipeline
 
 ## Contract

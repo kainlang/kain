@@ -33,6 +33,38 @@ pub const COMPUTE_PLAN_CAPABILITY_KEY: &str = "gpu.compute-plan";
 /// Canonical attribute marker attached by the `shatter struct` surface syntax.
 pub const SHATTER_ATTRIBUTE_NAME: &str = "shatter";
 
+/// Public atomic memory ordering surface shared by parser, typechecker, and lowerers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtomicOrdering {
+    Relaxed,
+    Acquire,
+    Release,
+    AcqRel,
+    SeqCst,
+}
+
+impl AtomicOrdering {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AtomicOrdering::Relaxed => "relaxed",
+            AtomicOrdering::Acquire => "acquire",
+            AtomicOrdering::Release => "release",
+            AtomicOrdering::AcqRel => "acq_rel",
+            AtomicOrdering::SeqCst => "seq_cst",
+        }
+    }
+
+    pub fn abi_code(self) -> i64 {
+        match self {
+            AtomicOrdering::Relaxed => 0,
+            AtomicOrdering::Acquire => 1,
+            AtomicOrdering::Release => 2,
+            AtomicOrdering::AcqRel => 3,
+            AtomicOrdering::SeqCst => 4,
+        }
+    }
+}
+
 /// A complete KAIN program/module
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -1555,33 +1587,72 @@ pub enum Expr {
         store_ty: Option<Type>,
         span: Span,
     },
+    /// Volatile memory load for MMIO and externally-observed memory.
+    VolatileLoad {
+        pointer: Box<Expr>,
+        load_ty: Option<Type>,
+        span: Span,
+    },
+    /// Volatile memory store for MMIO and externally-observed memory.
+    VolatileStore {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        store_ty: Option<Type>,
+        span: Span,
+    },
     AtomicLoad {
         pointer: Box<Expr>,
         load_ty: Option<Type>,
+        ordering: AtomicOrdering,
         span: Span,
     },
     AtomicStore {
         pointer: Box<Expr>,
         value: Box<Expr>,
         store_ty: Option<Type>,
+        ordering: AtomicOrdering,
         span: Span,
     },
     AtomicAdd {
         pointer: Box<Expr>,
         value: Box<Expr>,
         op_ty: Option<Type>,
+        ordering: AtomicOrdering,
         span: Span,
     },
     AtomicSub {
         pointer: Box<Expr>,
         value: Box<Expr>,
         op_ty: Option<Type>,
+        ordering: AtomicOrdering,
+        span: Span,
+    },
+    AtomicAnd {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        op_ty: Option<Type>,
+        ordering: AtomicOrdering,
+        span: Span,
+    },
+    AtomicOr {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        op_ty: Option<Type>,
+        ordering: AtomicOrdering,
+        span: Span,
+    },
+    AtomicXor {
+        pointer: Box<Expr>,
+        value: Box<Expr>,
+        op_ty: Option<Type>,
+        ordering: AtomicOrdering,
         span: Span,
     },
     AtomicExchange {
         pointer: Box<Expr>,
         value: Box<Expr>,
         op_ty: Option<Type>,
+        ordering: AtomicOrdering,
         span: Span,
     },
     AtomicCompareExchange {
@@ -1589,6 +1660,12 @@ pub enum Expr {
         expected: Box<Expr>,
         desired: Box<Expr>,
         op_ty: Option<Type>,
+        success_ordering: AtomicOrdering,
+        failure_ordering: AtomicOrdering,
+        span: Span,
+    },
+    AtomicFence {
+        ordering: AtomicOrdering,
         span: Span,
     },
 
@@ -1753,12 +1830,18 @@ impl Expr {
             | Expr::PtrOffset { span: s, .. }
             | Expr::MemLoad { span: s, .. }
             | Expr::MemStore { span: s, .. }
+            | Expr::VolatileLoad { span: s, .. }
+            | Expr::VolatileStore { span: s, .. }
             | Expr::AtomicLoad { span: s, .. }
             | Expr::AtomicStore { span: s, .. }
             | Expr::AtomicAdd { span: s, .. }
             | Expr::AtomicSub { span: s, .. }
+            | Expr::AtomicAnd { span: s, .. }
+            | Expr::AtomicOr { span: s, .. }
+            | Expr::AtomicXor { span: s, .. }
             | Expr::AtomicExchange { span: s, .. }
             | Expr::AtomicCompareExchange { span: s, .. }
+            | Expr::AtomicFence { span: s, .. }
             | Expr::SizeOfType { span: s, .. }
             | Expr::AlignOfType { span: s, .. }
             | Expr::Alloca { span: s, .. }
@@ -3027,6 +3110,26 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
                 collect_type_names_from_type(ty, out);
             }
         }
+        Expr::VolatileLoad {
+            pointer, load_ty, ..
+        } => {
+            collect_type_names_from_expr(pointer, out);
+            if let Some(ty) = load_ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
+        Expr::VolatileStore {
+            pointer,
+            value,
+            store_ty,
+            ..
+        } => {
+            collect_type_names_from_expr(pointer, out);
+            collect_type_names_from_expr(value, out);
+            if let Some(ty) = store_ty {
+                collect_type_names_from_type(ty, out);
+            }
+        }
         Expr::AtomicLoad {
             pointer, load_ty, ..
         } => {
@@ -3059,6 +3162,24 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             op_ty,
             ..
         }
+        | Expr::AtomicAnd {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicOr {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicXor {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
         | Expr::AtomicExchange {
             pointer,
             value,
@@ -3085,6 +3206,7 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
                 collect_type_names_from_type(ty, out);
             }
         }
+        Expr::AtomicFence { .. } => {}
         Expr::SizeOfType { target, .. } => {
             collect_type_names_from_type(target, out);
         }

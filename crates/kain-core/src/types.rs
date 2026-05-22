@@ -1,11 +1,15 @@
 //! KAIN Type System - Rust-like with effect tracking
 
 use crate::ast::*;
+use crate::diagnostic_registry::DiagnosticCode;
 use crate::diagnostics::SpanMapper;
 use crate::effects::{check_effect_call, Effect, EffectSet};
-use crate::error::{KainError, KainResult};
+use crate::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
 use crate::lexer::Lexer;
-use crate::module_resolution::{resolve_filesystem_module_file, resolve_stdlib_module_file};
+use crate::module_resolution::{
+    resolve_filesystem_module_file_with_context, resolve_stdlib_module_file,
+    FilesystemModuleResolutionContext,
+};
 use crate::parser::Parser;
 use crate::span::Span;
 use crate::stdlib::StdLib;
@@ -18,6 +22,7 @@ use kain_ownership::{
     SHARE_KEYWORD,
 };
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 /// Type-checked AST node
 #[derive(Debug, Clone)]
@@ -332,14 +337,27 @@ struct SemanticContext {
     effects: EffectSet,
 }
 
+#[derive(Debug, Clone)]
+struct SymbolOrigin {
+    span: Span,
+    kind: &'static str,
+}
+
+fn context_allows_raw_memory_intrinsics(ctx: Option<&SemanticContext>) -> bool {
+    ctx.is_some_and(|ctx| ctx.effects.effects.contains(&Effect::Unsafe))
+}
+
 /// Type environment for checking
 pub struct TypeEnv<'a> {
     scopes: Vec<HashMap<String, ResolvedType>>,
     moved_scopes: Vec<HashSet<String>>,
     types: HashMap<String, ResolvedType>,
+    type_origins: HashMap<String, SymbolOrigin>,
     globals: HashMap<String, ResolvedType>,
+    global_origins: HashMap<String, SymbolOrigin>,
     moved_globals: HashSet<String>,
     methods: HashMap<String, HashMap<String, ResolvedType>>,
+    method_origins: HashMap<(String, String), SymbolOrigin>,
     enum_variants: HashMap<String, HashMap<String, EnumVariantTypeInfo>>,
     entangle_endpoints: HashSet<String>,
     shared_region_depth: usize,
@@ -354,9 +372,12 @@ impl<'a> TypeEnv<'a> {
             scopes: vec![HashMap::new()],
             moved_scopes: vec![HashSet::new()],
             types: HashMap::new(),
+            type_origins: HashMap::new(),
             globals: HashMap::new(),
+            global_origins: HashMap::new(),
             moved_globals: HashSet::new(),
             methods: HashMap::new(),
+            method_origins: HashMap::new(),
             enum_variants: HashMap::new(),
             entangle_endpoints: HashSet::new(),
             shared_region_depth: 0,
@@ -369,6 +390,34 @@ impl<'a> TypeEnv<'a> {
             .insert("Int".into(), ResolvedType::Int(IntSize::I64));
         env.types
             .insert("UInt".into(), ResolvedType::Int(IntSize::U64));
+        for (name, size) in [
+            ("I8", IntSize::I8),
+            ("I16", IntSize::I16),
+            ("I32", IntSize::I32),
+            ("I64", IntSize::I64),
+            ("I128", IntSize::I128),
+            ("ISize", IntSize::Isize),
+            ("U8", IntSize::U8),
+            ("U16", IntSize::U16),
+            ("U32", IntSize::U32),
+            ("U64", IntSize::U64),
+            ("U128", IntSize::U128),
+            ("USize", IntSize::Usize),
+            ("i8", IntSize::I8),
+            ("i16", IntSize::I16),
+            ("i32", IntSize::I32),
+            ("i64", IntSize::I64),
+            ("i128", IntSize::I128),
+            ("isize", IntSize::Isize),
+            ("u8", IntSize::U8),
+            ("u16", IntSize::U16),
+            ("u32", IntSize::U32),
+            ("u64", IntSize::U64),
+            ("u128", IntSize::U128),
+            ("usize", IntSize::Usize),
+        ] {
+            env.types.insert(name.to_string(), ResolvedType::Int(size));
+        }
         env.types
             .insert("Float".into(), ResolvedType::Float(FloatSize::F64));
         env.types.insert("Void".into(), ResolvedType::Unit);
@@ -525,6 +574,171 @@ impl<'a> TypeEnv<'a> {
             .insert(method_name, ty);
     }
 
+    fn define_type_user(
+        &mut self,
+        name: String,
+        ty: ResolvedType,
+        span: Span,
+        kind: &'static str,
+    ) -> KainResult<()> {
+        self.validate_user_symbol_collision(
+            &name,
+            span,
+            kind,
+            &self.type_origins,
+            self.types.contains_key(&name),
+            "type",
+            DiagnosticCode::TypeGeneric,
+        )?;
+        self.types.insert(name.clone(), ty);
+        self.type_origins.insert(name, SymbolOrigin { span, kind });
+        Ok(())
+    }
+
+    fn define_global_user(
+        &mut self,
+        name: String,
+        ty: ResolvedType,
+        span: Span,
+        kind: &'static str,
+    ) -> KainResult<()> {
+        self.validate_user_symbol_collision(
+            &name,
+            span,
+            kind,
+            &self.global_origins,
+            self.globals.contains_key(&name),
+            "global",
+            DiagnosticCode::TypeGeneric,
+        )?;
+        self.define_global(name.clone(), ty);
+        self.global_origins
+            .insert(name, SymbolOrigin { span, kind });
+        Ok(())
+    }
+
+    fn define_method_user(
+        &mut self,
+        type_name: &str,
+        method_name: String,
+        ty: ResolvedType,
+        span: Span,
+        kind: &'static str,
+    ) -> KainResult<()> {
+        let key = (type_name.to_string(), method_name.clone());
+        if let Some(existing) = self.method_origins.get(&key) {
+            if existing.span != span || existing.kind != kind {
+                return Err(self.duplicate_symbol_error(
+                    &method_name,
+                    span,
+                    kind,
+                    existing,
+                    "method",
+                    DiagnosticCode::TypeGeneric,
+                ));
+            }
+        }
+        let already_defined = self
+            .methods
+            .get(type_name)
+            .and_then(|methods| methods.get(&method_name))
+            .is_some();
+        if already_defined && !self.method_origins.contains_key(&key) {
+            return Err(self.shadow_builtin_symbol_error(
+                &method_name,
+                span,
+                kind,
+                "existing method slot",
+                DiagnosticCode::TypeGeneric,
+            ));
+        }
+        self.define_method(type_name.to_string(), method_name.clone(), ty);
+        self.method_origins.insert(key, SymbolOrigin { span, kind });
+        Ok(())
+    }
+
+    fn validate_user_symbol_collision(
+        &self,
+        name: &str,
+        span: Span,
+        kind: &'static str,
+        origins: &HashMap<String, SymbolOrigin>,
+        already_defined: bool,
+        namespace: &'static str,
+        code: DiagnosticCode,
+    ) -> KainResult<()> {
+        if let Some(existing) = origins.get(name) {
+            if existing.span != span || existing.kind != kind {
+                return Err(
+                    self.duplicate_symbol_error(name, span, kind, existing, namespace, code)
+                );
+            }
+            return Ok(());
+        }
+        if already_defined {
+            return Err(self.shadow_builtin_symbol_error(name, span, kind, namespace, code));
+        }
+        Ok(())
+    }
+
+    fn duplicate_symbol_error(
+        &self,
+        name: &str,
+        span: Span,
+        kind: &'static str,
+        existing: &SymbolOrigin,
+        namespace: &'static str,
+        code: DiagnosticCode,
+    ) -> KainError {
+        let current_loc = self.span_mapper.span_to_location(span, self.filename);
+        let existing_loc = self
+            .span_mapper
+            .span_to_location(existing.span, self.filename);
+        let report = DiagnosticReport::new(
+            ErrorKind::Type,
+            code,
+            format!(
+                "{kind} '{name}' collides with an existing {namespace} from {}",
+                existing.kind
+            ),
+        )
+        .file(PathBuf::from(current_loc.file.clone()))
+        .location(current_loc.line, current_loc.col)
+        .primary_label(span, format!("redeclared {namespace} '{name}'"))
+        .label(
+            existing.span,
+            format!(
+                "previous {} '{}' is here ({}:{}:{})",
+                existing.kind, name, existing_loc.file, existing_loc.line, existing_loc.col
+            ),
+        )
+        .help(
+            "Rename one of the declarations, or import the older symbol under an explicit alias.",
+        );
+        KainError::rich(report)
+    }
+
+    fn shadow_builtin_symbol_error(
+        &self,
+        name: &str,
+        span: Span,
+        kind: &'static str,
+        namespace: &'static str,
+        code: DiagnosticCode,
+    ) -> KainError {
+        let loc = self.span_mapper.span_to_location(span, self.filename);
+        let report = DiagnosticReport::new(
+            ErrorKind::Type,
+            code,
+            format!("{kind} '{name}' shadows an existing {namespace} symbol"),
+        )
+        .file(PathBuf::from(loc.file.clone()))
+        .location(loc.line, loc.col)
+        .primary_label(span, format!("shadowed {namespace} symbol '{name}'"))
+        .help("Pick a distinct name, or import the existing symbol with an alias to keep both visible.");
+        KainError::rich(report)
+    }
+
     pub fn lookup(&self, name: &str) -> Option<&ResolvedType> {
         for scope in self.scopes.iter().rev() {
             if let Some(ty) = scope.get(name) {
@@ -617,9 +831,27 @@ impl<'a> TypeEnv<'a> {
     /// Create a type error with file:line:col format
     fn type_error(&self, message: impl Into<String>, span: Span) -> KainError {
         let loc = self.span_mapper.span_to_location(span, self.filename);
-        let formatted_message =
-            format!("{}:{}:{}: {}", loc.file, loc.line, loc.col, message.into());
-        KainError::type_error(formatted_message, span)
+        let report = DiagnosticReport::new(ErrorKind::Type, DiagnosticCode::TypeGeneric, message)
+            .file(PathBuf::from(loc.file.clone()))
+            .location(loc.line, loc.col)
+            .primary_label(span, "typechecker stopped here");
+        KainError::rich(report)
+    }
+
+    fn importer_file_for_span(&self, span: Span) -> Option<PathBuf> {
+        if let Some(origin) = self.span_mapper.span_origin_file(span) {
+            if !Self::synthetic_filename(origin) {
+                return Some(PathBuf::from(origin));
+            }
+        }
+        if !Self::synthetic_filename(self.filename) {
+            return Some(PathBuf::from(self.filename));
+        }
+        None
+    }
+
+    fn synthetic_filename(filename: &str) -> bool {
+        filename.starts_with('<') && filename.ends_with('>')
     }
 }
 
@@ -2472,7 +2704,7 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 fields.insert(f.name.clone(), resolve_type_in_env(env, &f.ty)?);
             }
             let self_ty = ResolvedType::Struct(s.name.clone(), fields.clone());
-            env.types.insert(s.name.clone(), self_ty.clone());
+            env.define_type_user(s.name.clone(), self_ty.clone(), s.span, "struct")?;
             register_method_signatures(env, &s.name, &self_ty, &s.methods)?;
         }
         Item::Enum(e) => {
@@ -2515,7 +2747,7 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 );
             }
             let enum_ty = ResolvedType::Enum(e.name.clone(), variants);
-            env.types.insert(e.name.clone(), enum_ty.clone());
+            env.define_type_user(e.name.clone(), enum_ty.clone(), e.span, "enum")?;
             env.enum_variants.insert(e.name.clone(), variant_map);
             for (variant_name, payload_types, is_unit) in variant_aliases {
                 let alias = selfhost_enum_variant_alias_name(&e.name, &variant_name);
@@ -2532,28 +2764,39 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
             }
         }
         Item::Function(f) => {
-            env.define_global(f.name.clone(), function_signature(env, f, None)?);
+            env.define_global_user(
+                f.name.clone(),
+                function_signature(env, f, None)?,
+                f.span,
+                "function",
+            )?;
         }
         Item::Patch(patch) => {
-            env.define_global(
+            env.define_global_user(
                 patch.name.clone(),
                 function_signature(env, &patch_function_view(patch), None)?,
-            );
+                patch.span,
+                "patch",
+            )?;
         }
         Item::Law(law) => {
-            env.define_global(
+            env.define_global_user(
                 law.name.clone(),
                 function_signature(env, &law_function_view(law), None)?,
-            );
+                law.span,
+                "law",
+            )?;
         }
         Item::Axiom(axiom) => {
-            env.define_global(axiom.name.clone(), ResolvedType::Unit);
+            env.define_global_user(axiom.name.clone(), ResolvedType::Unit, axiom.span, "axiom")?;
         }
         Item::Converge(converge) => {
-            env.define_global(
+            env.define_global_user(
                 converge.name.clone(),
                 function_signature(env, &converge_dispatcher_view(converge), None)?,
-            );
+                converge.span,
+                "converge",
+            )?;
         }
         Item::World(world) => {
             let mut fields = HashMap::new();
@@ -2561,24 +2804,35 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 fields.insert(state.name.clone(), resolve_type_in_env(env, &state.ty)?);
             }
             let world_ty = ResolvedType::Struct(world.name.clone(), fields);
-            env.types.insert(world.name.clone(), world_ty.clone());
-            env.define_global(world.name.clone(), world_ty);
+            env.define_type_user(world.name.clone(), world_ty.clone(), world.span, "world")?;
+            env.define_global_user(world.name.clone(), world_ty, world.span, "world")?;
         }
         Item::Orchestrate(orchestrate) => {
-            env.define_global(
+            env.define_global_user(
                 orchestrate.name.clone(),
                 function_signature(env, &orchestrate_function_view(orchestrate), None)?,
-            );
+                orchestrate.span,
+                "orchestrate",
+            )?;
         }
         Item::Pulse(pulse) => {
-            env.define_global(pulse.name.clone(), ResolvedType::Unit);
+            env.define_global_user(pulse.name.clone(), ResolvedType::Unit, pulse.span, "pulse")?;
         }
         Item::Const(c) => {
-            env.define_global(c.name.clone(), resolve_type_in_env(env, &c.ty)?);
+            env.define_global_user(
+                c.name.clone(),
+                resolve_type_in_env(env, &c.ty)?,
+                c.span,
+                "const",
+            )?;
         }
         Item::TypeAlias(alias) => {
-            env.types
-                .insert(alias.name.clone(), resolve_type_in_env(env, &alias.target)?);
+            env.define_type_user(
+                alias.name.clone(),
+                resolve_type_in_env(env, &alias.target)?,
+                alias.span,
+                "type alias",
+            )?;
         }
         Item::Impl(imp) => {
             let self_ty = resolve_type_in_env(env, &imp.target_type)?;
@@ -2588,13 +2842,17 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
         }
         Item::Component(component) => {
             let component_ty = ResolvedType::Struct(component.name.clone(), HashMap::new());
-            env.types
-                .insert(component.name.clone(), component_ty.clone());
+            env.define_type_user(
+                component.name.clone(),
+                component_ty.clone(),
+                component.span,
+                "component",
+            )?;
             register_method_signatures(env, &component.name, &component_ty, &component.methods)?;
         }
         Item::Actor(actor) => {
             let actor_ty = ResolvedType::Struct(actor.name.clone(), HashMap::new());
-            env.types.insert(actor.name.clone(), actor_ty.clone());
+            env.define_type_user(actor.name.clone(), actor_ty.clone(), actor.span, "actor")?;
             register_method_signatures(env, &actor.name, &actor_ty, &actor.methods)?;
         }
         Item::Mod(module) => {
@@ -2629,7 +2887,7 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
             };
             // Only register if not already known (don't overwrite real builtins).
             if env.lookup(&imported_name).is_none() {
-                env.define_global(imported_name, ResolvedType::Unknown);
+                env.define_global_user(imported_name, ResolvedType::Unknown, u.span, "import")?;
             }
         }
         _ => {}
@@ -2689,7 +2947,10 @@ fn register_filesystem_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bo
         return Ok(false);
     }
 
-    let Some(resolution) = resolve_filesystem_module_file(&u.path) else {
+    let context = FilesystemModuleResolutionContext {
+        importer_file: env.importer_file_for_span(u.span),
+    };
+    let Some(resolution) = resolve_filesystem_module_file_with_context(&u.path, &context) else {
         return Ok(false);
     };
 
@@ -2808,20 +3069,26 @@ fn register_method_signatures(
 ) -> KainResult<()> {
     for method in methods {
         let signature = function_signature(env, method, Some(self_ty))?;
-        env.define_method(
-            type_name.to_string(),
+        env.define_method_user(
+            type_name,
             method.name.clone(),
             signature.clone(),
-        );
+            method.span,
+            "method",
+        )?;
         if !method_has_receiver_param(method) {
-            env.define_global(
+            env.define_global_user(
                 lowered_impl_function_name(type_name, &method.name),
                 signature.clone(),
-            );
-            env.define_global(
+                method.span,
+                "static impl helper",
+            )?;
+            env.define_global_user(
                 selfhost_static_impl_function_name(type_name, &method.name),
                 signature,
-            );
+                method.span,
+                "selfhost static impl helper",
+            )?;
         }
     }
     Ok(())
@@ -2835,16 +3102,20 @@ fn register_inline_module_global_aliases(
     for item in items {
         match item {
             Item::Function(f) => {
-                env.define_global(
+                env.define_global_user(
                     module_scoped_name(module_path, &f.name),
                     function_signature(env, f, None)?,
-                );
+                    f.span,
+                    "inline module function alias",
+                )?;
             }
             Item::Const(c) => {
-                env.define_global(
+                env.define_global_user(
                     module_scoped_name(module_path, &c.name),
                     resolve_type_in_env(env, &c.ty)?,
-                );
+                    c.span,
+                    "inline module const alias",
+                )?;
             }
             Item::Mod(module) => {
                 if let Some(children) = &module.inline {
@@ -3882,12 +4153,16 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
             collect_patch_mutation_paths_from_expr(pointer, output);
             collect_patch_mutation_paths_from_expr(value, output);
         }
-        Expr::AtomicLoad { pointer, .. } => {
+        Expr::VolatileLoad { pointer, .. } | Expr::AtomicLoad { pointer, .. } => {
             collect_patch_mutation_paths_from_expr(pointer, output);
         }
-        Expr::AtomicStore { pointer, value, .. }
+        Expr::VolatileStore { pointer, value, .. }
+        | Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             collect_patch_mutation_paths_from_expr(pointer, output);
             collect_patch_mutation_paths_from_expr(value, output);
@@ -3902,6 +4177,7 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
             collect_patch_mutation_paths_from_expr(expected, output);
             collect_patch_mutation_paths_from_expr(desired, output);
         }
+        Expr::AtomicFence { .. } => {}
         Expr::PtrOffset {
             pointer, offset, ..
         } => {
@@ -4130,11 +4406,12 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
                 || expr_requires_best_effort_patch_mode(offset)
         }
         Expr::MemLoad { pointer, .. }
+        | Expr::VolatileLoad { pointer, .. }
         | Expr::Decay {
             target: pointer, ..
         } => expr_requires_best_effort_patch_mode(pointer),
         Expr::Teleport { .. } => true,
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
             expr_requires_best_effort_patch_mode(pointer)
                 || expr_requires_best_effort_patch_mode(value)
         }
@@ -4142,6 +4419,9 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
         Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             expr_requires_best_effort_patch_mode(pointer)
                 || expr_requires_best_effort_patch_mode(value)
@@ -4156,6 +4436,7 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
                 || expr_requires_best_effort_patch_mode(expected)
                 || expr_requires_best_effort_patch_mode(desired)
         }
+        Expr::AtomicFence { .. } => false,
         Expr::Observe { target, body, .. }
         | Expr::Collapse { target, body, .. }
         | Expr::Share { target, body, .. } => {
@@ -4374,13 +4655,18 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
             })
         }),
         Expr::Lambda { body, .. } => first_stage_call_in_expr(body),
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
             first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(value))
         }
-        Expr::AtomicLoad { pointer, .. } => first_stage_call_in_expr(pointer),
+        Expr::VolatileLoad { pointer, .. } | Expr::AtomicLoad { pointer, .. } => {
+            first_stage_call_in_expr(pointer)
+        }
         Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(value))
         }
@@ -4392,6 +4678,7 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         } => first_stage_call_in_expr(pointer)
             .or_else(|| first_stage_call_in_expr(expected))
             .or_else(|| first_stage_call_in_expr(desired)),
+        Expr::AtomicFence { .. } => None,
         Expr::PtrOffset {
             pointer, offset, ..
         } => first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(offset)),
@@ -5060,16 +5347,10 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             span,
         } => {
             if !env.in_shared_region() {
-                return Err(env.type_error(
-                    "fanout requires an enclosing share scope in v1",
-                    *span,
-                ));
+                return Err(env.type_error("fanout requires an enclosing share scope in v1", *span));
             }
             if env.in_fanout() {
-                return Err(env.type_error(
-                    "nested fanout is not supported in v1",
-                    *span,
-                ));
+                return Err(env.type_error("nested fanout is not supported in v1", *span));
             }
             if ownership_block_contains_early_exit(body) {
                 return Err(env.type_error(
@@ -5849,14 +6130,81 @@ fn infer_expr_type(
             )?;
             Ok(ResolvedType::Unit)
         }
-        Expr::AtomicLoad {
+        Expr::VolatileLoad {
             pointer,
             load_ty,
             span,
         } => {
-            if !env.in_shared_region() {
+            if env.in_shared_region() {
                 return Err(env.type_error(
-                    "atomic_load requires an enclosing share scope in v1",
+                    "volatile_load is not a synchronization operation inside share scopes; use atomic_load",
+                    *span,
+                ));
+            }
+            if let Some(load_ty) = load_ty {
+                return resolve_type_in_env(env, load_ty);
+            }
+            let pointer_ty = infer_expr_type(env, pointer, ctx)?;
+            match pointer_ty {
+                ResolvedType::Ptr { inner, .. } | ResolvedType::Ref { inner, .. } => Ok(*inner),
+                ResolvedType::Unknown => Ok(ResolvedType::Unknown),
+                other => Err(env.type_error(
+                    format!(
+                        "volatile_load expects a pointer, found {}",
+                        describe_type(&other)
+                    ),
+                    *span,
+                )),
+            }
+        }
+        Expr::VolatileStore {
+            pointer,
+            value,
+            store_ty,
+            span,
+        } => {
+            if env.in_shared_region() {
+                return Err(env.type_error(
+                    "volatile_store is not a synchronization operation inside share scopes; use atomic_store",
+                    *span,
+                ));
+            }
+            let expected_ty = if let Some(store_ty) = store_ty {
+                resolve_type_in_env(env, store_ty)?
+            } else {
+                match infer_expr_type(env, pointer, ctx)? {
+                    ResolvedType::Ptr { inner, .. } | ResolvedType::Ref { inner, .. } => *inner,
+                    ResolvedType::Unknown => ResolvedType::Unknown,
+                    other => {
+                        return Err(env.type_error(
+                            format!(
+                                "volatile_store expects a pointer, found {}",
+                                describe_type(&other)
+                            ),
+                            *span,
+                        ))
+                    }
+                }
+            };
+            let value_ty = infer_expr_type(env, value, ctx)?;
+            ensure_type_compatible(
+                env,
+                &expected_ty,
+                &value_ty,
+                value.span(),
+                "volatile_store value",
+            )?;
+            Ok(ResolvedType::Unit)
+        }
+        Expr::AtomicLoad {
+            pointer,
+            load_ty,
+            span,
+            ..
+        } => {
+            if !env.in_shared_region() && !context_allows_raw_memory_intrinsics(ctx) {
+                return Err(env.type_error(
+                    "atomic_load requires an enclosing share scope or Unsafe effect",
                     *span,
                 ));
             }
@@ -5867,15 +6215,22 @@ fn infer_expr_type(
             value,
             store_ty,
             span,
+            ..
         } => {
-            if !env.in_shared_region() {
+            if !env.in_shared_region() && !context_allows_raw_memory_intrinsics(ctx) {
                 return Err(env.type_error(
-                    "atomic_store requires an enclosing share scope in v1",
+                    "atomic_store requires an enclosing share scope or Unsafe effect",
                     *span,
                 ));
             }
-            let expected_ty =
-                infer_atomic_element_type(env, pointer, store_ty.as_ref(), ctx, *span, "atomic_store")?;
+            let expected_ty = infer_atomic_element_type(
+                env,
+                pointer,
+                store_ty.as_ref(),
+                ctx,
+                *span,
+                "atomic_store",
+            )?;
             let value_ty = infer_expr_type(env, value, ctx)?;
             ensure_type_compatible(
                 env,
@@ -5891,27 +6246,57 @@ fn infer_expr_type(
             value,
             op_ty,
             span,
+            ..
         }
         | Expr::AtomicSub {
             pointer,
             value,
             op_ty,
             span,
+            ..
+        }
+        | Expr::AtomicAnd {
+            pointer,
+            value,
+            op_ty,
+            span,
+            ..
+        }
+        | Expr::AtomicOr {
+            pointer,
+            value,
+            op_ty,
+            span,
+            ..
+        }
+        | Expr::AtomicXor {
+            pointer,
+            value,
+            op_ty,
+            span,
+            ..
         }
         | Expr::AtomicExchange {
             pointer,
             value,
             op_ty,
             span,
+            ..
         } => {
-            if !env.in_shared_region() {
+            if !env.in_shared_region() && !context_allows_raw_memory_intrinsics(ctx) {
                 return Err(env.type_error(
-                    "seqcst atomic operations require an enclosing share scope in v1",
+                    "atomic operations require an enclosing share scope or Unsafe effect",
                     *span,
                 ));
             }
-            let expected_ty =
-                infer_atomic_element_type(env, pointer, op_ty.as_ref(), ctx, *span, "atomic operation")?;
+            let expected_ty = infer_atomic_element_type(
+                env,
+                pointer,
+                op_ty.as_ref(),
+                ctx,
+                *span,
+                "atomic operation",
+            )?;
             let value_ty = infer_expr_type(env, value, ctx)?;
             ensure_type_compatible(
                 env,
@@ -5928,10 +6313,11 @@ fn infer_expr_type(
             desired,
             op_ty,
             span,
+            ..
         } => {
-            if !env.in_shared_region() {
+            if !env.in_shared_region() && !context_allows_raw_memory_intrinsics(ctx) {
                 return Err(env.type_error(
-                    "atomic_compare_exchange requires an enclosing share scope in v1",
+                    "atomic_compare_exchange requires an enclosing share scope or Unsafe effect",
                     *span,
                 ));
             }
@@ -5961,6 +6347,7 @@ fn infer_expr_type(
             )?;
             Ok(ResolvedType::Bool)
         }
+        Expr::AtomicFence { .. } => Ok(ResolvedType::Unit),
         Expr::SizeOfType { .. } | Expr::AlignOfType { .. } => Ok(ResolvedType::Int(IntSize::I64)),
         Expr::Alloca { ty, .. } => Ok(ResolvedType::Ptr {
             mutable: true,
@@ -5987,10 +6374,9 @@ fn infer_expr_type(
         }),
         Expr::Observe { target, body, span } => {
             if env.in_shared_region() {
-                return Err(env.type_error(
-                    "observe is not allowed inside share scopes in v1",
-                    *span,
-                ));
+                return Err(
+                    env.type_error("observe is not allowed inside share scopes in v1", *span)
+                );
             }
             validate_ownership_target(env, target, OBSERVE_KEYWORD, *span)?;
             ensure_ownership_scope_has_structured_exit(env, body, OBSERVE_KEYWORD, *span)?;
@@ -5998,10 +6384,9 @@ fn infer_expr_type(
         }
         Expr::Collapse { target, body, span } => {
             if env.in_shared_region() {
-                return Err(env.type_error(
-                    "collapse is not allowed inside share scopes in v1",
-                    *span,
-                ));
+                return Err(
+                    env.type_error("collapse is not allowed inside share scopes in v1", *span)
+                );
             }
             validate_ownership_target(env, target, COLLAPSE_KEYWORD, *span)?;
             ensure_ownership_scope_has_structured_exit(env, body, COLLAPSE_KEYWORD, *span)?;
@@ -6009,10 +6394,7 @@ fn infer_expr_type(
         }
         Expr::Decay { target, span } => {
             if env.in_shared_region() {
-                return Err(env.type_error(
-                    "decay is not allowed inside share scopes in v1",
-                    *span,
-                ));
+                return Err(env.type_error("decay is not allowed inside share scopes in v1", *span));
             }
             validate_ownership_target(env, target, DECAY_KEYWORD, *span)?;
             Ok(ResolvedType::Unit)
@@ -6214,7 +6596,10 @@ fn resolve_atomic_pointer_element_type(
         ResolvedType::Ptr { inner, .. } | ResolvedType::Ref { inner, .. } => Ok(*inner),
         ResolvedType::Unknown => Ok(ResolvedType::Unknown),
         other => Err(env.type_error(
-            format!("{operation} expects a pointer, found {}", describe_type(&other)),
+            format!(
+                "{operation} expects a pointer, found {}",
+                describe_type(&other)
+            ),
             span,
         )),
     }
@@ -6412,17 +6797,21 @@ fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
                 || ownership_expr_contains_early_exit(offset)
         }
         Expr::MemLoad { pointer, .. }
+        | Expr::VolatileLoad { pointer, .. }
         | Expr::Decay {
             target: pointer, ..
         }
         | Expr::Teleport { value: pointer, .. } => ownership_expr_contains_early_exit(pointer),
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
             ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(value)
         }
         Expr::AtomicLoad { pointer, .. } => ownership_expr_contains_early_exit(pointer),
         Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(value)
         }
@@ -6436,6 +6825,7 @@ fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
                 || ownership_expr_contains_early_exit(expected)
                 || ownership_expr_contains_early_exit(desired)
         }
+        Expr::AtomicFence { .. } => false,
         Expr::Alloc { size, .. } => ownership_expr_contains_early_exit(size),
         Expr::Realloc { pointer, size, .. } => {
             ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(size)

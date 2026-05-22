@@ -1,4 +1,4 @@
-use fluid_studio_state::*
+use fluid_studio_views::*
 use std::math
 use vulkain::vulkain_frames_presented
 use vulkain::vulkain_probe
@@ -17,22 +17,17 @@ pub fn fluid_draw_vertices_from_budget(particle_budget: Int) -> Int:
     let bands = math_int_clamp(particle_budget / 65536, 1, 8)
     return 36 * bands
 
-pub fn fluid_scene_math_score(session: FluidStudioSession) -> Int:
-    let controls = session.controls
-    let runtime = session.runtime
-    let axis = vec3_normalize_or_zero(vec3(controls.swirl_gain + 0.01, controls.buoyancy + 0.03, controls.impulse + 0.07))
-    let orbit = quat_from_axis_angle(vec3_up(), Float(runtime.camera_yaw_milli) / 1000.0)
+pub fn fluid_scene_math_score(scene: FluidSceneRequest) -> Int:
+    let axis = vec3_normalize_or_zero(vec3(scene.swirl_gain + 0.01, scene.buoyancy + 0.03, scene.impulse + 0.07))
+    let orbit = quat_from_axis_angle(vec3_up(), Float(scene.camera_yaw_milli) / 1000.0)
     let rotated = quat_rotate_vec3(orbit, axis)
-    let transform = mat4_from_trs(vec3(controls.swirl_gain, controls.buoyancy, controls.impulse), orbit, vec3_one())
+    let transform = mat4_from_trs(vec3(scene.swirl_gain, scene.buoyancy, scene.impulse), orbit, vec3_one())
     let point = mat4_transform_point(transform, rotated)
-    let color = hsv_to_rgb(Hsv { h: controls.hue, s: 0.78, v: 1.0 })
-    let score = vec3_length(point) + vec3_length(color) + Float(runtime.sim_energy % 2048) / 1024.0
+    let color = hsv_to_rgb(Hsv { h: scene.hue, s: 0.78, v: 1.0 })
+    let score = vec3_length(point) + vec3_length(color) + Float(scene.sim_energy % 2048) / 1024.0
     return Int(score * 1000.0)
 
-pub fn fluid_present_scene(session: FluidStudioSession) -> FluidStudioPresenterResult:
-    let settings = session.settings
-    let runtime = session.runtime
-    let draw_vertices = fluid_draw_vertices_from_budget(runtime.particle_budget)
+pub fn fluid_present_scene(scene: FluidSceneRequest) -> FluidStudioPresenterResult:
     let available = vulkain_probe()
     if available != 1:
         return FluidStudioPresenterResult {
@@ -40,47 +35,42 @@ pub fn fluid_present_scene(session: FluidStudioSession) -> FluidStudioPresenterR
             vulkan_available: available,
             frames_presented: 0,
             vertices_drawn: 0,
-            math_score: fluid_scene_math_score(session),
+            math_score: fluid_scene_math_score(scene),
         }
     let status = vulkain_run_mesh_scene_with_entrypoints(
-        settings.title,
-        settings.width,
-        settings.height,
-        settings.present_frames,
-        settings.render.clear_red,
-        settings.render.clear_green,
-        settings.render.clear_blue,
-        settings.render.accent_red,
-        settings.render.accent_green,
-        settings.render.accent_blue,
-        draw_vertices,
-        runtime.camera_yaw_milli,
-        runtime.camera_pitch_milli,
-        runtime.mesh_scale_milli,
-        runtime.mesh_twist_milli,
+        scene.title,
+        scene.width,
+        scene.height,
+        scene.present_frames,
+        scene.clear_red,
+        scene.clear_green,
+        scene.clear_blue,
+        scene.accent_red,
+        scene.accent_green,
+        scene.accent_blue,
+        scene.draw_vertices,
+        scene.camera_yaw_milli,
+        scene.camera_pitch_milli,
+        scene.mesh_scale_milli,
+        scene.mesh_twist_milli,
         180,
-        runtime.sim_energy,
-        settings.render.vertex_shader_path,
-        settings.render.fragment_shader_path,
+        scene.sim_energy,
+        scene.vertex_shader_path,
+        scene.fragment_shader_path,
         "main",
-        settings.render.fragment_entry_point
+        scene.fragment_entry_point
     )
-    let _report = vulkain_write_report(settings.vulkain_report_path)
+    let _report = vulkain_write_report(scene.vulkain_report_path)
     return FluidStudioPresenterResult {
         status: status,
         vulkan_available: available,
         frames_presented: vulkain_frames_presented(),
         vertices_drawn: vulkain_vertices_drawn(),
-        math_score: fluid_scene_math_score(session),
+        math_score: fluid_scene_math_score(scene),
     }
 
-pub fn fluid_scene_report_text(session: FluidStudioSession, presenter: FluidStudioPresenterResult) -> String:
-    let settings = session.settings
-    let controls = session.controls
-    let runtime = session.runtime
-    return "scene=fluid-studio.mesh_scene\nbackend=vulkan\nplatform=" + fluid_session_platform_status(session) + "\nauthoring_lane=" + fluid_session_lane_summary(session) + "\npreset=" + controls.preset_id + "\ngrid=" + fluid_grid_label(settings) + "\nframes_presented=" + str(presenter.frames_presented) + "\nvertices_drawn=" + str(presenter.vertices_drawn) + "\ndraw_vertices=" + str(runtime.draw_vertices) + "\nmesh_scale_milli=" + str(runtime.mesh_scale_milli) + "\nmesh_twist_milli=" + str(runtime.mesh_twist_milli) + "\ncamera_yaw_milli=" + str(runtime.camera_yaw_milli) + "\ncamera_pitch_milli=" + str(runtime.camera_pitch_milli) + "\nmath_score=" + str(presenter.math_score) + "\nstatus=" + str(presenter.status) + "\n"
+pub fn fluid_scene_report_text(scene: FluidSceneRequest, presenter: FluidStudioPresenterResult) -> String:
+    return "scene=fluid-studio.mesh_scene\nbackend=vulkan\nplatform=" + scene.platform_status + "\nauthoring_lane=" + scene.lane_summary + "\npreset=" + scene.preset_id + "\ngrid=" + scene.grid_label + "\nframes_presented=" + str(presenter.frames_presented) + "\nvertices_drawn=" + str(presenter.vertices_drawn) + "\ndraw_vertices=" + str(scene.draw_vertices) + "\nmesh_scale_milli=" + str(scene.mesh_scale_milli) + "\nmesh_twist_milli=" + str(scene.mesh_twist_milli) + "\ncamera_yaw_milli=" + str(scene.camera_yaw_milli) + "\ncamera_pitch_milli=" + str(scene.camera_pitch_milli) + "\nmath_score=" + str(presenter.math_score) + "\nstatus=" + str(presenter.status) + "\n"
 
-pub fn fluid_host_report_text(session: FluidStudioSession, presenter: FluidStudioPresenterResult) -> String:
-    let settings = session.settings
-    let runtime = session.runtime
-    return "host=fluid-studio\nfragment_shader=" + settings.render.fragment_shader_path + "\nfragment_entry=" + settings.render.fragment_entry_point + "\ncompute_entry=" + settings.compute_entry_path + "\nui_draw_count=" + str(runtime.ui_draw_count) + "\nui_checksum=" + str(runtime.ui_checksum) + "\npulse_count=" + str(runtime.pulse_count) + "\nteleport_count=" + str(runtime.teleport_count) + "\nmesh_vertices=" + str(runtime.draw_vertices) + "\nframes_presented=" + str(presenter.frames_presented) + "\n"
+pub fn fluid_host_report_text(scene: FluidSceneRequest, presenter: FluidStudioPresenterResult) -> String:
+    return "host=fluid-studio\nfragment_shader=" + scene.fragment_shader_path + "\nfragment_entry=" + scene.fragment_entry_point + "\ncompute_entry=" + scene.compute_entry_path + "\nui_draw_count=" + str(scene.ui_draw_count) + "\nui_checksum=" + str(scene.ui_checksum) + "\npulse_count=" + str(scene.pulse_count) + "\nteleport_count=" + str(scene.teleport_count) + "\nmesh_vertices=" + str(scene.draw_vertices) + "\nframes_presented=" + str(presenter.frames_presented) + "\n"

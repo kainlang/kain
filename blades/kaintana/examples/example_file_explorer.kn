@@ -1,11 +1,11 @@
-use layout::kaintana_column_slot
-use layout::kaintana_inset
+use kaintana::kaintana_column_slot
+use kaintana::kaintana_inset
 use types::KaintanaContext
 use types::KaintanaRect
 use kaintana_ui::*
 
 fn explorer_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
-    let l0 = kaintana_label(ui(ctx), text)
+    let l0 = kaintana_label(kaintana_ui_state(ctx), text)
     let l1 = kaintana_label_key(l0, key)
     let l2 = kaintana_label_rect(l1, rect)
     let l3 = kaintana_label_font(l2, font, 21.0)
@@ -13,7 +13,7 @@ fn explorer_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: S
     return result.ctx
 
 fn explorer_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_button(ui(ctx), label)
+    let b0 = kaintana_button(kaintana_ui_state(ctx), label)
     let b1 = kaintana_button_key(b0, key)
     let b2 = kaintana_button_rect(b1, rect)
     let b3 = kaintana_button_font(b2, font, 22.0)
@@ -22,7 +22,7 @@ fn explorer_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label:
 
 pub fn kaintana_example_file_explorer(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
     var next = ctx
-    let p0 = kaintana_panel(ui(next), "File Explorer")
+    let p0 = kaintana_panel(kaintana_ui_state(next), "File Explorer")
     let p1 = kaintana_panel_key(p0, "example.explorer.panel")
     let p2 = kaintana_panel_rect(p1, rect)
     let p3 = kaintana_panel_font(p2, title_font, 26.0)

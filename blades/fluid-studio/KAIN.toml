@@ -65,7 +65,9 @@ target = "llvm"
 inputs = [
   "src/main.kn",
   "src/fluid_studio_state.kn",
+  "src/fluid_studio_ui_types.kn",
   "src/fluid_studio_ui.kn",
+  "src/fluid_studio_views.kn",
   "src/fluid_studio_sim.kn",
   "src/fluid_studio_scene.kn",
   "src/fluid_compute.kn",

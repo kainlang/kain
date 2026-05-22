@@ -1927,73 +1927,181 @@ impl SourceFormatter {
                     self.format_expr(value)?
                 ),
             },
-            Expr::AtomicLoad {
+            Expr::VolatileLoad {
                 pointer, load_ty, ..
             } => match load_ty {
                 Some(ty) => format!(
-                    "atomic_load({}, {})",
+                    "volatile_load({}, {})",
                     self.format_expr(pointer)?,
                     self.quote_string(&self.format_type(ty))
                 ),
-                None => format!("atomic_load({})", self.format_expr(pointer)?),
+                None => format!("volatile_load({})", self.format_expr(pointer)?),
             },
-            Expr::AtomicStore {
+            Expr::VolatileStore {
                 pointer,
                 value,
                 store_ty,
                 ..
             } => match store_ty {
                 Some(ty) => format!(
-                    "atomic_store({}, {}, {})",
+                    "volatile_store({}, {}, {})",
                     self.format_expr(pointer)?,
                     self.format_expr(value)?,
                     self.quote_string(&self.format_type(ty))
                 ),
                 None => format!(
-                    "atomic_store({}, {})",
+                    "volatile_store({}, {})",
                     self.format_expr(pointer)?,
                     self.format_expr(value)?
+                ),
+            },
+            Expr::AtomicLoad {
+                pointer,
+                load_ty,
+                ordering,
+                ..
+            } => match load_ty {
+                Some(ty) => format!(
+                    "atomic_load({}, {}, {})",
+                    self.format_expr(pointer)?,
+                    self.quote_string(&self.format_type(ty)),
+                    self.quote_string(ordering.as_str())
+                ),
+                None => format!(
+                    "atomic_load({}, {})",
+                    self.format_expr(pointer)?,
+                    self.quote_string(ordering.as_str())
+                ),
+            },
+            Expr::AtomicStore {
+                pointer,
+                value,
+                store_ty,
+                ordering,
+                ..
+            } => match store_ty {
+                Some(ty) => format!(
+                    "atomic_store({}, {}, {}, {})",
+                    self.format_expr(pointer)?,
+                    self.format_expr(value)?,
+                    self.quote_string(&self.format_type(ty)),
+                    self.quote_string(ordering.as_str())
+                ),
+                None => format!(
+                    "atomic_store({}, {}, {})",
+                    self.format_expr(pointer)?,
+                    self.format_expr(value)?,
+                    self.quote_string(ordering.as_str())
                 ),
             },
             Expr::AtomicAdd {
                 pointer,
                 value,
                 op_ty,
+                ordering,
                 ..
-            } => self.format_atomic_binary_call("atomic_add", pointer, value, op_ty.as_ref())?,
+            } => self.format_ordered_atomic_binary_call(
+                "atomic_add",
+                pointer,
+                value,
+                op_ty.as_ref(),
+                *ordering,
+            )?,
             Expr::AtomicSub {
                 pointer,
                 value,
                 op_ty,
+                ordering,
                 ..
-            } => self.format_atomic_binary_call("atomic_sub", pointer, value, op_ty.as_ref())?,
+            } => self.format_ordered_atomic_binary_call(
+                "atomic_sub",
+                pointer,
+                value,
+                op_ty.as_ref(),
+                *ordering,
+            )?,
+            Expr::AtomicAnd {
+                pointer,
+                value,
+                op_ty,
+                ordering,
+                ..
+            } => self.format_ordered_atomic_binary_call(
+                "atomic_and",
+                pointer,
+                value,
+                op_ty.as_ref(),
+                *ordering,
+            )?,
+            Expr::AtomicOr {
+                pointer,
+                value,
+                op_ty,
+                ordering,
+                ..
+            } => self.format_ordered_atomic_binary_call(
+                "atomic_or",
+                pointer,
+                value,
+                op_ty.as_ref(),
+                *ordering,
+            )?,
+            Expr::AtomicXor {
+                pointer,
+                value,
+                op_ty,
+                ordering,
+                ..
+            } => self.format_ordered_atomic_binary_call(
+                "atomic_xor",
+                pointer,
+                value,
+                op_ty.as_ref(),
+                *ordering,
+            )?,
             Expr::AtomicExchange {
                 pointer,
                 value,
                 op_ty,
+                ordering,
                 ..
-            } => self.format_atomic_binary_call("atomic_exchange", pointer, value, op_ty.as_ref())?,
+            } => self.format_ordered_atomic_binary_call(
+                "atomic_exchange",
+                pointer,
+                value,
+                op_ty.as_ref(),
+                *ordering,
+            )?,
             Expr::AtomicCompareExchange {
                 pointer,
                 expected,
                 desired,
                 op_ty,
+                success_ordering,
+                failure_ordering,
                 ..
             } => match op_ty {
                 Some(ty) => format!(
-                    "atomic_compare_exchange({}, {}, {}, {})",
+                    "atomic_compare_exchange({}, {}, {}, {}, {}, {})",
                     self.format_expr(pointer)?,
                     self.format_expr(expected)?,
                     self.format_expr(desired)?,
-                    self.quote_string(&self.format_type(ty))
+                    self.quote_string(&self.format_type(ty)),
+                    self.quote_string(success_ordering.as_str()),
+                    self.quote_string(failure_ordering.as_str())
                 ),
                 None => format!(
-                    "atomic_compare_exchange({}, {}, {})",
+                    "atomic_compare_exchange({}, {}, {}, {}, {})",
                     self.format_expr(pointer)?,
                     self.format_expr(expected)?,
-                    self.format_expr(desired)?
+                    self.format_expr(desired)?,
+                    self.quote_string(success_ordering.as_str()),
+                    self.quote_string(failure_ordering.as_str())
                 ),
             },
+            Expr::AtomicFence { ordering, .. } => {
+                format!("atomic_fence({})", self.quote_string(ordering.as_str()))
+            }
             Expr::SizeOfType { target, .. } => {
                 format!(
                     "sizeof_type({})",
@@ -2965,24 +3073,27 @@ impl SourceFormatter {
         }
     }
 
-    fn format_atomic_binary_call(
+    fn format_ordered_atomic_binary_call(
         &self,
         name: &str,
         pointer: &Expr,
         value: &Expr,
         op_ty: Option<&Type>,
+        ordering: AtomicOrdering,
     ) -> KainResult<String> {
         Ok(match op_ty {
             Some(ty) => format!(
+                "{name}({}, {}, {}, {})",
+                self.format_expr(pointer)?,
+                self.format_expr(value)?,
+                self.quote_string(&self.format_type(ty)),
+                self.quote_string(ordering.as_str())
+            ),
+            None => format!(
                 "{name}({}, {}, {})",
                 self.format_expr(pointer)?,
                 self.format_expr(value)?,
-                self.quote_string(&self.format_type(ty))
-            ),
-            None => format!(
-                "{name}({}, {})",
-                self.format_expr(pointer)?,
-                self.format_expr(value)?
+                self.quote_string(ordering.as_str())
             ),
         })
     }

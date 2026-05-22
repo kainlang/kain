@@ -3959,7 +3959,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_conditional(&mut self) -> KainResult<Expr> {
-        let condition = self.parse_coalesce()?;
+        let condition = self.parse_range_expr()?;
         if !self.check(TokenKind::Question) {
             return Ok(condition);
         }
@@ -3988,6 +3988,63 @@ impl<'a> Parser<'a> {
                     span: else_span,
                 },
             ],
+            span,
+        })
+    }
+
+    fn parse_range_expr(&mut self) -> KainResult<Expr> {
+        if self.check(TokenKind::DotDot) {
+            let start_span = self.current_span();
+            self.advance();
+            let inclusive = if self.check(TokenKind::Eq) {
+                self.advance();
+                true
+            } else {
+                false
+            };
+            let end = if self.range_expr_end_is_omitted() {
+                None
+            } else {
+                Some(Box::new(self.parse_coalesce()?))
+            };
+            let span = end
+                .as_ref()
+                .map(|value| start_span.merge(value.span()))
+                .unwrap_or(start_span);
+            return Ok(Expr::Range {
+                start: None,
+                end,
+                inclusive,
+                span,
+            });
+        }
+
+        let start = self.parse_coalesce()?;
+        if !self.check(TokenKind::DotDot) {
+            return Ok(start);
+        }
+
+        let start_span = start.span();
+        self.advance();
+        let inclusive = if self.check(TokenKind::Eq) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+        let end = if self.range_expr_end_is_omitted() {
+            None
+        } else {
+            Some(Box::new(self.parse_coalesce()?))
+        };
+        let span = end
+            .as_ref()
+            .map(|value| start_span.merge(value.span()))
+            .unwrap_or(start_span.merge(self.current_span()));
+        Ok(Expr::Range {
+            start: Some(Box::new(start)),
+            end,
+            inclusive,
             span,
         })
     }
@@ -5038,6 +5095,47 @@ impl<'a> Parser<'a> {
                             span,
                         };
                     }
+                    ("bitcast", 2) => {
+                        let value = args[0].value.clone();
+                        if let Some(target) = self.parse_type_hint_arg(&args[1].value, span) {
+                            return Expr::Cast {
+                                value: Box::new(value),
+                                target,
+                                span,
+                            };
+                        }
+                    }
+                    ("ptr_to_int", 1) => {
+                        let value = args[0].value.clone();
+                        return Expr::Cast {
+                            value: Box::new(value),
+                            target: Type::Named {
+                                name: "Int".to_string(),
+                                generics: Vec::new(),
+                                span,
+                            },
+                            span,
+                        };
+                    }
+                    ("int_to_ptr", 2) => {
+                        let value = args[0].value.clone();
+                        if let Some(target) = self.parse_type_hint_arg(&args[1].value, span) {
+                            let target = match target {
+                                Type::Ptr { .. } => target,
+                                other => Type::Ptr {
+                                    mutable: true,
+                                    inner: Box::new(other),
+                                    provenance: PointerProvenance::Raw,
+                                    span,
+                                },
+                            };
+                            return Expr::Cast {
+                                value: Box::new(value),
+                                target,
+                                span,
+                            };
+                        }
+                    }
                     ("mem_load", 1 | 2) => {
                         let mut values = args.into_iter();
                         let pointer = values.next().expect("mem_load must have arg").value;
@@ -5064,61 +5162,138 @@ impl<'a> Parser<'a> {
                             span,
                         };
                     }
-                    ("atomic_load", 1 | 2) => {
+                    ("volatile_load", 1 | 2) => {
                         let mut values = args.into_iter();
-                        let pointer = values.next().expect("atomic_load must have arg").value;
+                        let pointer = values.next().expect("volatile_load must have arg").value;
                         let load_ty = values
                             .next()
                             .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
-                        return Expr::AtomicLoad {
+                        return Expr::VolatileLoad {
                             pointer: Box::new(pointer),
                             load_ty,
                             span,
                         };
                     }
-                    ("atomic_store", 2 | 3) => {
+                    ("volatile_store", 2 | 3) => {
                         let mut values = args.into_iter();
-                        let pointer = values.next().expect("atomic_store must have first arg").value;
-                        let value = values.next().expect("atomic_store must have second arg").value;
+                        let pointer = values
+                            .next()
+                            .expect("volatile_store must have first arg")
+                            .value;
+                        let value = values
+                            .next()
+                            .expect("volatile_store must have second arg")
+                            .value;
                         let store_ty = values
                             .next()
                             .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
-                        return Expr::AtomicStore {
+                        return Expr::VolatileStore {
                             pointer: Box::new(pointer),
                             value: Box::new(value),
                             store_ty,
                             span,
                         };
                     }
-                    ("atomic_add" | "atomic_sub" | "atomic_exchange", 2 | 3) => {
+                    ("atomic_load", 1..=3) => {
+                        let mut values = args.into_iter();
+                        let pointer = values.next().expect("atomic_load must have arg").value;
+                        let rest: Vec<Expr> = values.map(|arg| arg.value).collect();
+                        let (load_ty, ordering) = self.parse_atomic_type_and_ordering_args(
+                            &rest,
+                            span,
+                            AtomicOrdering::SeqCst,
+                        );
+                        return Expr::AtomicLoad {
+                            pointer: Box::new(pointer),
+                            load_ty,
+                            ordering,
+                            span,
+                        };
+                    }
+                    ("atomic_store", 2..=4) => {
+                        let mut values = args.into_iter();
+                        let pointer = values
+                            .next()
+                            .expect("atomic_store must have first arg")
+                            .value;
+                        let value = values
+                            .next()
+                            .expect("atomic_store must have second arg")
+                            .value;
+                        let rest: Vec<Expr> = values.map(|arg| arg.value).collect();
+                        let (store_ty, ordering) = self.parse_atomic_type_and_ordering_args(
+                            &rest,
+                            span,
+                            AtomicOrdering::SeqCst,
+                        );
+                        return Expr::AtomicStore {
+                            pointer: Box::new(pointer),
+                            value: Box::new(value),
+                            store_ty,
+                            ordering,
+                            span,
+                        };
+                    }
+                    (
+                        "atomic_add" | "atomic_sub" | "atomic_and" | "atomic_or" | "atomic_xor"
+                        | "atomic_exchange",
+                        2..=4,
+                    ) => {
                         let mut values = args.into_iter();
                         let pointer = values.next().expect("atomic op must have first arg").value;
                         let value = values.next().expect("atomic op must have second arg").value;
-                        let op_ty = values
-                            .next()
-                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        let rest: Vec<Expr> = values.map(|arg| arg.value).collect();
+                        let (op_ty, ordering) = self.parse_atomic_type_and_ordering_args(
+                            &rest,
+                            span,
+                            AtomicOrdering::SeqCst,
+                        );
                         return match name.as_str() {
                             "atomic_add" => Expr::AtomicAdd {
                                 pointer: Box::new(pointer),
                                 value: Box::new(value),
                                 op_ty,
+                                ordering,
                                 span,
                             },
                             "atomic_sub" => Expr::AtomicSub {
                                 pointer: Box::new(pointer),
                                 value: Box::new(value),
                                 op_ty,
+                                ordering,
+                                span,
+                            },
+                            "atomic_and" => Expr::AtomicAnd {
+                                pointer: Box::new(pointer),
+                                value: Box::new(value),
+                                op_ty,
+                                ordering,
+                                span,
+                            },
+                            "atomic_or" => Expr::AtomicOr {
+                                pointer: Box::new(pointer),
+                                value: Box::new(value),
+                                op_ty,
+                                ordering,
+                                span,
+                            },
+                            "atomic_xor" => Expr::AtomicXor {
+                                pointer: Box::new(pointer),
+                                value: Box::new(value),
+                                op_ty,
+                                ordering,
                                 span,
                             },
                             _ => Expr::AtomicExchange {
                                 pointer: Box::new(pointer),
                                 value: Box::new(value),
                                 op_ty,
+                                ordering,
                                 span,
                             },
                         };
                     }
-                    ("atomic_compare_exchange", 3 | 4) => {
+                    ("atomic_compare_exchange", 3..=6) => {
                         let mut values = args.into_iter();
                         let pointer = values
                             .next()
@@ -5132,16 +5307,25 @@ impl<'a> Parser<'a> {
                             .next()
                             .expect("atomic_compare_exchange must have third arg")
                             .value;
-                        let op_ty = values
-                            .next()
-                            .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        let rest: Vec<Expr> = values.map(|arg| arg.value).collect();
+                        let (op_ty, success_ordering, failure_ordering) =
+                            self.parse_atomic_compare_exchange_tail(&rest, span);
                         return Expr::AtomicCompareExchange {
                             pointer: Box::new(pointer),
                             expected: Box::new(expected),
                             desired: Box::new(desired),
                             op_ty,
+                            success_ordering,
+                            failure_ordering,
                             span,
                         };
+                    }
+                    ("atomic_fence", 0 | 1) => {
+                        let ordering = args
+                            .first()
+                            .and_then(|arg| self.parse_atomic_ordering_arg(&arg.value))
+                            .unwrap_or(AtomicOrdering::SeqCst);
+                        return Expr::AtomicFence { ordering, span };
                     }
                     ("sizeof_type", 1) => {
                         let mut values = args.into_iter();
@@ -5253,6 +5437,81 @@ impl<'a> Parser<'a> {
             Expr::String(value, _) => self.parse_type_hint_string(value, span),
             Expr::Ident(value, _) => self.parse_type_hint_string(value, span),
             _ => None,
+        }
+    }
+
+    fn parse_atomic_ordering_arg(&self, expr: &Expr) -> Option<AtomicOrdering> {
+        let value = match expr {
+            Expr::String(value, _) | Expr::Ident(value, _) => value.as_str(),
+            _ => return None,
+        };
+        match value.trim().to_ascii_lowercase().replace('-', "_").as_str() {
+            "relaxed" => Some(AtomicOrdering::Relaxed),
+            "acquire" => Some(AtomicOrdering::Acquire),
+            "release" => Some(AtomicOrdering::Release),
+            "acq_rel" | "acqrel" | "acquire_release" => Some(AtomicOrdering::AcqRel),
+            "seq_cst" | "seqcst" | "sequentially_consistent" => Some(AtomicOrdering::SeqCst),
+            _ => None,
+        }
+    }
+
+    fn parse_atomic_type_and_ordering_args(
+        &self,
+        exprs: &[Expr],
+        span: Span,
+        default_ordering: AtomicOrdering,
+    ) -> (Option<Type>, AtomicOrdering) {
+        let mut ty = None;
+        let mut ordering = default_ordering;
+        for expr in exprs {
+            if let Some(parsed_ordering) = self.parse_atomic_ordering_arg(expr) {
+                ordering = parsed_ordering;
+            } else if ty.is_none() {
+                ty = self.parse_type_hint_arg(expr, span);
+            }
+        }
+        (ty, ordering)
+    }
+
+    fn parse_atomic_compare_exchange_tail(
+        &self,
+        exprs: &[Expr],
+        span: Span,
+    ) -> (Option<Type>, AtomicOrdering, AtomicOrdering) {
+        let mut ty = None;
+        let mut orderings = Vec::new();
+        for expr in exprs {
+            if let Some(ordering) = self.parse_atomic_ordering_arg(expr) {
+                orderings.push(ordering);
+            } else if ty.is_none() {
+                ty = self.parse_type_hint_arg(expr, span);
+            }
+        }
+        let success_ordering = orderings.first().copied().unwrap_or(AtomicOrdering::SeqCst);
+        let failure_ordering = orderings
+            .get(1)
+            .copied()
+            .unwrap_or_else(|| Self::default_compare_exchange_failure_ordering(success_ordering));
+        (
+            ty,
+            success_ordering,
+            Self::sanitize_compare_exchange_failure_ordering(failure_ordering),
+        )
+    }
+
+    fn default_compare_exchange_failure_ordering(ordering: AtomicOrdering) -> AtomicOrdering {
+        match ordering {
+            AtomicOrdering::Release => AtomicOrdering::Relaxed,
+            AtomicOrdering::AcqRel => AtomicOrdering::Acquire,
+            other => other,
+        }
+    }
+
+    fn sanitize_compare_exchange_failure_ordering(ordering: AtomicOrdering) -> AtomicOrdering {
+        match ordering {
+            AtomicOrdering::Release => AtomicOrdering::Relaxed,
+            AtomicOrdering::AcqRel => AtomicOrdering::Acquire,
+            other => other,
         }
     }
 
@@ -6396,6 +6655,21 @@ impl<'a> Parser<'a> {
         matches!(
             self.peek_kind(),
             TokenKind::Newline(_) | TokenKind::Dedent | TokenKind::Eof
+        )
+    }
+
+    fn range_expr_end_is_omitted(&self) -> bool {
+        matches!(
+            self.peek_kind(),
+            TokenKind::Newline(_)
+                | TokenKind::Dedent
+                | TokenKind::Eof
+                | TokenKind::Comma
+                | TokenKind::Colon
+                | TokenKind::Semi
+                | TokenKind::RParen
+                | TokenKind::RBracket
+                | TokenKind::RBrace
         )
     }
 
@@ -9588,5 +9862,50 @@ mod tests {
             outer_some_body.stmts.get(1),
             Some(Stmt::Expr(Expr::Tuple(items, _))) if items.is_empty()
         ));
+    }
+
+    #[test]
+    fn parses_general_range_expressions_in_for_and_fanout_iterators() {
+        let program = parse_program(
+            "fn demo():\n    for lane in 0..4:\n        ()\n    fanout worker in 0..=7:\n        ()\n",
+        )
+        .expect("program should parse general range iterators");
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::For { iter: for_iter, .. } = &function.body.stmts[0] else {
+            panic!("expected for statement");
+        };
+        let Expr::Range {
+            start: Some(for_start),
+            end: Some(for_end),
+            inclusive: false,
+            ..
+        } = for_iter
+        else {
+            panic!("expected exclusive range iterator");
+        };
+        assert!(matches!(for_start.as_ref(), Expr::Int(0, _)));
+        assert!(matches!(for_end.as_ref(), Expr::Int(4, _)));
+
+        let Stmt::Fanout {
+            iter: fanout_iter, ..
+        } = &function.body.stmts[1]
+        else {
+            panic!("expected fanout statement");
+        };
+        let Expr::Range {
+            start: Some(fanout_start),
+            end: Some(fanout_end),
+            inclusive: true,
+            ..
+        } = fanout_iter
+        else {
+            panic!("expected inclusive range iterator");
+        };
+        assert!(matches!(fanout_start.as_ref(), Expr::Int(0, _)));
+        assert!(matches!(fanout_end.as_ref(), Expr::Int(7, _)));
     }
 }

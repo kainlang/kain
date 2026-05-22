@@ -2032,6 +2032,12 @@ fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
             ctx.pop_indent();
             output.push_str(&format!("{}}}\n", ctx.indent()));
         }
+        Stmt::Fanout { span, .. } => {
+            return Err(KainError::codegen(
+                "USF backend does not support shared fanout lowering",
+                *span,
+            ));
+        }
         Stmt::Break(_, _) => {
             output.push_str(&format!("{}break;\n", ctx.indent()));
         }

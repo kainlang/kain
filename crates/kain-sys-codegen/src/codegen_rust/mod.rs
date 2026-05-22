@@ -2495,6 +2495,14 @@ impl RustGen {
                 let ty = store_ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
                 format!("unsafe {{ std::ptr::write(({}) as *mut {}, {}) }}", self.gen_expr(pointer), ty, self.gen_expr(value))
             }
+            Expr::VolatileLoad { pointer, load_ty, .. } => {
+                let ty = load_ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
+                format!("unsafe {{ std::ptr::read_volatile(({}) as *const {}) }}", self.gen_expr(pointer), ty)
+            }
+            Expr::VolatileStore { pointer, value, store_ty, .. } => {
+                let ty = store_ty.as_ref().map(|ty| self.map_type(ty)).unwrap_or_else(|| "u8".to_string());
+                format!("unsafe {{ std::ptr::write_volatile(({}) as *mut {}, {}) }}", self.gen_expr(pointer), ty, self.gen_expr(value))
+            }
             Expr::AtomicLoad { pointer, load_ty, .. } => {
                 let ty = load_ty
                     .as_ref()
@@ -2538,6 +2546,42 @@ impl RustGen {
                     self.gen_expr(value)
                 )
             }
+            Expr::AtomicAnd { pointer, value, op_ty, .. } => {
+                let ty = op_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_and_seqcst::<{}>({}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(value)
+                )
+            }
+            Expr::AtomicOr { pointer, value, op_ty, .. } => {
+                let ty = op_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_or_seqcst::<{}>({}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(value)
+                )
+            }
+            Expr::AtomicXor { pointer, value, op_ty, .. } => {
+                let ty = op_ty
+                    .as_ref()
+                    .map(|ty| self.map_type(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                format!(
+                    "__kain_atomic_xor_seqcst::<{}>({}, {})",
+                    ty,
+                    self.gen_expr(pointer),
+                    self.gen_expr(value)
+                )
+            }
             Expr::AtomicExchange { pointer, value, op_ty, .. } => {
                 let ty = op_ty
                     .as_ref()
@@ -2568,6 +2612,9 @@ impl RustGen {
                     self.gen_expr(expected),
                     self.gen_expr(desired)
                 )
+            }
+            Expr::AtomicFence { .. } => {
+                "{ std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst); }".to_string()
             }
             Expr::SizeOfType { target, .. } => format!("size_of::<{}>() as i64", self.map_type(target)),
             Expr::AlignOfType { target, .. } => format!("std::mem::align_of::<{}>() as i64", self.map_type(target)),
@@ -3108,15 +3155,22 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(pointer, names);
                 self.collect_mutated_bindings_in_expr(offset, names);
             }
-            Expr::MemLoad { pointer, .. } => self.collect_mutated_bindings_in_expr(pointer, names),
-            Expr::MemStore { pointer, value, .. } => {
+            Expr::MemLoad { pointer, .. } | Expr::VolatileLoad { pointer, .. } => {
+                self.collect_mutated_bindings_in_expr(pointer, names)
+            }
+            Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
                 self.collect_mutated_bindings_in_expr(pointer, names);
                 self.collect_mutated_bindings_in_expr(value, names);
             }
-            Expr::AtomicLoad { pointer, .. } => self.collect_mutated_bindings_in_expr(pointer, names),
+            Expr::AtomicLoad { pointer, .. } => {
+                self.collect_mutated_bindings_in_expr(pointer, names)
+            }
             Expr::AtomicStore { pointer, value, .. }
             | Expr::AtomicAdd { pointer, value, .. }
             | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicAnd { pointer, value, .. }
+            | Expr::AtomicOr { pointer, value, .. }
+            | Expr::AtomicXor { pointer, value, .. }
             | Expr::AtomicExchange { pointer, value, .. } => {
                 self.collect_mutated_bindings_in_expr(pointer, names);
                 self.collect_mutated_bindings_in_expr(value, names);
@@ -3131,6 +3185,7 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(expected, names);
                 self.collect_mutated_bindings_in_expr(desired, names);
             }
+            Expr::AtomicFence { .. } => {}
             Expr::Alloc { size, .. } => self.collect_mutated_bindings_in_expr(size, names),
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_mutated_bindings_in_expr(pointer, names);

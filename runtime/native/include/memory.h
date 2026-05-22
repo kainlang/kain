@@ -279,6 +279,18 @@ void __kain_mem_load(const void* ptr, void* out, size_t size);
  */
 void __kain_mem_store(void* ptr, const void* value, size_t size);
 
+/* Volatile byte-exact load/store for MMIO and externally-observed memory. */
+void __kain_volatile_load(const void* ptr, void* out, size_t size);
+void __kain_volatile_store(void* ptr, const void* value, size_t size);
+
+enum {
+    KAIN_MEMORY_ORDER_RELAXED = 0,
+    KAIN_MEMORY_ORDER_ACQUIRE = 1,
+    KAIN_MEMORY_ORDER_RELEASE = 2,
+    KAIN_MEMORY_ORDER_ACQ_REL = 3,
+    KAIN_MEMORY_ORDER_SEQ_CST = 4
+};
+
 /*
  * __kain_atomic_*_seqcst
  *
@@ -290,8 +302,27 @@ int64_t __kain_atomic_load_seqcst(const void* ptr);
 void __kain_atomic_store_seqcst(void* ptr, int64_t value);
 int64_t __kain_atomic_add_seqcst(void* ptr, int64_t delta);
 int64_t __kain_atomic_sub_seqcst(void* ptr, int64_t delta);
+int64_t __kain_atomic_and_seqcst(void* ptr, int64_t mask);
+int64_t __kain_atomic_or_seqcst(void* ptr, int64_t bits);
+int64_t __kain_atomic_xor_seqcst(void* ptr, int64_t bits);
 int64_t __kain_atomic_exchange_seqcst(void* ptr, int64_t value);
 int __kain_atomic_compare_exchange_seqcst(void* ptr, int64_t expected, int64_t desired);
+int64_t __kain_atomic_load_ordered(const void* ptr, int64_t ordering);
+void __kain_atomic_store_ordered(void* ptr, int64_t value, int64_t ordering);
+int64_t __kain_atomic_add_ordered(void* ptr, int64_t delta, int64_t ordering);
+int64_t __kain_atomic_sub_ordered(void* ptr, int64_t delta, int64_t ordering);
+int64_t __kain_atomic_and_ordered(void* ptr, int64_t mask, int64_t ordering);
+int64_t __kain_atomic_or_ordered(void* ptr, int64_t bits, int64_t ordering);
+int64_t __kain_atomic_xor_ordered(void* ptr, int64_t bits, int64_t ordering);
+int64_t __kain_atomic_exchange_ordered(void* ptr, int64_t value, int64_t ordering);
+int __kain_atomic_compare_exchange_ordered(
+    void* ptr,
+    int64_t expected,
+    int64_t desired,
+    int64_t success_ordering,
+    int64_t failure_ordering
+);
+void __kain_atomic_fence(int64_t ordering);
 
 /* ============================================================================
  * Category 3: Allocation Operations

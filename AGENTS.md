@@ -29,6 +29,9 @@ use std::tls
 use std::http2
 use std::process
 use std::platform
+use std::memory
+use std::bits
+use std::machine
 use std::gpu
 use std::graphics
 use std::graphics::shared
@@ -485,6 +488,17 @@ fn main() -> Int:
         return 2
     return 0
 ```
+## Authoring
+When writing Kain use these skills to fully understand how the lanuage works 
+"D:\Kain-Lang\.agents\skills\lang-gpu\SKILL.md" -- 
+"D:\Kain-Lang\.agents\skills\lang-interop\SKILL.md"
+"D:\Kain-Lang\.agents\skills\lang-translation\SKILL.md"
+"D:\Kain-Lang\.agents\skills\lang-systems\SKILL.md"
+"D:\Kain-Lang\.agents\skills\lang-semantics\SKILL.md"
+"D:\Kain-Lang\.agents\skills\lang-stdlib\SKILL.md"
+"D:\Kain-Lang\.agents\skills\lang-projects\SKILL.md"
+
+
 
 What you just witnessed here is the future of languages. It is intentionally the first thing you stumble upon when entering to help with processing how it works.
 

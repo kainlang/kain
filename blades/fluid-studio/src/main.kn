@@ -3,7 +3,9 @@ use c::vulkain_bridge
 use fluid_studio_scene::*
 use fluid_studio_sim::*
 use fluid_studio_state::*
+use fluid_studio_ui_types::*
 use fluid_studio_ui::*
+use fluid_studio_views::*
 use kaintana_ui::*
 use reconciliation::kaintana_context_destroy
 use std::fs
@@ -36,7 +38,8 @@ fn main() -> Int:
     let fonts = fluid_make_fonts(ctx.session_id)
 
     ctx = kaintana_begin(ctx, session.settings.revision_key, 8.333)
-    let ui_frame = fluid_render_ui(ctx, spec, session, fonts)
+    let ui_request = fluid_ui_request(session)
+    let ui_frame = fluid_render_ui(ctx, spec, ui_request, fonts)
     ctx = kaintana_commit(ui_frame.ctx)
     session = fluid_session_apply_ui_frame(session, ui_frame)
 
@@ -56,10 +59,11 @@ fn main() -> Int:
         draw_vertices
     )
 
-    let presenter = fluid_present_scene(session)
+    let scene_request = fluid_scene_request(session)
+    let presenter = fluid_present_scene(scene_request)
     let frame_report = fluid_session_frame_report_text(session, presenter.status)
-    let scene_report = fluid_scene_report_text(session, presenter)
-    let host_report = fluid_host_report_text(session, presenter)
+    let scene_report = fluid_scene_report_text(scene_request, presenter)
+    let host_report = fluid_host_report_text(scene_request, presenter)
     let export_json = fluid_session_export_json(session)
 
     fs_write_text(session.settings.frame_report_path, frame_report)

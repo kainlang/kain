@@ -993,8 +993,10 @@ impl LlvmGenerator {
                 self.collect_pointer_let_types_from_expr(pointer);
                 self.collect_pointer_let_types_from_expr(offset);
             }
-            Expr::MemLoad { pointer, .. } => self.collect_pointer_let_types_from_expr(pointer),
-            Expr::MemStore { pointer, value, .. } => {
+            Expr::MemLoad { pointer, .. } | Expr::VolatileLoad { pointer, .. } => {
+                self.collect_pointer_let_types_from_expr(pointer)
+            }
+            Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
                 self.collect_pointer_let_types_from_expr(pointer);
                 self.collect_pointer_let_types_from_expr(value);
             }
@@ -1002,6 +1004,9 @@ impl LlvmGenerator {
             Expr::AtomicStore { pointer, value, .. }
             | Expr::AtomicAdd { pointer, value, .. }
             | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicAnd { pointer, value, .. }
+            | Expr::AtomicOr { pointer, value, .. }
+            | Expr::AtomicXor { pointer, value, .. }
             | Expr::AtomicExchange { pointer, value, .. } => {
                 self.collect_pointer_let_types_from_expr(pointer);
                 self.collect_pointer_let_types_from_expr(value);
@@ -1016,6 +1021,7 @@ impl LlvmGenerator {
                 self.collect_pointer_let_types_from_expr(expected);
                 self.collect_pointer_let_types_from_expr(desired);
             }
+            Expr::AtomicFence { .. } => {}
             Expr::Alloc { size, .. } => self.collect_pointer_let_types_from_expr(size),
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_pointer_let_types_from_expr(pointer);
@@ -1519,8 +1525,12 @@ impl LlvmGenerator {
 
     fn map_type_from_str(&self, name: &str) -> String {
         match name {
-            "Int" | "i64" => "i64".into(),
-            "i32" => "i32".into(),
+            "Int" | "I64" | "i64" => "i64".into(),
+            "I8" | "i8" | "U8" | "u8" => "i8".into(),
+            "I16" | "i16" | "U16" | "u16" => "i16".into(),
+            "I32" | "i32" | "U32" | "u32" => "i32".into(),
+            "I128" | "i128" | "U128" | "u128" => "i128".into(),
+            "UInt" | "U64" | "u64" | "ISize" | "isize" | "USize" | "usize" => "i64".into(),
             "Float" | "f64" | "double" => "double".into(),
             "Bool" | "bool" => "i1".into(),
             "String" | "str" => "i8*".into(),
@@ -2556,10 +2566,10 @@ impl LlvmGenerator {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
                     || Self::expr_has_loop_that_mentions_identifier(offset, target)
             }
-            Expr::MemLoad { pointer, .. } => {
+            Expr::MemLoad { pointer, .. } | Expr::VolatileLoad { pointer, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
             }
-            Expr::MemStore { pointer, value, .. } => {
+            Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
                     || Self::expr_has_loop_that_mentions_identifier(value, target)
             }
@@ -2569,6 +2579,9 @@ impl LlvmGenerator {
             Expr::AtomicStore { pointer, value, .. }
             | Expr::AtomicAdd { pointer, value, .. }
             | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicAnd { pointer, value, .. }
+            | Expr::AtomicOr { pointer, value, .. }
+            | Expr::AtomicXor { pointer, value, .. }
             | Expr::AtomicExchange { pointer, value, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
                     || Self::expr_has_loop_that_mentions_identifier(value, target)
@@ -2583,6 +2596,7 @@ impl LlvmGenerator {
                     || Self::expr_has_loop_that_mentions_identifier(expected, target)
                     || Self::expr_has_loop_that_mentions_identifier(desired, target)
             }
+            Expr::AtomicFence { .. } => false,
             Expr::Alloc { size, .. } => Self::expr_has_loop_that_mentions_identifier(size, target),
             Expr::Realloc { pointer, size, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
@@ -2841,12 +2855,13 @@ impl LlvmGenerator {
                 Self::collect_expr_assigned_identifier_names(offset, assigned);
             }
             Expr::MemLoad { pointer, .. }
+            | Expr::VolatileLoad { pointer, .. }
             | Expr::Decay {
                 target: pointer, ..
             } => {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
             }
-            Expr::MemStore { pointer, value, .. } => {
+            Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
                 Self::collect_expr_assigned_identifier_names(value, assigned);
             }
@@ -2856,6 +2871,9 @@ impl LlvmGenerator {
             Expr::AtomicStore { pointer, value, .. }
             | Expr::AtomicAdd { pointer, value, .. }
             | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicAnd { pointer, value, .. }
+            | Expr::AtomicOr { pointer, value, .. }
+            | Expr::AtomicXor { pointer, value, .. }
             | Expr::AtomicExchange { pointer, value, .. } => {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
                 Self::collect_expr_assigned_identifier_names(value, assigned);
@@ -2870,6 +2888,7 @@ impl LlvmGenerator {
                 Self::collect_expr_assigned_identifier_names(expected, assigned);
                 Self::collect_expr_assigned_identifier_names(desired, assigned);
             }
+            Expr::AtomicFence { .. } => {}
             Expr::Alloc { size, .. } => {
                 Self::collect_expr_assigned_identifier_names(size, assigned);
             }
@@ -3428,12 +3447,12 @@ impl LlvmGenerator {
                         && Self::expr_is_safe_for_ephemeral_local(pointer, target)
                         && Self::expr_is_safe_for_ephemeral_local(offset, target))
             }
-            Expr::MemLoad { pointer, .. } => {
+            Expr::MemLoad { pointer, .. } | Expr::VolatileLoad { pointer, .. } => {
                 Self::expr_is_ephemeral_target_address(pointer, target)
                     || (!Self::expr_is_exact_target_pointer(pointer, target)
                         && Self::expr_is_safe_for_ephemeral_local(pointer, target))
             }
-            Expr::MemStore { pointer, value, .. } => {
+            Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
                 (Self::expr_is_ephemeral_target_address(pointer, target)
                     || (!Self::expr_is_exact_target_pointer(pointer, target)
                         && Self::expr_is_safe_for_ephemeral_local(pointer, target)))
@@ -3447,6 +3466,9 @@ impl LlvmGenerator {
             Expr::AtomicStore { pointer, value, .. }
             | Expr::AtomicAdd { pointer, value, .. }
             | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicAnd { pointer, value, .. }
+            | Expr::AtomicOr { pointer, value, .. }
+            | Expr::AtomicXor { pointer, value, .. }
             | Expr::AtomicExchange { pointer, value, .. } => {
                 (Self::expr_is_ephemeral_target_address(pointer, target)
                     || (!Self::expr_is_exact_target_pointer(pointer, target)
@@ -3465,6 +3487,7 @@ impl LlvmGenerator {
                     && Self::expr_is_safe_for_ephemeral_local(expected, target)
                     && Self::expr_is_safe_for_ephemeral_local(desired, target)
             }
+            Expr::AtomicFence { .. } => true,
             Expr::Alloc { size, .. } => Self::expr_is_safe_for_ephemeral_local(size, target),
             Expr::Realloc { pointer, size, .. } => {
                 Self::expr_is_safe_for_ephemeral_local(pointer, target)
@@ -5193,7 +5216,10 @@ impl LlvmGenerator {
             byte1_ptr, cursor
         ));
         let byte1 = self.next_reg();
-        self.emit(&format!("  {} = load i8, i8* {}, align 1", byte1, byte1_ptr));
+        self.emit(&format!(
+            "  {} = load i8, i8* {}, align 1",
+            byte1, byte1_ptr
+        ));
         let byte1_i16 = self.next_reg();
         self.emit(&format!("  {} = zext i8 {} to i16", byte1_i16, byte1));
         let byte1_shifted = self.next_reg();
@@ -6623,6 +6649,275 @@ impl LlvmGenerator {
         Ok((stored_value, stored_ty))
     }
 
+    fn compile_runtime_volatile_mem_load(
+        &mut self,
+        pointer: &Expr,
+        load_ty: &str,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        if let Some((typed_ptr, alignment)) =
+            self.compile_ephemeral_typed_memory_pointer(pointer, load_ty)?
+        {
+            let loaded = self.next_reg();
+            self.emit(&format!(
+                "  {} = load volatile {}, {}* {}, align {}",
+                loaded, load_ty, load_ty, typed_ptr, alignment
+            ));
+            return Ok((loaded, load_ty.to_string()));
+        }
+        if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
+            let (load_size, _) = self.abi_layout_for_ty(load_ty, span)?;
+            if load_size as i64 <= witness.storage_byte_len {
+                let alignment =
+                    Self::obvious_llvm_type_alignment(load_ty).min(witness.storage_alignment);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    typed_ptr, ptr_i8, load_ty
+                ));
+                let loaded = self.next_reg();
+                self.emit(&format!(
+                    "  {} = load volatile {}, {}* {}, align {}",
+                    loaded, load_ty, load_ty, typed_ptr, alignment
+                ));
+                return Ok((loaded, load_ty.to_string()));
+            }
+        }
+        let (typed_ptr, alignment) =
+            self.compile_non_ephemeral_typed_memory_pointer(pointer, load_ty)?;
+        let loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load volatile {}, {}* {}, align {}",
+            loaded, load_ty, load_ty, typed_ptr, alignment
+        ));
+        Ok((loaded, load_ty.to_string()))
+    }
+
+    fn compile_runtime_volatile_mem_store(
+        &mut self,
+        pointer: &Expr,
+        value: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let (stored_value, stored_ty) = self.compile_expr(value)?;
+        if let Some((typed_ptr, alignment)) =
+            self.compile_ephemeral_typed_memory_pointer(pointer, &stored_ty)?
+        {
+            self.emit(&format!(
+                "  store volatile {} {}, {}* {}, align {}",
+                stored_ty, stored_value, stored_ty, typed_ptr, alignment
+            ));
+            return Ok((stored_value, stored_ty));
+        }
+        if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
+            let (store_size, _) = self.abi_layout_for_ty(&stored_ty, span)?;
+            if store_size as i64 <= witness.storage_byte_len {
+                let alignment =
+                    Self::obvious_llvm_type_alignment(&stored_ty).min(witness.storage_alignment);
+                let typed_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    typed_ptr, ptr_i8, stored_ty
+                ));
+                self.emit(&format!(
+                    "  store volatile {} {}, {}* {}, align {}",
+                    stored_ty, stored_value, stored_ty, typed_ptr, alignment
+                ));
+                return Ok((stored_value, stored_ty));
+            }
+        }
+        let (typed_ptr, alignment) =
+            self.compile_non_ephemeral_typed_memory_pointer(pointer, &stored_ty)?;
+        self.emit(&format!(
+            "  store volatile {} {}, {}* {}, align {}",
+            stored_ty, stored_value, stored_ty, typed_ptr, alignment
+        ));
+
+        Ok((stored_value, stored_ty))
+    }
+
+    fn compile_atomic_i64_pointer(&mut self, pointer: &Expr) -> KainResult<String> {
+        let compiled_ptr = self.compile_expr(pointer)?;
+        let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+        let typed_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = inttoptr i64 {} to i64*",
+            typed_ptr, ptr_i64
+        ));
+        Ok(typed_ptr)
+    }
+
+    fn atomic_ordering_code_from_expr(&self, expr: &Expr, span: Span) -> KainResult<i64> {
+        match expr {
+            Expr::Int(value, _) => Ok(*value),
+            Expr::String(value, _) => match Self::atomic_ordering_code_from_name(value) {
+                Some(code) => Ok(code),
+                None => Err(KainError::codegen(
+                    format!("Unsupported atomic ordering literal: {value}"),
+                    span,
+                )),
+            },
+            Expr::Ident(value, _) => match Self::atomic_ordering_code_from_name(value) {
+                Some(code) => Ok(code),
+                None => Err(KainError::codegen(
+                    format!("Unsupported atomic ordering literal: {value}"),
+                    span,
+                )),
+            },
+            _ => Err(KainError::codegen(
+                "LLVM atomic ordering must be a compile-time ordering literal",
+                span,
+            )),
+        }
+    }
+
+    fn atomic_ordering_code_from_name(value: &str) -> Option<i64> {
+        match value.trim().to_ascii_lowercase().replace('-', "_").as_str() {
+            "relaxed" => Some(0),
+            "acquire" => Some(1),
+            "release" => Some(2),
+            "acq_rel" | "acqrel" | "acquire_release" => Some(3),
+            "seq_cst" | "seqcst" | "sequentially_consistent" => Some(4),
+            _ => None,
+        }
+    }
+
+    fn llvm_atomic_load_ordering(code: i64) -> &'static str {
+        match code {
+            0 => "monotonic",
+            1 | 2 | 3 => "acquire",
+            _ => "seq_cst",
+        }
+    }
+
+    fn llvm_atomic_store_ordering(code: i64) -> &'static str {
+        match code {
+            0 => "monotonic",
+            1 | 2 | 3 => "release",
+            _ => "seq_cst",
+        }
+    }
+
+    fn llvm_atomic_rmw_ordering(code: i64) -> &'static str {
+        match code {
+            0 => "monotonic",
+            1 => "acquire",
+            2 => "release",
+            3 => "acq_rel",
+            _ => "seq_cst",
+        }
+    }
+
+    fn llvm_atomic_failure_ordering(code: i64) -> &'static str {
+        match code {
+            0 => "monotonic",
+            1 | 2 | 3 => "acquire",
+            _ => "seq_cst",
+        }
+    }
+
+    fn compile_ordered_atomic_load(
+        &mut self,
+        pointer: &Expr,
+        ordering: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let typed_ptr = self.compile_atomic_i64_pointer(pointer)?;
+        let ordering =
+            Self::llvm_atomic_load_ordering(self.atomic_ordering_code_from_expr(ordering, span)?);
+        let loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load atomic i64, i64* {} {}, align 8",
+            loaded, typed_ptr, ordering
+        ));
+        Ok((loaded, "i64".to_string()))
+    }
+
+    fn compile_ordered_atomic_store(
+        &mut self,
+        pointer: &Expr,
+        value: &Expr,
+        ordering: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let typed_ptr = self.compile_atomic_i64_pointer(pointer)?;
+        let value = self.compile_expr_as_i64(value)?;
+        let ordering =
+            Self::llvm_atomic_store_ordering(self.atomic_ordering_code_from_expr(ordering, span)?);
+        self.emit(&format!(
+            "  store atomic i64 {}, i64* {} {}, align 8",
+            value, typed_ptr, ordering
+        ));
+        Ok(("0".to_string(), "void".to_string()))
+    }
+
+    fn compile_ordered_atomic_rmw(
+        &mut self,
+        op: &str,
+        pointer: &Expr,
+        value: &Expr,
+        ordering: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let typed_ptr = self.compile_atomic_i64_pointer(pointer)?;
+        let value = self.compile_expr_as_i64(value)?;
+        let ordering =
+            Self::llvm_atomic_rmw_ordering(self.atomic_ordering_code_from_expr(ordering, span)?);
+        let previous = self.next_reg();
+        self.emit(&format!(
+            "  {} = atomicrmw {} i64* {}, i64 {} {}",
+            previous, op, typed_ptr, value, ordering
+        ));
+        Ok((previous, "i64".to_string()))
+    }
+
+    fn compile_ordered_atomic_compare_exchange(
+        &mut self,
+        pointer: &Expr,
+        expected: &Expr,
+        desired: &Expr,
+        success_ordering: &Expr,
+        failure_ordering: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let typed_ptr = self.compile_atomic_i64_pointer(pointer)?;
+        let expected = self.compile_expr_as_i64(expected)?;
+        let desired = self.compile_expr_as_i64(desired)?;
+        let success_ordering = Self::llvm_atomic_rmw_ordering(
+            self.atomic_ordering_code_from_expr(success_ordering, span)?,
+        );
+        let failure_ordering = Self::llvm_atomic_failure_ordering(
+            self.atomic_ordering_code_from_expr(failure_ordering, span)?,
+        );
+        let cmpxchg = self.next_reg();
+        self.emit(&format!(
+            "  {} = cmpxchg i64* {}, i64 {}, i64 {} {} {}",
+            cmpxchg, typed_ptr, expected, desired, success_ordering, failure_ordering
+        ));
+        let success = self.next_reg();
+        self.emit(&format!(
+            "  {} = extractvalue {{ i64, i1 }} {}, 1",
+            success, cmpxchg
+        ));
+        Ok((success, "i1".to_string()))
+    }
+
+    fn compile_ordered_atomic_fence(
+        &mut self,
+        ordering: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let code = self.atomic_ordering_code_from_expr(ordering, span)?;
+        match code {
+            0 => {}
+            1 => self.emit("  fence acquire"),
+            2 => self.emit("  fence release"),
+            3 => self.emit("  fence acq_rel"),
+            _ => self.emit("  fence seq_cst"),
+        }
+        Ok(("0".to_string(), "void".to_string()))
+    }
+
     fn emit_scaled_byte_offset(
         &mut self,
         offset: &str,
@@ -6999,7 +7294,9 @@ impl LlvmGenerator {
         let mut capture_names: Vec<String> = self
             .locals
             .keys()
-            .filter(|name| name.as_str() != binding_name && Self::debug_mentions_identifier(body, name))
+            .filter(|name| {
+                name.as_str() != binding_name && Self::debug_mentions_identifier(body, name)
+            })
             .cloned()
             .collect();
         capture_names.sort();
@@ -8926,6 +9223,101 @@ impl LlvmGenerator {
                 }
                 Some(self.compile_runtime_mem_store(&args[0].value, &args[1].value, span))
             }
+            "__kain_volatile_load" => {
+                if args.len() != 1 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_volatile_load expects 1 argument",
+                        span,
+                    )));
+                }
+                Some(self.compile_runtime_volatile_mem_load(&args[0].value, "i64", span))
+            }
+            "__kain_volatile_store" => {
+                if args.len() != 2 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_volatile_store expects 2 arguments",
+                        span,
+                    )));
+                }
+                Some(self.compile_runtime_volatile_mem_store(&args[0].value, &args[1].value, span))
+            }
+            "__kain_atomic_load_ordered" => {
+                if args.len() != 2 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_load_ordered expects 2 arguments",
+                        span,
+                    )));
+                }
+                Some(self.compile_ordered_atomic_load(&args[0].value, &args[1].value, span))
+            }
+            "__kain_atomic_store_ordered" => {
+                if args.len() != 3 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_store_ordered expects 3 arguments",
+                        span,
+                    )));
+                }
+                Some(self.compile_ordered_atomic_store(
+                    &args[0].value,
+                    &args[1].value,
+                    &args[2].value,
+                    span,
+                ))
+            }
+            "__kain_atomic_add_ordered"
+            | "__kain_atomic_sub_ordered"
+            | "__kain_atomic_and_ordered"
+            | "__kain_atomic_or_ordered"
+            | "__kain_atomic_xor_ordered"
+            | "__kain_atomic_exchange_ordered" => {
+                if args.len() != 3 {
+                    return Some(Err(KainError::codegen(
+                        format!("{func_name} expects 3 arguments"),
+                        span,
+                    )));
+                }
+                let op = match func_name {
+                    "__kain_atomic_add_ordered" => "add",
+                    "__kain_atomic_sub_ordered" => "sub",
+                    "__kain_atomic_and_ordered" => "and",
+                    "__kain_atomic_or_ordered" => "or",
+                    "__kain_atomic_xor_ordered" => "xor",
+                    "__kain_atomic_exchange_ordered" => "xchg",
+                    _ => unreachable!(),
+                };
+                Some(self.compile_ordered_atomic_rmw(
+                    op,
+                    &args[0].value,
+                    &args[1].value,
+                    &args[2].value,
+                    span,
+                ))
+            }
+            "__kain_atomic_compare_exchange_ordered" => {
+                if args.len() != 5 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_compare_exchange_ordered expects 5 arguments",
+                        span,
+                    )));
+                }
+                Some(self.compile_ordered_atomic_compare_exchange(
+                    &args[0].value,
+                    &args[1].value,
+                    &args[2].value,
+                    &args[3].value,
+                    &args[4].value,
+                    span,
+                ))
+            }
+            "__kain_atomic_fence" => {
+                if args.len() != 1 {
+                    return Some(Err(KainError::codegen(
+                        "__kain_atomic_fence expects 1 argument",
+                        span,
+                    )));
+                }
+                Some(self.compile_ordered_atomic_fence(&args[0].value, span))
+            }
             "__kain_atomic_load_seqcst" => {
                 if args.len() != 1 {
                     return Some(Err(KainError::codegen(
@@ -8939,7 +9331,10 @@ impl LlvmGenerator {
                 };
                 let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i64*",
+                    typed_ptr, ptr_i64
+                ));
                 let loaded = self.next_reg();
                 self.emit(&format!(
                     "  {} = load atomic i64, i64* {} seq_cst, align 8",
@@ -8960,7 +9355,10 @@ impl LlvmGenerator {
                 };
                 let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i64*",
+                    typed_ptr, ptr_i64
+                ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
                     Err(err) => return Some(Err(err)),
@@ -8984,7 +9382,10 @@ impl LlvmGenerator {
                 };
                 let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i64*",
+                    typed_ptr, ptr_i64
+                ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
                     Err(err) => return Some(Err(err)),
@@ -9009,7 +9410,10 @@ impl LlvmGenerator {
                 };
                 let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i64*",
+                    typed_ptr, ptr_i64
+                ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
                     Err(err) => return Some(Err(err)),
@@ -9034,7 +9438,10 @@ impl LlvmGenerator {
                 };
                 let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i64*",
+                    typed_ptr, ptr_i64
+                ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
                     Err(err) => return Some(Err(err)),
@@ -9059,7 +9466,10 @@ impl LlvmGenerator {
                 };
                 let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
                 let typed_ptr = self.next_reg();
-                self.emit(&format!("  {} = inttoptr i64 {} to i64*", typed_ptr, ptr_i64));
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to i64*",
+                    typed_ptr, ptr_i64
+                ));
                 let expected = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
                     Err(err) => return Some(Err(err)),
@@ -9074,7 +9484,10 @@ impl LlvmGenerator {
                     cmpxchg, typed_ptr, expected, desired
                 ));
                 let success = self.next_reg();
-                self.emit(&format!("  {} = extractvalue {{ i64, i1 }} {}, 1", success, cmpxchg));
+                self.emit(&format!(
+                    "  {} = extractvalue {{ i64, i1 }} {}, 1",
+                    success, cmpxchg
+                ));
                 Some(Ok((success, "i1".to_string())))
             }
             "__kain_field_ptr" => {
@@ -13855,6 +14268,144 @@ impl LlvmGenerator {
                 span,
                 ..
             } => self.compile_runtime_mem_store(pointer, value, *span),
+            Expr::VolatileLoad {
+                pointer,
+                load_ty,
+                span,
+                ..
+            } => {
+                let target_ty = load_ty
+                    .as_ref()
+                    .map(|ty| self.map_type_from_ast(ty))
+                    .unwrap_or_else(|| "i64".to_string());
+                self.compile_runtime_volatile_mem_load(pointer, &target_ty, *span)
+            }
+            Expr::VolatileStore {
+                pointer,
+                value,
+                span,
+                ..
+            } => self.compile_runtime_volatile_mem_store(pointer, value, *span),
+            Expr::AtomicLoad {
+                pointer,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_load(
+                pointer,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicStore {
+                pointer,
+                value,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_store(
+                pointer,
+                value,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicAdd {
+                pointer,
+                value,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_rmw(
+                "add",
+                pointer,
+                value,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicSub {
+                pointer,
+                value,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_rmw(
+                "sub",
+                pointer,
+                value,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicAnd {
+                pointer,
+                value,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_rmw(
+                "and",
+                pointer,
+                value,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicOr {
+                pointer,
+                value,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_rmw(
+                "or",
+                pointer,
+                value,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicXor {
+                pointer,
+                value,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_rmw(
+                "xor",
+                pointer,
+                value,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicExchange {
+                pointer,
+                value,
+                ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_rmw(
+                "xchg",
+                pointer,
+                value,
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                success_ordering,
+                failure_ordering,
+                span,
+                ..
+            } => self.compile_ordered_atomic_compare_exchange(
+                pointer,
+                expected,
+                desired,
+                &Expr::Int(success_ordering.abi_code(), *span),
+                &Expr::Int(failure_ordering.abi_code(), *span),
+                *span,
+            ),
+            Expr::AtomicFence { ordering, span } => self.compile_ordered_atomic_fence(
+                &Expr::Int(ordering.abi_code(), *span),
+                *span,
+            ),
             Expr::SizeOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
                 let size = if mapped == "double" {

@@ -505,6 +505,12 @@ fn emit_stmt(ctx: &mut PtxContext, stmt: &Stmt) -> KainResult<()> {
                 *span,
             ));
         }
+        Stmt::Fanout { span, .. } => {
+            return Err(KainError::codegen(
+                "PTX backend does not support shared fanout lowering",
+                *span,
+            ));
+        }
         Stmt::Item(_) => {
             return Err(KainError::codegen(
                 "PTX backend does not support nested item declarations in shader bodies",

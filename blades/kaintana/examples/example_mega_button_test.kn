@@ -1,11 +1,11 @@
-use layout::kaintana_grid_cell
-use layout::kaintana_inset
+use kaintana::kaintana_grid_cell
+use kaintana::kaintana_inset
 use types::KaintanaContext
 use types::KaintanaRect
 use kaintana_ui::*
 
 fn mega_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_button(ui(ctx), label)
+    let b0 = kaintana_button(kaintana_ui_state(ctx), label)
     let b1 = kaintana_button_key(b0, key)
     let b2 = kaintana_button_rect(b1, rect)
     let b3 = kaintana_button_font(b2, font, 20.0)
@@ -14,7 +14,7 @@ fn mega_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: Str
 
 pub fn kaintana_example_mega_button_test(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
     var next = ctx
-    let p0 = kaintana_panel(ui(next), "Mega Button Test")
+    let p0 = kaintana_panel(kaintana_ui_state(next), "Mega Button Test")
     let p1 = kaintana_panel_key(p0, "example.mega.panel")
     let p2 = kaintana_panel_rect(p1, rect)
     let p3 = kaintana_panel_font(p2, title_font, 26.0)

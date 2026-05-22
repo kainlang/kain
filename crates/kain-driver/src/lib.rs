@@ -4,6 +4,7 @@
 //! and Rust-hosted applications that want to compile KAIN without going
 //! through the CLI binary.
 
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 #[cfg(test)]
@@ -11,8 +12,12 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use kain_core::ast::{Expr, Item, Program, ShaderStage, Use, WorldSurfaceKind};
+use kain_core::diagnostics::SourceOriginSegment;
 use kain_core::error::KainError;
-use kain_core::module_resolution::{resolve_filesystem_module_file, resolve_stdlib_module_file};
+use kain_core::module_resolution::{
+    resolve_filesystem_module_file_with_context, resolve_stdlib_module_file,
+    FilesystemModuleResolutionContext,
+};
 use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::runtime;
 use kain_core::{
@@ -176,6 +181,9 @@ const TARGET_SPECS: &[TargetSpec] = &[
 #[derive(Debug, Clone, Default)]
 pub struct DriverSession {
     ue5_metadata_dir: Option<PathBuf>,
+    frontend_cache: RefCell<Option<CachedFrontendBundle>>,
+    last_frontend_bundle: RefCell<Option<FrontendSourceBundle>>,
+    frontend_advisories: RefCell<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -232,12 +240,39 @@ struct WorldSurfaceSelection {
 #[derive(Debug, Clone)]
 struct FrontendSourceBundle {
     full_source: String,
+    origins: Vec<SourceOriginSegment>,
+    watch_inputs: Vec<PathBuf>,
 }
 
 #[derive(Debug, Default)]
 struct FrontendImportCollector {
     visited_module_files: HashSet<PathBuf>,
-    module_sources: Vec<String>,
+    module_sources: Vec<FrontendSourceUnit>,
+    entry_path: Option<PathBuf>,
+    advisories: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct FrontendSourceUnit {
+    file_path: PathBuf,
+    source: String,
+}
+
+#[derive(Debug, Clone)]
+struct CachedFrontendBundle {
+    target: CompileTarget,
+    source_path: Option<PathBuf>,
+    source: String,
+    advisories: Vec<String>,
+    watch_inputs: Vec<FrontendWatchedInput>,
+    bundle: FrontendSourceBundle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FrontendWatchedInput {
+    path: PathBuf,
+    modified_unix_ms: Option<u128>,
+    byte_len: Option<u64>,
 }
 
 const AMBIENT_STDLIB_MODULES: &[&str] = &["runtime", "actor"];
@@ -268,8 +303,18 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
+        self.frontend_to_checked_program_with_source_path(source, None, target)
+    }
+
+    pub fn frontend_to_checked_program_with_source_path(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+    ) -> Result<CheckedFrontend, KainError> {
         self.frontend_to_checked_program_with_extra_globals(
             source,
+            source_path,
             target,
             std::iter::empty::<(String, ResolvedType)>(),
         )
@@ -278,6 +323,7 @@ impl DriverSession {
     pub fn frontend_to_checked_program_with_extra_globals<I>(
         &self,
         source: &str,
+        source_path: Option<&Path>,
         target: CompileTarget,
         extra_globals: I,
     ) -> Result<CheckedFrontend, KainError>
@@ -285,13 +331,18 @@ impl DriverSession {
         I: IntoIterator<Item = (String, ResolvedType)>,
     {
         register_frontend_extensions_for_target(target);
-        let frontend = build_frontend_source_bundle(source, target)?;
+        let frontend = build_frontend_source_bundle(self, source, source_path, target)?;
 
         let tokens = Lexer::new(&frontend.full_source).tokenize()?;
-        let span_mapper = diagnostics::SpanMapper::new(&frontend.full_source);
-        let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
+        let span_mapper =
+            diagnostics::SpanMapper::with_origins(&frontend.full_source, frontend.origins.clone());
+        let filename = source_path
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "<input>".to_string());
+        let mut ast = Parser::new(&tokens, &span_mapper, &filename).parse()?;
         comptime::eval_program(&mut ast)?;
-        let typed = types::check_with_extra_globals(&ast, &span_mapper, "<input>", extra_globals)?;
+        let typed =
+            types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
         Ok(CheckedFrontend { ast, typed })
     }
 
@@ -300,7 +351,16 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<MonomorphizedProgram, KainError> {
-        let checked = self.frontend_to_checked_program(source, target)?;
+        self.frontend_to_monomorphized_program_with_source_path(source, None, target)
+    }
+
+    pub fn frontend_to_monomorphized_program_with_source_path(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+    ) -> Result<MonomorphizedProgram, KainError> {
+        let checked = self.frontend_to_checked_program_with_source_path(source, source_path, target)?;
         monomorphize::monomorphize(&checked.typed)
     }
 
@@ -309,12 +369,24 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<TypedProgram, KainError> {
-        Ok(self.frontend_to_checked_program(source, target)?.typed)
+        self.frontend_to_typed_program_with_source_path(source, None, target)
+    }
+
+    pub fn frontend_to_typed_program_with_source_path(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+    ) -> Result<TypedProgram, KainError> {
+        Ok(self
+            .frontend_to_checked_program_with_source_path(source, source_path, target)?
+            .typed)
     }
 
     pub fn frontend_to_typed_program_with_extra_globals<I>(
         &self,
         source: &str,
+        source_path: Option<&Path>,
         target: CompileTarget,
         extra_globals: I,
     ) -> Result<TypedProgram, KainError>
@@ -322,7 +394,12 @@ impl DriverSession {
         I: IntoIterator<Item = (String, ResolvedType)>,
     {
         Ok(self
-            .frontend_to_checked_program_with_extra_globals(source, target, extra_globals)?
+            .frontend_to_checked_program_with_extra_globals(
+                source,
+                source_path,
+                target,
+                extra_globals,
+            )?
             .typed)
     }
 
@@ -331,7 +408,16 @@ impl DriverSession {
         source: &str,
         target: CompileTarget,
     ) -> Result<RuntimeContractBundle, KainError> {
-        let typed = self.frontend_to_typed_program(source, target)?;
+        self.compile_runtime_contract_bundle_with_source_path(source, None, target)
+    }
+
+    pub fn compile_runtime_contract_bundle_with_source_path(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+    ) -> Result<RuntimeContractBundle, KainError> {
+        let typed = self.frontend_to_typed_program_with_source_path(source, source_path, target)?;
         Ok(emit_runtime_contract_bundle(&typed, target))
     }
 
@@ -339,9 +425,41 @@ impl DriverSession {
         kain_core::format_source(source)
     }
 
+    pub fn format_error(&self, fallback_source_name: &str, fallback_source: &str, error: &KainError) -> String {
+        if let Some(bundle) = self.last_frontend_bundle.borrow().as_ref() {
+            let mapper =
+                diagnostics::SpanMapper::with_origins(&bundle.full_source, bundle.origins.clone());
+            let diag = diagnostics::Diagnostics::with_mapper(mapper, fallback_source_name);
+            return diag.format_error(error);
+        }
+        diagnostics::Diagnostics::new(fallback_source, fallback_source_name).format_error(error)
+    }
+
+    pub fn frontend_watch_inputs(&self) -> Vec<PathBuf> {
+        self.last_frontend_bundle
+            .borrow()
+            .as_ref()
+            .map(|bundle| bundle.watch_inputs.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn frontend_advisories(&self) -> Vec<String> {
+        self.frontend_advisories.borrow().clone()
+    }
+
     pub fn compile_realtime_app_bundle(
         &self,
         source: &str,
+        target: CompileTarget,
+        root_component: Option<&str>,
+    ) -> Result<RealtimeAppBundleOutput, KainError> {
+        self.compile_realtime_app_bundle_with_source_path(source, None, target, root_component)
+    }
+
+    pub fn compile_realtime_app_bundle_with_source_path(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
         target: CompileTarget,
         root_component: Option<&str>,
     ) -> Result<RealtimeAppBundleOutput, KainError> {
@@ -358,7 +476,7 @@ impl DriverSession {
                 root_component.unwrap_or("<auto>")
             );
         }
-        let typed = self.frontend_to_typed_program(source, target)?;
+        let typed = self.frontend_to_typed_program_with_source_path(source, source_path, target)?;
         if trace_realtime_bundle {
             eprintln!(
                 "[kain-driver][realtime] typed_program_ms={}",
@@ -370,7 +488,10 @@ impl DriverSession {
             eprintln!(
                 "[kain-driver][realtime] resolved_world_ms={} active_world={} root_component={}",
                 trace_started.elapsed().as_millis(),
-                resolved_world.active_world_name.as_deref().unwrap_or("<none>"),
+                resolved_world
+                    .active_world_name
+                    .as_deref()
+                    .unwrap_or("<none>"),
                 resolved_world.root_component.as_deref().unwrap_or("<none>")
             );
         }
@@ -433,16 +554,27 @@ impl DriverSession {
     }
 
     pub fn compile(&self, source: &str, target: CompileTarget) -> Result<String, KainError> {
+        self.compile_with_source_path(source, None, target)
+    }
+
+    pub fn compile_with_source_path(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+    ) -> Result<String, KainError> {
         match target {
             #[cfg(feature = "ue5")]
             CompileTarget::Ue5 => {
-                let mono_for_codegen = self.frontend_to_monomorphized_program(source, target)?;
+                let mono_for_codegen =
+                    self.frontend_to_monomorphized_program_with_source_path(source, source_path, target)?;
                 let output = ue5::generate(&mono_for_codegen, None, None)?;
                 Ok(format!("{}\n{}", output.header, output.source))
             }
             _ => {
                 #[allow(unused_variables)]
-                let typed_for_codegen = self.frontend_to_typed_program(source, target)?;
+                let typed_for_codegen =
+                    self.frontend_to_typed_program_with_source_path(source, source_path, target)?;
 
                 match target {
                     #[cfg(feature = "ue5")]
@@ -727,10 +859,11 @@ impl DriverSession {
         copyright: Option<&str>,
         metadata_dir: Option<PathBuf>,
     ) -> Result<ue5::Ue5Output, KainError> {
-        let frontend = build_frontend_source_bundle(source, CompileTarget::Ue5)?;
+        let frontend = build_frontend_source_bundle(self, source, None, CompileTarget::Ue5)?;
 
         let tokens = Lexer::new(&frontend.full_source).tokenize()?;
-        let span_mapper = diagnostics::SpanMapper::new(&frontend.full_source);
+        let span_mapper =
+            diagnostics::SpanMapper::with_origins(&frontend.full_source, frontend.origins.clone());
         let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
         comptime::eval_program(&mut ast)?;
         let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
@@ -854,14 +987,29 @@ impl FrontendImportCollector {
     fn collect_from_source(
         &mut self,
         source: &str,
+        source_file: Option<&Path>,
         target: CompileTarget,
     ) -> Result<(), KainError> {
-        let program = parse_frontend_program(source, "<frontend-import-scan>")?;
+        let filename = source_file
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "<frontend-import-scan>".to_string());
+        let program = parse_frontend_program(source, &filename)?;
+        if source_file
+            .map(canonicalize_existing_path)
+            .zip(self.entry_path.as_ref())
+            .is_some_and(|(path, entry)| path != *entry)
+            && program_uses_c_bridge(&program)
+        {
+            self.advisories.push(format!(
+                "Imported helper module {} uses `use c::...`. Prefer `@extern` in helper modules and keep `use c::...` in the entrypoint that owns linking.",
+                filename
+            ));
+        }
         for item in program.items {
             let Item::Use(import) = item else {
                 continue;
             };
-            let Some(module_file) = resolve_frontend_import_file(&import) else {
+            let Some(module_file) = resolve_frontend_import_file(&import, source_file) else {
                 continue;
             };
             self.collect_module_file(module_file, target)?;
@@ -886,35 +1034,115 @@ impl FrontendImportCollector {
             ))
         })?;
         let prepared_module_source = prepare_frontend_source_for_target(&module_source, target)?;
-        self.collect_from_source(&prepared_module_source, target)?;
-        self.module_sources.push(prepared_module_source);
+        self.collect_from_source(&prepared_module_source, Some(&module_file), target)?;
+        self.module_sources.push(FrontendSourceUnit {
+            file_path: module_file,
+            source: prepared_module_source,
+        });
         Ok(())
     }
 }
 
 fn build_frontend_source_bundle(
+    session: &DriverSession,
     source: &str,
+    source_path: Option<&Path>,
     target: CompileTarget,
 ) -> Result<FrontendSourceBundle, KainError> {
+    if let Some(cached) = try_reuse_cached_frontend_bundle(session, source, source_path, target) {
+        session
+            .last_frontend_bundle
+            .replace(Some(cached.bundle.clone()));
+        session
+            .frontend_advisories
+            .replace(cached.advisories.clone());
+        return Ok(cached.bundle);
+    }
+
     let prepared_source = prepare_frontend_source_for_target(source, target)?;
-    let mut collector = FrontendImportCollector::default();
+    let mut collector = FrontendImportCollector {
+        entry_path: source_path.map(canonicalize_existing_path),
+        ..FrontendImportCollector::default()
+    };
     collector.collect_target_stdlib_prelude(target)?;
-    collector.collect_from_source(&prepared_source, target)?;
-    Ok(FrontendSourceBundle {
-        full_source: assemble_frontend_user_source(&collector.module_sources, &prepared_source),
-    })
+    collector.collect_from_source(&prepared_source, source_path, target)?;
+    let bundle = assemble_frontend_source_bundle(
+        &collector.module_sources,
+        &prepared_source,
+        source_path,
+    );
+    let cache_entry = CachedFrontendBundle {
+        target,
+        source_path: source_path.map(|path| path.to_path_buf()),
+        source: source.to_string(),
+        advisories: collector.advisories.clone(),
+        watch_inputs: fingerprint_watch_inputs(&bundle.watch_inputs),
+        bundle: bundle.clone(),
+    };
+    session.frontend_cache.replace(Some(cache_entry));
+    session.last_frontend_bundle.replace(Some(bundle.clone()));
+    session
+        .frontend_advisories
+        .replace(collector.advisories.clone());
+    Ok(bundle)
 }
 
-fn assemble_frontend_user_source(module_sources: &[String], entry_source: &str) -> String {
+fn try_reuse_cached_frontend_bundle(
+    session: &DriverSession,
+    source: &str,
+    source_path: Option<&Path>,
+    target: CompileTarget,
+) -> Option<CachedFrontendBundle> {
+    let cached = session.frontend_cache.borrow().clone()?;
+    if cached.target != target || cached.source != source {
+        return None;
+    }
+    if cached.source_path.as_deref() != source_path {
+        return None;
+    }
+    if fingerprint_watch_inputs_from_cached(&cached.watch_inputs) != cached.watch_inputs {
+        return None;
+    }
+    Some(cached)
+}
+
+fn assemble_frontend_source_bundle(
+    module_sources: &[FrontendSourceUnit],
+    entry_source: &str,
+    entry_path: Option<&Path>,
+) -> FrontendSourceBundle {
     let mut combined = String::new();
+    let mut origins = Vec::new();
+    let mut offset = 0usize;
+
     for module_source in module_sources {
-        combined.push_str(module_source);
-        if !module_source.ends_with('\n') {
+        combined.push_str(&module_source.source);
+        let end = offset + module_source.source.len();
+        origins.push(SourceOriginSegment {
+            file: module_source.file_path.display().to_string(),
+            combined_span: kain_core::Span::new(offset, end),
+            source: module_source.source.clone(),
+        });
+        offset = end;
+        if !module_source.source.ends_with('\n') {
             combined.push('\n');
+            offset += 1;
         }
     }
     combined.push_str(entry_source);
-    combined
+    origins.push(SourceOriginSegment {
+        file: entry_path
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "<input>".to_string()),
+        combined_span: kain_core::Span::new(offset, offset + entry_source.len()),
+        source: entry_source.to_string(),
+    });
+
+    FrontendSourceBundle {
+        full_source: combined,
+        origins,
+        watch_inputs: discover_frontend_watch_inputs(entry_path, module_sources),
+    }
 }
 
 fn parse_frontend_program(source: &str, filename: &str) -> Result<Program, KainError> {
@@ -927,9 +1155,9 @@ fn ambient_stdlib_modules_for_target(_target: CompileTarget) -> &'static [&'stat
     AMBIENT_STDLIB_MODULES
 }
 
-fn resolve_frontend_import_file(import: &Use) -> Option<PathBuf> {
+fn resolve_frontend_import_file(import: &Use, source_file: Option<&Path>) -> Option<PathBuf> {
     resolve_frontend_stdlib_module_file(import)
-        .or_else(|| resolve_frontend_filesystem_module_file(import))
+        .or_else(|| resolve_frontend_filesystem_module_file(import, source_file))
 }
 
 fn resolve_frontend_stdlib_module_file(import: &Use) -> Option<PathBuf> {
@@ -953,7 +1181,7 @@ fn resolve_frontend_stdlib_module_file(import: &Use) -> Option<PathBuf> {
     None
 }
 
-fn resolve_frontend_filesystem_module_file(import: &Use) -> Option<PathBuf> {
+fn resolve_frontend_filesystem_module_file(import: &Use, source_file: Option<&Path>) -> Option<PathBuf> {
     let Some(first_segment) = import.path.first() else {
         return None;
     };
@@ -963,11 +1191,86 @@ fn resolve_frontend_filesystem_module_file(import: &Use) -> Option<PathBuf> {
     ) {
         return None;
     }
-    resolve_filesystem_module_file(&import.path).map(|resolution| resolution.file_path)
+    let context = FilesystemModuleResolutionContext {
+        importer_file: source_file.map(|path| path.to_path_buf()),
+    };
+    resolve_filesystem_module_file_with_context(&import.path, &context)
+        .map(|resolution| resolution.file_path)
 }
 
 fn canonicalize_existing_path(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn fingerprint_watch_inputs(paths: &[PathBuf]) -> Vec<FrontendWatchedInput> {
+    paths.iter()
+        .map(|path| frontend_watched_input(path))
+        .collect()
+}
+
+fn fingerprint_watch_inputs_from_cached(paths: &[FrontendWatchedInput]) -> Vec<FrontendWatchedInput> {
+    paths.iter()
+        .map(|entry| frontend_watched_input(&entry.path))
+        .collect()
+}
+
+fn frontend_watched_input(path: &Path) -> FrontendWatchedInput {
+    let metadata = std::fs::metadata(path).ok();
+    let modified_unix_ms = metadata
+        .as_ref()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis());
+    let byte_len = metadata.as_ref().map(|meta| meta.len());
+    FrontendWatchedInput {
+        path: path.to_path_buf(),
+        modified_unix_ms,
+        byte_len,
+    }
+}
+
+fn discover_frontend_watch_inputs(
+    entry_path: Option<&Path>,
+    module_sources: &[FrontendSourceUnit],
+) -> Vec<PathBuf> {
+    let mut inputs = Vec::new();
+    if let Some(entry_path) = entry_path {
+        push_unique_watch_input(&mut inputs, canonicalize_existing_path(entry_path));
+        for ancestor in entry_path.ancestors() {
+            for manifest_name in ["build.kn", "KAIN.toml", "kain.toml"] {
+                let candidate = ancestor.join(manifest_name);
+                if candidate.exists() {
+                    push_unique_watch_input(&mut inputs, canonicalize_existing_path(&candidate));
+                }
+            }
+        }
+    }
+    for module_source in module_sources {
+        push_unique_watch_input(&mut inputs, module_source.file_path.clone());
+    }
+    inputs
+}
+
+fn push_unique_watch_input(inputs: &mut Vec<PathBuf>, path: PathBuf) {
+    if !inputs.iter().any(|existing| existing == &path) {
+        inputs.push(path);
+    }
+}
+
+fn program_uses_c_bridge(program: &Program) -> bool {
+    program.items.iter().any(item_uses_c_bridge)
+}
+
+fn item_uses_c_bridge(item: &Item) -> bool {
+    match item {
+        Item::Use(import) => import.path.first().is_some_and(|segment| segment == "c"),
+        Item::Mod(module) => module
+            .inline
+            .as_ref()
+            .map(|items| items.iter().any(item_uses_c_bridge))
+            .unwrap_or(false),
+        _ => false,
+    }
 }
 
 fn prepare_rust_ffi_source(source: &str, target: CompileTarget) -> Result<String, KainError> {

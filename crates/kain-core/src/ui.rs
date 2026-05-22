@@ -1155,10 +1155,17 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
         Expr::Decay { target, .. } => {
             format!("decay {}", render_authored_expr_contract(target))
         }
-        Expr::AtomicLoad { pointer, .. } => format!(
-            "atomic_load({})",
-            render_authored_expr_contract(pointer)
+        Expr::VolatileLoad { pointer, .. } => {
+            format!("volatile_load({})", render_authored_expr_contract(pointer))
+        }
+        Expr::VolatileStore { pointer, value, .. } => format!(
+            "volatile_store({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
         ),
+        Expr::AtomicLoad { pointer, .. } => {
+            format!("atomic_load({})", render_authored_expr_contract(pointer))
+        }
         Expr::AtomicStore { pointer, value, .. } => format!(
             "atomic_store({}, {})",
             render_authored_expr_contract(pointer),
@@ -1171,6 +1178,21 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
         ),
         Expr::AtomicSub { pointer, value, .. } => format!(
             "atomic_sub({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
+        ),
+        Expr::AtomicAnd { pointer, value, .. } => format!(
+            "atomic_and({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
+        ),
+        Expr::AtomicOr { pointer, value, .. } => format!(
+            "atomic_or({}, {})",
+            render_authored_expr_contract(pointer),
+            render_authored_expr_contract(value)
+        ),
+        Expr::AtomicXor { pointer, value, .. } => format!(
+            "atomic_xor({}, {})",
             render_authored_expr_contract(pointer),
             render_authored_expr_contract(value)
         ),
@@ -1190,6 +1212,9 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
             render_authored_expr_contract(expected),
             render_authored_expr_contract(desired)
         ),
+        Expr::AtomicFence { ordering, .. } => {
+            format!("atomic_fence({})", ordering.as_str())
+        }
         Expr::Teleport {
             value,
             source_world,

@@ -191,11 +191,23 @@ impl TSGen {
     }
 
     fn gen_patch(&mut self, patch: &PatchDef) {
-        self.gen_typed_callable(&patch.name, &patch.params, patch.return_type.as_ref(), &patch.body, true);
+        self.gen_typed_callable(
+            &patch.name,
+            &patch.params,
+            patch.return_type.as_ref(),
+            &patch.body,
+            true,
+        );
     }
 
     fn gen_law(&mut self, law: &LawDef) {
-        self.gen_typed_callable(&law.name, &law.params, Some(&law.return_type), &law.body, true);
+        self.gen_typed_callable(
+            &law.name,
+            &law.params,
+            Some(&law.return_type),
+            &law.body,
+            true,
+        );
     }
 
     fn gen_converge(&mut self, converge: &ConvergeDef) {
@@ -247,7 +259,10 @@ impl TSGen {
             .map(|t| self.type_to_ts(t))
             .unwrap_or_else(|| "void".to_string());
         let prefix = if export { "export " } else { "" };
-        self.writeln(&format!("{prefix}function {}({}): {} {{", name, params, ret));
+        self.writeln(&format!(
+            "{prefix}function {}({}): {} {{",
+            name, params, ret
+        ));
         self.indent();
         self.gen_block(body);
         self.dedent();
@@ -1413,7 +1428,9 @@ impl TSGen {
                 self.write("; })()");
             }
 
-            Expr::Teleport { value, .. } | Expr::Comptime(value, _) | Expr::AsyncBlock(value, _) => {
+            Expr::Teleport { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::AsyncBlock(value, _) => {
                 self.gen_expr(value);
             }
 

@@ -7133,11 +7133,12 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
                 || expr_contains_runtime_best_effort_effects(offset)
         }
         Expr::MemLoad { pointer, .. }
+        | Expr::VolatileLoad { pointer, .. }
         | Expr::Decay {
             target: pointer, ..
         } => expr_contains_runtime_best_effort_effects(pointer),
         Expr::Teleport { .. } => true,
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(value)
         }
@@ -7145,6 +7146,9 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
         Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(value)
@@ -7159,6 +7163,7 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
                 || expr_contains_runtime_best_effort_effects(expected)
                 || expr_contains_runtime_best_effort_effects(desired)
         }
+        Expr::AtomicFence { .. } => false,
         Expr::Observe { target, body, .. }
         | Expr::Collapse { target, body, .. }
         | Expr::Share { target, body, .. } => {

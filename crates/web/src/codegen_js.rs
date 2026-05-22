@@ -12,8 +12,7 @@
 use kain_core::ast::{
     BinaryOp, Block, Component, ConvergeDef, ElseBranch, Enum, EnumVariantFields, Expr, Function,
     Impl, JSXAttrValue, JSXNode, LawDef, OrchestrateDef, Param, PatchDef, Pattern, Stmt, Struct,
-    Type, UnaryOp, VariantFields, WorldDef,
-    VariantPatternFields,
+    Type, UnaryOp, VariantFields, VariantPatternFields, WorldDef,
 };
 use kain_core::error::KainResult;
 use kain_core::types::{TypedItem, TypedProgram};

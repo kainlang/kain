@@ -3,6 +3,36 @@ use types::KaintanaColor
 use types::KaintanaRect
 use types::KaintanaWindowSpec
 
+@extern
+fn kaintana_native_desktop_probe() -> Int
+
+@extern
+fn kaintana_native_desktop_scene_active() -> Int
+
+@extern
+fn kaintana_native_desktop_begin_scene(title: String, width: Int, height: Int, clear_red: Int, clear_green: Int, clear_blue: Int) -> Int
+
+@extern
+fn kaintana_native_desktop_push_rect(x: Int, y: Int, width: Int, height: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+
+@extern
+fn kaintana_native_desktop_push_text(text: String, x: Int, y: Int, red: Int, green: Int, blue: Int, font_size: Int) -> Int
+
+@extern
+fn kaintana_native_desktop_run_window(frame_budget: Int) -> Int
+
+@extern
+fn kaintana_native_desktop_command_count() -> Int
+
+@extern
+fn kaintana_native_desktop_frames_presented() -> Int
+
+@extern
+fn kaintana_native_desktop_write_report(path: String) -> Int
+
+@extern
+fn kaintana_native_desktop_write_bmp(path: String) -> Int
+
 pub fn kaintana_desktop_probe() -> Int:
     return kaintana_native_desktop_probe()
 

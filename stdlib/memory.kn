@@ -1,0 +1,72 @@
+# Systems memory surface for explicit volatile and atomic operations.
+
+const ATOMIC_RELAXED: Int = 0
+const ATOMIC_ACQUIRE: Int = 1
+const ATOMIC_RELEASE: Int = 2
+const ATOMIC_ACQ_REL: Int = 3
+const ATOMIC_SEQ_CST: Int = 4
+
+pub fn volatile_load_int(address: ptr<Int>) -> Int with Unsafe:
+    return volatile_load(address, "Int")
+
+pub fn volatile_store_int(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    volatile_store(address, value, "Int")
+    return value
+
+pub fn atomic_load_relaxed(address: ptr<Int>) -> Int with Unsafe:
+    return atomic_load(address, "Int", "relaxed")
+
+pub fn atomic_load_acquire(address: ptr<Int>) -> Int with Unsafe:
+    return atomic_load(address, "Int", "acquire")
+
+pub fn atomic_load_seqcst(address: ptr<Int>) -> Int with Unsafe:
+    return atomic_load(address, "Int", "seq_cst")
+
+pub fn atomic_store_relaxed(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    atomic_store(address, value, "Int", "relaxed")
+    return value
+
+pub fn atomic_store_release(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    atomic_store(address, value, "Int", "release")
+    return value
+
+pub fn atomic_store_seqcst(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    atomic_store(address, value, "Int", "seq_cst")
+    return value
+
+pub fn atomic_add_acqrel(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    return atomic_add(address, value, "Int", "acq_rel")
+
+pub fn atomic_sub_acqrel(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    return atomic_sub(address, value, "Int", "acq_rel")
+
+pub fn atomic_and_acqrel(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    return atomic_and(address, value, "Int", "acq_rel")
+
+pub fn atomic_or_acqrel(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    return atomic_or(address, value, "Int", "acq_rel")
+
+pub fn atomic_xor_acqrel(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    return atomic_xor(address, value, "Int", "acq_rel")
+
+pub fn atomic_exchange_acqrel(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    return atomic_exchange(address, value, "Int", "acq_rel")
+
+pub fn atomic_compare_exchange_seqcst(address: ptr<Int>, expected: Int, desired: Int) -> Bool with Unsafe:
+    return atomic_compare_exchange(address, expected, desired, "Int", "seq_cst", "seq_cst")
+
+pub fn atomic_fence_acquire() -> Int with Unsafe:
+    atomic_fence("acquire")
+    return 0
+
+pub fn atomic_fence_release() -> Int with Unsafe:
+    atomic_fence("release")
+    return 0
+
+pub fn atomic_fence_acqrel() -> Int with Unsafe:
+    atomic_fence("acq_rel")
+    return 0
+
+pub fn atomic_fence_seqcst() -> Int with Unsafe:
+    atomic_fence("seq_cst")
+    return 0

@@ -985,6 +985,7 @@ fn stmt_contains_value_return(stmt: &kain_core::ast::Stmt) -> bool {
         kain_core::ast::Stmt::Return(Some(_), _) => true,
         kain_core::ast::Stmt::While { body, .. }
         | kain_core::ast::Stmt::For { body, .. }
+        | kain_core::ast::Stmt::Fanout { body, .. }
         | kain_core::ast::Stmt::Loop { body, .. } => block_contains_value_return(body),
         kain_core::ast::Stmt::Expr(expr) => expr_contains_value_return(expr),
         kain_core::ast::Stmt::Let { .. }
@@ -999,6 +1000,7 @@ fn stmt_contains_partial_return_flow(stmt: &kain_core::ast::Stmt) -> bool {
     match stmt {
         kain_core::ast::Stmt::While { body, .. }
         | kain_core::ast::Stmt::For { body, .. }
+        | kain_core::ast::Stmt::Fanout { body, .. }
         | kain_core::ast::Stmt::Loop { body, .. } => block_contains_partial_return_flow(body),
         kain_core::ast::Stmt::Expr(expr) => expr_contains_partial_return_flow(expr),
         kain_core::ast::Stmt::Let { .. }
@@ -1014,6 +1016,7 @@ fn stmt_contains_none_placeholder_return(stmt: &kain_core::ast::Stmt) -> bool {
         kain_core::ast::Stmt::Return(Some(value), _) => expr_renders_as_none_placeholder(value),
         kain_core::ast::Stmt::While { body, .. }
         | kain_core::ast::Stmt::For { body, .. }
+        | kain_core::ast::Stmt::Fanout { body, .. }
         | kain_core::ast::Stmt::Loop { body, .. } => block_contains_none_placeholder_return(body),
         kain_core::ast::Stmt::Expr(expr) => expr_contains_none_placeholder_return(expr),
         kain_core::ast::Stmt::Let { .. }
@@ -1360,12 +1363,23 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             iter,
             body,
             ..
+        }
+        | kain_core::ast::Stmt::Fanout {
+            binding,
+            iter,
+            body,
+            ..
         } => {
+            let keyword = if matches!(stmt, kain_core::ast::Stmt::Fanout { .. }) {
+                "fanout"
+            } else {
+                "for"
+            };
             write_line(
                 output,
                 indent,
                 &format!(
-                    "for {} in {}:",
+                    "{keyword} {} in {}:",
                     for_binding_to_string(binding),
                     inline_expr_to_string(iter, indent)
                 ),
@@ -1877,8 +1891,19 @@ fn stmt_to_string(stmt: &kain_core::ast::Stmt, indent: usize) -> String {
             iter,
             body,
             ..
+        }
+        | kain_core::ast::Stmt::Fanout {
+            binding,
+            iter,
+            body,
+            ..
         } => format!(
-            "{prefix}for {} in {}:\n{}",
+            "{prefix}{} {} in {}:\n{}",
+            if matches!(stmt, kain_core::ast::Stmt::Fanout { .. }) {
+                "fanout"
+            } else {
+                "for"
+            },
             for_binding_to_string(binding),
             inline_expr_to_string(iter, indent),
             block_to_string(body, indent + 1)

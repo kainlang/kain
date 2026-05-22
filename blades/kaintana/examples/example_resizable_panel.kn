@@ -1,13 +1,13 @@
-use layout::kaintana_inset
-use layout::kaintana_split_left
-use layout::kaintana_split_right
+use kaintana::kaintana_inset
+use kaintana::kaintana_split_left
+use kaintana::kaintana_split_right
 use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect
 use kaintana_ui::*
 
 fn resize_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
-    let l0 = kaintana_label(ui(ctx), text)
+    let l0 = kaintana_label(kaintana_ui_state(ctx), text)
     let l1 = kaintana_label_key(l0, key)
     let l2 = kaintana_label_rect(l1, rect)
     let l3 = kaintana_label_font(l2, font, 22.0)
@@ -15,7 +15,7 @@ fn resize_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: Str
     return result.ctx
 
 fn resize_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_button(ui(ctx), label)
+    let b0 = kaintana_button(kaintana_ui_state(ctx), label)
     let b1 = kaintana_button_key(b0, key)
     let b2 = kaintana_button_rect(b1, rect)
     let b3 = kaintana_button_font(b2, font, 23.0)
@@ -24,7 +24,7 @@ fn resize_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: S
 
 pub fn kaintana_example_resizable_panel(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
     var next = ctx
-    let p0 = kaintana_panel(ui(next), "Resizable Panel")
+    let p0 = kaintana_panel(kaintana_ui_state(next), "Resizable Panel")
     let p1 = kaintana_panel_key(p0, "example.resize.panel")
     let p2 = kaintana_panel_rect(p1, rect)
     let p3 = kaintana_panel_font(p2, title_font, 26.0)

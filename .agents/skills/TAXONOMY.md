@@ -26,6 +26,7 @@ This file is only the live skill split for current agents.
 - `lang-ui`
 - `lang-translation`
 - `lang-gpu`
+- `lang-feedback`
 - `bootstrap-core`
 - `bootstrap-actors`
 - `bootstrap-ownership`

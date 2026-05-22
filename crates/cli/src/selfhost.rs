@@ -1358,7 +1358,7 @@ fn collect_macro_calls_from_stmt(
                 collect_macro_calls_from_expr(value, required, counts);
             }
         }
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             collect_macro_calls_from_expr(iter, required, counts);
             collect_macro_calls_from_block(body, required, counts);
         }
@@ -1509,6 +1509,9 @@ fn collect_macro_calls_from_expr(
         }
         Expr::MemLoad {
             pointer, load_ty, ..
+        }
+        | Expr::VolatileLoad {
+            pointer, load_ty, ..
         } => {
             collect_macro_calls_from_expr(pointer, required, counts);
             if let Some(load_ty) = load_ty {
@@ -1520,11 +1523,94 @@ fn collect_macro_calls_from_expr(
             value,
             store_ty,
             ..
+        }
+        | Expr::VolatileStore {
+            pointer,
+            value,
+            store_ty,
+            ..
         } => {
             collect_macro_calls_from_expr(pointer, required, counts);
             collect_macro_calls_from_expr(value, required, counts);
             if let Some(store_ty) = store_ty {
                 collect_macro_calls_from_type(store_ty, required, counts);
+            }
+        }
+        Expr::AtomicLoad {
+            pointer, load_ty, ..
+        } => {
+            collect_macro_calls_from_expr(pointer, required, counts);
+            if let Some(load_ty) = load_ty {
+                collect_macro_calls_from_type(load_ty, required, counts);
+            }
+        }
+        Expr::AtomicStore {
+            pointer,
+            value,
+            store_ty,
+            ..
+        } => {
+            collect_macro_calls_from_expr(pointer, required, counts);
+            collect_macro_calls_from_expr(value, required, counts);
+            if let Some(store_ty) = store_ty {
+                collect_macro_calls_from_type(store_ty, required, counts);
+            }
+        }
+        Expr::AtomicAdd {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicSub {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicAnd {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicOr {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicXor {
+            pointer,
+            value,
+            op_ty,
+            ..
+        }
+        | Expr::AtomicExchange {
+            pointer,
+            value,
+            op_ty,
+            ..
+        } => {
+            collect_macro_calls_from_expr(pointer, required, counts);
+            collect_macro_calls_from_expr(value, required, counts);
+            if let Some(op_ty) = op_ty {
+                collect_macro_calls_from_type(op_ty, required, counts);
+            }
+        }
+        Expr::AtomicFence { .. } => {}
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            op_ty,
+            ..
+        } => {
+            collect_macro_calls_from_expr(pointer, required, counts);
+            collect_macro_calls_from_expr(expected, required, counts);
+            collect_macro_calls_from_expr(desired, required, counts);
+            if let Some(op_ty) = op_ty {
+                collect_macro_calls_from_type(op_ty, required, counts);
             }
         }
         Expr::SizeOfType { target, .. }
@@ -1548,7 +1634,9 @@ fn collect_macro_calls_from_expr(
                 collect_macro_calls_from_type(ty, required, counts);
             }
         }
-        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+        Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. }
+        | Expr::Share { target, body, .. } => {
             collect_macro_calls_from_expr(target, required, counts);
             collect_macro_calls_from_expr(body, required, counts);
         }
@@ -5178,13 +5266,24 @@ fn write_stmt(output: &mut String, stmt: &Stmt, indent: usize) -> KainResult<()>
             iter,
             body,
             ..
+        }
+        | Stmt::Fanout {
+            binding,
+            iter,
+            body,
+            ..
         } => {
             let loop_binding = for_binding_name(binding);
+            let keyword = if matches!(stmt, Stmt::Fanout { .. }) {
+                "fanout"
+            } else {
+                "for"
+            };
             write_line(
                 output,
                 indent,
                 &format!(
-                    "for {} in {}:",
+                    "{keyword} {} in {}:",
                     loop_binding,
                     control_head_expr_to_string(iter)
                 ),

@@ -5187,6 +5187,12 @@ impl Ue5Gen {
                 iter,
                 body,
                 ..
+            }
+            | Stmt::Fanout {
+                binding,
+                iter,
+                body,
+                ..
             } => {
                 if let Pattern::Binding { name, .. } = binding {
                     if let Expr::Call { callee, args, .. } = iter {
@@ -7225,7 +7231,7 @@ fn stmt_uses_kain_runtime(stmt: &Stmt) -> bool {
         Stmt::Expr(e) => expr_uses_kain_runtime(e),
         Stmt::Return(v, _) | Stmt::Break(v, _) => v.as_ref().is_some_and(expr_uses_kain_runtime),
         Stmt::Continue(_) => false,
-        Stmt::For { iter, body, .. } => {
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             expr_uses_kain_runtime(iter) || block_uses_kain_runtime(body)
         }
         Stmt::While {
@@ -7253,12 +7259,27 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
     match expr {
         Expr::Ident(name, _) => name.starts_with("__kain_"),
         Expr::AddrOf { .. } | Expr::Deref(_, _) => true,
-        Expr::PtrOffset { .. } | Expr::MemLoad { .. } | Expr::MemStore { .. } => true,
+        Expr::PtrOffset { .. }
+        | Expr::MemLoad { .. }
+        | Expr::MemStore { .. }
+        | Expr::VolatileLoad { .. }
+        | Expr::VolatileStore { .. }
+        | Expr::AtomicLoad { .. }
+        | Expr::AtomicStore { .. }
+        | Expr::AtomicAdd { .. }
+        | Expr::AtomicSub { .. }
+        | Expr::AtomicAnd { .. }
+        | Expr::AtomicOr { .. }
+        | Expr::AtomicXor { .. }
+        | Expr::AtomicExchange { .. }
+        | Expr::AtomicCompareExchange { .. }
+        | Expr::AtomicFence { .. } => true,
         Expr::Alloca { .. } | Expr::Uninit { .. } => true,
         Expr::Alloc { .. } | Expr::Realloc { .. } => true,
         Expr::Observe { .. }
         | Expr::Collapse { .. }
         | Expr::Decay { .. }
+        | Expr::Share { .. }
         | Expr::Teleport { .. } => true,
         Expr::Int(_, _)
         | Expr::Float(_, _)

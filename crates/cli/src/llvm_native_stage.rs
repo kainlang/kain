@@ -1,7 +1,4 @@
-use crate::{
-    compile_realtime_app_bundle, compile_runtime_contract_bundle, compile_shader_artifact_bundle,
-    CompileTarget,
-};
+use crate::CompileTarget;
 use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
 use kain_core::format_program;
@@ -43,8 +40,28 @@ pub fn stage_native_backend_artifacts(
     output_path: &Path,
     root_component: Option<&str>,
 ) -> Result<LlvmNativeArtifactStage, String> {
-    let contract_bundle =
-        compile_runtime_contract_bundle(source, target).map_err(|err| err.to_string())?;
+    let session = kain_driver::DriverSession::default();
+    stage_native_backend_artifacts_with_session(
+        &session,
+        source,
+        None,
+        target,
+        output_path,
+        root_component,
+    )
+}
+
+pub fn stage_native_backend_artifacts_with_session(
+    session: &kain_driver::DriverSession,
+    source: &str,
+    source_path: Option<&Path>,
+    target: CompileTarget,
+    output_path: &Path,
+    root_component: Option<&str>,
+) -> Result<LlvmNativeArtifactStage, String> {
+    let contract_bundle = session
+        .compile_runtime_contract_bundle_with_source_path(source, source_path, target)
+        .map_err(|err| err.to_string())?;
     let runtime_contract_path = runtime_contract_artifact_path(output_path);
     write_json_artifact(
         &runtime_contract_path,
@@ -53,7 +70,8 @@ pub fn stage_native_backend_artifacts(
         "runtime contract",
     )?;
 
-    let realtime_bundle = compile_realtime_app_bundle(source, target, root_component)
+    let realtime_bundle = session
+        .compile_realtime_app_bundle_with_source_path(source, source_path, target, root_component)
         .map_err(|err| err.to_string())?;
     let realtime_app_path = realtime_app_artifact_path(output_path);
     write_json_artifact(
@@ -90,7 +108,7 @@ pub fn stage_native_backend_artifacts(
             None => source,
         };
 
-        match compile_shader_artifact_bundle(shader_source) {
+        match session.compile_shader_artifact_bundle(shader_source) {
             Ok(bundle_output) => {
                 let shader_path = shader_bundle_artifact_path(output_path);
                 write_json_artifact(&shader_path, &bundle_output.bundle_json, "shader bundle")?;

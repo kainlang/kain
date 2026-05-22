@@ -431,7 +431,9 @@ fn collect_runtime_capabilities(
         capabilities.push(runtime_capability(
             OWNERSHIP_CAPABILITY,
             "kain-ownership",
-            Some("Program uses compiler-owned collapse/observe/decay/share memory ownership scopes."),
+            Some(
+                "Program uses compiler-owned collapse/observe/decay/share memory ownership scopes.",
+            ),
         ));
     }
 
@@ -1724,14 +1726,19 @@ fn expr_contains_ownership_expr(expr: &Expr) -> bool {
         Expr::PtrOffset {
             pointer, offset, ..
         } => expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(offset),
-        Expr::MemLoad { pointer, .. } => expr_contains_ownership_expr(pointer),
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemLoad { pointer, .. } | Expr::VolatileLoad { pointer, .. } => {
+            expr_contains_ownership_expr(pointer)
+        }
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
             expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(value)
         }
         Expr::AtomicLoad { pointer, .. } => expr_contains_ownership_expr(pointer),
         Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(value)
         }
@@ -1745,6 +1752,7 @@ fn expr_contains_ownership_expr(expr: &Expr) -> bool {
                 || expr_contains_ownership_expr(expected)
                 || expr_contains_ownership_expr(desired)
         }
+        Expr::AtomicFence { .. } => false,
         Expr::Alloc { size, .. } => expr_contains_ownership_expr(size),
         Expr::Realloc { pointer, size, .. } => {
             expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(size)
@@ -1887,14 +1895,19 @@ fn expr_contains_shared_fanout_expr(expr: &Expr) -> bool {
         Expr::PtrOffset {
             pointer, offset, ..
         } => expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(offset),
-        Expr::MemLoad { pointer, .. } => expr_contains_shared_fanout_expr(pointer),
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemLoad { pointer, .. } | Expr::VolatileLoad { pointer, .. } => {
+            expr_contains_shared_fanout_expr(pointer)
+        }
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
             expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(value)
         }
         Expr::AtomicLoad { pointer, .. } => expr_contains_shared_fanout_expr(pointer),
         Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(value)
         }
@@ -1908,6 +1921,7 @@ fn expr_contains_shared_fanout_expr(expr: &Expr) -> bool {
                 || expr_contains_shared_fanout_expr(expected)
                 || expr_contains_shared_fanout_expr(desired)
         }
+        Expr::AtomicFence { .. } => false,
         Expr::Alloc { size, .. } => expr_contains_shared_fanout_expr(size),
         Expr::Realloc { pointer, size, .. } => {
             expr_contains_shared_fanout_expr(pointer) || expr_contains_shared_fanout_expr(size)
@@ -1967,8 +1981,12 @@ fn expr_contains_atomic_seqcst_expr(expr: &Expr) -> bool {
         | Expr::AtomicStore { .. }
         | Expr::AtomicAdd { .. }
         | Expr::AtomicSub { .. }
+        | Expr::AtomicAnd { .. }
+        | Expr::AtomicOr { .. }
+        | Expr::AtomicXor { .. }
         | Expr::AtomicExchange { .. }
-        | Expr::AtomicCompareExchange { .. } => true,
+        | Expr::AtomicCompareExchange { .. }
+        | Expr::AtomicFence { .. } => true,
         Expr::Observe { target, body, .. }
         | Expr::Collapse { target, body, .. }
         | Expr::Share { target, body, .. } => {
@@ -2240,14 +2258,19 @@ fn expr_contains_teleport_expr(expr: &Expr) -> bool {
         Expr::PtrOffset {
             pointer, offset, ..
         } => expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(offset),
-        Expr::MemLoad { pointer, .. } => expr_contains_teleport_expr(pointer),
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemLoad { pointer, .. } | Expr::VolatileLoad { pointer, .. } => {
+            expr_contains_teleport_expr(pointer)
+        }
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
             expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(value)
         }
         Expr::AtomicLoad { pointer, .. } => expr_contains_teleport_expr(pointer),
         Expr::AtomicStore { pointer, value, .. }
         | Expr::AtomicAdd { pointer, value, .. }
         | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
             expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(value)
         }
@@ -2261,6 +2284,7 @@ fn expr_contains_teleport_expr(expr: &Expr) -> bool {
                 || expr_contains_teleport_expr(expected)
                 || expr_contains_teleport_expr(desired)
         }
+        Expr::AtomicFence { .. } => false,
         Expr::Alloc { size, .. } => expr_contains_teleport_expr(size),
         Expr::Realloc { pointer, size, .. } => {
             expr_contains_teleport_expr(pointer) || expr_contains_teleport_expr(size)

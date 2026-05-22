@@ -1,4 +1,5 @@
 use kain_json::json_parse_text
+use fluid_studio_ui_types::FluidStudioUiFrame
 use std::fs
 use std::hash
 use std::math
@@ -110,27 +111,6 @@ pub struct FluidReferenceInfo:
     preset_count: Int
     config_bytes: Int
     config_hash: Int
-
-pub struct FluidUiFonts:
-    body_font: Int
-    title_font: Int
-    badge_font: Int
-    micro_font: Int
-
-pub struct FluidStudioUiFrame:
-    ctx: KaintanaContext
-    particle_count_value: Float
-    solver_iterations_value: Float
-    swirl_value: Float
-    buoyancy_value: Float
-    dissipation_value: Float
-    impulse_value: Float
-    temperature_value: Float
-    hue_value: Float
-    preset_a_activated: Int
-    preset_b_activated: Int
-    preset_c_activated: Int
-    preset_d_activated: Int
 
 pub struct FluidStudioSession:
     settings: FluidStudioSettings

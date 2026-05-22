@@ -1,0 +1,159 @@
+use std::fs
+use std::text
+
+const APP_NAME: String = "kain-tui"
+const VISIBLE_ROWS: Int = 26
+const PREVIEW_LIMIT: Int = 4096
+
+struct ExplorerState:
+    current_path: String
+    selected_index: Int
+    scroll_top: Int
+    quit: Bool
+    status: String
+
+fn clamp_int(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+fn is_absolute_path(path: String) -> Bool:
+    let view = text_from(path)
+    if text_is_empty(view):
+        return false
+    if text_contains(view, ":"):
+        return true
+    let first = text_byte_at(view, 0)
+    if first == 47:
+        return true
+    if first == 92:
+        return true
+    return false
+
+fn resolve_entry_path(base_path: String, entry: String) -> String:
+    if entry == "":
+        return base_path
+    if is_absolute_path(entry):
+        return entry
+    return fs_path_join(base_path, entry)
+
+fn path_parent(path: String) -> String:
+    let view = text_from(path)
+    let total = text_len(view)
+    if total <= 0:
+        return path
+
+    var last_sep: Int = -1
+    var index: Int = 0
+    while index < total:
+        let byte = text_byte_at(view, index)
+        if byte == 47 or byte == 92:
+            last_sep = index
+        index = index + 1
+
+    if last_sep < 0:
+        return path
+
+    if last_sep <= 2 and text_contains(view, ":"):
+        return text_materialize(text_subslice(view, 0, 3))
+
+    if last_sep == 0:
+        return text_materialize(text_subslice(view, 0, 1))
+
+    return text_materialize(text_subslice(view, 0, last_sep))
+
+fn line_count(view: TextSlice) -> Int:
+    let total = text_len(view)
+    if total <= 0:
+        return 0
+
+    var cursor: Int = 0
+    var count: Int = 0
+    while cursor < total:
+        let rest = text_subslice(view, cursor, total - cursor)
+        let next = text_find(rest, "\n")
+        if next < 0:
+            let tail = text_trim(rest)
+            if text_is_empty(tail) == false:
+                count = count + 1
+            return count
+        count = count + 1
+        cursor = cursor + next + 1
+    return count
+
+fn line_at(view: TextSlice, target_index: Int) -> String:
+    let total = text_len(view)
+    if total <= 0:
+        return ""
+
+    var cursor: Int = 0
+    var index: Int = 0
+    while cursor < total:
+        let rest = text_subslice(view, cursor, total - cursor)
+        let next = text_find(rest, "\n")
+        if next < 0:
+            if index == target_index:
+                return text_materialize(text_trim(rest))
+            return ""
+        if index == target_index:
+            return text_materialize(text_trim(text_subslice(view, cursor, next)))
+        cursor = cursor + next + 1
+        index = index + 1
+    return ""
+
+fn build_listing(entries_text: String, selected_index: Int, scroll_top: Int) -> String:
+    let view = text_from(entries_text)
+    let total = line_count(view)
+    var rendered = "Directory entries\n"
+    if total <= 0:
+        return rendered + "  [empty]\n"
+
+    var index: Int = scroll_top
+    let stop = clamp_int(scroll_top + VISIBLE_ROWS, 0, total)
+    while index < stop:
+        let entry_line = line_at(view, index)
+        if index == selected_index:
+            rendered = rendered + "> " + entry_line + "\n"
+        else:
+            rendered = rendered + "  " + entry_line + "\n"
+        index = index + 1
+    return rendered
+
+fn build_preview(current_path: String, entry: String) -> String:
+    if entry == "":
+        return "No entry selected.\n"
+
+    let resolved = resolve_entry_path(current_path, entry)
+    let meta = fs_metadata_text(resolved)
+    if fs_is_dir(resolved):
+        let children = fs_read_dir_paths_text(resolved)
+        return "Directory\n" + resolved + "\n\n" + meta + "\n\n" + children
+
+    if fs_is_file(resolved):
+        let body = fs_read_text_range(resolved, 0, PREVIEW_LIMIT)
+        return "File\n" + resolved + "\n\n" + meta + "\n\n" + body
+
+    return "Path\n" + resolved + "\n\n" + meta
+
+fn build_status(current_path: String) -> String:
+    return "j/k move | h parent | l open | r refresh | q quit\n" + current_path
+
+fn main() -> Int:
+    let explorer: ExplorerState = ExplorerState {
+        current_path: ".",
+        selected_index: 0,
+        scroll_top: 0,
+        quit: false,
+        status: ""
+    }
+
+    let entries_text = fs_read_dir_paths_text(explorer.current_path)
+    let listing = entries_text
+    let status = build_status(explorer.current_path)
+
+    println(APP_NAME + " | " + status)
+    println(listing)
+
+    return 0

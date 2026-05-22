@@ -96,16 +96,37 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
         }
         Expr::Assign { value, .. } => eval_expr_in_place(env, value)?,
         Expr::AddrOf { value, .. } => eval_expr_in_place(env, value)?,
-        Expr::MemLoad { pointer, .. } => eval_expr_in_place(env, pointer)?,
-        Expr::MemStore { pointer, value, .. } => {
+        Expr::MemLoad { pointer, .. }
+        | Expr::VolatileLoad { pointer, .. }
+        | Expr::AtomicLoad { pointer, .. } => eval_expr_in_place(env, pointer)?,
+        Expr::MemStore { pointer, value, .. }
+        | Expr::VolatileStore { pointer, value, .. }
+        | Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
             eval_expr_in_place(env, pointer)?;
             eval_expr_in_place(env, value)?;
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            eval_expr_in_place(env, pointer)?;
+            eval_expr_in_place(env, expected)?;
+            eval_expr_in_place(env, desired)?;
         }
         Expr::AsyncBlock(body, _) => eval_expr_in_place(env, body)?,
         Expr::SizeOfType { .. }
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }
-        | Expr::Uninit { .. } => {}
+        | Expr::Uninit { .. }
+        | Expr::AtomicFence { .. } => {}
         Expr::AggregateInit { fields, .. } => {
             for (_, value) in fields {
                 eval_expr_in_place(env, value)?;

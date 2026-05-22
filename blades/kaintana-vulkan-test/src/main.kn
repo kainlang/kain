@@ -1,6 +1,7 @@
 // style: marine relay embed deck
 use c::kaintana_desktop_bridge
 use c::vulkain_bridge
+use std::intent
 use kaintana::KaintanaTheme
 use kaintana::KaintanaWindowSpec
 use kaintana::kaintana_backend_vulkan

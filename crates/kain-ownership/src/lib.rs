@@ -386,13 +386,11 @@ impl OwnershipPolicy {
             ) || matches!(
                 self.collapse_mode,
                 CollapseMode::ExclusiveToken | CollapseMode::GraphExclusive
-            ) || matches!(
-                self.share_mode,
-                ShareMode::AtomicSeqCst
-            ) || matches!(
-                self.decay_mode,
-                DecayMode::FreeHeap | DecayMode::ReleaseStrong
-            ),
+            ) || matches!(self.share_mode, ShareMode::AtomicSeqCst)
+                || matches!(
+                    self.decay_mode,
+                    DecayMode::FreeHeap | DecayMode::ReleaseStrong
+                ),
             requires_snapshot: self.observe_mode == ObserveMode::Snapshot,
             may_release_or_free: matches!(
                 self.decay_mode,

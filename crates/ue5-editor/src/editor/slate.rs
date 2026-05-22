@@ -714,6 +714,12 @@ impl SlateGenerator {
                 iter,
                 body,
                 ..
+            }
+            | Stmt::Fanout {
+                binding,
+                iter,
+                body,
+                ..
             } => {
                 if let Pattern::Binding { name, .. } = binding {
                     self.push_line(&format!(

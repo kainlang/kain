@@ -1,5 +1,77 @@
 # Kain Memory
 
+# 2026-05-21 - Kaintana's public surface now needs root-owned theme/layout helpers, and the desktop adapter stays standalone-checkable through `@extern`
+
+The current Kaintana modernization pass shook out a real package-surface rule in this compiler lane: `pub use ...::*` from internal modules was not enough for every consumer/check surface. The library entry `blades/kaintana/src/kaintana.kn` now owns the durable public helpers directly for the hot paths consumers actually import.
+
+What changed:
+
+- `blades/kaintana/src/kaintana.kn`
+  - root-owned theme API now lives directly in the prelude surface: `kaintana_theme_named`, plus the named preset constructors
+  - root-owned layout helpers now live directly in the prelude surface: `kaintana_inset`, `kaintana_split_left/right/top/bottom`, `kaintana_row_slot`, `kaintana_column_slot`, and `kaintana_grid_cell`
+  - restored `kaintana_button_activated(...)` as a direct public helper over `kaintana_widget_take_activation(...)`
+- `blades/kaintana/src/platform/desktop/desktop_adapter.kn`
+  - kept the architecture rule intact by not adding `use c::kaintana_desktop_bridge`
+  - instead declared the desktop bridge entrypoints as `@extern fn ...` so the adapter can pass standalone/package-root checks without reintroducing the duplicate-bridge LLVM issue called out in `ARCHITECTURE.md`
+- `blades/kaintana/examples/*.kn`
+  - example imports now route layout helpers through the root `kaintana::...` surface instead of the internal `layout::...` path
+- `blades/kaintana/src/main.kn`, `blades/kaintana-test/src/main.kn`, and `blades/kaintana-vulkan-test/src/main.kn`
+  - consumer entries now import the symbols they truly use (`kaintana_theme_named`, `std::intent`, etc.) and validate cleanly against the modernized public surface
+
+Validation:
+
+- direct Bazel-built CLI because the wrapper `kain` path is currently blocked by unrelated workspace breakage in `crates/kain-core`
+- `D:\\Kain-Lang\\target` wrapper not required; used `D:/kain-bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe`
+- `... kain.exe check blades/kaintana/src/kaintana.kn --target llvm` -> PASS
+- `... kain.exe check blades/kaintana/src/main.kn --target llvm` -> PASS
+- `... kain.exe check blades/kaintana-test/src/main.kn --target llvm` -> PASS
+- `... kain.exe check blades/kaintana-vulkan-test/src/main.kn --target llvm` -> PASS
+- `... kain.exe check blades/kaintana-test --target llvm` -> `Check passed: 6/6 passed`
+- `... kain.exe check blades/kaintana-vulkan-test --target llvm` -> `Check passed: 5/5 passed`
+- `... kain.exe check blades/kaintana --target llvm` -> `Check passed: 29/29 passed`
+
+Durable lesson:
+
+- In this lane, Kaintana consumers are happier when core package helpers are owned directly by `src/kaintana.kn` instead of relying on transitive `pub use` through internal submodules.
+- For blade-local desktop/native bridges, `@extern` declarations inside helper modules are the right way to keep package-root/module-root checks green while still reserving the actual `use c::...` bridge import for linking entrypoints.
+
+# 2026-05-21 - `blades/fluid-studio` now has the authored Kain same-window fluid app shape, but the current LLVM lane still stalls before `realtime_app` emission
+
+`blades/fluid-studio` now exists as a data-driven, Kain-authored fluid simulator blade with GPU shader sources, a Kaintana control deck, a Vulkain 3D mesh presenter, and semantic simulation pressure. The authored app shape is in place, the stale `path_parent` intrinsic is removed from the blade, and the direct `ui(ctx)` builder calls were normalized to `kaintana_ui_state(ctx)`. On the current local compiler lane, `kain check` passes for the app plus both SPIR-V sources, and direct LLVM compilation now reaches `.ll` plus `.runtime_contract.json`; the remaining blocker is that the process idles before `.realtime_app.json` for the full blade.
+
+What changed:
+
+- `blades/fluid-studio/src/fluid_studio_state.kn`
+  - replaced the unresolved `path_parent(...)` intrinsic usage with local string/path helpers (`fluid_string_prefix`, `fluid_last_path_separator`, `fluid_path_parent`)
+  - moved `FluidUiFonts` / `FluidStudioUiFrame` out of the giant session/config module to reduce bundle-stage graph coupling
+- `blades/fluid-studio/src/fluid_studio_ui_types.kn`
+  - new shared UI-only type surface for `FluidUiFonts` and `FluidStudioUiFrame`
+- `blades/fluid-studio/src/fluid_studio_views.kn`
+  - new typed request/deck builders (`FluidUiRequest`, `FluidSceneRequest`) so the UI/presenter lanes consume compact packets instead of the full `FluidStudioSession`
+- `blades/fluid-studio/src/fluid_studio_ui.kn`
+  - now consumes `FluidUiRequest`
+  - replaced `ui(ctx)` builder calls with explicit `kaintana_ui_state(ctx)` calls
+- `blades/fluid-studio/src/fluid_studio_scene.kn`
+  - now consumes `FluidSceneRequest` instead of the full session/config graph
+- `blades/fluid-studio/src/main.kn`
+  - builds `FluidUiRequest` / `FluidSceneRequest` packets from the authoritative session before entering the UI and Vulkain presentation lanes
+- `blades/fluid-studio/{build.kn,KAIN.toml}`
+  - registered the new authored source files in the blade evidence inputs
+
+Validation:
+
+- `D:\\Kain-Lang\\target\\codex-build-kn-smoke\\debug\\kain.exe check D:\\Kain-Lang\\blades\\fluid-studio\\src\\main.kn --target llvm`
+- `D:\\Kain-Lang\\target\\codex-build-kn-smoke\\debug\\kain.exe check D:\\Kain-Lang\\blades\\fluid-studio\\src\\fluid_compute.kn --target spirv`
+- `D:\\Kain-Lang\\target\\codex-build-kn-smoke\\debug\\kain.exe check D:\\Kain-Lang\\blades\\fluid-studio\\src\\fluid_surface.frag.kn --target spirv`
+- direct LLVM compile with the same binary:
+  - `D:\\Kain-Lang\\target\\codex-build-kn-smoke\\debug\\kain.exe D:\\Kain-Lang\\blades\\fluid-studio\\src\\main.kn -t llvm -o D:\\Kain-Lang\\blades\\fluid-studio\\fluid-studio.exe`
+  - result: emits fresh `fluid-studio.ll` and `fluid-studio.runtime_contract.json`, then leaves an idle `kain.exe` process before `fluid-studio.realtime_app.json`
+
+Durable lesson:
+
+- The current local LLVM/native lane is sensitive to authored graph shape beyond plain typechecking. `kain check` can pass while the later runtime-contract / realtime-bundle materialization path still stalls.
+- `blades/fluid-studio` no longer relies on the unresolved `path_parent` intrinsic; if future compile attempts still fail, the remaining work is in compiler/runtime bundle materialization rather than authored path resolution.
+
 # 2026-05-21 - `blades/spirv-visualizer` is now the SPIR-V capability viewport blade
 
 `blades/spirv-visualizer` now exists as a data-driven GPU/SPIR-V visualizer blade that can load arbitrary SPIR-V inputs, default to a known-good Kain-authored sample fragment shader, and present through the reusable `blades/vulkain` Vulkan bridge without baking app policy into Vulkain itself.

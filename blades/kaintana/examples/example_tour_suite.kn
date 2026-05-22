@@ -1,4 +1,4 @@
-use layout::kaintana_grid_cell
+use kaintana::kaintana_grid_cell
 use types::KaintanaContext
 use types::KaintanaRect
 use example_data_grid::kaintana_example_data_grid

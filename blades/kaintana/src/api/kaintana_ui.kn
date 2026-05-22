@@ -71,7 +71,7 @@ pub fn kaintana_sync(ctx: KaintanaContext) -> KaintanaContext:
 pub fn kaintana_commit(ctx: KaintanaContext) -> KaintanaContext:
     return kaintana_context_commit_frame(ctx)
 
-pub fn ui(ctx: KaintanaContext) -> KaintanaUi:
+pub fn kaintana_ui_state(ctx: KaintanaContext) -> KaintanaUi:
     return KaintanaUi { default_font_resource_id: 0 }
 
 pub fn kaintana_panel(ui_state: KaintanaUi, label: String) -> KaintanaPanelBuilder:

@@ -557,6 +557,35 @@ fn run_source(
     source: &str,
     target: CompileTarget,
     output: Option<&PathBuf>,
+    emit_ast: bool,
+    emit_typed: bool,
+    verbose: bool,
+    analyze: bool,
+    plugin_name: Option<&str>,
+) -> bool {
+    let session = kain_driver::DriverSession::new();
+    run_source_with_session(
+        &session,
+        source_name,
+        source_path,
+        source,
+        target,
+        output,
+        emit_ast,
+        emit_typed,
+        verbose,
+        analyze,
+        plugin_name,
+    )
+}
+
+fn run_source_with_session(
+    session: &kain_driver::DriverSession,
+    source_name: &str,
+    source_path: Option<&Path>,
+    source: &str,
+    target: CompileTarget,
+    output: Option<&PathBuf>,
     _emit_ast: bool,
     _emit_typed: bool,
     verbose: bool,
@@ -689,7 +718,7 @@ fn run_source(
     }
 
     // Compile
-    match compile(&source, target) {
+    match session.compile_with_source_path(&source, source_path, target) {
         Ok(compiled_output) => {
             if target == CompileTarget::Interpret || target == CompileTarget::Test {
                 let trimmed_output = compiled_output.trim();
@@ -768,8 +797,10 @@ fn run_source(
                 let mut native_artifacts_require_gpu_runtime = false;
 
                 if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
-                    match llvm_native_stage::stage_native_backend_artifacts(
+                    match llvm_native_stage::stage_native_backend_artifacts_with_session(
+                        session,
                         &source,
+                        source_path,
                         target,
                         &output_path,
                         None,
@@ -797,6 +828,10 @@ fn run_source(
                             return false;
                         }
                     }
+                }
+
+                for advisory in session.frontend_advisories() {
+                    eprintln!(" Warning: {}", advisory);
                 }
 
                 // Generate C++ reflection header for USF shaders (GODMODE Phase 3)
@@ -1198,9 +1233,7 @@ fn run_source(
             true
         }
         Err(e) => {
-            // Use pretty error formatting
-            let diag = kain_core::diagnostics::Diagnostics::new(&source, source_name);
-            eprint!("{}", diag.format_error(&e));
+            eprint!("{}", session.format_error(source_name, &source, &e));
             false
         }
     }
@@ -1760,6 +1793,7 @@ fn watch_mode(
     use notify::{Event, RecursiveMode, Watcher};
     use std::sync::mpsc::channel;
 
+    let session = kain_driver::DriverSession::new();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 
@@ -1776,7 +1810,8 @@ fn watch_mode(
     println!("");
 
     // Initial compile
-    run_compile(
+    run_compile_with_session(
+        &session,
         &input,
         target,
         output.as_ref(),
@@ -1789,24 +1824,8 @@ fn watch_mode(
     println!("");
 
     let (tx, rx) = channel();
-
-    let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-        if let Ok(event) = res {
-            if event.kind.is_modify() {
-                let _ = tx.send(());
-            }
-        }
-    })
-    .expect("Failed to create watcher");
-
-    watcher
-        .watch(&input, RecursiveMode::NonRecursive)
-        .expect("Failed to watch file");
-
-    // Also watch parent directory in case file is replaced
-    if let Some(parent) = input.parent() {
-        let _ = watcher.watch(parent, RecursiveMode::NonRecursive);
-    }
+    let mut watcher = build_watch_mode_watcher(tx.clone(), &watch_inputs_for_session(&session, &input))
+        .expect("Failed to create watcher");
 
     while running.load(Ordering::SeqCst) {
         match rx.recv_timeout(Duration::from_millis(100)) {
@@ -1818,7 +1837,8 @@ fn watch_mode(
 
                 println!(" File changed, recompiling...");
                 println!("");
-                run_compile(
+                run_compile_with_session(
+                    &session,
                     &input,
                     target,
                     output.as_ref(),
@@ -1828,6 +1848,11 @@ fn watch_mode(
                     analyze,
                     plugin_name.as_deref(),
                 );
+                watcher = build_watch_mode_watcher(
+                    tx.clone(),
+                    &watch_inputs_for_session(&session, &input),
+                )
+                .expect("Failed to refresh watcher");
                 println!("");
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {

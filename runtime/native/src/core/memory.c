@@ -301,43 +301,208 @@ void __kain_mem_store(void* ptr, const void* value, size_t size) {
     memcpy(ptr, value, size);
 }
 
-int64_t __kain_atomic_load_seqcst(const void* ptr) {
+void __kain_volatile_load(const void* ptr, void* out, size_t size) {
+    const volatile unsigned char* src = (const volatile unsigned char*)ptr;
+    unsigned char* dst = (unsigned char*)out;
+    for (size_t index = 0; index < size; ++index) {
+        dst[index] = src[index];
+    }
+}
+
+void __kain_volatile_store(void* ptr, const void* value, size_t size) {
+    volatile unsigned char* dst = (volatile unsigned char*)ptr;
+    const unsigned char* src = (const unsigned char*)value;
+    for (size_t index = 0; index < size; ++index) {
+        dst[index] = src[index];
+    }
+}
+
+static memory_order kain_memory_order_from_code(int64_t ordering) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+        return memory_order_relaxed;
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+        return memory_order_acquire;
+    case KAIN_MEMORY_ORDER_RELEASE:
+        return memory_order_release;
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+        return memory_order_acq_rel;
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+    default:
+        return memory_order_seq_cst;
+    }
+}
+
+static memory_order kain_memory_load_order_from_code(int64_t ordering) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+        return memory_order_relaxed;
+    case KAIN_MEMORY_ORDER_RELEASE:
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+        return memory_order_acquire;
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+    default:
+        return memory_order_seq_cst;
+    }
+}
+
+static memory_order kain_memory_store_order_from_code(int64_t ordering) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+        return memory_order_relaxed;
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+    case KAIN_MEMORY_ORDER_RELEASE:
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+        return memory_order_release;
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+    default:
+        return memory_order_seq_cst;
+    }
+}
+
+static memory_order kain_memory_failure_order_from_code(int64_t ordering) {
+    switch (ordering) {
+    case KAIN_MEMORY_ORDER_RELAXED:
+        return memory_order_relaxed;
+    case KAIN_MEMORY_ORDER_RELEASE:
+    case KAIN_MEMORY_ORDER_ACQUIRE:
+    case KAIN_MEMORY_ORDER_ACQ_REL:
+        return memory_order_acquire;
+    case KAIN_MEMORY_ORDER_SEQ_CST:
+    default:
+        return memory_order_seq_cst;
+    }
+}
+
+int64_t __kain_atomic_load_ordered(const void* ptr, int64_t ordering) {
     const atomic_int_least64_t* cell = (const atomic_int_least64_t*)ptr;
-    return (int64_t)atomic_load_explicit(cell, memory_order_seq_cst);
+    return (int64_t)atomic_load_explicit(cell, kain_memory_load_order_from_code(ordering));
 }
 
-void __kain_atomic_store_seqcst(void* ptr, int64_t value) {
+void __kain_atomic_store_ordered(void* ptr, int64_t value, int64_t ordering) {
     atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
-    atomic_store_explicit(cell, (int_least64_t)value, memory_order_seq_cst);
+    atomic_store_explicit(cell, (int_least64_t)value, kain_memory_store_order_from_code(ordering));
 }
 
-int64_t __kain_atomic_add_seqcst(void* ptr, int64_t delta) {
+int64_t __kain_atomic_add_ordered(void* ptr, int64_t delta, int64_t ordering) {
     atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
-    return (int64_t)atomic_fetch_add_explicit(cell, (int_least64_t)delta, memory_order_seq_cst);
+    return (int64_t)atomic_fetch_add_explicit(
+        cell,
+        (int_least64_t)delta,
+        kain_memory_order_from_code(ordering)
+    );
 }
 
-int64_t __kain_atomic_sub_seqcst(void* ptr, int64_t delta) {
+int64_t __kain_atomic_sub_ordered(void* ptr, int64_t delta, int64_t ordering) {
     atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
-    return (int64_t)atomic_fetch_sub_explicit(cell, (int_least64_t)delta, memory_order_seq_cst);
+    return (int64_t)atomic_fetch_sub_explicit(
+        cell,
+        (int_least64_t)delta,
+        kain_memory_order_from_code(ordering)
+    );
 }
 
-int64_t __kain_atomic_exchange_seqcst(void* ptr, int64_t value) {
+int64_t __kain_atomic_and_ordered(void* ptr, int64_t mask, int64_t ordering) {
     atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
-    return (int64_t)atomic_exchange_explicit(cell, (int_least64_t)value, memory_order_seq_cst);
+    return (int64_t)atomic_fetch_and_explicit(
+        cell,
+        (int_least64_t)mask,
+        kain_memory_order_from_code(ordering)
+    );
 }
 
-int __kain_atomic_compare_exchange_seqcst(void* ptr, int64_t expected, int64_t desired) {
+int64_t __kain_atomic_or_ordered(void* ptr, int64_t bits, int64_t ordering) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    return (int64_t)atomic_fetch_or_explicit(
+        cell,
+        (int_least64_t)bits,
+        kain_memory_order_from_code(ordering)
+    );
+}
+
+int64_t __kain_atomic_xor_ordered(void* ptr, int64_t bits, int64_t ordering) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    return (int64_t)atomic_fetch_xor_explicit(
+        cell,
+        (int_least64_t)bits,
+        kain_memory_order_from_code(ordering)
+    );
+}
+
+int64_t __kain_atomic_exchange_ordered(void* ptr, int64_t value, int64_t ordering) {
+    atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
+    return (int64_t)atomic_exchange_explicit(
+        cell,
+        (int_least64_t)value,
+        kain_memory_order_from_code(ordering)
+    );
+}
+
+int __kain_atomic_compare_exchange_ordered(
+    void* ptr,
+    int64_t expected,
+    int64_t desired,
+    int64_t success_ordering,
+    int64_t failure_ordering
+) {
     atomic_int_least64_t* cell = (atomic_int_least64_t*)ptr;
     int_least64_t expected_value = (int_least64_t)expected;
     return atomic_compare_exchange_strong_explicit(
                cell,
                &expected_value,
                (int_least64_t)desired,
-               memory_order_seq_cst,
-               memory_order_seq_cst
+               kain_memory_order_from_code(success_ordering),
+               kain_memory_failure_order_from_code(failure_ordering)
            )
         ? 1
         : 0;
+}
+
+void __kain_atomic_fence(int64_t ordering) {
+    atomic_thread_fence(kain_memory_order_from_code(ordering));
+}
+
+int64_t __kain_atomic_load_seqcst(const void* ptr) {
+    return __kain_atomic_load_ordered(ptr, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+void __kain_atomic_store_seqcst(void* ptr, int64_t value) {
+    __kain_atomic_store_ordered(ptr, value, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+int64_t __kain_atomic_add_seqcst(void* ptr, int64_t delta) {
+    return __kain_atomic_add_ordered(ptr, delta, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+int64_t __kain_atomic_sub_seqcst(void* ptr, int64_t delta) {
+    return __kain_atomic_sub_ordered(ptr, delta, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+int64_t __kain_atomic_and_seqcst(void* ptr, int64_t mask) {
+    return __kain_atomic_and_ordered(ptr, mask, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+int64_t __kain_atomic_or_seqcst(void* ptr, int64_t bits) {
+    return __kain_atomic_or_ordered(ptr, bits, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+int64_t __kain_atomic_xor_seqcst(void* ptr, int64_t bits) {
+    return __kain_atomic_xor_ordered(ptr, bits, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+int64_t __kain_atomic_exchange_seqcst(void* ptr, int64_t value) {
+    return __kain_atomic_exchange_ordered(ptr, value, KAIN_MEMORY_ORDER_SEQ_CST);
+}
+
+int __kain_atomic_compare_exchange_seqcst(void* ptr, int64_t expected, int64_t desired) {
+    return __kain_atomic_compare_exchange_ordered(
+        ptr,
+        expected,
+        desired,
+        KAIN_MEMORY_ORDER_SEQ_CST,
+        KAIN_MEMORY_ORDER_SEQ_CST
+    );
 }
 
 /* ============================================================================

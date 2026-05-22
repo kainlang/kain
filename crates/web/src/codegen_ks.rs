@@ -775,6 +775,11 @@ impl KsGen {
                 self.dedent();
                 self.line("}");
             }
+            Stmt::Fanout { .. } => {
+                self.line(
+                    "throw new Error(\"Kain fanout is only supported on native LLVM targets\");",
+                );
+            }
             Stmt::Item(_) => { /* nested items hoisted to module scope by type checker */ }
         }
     }

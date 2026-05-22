@@ -127,6 +127,24 @@ platforms = ["windows", "linux"]
 description = "Canonical seq-cst atomic cell ABI for native shared-memory fanout and LLVM fallback surfaces"
 
 [[services]]
+key = "memory.volatile"
+name = "Volatile Memory Cells"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Byte-exact volatile load/store ABI for MMIO and externally-observed memory"
+
+[[services]]
+key = "memory.atomic-v2"
+name = "Ordered Atomic Cells"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Explicit memory-order atomic load/store/RMW/CAS/fence ABI including bitwise RMW operations"
+
+[[services]]
 key = "base.diagnostics"
 name = "Base Diagnostics"
 provider = "native-core"
@@ -141,6 +159,24 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "Runtime-published CPU feature bits for compiled converge selectors, including x86 AVX/AVX2/AVX-512 gates"
+
+[[services]]
+key = "machine.topology"
+name = "Machine Topology And Affinity"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Native logical-CPU count, thread identity, and current-thread affinity controls for systems blades"
+
+[[services]]
+key = "machine.virtual-memory"
+name = "Virtual Memory Pages"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Native page-size, map/unmap, and page-protection ABI for authored systems code"
 
 [[services]]
 key = "control.converge.autotune"
