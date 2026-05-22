@@ -1,0 +1,52 @@
+version: 1
+id: kain.native.core.proofs.actor_monitor_notification_leaks_relationship
+kind: check_smt2
+description: When kain_actor_notify_monitors notifies monitoring actors of an exit, it does not remove the monitor relationship, resulting in a permanent monitor record leak.
+tags:
+- native-runtime
+- actor
+- monitor
+- leak
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\actor.c
+  symbol: kain_actor_notify_monitors
+  start_line: 3200
+  reason: The exit notification loops through existing monitors but fails to dequeue or free the monitor record from the monitoring actor's list.
+case:
+  smt2: |
+    (set-logic ALL)
+
+    ; Define Actor State: Active (true) or Terminated/Dead (false)
+    (declare-const actor_exists Bool)
+    (declare-const monitor_exists Bool)
+
+    ; Initially, the monitor relationship is established
+    ; Therefore, both the monitored actor exists and the monitor node exists
+    (assert (= actor_exists true))
+    (assert (= monitor_exists true))
+
+    ; State Transition: Monitored Actor Terminated
+    ; The monitored actor transitions from active to dead.
+    (declare-const actor_exists_next Bool)
+    (declare-const monitor_exists_next Bool)
+
+    ; Transition rule: Monitored actor is terminated (dies)
+    (assert (= actor_exists_next false))
+
+    ; The implementation in actor.c's kain_actor_notify_monitors only sends a message
+    ; but does not clear or free the monitor record from the monitoring actor's list.
+    ; Therefore, monitor_exists_next remains true.
+    (assert (= monitor_exists_next monitor_exists))
+
+    ; Safety Property: If an actor is dead/terminated, no monitor node referencing its ID should exist.
+    ; SMT-LIB v2 uses => for logical implication instead of implies
+    (define-fun safety_invariant ((act_exists Bool) (mon_exists Bool)) Bool
+      (=> (not act_exists) (not mon_exists)))
+
+    ; We want to prove the invariant holds after the transition.
+    ; To find a bug (counterexample), we assert the negation of the safety invariant in the next state.
+    (assert (not (safety_invariant actor_exists_next monitor_exists_next)))
+
+    (check-sat)
+  include_model: true
+  include_stats: false

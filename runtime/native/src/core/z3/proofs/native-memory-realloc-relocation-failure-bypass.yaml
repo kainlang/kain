@@ -1,0 +1,60 @@
+version: 1
+id: kain.native.core.proofs.native_memory_realloc_relocation_failure_bypass
+kind: check_smt2
+description: When relocation fails but realloc relocates the physical memory block, __kain_realloc returns the new pointer but ownership tracks the old, causing metadata/heap split-brain.
+tags:
+- native-runtime
+- memory
+- realloc
+- relocation
+- bypass
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\memory.c
+  symbol: __kain_realloc
+  start_line: 569
+  reason: If __kain_ownership_relocate_helper_allocation fails, we return the payload regardless, leaving registry out-of-sync.
+case:
+  smt2: |
+    (set-logic ALL)
+
+    ; Define addresses as Int
+    (declare-const old_ptr Int)
+    (declare-const new_ptr Int)
+
+    ; Define if realloc moved the physical block
+    (declare-const realloc_moved Bool)
+
+    ; Define if the registry relocation succeeded
+    (declare-const relocate_success Bool)
+
+    ; Relationship between realloc moving and pointer values
+    (assert (=> realloc_moved (not (= old_ptr new_ptr))))
+    (assert (=> (not realloc_moved) (= old_ptr new_ptr)))
+
+    ; The physical block address returned by __kain_realloc
+    (declare-const returned_ptr Int)
+    (assert (= returned_ptr new_ptr))
+
+    ; The address tracked in the ownership registry after __kain_realloc completes
+    (declare-const registry_ptr_initial Int)
+    (declare-const registry_ptr_final Int)
+    (assert (= registry_ptr_initial old_ptr))
+
+    ; If relocation succeeds, we track the new pointer.
+    ; If relocation fails, __kain_realloc still returns new_ptr, but the registry retains old_ptr.
+    (assert (= registry_ptr_final (ite relocate_success new_ptr registry_ptr_initial)))
+
+    ; Safety Invariant: The pointer returned to the caller must match the pointer tracked in the registry.
+    (define-fun safety_invariant ((ret_ptr Int) (reg_ptr Int)) Bool
+      (= ret_ptr reg_ptr))
+
+    ; Target the bug case: relocation failed, but realloc moved the memory block.
+    (assert (not relocate_success))
+    (assert realloc_moved)
+
+    ; Assert the negation of the safety invariant in the final state to find a counterexample.
+    (assert (not (safety_invariant returned_ptr registry_ptr_final)))
+
+    (check-sat)
+  include_model: true
+  include_stats: false
