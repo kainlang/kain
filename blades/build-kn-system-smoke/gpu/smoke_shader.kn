@@ -1,0 +1,24 @@
+shader compute BuildKnSmokeStep(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    comptime:
+        let compute = (
+            [8, 1, 1],
+            [
+                ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("build_kn_smoke_step", "copy_stream", ["src"], ["dst"], false),
+            ],
+        )
+
+    let index = id.x
+    let input_value = src[index]
+    let pulse = input_value * 0.75 + input_value * input_value * 0.125
+    dst[index] = pulse
+    return vec4(pulse, pulse * 0.5, 1.0 - pulse * 0.25, 1.0)

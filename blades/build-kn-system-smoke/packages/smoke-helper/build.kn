@@ -1,0 +1,24 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = package("smoke-helper")
+        .version("0.1.0")
+        .description("Nested blade discovered by workspace_defaults() for workspace smoke coverage.")
+
+    let spec = blade("smoke-helper")
+        .kind("kain_library")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .build_target("llvm")
+
+    let check = build_check("helper-check")
+        .entry("src/main.kn")
+        .target("llvm")
+        .input("src/main.kn")
+        .input("build.kn")
+
+    return build_graph()
+        .package(pkg)
+        .blade(spec)
+        .task(check)

@@ -40,3 +40,21 @@ pub fn kaintana_action_pressed(action_session_id: Int, action: String) -> Int:
 
 pub fn kaintana_action_trace_text(action_session_id: Int) -> String:
     return input_trace_json(action_session_id)
+
+pub fn kaintana_action_push_key_down(action_session_id: Int, source_id: String, code: String) -> Int:
+    return input_push_key_down(action_session_id, source_id, code)
+
+pub fn kaintana_action_push_key_up(action_session_id: Int, source_id: String, code: String) -> Int:
+    return input_push_key_up(action_session_id, source_id, code)
+
+pub fn kaintana_action_push_axis(action_session_id: Int, source_kind: String, source_id: String, code: String, value: Float) -> Int:
+    return input_push_axis(action_session_id, source_kind, source_id, code, value)
+
+pub fn kaintana_action_frame_index(action_session_id: Int) -> Int:
+    return input_frame_index(action_session_id)
+
+pub fn kaintana_action_event_count(action_session_id: Int) -> Int:
+    return input_event_count(action_session_id)
+
+pub fn kaintana_action_axis_value(action_session_id: Int, axis: String) -> Float:
+    return input_axis_value(action_session_id, axis)

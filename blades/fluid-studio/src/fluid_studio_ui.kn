@@ -1,0 +1,193 @@
+use fluid_studio_state::*
+use kaintana_ui::*
+use types::KaintanaContext
+use types::KaintanaRect
+use types::KaintanaRenderResult
+use types::KaintanaWindowSpec
+use types::kaintana_rect
+
+pub struct FluidStudioUiLayout:
+    shell: KaintanaRect
+    top: KaintanaRect
+    left: KaintanaRect
+    viewport: KaintanaRect
+    right: KaintanaRect
+    bottom: KaintanaRect
+    left_inner: KaintanaRect
+    viewport_inner: KaintanaRect
+    right_inner: KaintanaRect
+    bottom_inner: KaintanaRect
+
+fn fluid_rect_max(value: Float, fallback: Float) -> Float:
+    if value >= fallback:
+        return value
+    return fallback
+
+fn fluid_window_rect(spec: KaintanaWindowSpec) -> KaintanaRect:
+    return kaintana_rect(0.0, 0.0, Float(spec.width), Float(spec.height))
+
+fn fluid_inset(rect: KaintanaRect, left: Float, top: Float, right: Float, bottom: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x + left, rect.y + top, fluid_rect_max(rect.width - left - right, 0.0), fluid_rect_max(rect.height - top - bottom, 0.0))
+
+fn fluid_split_left(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x, rect.y, fluid_rect_max((rect.width - gap) * fraction, 0.0), rect.height)
+
+fn fluid_split_right(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let left = fluid_split_left(rect, fraction, gap)
+    return kaintana_rect(left.x + left.width + gap, rect.y, fluid_rect_max(rect.width - left.width - gap, 0.0), rect.height)
+
+fn fluid_column_slot(rect: KaintanaRect, index_offset: Float, item_height: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x, rect.y + ((item_height + gap) * index_offset), rect.width, item_height)
+
+fn fluid_row_slot(rect: KaintanaRect, index_offset: Float, item_width: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x + ((item_width + gap) * index_offset), rect.y, item_width, rect.height)
+
+fn fluid_grid_cell(rect: KaintanaRect, columns: Float, rows: Float, column_index: Float, row_index: Float, gap_x: Float, gap_y: Float) -> KaintanaRect:
+    let safe_columns = fluid_rect_max(columns, 1.0)
+    let safe_rows = fluid_rect_max(rows, 1.0)
+    let cell_width = fluid_rect_max((rect.width - ((safe_columns - 1.0) * gap_x)) / safe_columns, 0.0)
+    let cell_height = fluid_rect_max((rect.height - ((safe_rows - 1.0) * gap_y)) / safe_rows, 0.0)
+    return kaintana_rect(rect.x + ((cell_width + gap_x) * column_index), rect.y + ((cell_height + gap_y) * row_index), cell_width, cell_height)
+
+pub fn fluid_ui_layout(spec: KaintanaWindowSpec) -> FluidStudioUiLayout:
+    let shell = fluid_inset(fluid_window_rect(spec), 28.0, 24.0, 28.0, 24.0)
+    let top = kaintana_rect(shell.x, shell.y, shell.width, 76.0)
+    let body = kaintana_rect(shell.x, shell.y + 92.0, shell.width, shell.height - 246.0)
+    let bottom = kaintana_rect(shell.x, shell.y + shell.height - 136.0, shell.width, 136.0)
+    let left = fluid_split_left(body, 0.235, 18.0)
+    let right = fluid_split_right(body, 0.775, 18.0)
+    let viewport = kaintana_rect(left.x + left.width + 18.0, body.y, right.x - (left.x + left.width + 36.0), body.height)
+    return FluidStudioUiLayout {
+        shell: shell,
+        top: top,
+        left: left,
+        viewport: viewport,
+        right: right,
+        bottom: bottom,
+        left_inner: fluid_inset(left, 18.0, 18.0, 18.0, 18.0),
+        viewport_inner: fluid_inset(viewport, 20.0, 18.0, 20.0, 18.0),
+        right_inner: fluid_inset(right, 18.0, 18.0, 18.0, 18.0),
+        bottom_inner: fluid_inset(bottom, 18.0, 16.0, 18.0, 16.0),
+    }
+
+fn fluid_panel(ctx: KaintanaContext, key: String, label: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaContext:
+    var builder = kaintana_panel(ui(ctx), label)
+    builder = kaintana_panel_key(builder, key)
+    builder = kaintana_panel_rect(builder, rect)
+    builder = kaintana_panel_font(builder, font, baseline)
+    let result = kaintana_panel_render(ctx, builder)
+    return result.ctx
+
+fn fluid_label(ctx: KaintanaContext, key: String, text: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaContext:
+    var builder = kaintana_label(ui(ctx), text)
+    builder = kaintana_label_key(builder, key)
+    builder = kaintana_label_rect(builder, rect)
+    builder = kaintana_label_font(builder, font, baseline)
+    let result = kaintana_label_render(ctx, builder)
+    return result.ctx
+
+fn fluid_muted_label(ctx: KaintanaContext, key: String, text: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaContext:
+    var builder = kaintana_label(ui(ctx), text)
+    builder = kaintana_label_key(builder, key)
+    builder = kaintana_label_rect(builder, rect)
+    builder = kaintana_label_font(builder, font, baseline)
+    builder = kaintana_label_muted(builder)
+    let result = kaintana_label_render(ctx, builder)
+    return result.ctx
+
+fn fluid_button(ctx: KaintanaContext, key: String, label: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaRenderResult:
+    var builder = kaintana_button(ui(ctx), label)
+    builder = kaintana_button_key(builder, key)
+    builder = kaintana_button_rect(builder, rect)
+    builder = kaintana_button_font(builder, font, baseline)
+    return kaintana_button_render(ctx, builder)
+
+fn fluid_slider(ctx: KaintanaContext, key: String, label: String, value: Float, min_value: Float, max_value: Float, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaRenderResult:
+    var builder = kaintana_slider(ui(ctx), label, value, min_value, max_value)
+    builder = kaintana_slider_key(builder, key)
+    builder = kaintana_slider_rect(builder, rect)
+    builder = kaintana_slider_font(builder, font, baseline)
+    return kaintana_slider_render(ctx, builder)
+
+fn fluid_metric(ctx: KaintanaContext, key: String, label: String, value: String, rect: KaintanaRect, font: Int) -> KaintanaContext:
+    var next = fluid_muted_label(ctx, key + ".k", label, kaintana_rect(rect.x, rect.y, rect.width * 0.42, rect.height), font, 16.0)
+    next = fluid_label(next, key + ".v", value, kaintana_rect(rect.x + rect.width * 0.44, rect.y, rect.width * 0.56, rect.height), font, 16.0)
+    return next
+
+pub fn fluid_render_ui(ctx: KaintanaContext, spec: KaintanaWindowSpec, session: FluidStudioSession, fonts: FluidUiFonts) -> FluidStudioUiFrame:
+    let settings = session.settings
+    let controls = session.controls
+    let runtime = session.runtime
+    let active = fluid_session_active_preset(session)
+    let layout = fluid_ui_layout(spec)
+    var next = ctx
+
+    next = fluid_panel(next, "fluid.top", "FLUID STUDIO // REALTIME GPU HYDRO LAB", layout.top, fonts.title_font, 42.0)
+    next = fluid_muted_label(next, "fluid.top.subtitle", "data-driven preset manifest, authored Kain compute kernels, Kaintana operator deck, Vulkain 3D presentation lane", kaintana_rect(layout.top.x + 516.0, layout.top.y + 24.0, layout.top.width - 544.0, 24.0), fonts.body_font, 20.0)
+
+    next = fluid_panel(next, "fluid.left", "PRESET MANIFEST", layout.left, fonts.badge_font, 24.0)
+    let preset_band = kaintana_rect(layout.left_inner.x, layout.left_inner.y + 12.0, layout.left_inner.width, 228.0)
+    let preset_a = fluid_button(next, "preset.a", fluid_preset_button_label(session.preset_a), fluid_grid_cell(preset_band, 1.0, 4.0, 0.0, 0.0, 0.0, 12.0), fonts.micro_font, 20.0)
+    next = preset_a.ctx
+    let preset_b = fluid_button(next, "preset.b", fluid_preset_button_label(session.preset_b), fluid_grid_cell(preset_band, 1.0, 4.0, 0.0, 1.0, 0.0, 12.0), fonts.micro_font, 20.0)
+    next = preset_b.ctx
+    let preset_c = fluid_button(next, "preset.c", fluid_preset_button_label(session.preset_c), fluid_grid_cell(preset_band, 1.0, 4.0, 0.0, 2.0, 0.0, 12.0), fonts.micro_font, 20.0)
+    next = preset_c.ctx
+    let preset_d = fluid_button(next, "preset.d", fluid_preset_button_label(session.preset_d), fluid_grid_cell(preset_band, 1.0, 4.0, 0.0, 3.0, 0.0, 12.0), fonts.micro_font, 20.0)
+    next = preset_d.ctx
+    next = fluid_label(next, "preset.active", active.label, kaintana_rect(layout.left_inner.x, layout.left_inner.y + 270.0, layout.left_inner.width, 24.0), fonts.body_font, 20.0)
+    next = fluid_muted_label(next, "preset.copy", active.description, kaintana_rect(layout.left_inner.x, layout.left_inner.y + 304.0, layout.left_inner.width, 62.0), fonts.micro_font, 16.0)
+    next = fluid_muted_label(next, "preset.note", "The manifest owns the preset vocabulary; the app only lifts typed values into controls and scene packets.", kaintana_rect(layout.left_inner.x, layout.left_inner.y + 380.0, layout.left_inner.width, 48.0), fonts.micro_font, 16.0)
+
+    next = fluid_panel(next, "fluid.viewport", "3D FLOW PREVIEW", layout.viewport, fonts.badge_font, 24.0)
+    next = fluid_label(next, "viewport.headline", fluid_runtime_headline(runtime), kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 40.0, layout.viewport_inner.width, 28.0), fonts.title_font, 26.0)
+    next = fluid_muted_label(next, "viewport.copy", "Vulkain consumes the Kain-authored packet below this overlay while the compute lane stays authored in `src/fluid_compute.kn`.", kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 84.0, layout.viewport_inner.width, 28.0), fonts.body_font, 20.0)
+    next = fluid_muted_label(next, "viewport.camera", "camera // RMB orbit, W/S dolly, arrows + Q/E pan // preset colors come from the custom Kain fragment shader", kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 112.0, layout.viewport_inner.width, 22.0), fonts.micro_font, 16.0)
+    next = fluid_metric(next, "viewport.metric.grid", "grid volume", fluid_grid_label(settings), kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 148.0, 260.0, 24.0), fonts.micro_font)
+    next = fluid_metric(next, "viewport.metric.shaders", "surface entry", settings.render.fragment_entry_point, kaintana_rect(layout.viewport_inner.x + 280.0, layout.viewport_inner.y + 148.0, 310.0, 24.0), fonts.micro_font)
+    next = fluid_metric(next, "viewport.metric.energy", "render energy", str(runtime.sim_energy), kaintana_rect(layout.viewport_inner.x + 610.0, layout.viewport_inner.y + 148.0, 240.0, 24.0), fonts.micro_font)
+    next = fluid_muted_label(next, "viewport.manifest", fluid_preset_overview(active), kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 188.0, layout.viewport_inner.width, 44.0), fonts.micro_font, 16.0)
+
+    next = fluid_panel(next, "fluid.right", "SIM INSPECTOR", layout.right, fonts.badge_font, 24.0)
+    next = fluid_metric(next, "inspector.preset_count", "manifest presets", str(session.reference.preset_count), fluid_column_slot(layout.right_inner, 1.0, 24.0, 8.0), fonts.micro_font)
+    next = fluid_metric(next, "inspector.config_hash", "config hash", str(session.reference.config_hash), fluid_column_slot(layout.right_inner, 2.0, 24.0, 8.0), fonts.micro_font)
+    next = fluid_metric(next, "inspector.particles", "particle budget", str(controls.particle_count), fluid_column_slot(layout.right_inner, 3.0, 24.0, 8.0), fonts.micro_font)
+    next = fluid_metric(next, "inspector.iterations", "solver iterations", str(controls.solver_iterations), fluid_column_slot(layout.right_inner, 4.0, 24.0, 8.0), fonts.micro_font)
+    next = fluid_metric(next, "inspector.swirl", "swirl milli", str(fluid_to_milli(controls.swirl_gain)), fluid_column_slot(layout.right_inner, 5.0, 24.0, 8.0), fonts.micro_font)
+    next = fluid_metric(next, "inspector.dissipation", "dissipation milli", str(fluid_to_milli(controls.dissipation)), fluid_column_slot(layout.right_inner, 6.0, 24.0, 8.0), fonts.micro_font)
+    next = fluid_metric(next, "inspector.platform", "platform", fluid_session_platform_status(session), fluid_column_slot(layout.right_inner, 7.0, 24.0, 8.0), fonts.micro_font)
+    next = fluid_metric(next, "inspector.lane", "pipeline", fluid_session_lane_summary(session), kaintana_rect(layout.right_inner.x, layout.right_inner.y + 248.0, layout.right_inner.width, 48.0), fonts.micro_font)
+    next = fluid_muted_label(next, "inspector.note", "Kaintana owns widget composition. The blade owns session policy, reports, semantic simulation, and the exact Vulkain packet.", kaintana_rect(layout.right_inner.x, layout.right_inner.y + 312.0, layout.right_inner.width, 56.0), fonts.micro_font, 16.0)
+
+    next = fluid_panel(next, "fluid.bottom", "FLOW CONTROLS", layout.bottom, fonts.badge_font, 24.0)
+    let particle_slider = fluid_slider(next, "slider.particles", "Particles", Float(controls.particle_count), Float(FLUID_STUDIO_MIN_PARTICLES), Float(FLUID_STUDIO_MAX_PARTICLES), fluid_row_slot(layout.bottom_inner, 0.0, 220.0, 12.0), fonts.micro_font, 18.0)
+    next = particle_slider.ctx
+    let iteration_slider = fluid_slider(next, "slider.iterations", "Iterations", Float(controls.solver_iterations), Float(FLUID_STUDIO_MIN_SOLVER_ITERS), Float(FLUID_STUDIO_MAX_SOLVER_ITERS), fluid_row_slot(layout.bottom_inner, 1.0, 220.0, 12.0), fonts.micro_font, 18.0)
+    next = iteration_slider.ctx
+    let swirl_slider = fluid_slider(next, "slider.swirl", "Swirl", controls.swirl_gain, 0.0, 1.0, fluid_row_slot(layout.bottom_inner, 2.0, 180.0, 12.0), fonts.micro_font, 18.0)
+    next = swirl_slider.ctx
+    let buoyancy_slider = fluid_slider(next, "slider.buoyancy", "Buoyancy", controls.buoyancy, 0.0, 1.0, fluid_row_slot(layout.bottom_inner, 3.0, 180.0, 12.0), fonts.micro_font, 18.0)
+    next = buoyancy_slider.ctx
+    let dissipation_slider = fluid_slider(next, "slider.dissipation", "Dissipation", controls.dissipation, 0.80, 1.0, fluid_row_slot(layout.bottom_inner, 4.0, 180.0, 12.0), fonts.micro_font, 18.0)
+    next = dissipation_slider.ctx
+    let impulse_slider = fluid_slider(next, "slider.impulse", "Impulse", controls.impulse, 0.0, 1.0, fluid_row_slot(layout.bottom_inner, 5.0, 180.0, 12.0), fonts.micro_font, 18.0)
+    next = impulse_slider.ctx
+    let temperature_slider = fluid_slider(next, "slider.temperature", "Heat", controls.temperature, 0.0, 1.0, fluid_row_slot(layout.bottom_inner, 6.0, 180.0, 12.0), fonts.micro_font, 18.0)
+    next = temperature_slider.ctx
+    let hue_slider = fluid_slider(next, "slider.hue", "Hue", controls.hue, 0.0, 1.0, fluid_row_slot(layout.bottom_inner, 7.0, 180.0, 12.0), fonts.micro_font, 18.0)
+    next = hue_slider.ctx
+
+    return FluidStudioUiFrame {
+        particle_count_value: particle_slider.value,
+        solver_iterations_value: iteration_slider.value,
+        swirl_value: swirl_slider.value,
+        buoyancy_value: buoyancy_slider.value,
+        dissipation_value: dissipation_slider.value,
+        impulse_value: impulse_slider.value,
+        temperature_value: temperature_slider.value,
+        hue_value: hue_slider.value,
+        preset_a_activated: preset_a.activated,
+        preset_b_activated: preset_b.activated,
+        preset_c_activated: preset_c.activated,
+        preset_d_activated: preset_d.activated,
+    }

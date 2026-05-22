@@ -27,6 +27,22 @@ Use this when changing a blade, package, or workspace pipeline:
 
 `KAIN.toml` still works and still owns compatibility metadata not yet promoted into script authority, especially current C-FFI library declarations. When both exist, `build.kn` is the explicit task authority and `KAIN.toml` contributes defaults/legacy metadata.
 
+## Workspace Authority
+
+`build.kn` can also own workspace discovery directly through `std::build::workspace_defaults()`.
+
+```kn
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let ws = workspace_defaults()
+        .blade_pattern("packages/*")
+        .search_root("packages")
+    return build_graph().workspace(ws)
+```
+
+This is the root-authority lane for script-only workspaces: no `KAIN.toml` is required just to discover nested blades, choose generated roots, or steer search patterns.
+
 ## Task Kinds
 
 `check` runs `kain-check` against a Kain entry.
@@ -142,5 +158,6 @@ The first real adopters are:
 - `blades/kloner/build.kn`: check, source-test, root executable, certify.
 - `blades/kaintana/build.kn`: check, source-test, Z3 proof, root executable, certify.
 - `blades/kaintana-test/build.kn`: consumer check, source-test, root executable, certify.
+- `blades/build-kn-system-smoke/build.kn`: script-only root workspace authority, nested blade discovery via `workspace_defaults()`, polyglot adapter tasks, evidence DAG execution, capability skip behavior, and negative planner fixtures.
 
 These scripts intentionally keep C-FFI libraries in `KAIN.toml` until that metadata is promoted into build script authority. The task graph itself now lives in `build.kn`.

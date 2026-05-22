@@ -4706,6 +4706,78 @@ fn build(ctx: BuildContext) -> BuildGraph:
     }
 
     #[test]
+    fn build_graph_extracts_polyglot_adapter_tasks() {
+        let source = r#"
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let cargo = build_task("cargo-helper")
+        .kind("cargo")
+        .manifest("tools/cargo-helper/Cargo.toml")
+    let bridge = build_task("bridge-c")
+        .kind("c-shared-library")
+        .entry("native/smoke_bridge.h")
+        .input("native/smoke_bridge.c")
+        .output("$task/smoke_bridge.dll")
+    let gpu = build_task("gpu-smoke")
+        .kind("gpu")
+        .entry("gpu/smoke_shader.kn")
+        .output("$task/smoke_shader")
+    let fabric = build_task("fabric-validate")
+        .kind("fabric-validate")
+        .manifest("KAIN.fabric.toml")
+    let nodeish = build_task("node-ish")
+        .kind("node")
+        .command("python")
+        .arg("scripts/echo_lane.py")
+        .arg("--lane")
+        .arg("node")
+    let bunish = build_task("bun-ish")
+        .kind("bun")
+        .command("python")
+        .arg("scripts/echo_lane.py")
+        .arg("--lane")
+        .arg("bun")
+    return build_graph()
+        .task(cargo)
+        .task(bridge)
+        .task(gpu)
+        .task(fabric)
+        .task(nodeish)
+        .task(bunish)
+"#;
+
+        let tasks = extract_build_graph_explicit_tasks(source);
+        let by_id = tasks
+            .iter()
+            .map(|task| (task.id.as_str(), task))
+            .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(by_id["cargo-helper"].kind, "cargo");
+        assert_eq!(
+            by_id["cargo-helper"].manifest,
+            Some(PathBuf::from("tools/cargo-helper/Cargo.toml"))
+        );
+        assert_eq!(by_id["bridge-c"].kind, "c-shared-library");
+        assert_eq!(
+            by_id["bridge-c"].outputs,
+            vec![PathBuf::from("$task/smoke_bridge.dll")]
+        );
+        assert_eq!(by_id["gpu-smoke"].kind, "gpu");
+        assert_eq!(by_id["fabric-validate"].kind, "fabric-validate");
+        assert_eq!(by_id["node-ish"].kind, "node");
+        assert_eq!(
+            by_id["node-ish"].args,
+            vec![
+                "scripts/echo_lane.py".to_string(),
+                "--lane".to_string(),
+                "node".to_string()
+            ]
+        );
+        assert_eq!(by_id["bun-ish"].kind, "bun");
+    }
+
+    #[test]
     fn standalone_task_root_uses_host_lane_target_unit_schema() {
         let root = std::env::current_dir().expect("cwd");
         let config = StandaloneBuildConfig::new(

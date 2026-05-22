@@ -1,0 +1,10 @@
+shader fragment FluidStudioMeshSurface(mesh_color: Vec3) -> Vec4:
+    let lift = (mesh_color.x + mesh_color.y + mesh_color.z) / 3.0
+    let vort = fbm2(vec2(mesh_color.x + lift * 0.35, mesh_color.z + mesh_color.y * 0.5), 4)
+    let palette = hsv_to_rgb(Hsv { h: frac_scalar(lift * 0.17 + vort * 0.08 + 0.56), s: 0.78, v: 1.0 })
+    return vec4(
+        palette.x * 0.72 + mesh_color.x * 0.18 + vort * 0.10,
+        palette.y * 0.76 + mesh_color.y * 0.14 + lift * 0.10,
+        palette.z * 0.84 + mesh_color.z * 0.08 + lift * 0.08,
+        1.0
+    )

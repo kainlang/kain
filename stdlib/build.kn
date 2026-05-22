@@ -35,6 +35,15 @@ pub struct BuildDefaultsSpec:
     profile_value: String
     target_value: String
 
+pub struct WorkspaceDefaultsSpec:
+    blade_patterns: Array<String>
+    blade_roots: Array<String>
+    members: Array<String>
+    search_roots: Array<String>
+    stdlib_root_path: String
+    manifest_root_path: String
+    generated_root_path: String
+
 pub struct RunDefaultsSpec:
     entry_path: String
     target_value: String
@@ -102,6 +111,17 @@ pub fn build_defaults() -> BuildDefaultsSpec:
         cache_root_path: "",
         profile_value: "",
         target_value: ""
+    }
+
+pub fn workspace_defaults() -> WorkspaceDefaultsSpec:
+    return WorkspaceDefaultsSpec {
+        blade_patterns: [],
+        blade_roots: [],
+        members: [],
+        search_roots: [],
+        stdlib_root_path: "",
+        manifest_root_path: "",
+        generated_root_path: ""
     }
 
 pub fn run_defaults() -> RunDefaultsSpec:
@@ -224,6 +244,54 @@ impl BuildDefaultsSpec:
     fn target(_self: Self_, value: String) -> BuildDefaultsSpec:
         let mut next = _self
         next.target_value = value
+        return next
+
+impl WorkspaceDefaultsSpec:
+    fn blade_pattern(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        let mut next = _self
+        push(next.blade_patterns, path)
+        return next
+
+    fn blades(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        return _self.blade_pattern(path)
+
+    fn blade_root(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        let mut next = _self
+        push(next.blade_roots, path)
+        return next
+
+    fn blade_roots(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        return _self.blade_root(path)
+
+    fn member(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        let mut next = _self
+        push(next.members, path)
+        return next
+
+    fn members(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        return _self.member(path)
+
+    fn search_root(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        let mut next = _self
+        push(next.search_roots, path)
+        return next
+
+    fn search_roots(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        return _self.search_root(path)
+
+    fn stdlib_root(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        let mut next = _self
+        next.stdlib_root_path = path
+        return next
+
+    fn manifest_root(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        let mut next = _self
+        next.manifest_root_path = path
+        return next
+
+    fn generated_root(_self: Self_, path: String) -> WorkspaceDefaultsSpec:
+        let mut next = _self
+        next.generated_root_path = path
         return next
 
 impl RunDefaultsSpec:
@@ -394,6 +462,9 @@ impl BuildGraphSpec:
         return next
 
     fn defaults(_self: Self_, value: BuildDefaultsSpec) -> BuildGraphSpec:
+        return _self
+
+    fn workspace(_self: Self_, value: WorkspaceDefaultsSpec) -> BuildGraphSpec:
         return _self
 
     fn run(_self: Self_, value: RunDefaultsSpec) -> BuildGraphSpec:

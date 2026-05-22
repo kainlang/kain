@@ -1960,9 +1960,11 @@ fn build(ctx: BuildContext) -> BuildGraph:
         kfs::write_text(
             tmp.path().join("build.kn"),
             r#"
+use std::build
+
 fn build(ctx: BuildContext) -> BuildGraph:
     let ws = workspace_defaults().blade_pattern("packages/*")
-    return build_graph()
+    return build_graph().workspace(ws)
 "#,
         )
         .unwrap();

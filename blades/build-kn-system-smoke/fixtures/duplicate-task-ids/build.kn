@@ -1,0 +1,22 @@
+use std::build
+use std::test
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("duplicate-task-ids")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .build_target("llvm")
+
+    let first = build_check("repeat")
+        .entry("src/main.kn")
+        .target("llvm")
+
+    let second = test_suite("repeat")
+        .entry("src/main.kn")
+        .target("llvm")
+
+    return build_graph()
+        .blade(spec)
+        .task(first)
+        .task(second)

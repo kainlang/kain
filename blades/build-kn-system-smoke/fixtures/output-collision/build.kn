@@ -1,0 +1,21 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("output-collision")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .build_target("llvm")
+
+    let first = native_executable("first")
+        .entry("src/main.kn")
+        .root_output("$root/bin/collision.exe")
+
+    let second = native_executable("second")
+        .entry("src/main.kn")
+        .root_output("$root/bin/collision.exe")
+
+    return build_graph()
+        .blade(spec)
+        .task(first)
+        .task(second)
