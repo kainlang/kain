@@ -1,0 +1,44 @@
+use std::runtime
+use std::memory
+
+pub fn smoke_ownership_lane() -> Int:
+    let stride: Int = sizeof_type("Int")
+    let mut heap_cell: ptr<Int> = alloc_zeroed(stride, "Int")
+    mem_store(heap_cell, 21, "Int")
+
+    let heap_observed: Int = observe heap_cell:
+        mem_load(heap_cell, "Int")
+    if heap_observed != 21:
+        return 1
+
+    let heap_collapsed: Int = collapse heap_cell:
+        let current: Int = mem_load(heap_cell, "Int")
+        mem_store(heap_cell, current + 21, "Int")
+        mem_load(heap_cell, "Int")
+    if heap_collapsed != 42:
+        return 2
+
+    let heap_reobserved: Int = observe heap_cell:
+        mem_load(heap_cell, "Int")
+    if heap_reobserved != 42:
+        return 3
+
+    decay heap_cell
+
+    var imported_value: Int = 5
+    let imported_cell: ptr<Int> = addr_of(imported_value, "Int")
+    let imported_observed: Int = observe imported_cell:
+        mem_load(imported_cell, "Int")
+    if imported_observed != 5:
+        return 4
+
+    let imported_collapsed: Int = collapse imported_cell:
+        mem_store(imported_cell, imported_observed + 8, "Int")
+        mem_load(imported_cell, "Int")
+    if imported_collapsed != 13:
+        return 5
+
+    decay imported_cell
+    if imported_value != 13:
+        return 6
+    return 0

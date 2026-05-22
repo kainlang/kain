@@ -1817,6 +1817,29 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
             expr_to_string(desired)
         ),
         Expr::AtomicFence { .. } => "atomic_fence()".to_string(),
+        Expr::CpuFence { kind, .. } => format!("{}()", kind.intrinsic_name()),
+        Expr::CpuCacheFlush { pointer, .. } => {
+            format!("clflush({})", expr_to_string(pointer))
+        }
+        Expr::InlineAsm {
+            template,
+            operands,
+            options,
+            ..
+        } => {
+            let mut parts = vec![format!("{template:?}")];
+            parts.extend(operands.iter().map(expr_to_string));
+            if !options.volatile {
+                parts.push("volatile = false".to_string());
+            }
+            if options.memory {
+                parts.push("memory = true".to_string());
+            }
+            if options.intel {
+                parts.push("intel = true".to_string());
+            }
+            format!("asm({})", parts.join(", "))
+        }
         Expr::SizeOfType { target, .. } => {
             format!("sizeof_type({:?})", type_to_string(target))
         }

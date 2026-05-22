@@ -2102,6 +2102,31 @@ impl SourceFormatter {
             Expr::AtomicFence { ordering, .. } => {
                 format!("atomic_fence({})", self.quote_string(ordering.as_str()))
             }
+            Expr::CpuFence { kind, .. } => format!("{}()", kind.intrinsic_name()),
+            Expr::CpuCacheFlush { pointer, .. } => {
+                format!("clflush({})", self.format_expr(pointer)?)
+            }
+            Expr::InlineAsm {
+                template,
+                operands,
+                options,
+                ..
+            } => {
+                let mut parts = vec![self.quote_string(template)];
+                for operand in operands {
+                    parts.push(self.format_expr(operand)?);
+                }
+                if !options.volatile {
+                    parts.push("volatile = false".to_string());
+                }
+                if options.memory {
+                    parts.push("memory = true".to_string());
+                }
+                if options.intel {
+                    parts.push("intel = true".to_string());
+                }
+                format!("asm({})", parts.join(", "))
+            }
             Expr::SizeOfType { target, .. } => {
                 format!(
                     "sizeof_type({})",

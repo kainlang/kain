@@ -1,0 +1,19 @@
+use std::runtime
+use std::machine
+use world::SmokeAuthority
+use world::SmokeMirror
+use shatter::SmokeShard
+
+pub fn smoke_teleport_lane() -> Int:
+    let shard = SmokeShard { bias: 42, phase: 7, salt: 13, alive: true }
+    let moved = teleport shard from SmokeAuthority to SmokeMirror via smoke_teleport_bus
+    if moved.bias != 42:
+        return 1
+    if moved.phase != 7:
+        return 2
+    if moved.alive != true:
+        return 3
+    let teleport_count = runtime_machine_teleport_count()
+    if teleport_count < 1:
+        return 4
+    return 0

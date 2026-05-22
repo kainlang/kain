@@ -1,0 +1,19 @@
+use std::runtime
+use std::fs
+
+pub fn smoke_fs_lane() -> Int:
+    let temp = fs_temp_file("smoke-fs-lane")
+    fs_write_text(temp, "kain")
+    fs_append_text(temp, "-smoke")
+    let content = fs_read_text(temp)
+    if content != "kain-smoke":
+        return 1
+    if fs_exists(temp) == false:
+        return 2
+    if fs_is_file(temp) == false:
+        return 3
+    let byte_hex = fs_read_byte_range_hex(temp, 0, 4)
+    if byte_hex != "6b61696e":
+        return 4
+    fs_remove_file(temp)
+    return 0

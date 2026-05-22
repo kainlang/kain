@@ -1,0 +1,186 @@
+use std::runtime
+use std::intent
+use std::machine
+
+// Semantics tracks
+use types::smoke_types_lane
+use types::SMOKE_MODULUS
+use control::smoke_control_lane
+use effects::smoke_effects_lane
+use option_result::smoke_option_result_lane
+use async_future::smoke_async_lane
+use world::smoke_world_lane
+use entangle::smoke_entangle_lane
+use law::smoke_law_lane
+use patch::smoke_patch_lane
+use actor::smoke_actor_lane
+use converge::smoke_converge_lane
+use orchestrate::smoke_orchestrate_lane
+use axiom::smoke_axiom_lane
+use shatter::smoke_shatter_lane
+use pulse::smoke_pulse_lane
+use teleport::smoke_teleport_lane
+use comptime::smoke_comptime_lane
+
+// Systems tracks
+use memory::smoke_memory_lane
+use memory::smoke_alloc_cells
+use ownership::smoke_ownership_lane
+
+// Stdlib tracks
+use collections_lane::smoke_collections_lane
+use crypto_lane::smoke_crypto_lane
+use text_lane::smoke_text_lane
+use fs_lane::smoke_fs_lane
+use alloc_lane::smoke_alloc_lane
+use math_lane::smoke_math_lane
+use time_lane::smoke_time_lane
+use diagnostics_lane::smoke_diagnostics_lane
+use platform_lane::smoke_platform_lane
+
+// Interop track
+use c_bridge::smoke_c_bridge_lane
+
+fn first_error(offset: Int, lane_result: Int) -> Int:
+    if lane_result != 0:
+        return offset + lane_result
+    return 0
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 10 + boot
+
+    // ── Semantics ────────────────────────────────────
+    let e_types = first_error(100, smoke_types_lane())
+    if e_types != 0:
+        return e_types
+
+    let e_control = first_error(200, smoke_control_lane())
+    if e_control != 0:
+        return e_control
+
+    let e_effects = first_error(300, smoke_effects_lane())
+    if e_effects != 0:
+        return e_effects
+
+    let e_option = first_error(400, smoke_option_result_lane())
+    if e_option != 0:
+        return e_option
+
+    let e_async = first_error(500, smoke_async_lane())
+    if e_async != 0:
+        return e_async
+
+    let e_world = first_error(600, smoke_world_lane())
+    if e_world != 0:
+        return e_world
+
+    let e_entangle = first_error(700, smoke_entangle_lane())
+    if e_entangle != 0:
+        return e_entangle
+
+    let e_law = first_error(800, smoke_law_lane())
+    if e_law != 0:
+        return e_law
+
+    let e_patch = first_error(900, smoke_patch_lane())
+    if e_patch != 0:
+        return e_patch
+
+    let e_actor = first_error(1000, smoke_actor_lane())
+    if e_actor != 0:
+        return e_actor
+
+    let e_converge = first_error(1100, smoke_converge_lane())
+    if e_converge != 0:
+        return e_converge
+
+    let e_orchestrate = first_error(1200, smoke_orchestrate_lane())
+    if e_orchestrate != 0:
+        return e_orchestrate
+
+    let e_axiom = first_error(1300, smoke_axiom_lane())
+    if e_axiom != 0:
+        return e_axiom
+
+    let e_shatter = first_error(1400, smoke_shatter_lane())
+    if e_shatter != 0:
+        return e_shatter
+
+    let e_pulse = first_error(1500, smoke_pulse_lane())
+    if e_pulse != 0:
+        return e_pulse
+
+    let e_teleport = first_error(1600, smoke_teleport_lane())
+    if e_teleport != 0:
+        return e_teleport
+
+    let e_comptime = first_error(1700, smoke_comptime_lane())
+    if e_comptime != 0:
+        return e_comptime
+
+    // ── Systems ──────────────────────────────────────
+    let e_memory = first_error(1800, smoke_memory_lane())
+    if e_memory != 0:
+        return e_memory
+
+    let e_ownership = first_error(1900, smoke_ownership_lane())
+    if e_ownership != 0:
+        return e_ownership
+
+    // ── Stdlib ───────────────────────────────────────
+    let e_collections = first_error(2000, smoke_collections_lane())
+    if e_collections != 0:
+        return e_collections
+
+    let e_crypto = first_error(2100, smoke_crypto_lane())
+    if e_crypto != 0:
+        return e_crypto
+
+    let e_text = first_error(2200, smoke_text_lane())
+    if e_text != 0:
+        return e_text
+
+    let e_fs = first_error(2300, smoke_fs_lane())
+    if e_fs != 0:
+        return e_fs
+
+    let e_alloc = first_error(2400, smoke_alloc_lane())
+    if e_alloc != 0:
+        return e_alloc
+
+    let e_math = first_error(2500, smoke_math_lane())
+    if e_math != 0:
+        return e_math
+
+    let e_time = first_error(2600, smoke_time_lane())
+    if e_time != 0:
+        return e_time
+
+    let e_diagnostics = first_error(2700, smoke_diagnostics_lane())
+    if e_diagnostics != 0:
+        return e_diagnostics
+
+    let e_platform = first_error(2800, smoke_platform_lane())
+    if e_platform != 0:
+        return e_platform
+
+    // ── Interop ──────────────────────────────────────
+    let e_bridge = first_error(2900, smoke_c_bridge_lane())
+    if e_bridge != 0:
+        return e_bridge
+
+    // ── Shape validation ─────────────────────────────
+    let shape_ok =
+        converge_mismatch_count() == 0 and
+        runtime_heap_validate() >= 0 and
+        patch_journal_count() >= 1 and
+        entangle_propagation_count() >= 1
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 9000 + shutdown
+    if shape_ok == false:
+        return 9999
+    return 0

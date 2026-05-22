@@ -1153,6 +1153,25 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             vec![atomic_ordering_literal(*ordering, span)],
             span,
         ),
+        Expr::CpuFence { kind, .. } => Expr::CpuFence { kind: *kind, span },
+        Expr::CpuCacheFlush { pointer, .. } => Expr::CpuCacheFlush {
+            pointer: Box::new(lower_expr_memory_with_ctx(pointer, ctx)),
+            span,
+        },
+        Expr::InlineAsm {
+            template,
+            operands,
+            options,
+            ..
+        } => Expr::InlineAsm {
+            template: template.clone(),
+            operands: operands
+                .iter()
+                .map(|operand| lower_expr_memory_with_ctx(operand, ctx))
+                .collect(),
+            options: *options,
+            span,
+        },
         Expr::SizeOfType { target, .. } => Expr::Int(
             size_literal_i64_or_panic(
                 estimate_type_size(target, ctx.layouts),
@@ -2968,6 +2987,12 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
             Some(format!("{base}: atomic compare_exchange expression"))
         }
         Expr::AtomicFence { .. } => Some(format!("{base}: atomic fence expression")),
+        Expr::CpuFence { kind, .. } => Some(format!(
+            "{base}: {} instruction expression",
+            kind.intrinsic_name()
+        )),
+        Expr::CpuCacheFlush { .. } => Some(format!("{base}: cache-line flush expression")),
+        Expr::InlineAsm { .. } => Some(format!("{base}: inline asm expression")),
         Expr::SizeOfType { .. }
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }

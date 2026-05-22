@@ -1,0 +1,26 @@
+use std::runtime
+use std::memory
+
+pub fn smoke_alloc_cells(count: Int) -> ptr<Int>:
+    return alloc_zeroed(count, "Int")
+
+pub fn smoke_memory_lane() -> Int with Unsafe:
+    let stride: Int = sizeof_type("Int")
+    let mut p: ptr<Int> = alloc_zeroed(stride, "Int")
+    mem_store(p, 7, "Int")
+
+    let mut q: ptr<Int> = realloc_mem(p, (2 * stride), "Int", true)
+    let preserved: Int = mem_load(q, "Int")
+    let grown: Int = mem_load(ptr_offset(q, 1, "Int"), "Int")
+
+    if preserved != 7:
+        return 1
+    if grown != 0:
+        return 2
+
+    mem_store(ptr_offset(q, 1, "Int"), 13, "Int")
+    let second: Int = mem_load(ptr_offset(q, 1, "Int"), "Int")
+    if second != 13:
+        return 3
+
+    return 0

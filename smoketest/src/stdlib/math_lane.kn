@@ -1,0 +1,39 @@
+use std::runtime
+use std::math
+
+fn smoke_approx(a: Float, b: Float) -> Bool:
+    return abs(a - b) <= 0.01
+
+pub fn smoke_math_lane() -> Int:
+    let v = vec3(3.0, 4.0, 0.0)
+    let length = vec3_length(v)
+    if smoke_approx(length, 5.0) == false:
+        return 1
+
+    let n = vec3_normalize_or_zero(v)
+    if vec3_distance(n, vec3(0.6, 0.8, 0.0)) > 0.01:
+        return 2
+
+    let q = quat_from_axis_angle(vec3_up(), half_pi())
+    let rotated = quat_rotate_vec3(q, vec3(1.0, 0.0, 0.0))
+    if abs(vec3_dot(rotated, vec3_forward())) < 0.99:
+        return 3
+
+    let m = mat4_from_trs(vec3(1.0, 2.0, 3.0), q, vec3_one())
+    let p = mat4_transform_point(m, rotated)
+    if smoke_approx(vec3_dot(p, vec3_up()), 2.0) == false:
+        return 4
+
+    let color = hsv_to_rgb(Hsv { h: 0.0, s: 1.0, v: 1.0 })
+    if vec3_distance(color, vec3(1.0, 0.0, 0.0)) > 0.06:
+        return 5
+
+    let noise = fbm2(vec2(0.31, 0.73), 4)
+    if noise < 0.0:
+        return 6
+
+    let packed = pack_rgba_to_u32(color_rgba(1.0, 0.5, 0.0, 1.0))
+    if packed <= 0:
+        return 7
+
+    return 0

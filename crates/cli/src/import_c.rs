@@ -1290,6 +1290,31 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
             ),
         },
         kain_core::ast::Expr::AtomicFence { .. } => "atomic_fence()".to_string(),
+        kain_core::ast::Expr::CpuFence { kind, .. } => {
+            format!("{}()", kind.intrinsic_name())
+        }
+        kain_core::ast::Expr::CpuCacheFlush { pointer, .. } => {
+            format!("clflush({})", expr_to_string(pointer))
+        }
+        kain_core::ast::Expr::InlineAsm {
+            template,
+            operands,
+            options,
+            ..
+        } => {
+            let mut parts = vec![format!("{template:?}")];
+            parts.extend(operands.iter().map(expr_to_string));
+            if !options.volatile {
+                parts.push("volatile = false".to_string());
+            }
+            if options.memory {
+                parts.push("memory = true".to_string());
+            }
+            if options.intel {
+                parts.push("intel = true".to_string());
+            }
+            format!("asm({})", parts.join(", "))
+        }
         kain_core::ast::Expr::SizeOfType { target, .. } => {
             format!("sizeof_type(\"{}\")", type_to_string(target))
         }

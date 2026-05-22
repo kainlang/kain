@@ -1,0 +1,18 @@
+use std::runtime
+use std::intent
+use world::SmokeAuthority
+
+patch smoke_commit_signal(authority: SmokeAuthority, value: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.health = int_clamp(authority.health + 1, 0, 1000000)
+    return authority.signal
+
+pub fn smoke_patch_lane() -> Int:
+    let authority = SmokeAuthority
+    let committed = smoke_commit_signal(authority, 77)
+    if patch_journal_count() < 1:
+        return 1
+    if entangle_propagation_count() < 1:
+        return 2
+    return 0

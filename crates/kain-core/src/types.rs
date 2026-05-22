@@ -23,7 +23,7 @@ use kain_ownership::{
     SHARE_KEYWORD,
 };
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Type-checked AST node
 #[derive(Debug, Clone)]
@@ -382,7 +382,10 @@ fn resolved_type_supports_bitcast(ty: &ResolvedType) -> bool {
 }
 
 fn resolved_type_is_pointer_like(ty: &ResolvedType) -> bool {
-    matches!(peel_shared_refs(ty), ResolvedType::Ref { .. } | ResolvedType::Ptr { .. })
+    matches!(
+        peel_shared_refs(ty),
+        ResolvedType::Ref { .. } | ResolvedType::Ptr { .. }
+    )
 }
 
 fn resolved_type_is_float_like(ty: &ResolvedType) -> bool {
@@ -393,6 +396,21 @@ fn resolved_type_is_integer_like(ty: &ResolvedType) -> bool {
     matches!(
         peel_shared_refs(ty),
         ResolvedType::Bool | ResolvedType::Char | ResolvedType::Int(_)
+    )
+}
+
+fn resolved_type_is_address_like(ty: &ResolvedType) -> bool {
+    resolved_type_is_pointer_like(ty) || matches!(peel_shared_refs(ty), ResolvedType::Int(_))
+}
+
+fn resolved_type_supports_inline_asm_operand(ty: &ResolvedType) -> bool {
+    matches!(
+        peel_shared_refs(ty),
+        ResolvedType::Bool
+            | ResolvedType::Char
+            | ResolvedType::Int(_)
+            | ResolvedType::Ref { .. }
+            | ResolvedType::Ptr { .. }
     )
 }
 
@@ -417,13 +435,19 @@ fn ensure_bitcast_compatible(
     }
     let Some(source_bits) = resolved_type_bit_width(source, abi) else {
         return Err(env.type_error(
-            format!("bitcast could not determine bit width for {}", describe_type(source)),
+            format!(
+                "bitcast could not determine bit width for {}",
+                describe_type(source)
+            ),
             span,
         ));
     };
     let Some(target_bits) = resolved_type_bit_width(target, abi) else {
         return Err(env.type_error(
-            format!("bitcast could not determine bit width for {}", describe_type(target)),
+            format!(
+                "bitcast could not determine bit width for {}",
+                describe_type(target)
+            ),
             span,
         ));
     };
@@ -439,9 +463,9 @@ fn ensure_bitcast_compatible(
             span,
         ));
     }
-    let pointer_float_mix =
-        (resolved_type_is_pointer_like(source) && resolved_type_is_float_like(target))
-            || (resolved_type_is_float_like(source) && resolved_type_is_pointer_like(target));
+    let pointer_float_mix = (resolved_type_is_pointer_like(source)
+        && resolved_type_is_float_like(target))
+        || (resolved_type_is_float_like(source) && resolved_type_is_pointer_like(target));
     if pointer_float_mix {
         return Err(env.type_error(
             format!(
@@ -481,6 +505,7 @@ pub struct TypeEnv<'a> {
     methods: HashMap<String, HashMap<String, ResolvedType>>,
     method_origins: HashMap<(String, String), SymbolOrigin>,
     enum_variants: HashMap<String, HashMap<String, EnumVariantTypeInfo>>,
+    loaded_stdlib_modules: HashSet<String>,
     entangle_endpoints: HashSet<String>,
     shared_region_depth: usize,
     fanout_depth: usize,
@@ -501,6 +526,7 @@ impl<'a> TypeEnv<'a> {
             methods: HashMap::new(),
             method_origins: HashMap::new(),
             enum_variants: HashMap::new(),
+            loaded_stdlib_modules: HashSet::new(),
             entangle_endpoints: HashSet::new(),
             shared_region_depth: 0,
             fanout_depth: 0,
@@ -3034,6 +3060,15 @@ fn register_stdlib_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> 
     let Some(file_path) = resolve_stdlib_module_file(module_name) else {
         return Ok(false);
     };
+    let file_path = canonical_module_identity(&file_path);
+    let module_key = file_path.to_string_lossy().to_string();
+    if env.span_mapper.has_origin_file(&module_key) {
+        env.loaded_stdlib_modules.insert(module_key);
+        return Ok(true);
+    }
+    if env.loaded_stdlib_modules.contains(&module_key) {
+        return Ok(true);
+    }
 
     let Ok(source) = kain_fs::read_text(&file_path) else {
         return Ok(false);
@@ -3047,14 +3082,31 @@ fn register_stdlib_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> 
         return Ok(false);
     };
 
-    for item in program.items {
+    for item in &program.items {
+        predeclare_item_types(env, item);
+    }
+
+    for item in &program.items {
         if matches!(item, Item::Use(_)) {
             continue;
         }
-        register_item_types(env, &item)?;
+        register_item_types(env, item)?;
     }
 
+    for item in &program.items {
+        if matches!(item, Item::Use(_)) {
+            continue;
+        }
+        register_item_types(env, item)?;
+    }
+
+    env.loaded_stdlib_modules.insert(module_key);
+
     Ok(true)
+}
+
+fn canonical_module_identity(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn register_filesystem_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> {
@@ -4300,6 +4352,15 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
             collect_patch_mutation_paths_from_expr(desired, output);
         }
         Expr::AtomicFence { .. } => {}
+        Expr::CpuFence { .. } => {}
+        Expr::CpuCacheFlush { pointer, .. } => {
+            collect_patch_mutation_paths_from_expr(pointer, output);
+        }
+        Expr::InlineAsm { operands, .. } => {
+            for operand in operands {
+                collect_patch_mutation_paths_from_expr(operand, output);
+            }
+        }
         Expr::PtrOffset {
             pointer, offset, ..
         } => {
@@ -4560,7 +4621,8 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
                 || expr_requires_best_effort_patch_mode(expected)
                 || expr_requires_best_effort_patch_mode(desired)
         }
-        Expr::AtomicFence { .. } => false,
+        Expr::AtomicFence { .. } | Expr::CpuFence { .. } => true,
+        Expr::CpuCacheFlush { .. } | Expr::InlineAsm { .. } => true,
         Expr::Observe { target, body, .. }
         | Expr::Collapse { target, body, .. }
         | Expr::Share { target, body, .. } => {
@@ -4804,6 +4866,9 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
             .or_else(|| first_stage_call_in_expr(expected))
             .or_else(|| first_stage_call_in_expr(desired)),
         Expr::AtomicFence { .. } => None,
+        Expr::CpuFence { .. } => None,
+        Expr::CpuCacheFlush { pointer, .. } => first_stage_call_in_expr(pointer),
+        Expr::InlineAsm { operands, .. } => operands.iter().find_map(first_stage_call_in_expr),
         Expr::PtrOffset {
             pointer, offset, ..
         } => first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(offset)),
@@ -6481,6 +6546,53 @@ fn infer_expr_type(
             }
             Ok(ResolvedType::Unit)
         }
+        Expr::CpuFence { kind, span } => {
+            if !context_allows_raw_memory_intrinsics(ctx) {
+                return Err(env.type_error(
+                    format!("{} requires Unsafe effect", kind.intrinsic_name()),
+                    *span,
+                ));
+            }
+            Ok(ResolvedType::Unit)
+        }
+        Expr::CpuCacheFlush { pointer, span } => {
+            if !context_allows_raw_memory_intrinsics(ctx) {
+                return Err(env.type_error("clflush requires Unsafe effect", *span));
+            }
+            let pointer_ty = infer_expr_type(env, pointer, ctx)?;
+            match pointer_ty {
+                ResolvedType::Unknown => Ok(ResolvedType::Unit),
+                other if resolved_type_is_address_like(&other) => Ok(ResolvedType::Unit),
+                other => Err(env.type_error(
+                    format!(
+                        "clflush expects a pointer or integer address, found {}",
+                        describe_type(&other)
+                    ),
+                    *span,
+                )),
+            }
+        }
+        Expr::InlineAsm { operands, span, .. } => {
+            if !context_allows_raw_memory_intrinsics(ctx) {
+                return Err(env.type_error("asm requires Unsafe effect", *span));
+            }
+            for operand in operands {
+                let operand_ty = infer_expr_type(env, operand, ctx)?;
+                if matches!(operand_ty, ResolvedType::Unknown) {
+                    continue;
+                }
+                if !resolved_type_supports_inline_asm_operand(&operand_ty) {
+                    return Err(env.type_error(
+                        format!(
+                            "asm operands must be integer-like or pointer-like in v1, found {}",
+                            describe_type(&operand_ty)
+                        ),
+                        operand.span(),
+                    ));
+                }
+            }
+            Ok(ResolvedType::Unit)
+        }
         Expr::SizeOfType { .. } | Expr::AlignOfType { .. } => Ok(ResolvedType::Int(IntSize::I64)),
         Expr::Alloca { ty, .. } => Ok(ResolvedType::Ptr {
             mutable: true,
@@ -6973,6 +7085,9 @@ fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
                 || ownership_expr_contains_early_exit(desired)
         }
         Expr::AtomicFence { .. } => false,
+        Expr::CpuFence { .. } => false,
+        Expr::CpuCacheFlush { pointer, .. } => ownership_expr_contains_early_exit(pointer),
+        Expr::InlineAsm { operands, .. } => operands.iter().any(ownership_expr_contains_early_exit),
         Expr::Alloc { size, .. } => ownership_expr_contains_early_exit(size),
         Expr::Realloc { pointer, size, .. } => {
             ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(size)
@@ -12989,7 +13104,8 @@ fn ping() -> Int:
             .parse()
             .expect("source should parse");
 
-        let err = check(&program, &span_mapper, "<test>").expect_err("duplicate function should fail");
+        let err =
+            check(&program, &span_mapper, "<test>").expect_err("duplicate function should fail");
         let KainError::Rich(report) = err else {
             panic!("expected rich duplicate diagnostic");
         };
@@ -13017,7 +13133,8 @@ fn print() -> Int:
             .parse()
             .expect("source should parse");
 
-        let err = check(&program, &span_mapper, "<test>").expect_err("shadowing builtin should fail");
+        let err =
+            check(&program, &span_mapper, "<test>").expect_err("shadowing builtin should fail");
         let KainError::Rich(report) = err else {
             panic!("expected rich shadowing diagnostic");
         };
@@ -13025,6 +13142,9 @@ fn print() -> Int:
         assert_eq!(report.kind, ErrorKind::Type);
         assert_eq!(report.location, Some((2, 1)));
         assert!(report.message.contains("shadows"));
-        assert!(report.help.iter().any(|help| help.contains("distinct name")));
+        assert!(report
+            .help
+            .iter()
+            .any(|help| help.contains("distinct name")));
     }
 }

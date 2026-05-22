@@ -4,6 +4,7 @@
 use crate::diagnostic_registry::spec_for_code;
 use crate::error::{DiagnosticReport, KainError};
 use crate::span::Span;
+use std::path::Path;
 
 /// Source location with file, line, and column information
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +34,7 @@ pub struct SourceOriginSegment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MappedOriginSegment {
     file: String,
+    normalized_file_key: String,
     combined_span: Span,
     source: String,
     line_starts: Vec<usize>,
@@ -58,6 +60,7 @@ impl SpanMapper {
             .into_iter()
             .map(|origin| MappedOriginSegment {
                 line_starts: build_line_starts(&origin.source),
+                normalized_file_key: normalize_origin_file_key(&origin.file),
                 file: origin.file,
                 combined_span: origin.combined_span,
                 source: origin.source,
@@ -133,6 +136,13 @@ impl SpanMapper {
             .map(|(origin, _)| origin.file.as_str())
     }
 
+    pub fn has_origin_file(&self, file: &str) -> bool {
+        let normalized_file = normalize_origin_file_key(file);
+        self.origins
+            .iter()
+            .any(|origin| origin.normalized_file_key == normalized_file)
+    }
+
     /// Convert a span to a source location with file:line:col format
     pub fn span_to_location(&self, span: Span, file: &str) -> SourceLocation {
         self.span_to_line_info(span, file).0
@@ -155,6 +165,14 @@ fn build_line_starts(source: &str) -> Vec<usize> {
     }
 
     line_starts
+}
+
+fn normalize_origin_file_key(file: &str) -> String {
+    let path = Path::new(file);
+    std::fs::canonicalize(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .to_string()
 }
 
 /// Diagnostic renderer for pretty error messages
@@ -620,8 +638,10 @@ mod tests {
         assert_eq!(helper_loc.line, 1);
         assert_eq!(helper_loc.col, 8);
 
-        let (entry_loc, entry_line) =
-            mapper.span_to_line_info(Span::new(helper_source.len(), helper_source.len() + 2), "bundle.kn");
+        let (entry_loc, entry_line) = mapper.span_to_line_info(
+            Span::new(helper_source.len(), helper_source.len() + 2),
+            "bundle.kn",
+        );
         assert_eq!(entry_loc.file, "main.kn");
         assert_eq!(entry_loc.line, 1);
         assert_eq!(entry_line, "fn main() -> Int:");

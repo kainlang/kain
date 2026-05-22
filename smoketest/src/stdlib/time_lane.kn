@@ -1,0 +1,11 @@
+use std::runtime
+use std::time
+
+pub fn smoke_time_lane() -> Int:
+    let now = time_now_ms()
+    if now < 0:
+        return 1
+    let elapsed = time_elapsed_ms(now)
+    if elapsed < 0:
+        return 2
+    return 0

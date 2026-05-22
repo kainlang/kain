@@ -1523,6 +1523,7 @@ impl WasmCompiler {
             Expr::MemLoad { pointer, .. }
             | Expr::VolatileLoad { pointer, .. }
             | Expr::AtomicLoad { pointer, .. }
+            | Expr::CpuCacheFlush { pointer, .. }
             | Expr::Decay {
                 target: pointer, ..
             }
@@ -1551,7 +1552,12 @@ impl WasmCompiler {
                 self.collect_actor_locals_in_expr(expected, actor_locals);
                 self.collect_actor_locals_in_expr(desired, actor_locals);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    self.collect_actor_locals_in_expr(operand, actor_locals);
+                }
+            }
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_actor_locals_in_expr(pointer, actor_locals);
                 self.collect_actor_locals_in_expr(size, actor_locals);
@@ -1796,6 +1802,9 @@ impl WasmCompiler {
             | Expr::AtomicLoad { pointer, .. } => {
                 self.collect_layout_locals_in_expr(pointer, layout_locals);
             }
+            Expr::CpuCacheFlush { pointer, .. } => {
+                self.collect_layout_locals_in_expr(pointer, layout_locals);
+            }
             Expr::MemStore { pointer, value, .. }
             | Expr::VolatileStore { pointer, value, .. }
             | Expr::AtomicStore { pointer, value, .. }
@@ -1818,7 +1827,12 @@ impl WasmCompiler {
                 self.collect_layout_locals_in_expr(expected, layout_locals);
                 self.collect_layout_locals_in_expr(desired, layout_locals);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    self.collect_layout_locals_in_expr(operand, layout_locals);
+                }
+            }
             Expr::Alloc { size, .. } => self.collect_layout_locals_in_expr(size, layout_locals),
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_layout_locals_in_expr(pointer, layout_locals);
@@ -2457,6 +2471,7 @@ impl WasmCompiler {
             Expr::MemLoad { pointer, .. }
             | Expr::VolatileLoad { pointer, .. }
             | Expr::AtomicLoad { pointer, .. }
+            | Expr::CpuCacheFlush { pointer, .. }
             | Expr::Decay {
                 target: pointer, ..
             }
@@ -2471,7 +2486,12 @@ impl WasmCompiler {
                 self.collect_strings_in_expr(expected);
                 self.collect_strings_in_expr(desired);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    self.collect_strings_in_expr(operand);
+                }
+            }
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_strings_in_expr(pointer);
                 self.collect_strings_in_expr(size);
@@ -2742,6 +2762,9 @@ impl WasmCompiler {
             Expr::VolatileLoad { pointer, .. } | Expr::AtomicLoad { pointer, .. } => {
                 self.collect_lambdas_in_expr(pointer, lambdas);
             }
+            Expr::CpuCacheFlush { pointer, .. } => {
+                self.collect_lambdas_in_expr(pointer, lambdas);
+            }
             Expr::VolatileStore { pointer, value, .. }
             | Expr::AtomicStore { pointer, value, .. }
             | Expr::AtomicAdd { pointer, value, .. }
@@ -2763,7 +2786,12 @@ impl WasmCompiler {
                 self.collect_lambdas_in_expr(expected, lambdas);
                 self.collect_lambdas_in_expr(desired, lambdas);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    self.collect_lambdas_in_expr(operand, lambdas);
+                }
+            }
             Expr::Block(block, _) => {
                 self.collect_lambdas_in_block(block, lambdas);
             }
@@ -4224,7 +4252,10 @@ impl WasmCompiler {
             }
             Expr::MemLoad { pointer, .. }
             | Expr::VolatileLoad { pointer, .. }
-            | Expr::AtomicLoad { pointer, .. } => self.preallocate_locals_in_expr(pointer, locals),
+            | Expr::AtomicLoad { pointer, .. }
+            | Expr::CpuCacheFlush { pointer, .. } => {
+                self.preallocate_locals_in_expr(pointer, locals)
+            }
             Expr::MemStore { pointer, value, .. }
             | Expr::VolatileStore { pointer, value, .. }
             | Expr::AtomicStore { pointer, value, .. }
@@ -4247,7 +4278,12 @@ impl WasmCompiler {
                 self.preallocate_locals_in_expr(expected, locals);
                 self.preallocate_locals_in_expr(desired, locals);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    self.preallocate_locals_in_expr(operand, locals);
+                }
+            }
             Expr::Alloc { size, .. } => self.preallocate_locals_in_expr(size, locals),
             Expr::Realloc { pointer, size, .. } => {
                 self.preallocate_locals_in_expr(pointer, locals);

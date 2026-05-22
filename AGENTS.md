@@ -299,6 +299,17 @@ fn mythic_store_packet(buffer: ptr<Int>, packet: Int, round: Int, salt: Int) -> 
 fn mythic_scalar_metal_mix(value: Int) -> Int with Unsafe:
     return mythic_avalanche32(value + 374761393)
 
+fn mythic_machine_barrier(words: ptr<Int>) -> Int with Unsafe:
+    volatile_store(words, 17, "Int")
+    load_fence()
+    let lane = volatile_load(words, "Int")
+    cache_flush(words)
+    store_fence()
+    full_fence()
+    spin_loop_hint()
+    asm("pause")
+    return lane
+
 converge mythic_metal_mix(value: Int) -> Int:
     spec reference:
         return mythic_scalar_metal_mix(value)

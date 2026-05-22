@@ -6118,6 +6118,23 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             let evaluated = eval_expr(env, value)?;
             runtime_bitcast_value(evaluated, target)
         }
+        Expr::CpuFence { .. } => Ok(Value::Unit),
+        Expr::CpuCacheFlush { pointer, .. } => {
+            let evaluated = eval_expr(env, pointer)?;
+            if let Value::Return(_) = evaluated {
+                return Ok(evaluated);
+            }
+            Ok(Value::Unit)
+        }
+        Expr::InlineAsm { operands, .. } => {
+            for operand in operands {
+                let evaluated = eval_expr(env, operand)?;
+                if let Value::Return(_) = evaluated {
+                    return Ok(evaluated);
+                }
+            }
+            Ok(Value::Unit)
+        }
 
         // Pointer offset is currently modeled as transparent pointer propagation.
         // Backend memory validation should stop unsupported targets before codegen.
@@ -7230,8 +7247,10 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(offset)
         }
+        Expr::CpuFence { .. } => true,
         Expr::MemLoad { pointer, .. }
         | Expr::VolatileLoad { pointer, .. }
+        | Expr::CpuCacheFlush { pointer, .. }
         | Expr::Decay {
             target: pointer, ..
         } => expr_contains_runtime_best_effort_effects(pointer),
@@ -7261,7 +7280,8 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
                 || expr_contains_runtime_best_effort_effects(expected)
                 || expr_contains_runtime_best_effort_effects(desired)
         }
-        Expr::AtomicFence { .. } => false,
+        Expr::AtomicFence { .. } => true,
+        Expr::InlineAsm { .. } => true,
         Expr::Observe { target, body, .. }
         | Expr::Collapse { target, body, .. }
         | Expr::Share { target, body, .. } => {

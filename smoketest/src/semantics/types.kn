@@ -1,0 +1,102 @@
+use std::runtime
+
+const SMOKE_MODULUS: Int = 1000000007
+type SmokeChecksum = Int
+
+enum SmokeLane:
+    Types
+    Control
+    Effects
+    OptionResult
+    AsyncFuture
+    World
+    Entangle
+    Law
+    Patch
+    Actor
+    Converge
+    Orchestrate
+    Axiom
+    Shatter
+    Pulse
+    Teleport
+    Comptime
+    Memory
+    Ownership
+    Collections
+    Crypto
+    Text
+    Filesystem
+    Alloc
+    Math
+    Time
+    Diagnostics
+    Platform
+    CBridge
+
+struct SmokePacket:
+    id: Int
+    lane: SmokeLane
+    payload: Int
+    tag: String
+    hot: Bool
+
+trait SmokeFold:
+    fn fold_seed(_self: Self_) -> Int:
+        return 0
+
+impl SmokePacket:
+    fn weight(_self: Self_) -> Int:
+        return 73
+
+impl SmokeFold for SmokePacket:
+    fn fold_seed(_self: Self_) -> Int:
+        return 137
+
+pub fn smoke_lane_rank(lane: SmokeLane) -> Int:
+    match lane:
+        SmokeLane::Types => 1
+        SmokeLane::Control => 2
+        SmokeLane::Effects => 3
+        SmokeLane::OptionResult => 4
+        SmokeLane::AsyncFuture => 5
+        SmokeLane::World => 6
+        SmokeLane::Entangle => 7
+        SmokeLane::Law => 8
+        SmokeLane::Patch => 9
+        SmokeLane::Actor => 10
+        SmokeLane::Converge => 11
+        SmokeLane::Orchestrate => 12
+        SmokeLane::Axiom => 13
+        SmokeLane::Shatter => 14
+        SmokeLane::Pulse => 15
+        SmokeLane::Teleport => 16
+        SmokeLane::Comptime => 17
+        SmokeLane::Memory => 18
+        SmokeLane::Ownership => 19
+        SmokeLane::Collections => 20
+        SmokeLane::Crypto => 21
+        SmokeLane::Text => 22
+        SmokeLane::Filesystem => 23
+        SmokeLane::Alloc => 24
+        SmokeLane::Math => 25
+        SmokeLane::Time => 26
+        SmokeLane::Diagnostics => 27
+        SmokeLane::Platform => 28
+        SmokeLane::CBridge => 29
+        _ => 0
+
+pub fn smoke_types_lane() -> Int:
+    let packet = SmokePacket { id: 1, lane: SmokeLane::Types, payload: 42, tag: "smoke", hot: true }
+    if packet.weight() != 73:
+        return 1
+    if packet.fold_seed() != 137:
+        return 2
+    if smoke_lane_rank(SmokeLane::Types) != 1:
+        return 3
+    if smoke_lane_rank(SmokeLane::CBridge) != 29:
+        return 4
+    let checksum: SmokeChecksum = (packet.id + packet.payload) % SMOKE_MODULUS
+    if checksum != 43:
+        return 5
+    return 0

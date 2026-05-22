@@ -1,0 +1,19 @@
+use std::runtime
+
+shatter struct SmokeShard:
+    bias: Int
+    phase: Int
+    salt: Int
+    alive: Bool
+
+pub fn smoke_shatter_lane() -> Int:
+    let shard = SmokeShard { bias: 7, phase: 13, salt: 29, alive: true }
+    if shard.bias != 7:
+        return 1
+    if shard.phase != 13:
+        return 2
+    if shard.salt != 29:
+        return 3
+    if shard.alive != true:
+        return 4
+    return 0

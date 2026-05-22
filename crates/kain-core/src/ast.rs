@@ -65,6 +65,42 @@ impl AtomicOrdering {
     }
 }
 
+/// ISA fence surface shared by parser, typechecker, and lowerers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CpuFenceKind {
+    Load,
+    Store,
+    Full,
+}
+
+impl CpuFenceKind {
+    pub fn intrinsic_name(self) -> &'static str {
+        match self {
+            CpuFenceKind::Load => "lfence",
+            CpuFenceKind::Store => "sfence",
+            CpuFenceKind::Full => "mfence",
+        }
+    }
+}
+
+/// Zero-output inline assembly options for the authored `asm(...)` MVP.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InlineAsmOptions {
+    pub volatile: bool,
+    pub memory: bool,
+    pub intel: bool,
+}
+
+impl Default for InlineAsmOptions {
+    fn default() -> Self {
+        Self {
+            volatile: true,
+            memory: false,
+            intel: false,
+        }
+    }
+}
+
 /// A complete KAIN program/module
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -1668,6 +1704,23 @@ pub enum Expr {
         ordering: AtomicOrdering,
         span: Span,
     },
+    /// x86-family ISA fence surface: `lfence()`, `sfence()`, `mfence()`
+    CpuFence {
+        kind: CpuFenceKind,
+        span: Span,
+    },
+    /// x86-family cache-line flush surface: `clflush(ptr)`
+    CpuCacheFlush {
+        pointer: Box<Expr>,
+        span: Span,
+    },
+    /// LLVM inline assembly MVP: `asm("pause")`, `asm("clflush ($0)", ptr, memory = true)`
+    InlineAsm {
+        template: String,
+        operands: Vec<Expr>,
+        options: InlineAsmOptions,
+        span: Span,
+    },
 
     /// Layout-backed size query: `sizeof_type("T")`
     SizeOfType {
@@ -1849,6 +1902,9 @@ impl Expr {
             | Expr::AtomicExchange { span: s, .. }
             | Expr::AtomicCompareExchange { span: s, .. }
             | Expr::AtomicFence { span: s, .. }
+            | Expr::CpuFence { span: s, .. }
+            | Expr::CpuCacheFlush { span: s, .. }
+            | Expr::InlineAsm { span: s, .. }
             | Expr::SizeOfType { span: s, .. }
             | Expr::AlignOfType { span: s, .. }
             | Expr::Alloca { span: s, .. }
@@ -2926,6 +2982,11 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             collect_type_names_from_expr(value, out);
             collect_type_names_from_type(target, out);
         }
+        Expr::InlineAsm { operands, .. } => {
+            for operand in operands {
+                collect_type_names_from_expr(operand, out);
+            }
+        }
         Expr::Struct {
             name, fields, rest, ..
         } => {
@@ -3215,6 +3276,10 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             }
         }
         Expr::AtomicFence { .. } => {}
+        Expr::CpuFence { .. } => {}
+        Expr::CpuCacheFlush { pointer, .. } => {
+            collect_type_names_from_expr(pointer, out);
+        }
         Expr::SizeOfType { target, .. } => {
             collect_type_names_from_type(target, out);
         }

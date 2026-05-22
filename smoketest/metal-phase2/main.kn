@@ -1,0 +1,32 @@
+use std::runtime
+use std::machine
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 5
+
+    let page_bytes = vm_page_size()
+    let region = vm_map(page_bytes)
+    if ptr_to_int(region) == 0:
+        return 10
+
+    volatile_store(region, 11, "Int")
+    load_fence()
+    let before = volatile_load(region, "Int")
+    cache_flush(region)
+    store_fence()
+    full_fence()
+    spin_loop_hint()
+    asm("pause")
+    let after = volatile_load(region, "Int")
+
+    let unmap_status = vm_unmap(region, page_bytes)
+    if unmap_status != 0:
+        return 20
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 25
+    if before != 11 or after != 11:
+        return 30
+    return 0

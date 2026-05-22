@@ -39,6 +39,21 @@ fn abi_vm_protect(address: ptr<Int>, byte_count: Int, mode: Int) -> Int
 pub fn pause() -> Int:
     return abi_cpu_pause()
 
+pub fn load_fence() -> Unit with Unsafe:
+    lfence()
+
+pub fn store_fence() -> Unit with Unsafe:
+    sfence()
+
+pub fn full_fence() -> Unit with Unsafe:
+    mfence()
+
+pub fn cache_flush(address: ptr<Int>) -> Unit with Unsafe:
+    clflush(address)
+
+pub fn spin_loop_hint() -> Unit with Unsafe:
+    asm("pause")
+
 pub fn rdtsc() -> Int:
     return abi_cpu_rdtsc()
 

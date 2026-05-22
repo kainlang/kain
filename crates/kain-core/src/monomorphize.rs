@@ -615,6 +615,12 @@ fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, ResolvedType>) {
             substitute_expr(value, mapping);
             substitute_type_ast(target, mapping);
         }
+        Expr::CpuCacheFlush { pointer, .. } => substitute_expr(pointer, mapping),
+        Expr::InlineAsm { operands, .. } => {
+            for operand in operands {
+                substitute_expr(operand, mapping);
+            }
+        }
         Expr::Binary { left, right, .. } => {
             substitute_expr(left, mapping);
             substitute_expr(right, mapping);

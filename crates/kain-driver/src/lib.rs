@@ -341,8 +341,7 @@ impl DriverSession {
             .unwrap_or_else(|| "<input>".to_string());
         let mut ast = Parser::new(&tokens, &span_mapper, &filename).parse()?;
         comptime::eval_program(&mut ast)?;
-        let typed =
-            types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
+        let typed = types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
         Ok(CheckedFrontend { ast, typed })
     }
 
@@ -360,7 +359,8 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
     ) -> Result<MonomorphizedProgram, KainError> {
-        let checked = self.frontend_to_checked_program_with_source_path(source, source_path, target)?;
+        let checked =
+            self.frontend_to_checked_program_with_source_path(source, source_path, target)?;
         monomorphize::monomorphize(&checked.typed)
     }
 
@@ -425,7 +425,12 @@ impl DriverSession {
         kain_core::format_source(source)
     }
 
-    pub fn format_error(&self, fallback_source_name: &str, fallback_source: &str, error: &KainError) -> String {
+    pub fn format_error(
+        &self,
+        fallback_source_name: &str,
+        fallback_source: &str,
+        error: &KainError,
+    ) -> String {
         if let Some(bundle) = self.last_frontend_bundle.borrow().as_ref() {
             let mapper =
                 diagnostics::SpanMapper::with_origins(&bundle.full_source, bundle.origins.clone());
@@ -566,8 +571,11 @@ impl DriverSession {
         match target {
             #[cfg(feature = "ue5")]
             CompileTarget::Ue5 => {
-                let mono_for_codegen =
-                    self.frontend_to_monomorphized_program_with_source_path(source, source_path, target)?;
+                let mono_for_codegen = self.frontend_to_monomorphized_program_with_source_path(
+                    source,
+                    source_path,
+                    target,
+                )?;
                 let output = ue5::generate(&mono_for_codegen, None, None)?;
                 Ok(format!("{}\n{}", output.header, output.source))
             }
@@ -1066,11 +1074,8 @@ fn build_frontend_source_bundle(
     };
     collector.collect_target_stdlib_prelude(target)?;
     collector.collect_from_source(&prepared_source, source_path, target)?;
-    let bundle = assemble_frontend_source_bundle(
-        &collector.module_sources,
-        &prepared_source,
-        source_path,
-    );
+    let bundle =
+        assemble_frontend_source_bundle(&collector.module_sources, &prepared_source, source_path);
     let cache_entry = CachedFrontendBundle {
         target,
         source_path: source_path.map(|path| path.to_path_buf()),
@@ -1181,7 +1186,10 @@ fn resolve_frontend_stdlib_module_file(import: &Use) -> Option<PathBuf> {
     None
 }
 
-fn resolve_frontend_filesystem_module_file(import: &Use, source_file: Option<&Path>) -> Option<PathBuf> {
+fn resolve_frontend_filesystem_module_file(
+    import: &Use,
+    source_file: Option<&Path>,
+) -> Option<PathBuf> {
     let Some(first_segment) = import.path.first() else {
         return None;
     };
@@ -1203,13 +1211,17 @@ fn canonicalize_existing_path(path: &Path) -> PathBuf {
 }
 
 fn fingerprint_watch_inputs(paths: &[PathBuf]) -> Vec<FrontendWatchedInput> {
-    paths.iter()
+    paths
+        .iter()
         .map(|path| frontend_watched_input(path))
         .collect()
 }
 
-fn fingerprint_watch_inputs_from_cached(paths: &[FrontendWatchedInput]) -> Vec<FrontendWatchedInput> {
-    paths.iter()
+fn fingerprint_watch_inputs_from_cached(
+    paths: &[FrontendWatchedInput],
+) -> Vec<FrontendWatchedInput> {
+    paths
+        .iter()
         .map(|entry| frontend_watched_input(&entry.path))
         .collect()
 }
@@ -2671,6 +2683,25 @@ fn main() -> Int:
     }
 
     #[test]
+    fn frontend_to_typed_program_deduplicates_runtime_and_machine_stdlib_imports() {
+        DriverSession::default()
+            .frontend_to_typed_program(
+                r#"
+use std::runtime
+use std::machine
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return boot
+    return vm_page_size()
+"#,
+                CompileTarget::Llvm,
+            )
+            .expect("typed program");
+    }
+
+    #[test]
     fn frontend_bundle_tracks_origin_files_and_watch_inputs() {
         let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
         let temp = tempfile::tempdir().expect("tempdir");
@@ -2727,12 +2758,18 @@ pub fn four() -> Int:
                 .and_then(|name| name.to_str())
                 == Some("main.kn")
         }));
-        assert!(bundle.watch_inputs.iter().any(|path| path.ends_with("main.kn")));
+        assert!(bundle
+            .watch_inputs
+            .iter()
+            .any(|path| path.ends_with("main.kn")));
         assert!(bundle
             .watch_inputs
             .iter()
             .any(|path| path.ends_with("module_probe.kn")));
-        assert!(bundle.watch_inputs.iter().any(|path| path.ends_with("build.kn")));
+        assert!(bundle
+            .watch_inputs
+            .iter()
+            .any(|path| path.ends_with("build.kn")));
         assert_eq!(session.frontend_watch_inputs(), bundle.watch_inputs);
     }
 

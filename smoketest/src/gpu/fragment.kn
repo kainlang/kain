@@ -1,0 +1,12 @@
+shader fragment SmokeGradient(uv: Vec2) -> Vec4:
+    uniform accent: Vec3 @0
+    let ring: Float = fbm2(uv, 4)
+    return vec4(accent.x * ring, accent.y, accent.z, 1.0)
+
+shader fragment SmokeVignette(uv: Vec2) -> Vec4:
+    uniform tint: Vec3 @0
+    let edge: Float = fbm2(uv, 2)
+    let center_x: Float = uv.x - 0.5
+    let center_y: Float = uv.y - 0.5
+    let dist: Float = center_x * center_x + center_y * center_y
+    return vec4(tint.x * (1.0 - dist), tint.y * (1.0 - dist), tint.z * edge, 1.0)

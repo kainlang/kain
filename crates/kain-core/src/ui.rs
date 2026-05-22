@@ -1215,6 +1215,31 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
         Expr::AtomicFence { ordering, .. } => {
             format!("atomic_fence({})", ordering.as_str())
         }
+        Expr::CpuFence { kind, .. } => format!("{}()", kind.intrinsic_name()),
+        Expr::CpuCacheFlush { pointer, .. } => {
+            format!("clflush({})", render_authored_expr_contract(pointer))
+        }
+        Expr::InlineAsm {
+            template,
+            operands,
+            options,
+            ..
+        } => {
+            let mut rendered = vec![serde_json::to_string(template).unwrap_or_else(|_| format!(r#""{}""#, template))];
+            for operand in operands {
+                rendered.push(render_authored_expr_contract(operand));
+            }
+            if !options.volatile {
+                rendered.push("volatile: false".to_string());
+            }
+            if options.memory {
+                rendered.push("memory: true".to_string());
+            }
+            if options.intel {
+                rendered.push("intel: true".to_string());
+            }
+            format!("asm({})", rendered.join(", "))
+        }
         Expr::Teleport {
             value,
             source_world,

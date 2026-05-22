@@ -121,12 +121,19 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
             eval_expr_in_place(env, expected)?;
             eval_expr_in_place(env, desired)?;
         }
+        Expr::CpuCacheFlush { pointer, .. } => eval_expr_in_place(env, pointer)?,
+        Expr::InlineAsm { operands, .. } => {
+            for operand in operands {
+                eval_expr_in_place(env, operand)?;
+            }
+        }
         Expr::AsyncBlock(body, _) => eval_expr_in_place(env, body)?,
         Expr::SizeOfType { .. }
         | Expr::AlignOfType { .. }
         | Expr::Alloca { .. }
         | Expr::Uninit { .. }
-        | Expr::AtomicFence { .. } => {}
+        | Expr::AtomicFence { .. }
+        | Expr::CpuFence { .. } => {}
         Expr::AggregateInit { fields, .. } => {
             for (_, value) in fields {
                 eval_expr_in_place(env, value)?;

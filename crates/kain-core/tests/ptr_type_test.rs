@@ -476,7 +476,8 @@ fn ts_memory_lowering_resolves_sizeof_type_from_layouts() {
 
 #[test]
 fn ts_memory_lowering_resolves_fixed_width_scalar_layouts() {
-    let source = "fn scalar_layout() -> Int:\n    return sizeof_type(\"I32\") + alignof_type(\"I32\")\n";
+    let source =
+        "fn scalar_layout() -> Int:\n    return sizeof_type(\"I32\") + alignof_type(\"I32\")\n";
     let tokens = Lexer::new(source).tokenize().expect("lex");
     let mapper = SpanMapper::new(source);
     let program = Parser::new(&tokens, &mapper, "fixed_scalar_layout.kn")
@@ -510,7 +511,9 @@ fn typecheck_rejects_safe_atomic_fence() {
         .expect("parse");
     let err = kain_core::types::check(&program, &mapper, "atomic_fence_safe.kn")
         .expect_err("safe atomic_fence should be rejected");
-    assert!(err.to_string().contains("atomic_fence requires an enclosing share scope or Unsafe effect"));
+    assert!(err
+        .to_string()
+        .contains("atomic_fence requires an enclosing share scope or Unsafe effect"));
 }
 
 #[test]
@@ -523,7 +526,82 @@ fn typecheck_rejects_mismatched_bitcast_widths() {
         .expect("parse");
     let err = kain_core::types::check(&program, &mapper, "bitcast_width.kn")
         .expect_err("mismatched-width bitcast should be rejected");
-    assert!(err.to_string().contains("bitcast requires equal-width source and target types"));
+    assert!(err
+        .to_string()
+        .contains("bitcast requires equal-width source and target types"));
+}
+
+#[test]
+fn parser_normalizes_arch_fences_cache_flush_and_inline_asm() {
+    let source = "fn demo(slot: ptr<Int>) -> Int with Unsafe:\n    lfence()\n    sfence()\n    mfence()\n    clflush(slot)\n    asm(\"nop\", slot, memory = true, intel = true, volatile = false)\n    return 0\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "arch_intrinsics.kn")
+        .parse()
+        .expect("parse");
+
+    let function = match &program.items[0] {
+        kain_core::ast::Item::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    assert!(matches!(
+        &function.body.stmts[0],
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::CpuFence {
+            kind: kain_core::ast::CpuFenceKind::Load,
+            ..
+        })
+    ));
+    assert!(matches!(
+        &function.body.stmts[1],
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::CpuFence {
+            kind: kain_core::ast::CpuFenceKind::Store,
+            ..
+        })
+    ));
+    assert!(matches!(
+        &function.body.stmts[2],
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::CpuFence {
+            kind: kain_core::ast::CpuFenceKind::Full,
+            ..
+        })
+    ));
+
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::CpuCacheFlush { pointer, .. }) =
+        &function.body.stmts[3]
+    else {
+        panic!("expected clflush expression");
+    };
+    assert!(matches!(pointer.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "slot"));
+
+    let kain_core::ast::Stmt::Expr(kain_core::ast::Expr::InlineAsm {
+        template,
+        operands,
+        options,
+        ..
+    }) = &function.body.stmts[4]
+    else {
+        panic!("expected inline asm expression");
+    };
+    assert_eq!(template, "nop");
+    assert_eq!(operands.len(), 1);
+    assert!(matches!(&operands[0], kain_core::ast::Expr::Ident(name, _) if name == "slot"));
+    assert!(!options.volatile);
+    assert!(options.memory);
+    assert!(options.intel);
+}
+
+#[test]
+fn typecheck_rejects_safe_inline_asm() {
+    let source = "fn demo() -> Int:\n    asm(\"pause\")\n    return 0\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "safe_inline_asm.kn")
+        .parse()
+        .expect("parse");
+    let err = kain_core::types::check(&program, &mapper, "safe_inline_asm.kn")
+        .expect_err("safe asm should be rejected");
+    assert!(err.to_string().contains("asm requires Unsafe effect"));
 }
 
 #[test]

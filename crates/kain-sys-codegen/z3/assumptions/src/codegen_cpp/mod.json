@@ -103,15 +103,15 @@
       "id": "gen-else-branch-continuation.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 655,
+      "line": 669,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 32,
-        "end_line": 655,
+        "end_line": 669,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 655
+        "start_line": 669
       },
       "symbol": "gen_else_branch_continuation",
       "tags": [
@@ -162,15 +162,15 @@
       "id": "gen-expr.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 670,
+      "line": 684,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 8,
-        "end_line": 670,
+        "end_line": 684,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 670
+        "start_line": 684
       },
       "symbol": "gen_expr",
       "tags": [
@@ -190,15 +190,15 @@
       "id": "gen-expr.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 698,
+      "line": 712,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 48,
-        "end_line": 698,
+        "end_line": 712,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 698
+        "start_line": 712
       },
       "symbol": "gen_expr",
       "tags": [
@@ -220,15 +220,15 @@
       "id": "gen-expr.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 701,
+      "line": 715,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 26,
-        "end_line": 701,
+        "end_line": 715,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 701
+        "start_line": 715
       },
       "symbol": "gen_expr",
       "tags": [
@@ -249,15 +249,15 @@
       "id": "gen-expr.return-condition.4",
       "kind": "return-condition",
       "language": "rust",
-      "line": 707,
+      "line": 721,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 67,
-        "end_line": 707,
+        "end_line": 721,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 707
+        "start_line": 721
       },
       "symbol": "gen_expr",
       "tags": [
@@ -281,15 +281,15 @@
       "id": "gen-expr.guard-condition.5",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 777,
+      "line": 791,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 59,
-        "end_line": 777,
+        "end_line": 791,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 777
+        "start_line": 791
       },
       "symbol": "gen_expr",
       "tags": [
@@ -313,15 +313,15 @@
       "id": "gen-expr.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 778,
+      "line": 792,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 55,
-        "end_line": 778,
+        "end_line": 792,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 778
+        "start_line": 792
       },
       "symbol": "gen_expr",
       "tags": [
@@ -346,15 +346,15 @@
       "id": "gen-expr.guard-condition.7",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 779,
+      "line": 793,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 44,
-        "end_line": 779,
+        "end_line": 793,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 779
+        "start_line": 793
       },
       "symbol": "gen_expr",
       "tags": [
@@ -378,15 +378,15 @@
       "id": "gen-expr.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 782,
+      "line": 796,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 33,
-        "end_line": 782,
+        "end_line": 796,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 782
+        "start_line": 796
       },
       "symbol": "gen_expr",
       "tags": [
@@ -408,15 +408,15 @@
       "id": "gen-expr.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 783,
+      "line": 797,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 54,
-        "end_line": 783,
+        "end_line": 797,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 783
+        "start_line": 797
       },
       "symbol": "gen_expr",
       "tags": [
@@ -441,15 +441,15 @@
       "id": "gen-expr.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 813,
+      "line": 827,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 14,
-        "end_line": 813,
+        "end_line": 827,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 813
+        "start_line": 827
       },
       "symbol": "gen_expr",
       "tags": [
@@ -469,15 +469,15 @@
       "id": "gen-expr.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 846,
+      "line": 860,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 35,
-        "end_line": 846,
+        "end_line": 860,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 846
+        "start_line": 860
       },
       "symbol": "gen_expr",
       "tags": [
@@ -498,15 +498,15 @@
       "id": "gen-expr.guard-condition.12",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 861,
+      "line": 875,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 33,
-        "end_line": 861,
+        "end_line": 875,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 861
+        "start_line": 875
       },
       "symbol": "gen_expr",
       "tags": [
@@ -529,15 +529,15 @@
       "id": "gen-expr.guard-condition.13",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 875,
+      "line": 889,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 35,
-        "end_line": 875,
+        "end_line": 889,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 875
+        "start_line": 889
       },
       "symbol": "gen_expr",
       "tags": [
@@ -562,15 +562,15 @@
       "id": "gen-if-stmt.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 615,
+      "line": 629,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 37,
-        "end_line": 615,
+        "end_line": 629,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 615
+        "start_line": 629
       },
       "symbol": "gen_if_stmt",
       "tags": [
@@ -592,15 +592,15 @@
       "id": "gen-if-stmt.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 629,
+      "line": 643,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 32,
-        "end_line": 629,
+        "end_line": 643,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 629
+        "start_line": 643
       },
       "symbol": "gen_if_stmt",
       "tags": [
@@ -862,19 +862,51 @@
     {
       "active": true,
       "confidence": "high",
-      "expression": "let Expr::If",
+      "expression": "let Pattern::Binding { name, .. } = binding",
       "id": "gen-stmt.guard-condition.6",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 576,
+      "line": 562,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 562,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
+        "start_col": 1,
+        "start_line": 562
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Pattern::Binding { name, .. } = binding {",
+      "variables": [
+        "Binding",
+        "Pattern",
+        "binding",
+        "let",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Expr::If",
+      "id": "gen-stmt.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 590,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 18,
-        "end_line": 576,
+        "end_line": 590,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 576
+        "start_line": 590
       },
       "symbol": "gen_stmt",
       "tags": [
@@ -893,18 +925,18 @@
       "active": true,
       "confidence": "high",
       "expression": "!expr_str.is_empty()",
-      "id": "gen-stmt.guard-condition.7",
+      "id": "gen-stmt.guard-condition.8",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 592,
+      "line": 606,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 26,
-        "end_line": 592,
+        "end_line": 606,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 592
+        "start_line": 606
       },
       "symbol": "gen_stmt",
       "tags": [
@@ -922,18 +954,18 @@
       "active": true,
       "confidence": "high",
       "expression": "let Some(else_br) = else_branch",
-      "id": "gen-stmt.guard-condition.8",
+      "id": "gen-stmt.guard-condition.9",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 615,
+      "line": 629,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 37,
-        "end_line": 615,
+        "end_line": 629,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 615
+        "start_line": 629
       },
       "symbol": "gen_stmt",
       "tags": [
@@ -953,18 +985,18 @@
       "active": true,
       "confidence": "high",
       "expression": "let Some(next) = next_else",
-      "id": "gen-stmt.guard-condition.9",
+      "id": "gen-stmt.guard-condition.10",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 629,
+      "line": 643,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 32,
-        "end_line": 629,
+        "end_line": 643,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 629
+        "start_line": 643
       },
       "symbol": "gen_stmt",
       "tags": [
@@ -984,18 +1016,18 @@
       "active": true,
       "confidence": "high",
       "expression": "let Some(next) = next_else",
-      "id": "gen-stmt.guard-condition.10",
+      "id": "gen-stmt.guard-condition.11",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 655,
+      "line": 669,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 32,
-        "end_line": 655,
+        "end_line": 669,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 655
+        "start_line": 669
       },
       "symbol": "gen_stmt",
       "tags": [
@@ -1046,15 +1078,15 @@
       "id": "map-type.guard-condition.1",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 902,
+      "line": 916,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 25,
-        "end_line": 902,
+        "end_line": 916,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 902
+        "start_line": 916
       },
       "symbol": "map_type",
       "tags": [
@@ -1075,15 +1107,15 @@
       "id": "map-type.guard-condition.2",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 920,
+      "line": 934,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 14,
-        "end_line": 920,
+        "end_line": 934,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 920
+        "start_line": 934
       },
       "symbol": "map_type",
       "tags": [
@@ -1103,15 +1135,15 @@
       "id": "map-type.guard-condition.3",
       "kind": "guard-condition",
       "language": "rust",
-      "line": 959,
+      "line": 973,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
       "span": {
         "end_col": 25,
-        "end_line": 959,
+        "end_line": 973,
         "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
         "start_col": 1,
-        "start_line": 959
+        "start_line": 973
       },
       "symbol": "map_type",
       "tags": [
@@ -1155,7 +1187,7 @@
     }
   ],
   "language": "rust",
-  "source_hash": "674c1f53a2b68b9454054b2b69e057fc5910b1b3722d8bb448d7a8081bdb1e59",
+  "source_hash": "4f69cb4347e9f4d6b6b0a1f3be99b6bdef439eb0a6c1394aa15c9e0a37e77776",
   "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_cpp\\mod.rs",
   "version": 1
 }

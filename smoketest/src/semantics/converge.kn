@@ -1,0 +1,23 @@
+use std::runtime
+use std::intent
+
+fn smoke_scalar_mix(value: Int) -> Int:
+    return ((value * 31) + 7) % 1000000007
+
+converge smoke_mix(value: Int) -> Int:
+    spec reference:
+        return smoke_scalar_mix(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 31) + 7) % 1000000007
+    fast interpret_lane when target("interpret"):
+        return ((value * 31) + 7) % 1000000007
+    verify random(8)
+
+pub fn smoke_converge_lane() -> Int:
+    let result = smoke_mix(100)
+    let expected = smoke_scalar_mix(100)
+    if result != expected:
+        return 1
+    if converge_mismatch_count() != 0:
+        return 2
+    return 0

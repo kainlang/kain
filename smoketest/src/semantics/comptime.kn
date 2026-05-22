@@ -1,0 +1,15 @@
+use std::runtime
+
+comptime:
+    const SMOKE_COMPTIME_MAGIC: Int = 0xCAFE
+    const SMOKE_COMPTIME_LANES: Int = 29
+    const SMOKE_COMPTIME_VERSION: Int = 1
+
+pub fn smoke_comptime_lane() -> Int:
+    if SMOKE_COMPTIME_MAGIC != 51966:
+        return 1
+    if SMOKE_COMPTIME_LANES != 29:
+        return 2
+    if SMOKE_COMPTIME_VERSION != 1:
+        return 3
+    return 0

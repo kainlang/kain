@@ -6,8 +6,9 @@
 
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
-    AxiomPredicate, BinaryOp, Block, ConvergeSelector, ElseBranch, Expr, JSXAttrValue, JSXNode,
-    Pattern, PulseDuration, Stmt, Type, UnaryOp, VariantPatternFields,
+    AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, ElseBranch, Expr,
+    InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type, UnaryOp,
+    VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{
@@ -987,9 +988,7 @@ impl LlvmGenerator {
             Expr::Ref { value, .. }
             | Expr::AddrOf { value, .. }
             | Expr::Cast { value, .. }
-            | Expr::Bitcast { value, .. } => {
-                self.collect_pointer_let_types_from_expr(value)
-            }
+            | Expr::Bitcast { value, .. } => self.collect_pointer_let_types_from_expr(value),
             Expr::PtrOffset {
                 pointer, offset, ..
             } => {
@@ -1002,6 +1001,9 @@ impl LlvmGenerator {
             Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
                 self.collect_pointer_let_types_from_expr(pointer);
                 self.collect_pointer_let_types_from_expr(value);
+            }
+            Expr::CpuCacheFlush { pointer, .. } => {
+                self.collect_pointer_let_types_from_expr(pointer)
             }
             Expr::AtomicLoad { pointer, .. } => self.collect_pointer_let_types_from_expr(pointer),
             Expr::AtomicStore { pointer, value, .. }
@@ -1024,7 +1026,12 @@ impl LlvmGenerator {
                 self.collect_pointer_let_types_from_expr(expected);
                 self.collect_pointer_let_types_from_expr(desired);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    self.collect_pointer_let_types_from_expr(operand);
+                }
+            }
             Expr::Alloc { size, .. } => self.collect_pointer_let_types_from_expr(size),
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_pointer_let_types_from_expr(pointer);
@@ -1667,10 +1674,7 @@ impl LlvmGenerator {
 
     fn obvious_llvm_type_alignment(llvm_ty: &str) -> i64 {
         match Self::obvious_llvm_type_byte_width(llvm_ty) {
-            Some(width @ 1)
-            | Some(width @ 2)
-            | Some(width @ 4)
-            | Some(width @ 8)
+            Some(width @ 1) | Some(width @ 2) | Some(width @ 4) | Some(width @ 8)
             | Some(width @ 16) => width as i64,
             _ => 1,
         }
@@ -1700,6 +1704,139 @@ impl LlvmGenerator {
             OwnershipPointerProvenance::EphemeralLocal
             | OwnershipPointerProvenance::ImportedOrUnknown => 1,
         }
+    }
+
+    fn target_is_x86_64(&self) -> bool {
+        matches!(
+            self.target.id,
+            LlvmTargetId::WindowsX64Msvc | LlvmTargetId::LinuxX64Gnu
+        )
+    }
+
+    fn escape_llvm_inline_asm_fragment(value: &str) -> String {
+        let mut escaped = String::new();
+        for byte in value.bytes() {
+            if (32..127).contains(&byte) && byte != b'"' && byte != b'\\' {
+                escaped.push(byte as char);
+            } else {
+                escaped.push_str(&format!("\\{:02X}", byte));
+            }
+        }
+        escaped
+    }
+
+    fn emit_inline_asm_call(
+        &mut self,
+        template: &str,
+        operands: &[(String, String)],
+        options: InlineAsmOptions,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        if !self.target_is_x86_64() {
+            return Err(KainError::codegen(
+                format!(
+                    "inline asm MVP is currently x86_64-only, but LLVM target {} is active",
+                    self.target.triple
+                ),
+                span,
+            ));
+        }
+
+        let escaped_template = Self::escape_llvm_inline_asm_fragment(template);
+        let mut constraints: Vec<String> = operands.iter().map(|_| "r".to_string()).collect();
+        if options.memory {
+            constraints.push("~{memory}".to_string());
+        }
+        constraints.push("~{dirflag}".to_string());
+        constraints.push("~{fpsr}".to_string());
+        constraints.push("~{flags}".to_string());
+        let constraint_fragment = Self::escape_llvm_inline_asm_fragment(&constraints.join(","));
+
+        let mut modifiers = Vec::new();
+        if options.volatile {
+            modifiers.push("sideeffect");
+        }
+        if options.intel {
+            modifiers.push("inteldialect");
+        }
+        let modifier_suffix = if modifiers.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", modifiers.join(" "))
+        };
+
+        let operand_fragment = operands
+            .iter()
+            .map(|(value, ty)| format!("{ty} {value}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.emit(&format!(
+            "  call void asm{} \"{}\", \"{}\"({})",
+            modifier_suffix, escaped_template, constraint_fragment, operand_fragment
+        ));
+        Ok(("0".to_string(), "void".to_string()))
+    }
+
+    fn compile_inline_asm(
+        &mut self,
+        template: &str,
+        operands: &[Expr],
+        options: InlineAsmOptions,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let compiled_operands = operands
+            .iter()
+            .map(|operand| {
+                let (value, ty) = self.compile_expr(operand)?;
+                Ok((self.coerce_to_i64_storage(&value, &ty), "i64".to_string()))
+            })
+            .collect::<KainResult<Vec<_>>>()?;
+        self.emit_inline_asm_call(template, &compiled_operands, options, span)
+    }
+
+    fn compile_cpu_fence(
+        &mut self,
+        kind: CpuFenceKind,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        self.emit_inline_asm_call(
+            kind.intrinsic_name(),
+            &[],
+            InlineAsmOptions {
+                volatile: true,
+                memory: true,
+                intel: false,
+            },
+            span,
+        )
+    }
+
+    fn compile_cpu_cache_flush(
+        &mut self,
+        pointer: &Expr,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        if !self.target_is_x86_64() {
+            return Err(KainError::codegen(
+                format!(
+                    "clflush is currently x86_64-only, but LLVM target {} is active",
+                    self.target.triple
+                ),
+                span,
+            ));
+        }
+        let (pointer_value, pointer_ty) = self.compile_expr(pointer)?;
+        let pointer_i64 = self.coerce_to_i64_storage(&pointer_value, &pointer_ty);
+        self.emit_inline_asm_call(
+            "clflush ($0)",
+            &[(pointer_i64, "i64".to_string())],
+            InlineAsmOptions {
+                volatile: true,
+                memory: true,
+                intel: false,
+            },
+            span,
+        )
     }
 
     fn coerce_pointer_value_to_typed_memory_pointer(
@@ -1987,9 +2124,7 @@ impl LlvmGenerator {
             Expr::Ident(name, _) => Some(format!("v:{name}")),
             Expr::Paren(inner, _)
             | Expr::Cast { value: inner, .. }
-            | Expr::Bitcast { value: inner, .. } => {
-                self.scalar_forward_key(inner)
-            }
+            | Expr::Bitcast { value: inner, .. } => self.scalar_forward_key(inner),
             Expr::Unary { op, operand, .. } => {
                 Some(format!("u:{:?}({})", op, self.scalar_forward_key(operand)?))
             }
@@ -2026,9 +2161,7 @@ impl LlvmGenerator {
             }
             Expr::Paren(inner, _)
             | Expr::Cast { value: inner, .. }
-            | Expr::Bitcast { value: inner, .. } => {
-                self.forwardable_mem_pointer_key(inner)
-            }
+            | Expr::Bitcast { value: inner, .. } => self.forwardable_mem_pointer_key(inner),
             Expr::PtrOffset {
                 pointer: base,
                 offset,
@@ -2403,8 +2536,11 @@ impl LlvmGenerator {
             }
             Expr::Paren(inner, _)
             | Expr::Cast { value: inner, .. }
-            | Expr::Bitcast { value: inner, .. } => self
-                .expr_is_proven_nonnegative_i64_with(inner, known_i64_bindings, known_nonnegative),
+            | Expr::Bitcast { value: inner, .. } => self.expr_is_proven_nonnegative_i64_with(
+                inner,
+                known_i64_bindings,
+                known_nonnegative,
+            ),
             Expr::Binary {
                 left, op, right, ..
             } => match op {
@@ -2600,6 +2736,9 @@ impl LlvmGenerator {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
                     || Self::expr_has_loop_that_mentions_identifier(value, target)
             }
+            Expr::CpuCacheFlush { pointer, .. } => {
+                Self::expr_has_loop_that_mentions_identifier(pointer, target)
+            }
             Expr::AtomicLoad { pointer, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
             }
@@ -2623,7 +2762,10 @@ impl LlvmGenerator {
                     || Self::expr_has_loop_that_mentions_identifier(expected, target)
                     || Self::expr_has_loop_that_mentions_identifier(desired, target)
             }
-            Expr::AtomicFence { .. } => false,
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => false,
+            Expr::InlineAsm { operands, .. } => operands
+                .iter()
+                .any(|operand| Self::expr_has_loop_that_mentions_identifier(operand, target)),
             Expr::Alloc { size, .. } => Self::expr_has_loop_that_mentions_identifier(size, target),
             Expr::Realloc { pointer, size, .. } => {
                 Self::expr_has_loop_that_mentions_identifier(pointer, target)
@@ -2897,6 +3039,9 @@ impl LlvmGenerator {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
                 Self::collect_expr_assigned_identifier_names(value, assigned);
             }
+            Expr::CpuCacheFlush { pointer, .. } => {
+                Self::collect_expr_assigned_identifier_names(pointer, assigned);
+            }
             Expr::AtomicLoad { pointer, .. } => {
                 Self::collect_expr_assigned_identifier_names(pointer, assigned);
             }
@@ -2920,7 +3065,12 @@ impl LlvmGenerator {
                 Self::collect_expr_assigned_identifier_names(expected, assigned);
                 Self::collect_expr_assigned_identifier_names(desired, assigned);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    Self::collect_expr_assigned_identifier_names(operand, assigned);
+                }
+            }
             Expr::Alloc { size, .. } => {
                 Self::collect_expr_assigned_identifier_names(size, assigned);
             }
@@ -3475,9 +3625,7 @@ impl LlvmGenerator {
             Expr::Ref { value, .. }
             | Expr::AddrOf { value, .. }
             | Expr::Cast { value, .. }
-            | Expr::Bitcast { value, .. } => {
-                Self::expr_is_safe_for_ephemeral_local(value, target)
-            }
+            | Expr::Bitcast { value, .. } => Self::expr_is_safe_for_ephemeral_local(value, target),
             Expr::PtrOffset {
                 pointer, offset, ..
             } => {
@@ -3496,6 +3644,11 @@ impl LlvmGenerator {
                     || (!Self::expr_is_exact_target_pointer(pointer, target)
                         && Self::expr_is_safe_for_ephemeral_local(pointer, target)))
                     && Self::expr_is_safe_for_ephemeral_local(value, target)
+            }
+            Expr::CpuCacheFlush { pointer, .. } => {
+                Self::expr_is_ephemeral_target_address(pointer, target)
+                    || (!Self::expr_is_exact_target_pointer(pointer, target)
+                        && Self::expr_is_safe_for_ephemeral_local(pointer, target))
             }
             Expr::AtomicLoad { pointer, .. } => {
                 Self::expr_is_ephemeral_target_address(pointer, target)
@@ -3526,7 +3679,8 @@ impl LlvmGenerator {
                     && Self::expr_is_safe_for_ephemeral_local(expected, target)
                     && Self::expr_is_safe_for_ephemeral_local(desired, target)
             }
-            Expr::AtomicFence { .. } => true,
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => true,
+            Expr::InlineAsm { .. } => false,
             Expr::Alloc { size, .. } => Self::expr_is_safe_for_ephemeral_local(size, target),
             Expr::Realloc { pointer, size, .. } => {
                 Self::expr_is_safe_for_ephemeral_local(pointer, target)
@@ -6141,13 +6295,19 @@ impl LlvmGenerator {
         }
         let src_width = Self::obvious_llvm_type_byte_width(&src_ty).ok_or_else(|| {
             KainError::codegen(
-                format!("bitcast source type {} does not have an obvious LLVM width", src_ty),
+                format!(
+                    "bitcast source type {} does not have an obvious LLVM width",
+                    src_ty
+                ),
                 span,
             )
         })?;
         let dst_width = Self::obvious_llvm_type_byte_width(&dst_ty).ok_or_else(|| {
             KainError::codegen(
-                format!("bitcast target type {} does not have an obvious LLVM width", dst_ty),
+                format!(
+                    "bitcast target type {} does not have an obvious LLVM width",
+                    dst_ty
+                ),
                 span,
             )
         })?;
@@ -6162,13 +6322,25 @@ impl LlvmGenerator {
         }
         let res = self.next_reg();
         if src_ty.ends_with('*') && dst_ty.ends_with('*') {
-            self.emit(&format!("  {} = bitcast {} {} to {}", res, src_ty, val, dst_ty));
+            self.emit(&format!(
+                "  {} = bitcast {} {} to {}",
+                res, src_ty, val, dst_ty
+            ));
         } else if src_ty.ends_with('*') {
-            self.emit(&format!("  {} = ptrtoint {} {} to {}", res, src_ty, val, dst_ty));
+            self.emit(&format!(
+                "  {} = ptrtoint {} {} to {}",
+                res, src_ty, val, dst_ty
+            ));
         } else if dst_ty.ends_with('*') {
-            self.emit(&format!("  {} = inttoptr {} {} to {}", res, src_ty, val, dst_ty));
+            self.emit(&format!(
+                "  {} = inttoptr {} {} to {}",
+                res, src_ty, val, dst_ty
+            ));
         } else {
-            self.emit(&format!("  {} = bitcast {} {} to {}", res, src_ty, val, dst_ty));
+            self.emit(&format!(
+                "  {} = bitcast {} {} to {}",
+                res, src_ty, val, dst_ty
+            ));
         }
         Ok((res, dst_ty))
     }
@@ -14388,6 +14560,8 @@ impl LlvmGenerator {
                 span,
                 ..
             } => self.compile_runtime_volatile_mem_store(pointer, value, *span),
+            Expr::CpuFence { kind, span } => self.compile_cpu_fence(*kind, *span),
+            Expr::CpuCacheFlush { pointer, span } => self.compile_cpu_cache_flush(pointer, *span),
             Expr::AtomicLoad {
                 pointer,
                 ordering,
@@ -14508,6 +14682,12 @@ impl LlvmGenerator {
                 &Expr::Int(ordering.abi_code(), *span),
                 *span,
             ),
+            Expr::InlineAsm {
+                template,
+                operands,
+                options,
+                span,
+            } => self.compile_inline_asm(template, operands, *options, *span),
             Expr::SizeOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
                 let (size, _) = self.abi_layout_for_ty(&mapped, target.span())?;

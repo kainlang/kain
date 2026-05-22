@@ -5064,6 +5064,11 @@ impl<'a> Parser<'a> {
 
     fn normalize_special_call(&self, callee: Expr, args: Vec<CallArg>, span: Span) -> Expr {
         if let Expr::Ident(name, _) = &callee {
+            if name == "asm" {
+                if let Some(inline_asm) = self.parse_inline_asm_call(&args, span) {
+                    return inline_asm;
+                }
+            }
             if args.iter().all(|arg| arg.name.is_none()) {
                 match (name.as_str(), args.len()) {
                     ("addr_of", 1 | 2) => {
@@ -5327,6 +5332,30 @@ impl<'a> Parser<'a> {
                             .unwrap_or(AtomicOrdering::SeqCst);
                         return Expr::AtomicFence { ordering, span };
                     }
+                    ("lfence", 0) => {
+                        return Expr::CpuFence {
+                            kind: CpuFenceKind::Load,
+                            span,
+                        };
+                    }
+                    ("sfence", 0) => {
+                        return Expr::CpuFence {
+                            kind: CpuFenceKind::Store,
+                            span,
+                        };
+                    }
+                    ("mfence", 0) => {
+                        return Expr::CpuFence {
+                            kind: CpuFenceKind::Full,
+                            span,
+                        };
+                    }
+                    ("clflush", 1) => {
+                        return Expr::CpuCacheFlush {
+                            pointer: Box::new(args[0].value.clone()),
+                            span,
+                        };
+                    }
                     ("sizeof_type", 1) => {
                         let mut values = args.into_iter();
                         let target = values
@@ -5451,6 +5480,47 @@ impl<'a> Parser<'a> {
             "release" => Some(AtomicOrdering::Release),
             "acq_rel" | "acqrel" | "acquire_release" => Some(AtomicOrdering::AcqRel),
             "seq_cst" | "seqcst" | "sequentially_consistent" => Some(AtomicOrdering::SeqCst),
+            _ => None,
+        }
+    }
+
+    fn parse_inline_asm_call(&self, args: &[CallArg], span: Span) -> Option<Expr> {
+        let template = self.parse_inline_asm_template_arg(&args.first()?.value)?;
+        let mut operands = Vec::new();
+        let mut options = InlineAsmOptions::default();
+        for arg in &args[1..] {
+            if let Some(name) = arg.name.as_deref() {
+                let value = self.parse_inline_asm_bool_option_arg(&arg.value)?;
+                match name {
+                    "volatile" => options.volatile = value,
+                    "memory" => options.memory = value,
+                    "intel" => options.intel = value,
+                    _ => return None,
+                }
+            } else {
+                operands.push(arg.value.clone());
+            }
+        }
+        Some(Expr::InlineAsm {
+            template,
+            operands,
+            options,
+            span,
+        })
+    }
+
+    fn parse_inline_asm_template_arg(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::String(value, _) | Expr::Ident(value, _) => Some(value.clone()),
+            Expr::Paren(inner, _) => self.parse_inline_asm_template_arg(inner),
+            _ => None,
+        }
+    }
+
+    fn parse_inline_asm_bool_option_arg(&self, expr: &Expr) -> Option<bool> {
+        match expr {
+            Expr::Bool(value, _) => Some(*value),
+            Expr::Paren(inner, _) => self.parse_inline_asm_bool_option_arg(inner),
             _ => None,
         }
     }

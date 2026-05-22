@@ -1,0 +1,8 @@
+use std::runtime
+use c::version
+
+pub fn smoke_c_bridge_lane() -> Int:
+    let compat = version_check_abi_compatibility(256)
+    if compat != 1:
+        return 1
+    return 0

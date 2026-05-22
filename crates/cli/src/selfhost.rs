@@ -1598,7 +1598,15 @@ fn collect_macro_calls_from_expr(
                 collect_macro_calls_from_type(op_ty, required, counts);
             }
         }
-        Expr::AtomicFence { .. } => {}
+        Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+        Expr::CpuCacheFlush { pointer, .. } => {
+            collect_macro_calls_from_expr(pointer, required, counts);
+        }
+        Expr::InlineAsm { operands, .. } => {
+            for operand in operands {
+                collect_macro_calls_from_expr(operand, required, counts);
+            }
+        }
         Expr::AtomicCompareExchange {
             pointer,
             expected,

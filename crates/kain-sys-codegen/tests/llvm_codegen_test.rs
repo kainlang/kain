@@ -3095,3 +3095,39 @@ fn llvm_lowers_typed_none_to_zero_for_struct_value_flows() {
     assert!(llvm.contains("define internal %Node @return_none()"));
     assert!(llvm.contains("ret %Node zeroinitializer"));
 }
+
+#[test]
+fn llvm_lowers_x86_arch_fences_cache_flush_and_inline_asm() {
+    let source = r#"
+fn demo(slot: ptr<Int>) -> Int with Unsafe:
+    lfence()
+    sfence()
+    mfence()
+    clflush(slot)
+    asm("pause")
+    asm("nop", volatile = false, intel = true)
+    asm("clflush ($0)", slot, memory = true)
+    return 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains(
+        r#"call void asm sideeffect "lfence", "~{memory},~{dirflag},~{fpsr},~{flags}"()"#
+    ));
+    assert!(llvm.contains(
+        r#"call void asm sideeffect "sfence", "~{memory},~{dirflag},~{fpsr},~{flags}"()"#
+    ));
+    assert!(llvm.contains(
+        r#"call void asm sideeffect "mfence", "~{memory},~{dirflag},~{fpsr},~{flags}"()"#
+    ));
+    assert!(llvm.contains(r#"call void asm sideeffect "pause", "~{dirflag},~{fpsr},~{flags}"()"#));
+    assert!(llvm.contains(r#"call void asm inteldialect "nop", "~{dirflag},~{fpsr},~{flags}"()"#));
+    assert!(llvm.contains(
+        r#"call void asm sideeffect "clflush ($0)", "r,~{memory},~{dirflag},~{fpsr},~{flags}"(i64"#
+    ));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "x86-arch-fences-cache-flush-inline-asm");
+}

@@ -2298,6 +2298,17 @@ impl RustGen {
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                 format!("{}({})", fn_name, arg_strs.join(", "))
             }
+            Expr::CpuFence { .. } => "()".to_string(),
+            Expr::CpuCacheFlush { pointer, .. } => {
+                let _ = self.gen_expr(pointer);
+                "()".to_string()
+            }
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    let _ = self.gen_expr(operand);
+                }
+                "()".to_string()
+            }
             Expr::StageCall { function, args, .. } => {
                 let arg_strs: Vec<String> = args.iter().map(|a| self.gen_expr(&a.value)).collect();
                 format!(
@@ -3167,6 +3178,9 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(pointer, names);
                 self.collect_mutated_bindings_in_expr(value, names);
             }
+            Expr::CpuCacheFlush { pointer, .. } => {
+                self.collect_mutated_bindings_in_expr(pointer, names);
+            }
             Expr::AtomicLoad { pointer, .. } => {
                 self.collect_mutated_bindings_in_expr(pointer, names)
             }
@@ -3190,7 +3204,12 @@ impl RustGen {
                 self.collect_mutated_bindings_in_expr(expected, names);
                 self.collect_mutated_bindings_in_expr(desired, names);
             }
-            Expr::AtomicFence { .. } => {}
+            Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
+            Expr::InlineAsm { operands, .. } => {
+                for operand in operands {
+                    self.collect_mutated_bindings_in_expr(operand, names);
+                }
+            }
             Expr::Alloc { size, .. } => self.collect_mutated_bindings_in_expr(size, names),
             Expr::Realloc { pointer, size, .. } => {
                 self.collect_mutated_bindings_in_expr(pointer, names);

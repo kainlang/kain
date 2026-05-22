@@ -7377,6 +7377,7 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
         Expr::Return(value, _) | Expr::Break(value, _) => value
             .as_ref()
             .is_some_and(|v| expr_uses_kain_runtime(v.as_ref())),
+        Expr::CpuFence { .. } | Expr::CpuCacheFlush { .. } | Expr::InlineAsm { .. } => true,
     }
 }
 

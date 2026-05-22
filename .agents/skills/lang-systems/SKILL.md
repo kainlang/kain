@@ -1,7 +1,7 @@
 ---
 name: lang-systems
 description: >-
-  Use when authoring, explaining, reviewing, or repairing systems-level Kain code: actors and message pressure, `spawn`/`send`/`ask`, async/future flows, Koka-like effect annotations, `collapse`/`observe`/`decay`, raw pointers, `alloc`/`alloc_zeroed`/`realloc_mem`, `ptr_offset`/`mem_load`/`mem_store`, zero-copy buffers, branchless/bit/cache-line lanes, shatter-friendly data layout, pulse/teleport systems fusion, actor runtime telemetry, and proof/benchmark/attrition expectations for unsafe or low-level authored `.kn` code. Use this for writing IN Kain; use bootstrap/runtime skills when changing parser, typechecker, lowering, scheduler, mailbox, heap, or native ABI internals.
+  Use when authoring, explaining, reviewing, or repairing systems-level Kain code: actors and message pressure, `spawn`/`send`/`ask`, async/future flows, Koka-like effect annotations, `collapse`/`observe`/`decay`, raw pointers, `alloc`/`alloc_zeroed`/`realloc_mem`, `ptr_offset`/`mem_load`/`mem_store`, volatile and ordered-atomic lanes, `bitcast`/`ptr_to_int`/`int_to_ptr`, `lfence`/`sfence`/`mfence`/`clflush`/`asm`, `std::machine` ISA and VM helpers, zero-copy buffers, branchless/bit/cache-line lanes, shatter-friendly data layout, pulse/teleport systems fusion, actor runtime telemetry, and proof/benchmark/attrition expectations for unsafe or low-level authored `.kn` code. Use this for writing IN Kain; use bootstrap/runtime skills when changing parser, typechecker, lowering, scheduler, mailbox, heap, or native ABI internals.
 ---
 
 # Lang Systems
@@ -19,9 +19,9 @@ This is the metal-authoring field manual for Kain. Use it when the authored `.kn
 ## Fast Operator Loop
 
 ```powershell
-rg -n "\b(actor|spawn|send|ask|async|await|with (Pure|IO|Async|GPU|Reactive|Unsafe)|collapse|observe|decay|ptr<|alloc_zeroed|ptr_offset|mem_load|mem_store|shatter struct)\b" library_of_kain blades benchmark smoketest stdlib
-rg -n "Effect|EffectSet|parse_effects|parse_actor|Expr::(Spawn|SendMsg|Collapse|Observe|Decay|PtrOffset|MemLoad|MemStore|Alloc|Realloc|Await|AsyncBlock)" crates/kain-core/src
-rg -n "kain_actor_|__kain_ownership|kain_machine_shatter|kain_machine_teleport|mailbox|scheduler" runtime/native crates/kain-sys-codegen/src
+rg -n "\b(actor|spawn|send|ask|async|await|with (Pure|IO|Async|GPU|Reactive|Unsafe)|collapse|observe|decay|ptr<|alloc_zeroed|ptr_offset|mem_load|mem_store|volatile_load|volatile_store|atomic_[a-z_]+|lfence|sfence|mfence|clflush|asm\(|shatter struct)\b" library_of_kain blades benchmark smoketest stdlib
+rg -n "Effect|EffectSet|parse_effects|parse_actor|Expr::(Spawn|SendMsg|Collapse|Observe|Decay|PtrOffset|MemLoad|MemStore|VolatileLoad|VolatileStore|Atomic[A-Za-z]+|Bitcast|CpuFence|CpuCacheFlush|InlineAsm|Alloc|Realloc|Await|AsyncBlock)" crates/kain-core/src
+rg -n "kain_actor_|__kain_ownership|kain_machine_shatter|kain_machine_teleport|mailbox|scheduler|clflush|lfence|sfence|mfence|rdtsc|cpuid|prefetch|vm_" runtime/native crates/kain-sys-codegen/src stdlib
 kain check <entry.kn> --target llvm
 kain run <entry.kn-or-blade> --target llvm
 ```
@@ -62,8 +62,8 @@ Source anchors:
 - Actor runtime/interpreter: `crates/kain-core/src/runtime.rs` actor helpers, `stdlib/actor.kn`.
 - Actor LLVM/native: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs compile_actor`, `compile_actor_builtin_ask`, `runtime/native/include/actor.h`, `runtime/native/src/core/actor.c`.
 - Ownership model: `crates/kain-ownership/src/lib.rs`, `crates/kain-core/src/types.rs` ownership inference, `runtime/native/include/ownership.h`, `runtime/native/src/core/ownership*`.
-- Raw memory AST/type/lowering: `ast.rs Type::Ptr`, `Expr::PtrOffset`, `Expr::MemLoad`, `Expr::MemStore`, `Expr::Alloc`, `Expr::Realloc`, `crates/kain-core/src/low_level_memory.rs`, LLVM memory lowering.
-- Machine layout/handoff: `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c`, LLVM shatter/teleport/pulse lowering.
+- Raw memory AST/type/lowering: `ast.rs Type::Ptr`, `Expr::PtrOffset`, `Expr::MemLoad`, `Expr::MemStore`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Atomic*`, `Expr::Bitcast`, `Expr::CpuFence`, `Expr::CpuCacheFlush`, `Expr::InlineAsm`, `Expr::Alloc`, `Expr::Realloc`, `crates/kain-core/src/low_level_memory.rs`, LLVM memory lowering.
+- Machine layout/handoff and ISA helpers: `stdlib/machine.kn`, `runtime/native/src/core/cpu.c`, `runtime/native/include/cpu.h`, `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c`, LLVM shatter/teleport/pulse lowering.
 - Proofs: `crates/kain-ownership/z3/proofs`, `crates/kain-core/z3/proofs`, `runtime/native/src/core/z3/proofs`, subsystem benchmark cases.
 
 ## Feature Index
@@ -86,6 +86,12 @@ Source anchors:
 | reallocation | Grow memory region | `realloc_mem(ptr, n, "Int", true)` | `Expr::Realloc`, stdlib/runtime helpers |
 | pointer offset | Address element lane | `ptr_offset(cells, i, "Int")` | `Expr::PtrOffset`, LLVM pointer lowering |
 | memory load/store | Raw cell access | `mem_load(ptr, "Int")`, `mem_store(ptr, v, "Int")` | `Expr::MemLoad`, `Expr::MemStore` |
+| volatile access | Hardware-observable raw cell access | `volatile_load(ptr, "Int")`, `volatile_store(ptr, v, "Int")` | `Expr::VolatileLoad`, `Expr::VolatileStore` |
+| ordered atomics | Shared-region atomic floor | `atomic_add(ptr, 1, "acq_rel")`, `atomic_fence("seq_cst")` | `Expr::Atomic*`, LLVM atomicrmw/cmpxchg/fence lowering |
+| bit reinterpret / ptr casts | Width-trusted metal casts | `bitcast(x, "I64")`, `ptr_to_int(ptr)`, `int_to_ptr(bits, "ptr<Int>")` | `Expr::Bitcast`, cast lowering, LLVM ptr/int bridges |
+| ISA fences and cache flush | x86-family hardware barriers | `lfence()`, `sfence()`, `mfence()`, `clflush(ptr)` | `Expr::CpuFence`, `Expr::CpuCacheFlush`, LLVM x86 asm lowering |
+| inline asm MVP | Last-mile ISA escape hatch | `asm("pause")`, `asm("clflush ($0)", ptr, memory = true)` | `Expr::InlineAsm`, LLVM x86_64-only asm lowering |
+| `std::machine` | Curated machine/VM/topology helpers | `load_fence()`, `cache_flush(ptr)`, `vm_map(bytes)` | `stdlib/machine.kn`, `runtime/native/src/core/cpu.c` |
 | shatter layout | SoA layout intent | `shatter struct Particle:` | `lang-semantics`, LLVM shatter lowering, `machine_stones.c` |
 | teleport handoff | Zero-copy cross-world move | `teleport value from A to B via bus` | `lang-semantics`, `types.rs`, `machine_stones.c` |
 | pulse | Temporal systems tick | `pulse clock every 8ms:` | `lang-semantics`, LLVM/native pulse runtime |
@@ -317,18 +323,63 @@ Raw memory rules:
 - Allocate with `alloc`, `alloc_zeroed`, or stdlib allocator helpers when you need owned memory.
 - Use `realloc_mem(ptr, count, "Type", zeroed_new)` when growing in authored Kain if examples in this checkout use that helper.
 - Always carry element type strings in pointer helpers: `ptr_offset(cells, i, "Int")`, `mem_load(ptr, "Int")`, `mem_store(ptr, value, "Int")`.
+- Reach for `volatile_load` / `volatile_store` when the read/write must stay hardware-visible; use plain `mem_load` / `mem_store` for normal raw memory.
+- Use `bitcast`, `ptr_to_int`, and `int_to_ptr` only when you can state the width/layout contract out loud; these are metal tools, not convenience casts.
 - Prefer one allocation shape per hot lane: SoA pointer arrays, packed `Int` cells, or `shatter struct`, not accidental mixed abstractions.
 - Avoid pointer arithmetic with hidden units. Name constants like `WORDS_PER_PACKET`, `CACHE_LINE_WORDS`, `CELL_COUNT`.
 - Do not silently ignore bounds. If the lane depends on `base + width <= count`, prove it or keep the loop shape obviously bounded.
 
 Raw memory source anchors:
 
-- `ast.rs`: `Type::Ptr`, `PointerProvenance`, `Expr::PtrOffset`, `Expr::MemLoad`, `Expr::MemStore`, `Expr::Alloc`, `Expr::Realloc`.
+- `ast.rs`: `Type::Ptr`, `PointerProvenance`, `Expr::PtrOffset`, `Expr::MemLoad`, `Expr::MemStore`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Alloc`, `Expr::Realloc`.
 - `crates/kain-core/src/low_level_memory.rs`: AST-to-low-level helper handling and memory metadata.
 - `types.rs infer_expr_type`: pointer/memload/memstore type behavior.
 - `codegen_llvm/mod.rs`: pointer collect/forwarding, memory load/store, ownership provenance, ephemeral local/shatter handling.
 - `runtime/native/include/memory.h`, `runtime/native/src/core/*memory*`.
 - Z3 helpers: use `ptr_offset_ok`, `size_add_ok`, `size_mul_ok`, `buffer_growth_ok`, `range_check` when editing underlying rules.
+
+## Volatile, Atomics, And ISA Escape
+
+These are the authored "speak directly to the machine" surfaces. Keep them explicit and capability-shaped.
+
+```kn
+use std::machine
+
+fn machine_lane(slot: ptr<Int>) -> Int with Unsafe:
+    volatile_store(slot, 11, "Int")
+    load_fence()
+    let seen = volatile_load(slot, "Int")
+    let prior = atomic_add(slot, 1, "acq_rel")
+    atomic_fence("seq_cst")
+    cache_flush(slot)
+    full_fence()
+    spin_loop_hint()
+    asm("pause")
+    return seen + prior
+```
+
+Metal rules:
+
+- `volatile_*` is for MMIO/register-observable traffic, not generic synchronization.
+- Ordered atomics are for shared-memory coordination; prefer the narrowest truthful ordering instead of defaulting every lane to `seq_cst`.
+- `lfence`, `sfence`, and `mfence` are ISA barriers, separate from portable `atomic_fence`.
+- `clflush(ptr)` is x86-family cache-line flush intent; treat it as target-specific and unsafe by default.
+- `asm(...)` is currently an LLVM/x86_64 MVP:
+  - zero outputs only
+  - integer-like / pointer-like operands only
+  - options are `volatile = <Bool>`, `memory = <Bool>`, `intel = <Bool>`
+- `std::machine` is the curated authored surface for page size, VM map/protect/unmap, thread affinity, `pause`, `rdtsc`, `cpuid`, prefetch, fences, cache flush, and spin hints.
+- `use std::runtime` and `use std::machine` are expected to coexist; `std::machine` layers on the ambient runtime/native ABI floor rather than replacing it.
+- When a blade depends on exact cache, fence, or atomic behavior, add a smoke or benchmark that forces the path to lower and execute.
+
+Metal source anchors:
+
+- `crates/kain-core/src/ast.rs`: `AtomicOrdering`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Atomic*`, `Expr::Bitcast`, `Expr::CpuFence`, `Expr::CpuCacheFlush`, `Expr::InlineAsm`.
+- `crates/kain-core/src/parser.rs`: builtin normalization for `volatile_*`, atomic family, `lfence` / `sfence` / `mfence`, `clflush`, and `asm`.
+- `crates/kain-core/src/types.rs`: unsafe gating, atomic ordering checks, inline-asm operand restrictions.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: LLVM volatile, `atomicrmw`, `cmpxchg`, `fence`, x86 barrier/cache-flush lowering, inline asm MVP.
+- `stdlib/machine.kn`: public authored wrappers such as `load_fence`, `store_fence`, `full_fence`, `cache_flush`, `spin_loop_hint`, VM, topology, and CPU helpers.
+- `runtime/native/src/core/memory.c` and `runtime/native/src/core/cpu.c`: native helper floor for ordered atomics, VM, affinity, `pause`, `rdtsc`, `cpuid`, and prefetch.
 
 ## Shatter, Cache Geometry, And Layout Intent
 
