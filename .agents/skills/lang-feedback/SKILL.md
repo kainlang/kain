@@ -42,6 +42,8 @@ Use this exact structure so future LLMs can scan quickly:
 ```markdown
 ## YYYY-MM-DD - <task or subsystem>
 ### <Issue Title>
+- Categories: <comma-separated list of applicable categories, e.g., regression, enhancement, correctness, performance, developer-experience>
+- Status: <Active | Patched | Verified | Bypass-Applied>
 - Surface: <parser|typechecker|lowering|runtime|stdlib|tooling|build|interop|gpu|proof>
 - Symptom: <what failed>
 - Workflow impact: <how this slowed or blocked work>
@@ -49,6 +51,10 @@ Use this exact structure so future LLMs can scan quickly:
 - Evidence: <error text, report path, or observed behavior>
 - Suggested direction: <small concrete next move>
 ```
+
+## Reviewing and Updating Status
+
+If you are an agent reviewing feedback for bugs and using this as a list to fix, make sure to update the feedback mentioned with a `patched` or `verified` status (e.g. changing `- Status:` to `Patched` or `Verified`) to indicate it has been resolved.
 
 ## Authoring Constraints
 
