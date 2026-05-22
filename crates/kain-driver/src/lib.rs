@@ -987,6 +987,14 @@ impl FrontendImportCollector {
             let Some(module_file) = resolve_stdlib_module_file(module_name) else {
                 continue;
             };
+            let module_file = canonicalize_existing_path(&module_file);
+            if self
+                .entry_path
+                .as_ref()
+                .is_some_and(|entry_path| *entry_path == module_file)
+            {
+                continue;
+            }
             self.collect_module_file(module_file, target)?;
         }
         Ok(())
@@ -2659,6 +2667,27 @@ fn main() -> Int:
             "pub fn native_actor_spawn(actor_name: String, init_payload: String) -> Int:"
         ));
         assert!(!frontend.full_source.contains("actor GenServer:"));
+    }
+
+    #[test]
+    fn frontend_bundle_does_not_duplicate_ambient_stdlib_entry_file() {
+        let source = include_str!("../../../stdlib/runtime.kn");
+        let path = Path::new("D:/Kain-Lang/stdlib/runtime.kn");
+        let session = DriverSession::default();
+        let frontend =
+            build_frontend_source_bundle(&session, source, Some(path), CompileTarget::Llvm)
+                .expect("frontend bundle");
+
+        assert_eq!(
+            frontend
+                .full_source
+                .matches("fn abi_runtime_init() -> Int")
+                .count(),
+            1
+        );
+        session
+            .frontend_to_typed_program_with_source_path(source, Some(path), CompileTarget::Llvm)
+            .expect("ambient stdlib entry should be checked once");
     }
 
     #[test]

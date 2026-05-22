@@ -1,9 +1,18 @@
 use std::runtime
 use std::machine
-use world::SmokeAuthority
-use world::SmokeMirror
 use shatter::SmokeShard
 use shatter::smoke_shard_score
+
+component SmokeTeleportPanel():
+    render <panel title="Smoke Teleport" />
+
+world SmokeTeleportAuthority:
+    state signal: Int = 1
+    surface web => SmokeTeleportPanel
+
+world SmokeTeleportMirror:
+    state signal_copy: Int = 1
+    surface web => SmokeTeleportPanel
 
 pub fn smoke_teleport_lane() -> Int:
     let shard = SmokeShard { bias: 42, phase: 7, salt: 13, alive: true }
@@ -11,7 +20,7 @@ pub fn smoke_teleport_lane() -> Int:
     // Cross-file: score the shard before teleport using shatter.kn's pub fn
     let score_before = smoke_shard_score(shard)
 
-    let moved = teleport shard from SmokeAuthority to SmokeMirror via smoke_teleport_bus
+    let moved = teleport shard from SmokeTeleportAuthority to SmokeTeleportMirror via smoke_teleport_bus
     if moved.bias != 42:
         return 1
     if moved.phase != 7:
@@ -28,4 +37,3 @@ pub fn smoke_teleport_lane() -> Int:
     if teleport_count < 1:
         return 5
     return 0
-

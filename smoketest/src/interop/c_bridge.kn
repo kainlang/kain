@@ -1,8 +1,37 @@
 use std::runtime
-use c::version
+use smoketest_interop_import::smoketest_bridge_bias
+use smoketest_interop_import::smoketest_bridge_mix
+use smoketest_interop_import::smoketest_bridge_fold
+use types::SmokeLane
+use types::SmokePacket
+use types::smoke_weighted_checksum
+
+const SMOKE_C_BRIDGE_MODULUS: Int = 1000000007
+
+pub fn smoke_c_bridge_score(seed: Int, salt: Int) -> Int:
+    let bias = smoketest_bridge_bias(seed)
+    let mixed = smoketest_bridge_mix(seed + bias, salt)
+    let folded = smoketest_bridge_fold(mixed, salt + bias, 4)
+    let packet = SmokePacket {
+        id: 29,
+        lane: SmokeLane::CBridge,
+        payload: (bias + mixed + folded) % SMOKE_C_BRIDGE_MODULUS,
+        tag: "c-bridge",
+        hot: true
+    }
+    return (smoke_weighted_checksum(packet) + bias + mixed + folded) % SMOKE_C_BRIDGE_MODULUS
 
 pub fn smoke_c_bridge_lane() -> Int:
-    let compat = version_check_abi_compatibility(256)
-    if compat != 1:
+    let bias = smoketest_bridge_bias(11)
+    let mixed = smoketest_bridge_mix(29, 7)
+    let folded = smoketest_bridge_fold(mixed, bias, 3)
+    let score = smoke_c_bridge_score(mixed, folded)
+    if bias != 50:
         return 1
+    if mixed <= 0:
+        return 2
+    if folded <= mixed:
+        return 3
+    if score <= folded:
+        return 4
     return 0

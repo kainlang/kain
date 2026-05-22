@@ -1,3 +1,5 @@
+use std::math
+
 shader fragment SmokeGradient(uv: Vec2) -> Vec4:
     uniform accent: Vec3 @0
     let ring: Float = fbm2(uv, 4)

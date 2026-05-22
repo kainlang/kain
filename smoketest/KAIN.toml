@@ -1,0 +1,53 @@
+# build.kn owns the explicit evidence DAG; this manifest carries compatibility
+# metadata that the current run/build pipeline still reads for C FFI.
+
+[package]
+name = "smoketest"
+version = "0.1.0"
+description = "Album-edition Kain proving ground for semantics, systems, stdlib, interop, and telemetry."
+
+[blade]
+name = "smoketest"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = [
+  "src",
+  "src/semantics",
+  "src/systems",
+  "src/gpu",
+  "src/stdlib",
+  "src/interop",
+  "src/wasm",
+  "src/telemetry",
+]
+module_roots = [
+  "src",
+  "src/semantics",
+  "src/systems",
+  "src/gpu",
+  "src/stdlib",
+  "src/interop",
+  "src/wasm",
+  "src/telemetry",
+]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out/llvm"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "smoketest_interop_bridge"
+tier = "inline"
+header = "native/smoketest_interop_bridge.h"
+sources = ["native/smoketest_interop_bridge.c"]
+include_paths = ["native"]
+defines = ["_CRT_SECURE_NO_WARNINGS"]

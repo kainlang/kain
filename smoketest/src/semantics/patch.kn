@@ -1,19 +1,38 @@
 use std::runtime
 use std::intent
-use world::SmokeAuthority
+use std::collections
 use law::smoke_validate_range
 use types::SmokePacket
 use types::SmokeLane
 use types::smoke_weighted_checksum
 
-patch smoke_commit_signal(authority: SmokeAuthority, value: Int) -> Int:
+component SmokePatchPanel():
+    render <panel title="Smoke Patch" />
+
+world SmokePatchAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state health: Int = 100
+    surface web => SmokePatchPanel
+
+world SmokePatchMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state health_copy: Int = 100
+    surface web => SmokePatchPanel
+
+entangle SmokePatchAuthority.signal <-> SmokePatchMirror.signal_copy with single_writer
+entangle SmokePatchAuthority.epoch <-> SmokePatchMirror.epoch_copy with single_writer
+entangle SmokePatchAuthority.health <-> SmokePatchMirror.health_copy with single_writer
+
+patch smoke_commit_signal(authority: SmokePatchAuthority, value: Int) -> Int:
     authority.signal = value
     authority.epoch = authority.epoch + 1
     authority.health = int_clamp(authority.health + 1, 0, 1000000)
     return authority.signal
 
 pub fn smoke_patch_lane() -> Int:
-    let authority = SmokeAuthority
+    let authority = SmokePatchAuthority
     let committed = smoke_commit_signal(authority, 77)
 
     // Cross-file call: validate committed signal via law.kn's range validator

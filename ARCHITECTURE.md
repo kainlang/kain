@@ -99,7 +99,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [README.md](/M:/Code/Kain/README.md): repo-level operating brief
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
-- `.agents/skills`: active repo-local skill tree. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, and `tool-*`; `.agents/skills/TAXONOMY.md` is the current route map.
+- `.agents/skills`: active repo-local skill tree. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, `wildcard-*`, and `tool-*`; `.agents/skills/TAXONOMY.md` is the current route map.
 - [scripts](/M:/Code/Kain/scripts): directory-only operational tree. `scripts/docs/` holds the indexes and guide docs; `scripts/kain/` holds executable KAIN filesystem automation built on real runtime helpers like `read_dir`, `path_*`, `create_dir_all`, `copy_file`, `remove_file`, `read_file`, `write_file`, `file_exists`, and `env`; `scripts/kain/actor/` adds real actor-system demos for supervisor/worker fan-out and extension bucketing; `scripts/linux/`, `scripts/windows/`, `scripts/python/`, `scripts/rust/`, and `scripts/tests/` hold the other executable helpers and fixtures.
 - [guides](/M:/Code/Kain/guides): canonical long-form guide tree for the live language, runtime, CLI, and example lanes
 - [guides/reference/legacy-crosswalk.md](/M:/Code/Kain/guides/reference/legacy-crosswalk.md): bridge from stale prose to the current canonical docs

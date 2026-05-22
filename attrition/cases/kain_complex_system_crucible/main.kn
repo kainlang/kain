@@ -60,20 +60,140 @@ fn attrition_complete(status: Int, checksum: Int, message: String) -> Int:
     return status
 
 fn exercise_allocators(iteration: Int) -> Int:
-    return 42
+    var bump = bump_create(64)
+    var bump_score = 0
+    var i = 0
+    while i < 4:
+        let alloc = bump_alloc(bump, 8)
+        if alloc.ok == false:
+            let _d = bump_allocator_destroy(bump)
+            return -1
+        bump = alloc.allocator
+        mem_store(ptr_offset(alloc.ptr, i, "Int"), iteration + i * 13, "Int")
+        bump_score = bump_score + mem_load(ptr_offset(alloc.ptr, i, "Int"), "Int")
+        i = i + 1
+    let _d1 = bump_allocator_destroy(bump)
+
+    var arena = arena_create(128)
+    var arena_score = 0
+    let a_alloc1 = arena_alloc(arena, 32)
+    if a_alloc1.ok == false:
+        let _d = arena_allocator_destroy(arena)
+        return -2
+    arena = a_alloc1.arena
+    mem_store(a_alloc1.ptr, iteration + 77, "Int")
+    arena_score = mem_load(a_alloc1.ptr, "Int") + arena.high_water
+    let _d2 = arena_allocator_destroy(arena)
+
+    var pool = pool_create(4, 8)
+    let block1 = pool_alloc(pool)
+    if block1.ok == false:
+        let _d = pool_allocator_destroy(pool)
+        return -3
+    pool = block1.pool
+    mem_store(block1.ptr, iteration + 99, "Int")
+    
+    let block2 = pool_alloc(pool)
+    if block2.ok == false:
+        let _d = pool_allocator_destroy(pool)
+        return -4
+    pool = block2.pool
+    
+    let pool_score = mem_load(block1.ptr, "Int") + block1.block_index
+    pool = pool_free_block(pool, block1.block_index)
+    pool = pool_free_block(pool, block2.block_index)
+    let _d3 = pool_allocator_destroy(pool)
+
+    return (bump_score + arena_score + pool_score) % CRUCIBLE_MODULUS
 
 fn exercise_collections(iteration: Int) -> Int:
-    return 42
+    var metrics = typed_map_new()
+    metrics = typed_map_set(metrics, "iter", iteration)
+    metrics = typed_map_set(metrics, "val", iteration * 2)
+    let map_score = typed_map_get(metrics, "iter") + typed_map_get(metrics, "val")
+    let _d1 = typed_map_destroy(metrics)
+
+    var queue = queue_create(8)
+    queue = queue_push(queue, iteration + 1)
+    queue = queue_push(queue, iteration + 2)
+    let queue_score = queue_peek(queue)
+    queue = queue_pop(queue)
+    let queue_score2 = queue_peek(queue)
+    let _d2 = queue_destroy(queue)
+
+    var dq = deque_create(8)
+    dq = deque_push_back(dq, iteration + 10)
+    dq = deque_push_front(dq, iteration + 20)
+    let dq_score = deque_peek_front(dq) + deque_peek_back(dq)
+    dq = deque_pop_front(dq)
+    let dq_score2 = deque_peek_front(dq)
+    let _d3 = deque_destroy(dq)
+
+    var pq = priority_queue_create(8)
+    pq = priority_queue_push(pq, iteration + 100, 5)
+    pq = priority_queue_push(pq, iteration + 200, 10)
+    let pq_score = priority_queue_peek_value(pq) + priority_queue_peek_priority(pq)
+    pq = priority_queue_pop(pq)
+    let pq_score2 = priority_queue_peek_value(pq)
+    let _d4 = priority_queue_destroy(pq)
+
+    var slots = slot_map_create(4)
+    let ins1 = slot_map_insert(slots, iteration + 50)
+    if ins1.ok == false:
+        let _d = slot_map_destroy(slots)
+        return -5
+    slots = ins1.map
+    
+    let ins2 = slot_map_insert(slots, iteration + 60)
+    if ins2.ok == false:
+        let _d = slot_map_destroy(slots)
+        return -6
+    slots = ins2.map
+
+    let contains_val = slot_map_contains(slots, ins1.key)
+    let get_val = slot_map_get_or(slots, ins1.key, 0)
+    
+    let rem1 = slot_map_remove(slots, ins1.key)
+    if rem1.ok == false:
+        let _d = slot_map_destroy(slots)
+        return -7
+    slots = rem1.map
+    
+    let slot_score = get_val + rem1.value + bool_to_int(contains_val)
+    let _d5 = slot_map_destroy(slots)
+
+    return (map_score + queue_score + queue_score2 + dq_score + dq_score2 + pq_score + pq_score2 + slot_score) % CRUCIBLE_MODULUS
 
 fn exercise_process(iteration: Int) -> Int:
-    return 42
+    if process_platform_available() == 0:
+        return 0
+    let spec_id = process_spec_create("cmd.exe")
+    if spec_id < 0:
+        return -1
+    let _a1 = process_spec_add_arg(spec_id, "/c")
+    let _a2 = process_spec_add_arg(spec_id, "exit")
+    let _a3 = process_spec_add_arg(spec_id, "/b")
+    let _a4 = process_spec_add_arg(spec_id, "0")
+    let _s1 = process_spec_set_stdio_modes(spec_id, "null", "null", "null")
+    
+    let process_id = process_spawn(spec_id)
+    if process_id < 0:
+        let _d = process_spec_destroy(spec_id)
+        return -2
+        
+    let wait_status = process_wait(process_id, 2000)
+    if wait_status <= 0:
+        let _c = process_close(process_id)
+        let _d = process_spec_destroy(spec_id)
+        return -3
+        
+    let exit_code = process_exit_code(process_id)
+    let _c = process_close(process_id)
+    let _d = process_spec_destroy(spec_id)
+    
+    return (process_id + exit_code + iteration) % CRUCIBLE_MODULUS
 
-fn main() -> Int:
-    let boot = runtime_init()
-    if boot < 0:
-        return 100 + boot
-
-    let ops = attrition_env_int("KAIN_ATTRITION_OPS", 16)
+fn run_crucible(ops: Int) -> Int:
     let w1 = spawn Worker(id = 1)
     let w2 = spawn Worker(id = 2)
 
@@ -85,15 +205,15 @@ fn main() -> Int:
         
         let alloc_score = exercise_allocators(index)
         if alloc_score < 0:
-            return attrition_complete(10 - alloc_score, checksum, "allocator pressure failed")
+            return -1000 + alloc_score
 
         let coll_score = exercise_collections(index)
         if coll_score < 0:
-            return attrition_complete(20 - coll_score, checksum, "collections pressure failed")
+            return -2000 + coll_score
 
         let proc_score = exercise_process(index)
         if proc_score < 0:
-            return attrition_complete(30 - proc_score, checksum, "process pressure failed")
+            return -3000 + proc_score
 
         let state_repr = sha256(env("KAIN_ATTRITION_CASE_ID") + "iteration:" + text_materialize(text_from("sc:" + char_at("0123456789", index % 10))))
         let state_len = len(state_repr)
@@ -104,7 +224,20 @@ fn main() -> Int:
             let _progress = runtime_attrition_note_progress(index, checksum)
         index = index + 1
 
-    if runtime_heap_validate() < 0:
-        return attrition_complete(90, checksum, "runtime heap validate failed")
+    return checksum
 
-    return attrition_complete(0, checksum, "")
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot < 0:
+        return 100 + boot
+
+    let ops = attrition_env_int("KAIN_ATTRITION_OPS", 16)
+    let result = run_crucible(ops)
+    
+    if result < 0:
+        return attrition_complete(100 - result, 0, "crucible failed")
+
+    if runtime_heap_validate() < 0:
+        return attrition_complete(90, result, "runtime heap validate failed")
+
+    return attrition_complete(0, result, "")

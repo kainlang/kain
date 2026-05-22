@@ -1,5 +1,21 @@
 # Kain Memory
 
+# 2026-05-22 - added `wildcard-justwritebro` as the anti-scavenger Kain authoring lane
+
+The repo-local skill tree now includes a deliberate `wildcard-*` namespace for intuition-first Kain authoring overrides. The first lane, `.agents/skills/wildcard-justwritebro`, tells agents to load the core authoring manuals and then start writing instead of spending several minutes pattern-matching against the whole repo.
+
+What changed:
+
+- added `.agents/skills/wildcard-justwritebro/SKILL.md` as a high-freedom authoring override with a required core-skill loadout, anti-scavenger contract, write loop, escalation rules, and anti-patterns
+- added `.agents/skills/wildcard-justwritebro/agents/openai.yaml` UI metadata
+- updated `.agents/skills/TAXONOMY.md`, `AGENTS.md`, and `ARCHITECTURE.md` so future agents can discover the new `wildcard-*` namespace intentionally
+
+Validation:
+
+- `python C:\Users\Admin\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\Kain-Lang\.agents\skills\wildcard-justwritebro`
+
+Future agents should use `$wildcard-justwritebro` only when the task explicitly wants fast, creative, intuition-first Kain authoring rather than repo-conforming research. It is an override lane, not a replacement for the owning `lang-*` field manuals.
+
 # 2026-05-22 - stdlib and smoke-album shadow diagnostics now preserve predeclare origins
 
 The typechecker no longer mistakes its own forward predeclare placeholders for user/builtin shadowing, and stdlib-origin wrappers can intentionally occupy originless runtime/builtin global names.
@@ -8292,3 +8308,46 @@ Runtime proof:
 Durable lesson:
 
 - For blade-local Vulkan bridges, treat entrypoint names as part of the ABI. GLSL references usually export `main`; Kain shader files export their authored function names unless a host shim rewrites them.
+
+# 2026-05-22 - stdlib import self-collision fixed and smoketest album green
+
+The `StringIntMap shadows an existing type symbol` failure was a real compiler/typechecker duplicate-registration bug, not a Rust-side native registration issue and not a bad `StringIntMap` definition. Repeated stdlib registration can revisit the same declaration through ambient stdlib loading plus explicit/transitive imports; stdlib-origin declarations now tolerate idempotent re-registration of the same symbol while still rejecting user-authored collisions.
+
+What changed:
+
+- `crates/kain-core/src/types.rs`
+  - Preserves the stdlib registration guard and same-declaration check for idempotent stdlib/native extern re-registration.
+  - Added `typecheck_real_stdlib_runtime_declarations_do_not_self_collide` over the actual `stdlib/runtime.kn` source so wrapper/extern declarations cannot regress into self-shadowing.
+- `crates/kain-driver/src/lib.rs`
+  - `FrontendImportCollector::collect_target_stdlib_prelude` now canonicalizes ambient stdlib module paths and skips the module when it is already the entry file.
+  - Added `frontend_bundle_does_not_duplicate_ambient_stdlib_entry_file`, proving `kain check stdlib/runtime.kn --target llvm` bundles `stdlib/runtime.kn` once.
+- `smoketest/src/gpu/compute.kn`
+  - Fixed comptime compute tuple/list trailing commas to match the existing GPU shader examples.
+- `smoketest/src/gpu/fragment.kn`
+  - Added `use std::math` for `fbm2`.
+- `smoketest/src/semantics/patch.kn`
+  - Added `use std::collections` for `int_clamp`.
+- `smoketest/src/stdlib/diagnostics_lane.kn`
+  - Added `use std::collections` for `bool_to_int`.
+
+Validation:
+
+- `cargo test -p kain-core typecheck_stdlib_extern_declarations_are_idempotent --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-core typecheck_dynamic_stdlib_runtime_import_registers_extern_wrappers_once --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-core typecheck_real_stdlib_runtime_declarations_do_not_self_collide --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-driver frontend_bundle_does_not_duplicate_ambient_stdlib_entry_file --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo check -p kain-core -p kain-driver -p kain-check --target-dir target/codex-bootstrap-core-shadow`
+- `python tools/bazel/sync_rust_builds.py --check`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bazel build //:kain --config=dev`
+- `powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv`
+- `kain check stdlib/runtime.kn --target llvm`
+- `kain check smoketest --target llvm` -> `34/34 passed`
+
+PATH/build note:
+
+- `D:\Kain-Bazel\bin\kain.exe` is a launcher shim, not automatically refreshed by Cargo tests or source edits. For the user-visible PATH binary after Rust/backend changes, run the Bazel lane and sync script above. The managed sync stamp should report binary match; `kain doctor` may still show older unmanaged build metadata from the embedded CLI until that provenance path is cleaned up.
+
+Tooling gotcha:
+
+- Running several `kain check` commands in parallel on Windows can trip `Move-FileAtomically` in `scripts/windows/launch-bazel-cli.ps1` while the launcher refreshes cached CLI state. Use serial `kain check` runs for final certification until the launcher lock/replace path is hardened.

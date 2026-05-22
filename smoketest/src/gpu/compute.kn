@@ -13,7 +13,7 @@ shader compute SmokeParticleStep(id: UVec3) -> Vec4:
             [
                 ("particles", "readwrite", "continuous", "kain.shared.buffer")
             ],
-            []
+            [],
         )
 
     let p = particles[id.x]
@@ -29,11 +29,11 @@ shader compute SmokeReductionKernel(id: UVec3) -> Vec4:
             [8, 1, 1],
             [
                 ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
-                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer")
+                ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
             ],
             [
-                ("smoke_reduction", "reduce_sum", ["src"], ["dst"], false)
-            ]
+                ("smoke_reduction", "reduce_sum", ["src"], ["dst"], false),
+            ],
         )
 
     let index = id.x

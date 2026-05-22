@@ -10352,6 +10352,17 @@ fn main() -> Int:
     }
 
     #[test]
+    fn typecheck_real_stdlib_runtime_declarations_do_not_self_collide() {
+        let source = include_str!("../../../stdlib/runtime.kn");
+        let filename = "D:/Kain-Lang/stdlib/runtime.kn";
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, filename);
+
+        check(&program, &span_mapper, filename)
+            .expect("real stdlib/runtime.kn should not self-collide during registration");
+    }
+
+    #[test]
     fn typecheck_rejects_user_origin_shadowing_builtin_global() {
         let source = r#"
 fn fs_read_text(path: String) -> String:

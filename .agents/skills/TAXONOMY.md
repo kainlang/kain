@@ -9,21 +9,16 @@ This file is only the live skill split for current agents.
 - `runtime-*`: changing native substrate and runtime-backed stdlib behavior.
 - `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.
 - `package-*`: durable package-owned surfaces.
+- `wildcard-*`: explicit high-freedom authoring overrides that deliberately cap repo context and favor intuition-first Kain drafting when the user wants creativity and speed over pattern-matching.
 - `tool-*`: rare cross-cutting operator lanes such as build plumbing, black-magic optimization, and release gating.
 
 ## Active Skills
 
-- `lang-authoring`
 - `lang-semantics`
 - `lang-systems`
 - `lang-interop`
-- `lang-actors`
-- `lang-commands`
 - `lang-projects`
 - `lang-stdlib`
-- `lang-c-abi-ffi`
-- `lang-ownership`
-- `lang-ui`
 - `lang-translation`
 - `lang-gpu`
 - `lang-feedback`
@@ -41,6 +36,7 @@ This file is only the live skill split for current agents.
 - `test-crash-forensics`
 - `package-kaintana`
 - `package-vulkain`
+- `wildcard-justwritebro`
 - `tool-build-system`
 - `tool-z3-black-magic`
 - `tool-release-readiness`
@@ -52,5 +48,6 @@ This file is only the live skill split for current agents.
 - Use `lang-projects` for `build.kn`, project authority, evidence DAGs, blades/workspaces, portable capsules, and authored project/run/build/test flow. Blades are now a scale mode inside projects, not a top-level skill.
 - Use `lang-systems` for fused actor/effects/ownership/raw-memory authoring; keep `lang-actors` and `lang-ownership` as narrower domain lanes until they are intentionally merged or archived.
 - Use `lang-interop` for Kain-side native/foreign boundaries; keep `lang-c-abi-ffi` as the narrow C ABI card until it is intentionally merged or archived.
+- Keep `wildcard-*` rare and explicit. They are authoring overrides, not replacements for the owning `lang-*` field manuals.
 - `tool-build-system` is the single build/Bazel/operator lane.
 - `package-*` should stay rare and only exist for real package surfaces.

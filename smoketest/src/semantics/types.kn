@@ -33,6 +33,8 @@ enum SmokeLane:
     Diagnostics
     Platform
     CBridge
+    HeadlessHost
+    TelemetryFlow
 
 struct SmokePacket:
     id: Int
@@ -84,7 +86,44 @@ pub fn smoke_lane_rank(lane: SmokeLane) -> Int:
         SmokeLane::Diagnostics => 27
         SmokeLane::Platform => 28
         SmokeLane::CBridge => 29
+        SmokeLane::HeadlessHost => 30
+        SmokeLane::TelemetryFlow => 31
         _ => 0
+
+pub fn smoke_lane_name(lane: SmokeLane) -> String:
+    match lane:
+        SmokeLane::Types => "types"
+        SmokeLane::Control => "control"
+        SmokeLane::Effects => "effects"
+        SmokeLane::OptionResult => "option_result"
+        SmokeLane::AsyncFuture => "async_future"
+        SmokeLane::World => "world"
+        SmokeLane::Entangle => "entangle"
+        SmokeLane::Law => "law"
+        SmokeLane::Patch => "patch"
+        SmokeLane::Actor => "actor"
+        SmokeLane::Converge => "converge"
+        SmokeLane::Orchestrate => "orchestrate"
+        SmokeLane::Axiom => "axiom"
+        SmokeLane::Shatter => "shatter"
+        SmokeLane::Pulse => "pulse"
+        SmokeLane::Teleport => "teleport"
+        SmokeLane::Comptime => "comptime"
+        SmokeLane::Memory => "memory"
+        SmokeLane::Ownership => "ownership"
+        SmokeLane::Collections => "collections"
+        SmokeLane::Crypto => "crypto"
+        SmokeLane::Text => "text"
+        SmokeLane::Filesystem => "filesystem"
+        SmokeLane::Alloc => "alloc"
+        SmokeLane::Math => "math"
+        SmokeLane::Time => "time"
+        SmokeLane::Diagnostics => "diagnostics"
+        SmokeLane::Platform => "platform"
+        SmokeLane::CBridge => "c_bridge"
+        SmokeLane::HeadlessHost => "headless_host"
+        SmokeLane::TelemetryFlow => "telemetry_flow"
+        _ => "unknown"
 
 // Cross-workspace utility: imported by actor.kn, shatter.kn, patch.kn etc.
 pub fn smoke_weighted_checksum(packet: SmokePacket) -> Int:

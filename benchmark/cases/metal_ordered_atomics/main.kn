@@ -1,0 +1,53 @@
+use std::memory
+
+fn main() -> Int with Unsafe:
+    let modulus: Int = 1000000007
+    let expected: Int = 374849045
+    let slots: Int = 64
+    let rounds: Int = 1000000
+    let value_mask: Int = 1048575
+    let mut cells: ptr<Int> = alloc_zeroed(slots, "Int")
+
+    var slot: Int = 0
+    while slot < slots:
+        atomic_store_release(ptr_offset(cells, slot, "Int"), ((slot * 97) + 13) & value_mask)
+        slot = slot + 1
+
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < rounds:
+        let slot_index: Int = i & 63
+        let cell: ptr<Int> = ptr_offset(cells, slot_index, "Int")
+        let add_prev: Int = atomic_add_acqrel(cell, (i & 7) + 1)
+        let or_prev: Int = atomic_or_acqrel(cell, ((i * 13) & 255) | 1)
+        let xor_prev: Int = atomic_xor_acqrel(cell, (i * 17) & 1023)
+        let and_prev: Int = atomic_and_acqrel(cell, value_mask)
+        let current_after_and: Int = and_prev & value_mask
+        var current_state: Int = current_after_and
+        var exchange_prev: Int = 0
+        if (i & 15) == 0:
+            let desired: Int = (current_state + slot_index + 53) & value_mask
+            exchange_prev = atomic_exchange_acqrel(cell, desired)
+            current_state = desired
+        var swapped: Int = 0
+        if (i & 31) == 0:
+            let desired: Int = ((current_state ^ 341) + i + 97) & value_mask
+            if atomic_compare_exchange_seqcst(cell, current_state, desired):
+                current_state = desired
+                swapped = 1
+        if (i & 7) == 0:
+            atomic_fence_acqrel()
+        let seen: Int = atomic_load_acquire(cell)
+        checksum = (checksum + add_prev + or_prev + xor_prev + and_prev + exchange_prev + seen + slot_index + swapped) % modulus
+        i = i + 1
+
+    slot = 0
+    while slot < slots:
+        checksum = (checksum + atomic_load_seqcst(ptr_offset(cells, slot, "Int"))) % modulus
+        slot = slot + 1
+
+    decay cells
+
+    if checksum != expected:
+        return 41
+    return 0

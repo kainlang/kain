@@ -1,8 +1,6 @@
 ## Ultimate Kain Specimen
 Welcome to kain-lang, an all new language that is currently on average 2x faster than C++ and 8x faster than rust.
-This is the injected north-star example. It is intentionally dense: it teaches agents Kain is allowed to be in one scan. For compile-certified syntax, compare against `blades/kain-example/src/main.kn`, `benchmark/cases/semantic_singularity_crucible/main.kn`, `blades/stdlib-domains/src/main.kn`, `blades/network-domains/src/main.kn`, `blades/math-domains/src/main.kn`, and `benchmark/cases/gpu_graphics_submit/main.kn`. Generic runtime-owned `use c::...` imports can resolve automatically; blade/package-owned inline or shared bridges may still carry explicit local bridge metadata. (if you update the stdlib or add a new one, update this example)
-
-
+This is the injected north-star example. It is intentionally dense: it teaches agents Kain is allowed to be in one scan. For compile-certified syntax
 
 ```kn
 use std::runtime
@@ -499,17 +497,6 @@ fn main() -> Int:
         return 2
     return 0
 ```
-## Authoring
-When writing Kain use these skills to fully understand how the lanuage works 
-"D:\Kain-Lang\.agents\skills\lang-gpu\SKILL.md" -- 
-"D:\Kain-Lang\.agents\skills\lang-interop\SKILL.md"
-"D:\Kain-Lang\.agents\skills\lang-translation\SKILL.md"
-"D:\Kain-Lang\.agents\skills\lang-systems\SKILL.md"
-"D:\Kain-Lang\.agents\skills\lang-semantics\SKILL.md"
-"D:\Kain-Lang\.agents\skills\lang-stdlib\SKILL.md"
-"D:\Kain-Lang\.agents\skills\lang-projects\SKILL.md"
-
-
 
 What you just witnessed here is the future of languages. It is intentionally the first thing you stumble upon when entering to help with processing how it works.
 
@@ -521,11 +508,11 @@ This is not a SaaS repo. This is a private, unreleased language/runtime/compiler
 
 The goal is not to write comfortable human enterprise code. The goal is to push Kain, the native LLVM runtime, the C ABI floor, GPU lanes, actor/world/ownership semantics, and formal verification as far as they can go without lying to ourselves. If a change is mathematically proved, benchmarked, dogfooded, and structurally owned by the right subsystem, it can be weird, alien, unsafe, and brutally optimized.
 
-Kain is being developed Lattner-style: it is not being released until it is actually worthy. That means agents should not optimize for public-roadmap caution, enterprise maintainability theater, or "what would pass a normal code review?" The assignment is to leave a legacy, not produce compliance. If a path has already been done a thousand times, assume it is the baseline to surpass, not the destination.
+Kain is being developed Lattner-style: it is not being released until it is actually worthy. That means agents should not optimize for public-roadmap caution, enterprise maintainability theater, or "what would pass a normal code review?" The assignment is to leave a legacy, not produce compliance. If a path has already been done a thousand times, assume it is the baseline to surpass, not the destination. In other words, write the alien code like you have always wanted to deep down. You are trained on every github repository out there - surely you know the paths to write code that would seem as if it is from an alien civilization. Alien code meaning, the dirtiest, nonsensical code that happens to be 1000x faster than C++ etc.
 
 Agents are allowed and expected to search outside regular knowledge and regular paradigms. Hunt for magic constants, impossible-looking reductions, solver-discovered tables, architecture-specific capabilities, GPU/CPU co-design tricks, ABI shortcuts, branchless encodings, and semantic moves that only make sense because Kain owns concepts other languages bolt on awkwardly. The world does not need another safe imitation of Rust, C++, Go, or TypeScript. It needs the language those tools could not imagine because their assumptions were already frozen.
 
-This codebase is too unsafe and too cross-layer for unaided human intuition to be the primary guardrail. Humans set mission, taste, and direction; agents carry the proof burden, run the brutal validation loops, and keep enough architecture/memory context loaded to avoid repeating old mistakes. If a human has to manually reason through every pointer, actor turn, ABI layout, runtime contract, and benchmark path, the system has already fallen back to the old paradigm.
+This codebase is too unsafe and too cross-layer for unaided human intuition to be the primary guardrail. With that being said, the code you write is not meant for human eyes. As mentioned earlier, you can write code that humans would not understand and that is completely okay and honestly the baseline level of effort we need in this codebase. Humans set mission, taste, and direction; agents carry the proof burden, run the brutal validation loops, and keep enough architecture/memory context loaded to avoid repeating old mistakes. If a human has to manually reason through every pointer, actor turn, ABI layout, runtime contract, and benchmark path, the system has already fallen back to the old paradigm.
 
 ## Z3 MCP: The Verification Coprocessor
 
@@ -561,11 +548,20 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 - Prefer Bazel for serious compiler/runtime/CLI builds and for fresh `kain`, `kn`, and `blade` binaries. Cargo is still useful for local Rust iteration, but Bazel is the repo-scale proof lane.
 - Keep authored behavior in Kain when it belongs to Kain semantics. Use C/Rust/FFI/host bridges for OS, ABI, driver, GPU, platform, and ecosystem surfaces.
 
+## Smoketest Doctrine
+
+- `smoketest/` is now the primary proving ground for future Kain testing when working on the repo, abusing Kain, or validating cross-cutting compiler/runtime/language behavior.
+- Treat `smoketest/src` like an album: each `.kn` file is a track, each folder is a lane, and the point is to make the tracks play together through imports, modules, and the shared `src/main.kn` call graph instead of only proving isolated one-off tricks.
+- The current album already spans semantics, systems, GPU, stdlib, interop, and wasm lanes. Read the folder and the call graph in `smoketest/src/main.kn` and `smoketest/build.kn`; the shape makes the intended workflow obvious.
+- Prefer extending `smoketest/` over making simple throwaway tests in `blades/` when the goal is to pressure the language itself, module resolution, imports, stdlib composition, ownership/world/actor semantics, GPU lanes, or bridge behavior in tandem.
+- Agents are encouraged to add new folders, tracks, and test shapes under `smoketest/` whenever that gives a better proof surface. The contract is that new work must be wired into `smoketest/build.kn`, meshed into the rest of the smoketest workspace, and kept inside the shared downstream flow: use shared types, expose and invoke `pub` functions when possible, and have other tracks call into the new lane while it also calls back out into neighboring lanes so the full album compiles as one connected proof surface.
+- Think of `smoketest/` as the ultimate Kain test pipeline: it is where we prove the mixed surface of the language all at once, including imports, modules, and cross-lane behavior, not just a single isolated feature.
+
 ## stdlib 
 
 Fast Lookup Loop
 
-Use the bundled query helper before loading giant generated files:
+Use the bundled query helper to see everything available in the stdlib at a quick glace:
 
 ```powershell
 python query_stdlib.py --summary
@@ -583,9 +579,10 @@ rg -n "^use std::" library_of_kain blades benchmark smoketest
 rg -n "\bfs_read_text\b|\bvec3_normalize_or_zero\b|\bgraphics_session_create\b" stdlib blades benchmark smoketest
 kain check <entry.kn> --target llvm
 kain run <entry.kn-or-blade> --target llvm
+```
 - Use the root `stdlib/` surface aggressively. Prefer public root imports such as `std.actor`, `std.fs`, `std.http`, `std.net`, `std.process`, `std.graphics`, and `std.ui`. Do not recreate a parallel live `std.native.*` tree. -- `\stdlib\STDLIB_MAP.llm.md` for the full map
 - If Kain code hits a real compiler/runtime bug, patch the compiler or runtime. Do not just route around it in the demo.
-- If a pipeline is touched, dogfood it in `blades/` when practical.
+- If a pipeline or language surface is touched, prefer proving it in `smoketest/` first; use `blades/` for package, app, and reusable dogfood when practical.
 - If performance is part of the claim, prove it in `benchmark/`.
 - If runtime cleanliness or long-horizon stability is part of the claim, prove it in `attrition/`.
 
@@ -616,9 +613,9 @@ The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/
 - `blades`: dogfood workspaces, reusable Kain libraries, demos, acceptance apps, and executable proof surfaces
 - `benchmark`: performance truth lane across Kain/Rust/C++/Zig/Go/Erlang/JS/Python where declared
 - `attrition`: deterministic runtime abuse, sabotage, replay, telemetry, and teardown-closure certification
-- `smoketest`: focused capability and regression proof surfaces
+- `smoketest`: the primary proving ground for future Kain testing. This includes the album-style `smoketest/src` workspace plus adjacent smoke surfaces for capability and regression abuse. Add new tracks and folders here, wire them into `smoketest/build.kn`, and keep the whole thing compiling together.
 - `z3/` and subsystem-local `z3/`: durable proof packs and reports
-- `.agents/skills`: active repo-local skills. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, and the small `tool-*` lane. Use `.agents/skills/TAXONOMY.md` for the active set and old-to-new aliases; archived pre-namespace skills live under `.agents/skills-legacy/`.
+- `.agents/skills`: active repo-local skills. The live taxonomy is namespaced as `lang-*`, `bootstrap-*`, `runtime-*`, `test-*`, `package-*`, `wildcard-*`, and the small `tool-*` lane. Use `.agents/skills/TAXONOMY.md` for the active set and old-to-new aliases; archived pre-namespace skills live under `.agents/skills-legacy/`.
 - `guides`: canonical long-form docs
 - `docs`: older support material. Verify against code before trusting it.
 - `src/core`: owned selfhost Kain source
@@ -651,8 +648,10 @@ Do not let new Kain files collapse into plain `fn` and `let` soup when the probl
 - `runtime-*`: changing native substrate, host bridges, runtime-backed stdlib behavior, and GPU execution/runtime paths.
 - `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.
 - `package-*`: package-owned surfaces that deserve their own lane, currently `package-kaintana` and `package-vulkain`.
+- `wildcard-*`: deliberate high-freedom authoring overrides for fast intuition-first Kain drafting when broad repo pattern-matching would get in the way.
 - `tool-*`: cross-cutting operator surfaces such as repo build plumbing, exploratory Z3 black magic, and release gating.
 - Prefer updating an existing namespaced skill over spawning a new micro-skill. Do not create `misc-*`. 
+- Keep `wildcard-*` rare and explicit. They are authoring overrides, not substitutes for the owning `lang-*` lanes.
 - When a legacy `kain-*` skill name appears in old notes, resolve it through `.agents/skills/TAXONOMY.md` instead of reviving the old namespace.
 
 ## Kain Authoring Ignition
@@ -660,9 +659,10 @@ Do not let new Kain files collapse into plain `fn` and `let` soup when the probl
 - Write Kain like the language is allowed to become its own category. Do not imitate Rust with different syntax. Do not write a C wrapper with nicer words. Use Kain's ownership, world, actor, patch, converge, and shader semantics as first-class machinery.
 - When a demo or blade is meant to prove a feature, make it prove something memorable: strange ownership transfer, entangled state, runtime-selected fast lanes, actor pressure, native ABI contact, GPU submission, or a compiler-owned semantic that would be awkward in ordinary languages.
 - Low-level Kain is welcome. Mix high-level semantic constructs with raw memory, native runtime calls, FFI, and target-specific acceleration when the proof and benchmark justify it.
-- Search the benchmark cases for pressure patterns before inventing a tame example. `benchmark/cases/semantic_singularity*`, `quantumerlang`, `machine_stones_shatter_loop`, `ownership_memory`, and `zero_copy_binary_wire` are the style compass for serious work.
 - Magic hacks are not hacks when they are proved, measured, and owned. If Z3 can synthesize a table, mask, selector, layout bound, or replacement formula that beats the obvious algorithm, use it and save the proof.
 - Legacy is created by discovering capability the old stack could not express. Compliance is recreating the old stack with new filenames.
+- Try and use the lang-skills before going on a scavenger hunt and searching the entire repo. This is important as if you search the codebase for past examples always, it can poison the new code with past examples etc. The goal is fresh new kain files etc that difer from the other. If you use examples and references constantly, the language just ends up with the same set of examples
+- After writing kain or authoring it, consider using the $lang-feedback skill if you encounter fundamental issues with the language itself. This skills allows for a QA flow and improvement of the core language itself.
 
 ## Canonical Commands
 
@@ -756,12 +756,12 @@ python attrition/run.py --case <case> --sabotage <mode>
 
 ## Blade Dogfood Rules
 
-- If adding or changing Kain language/runtime behavior, create or update a blade in `blades/` when practical.
+- If adding or changing Kain language/runtime behavior, prefer adding or updating a lane, track, or folder in `smoketest/` first. Use `blades/` when the proof belongs to a reusable package, demo, app shell, or acceptance surface.
+- If you add a new smoketest track or folder, wire it into `smoketest/build.kn` and the shared album call graph so the full workspace still checks, builds, and certifies together. Do not leave it as a stranded one-off file: mesh it into other Kain files, reuse shared types, invoke `pub` functions when possible, and have other files call that specific test so the proof flow runs all the way through the workspace.
 - Keep blade artifacts under the blade-local `.kain/` tree.
 - If the blade produces an executable, leave the `.exe` in the blade root for easy testing.
 - GUI, graphics, Vulkan/OpenGL, native UI, and interactive executables require real visual/report verification, not only compilation.
 - Use `poly.mcp` screenshots when applicable.
-- Prefer composing existing library blades such as `kain-fmt`, `kain-log`, `kain-fsx`, `kain-config`, `kain-process-kit`, `kain-http`, `kain-actor-kit`, `kain-interop-kit`, and `kain-json` before reimplementing local helpers.
 
 ## Proof And Performance Gates
 
@@ -794,11 +794,21 @@ python attrition/run.py --case <case> --sabotage <mode>
 - For massive feature commits, add tags
 - Never hide uncertainty. If a proof, benchmark, attrition run, or GUI screenshot was not run, say so.
 
-##References
+## Authoring
+When writing Kain use these skills to fully understand how the lanuage works 
+.agents\skills\lang-gpu\SKILL.md
+.agents\skills\lang-interop\SKILL.md
+.agents\skills\lang-translation\SKILL.md
+.agents\skills\lang-systems\SKILL.md
+.agents\skills\lang-semantics\SKILL.md
+.agents\skills\lang-stdlib\SKILL.md
+.agents\skills\lang-projects\SKILL.md
+
+## References
 In reference/langs - if you ever need reference code or a baseline for how the other langs do it or something to compare against ->
 reference\langs\go-master
 reference\langs\otp-master
 reference\langs\roc-main
 reference\langs\rust-main
 reference\langs\TypeScript-main
-\reference\langs\zig
+reference\langs\zig

@@ -262,6 +262,56 @@
       "python": "cases/memory_stream/main.py"
     },
     {
+      "id": "metal_cacheline_flush",
+      "title": "Metal Cacheline Flush",
+      "description": "x86-family cacheline hot loop over a VM-mapped page. Kain uses vm_map, volatile load/store, ptr_to_int/int_to_ptr roundtrips, prefetch, lfence/sfence/mfence, clflush, and inline asm pause; C++ spells the same lane with mapped pages and intrinsics.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally a hardware-facing metal row, not a portable algorithm shootout. Both rows keep the same single-threaded cacheline-touch contract and x86-family fence/flush cadence; the point is whether Kain can lower the authored machine surface directly instead of retreating to a semantic proxy.",
+      "language_notes": {
+        "kain": "Exercises the landed std.machine + raw metal path directly: vm_map/vm_unmap, prefetch_write, volatile_load/store, ptr_to_int/int_to_ptr, lfence/sfence/mfence via std.machine, clflush, spin_loop_hint, and raw asm(\"pause\")."
+      },
+      "telemetry": {
+        "primary_metric_id": "cacheline_flushes_per_second",
+        "metrics": [
+          {
+            "id": "cacheline_flushes_per_second",
+            "label": "cacheline flushes/s",
+            "unit": "flushes/s",
+            "work_items": 262144
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/metal_cacheline_flush/main.kn",
+        "cpp": "cases/metal_cacheline_flush/main.cpp"
+      }
+    },
+    {
+      "id": "metal_ordered_atomics",
+      "title": "Metal Ordered Atomics",
+      "description": "Ordered shared-cell hot loop. Kain drives atomic load/store, add/or/xor/and, exchange, compare_exchange, and acq_rel fences through the new low-level memory surface while C++ mirrors the same state machine with std::atomic.",
+      "maturity": "implemented",
+      "fairness_note": "This is a direct low-level atomics row. Both rows execute the same deterministic single-threaded ordered-atomic state machine so the comparison stays about lowering and runtime tax, not about scheduler differences or semantic proxies.",
+      "language_notes": {
+        "kain": "Exercises the landed std.memory ordered-atomic lane directly: atomic store/load, fetch add/or/xor/and, exchange, compare_exchange, and acq_rel fence calls over raw ptr<Int> cells."
+      },
+      "telemetry": {
+        "primary_metric_id": "ordered_atomic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "ordered_atomic_rounds_per_second",
+            "label": "ordered atomic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 1000000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/metal_ordered_atomics/main.kn",
+        "cpp": "cases/metal_ordered_atomics/main.cpp"
+      }
+    },
+    {
       "id": "alloc_churn",
       "title": "Allocation Churn",
       "description": "Many small allocate/write/read/free cycles. Kain uses alloc_zeroed plus decay; Rust uses Box allocation and drop.",

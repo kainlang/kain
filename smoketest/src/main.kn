@@ -1,10 +1,9 @@
 use std::runtime
 use std::intent
-use std::machine
+use std::time
 
 // Semantics tracks
 use types::smoke_types_lane
-use types::SMOKE_MODULUS
 use control::smoke_control_lane
 use effects::smoke_effects_lane
 use option_result::smoke_option_result_lane
@@ -24,7 +23,6 @@ use comptime::smoke_comptime_lane
 
 // Systems tracks
 use memory::smoke_memory_lane
-use memory::smoke_alloc_cells
 use ownership::smoke_ownership_lane
 
 // Stdlib tracks
@@ -41,142 +39,368 @@ use platform_lane::smoke_platform_lane
 // Interop track
 use c_bridge::smoke_c_bridge_lane
 
+// Telemetry tracks
+use report::smoke_telemetry_mode
+use report::smoke_telemetry_prepare
+use report::smoke_telemetry_track_checksum
+use report::smoke_write_track_report
+use report::smoke_write_summary_report
+use headless_host::smoke_headless_host_lane
+use flow::smoke_telemetry_flow_lane
+use flow::smoke_run_benchmark_mode
+use flow::smoke_run_attrition_mode
+
+const SMOKE_ALBUM_MODULUS: Int = 1000000007
+
 fn smoke_first_error(offset: Int, lane_result: Int) -> Int:
     if lane_result != 0:
         return offset + lane_result
     return 0
 
-fn main() -> Int with Unsafe:
+fn smoke_record_track(mode: String, category: String, track: String, lane_name: String, lane_rank: Int, offset: Int, status: Int, started_ms: Int, ended_ms: Int, composition_checksum: Int) -> Int:
+    let track_checksum = smoke_telemetry_track_checksum(
+        offset,
+        lane_rank,
+        status,
+        ended_ms - started_ms,
+        track
+    )
+    let next_checksum = (composition_checksum + track_checksum) % SMOKE_ALBUM_MODULUS
+    let _report = smoke_write_track_report(
+        mode,
+        category,
+        track,
+        lane_name,
+        offset,
+        status,
+        started_ms,
+        ended_ms,
+        track_checksum,
+        next_checksum
+    )
+    return next_checksum
+
+fn smoke_finish_full(mode: String, started_ms: Int, succeeded_tracks: Int, total_tracks: Int, composition_checksum: Int, failure_code: Int, failure_track: String) -> Int:
+    let ended_ms = now_millis()
+    let _summary = smoke_write_summary_report(
+        mode,
+        failure_code,
+        failure_track,
+        total_tracks,
+        succeeded_tracks,
+        composition_checksum,
+        started_ms,
+        ended_ms
+    )
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        if failure_code != 0:
+            return failure_code
+        return 9000 + shutdown
+    if failure_code != 0:
+        return failure_code
+    return 0
+
+fn smoke_run_full_album(mode: String) -> Int with Unsafe:
+    let _root = smoke_telemetry_prepare(mode)
     let boot = runtime_init()
     if boot != 0:
         return 10 + boot
 
-    // ── Semantics ────────────────────────────────────
-    let e_types = smoke_first_error(100, smoke_types_lane())
+    let started_ms = now_millis()
+    let total_tracks: Int = 31
+    var succeeded_tracks: Int = 0
+    var composition_checksum: Int = 0
+
+    let started_types = now_millis()
+    let lane_types = smoke_types_lane()
+    let ended_types = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.types", "types", 1, 100, lane_types, started_types, ended_types, composition_checksum)
+    let e_types = smoke_first_error(100, lane_types)
     if e_types != 0:
-        return e_types
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_types, "semantics.types")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_control = smoke_first_error(200, smoke_control_lane())
+    let started_control = now_millis()
+    let lane_control = smoke_control_lane()
+    let ended_control = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.control", "control", 2, 200, lane_control, started_control, ended_control, composition_checksum)
+    let e_control = smoke_first_error(200, lane_control)
     if e_control != 0:
-        return e_control
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_control, "semantics.control")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_effects = smoke_first_error(300, smoke_effects_lane())
+    let started_effects = now_millis()
+    let lane_effects = smoke_effects_lane()
+    let ended_effects = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.effects", "effects", 3, 300, lane_effects, started_effects, ended_effects, composition_checksum)
+    let e_effects = smoke_first_error(300, lane_effects)
     if e_effects != 0:
-        return e_effects
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_effects, "semantics.effects")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_option = smoke_first_error(400, smoke_option_result_lane())
+    let started_option = now_millis()
+    let lane_option = smoke_option_result_lane()
+    let ended_option = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.option_result", "option_result", 4, 400, lane_option, started_option, ended_option, composition_checksum)
+    let e_option = smoke_first_error(400, lane_option)
     if e_option != 0:
-        return e_option
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_option, "semantics.option_result")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_async = smoke_first_error(500, smoke_async_lane())
+    let started_async = now_millis()
+    let lane_async = smoke_async_lane()
+    let ended_async = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.async_future", "async_future", 5, 500, lane_async, started_async, ended_async, composition_checksum)
+    let e_async = smoke_first_error(500, lane_async)
     if e_async != 0:
-        return e_async
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_async, "semantics.async_future")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_world = smoke_first_error(600, smoke_world_lane())
+    let started_world = now_millis()
+    let lane_world = smoke_world_lane()
+    let ended_world = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.world", "world", 6, 600, lane_world, started_world, ended_world, composition_checksum)
+    let e_world = smoke_first_error(600, lane_world)
     if e_world != 0:
-        return e_world
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_world, "semantics.world")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_entangle = smoke_first_error(700, smoke_entangle_lane())
+    let started_entangle = now_millis()
+    let lane_entangle = smoke_entangle_lane()
+    let ended_entangle = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.entangle", "entangle", 7, 700, lane_entangle, started_entangle, ended_entangle, composition_checksum)
+    let e_entangle = smoke_first_error(700, lane_entangle)
     if e_entangle != 0:
-        return e_entangle
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_entangle, "semantics.entangle")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_law = smoke_first_error(800, smoke_law_lane())
+    let started_law = now_millis()
+    let lane_law = smoke_law_lane()
+    let ended_law = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.law", "law", 8, 800, lane_law, started_law, ended_law, composition_checksum)
+    let e_law = smoke_first_error(800, lane_law)
     if e_law != 0:
-        return e_law
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_law, "semantics.law")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_patch = smoke_first_error(900, smoke_patch_lane())
+    let started_patch = now_millis()
+    let lane_patch = smoke_patch_lane()
+    let ended_patch = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.patch", "patch", 9, 900, lane_patch, started_patch, ended_patch, composition_checksum)
+    let e_patch = smoke_first_error(900, lane_patch)
     if e_patch != 0:
-        return e_patch
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_patch, "semantics.patch")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_actor = smoke_first_error(1000, smoke_actor_lane())
+    let started_actor = now_millis()
+    let lane_actor = smoke_actor_lane()
+    let ended_actor = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.actor", "actor", 10, 1000, lane_actor, started_actor, ended_actor, composition_checksum)
+    let e_actor = smoke_first_error(1000, lane_actor)
     if e_actor != 0:
-        return e_actor
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_actor, "semantics.actor")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_converge = smoke_first_error(1100, smoke_converge_lane())
+    let started_converge = now_millis()
+    let lane_converge = smoke_converge_lane()
+    let ended_converge = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.converge", "converge", 11, 1100, lane_converge, started_converge, ended_converge, composition_checksum)
+    let e_converge = smoke_first_error(1100, lane_converge)
     if e_converge != 0:
-        return e_converge
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_converge, "semantics.converge")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_orchestrate = smoke_first_error(1200, smoke_orchestrate_lane())
+    let started_orchestrate = now_millis()
+    let lane_orchestrate = smoke_orchestrate_lane()
+    let ended_orchestrate = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.orchestrate", "orchestrate", 12, 1200, lane_orchestrate, started_orchestrate, ended_orchestrate, composition_checksum)
+    let e_orchestrate = smoke_first_error(1200, lane_orchestrate)
     if e_orchestrate != 0:
-        return e_orchestrate
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_orchestrate, "semantics.orchestrate")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_axiom = smoke_first_error(1300, smoke_axiom_lane())
+    let started_axiom = now_millis()
+    let lane_axiom = smoke_axiom_lane()
+    let ended_axiom = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.axiom", "axiom", 13, 1300, lane_axiom, started_axiom, ended_axiom, composition_checksum)
+    let e_axiom = smoke_first_error(1300, lane_axiom)
     if e_axiom != 0:
-        return e_axiom
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_axiom, "semantics.axiom")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_shatter = smoke_first_error(1400, smoke_shatter_lane())
+    let started_shatter = now_millis()
+    let lane_shatter = smoke_shatter_lane()
+    let ended_shatter = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.shatter", "shatter", 14, 1400, lane_shatter, started_shatter, ended_shatter, composition_checksum)
+    let e_shatter = smoke_first_error(1400, lane_shatter)
     if e_shatter != 0:
-        return e_shatter
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_shatter, "semantics.shatter")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_pulse = smoke_first_error(1500, smoke_pulse_lane())
+    let started_pulse = now_millis()
+    let lane_pulse = smoke_pulse_lane()
+    let ended_pulse = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.pulse", "pulse", 15, 1500, lane_pulse, started_pulse, ended_pulse, composition_checksum)
+    let e_pulse = smoke_first_error(1500, lane_pulse)
     if e_pulse != 0:
-        return e_pulse
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_pulse, "semantics.pulse")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_teleport = smoke_first_error(1600, smoke_teleport_lane())
+    let started_teleport = now_millis()
+    let lane_teleport = smoke_teleport_lane()
+    let ended_teleport = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.teleport", "teleport", 16, 1600, lane_teleport, started_teleport, ended_teleport, composition_checksum)
+    let e_teleport = smoke_first_error(1600, lane_teleport)
     if e_teleport != 0:
-        return e_teleport
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_teleport, "semantics.teleport")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_comptime = smoke_first_error(1700, smoke_comptime_lane())
+    let started_comptime = now_millis()
+    let lane_comptime = smoke_comptime_lane()
+    let ended_comptime = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.comptime", "comptime", 17, 1700, lane_comptime, started_comptime, ended_comptime, composition_checksum)
+    let e_comptime = smoke_first_error(1700, lane_comptime)
     if e_comptime != 0:
-        return e_comptime
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_comptime, "semantics.comptime")
+    succeeded_tracks = succeeded_tracks + 1
 
-    // ── Systems ──────────────────────────────────────
-    let e_memory = smoke_first_error(1800, smoke_memory_lane())
+    let started_memory = now_millis()
+    let lane_memory = smoke_memory_lane()
+    let ended_memory = now_millis()
+    composition_checksum = smoke_record_track(mode, "systems", "systems.memory", "memory", 18, 1800, lane_memory, started_memory, ended_memory, composition_checksum)
+    let e_memory = smoke_first_error(1800, lane_memory)
     if e_memory != 0:
-        return e_memory
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_memory, "systems.memory")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_ownership = smoke_first_error(1900, smoke_ownership_lane())
+    let started_ownership = now_millis()
+    let lane_ownership = smoke_ownership_lane()
+    let ended_ownership = now_millis()
+    composition_checksum = smoke_record_track(mode, "systems", "systems.ownership", "ownership", 19, 1900, lane_ownership, started_ownership, ended_ownership, composition_checksum)
+    let e_ownership = smoke_first_error(1900, lane_ownership)
     if e_ownership != 0:
-        return e_ownership
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_ownership, "systems.ownership")
+    succeeded_tracks = succeeded_tracks + 1
 
-    // ── Stdlib ───────────────────────────────────────
-    let e_collections = smoke_first_error(2000, smoke_collections_lane())
+    let started_collections = now_millis()
+    let lane_collections = smoke_collections_lane()
+    let ended_collections = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.collections_lane", "collections", 20, 2000, lane_collections, started_collections, ended_collections, composition_checksum)
+    let e_collections = smoke_first_error(2000, lane_collections)
     if e_collections != 0:
-        return e_collections
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_collections, "stdlib.collections_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_crypto = smoke_first_error(2100, smoke_crypto_lane())
+    let started_crypto = now_millis()
+    let lane_crypto = smoke_crypto_lane()
+    let ended_crypto = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.crypto_lane", "crypto", 21, 2100, lane_crypto, started_crypto, ended_crypto, composition_checksum)
+    let e_crypto = smoke_first_error(2100, lane_crypto)
     if e_crypto != 0:
-        return e_crypto
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_crypto, "stdlib.crypto_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_text = smoke_first_error(2200, smoke_text_lane())
+    let started_text = now_millis()
+    let lane_text = smoke_text_lane()
+    let ended_text = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.text_lane", "text", 22, 2200, lane_text, started_text, ended_text, composition_checksum)
+    let e_text = smoke_first_error(2200, lane_text)
     if e_text != 0:
-        return e_text
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_text, "stdlib.text_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_fs = smoke_first_error(2300, smoke_fs_lane())
+    let started_fs = now_millis()
+    let lane_fs = smoke_fs_lane()
+    let ended_fs = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.fs_lane", "filesystem", 23, 2300, lane_fs, started_fs, ended_fs, composition_checksum)
+    let e_fs = smoke_first_error(2300, lane_fs)
     if e_fs != 0:
-        return e_fs
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_fs, "stdlib.fs_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_alloc = smoke_first_error(2400, smoke_alloc_lane())
+    let started_alloc = now_millis()
+    let lane_alloc = smoke_alloc_lane()
+    let ended_alloc = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.alloc_lane", "alloc", 24, 2400, lane_alloc, started_alloc, ended_alloc, composition_checksum)
+    let e_alloc = smoke_first_error(2400, lane_alloc)
     if e_alloc != 0:
-        return e_alloc
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_alloc, "stdlib.alloc_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_math = smoke_first_error(2500, smoke_math_lane())
+    let started_math = now_millis()
+    let lane_math = smoke_math_lane()
+    let ended_math = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.math_lane", "math", 25, 2500, lane_math, started_math, ended_math, composition_checksum)
+    let e_math = smoke_first_error(2500, lane_math)
     if e_math != 0:
-        return e_math
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_math, "stdlib.math_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_time = smoke_first_error(2600, smoke_time_lane())
+    let started_time = now_millis()
+    let lane_time = smoke_time_lane()
+    let ended_time = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.time_lane", "time", 26, 2600, lane_time, started_time, ended_time, composition_checksum)
+    let e_time = smoke_first_error(2600, lane_time)
     if e_time != 0:
-        return e_time
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_time, "stdlib.time_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_diagnostics = smoke_first_error(2700, smoke_diagnostics_lane())
+    let started_diagnostics = now_millis()
+    let lane_diagnostics = smoke_diagnostics_lane()
+    let ended_diagnostics = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.diagnostics_lane", "diagnostics", 27, 2700, lane_diagnostics, started_diagnostics, ended_diagnostics, composition_checksum)
+    let e_diagnostics = smoke_first_error(2700, lane_diagnostics)
     if e_diagnostics != 0:
-        return e_diagnostics
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_diagnostics, "stdlib.diagnostics_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let e_platform = smoke_first_error(2800, smoke_platform_lane())
+    let started_platform = now_millis()
+    let lane_platform = smoke_platform_lane()
+    let ended_platform = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.platform_lane", "platform", 28, 2800, lane_platform, started_platform, ended_platform, composition_checksum)
+    let e_platform = smoke_first_error(2800, lane_platform)
     if e_platform != 0:
-        return e_platform
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_platform, "stdlib.platform_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
-    // ── Interop ──────────────────────────────────────
-    let e_bridge = smoke_first_error(2900, smoke_c_bridge_lane())
+    let started_bridge = now_millis()
+    let lane_bridge = smoke_c_bridge_lane()
+    let ended_bridge = now_millis()
+    composition_checksum = smoke_record_track(mode, "interop", "interop.c_bridge", "c_bridge", 29, 2900, lane_bridge, started_bridge, ended_bridge, composition_checksum)
+    let e_bridge = smoke_first_error(2900, lane_bridge)
     if e_bridge != 0:
-        return e_bridge
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_bridge, "interop.c_bridge")
+    succeeded_tracks = succeeded_tracks + 1
 
-    // ── Shape validation ─────────────────────────────
-    let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1
+    let started_headless = now_millis()
+    let lane_headless = smoke_headless_host_lane(mode)
+    let ended_headless = now_millis()
+    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.headless_host", "headless_host", 30, 3000, lane_headless, started_headless, ended_headless, composition_checksum)
+    let e_headless = smoke_first_error(3000, lane_headless)
+    if e_headless != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_headless, "telemetry.headless_host")
+    succeeded_tracks = succeeded_tracks + 1
 
-    let shutdown = runtime_shutdown()
-    if shutdown != 0:
-        return 9000 + shutdown
+    let started_flow = now_millis()
+    let lane_flow = smoke_telemetry_flow_lane(mode)
+    let ended_flow = now_millis()
+    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.novel_flow", "telemetry_flow", 31, 3100, lane_flow, started_flow, ended_flow, composition_checksum)
+    let e_flow = smoke_first_error(3100, lane_flow)
+    if e_flow != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_flow, "telemetry.novel_flow")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1
+
     if shape_ok == false:
-        return 9999
-    return 0
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, 9999, "shape.validation")
+    return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, 0, "")
+
+fn main() -> Int with Unsafe:
+    let mode = smoke_telemetry_mode()
+    if mode == "benchmark":
+        return smoke_run_benchmark_mode()
+    if mode == "attrition":
+        return smoke_run_attrition_mode()
+    return smoke_run_full_album(mode)

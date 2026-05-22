@@ -1,18 +1,22 @@
 use std::build
 use std::test
 use std::proof
+use std::bench
+use std::attrition
 use std::certify
 
 fn build(ctx: BuildContext) -> BuildGraph:
+    let ws = workspace_defaults().search_root(".").generated_root("telemetry")
+
     let pkg = package("smoketest").version("0.1.0").description("THE smoketest: album-edition workspace covering every Kain feature in one proof surface.")
 
-    let blade_spec = blade("smoketest").kind("kain_executable").entry("src/main.kn").source_root("src").source_root("src/semantics").source_root("src/systems").source_root("src/gpu").source_root("src/stdlib").source_root("src/interop").source_root("src/wasm").module_root("src").module_root("src/semantics").module_root("src/systems").module_root("src/gpu").module_root("src/stdlib").module_root("src/interop").module_root("src/wasm").build_target("llvm")
+    let blade_spec = blade("smoketest").kind("kain_executable").entry("src/main.kn").source_root("src").source_root("src/semantics").source_root("src/systems").source_root("src/gpu").source_root("src/stdlib").source_root("src/interop").source_root("src/wasm").source_root("src/telemetry").module_root("src").module_root("src/semantics").module_root("src/systems").module_root("src/gpu").module_root("src/stdlib").module_root("src/interop").module_root("src/wasm").module_root("src/telemetry").build_target("llvm")
 
     let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out/llvm").cache_root(".kain/cache/build").profile("debug").target("llvm")
 
-    let run = run_defaults().entry("src/main.kn").target("llvm")
+    let run = run_defaults().entry("src/main.kn").target("llvm").watch("src/telemetry").watch("native").watch("telemetry/run_smoketest_mode.py")
 
-    let check_llvm = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.evidence").input("src/main.kn").input("src/semantics/types.kn").input("src/semantics/control.kn").input("src/semantics/effects.kn").input("src/semantics/option_result.kn").input("src/semantics/async_future.kn").input("src/semantics/world.kn").input("src/semantics/entangle.kn").input("src/semantics/law.kn").input("src/semantics/patch.kn").input("src/semantics/actor.kn").input("src/semantics/converge.kn").input("src/semantics/orchestrate.kn").input("src/semantics/axiom.kn").input("src/semantics/shatter.kn").input("src/semantics/pulse.kn").input("src/semantics/teleport.kn").input("src/semantics/comptime.kn").input("src/systems/memory.kn").input("src/systems/ownership.kn").input("src/gpu/fragment.kn").input("src/gpu/compute.kn").input("src/stdlib/collections_lane.kn").input("src/stdlib/crypto_lane.kn").input("src/stdlib/text_lane.kn").input("src/stdlib/fs_lane.kn").input("src/stdlib/alloc_lane.kn").input("src/stdlib/math_lane.kn").input("src/stdlib/time_lane.kn").input("src/stdlib/diagnostics_lane.kn").input("src/stdlib/platform_lane.kn").input("src/interop/c_bridge.kn").input("build.kn")
+    let check_llvm = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.evidence").telemetry("smoketest.album").input("src/main.kn").input("src/semantics/types.kn").input("src/semantics/control.kn").input("src/semantics/effects.kn").input("src/semantics/option_result.kn").input("src/semantics/async_future.kn").input("src/semantics/world.kn").input("src/semantics/entangle.kn").input("src/semantics/law.kn").input("src/semantics/patch.kn").input("src/semantics/actor.kn").input("src/semantics/converge.kn").input("src/semantics/orchestrate.kn").input("src/semantics/axiom.kn").input("src/semantics/shatter.kn").input("src/semantics/pulse.kn").input("src/semantics/teleport.kn").input("src/semantics/comptime.kn").input("src/systems/memory.kn").input("src/systems/ownership.kn").input("src/gpu/fragment.kn").input("src/gpu/compute.kn").input("src/stdlib/collections_lane.kn").input("src/stdlib/crypto_lane.kn").input("src/stdlib/text_lane.kn").input("src/stdlib/fs_lane.kn").input("src/stdlib/alloc_lane.kn").input("src/stdlib/math_lane.kn").input("src/stdlib/time_lane.kn").input("src/stdlib/diagnostics_lane.kn").input("src/stdlib/platform_lane.kn").input("src/interop/c_bridge.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("telemetry/run_smoketest_mode.py").input("KAIN.toml").input("build.kn")
 
     let check_spirv = build_check("check-spirv").entry("src/gpu/fragment.kn").target("spirv").axis("target", "spirv").telemetry("llm.gpu").input("src/gpu/fragment.kn").input("src/gpu/compute.kn").input("build.kn")
 
@@ -24,10 +28,16 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     let gpu_hlsl = build_task("gpu-hlsl").entry("src/gpu/fragment.kn").target("hlsl").artifact_root(".kain/out/hlsl").requires("check-spirv").input("src/gpu/fragment.kn").input("src/gpu/compute.kn")
 
-    let source_tests = test_suite("source-tests").entry("src/main.kn").target("llvm").requires("check-llvm").input("src/main.kn").input("build.kn")
+    let source_tests = test_suite("source-tests").entry("src/main.kn").target("llvm").requires("check-llvm").input("src/main.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("KAIN.toml").input("build.kn")
 
-    let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/smoketest.exe").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").input("src/main.kn").input("build.kn")
+    let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/smoketest.exe").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").input("src/main.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("telemetry/run_smoketest_mode.py").input("KAIN.toml").input("build.kn")
 
-    let certify = certify_gate("certify").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").requires("root-executable").certifies("smoketest.local")
+    let telemetry_full = build_task("telemetry-full").kind("node").command("python").cwd(".").requires("root-executable").telemetry("smoketest.full").input("telemetry/run_smoketest_mode.py").input("src/main.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("KAIN.toml").arg("telemetry/run_smoketest_mode.py").arg("--mode").arg("full").arg("--executable").arg(".\\smoketest.exe").arg("--output-dir").arg("telemetry\\full").output("telemetry/full")
 
-    return build_graph().package(pkg).blade(blade_spec).defaults(defaults).run(run).task(check_llvm).task(check_spirv).task(check_wasm).task(gpu_spirv).task(gpu_cuda).task(gpu_hlsl).task(source_tests).task(root_exe).task(certify)
+    let bench_album = bench_case("album-benchmark").entry("telemetry/run_smoketest_mode.py").cwd(".").requires("root-executable").telemetry("smoketest.benchmark").input("telemetry/run_smoketest_mode.py").input("src/main.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("KAIN.toml").arg("--mode").arg("benchmark").arg("--executable").arg(".\\smoketest.exe").arg("--output-dir").arg("telemetry\\benchmark").arg("--bench-rounds").arg("256").arg("--bench-passes").arg("6").output("telemetry/benchmark")
+
+    let attrition_album = attrition_case("album-attrition").entry("telemetry/run_smoketest_mode.py").cwd(".").requires("root-executable").telemetry("smoketest.attrition").input("telemetry/run_smoketest_mode.py").input("src/main.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("KAIN.toml").arg("--mode").arg("attrition").arg("--executable").arg(".\\smoketest.exe").arg("--output-dir").arg("telemetry\\attrition").arg("--attrition-ops").arg("20").arg("--attrition-rounds").arg("96").output("telemetry/attrition")
+
+    let certify = certify_gate("certify").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").requires("root-executable").requires("telemetry-full").requires("album-benchmark").requires("album-attrition").certifies("smoketest.local")
+
+    return build_graph().workspace(ws).package(pkg).blade(blade_spec).defaults(defaults).run(run).task(check_llvm).task(check_spirv).task(check_wasm).task(gpu_spirv).task(gpu_cuda).task(gpu_hlsl).task(source_tests).task(root_exe).task(telemetry_full).task(bench_album).task(attrition_album).task(certify)

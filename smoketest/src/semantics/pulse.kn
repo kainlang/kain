@@ -1,11 +1,20 @@
 use std::runtime
-use world::SmokeAuthority
-use world::SmokeMirror
 use shatter::SmokeShard
+
+component SmokePulsePanel():
+    render <panel title="Smoke Pulse" />
+
+world SmokePulseAuthority:
+    state signal: Int = 1
+    surface web => SmokePulsePanel
+
+world SmokePulseMirror:
+    state signal_copy: Int = 1
+    surface web => SmokePulsePanel
 
 pulse smoke_clock every 8ms jitter 1ms:
     let shard = SmokeShard { bias: 1, phase: 2, salt: 3, alive: true }
-    let moved = teleport shard from SmokeAuthority to SmokeMirror via smoke_pulse_bus
+    let moved = teleport shard from SmokePulseAuthority to SmokePulseMirror via smoke_pulse_bus
     let _tick_shape = pulse_tick + pulse_dt_ms + pulse_missed + moved.bias
 
 pub fn smoke_pulse_lane() -> Int:
