@@ -2,13 +2,15 @@ use std::math
 
 shader fragment SmokeGradient(uv: Vec2) -> Vec4:
     uniform accent: Vec3 @0
-    let ring: Float = fbm2(uv, 4)
-    return vec4(accent.x * ring, accent.y, accent.z, 1.0)
+    let wave_x: Float = uv.x * (1.0 - uv.x)
+    let wave_y: Float = uv.y * (1.0 - uv.y)
+    let ring: Float = (wave_x + wave_y) * 2.0
+    return vec4(accent.x * ring, accent.y * (0.5 + wave_x), accent.z * (0.5 + wave_y), 1.0)
 
 shader fragment SmokeVignette(uv: Vec2) -> Vec4:
     uniform tint: Vec3 @0
-    let edge: Float = fbm2(uv, 2)
     let center_x: Float = uv.x - 0.5
     let center_y: Float = uv.y - 0.5
     let dist: Float = center_x * center_x + center_y * center_y
+    let edge: Float = (uv.x * (1.0 - uv.x) + uv.y * (1.0 - uv.y)) * 2.0
     return vec4(tint.x * (1.0 - dist), tint.y * (1.0 - dist), tint.z * edge, 1.0)

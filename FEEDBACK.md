@@ -53,3 +53,31 @@
 - Minimal repro: Launch multiple `kain check smoketest/src/... --target llvm` commands concurrently from `D:\Kain-Lang` immediately after a Bazel sync or launcher refresh.
 - Evidence: Failure came from `scripts/windows/launch-bazel-cli.ps1:530` while three sibling targeted checks passed; rerunning the failed command serially passed.
 - Suggested direction: Add a cross-process lock or retry loop around launcher replacement in `launch-bazel-cli.ps1`, or make `kain check` skip launcher cache replacement when the active synced binary already matches the stamp.
+
+---
+
+## 2026-05-22 - interpreter / stdlib / python bridge
+
+### `std::fs` externs are not reliably usable from interpreter-mode Python-FFI runners
+- Categories: correctness, developer-experience, interop
+- Status: Bypass-Applied
+- Surface: stdlib
+- Symptom: `kain run ... --target interpret` can fail with `Runtime error: Undefined: abi_fs_create_dir_all` or `Undefined: abi_fs_path_join` even when the authored wrapper only wants to use `std::python::bridge` plus a small helper import.
+- Workflow impact: The new `smoketest/telemetry/run_smoketest_mode.kn` wrapper could not write runner notes or even import `src/telemetry/report.kn` safely in interpret mode, which blocked the all-Kain telemetry/attrition runner until the wrapper was rewritten to keep checksum logic local and route note writes back through Python FFI instead of `std::fs`.
+- Minimal repro: `cargo run -q -p cli --bin kain -- run smoketest/telemetry/run_smoketest_mode.kn --target interpret -- --mode attrition --executable <abs-smoketest.exe> --output-dir <abs-out>` with the wrapper importing `report::smoke_telemetry_track_checksum` or calling `fs_create_dir_all` / `fs_path_join`.
+- Evidence: Initial failures were `Kain error: Runtime error: Undefined: abi_fs_path_join` and then `Kain error: Runtime error: Undefined: abi_fs_create_dir_all` from the interpret-target runner lane.
+- Suggested direction: Either register the `std::fs` ABI surface for interpreter-mode runs that already support Python FFI, or make interpreter extern resolution lazy so importing a module with unused `@extern` fs helpers does not fail the whole run.
+
+---
+
+## 2026-05-22 - GPU / HLSL lowering
+
+### HLSL shader lowering does not support `std::math::fbm2`
+- Categories: correctness, developer-experience, gpu
+- Status: Bypass-Applied
+- Surface: gpu
+- Symptom: the `gpu-hlsl` build task failed with `Kain error: Codegen error ... Unsupported function call in shader: 'fbm2'`.
+- Workflow impact: The smoketest album built and certified almost completely, but the final DAG still failed because the fragment shader track used `fbm2`, which currently works in the math/std surface but not in HLSL shader lowering.
+- Minimal repro: `cargo run -q -p cli --bin kain -- blades build . --json --clean` in `D:\\Kain-Lang\\smoketest`, or any HLSL-target fragment shader that calls `fbm2(uv, octaves)`.
+- Evidence: `smoketest:gpu-hlsl` failed in `smoketest/.kain/reports/build/session-1779448114057-30408.json` with `Unsupported function call in shader: 'fbm2'`.
+- Suggested direction: Teach the HLSL backend to lower `fbm2` (and likely adjacent std math shader helpers), or emit an earlier target-specific diagnostic during `check` so authors know which shader helpers are unavailable before the GPU artifact task runs.

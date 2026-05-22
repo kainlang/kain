@@ -3,9 +3,6 @@ name: tool-z3-bug-hunter
 description: 'Use with an owning subsystem skill when auditing Kain compiler, runtime, stdlib, tooling, or authored-system surfaces for real bugs, weird edge cases, invariant breaks, miscompiles, crashes, race windows, ABI/layout mistakes, or other solver-checkable failures. This is the exploratory sibling to `tool-z3-black-magic`: hunt and log defects into `D:\Kain-Lang\BUGS.md`, especially with Z3-backed evidence, but do not fix them here.'
 ---
 
-# Tool
-
-Never use this skill alone. Pair it with the owning `bootstrap-*`, `runtime-*`, `lang-*`, `test-*`, or `package-*` skill so the bug hunt stays attached to the right subsystem.
 
 ## Use This For
 
@@ -21,6 +18,7 @@ Never use this skill alone. Pair it with the owning `bootstrap-*`, `runtime-*`, 
 - Prefer concrete evidence over vibes: solver witness, crash text, failing command, minimized input, proof report, or deterministic observed misbehavior.
 - Pair the hunt with the owning subsystem validation loop, but do not let passing tests overrule a real counterexample.
 - **CRITICAL / MANDATORY**: Every logged bug entry MUST be mathematically verified and accompanied by a dedicated Z3 proof file (YAML/SMT2). You MUST save this proof under the nearest subsystem's `z3/proofs/` directory and explicitly document its absolute `file:///` path under the `- Z3 Proof:` field of the bug entry. Bug entries without a verified Z3 proof path are strictly invalid.
+- IF A BUG is proved unsat, make sure to update and add a comment to the corresponding line of code with this format (using an existing comment as an example)   /* Proof: runtime/native/src/core/z3/proofs/actor-supervision-restart-count-stays-within-window-limit.yaml */
 
 ## Hunt Loop
 
