@@ -1,7 +1,14 @@
 use std::runtime
-
-// NOTE: std::text transitively loads std::collections which has a
-// pre-existing StringIntMap shadowing bug. Re-enable when fixed.
+use std::text
 
 pub fn smoke_text_lane() -> Int:
+    let wire = text_trim(text_slice("  zero-copy  ", 2, 11))
+    if text_len(wire) <= 0:
+        return 1
+    let found = text_find(wire, "zero")
+    if found < 0:
+        return 2
+    let materialized = text_materialize(wire)
+    if len(materialized) <= 0:
+        return 3
     return 0

@@ -10320,6 +10320,38 @@ fn main() -> Int:
     }
 
     #[test]
+    fn typecheck_stdlib_extern_declarations_are_idempotent() {
+        let source = r#"
+@extern
+fn abi_runtime_init() -> Int
+
+pub fn runtime_init() -> Int:
+    return abi_runtime_init()
+"#;
+        let span_mapper = SpanMapper::new(source);
+        let program =
+            parse_source_for_typecheck(source, &span_mapper, "D:/Kain-Lang/stdlib/runtime.kn");
+
+        check(&program, &span_mapper, "D:/Kain-Lang/stdlib/runtime.kn")
+            .expect("stdlib @extern declarations should register cleanly across passes");
+    }
+
+    #[test]
+    fn typecheck_dynamic_stdlib_runtime_import_registers_extern_wrappers_once() {
+        let source = r#"
+use std::runtime
+
+fn main() -> Int:
+    return runtime_init()
+"#;
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, "<test>");
+
+        check(&program, &span_mapper, "<test>")
+            .expect("dynamic stdlib runtime import should register extern wrappers cleanly");
+    }
+
+    #[test]
     fn typecheck_rejects_user_origin_shadowing_builtin_global() {
         let source = r#"
 fn fs_read_text(path: String) -> String:
