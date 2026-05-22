@@ -1,9 +1,12 @@
 use std::runtime
 
+const SMOKE_COMPTIME_MAGIC: Int = 51966
+const SMOKE_COMPTIME_LANES: Int = 29
+const SMOKE_COMPTIME_VERSION: Int = 1
+
 comptime:
-    const SMOKE_COMPTIME_MAGIC: Int = 51966
-    const SMOKE_COMPTIME_LANES: Int = 29
-    const SMOKE_COMPTIME_VERSION: Int = 1
+    const SMOKE_SURFACE_COUNT: Int = 17
+    const SMOKE_ROUTE_MASK: Int = 63
 
 pub fn smoke_comptime_lane() -> Int:
     if SMOKE_COMPTIME_MAGIC != 51966:

@@ -821,7 +821,7 @@ impl<'a> TypeEnv<'a> {
         allow_originless_shadow: bool,
     ) -> KainResult<()> {
         if let Some(existing) = origins.get(name) {
-            if existing.span != span || existing.kind != kind {
+            if !self.same_symbol_declaration(existing, span, kind) {
                 return Err(
                     self.duplicate_symbol_error(name, span, kind, existing, namespace, code)
                 );
@@ -835,6 +835,23 @@ impl<'a> TypeEnv<'a> {
             return Err(self.shadow_builtin_symbol_error(name, span, kind, namespace, code));
         }
         Ok(())
+    }
+
+    fn same_symbol_declaration(
+        &self,
+        existing: &SymbolOrigin,
+        span: Span,
+        kind: &'static str,
+    ) -> bool {
+        if existing.kind != kind {
+            return false;
+        }
+        if existing.span == span {
+            return true;
+        }
+        existing.span.start == span.start
+            && self.span_mapper.span_origin_file(existing.span)
+                == self.span_mapper.span_origin_file(span)
     }
 
     fn is_stdlib_source_span(&self, span: Span) -> bool {

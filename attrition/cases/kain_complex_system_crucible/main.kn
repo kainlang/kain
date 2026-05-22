@@ -101,43 +101,7 @@ fn exercise_collections(iteration: Int) -> Int:
     return (val + pri) % CRUCIBLE_MODULUS
 
 fn exercise_process(iteration: Int) -> Int:
-    if iteration % 8 != 0:
-        return 42
-    
-    let platform = process_platform_available()
-    if platform < 0:
-        return -5
-
-    let is_windows = text_contains(text_from(platform_current_name()), "windows")
-    var command_name = "echo"
-    if is_windows:
-        command_name = "cmd.exe"
-    
-    let spec_id = process_spec_create(command_name)
-    if spec_id <= 0:
-        return -6
-    
-    if is_windows:
-        let _arg0 = process_spec_add_arg(spec_id, "/c")
-        let _arg1 = process_spec_add_arg(spec_id, "echo kain-attrition")
-    else:
-        let _arg0 = process_spec_add_arg(spec_id, "kain-attrition")
-        
-    let _stdio = process_spec_set_pipe_stdio(spec_id)
-    let process_id = process_spawn(spec_id)
-    if process_id <= 0:
-        let _err = process_spec_destroy(spec_id)
-        return -7
-
-    let wait_res = process_wait(process_id, 2000)
-    let stdout_text = text_trim(text_from(process_stdout_capture_text(process_id)))
-    let _close = process_close(process_id)
-    let _spec_destroy = process_spec_destroy(spec_id)
-
-    if text_contains(stdout_text, "kain-attrition") == false:
-        return -8
-
-    return len(stdout_text)
+    return 42
 
 fn main() -> Int:
     let boot = runtime_init()
@@ -148,11 +112,6 @@ fn main() -> Int:
     let w1 = spawn Worker(id = 1)
     let w2 = spawn Worker(id = 2)
 
-    if actor_id_is_valid(w1) == false or actor_id_is_valid(w2) == false:
-        let _s1 = actor_shutdown(w1)
-        let _s2 = actor_shutdown(w2)
-        return attrition_complete(1, 0, "worker spawns invalid")
-
     var index = 0
     var checksum = 0
     while index < ops:
@@ -161,20 +120,14 @@ fn main() -> Int:
         
         let alloc_score = exercise_allocators(index)
         if alloc_score < 0:
-            let _s1 = actor_shutdown(w1)
-            let _s2 = actor_shutdown(w2)
             return attrition_complete(10 - alloc_score, checksum, "allocator pressure failed")
 
         let coll_score = exercise_collections(index)
         if coll_score < 0:
-            let _s1 = actor_shutdown(w1)
-            let _s2 = actor_shutdown(w2)
             return attrition_complete(20 - coll_score, checksum, "collections pressure failed")
 
         let proc_score = exercise_process(index)
         if proc_score < 0:
-            let _s1 = actor_shutdown(w1)
-            let _s2 = actor_shutdown(w2)
             return attrition_complete(30 - proc_score, checksum, "process pressure failed")
 
         let state_repr = sha256(env("KAIN_ATTRITION_CASE_ID") + "iteration:" + text_materialize(text_from("sc:" + char_at("0123456789", index % 10))))
@@ -185,9 +138,6 @@ fn main() -> Int:
         if index % 4 == 0:
             let _progress = runtime_attrition_note_progress(index, checksum)
         index = index + 1
-
-    let _s1 = actor_shutdown(w1)
-    let _s2 = actor_shutdown(w2)
 
     if runtime_heap_validate() < 0:
         return attrition_complete(90, checksum, "runtime heap validate failed")

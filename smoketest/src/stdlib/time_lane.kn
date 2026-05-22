@@ -2,10 +2,13 @@ use std::runtime
 use std::time
 
 pub fn smoke_time_lane() -> Int:
-    let now = time_now_ms()
+    let now = now_millis()
     if now < 0:
         return 1
-    let elapsed = time_elapsed_ms(now)
-    if elapsed < 0:
+    let deadline = deadline_millis(1000)
+    if deadline < now:
         return 2
+    let elapsed = deadline_elapsed(deadline)
+    if elapsed == true:
+        return 3
     return 0

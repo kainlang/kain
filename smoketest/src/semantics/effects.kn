@@ -15,7 +15,7 @@ fn smoke_reactive_fn(value: Int) -> Int with Reactive:
 fn smoke_unsafe_fn(value: Int) -> Int with Unsafe:
     return value + 5
 
-pub fn smoke_effects_lane() -> Int:
+pub fn smoke_effects_lane() -> Int with Unsafe:
     let base: Int = 10
     let pure_score = smoke_pure_fn(base)
     let io_score = smoke_io_fn(pure_score)
