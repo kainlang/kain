@@ -100,8 +100,19 @@ impl CheckReport {
 }
 
 pub fn check_source(source_name: &str, source: &str, options: &CheckOptions) -> CheckFileReport {
+    let session = DriverSession::default();
+    check_source_with_session(&session, source_name, None, source, options)
+}
+
+pub fn check_source_with_session(
+    session: &DriverSession,
+    source_name: &str,
+    source_path: Option<&Path>,
+    source: &str,
+    options: &CheckOptions,
+) -> CheckFileReport {
     let target = options.target();
-    match DriverSession::default().frontend_to_checked_program(source, target) {
+    match session.frontend_to_checked_program_with_source_path(source, source_path, target) {
         Ok(checked) => {
             let bundle = emit_runtime_contract_bundle(&checked.typed, target);
             CheckFileReport {
@@ -125,14 +136,29 @@ pub fn check_source(source_name: &str, source: &str, options: &CheckOptions) -> 
             item_count: 0,
             test_count: 0,
             required_capabilities: Vec::new(),
-            error: Some(error.to_string()),
+            error: Some(session.format_error(source_name, source, &error)),
         },
     }
 }
 
 pub fn check_file(path: &Path, options: &CheckOptions) -> CheckFileReport {
+    let session = DriverSession::default();
+    check_file_with_session(&session, path, options)
+}
+
+pub fn check_file_with_session(
+    session: &DriverSession,
+    path: &Path,
+    options: &CheckOptions,
+) -> CheckFileReport {
     match kfs::read_text(path) {
-        Ok(source) => check_source(&path.display().to_string(), &source, options),
+        Ok(source) => check_source_with_session(
+            session,
+            &path.display().to_string(),
+            Some(path),
+            &source,
+            options,
+        ),
         Err(error) => CheckFileReport {
             path: path.display().to_string(),
             target: compile_target_name(options.target()).to_string(),
@@ -168,8 +194,9 @@ pub fn check_path(path: &Path, options: &CheckOptions) -> CheckReport {
     };
 
     let mut reports = Vec::new();
+    let session = DriverSession::default();
     for file in files {
-        let report = check_file(&file, options);
+        let report = check_file_with_session(&session, &file, options);
         let failed = !report.passed();
         reports.push(report);
         if failed && options.fail_fast {
@@ -310,6 +337,7 @@ fn count_typed_tests_in_slice(items: &[TypedItem]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn check_source_reports_item_and_capability_summary() {
@@ -352,5 +380,36 @@ mod tests {
 
         let files = discover_kain_files(temp.path()).expect("discover files");
         assert_eq!(files, vec![temp.path().join("root.kn")]);
+    }
+
+    #[test]
+    fn check_file_resolves_imports_relative_to_source_path() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_path = temp.path().join("main.kn");
+        let module_dir = temp.path().join("src");
+        let module_path = module_dir.join("module_probe.kn");
+        fs::create_dir_all(&module_dir).expect("module dir");
+        fs::write(
+            &main_path,
+            r#"
+use module_probe::four
+
+fn main() -> Int:
+    return four()
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &module_path,
+            r#"
+pub fn four() -> Int:
+    return 4
+"#,
+        )
+        .expect("module source");
+
+        let report = check_file(&main_path, &CheckOptions::new(CompileTarget::Llvm));
+        assert!(report.passed(), "expected importer-relative check to pass: {:?}", report.error);
+        assert!(report.item_count >= 1);
     }
 }

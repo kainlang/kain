@@ -1565,6 +1565,7 @@ fn interpret_fabric_kain_source(
     let typed = kain_driver::DriverSession::default()
         .frontend_to_typed_program_with_extra_globals(
             &source,
+            None,
             CompileTarget::Interpret,
             fabric_semantic_globals(),
         )

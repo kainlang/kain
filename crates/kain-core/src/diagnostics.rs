@@ -104,7 +104,7 @@ impl SpanMapper {
         self.origins.iter().find_map(|origin| {
             let start = origin.combined_span.start;
             let end = origin.combined_span.end;
-            if offset < start || offset > end {
+            if offset < start || offset >= end {
                 return None;
             }
             let local = offset.saturating_sub(start);
@@ -173,6 +173,11 @@ impl Diagnostics {
             span_mapper,
             filename: filename.into(),
         }
+    }
+
+    pub fn get_line_info(&self, span: Span) -> (usize, usize, &str) {
+        let (location, line_content) = self.span_mapper.span_to_line_info(span, &self.filename);
+        (location.line, location.col, line_content)
     }
 
     /// Format an error with source context
@@ -408,7 +413,7 @@ mod tests {
         assert_eq!(content, "let x = 5");
 
         // Second line
-        let (line, col, content) = diag.get_line_info(Span::new(14, 15));
+        let (line, _col, content) = diag.get_line_info(Span::new(14, 15));
         assert_eq!(line, 2);
         assert_eq!(content, "let y = x + 1");
     }
@@ -587,5 +592,38 @@ mod tests {
 
         let loc = mapper.span_to_location(Span::new(4, 5), "test.kn");
         assert_eq!(loc.line, 3);
+    }
+
+    #[test]
+    fn test_span_mapper_maps_combined_spans_back_to_origin_files() {
+        let helper_source = "pub fn helper() -> Int:\n    return 7\n";
+        let entry_source = "fn main() -> Int:\n    return helper()\n";
+        let combined = format!("{helper_source}{entry_source}");
+        let mapper = SpanMapper::with_origins(
+            &combined,
+            vec![
+                SourceOriginSegment {
+                    file: "helper.kn".to_string(),
+                    combined_span: Span::new(0, helper_source.len()),
+                    source: helper_source.to_string(),
+                },
+                SourceOriginSegment {
+                    file: "main.kn".to_string(),
+                    combined_span: Span::new(helper_source.len(), combined.len()),
+                    source: entry_source.to_string(),
+                },
+            ],
+        );
+
+        let helper_loc = mapper.span_to_location(Span::new(7, 8), "bundle.kn");
+        assert_eq!(helper_loc.file, "helper.kn");
+        assert_eq!(helper_loc.line, 1);
+        assert_eq!(helper_loc.col, 8);
+
+        let (entry_loc, entry_line) =
+            mapper.span_to_line_info(Span::new(helper_source.len(), helper_source.len() + 2), "bundle.kn");
+        assert_eq!(entry_loc.file, "main.kn");
+        assert_eq!(entry_loc.line, 1);
+        assert_eq!(entry_line, "fn main() -> Int:");
     }
 }

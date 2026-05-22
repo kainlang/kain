@@ -2623,13 +2623,16 @@ pub fn four() -> Int:
 
     #[test]
     fn frontend_source_bundle_materializes_imported_stdlib_modules_without_whole_root_slurp() {
+        let session = DriverSession::default();
         let frontend = build_frontend_source_bundle(
+            &session,
             r#"
 use std::math
 
 fn main() -> Int:
     return native_actor_spawn("probe", "state=0")
 "#,
+            None,
             CompileTarget::Llvm,
         )
         .expect("frontend bundle");
@@ -2664,6 +2667,100 @@ fn main() -> Int:
 
         assert!(typed.items.iter().any(|item| {
             matches!(item, TypedItem::Function(function) if function.ast.name == "vec3_length")
+        }));
+    }
+
+    #[test]
+    fn frontend_bundle_tracks_origin_files_and_watch_inputs() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_path = temp.path().join("main.kn");
+        let build_path = temp.path().join("build.kn");
+        let module_dir = temp.path().join("src");
+        let module_path = module_dir.join("module_probe.kn");
+        fs::create_dir_all(&module_dir).expect("module dir");
+        fs::write(
+            &main_path,
+            r#"
+use module_probe::four
+
+fn main() -> Int:
+    return four()
+"#,
+        )
+        .expect("main source");
+        fs::write(&build_path, "package specimen\n").expect("build manifest");
+        fs::write(
+            &module_path,
+            r#"
+pub fn four() -> Int:
+    return 4
+"#,
+        )
+        .expect("module source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            let session = DriverSession::default();
+            let bundle = build_frontend_source_bundle(
+                &session,
+                &source,
+                Some(main_path.as_path()),
+                CompileTarget::Llvm,
+            )?;
+            Ok::<_, KainError>((session, bundle))
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let (session, bundle) = result.expect("frontend bundle");
+        assert!(bundle.origins.iter().any(|origin| {
+            Path::new(&origin.file)
+                .file_name()
+                .and_then(|name| name.to_str())
+                == Some("module_probe.kn")
+        }));
+        assert!(bundle.origins.iter().any(|origin| {
+            Path::new(&origin.file)
+                .file_name()
+                .and_then(|name| name.to_str())
+                == Some("main.kn")
+        }));
+        assert!(bundle.watch_inputs.iter().any(|path| path.ends_with("main.kn")));
+        assert!(bundle
+            .watch_inputs
+            .iter()
+            .any(|path| path.ends_with("module_probe.kn")));
+        assert!(bundle.watch_inputs.iter().any(|path| path.ends_with("build.kn")));
+        assert_eq!(session.frontend_watch_inputs(), bundle.watch_inputs);
+    }
+
+    #[test]
+    fn imported_helper_module_c_bridge_emits_guidance_advisory() {
+        let module_path = PathBuf::from("helper.kn");
+        let mut collector = FrontendImportCollector {
+            entry_path: Some(PathBuf::from("main.kn")),
+            ..FrontendImportCollector::default()
+        };
+
+        collector
+            .collect_from_source(
+                r#"
+use c::version
+
+pub fn helper_value() -> Int:
+    return 7
+"#,
+                Some(module_path.as_path()),
+                CompileTarget::Llvm,
+            )
+            .expect("collector should parse helper source");
+
+        assert!(collector.advisories.iter().any(|advisory| {
+            advisory.contains("use c::")
+                && advisory.contains("@extern")
+                && advisory.contains("helper.kn")
         }));
     }
 

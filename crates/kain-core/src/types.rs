@@ -9873,6 +9873,7 @@ fn builtin_variant_expr_type(
 mod tests {
     use super::*;
     use crate::diagnostics::SpanMapper;
+    use crate::error::{ErrorKind, KainError};
     use crate::lexer::Lexer;
     use crate::parser::Parser;
 
@@ -12823,5 +12824,60 @@ fn demo(filter: Option<Filter>, out_: &mut Set<String>):
         )
         .expect("field access should refresh stale struct placeholders from registered types");
         assert_eq!(field_ty, ResolvedType::String);
+    }
+
+    #[test]
+    fn duplicate_top_level_functions_report_rich_locations() {
+        let source = r#"
+fn ping() -> Int:
+    return 1
+
+fn ping() -> Int:
+    return 2
+"#;
+
+        let tokens = Lexer::new(source).tokenize().expect("source should lex");
+        let span_mapper = SpanMapper::new(source);
+        let program = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("source should parse");
+
+        let err = check(&program, &span_mapper, "<test>").expect_err("duplicate function should fail");
+        let KainError::Rich(report) = err else {
+            panic!("expected rich duplicate diagnostic");
+        };
+
+        assert_eq!(report.kind, ErrorKind::Type);
+        assert_eq!(report.location, Some((5, 1)));
+        assert!(report.message.contains("ping"));
+        assert!(report.message.contains("collides"));
+        assert!(report
+            .labels
+            .iter()
+            .any(|label| label.primary && label.message.contains("redeclared global")));
+    }
+
+    #[test]
+    fn shadowing_builtin_global_reports_guidance() {
+        let source = r#"
+fn print() -> Int:
+    return 1
+"#;
+
+        let tokens = Lexer::new(source).tokenize().expect("source should lex");
+        let span_mapper = SpanMapper::new(source);
+        let program = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("source should parse");
+
+        let err = check(&program, &span_mapper, "<test>").expect_err("shadowing builtin should fail");
+        let KainError::Rich(report) = err else {
+            panic!("expected rich shadowing diagnostic");
+        };
+
+        assert_eq!(report.kind, ErrorKind::Type);
+        assert_eq!(report.location, Some((2, 1)));
+        assert!(report.message.contains("shadows"));
+        assert!(report.help.iter().any(|help| help.contains("distinct name")));
     }
 }

@@ -1249,6 +1249,31 @@ fn run_compile(
     analyze: bool,
     plugin_name: Option<&str>,
 ) -> bool {
+    let session = kain_driver::DriverSession::new();
+    run_compile_with_session(
+        &session,
+        input,
+        target,
+        output,
+        emit_ast,
+        emit_typed,
+        verbose,
+        analyze,
+        plugin_name,
+    )
+}
+
+fn run_compile_with_session(
+    session: &kain_driver::DriverSession,
+    input: &PathBuf,
+    target: CompileTarget,
+    output: Option<&PathBuf>,
+    emit_ast: bool,
+    emit_typed: bool,
+    verbose: bool,
+    analyze: bool,
+    plugin_name: Option<&str>,
+) -> bool {
     let source = match read_source_from_path(input) {
         Ok(value) => value,
         Err(err) => {
@@ -1266,7 +1291,8 @@ fn run_compile(
     } else {
         Some(input.as_path())
     };
-    run_source(
+    run_source_with_session(
+        session,
         source_name,
         source_path,
         &source,
@@ -1278,6 +1304,53 @@ fn run_compile(
         analyze,
         plugin_name,
     )
+}
+
+fn watch_inputs_for_session(session: &kain_driver::DriverSession, input: &Path) -> Vec<PathBuf> {
+    let mut watch_roots = Vec::new();
+    let frontend_inputs = session.frontend_watch_inputs();
+    if frontend_inputs.is_empty() {
+        push_unique_watch_root(&mut watch_roots, input.to_path_buf());
+        return watch_roots;
+    }
+
+    for watched_input in frontend_inputs {
+        push_unique_watch_root(&mut watch_roots, watched_input);
+    }
+    watch_roots
+}
+
+fn push_unique_watch_root(watch_roots: &mut Vec<PathBuf>, path: PathBuf) {
+    let watch_root = if path.is_dir() {
+        path
+    } else if let Some(parent) = path.parent() {
+        parent.to_path_buf()
+    } else {
+        path
+    };
+    if !watch_roots.iter().any(|existing| existing == &watch_root) {
+        watch_roots.push(watch_root);
+    }
+}
+
+fn build_watch_mode_watcher(
+    tx: std::sync::mpsc::Sender<Result<notify::Event, notify::Error>>,
+    watch_roots: &[PathBuf],
+) -> notify::Result<notify::RecommendedWatcher> {
+    use notify::{RecursiveMode, Watcher};
+
+    let mut watcher = notify::recommended_watcher(move |res| {
+        let _ = tx.send(res);
+    })?;
+
+    for watch_root in watch_roots {
+        if !watch_root.exists() {
+            continue;
+        }
+        watcher.watch(watch_root, RecursiveMode::NonRecursive)?;
+    }
+
+    Ok(watcher)
 }
 
 fn print_kain_build_report(report: &kain_build::BladeBuildReport) {
@@ -1790,7 +1863,6 @@ fn watch_mode(
     analyze: bool,
     plugin_name: Option<String>,
 ) {
-    use notify::{Event, RecursiveMode, Watcher};
     use std::sync::mpsc::channel;
 
     let session = kain_driver::DriverSession::new();
@@ -1824,12 +1896,13 @@ fn watch_mode(
     println!("");
 
     let (tx, rx) = channel();
-    let mut watcher = build_watch_mode_watcher(tx.clone(), &watch_inputs_for_session(&session, &input))
+    let mut _watcher =
+        build_watch_mode_watcher(tx.clone(), &watch_inputs_for_session(&session, &input))
         .expect("Failed to create watcher");
 
     while running.load(Ordering::SeqCst) {
         match rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(_) => {
+            Ok(Ok(_event)) => {
                 // Debounce - wait a bit for writes to settle
                 std::thread::sleep(Duration::from_millis(50));
                 // Drain any pending events
@@ -1848,12 +1921,15 @@ fn watch_mode(
                     analyze,
                     plugin_name.as_deref(),
                 );
-                watcher = build_watch_mode_watcher(
+                _watcher = build_watch_mode_watcher(
                     tx.clone(),
                     &watch_inputs_for_session(&session, &input),
                 )
                 .expect("Failed to refresh watcher");
                 println!("");
+            }
+            Ok(Err(err)) => {
+                eprintln!(" Watcher error: {}", err);
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // Keep looping

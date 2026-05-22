@@ -339,4 +339,27 @@ mod tests {
         assert_eq!(resolved, Some(shared_path));
         assert_eq!(canonical, "graphics/shared");
     }
+
+    #[test]
+    fn importer_relative_resolution_prefers_source_ancestors() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path();
+        let importer_dir = project_root.join("feature").join("nested");
+        let importer_path = importer_dir.join("panel.kn");
+        let module_path = project_root.join("src").join("layout.kn");
+        fs::create_dir_all(importer_dir).unwrap();
+        fs::create_dir_all(module_path.parent().unwrap()).unwrap();
+        fs::write(&importer_path, "use layout\n").unwrap();
+        fs::write(&module_path, "pub fn layout_ping() -> Int:\n    return 1\n").unwrap();
+
+        let resolution = resolve_filesystem_module_file_with_context(
+            &["layout".to_string()],
+            &FilesystemModuleResolutionContext {
+                importer_file: Some(importer_path.clone()),
+            },
+        )
+        .expect("importer-relative module should resolve");
+
+        assert_eq!(resolution.file_path, module_path);
+    }
 }
