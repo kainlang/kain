@@ -63,6 +63,16 @@
       "runtime/runtime.c",
       "runtime/native_core_runtime.toml",
       "blades/kain-mcp/config/runtime_policy.json"
+    ],
+    "source_watch_paths": [
+      "crates",
+      "runtime",
+      "src",
+      "Cargo.toml",
+      "Cargo.lock",
+      "BUILD.bazel",
+      "MODULE.bazel",
+      "MODULE.bazel.lock"
     ]
   },
   "defaults": {

@@ -5098,7 +5098,7 @@ impl<'a> Parser<'a> {
                     ("bitcast", 2) => {
                         let value = args[0].value.clone();
                         if let Some(target) = self.parse_type_hint_arg(&args[1].value, span) {
-                            return Expr::Cast {
+                            return Expr::Bitcast {
                                 value: Box::new(value),
                                 target,
                                 span,

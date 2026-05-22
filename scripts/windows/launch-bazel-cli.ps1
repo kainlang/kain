@@ -241,6 +241,43 @@ function Resolve-RepoHeadSha {
     return "unknown"
 }
 
+function Read-JsonFileCompat {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return @{}
+    }
+    try {
+        $raw = Get-Content -Raw -Path $Path
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            return @{}
+        }
+        $parsed = ConvertFrom-JsonCompat -JsonText $raw
+        if ($parsed -is [hashtable]) {
+            return $parsed
+        }
+    } catch {
+    }
+    return @{}
+}
+
+function Get-ShortSha256 {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $sha256.ComputeHash($bytes)
+    } finally {
+        $sha256.Dispose()
+    }
+    $fullHash = -join ($hashBytes | ForEach-Object { $_.ToString("x2") })
+    if ($fullHash.Length -gt 20) {
+        return $fullHash.Substring(0, 20)
+    }
+    return $fullHash
+}
+
 function Get-RuntimeStamp {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -265,18 +302,198 @@ function Get-RuntimeStamp {
     }
 
     $joined = [string]::Join("`n", $lines)
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($joined)
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    return Get-ShortSha256 -Text $joined
+}
+
+function Normalize-RelativePath {
+    param([Parameter(Mandatory = $true)][string]$PathText)
+
+    $normalized = $PathText.Trim()
+    if ($normalized.StartsWith("./")) {
+        $normalized = $normalized.Substring(2)
+    }
+    if ($normalized.StartsWith(".\")) {
+        $normalized = $normalized.Substring(2)
+    }
+    $normalized = $normalized -replace "\\", "/"
+    while ($normalized.StartsWith("/")) {
+        $normalized = $normalized.Substring(1)
+    }
+    return $normalized
+}
+
+function Invoke-GitLines {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string[]]$Args
+    )
+
     try {
-        $hashBytes = $sha256.ComputeHash($bytes)
-    } finally {
-        $sha256.Dispose()
+        $output = & git -C $RepoRoot @Args 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            return @()
+        }
+        return @(
+            $output |
+            ForEach-Object { ([string]$_).Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+    } catch {
+        return @()
     }
-    $fullHash = -join ($hashBytes | ForEach-Object { $_.ToString("x2") })
-    if ($fullHash.Length -gt 20) {
-        return $fullHash.Substring(0, 20)
+}
+
+function Resolve-SourceWatchPaths {
+    param([Parameter(Mandatory = $true)]$SyncPolicy)
+
+    $configured = Convert-ToStringArray -Value (Get-HashValue -Table $SyncPolicy -Key "source_watch_paths" -DefaultValue @(
+            "crates",
+            "runtime",
+            "src",
+            "Cargo.toml",
+            "Cargo.lock",
+            "BUILD.bazel",
+            "MODULE.bazel",
+            "MODULE.bazel.lock"
+        ))
+    $normalized = @()
+    $seen = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($entry in $configured) {
+        $pathText = Normalize-RelativePath -PathText ([string]$entry)
+        if ([string]::IsNullOrWhiteSpace($pathText)) {
+            continue
+        }
+        if ($seen.Add($pathText)) {
+            $normalized += $pathText
+        }
     }
-    return $fullHash
+    return $normalized
+}
+
+function Get-SourceStampData {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string[]]$WatchPaths
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($env:KAIN_SYNC_SOURCE_STAMP)) {
+        return @{
+            stamp = $env:KAIN_SYNC_SOURCE_STAMP
+            dirty_count = 0
+            watch_paths = $WatchPaths
+        }
+    }
+
+    $normalizedWatchPaths = @()
+    foreach ($pathText in $WatchPaths) {
+        $normalized = Normalize-RelativePath -PathText ([string]$pathText)
+        if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+            $normalizedWatchPaths += $normalized
+        }
+    }
+    [Array]::Sort($normalizedWatchPaths, [System.StringComparer]::OrdinalIgnoreCase)
+
+    $headDescriptors = New-Object System.Collections.Generic.List[string]
+    foreach ($relative in $normalizedWatchPaths) {
+        $headObject = "missing"
+        try {
+            $resolved = (& git -C $RepoRoot rev-parse --verify ("HEAD:" + $relative) 2>$null | Select-Object -First 1).Trim()
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($resolved)) {
+                $headObject = $resolved
+            }
+        } catch {
+        }
+        $headDescriptors.Add(("head|{0}|{1}" -f $relative, $headObject))
+    }
+
+    $pathArgs = @("--")
+    $pathArgs += $normalizedWatchPaths
+    $dirtyPaths = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
+    $dirtyCommandArgs = @(
+        @("diff", "--name-only"),
+        @("diff", "--cached", "--name-only"),
+        @("ls-files", "--others", "--exclude-standard")
+    )
+    foreach ($commandArgs in $dirtyCommandArgs) {
+        $lines = Invoke-GitLines -RepoRoot $RepoRoot -Args ($commandArgs + $pathArgs)
+        foreach ($line in $lines) {
+            $normalized = Normalize-RelativePath -PathText $line
+            if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+                $null = $dirtyPaths.Add($normalized)
+            }
+        }
+    }
+
+    $dirtyPathList = @($dirtyPaths)
+    [Array]::Sort($dirtyPathList, [System.StringComparer]::OrdinalIgnoreCase)
+    $dirtyDescriptors = New-Object System.Collections.Generic.List[string]
+    foreach ($relative in $dirtyPathList) {
+        $candidate = Join-Path $RepoRoot $relative
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $contentHash = "nohash"
+            try {
+                $contentHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $candidate).Hash.ToLowerInvariant()
+            } catch {
+            }
+            $dirtyDescriptors.Add(("dirty|{0}|file|{1}" -f $relative, $contentHash))
+            continue
+        }
+        if (Test-Path -LiteralPath $candidate -PathType Container) {
+            $dirtyDescriptors.Add(("dirty|{0}|dir|present" -f $relative))
+            continue
+        }
+        $dirtyDescriptors.Add(("dirty|{0}|missing" -f $relative))
+    }
+
+    $stampLines = New-Object System.Collections.Generic.List[string]
+    foreach ($relative in $normalizedWatchPaths) {
+        $stampLines.Add(("watch|{0}" -f $relative))
+    }
+    foreach ($descriptor in $headDescriptors) {
+        $stampLines.Add($descriptor)
+    }
+    foreach ($descriptor in $dirtyDescriptors) {
+        $stampLines.Add($descriptor)
+    }
+    $stamp = Get-ShortSha256 -Text ([string]::Join("`n", $stampLines))
+    return @{
+        stamp = $stamp
+        dirty_count = $dirtyDescriptors.Count
+        watch_paths = $normalizedWatchPaths
+    }
+}
+
+function Resolve-StampedBinaryPath {
+    param(
+        [Parameter(Mandatory = $true)]$StampPayload,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    if ($StampPayload -isnot [hashtable]) {
+        return $null
+    }
+    if ($StampPayload.ContainsKey("binary_by_name")) {
+        $binaryByName = $StampPayload["binary_by_name"]
+        if ($binaryByName -is [hashtable] -and $binaryByName.ContainsKey($Name)) {
+            $entry = $binaryByName[$Name]
+            if ($entry -is [hashtable] -and $entry.ContainsKey("path")) {
+                $candidate = [string]$entry["path"]
+                if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                    return [System.IO.Path]::GetFullPath($candidate)
+                }
+            }
+        }
+    }
+    if ($Name -eq "kain" -and $StampPayload.ContainsKey("binary")) {
+        $legacy = $StampPayload["binary"]
+        if ($legacy -is [hashtable] -and $legacy.ContainsKey("path")) {
+            $candidate = [string]$legacy["path"]
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                return [System.IO.Path]::GetFullPath($candidate)
+            }
+        }
+    }
+    return $null
 }
 
 function Move-FileAtomically {
@@ -399,6 +616,7 @@ $runtimeStampFiles = Convert-ToStringArray -Value (Get-HashValue -Table $syncPol
         "runtime/native_core_runtime.toml",
         "blades/kain-mcp/config/runtime_policy.json"
     ))
+$sourceWatchPaths = Resolve-SourceWatchPaths -SyncPolicy $syncPolicy
 
 $resolvedClangPath = Resolve-ClangPath -RepoRoot $repoRoot
 $resolvedPythonPath = Resolve-Python312Path
@@ -434,41 +652,114 @@ if ($resolvedPythonPath) {
 
 Push-Location $repoRoot
 try {
+    $existingStampPayload = Read-JsonFileCompat -Path $stampPath
+    $sourceStampData = Get-SourceStampData -RepoRoot $repoRoot -WatchPaths $sourceWatchPaths
+    $currentSourceStamp = [string](Get-HashValue -Table $sourceStampData -Key "stamp" -DefaultValue "")
+    $currentSourceDirtyCount = [int](Get-HashValue -Table $sourceStampData -Key "dirty_count" -DefaultValue 0)
+    $currentSourceWatchPaths = Convert-ToStringArray -Value (Get-HashValue -Table $sourceStampData -Key "watch_paths" -DefaultValue $sourceWatchPaths)
+
+    $previousSourceStamp = [string](Get-HashValue -Table $existingStampPayload -Key "source_stamp" -DefaultValue "")
+    $previousConfig = [string](Get-HashValue -Table $existingStampPayload -Key "bazel_config" -DefaultValue "")
+
+    $resolvedBinaryPath = $null
+    $stampedBinaryPath = Resolve-StampedBinaryPath -StampPayload $existingStampPayload -Name $BinaryName
+    $stampedBinaryExists = $false
+    if (-not [string]::IsNullOrWhiteSpace($stampedBinaryPath) -and (Test-Path $stampedBinaryPath)) {
+        $stampedBinaryExists = $true
+    }
+
+    $shouldBuild = -not $SkipBuild
+    $buildReason = if ($SkipBuild) { "skip-build flag set" } else { "source gate not evaluated" }
     if (-not $SkipBuild) {
+        if ([string]::IsNullOrWhiteSpace($currentSourceStamp)) {
+            $shouldBuild = $true
+            $buildReason = "source stamp unavailable"
+        } elseif ([string]::IsNullOrWhiteSpace($previousSourceStamp)) {
+            $shouldBuild = $true
+            $buildReason = "missing previous source stamp"
+        } elseif ($previousSourceStamp -ne $currentSourceStamp) {
+            $shouldBuild = $true
+            $buildReason = "source stamp changed"
+        } elseif ($previousConfig -ne $resolvedConfig) {
+            $shouldBuild = $true
+            $buildReason = "bazel config changed"
+        } elseif (-not $stampedBinaryExists) {
+            $shouldBuild = $true
+            $buildReason = "stamped binary missing"
+        } else {
+            $shouldBuild = $false
+            $buildReason = "source unchanged"
+            $resolvedBinaryPath = $stampedBinaryPath
+        }
+    }
+
+    if ($shouldBuild) {
         & bazel build ("//:" + $BinaryName) ("--config=" + $resolvedConfig)
         if ($LASTEXITCODE -ne 0) {
             throw ("bazel build //:" + $BinaryName + " --config=" + $resolvedConfig + " failed with exit code " + $LASTEXITCODE)
         }
+        $resolvedBinaryPath = Resolve-BazelBinaryPath -Config $resolvedConfig -Name $BinaryName
+    } elseif ([string]::IsNullOrWhiteSpace($resolvedBinaryPath)) {
+        if ($stampedBinaryExists) {
+            $resolvedBinaryPath = $stampedBinaryPath
+        } else {
+            $resolvedBinaryPath = Resolve-BazelBinaryPath -Config $resolvedConfig -Name $BinaryName
+        }
     }
 
-    $resolvedBinaryPath = Resolve-BazelBinaryPath -Config $resolvedConfig -Name $BinaryName
     if (-not (Test-Path $resolvedBinaryPath)) {
         throw ("Bazel binary not found at " + $resolvedBinaryPath)
     }
 
-    if ($BinaryName -eq "kain") {
-        $repoSha = Resolve-RepoHeadSha -RepoRoot $repoRoot
-        $runtimeStamp = Get-RuntimeStamp -RepoRoot $repoRoot -RuntimeStampFiles $runtimeStampFiles
-        $nowUnix = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-        $stampPayload = @{
-            schema_version = 1
-            repo_root = $repoRoot
-            repo_sha = $repoSha
-            runtime_stamp = $runtimeStamp
-            runtime_stamp_files = $runtimeStampFiles
-            binary = (Get-BinaryFingerprint -Path $resolvedBinaryPath)
-            build_number = ("bazel-" + $resolvedConfig)
-            synced_at_unix = $nowUnix
-            last_attempt_unix = $nowUnix
-            managed_sync = $false
-            source_of_truth = "bazel-wrapper"
-            bazel_config = $resolvedConfig
+    $repoSha = Resolve-RepoHeadSha -RepoRoot $repoRoot
+    $runtimeStamp = Get-RuntimeStamp -RepoRoot $repoRoot -RuntimeStampFiles $runtimeStampFiles
+    $nowUnix = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $activeBinaryFingerprint = Get-BinaryFingerprint -Path $resolvedBinaryPath
+
+    $binaryByName = @{}
+    $existingBinaryByName = Get-HashValue -Table $existingStampPayload -Key "binary_by_name" -DefaultValue @{}
+    if ($existingBinaryByName -is [hashtable]) {
+        foreach ($entry in $existingBinaryByName.GetEnumerator()) {
+            $binaryByName[$entry.Key] = $entry.Value
         }
-        if (-not [string]::IsNullOrWhiteSpace($env:KAIN_ACTIVE_LAUNCHER_PATH)) {
-            $stampPayload["launcher_path"] = $env:KAIN_ACTIVE_LAUNCHER_PATH
-        }
-        Write-JsonAtomic -Path $stampPath -Payload $stampPayload
     }
+    $binaryByName[$BinaryName] = $activeBinaryFingerprint
+
+    $legacyKainBinary = $null
+    if ($BinaryName -eq "kain") {
+        $legacyKainBinary = $activeBinaryFingerprint
+    } elseif ($binaryByName.ContainsKey("kain")) {
+        $legacyKainBinary = $binaryByName["kain"]
+    } elseif ($existingStampPayload.ContainsKey("binary")) {
+        $legacyKainBinary = $existingStampPayload["binary"]
+    }
+
+    $stampPayload = @{
+        schema_version = 1
+        repo_root = $repoRoot
+        repo_sha = $repoSha
+        runtime_stamp = $runtimeStamp
+        runtime_stamp_files = $runtimeStampFiles
+        binary_by_name = $binaryByName
+        build_number = ("bazel-" + $resolvedConfig)
+        synced_at_unix = $nowUnix
+        last_attempt_unix = $nowUnix
+        managed_sync = $false
+        source_of_truth = "bazel-wrapper"
+        bazel_config = $resolvedConfig
+        source_stamp = $currentSourceStamp
+        source_watch_paths = $currentSourceWatchPaths
+        source_dirty_count = $currentSourceDirtyCount
+        build_performed = $shouldBuild
+        build_reason = $buildReason
+    }
+    if ($null -ne $legacyKainBinary) {
+        $stampPayload["binary"] = $legacyKainBinary
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:KAIN_ACTIVE_LAUNCHER_PATH)) {
+        $stampPayload["launcher_path"] = $env:KAIN_ACTIVE_LAUNCHER_PATH
+    }
+    Write-JsonAtomic -Path $stampPath -Payload $stampPayload
 
     if ($UpdateStampOnly) {
         exit 0

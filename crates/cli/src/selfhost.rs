@@ -1642,7 +1642,7 @@ fn collect_macro_calls_from_expr(
         }
         Expr::Decay { target, .. } => collect_macro_calls_from_expr(target, required, counts),
         Expr::Teleport { value, .. } => collect_macro_calls_from_expr(value, required, counts),
-        Expr::Cast { value, target, .. } => {
+        Expr::Cast { value, target, .. } | Expr::Bitcast { value, target, .. } => {
             collect_macro_calls_from_expr(value, required, counts);
             collect_macro_calls_from_type(target, required, counts);
         }
@@ -3161,6 +3161,7 @@ fn write_function(
         write_line(output, indent + 2, "Expr::Alloc { span: s } => s.clone()")?;
         write_line(output, indent + 2, "Expr::Realloc { span: s } => s.clone()")?;
         write_line(output, indent + 2, "Expr::Cast { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Bitcast { span: s } => s.clone()")?;
         write_line(output, indent + 2, "Expr::Try(_, s) => s.clone()")?;
         write_line(output, indent + 2, "Expr::Await(_, s) => s.clone()")?;
         write_line(output, indent + 2, "Expr::Spawn { span: s } => s.clone()")?;
@@ -3390,6 +3391,21 @@ fn write_function(
             output,
             indent + 2,
             "Expr::Cast { value: value, target: target } =>",
+        )?;
+        write_line(
+            output,
+            indent + 3,
+            "collect_type_names_from_expr(value, out_)",
+        )?;
+        write_line(
+            output,
+            indent + 3,
+            "collect_type_names_from_type(target, out_)",
+        )?;
+        write_line(
+            output,
+            indent + 2,
+            "Expr::Bitcast { value: value, target: target } =>",
         )?;
         write_line(
             output,
@@ -3902,6 +3918,11 @@ fn write_function(
             indent + 2,
             "Expr::Cast { target: target } => Some(target.clone())",
         )?;
+        write_line(
+            output,
+            indent + 2,
+            "Expr::Bitcast { target: target } => Some(target.clone())",
+        )?;
         write_line(output, indent + 2, "_ => none")?;
         writeln!(output)
             .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
@@ -4274,6 +4295,13 @@ fn write_function(
             output,
             indent + 2,
             "Expr::Cast { value: value, target: target } =>",
+        )?;
+        write_line(output, indent + 3, "substitute_expr(value, mapping)")?;
+        write_line(output, indent + 3, "substitute_type_ast(target, mapping)")?;
+        write_line(
+            output,
+            indent + 2,
+            "Expr::Bitcast { value: value, target: target } =>",
         )?;
         write_line(output, indent + 3, "substitute_expr(value, mapping)")?;
         write_line(output, indent + 3, "substitute_type_ast(target, mapping)")?;
@@ -4848,6 +4876,11 @@ fn write_function(
             output,
             indent + 2,
             "Expr::Cast { value: value } => check_expr_for_syntax_errors(env, value)?",
+        )?;
+        write_line(
+            output,
+            indent + 2,
+            "Expr::Bitcast { value: value } => check_expr_for_syntax_errors(env, value)?",
         )?;
         write_line(
             output,
@@ -5853,6 +5886,11 @@ fn inline_expr_to_string(expr: &Expr) -> String {
         },
         Expr::Cast { value, target, .. } => format!(
             "{} as {}",
+            inline_expr_to_string(value),
+            type_to_string(target)
+        ),
+        Expr::Bitcast { value, target, .. } => format!(
+            "bitcast({}, {:?})",
             inline_expr_to_string(value),
             type_to_string(target)
         ),

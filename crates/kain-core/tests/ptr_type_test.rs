@@ -223,6 +223,29 @@ fn parser_normalizes_sizeof_type_call() {
 }
 
 #[test]
+fn parser_normalizes_bitcast_call() {
+    let source = "fn bits(x: Float) -> I64 with Unsafe:\n    return bitcast(x, \"I64\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "bitcast.kn")
+        .parse()
+        .expect("parse");
+
+    let function = match &program.items[0] {
+        kain_core::ast::Item::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Bitcast { value, target, .. }), _) =
+        &function.body.stmts[0]
+    else {
+        panic!("expected bitcast return");
+    };
+    assert!(matches!(value.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == "x"));
+    assert!(matches!(target, Type::Named { name, .. } if name == "I64"));
+}
+
+#[test]
 fn parser_normalizes_alignof_alloca_and_uninit_calls() {
     let source = "fn storage() -> Int:\n    let mut buf: [Int; 2] = alloca(\"[Int; 2]\")\n    let mut x: Int = uninit(\"Int\")\n    return alignof_type(\"Int\")\n";
     let tokens = Lexer::new(source).tokenize().expect("lex");
@@ -449,6 +472,58 @@ fn ts_memory_lowering_resolves_sizeof_type_from_layouts() {
         panic!("expected lowered integer sizeof");
     };
     assert_eq!(*size, 16);
+}
+
+#[test]
+fn ts_memory_lowering_resolves_fixed_width_scalar_layouts() {
+    let source = "fn scalar_layout() -> Int:\n    return sizeof_type(\"I32\") + alignof_type(\"I32\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "fixed_scalar_layout.kn")
+        .parse()
+        .expect("parse");
+    let typed =
+        kain_core::types::check(&program, &mapper, "fixed_scalar_layout.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[0] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Return(Some(kain_core::ast::Expr::Binary { left, right, .. }), _) =
+        &function.ast.body.stmts[0]
+    else {
+        panic!("expected folded fixed-width layout return");
+    };
+    assert!(matches!(left.as_ref(), kain_core::ast::Expr::Int(4, _)));
+    assert!(matches!(right.as_ref(), kain_core::ast::Expr::Int(4, _)));
+}
+
+#[test]
+fn typecheck_rejects_safe_atomic_fence() {
+    let source = "fn demo() -> Int:\n    atomic_fence(\"seq_cst\")\n    return 0\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "atomic_fence_safe.kn")
+        .parse()
+        .expect("parse");
+    let err = kain_core::types::check(&program, &mapper, "atomic_fence_safe.kn")
+        .expect_err("safe atomic_fence should be rejected");
+    assert!(err.to_string().contains("atomic_fence requires an enclosing share scope or Unsafe effect"));
+}
+
+#[test]
+fn typecheck_rejects_mismatched_bitcast_widths() {
+    let source = "fn demo() -> I32 with Unsafe:\n    return bitcast(1.0, \"I32\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "bitcast_width.kn")
+        .parse()
+        .expect("parse");
+    let err = kain_core::types::check(&program, &mapper, "bitcast_width.kn")
+        .expect_err("mismatched-width bitcast should be rejected");
+    assert!(err.to_string().contains("bitcast requires equal-width source and target types"));
 }
 
 #[test]

@@ -1907,6 +1907,13 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
                 type_to_string(target)
             )
         }
+        Expr::Bitcast { value, target, .. } => {
+            format!(
+                "bitcast({}, {:?})",
+                expr_to_string_prec(value, 12),
+                type_to_string(target)
+            )
+        }
         Expr::Try(value, _) => format!("{}?", expr_to_string_prec(value, 14)),
         Expr::Await(value, _) => format!("await {}", expr_to_string_prec(value, 13)),
         Expr::AsyncBlock(value, _) => match value.as_ref() {
@@ -2195,7 +2202,7 @@ fn expr_precedence(expr: &kain_core::ast::Expr) -> u8 {
     match expr {
         kain_core::ast::Expr::Assign { .. } => 1,
         kain_core::ast::Expr::Binary { op, .. } => binary_precedence(*op),
-        kain_core::ast::Expr::Cast { .. } => 12,
+        kain_core::ast::Expr::Cast { .. } | kain_core::ast::Expr::Bitcast { .. } => 12,
         kain_core::ast::Expr::Unary { .. }
         | kain_core::ast::Expr::Ref { .. }
         | kain_core::ast::Expr::Deref(..)

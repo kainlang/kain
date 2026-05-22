@@ -1749,6 +1749,13 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Bitcast: `bitcast(value, "Type")`
+    Bitcast {
+        value: Box<Expr>,
+        target: Type,
+        span: Span,
+    },
+
     /// Try: `expr?`
     Try(Box<Expr>, Span),
 
@@ -1854,6 +1861,7 @@ impl Expr {
             | Expr::Share { span: s, .. }
             | Expr::Teleport { span: s, .. }
             | Expr::Cast { span: s, .. }
+            | Expr::Bitcast { span: s, .. }
             | Expr::Try(_, s)
             | Expr::Await(_, s)
             | Expr::AsyncBlock(_, s)
@@ -2914,7 +2922,7 @@ fn collect_type_names_from_type(ty: &Type, out: &mut HashSet<String>) {
 /// Recursively collect type names from an Expr AST node.
 fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
     match expr {
-        Expr::Cast { value, target, .. } => {
+        Expr::Cast { value, target, .. } | Expr::Bitcast { value, target, .. } => {
             collect_type_names_from_expr(value, out);
             collect_type_names_from_type(target, out);
         }

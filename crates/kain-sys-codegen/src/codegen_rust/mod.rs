@@ -2639,6 +2639,11 @@ impl RustGen {
             }
             Expr::Teleport { value, .. } => self.gen_expr(value),
             Expr::Cast { value, target, .. } => format!("(({}) as {})", self.gen_expr(value), self.map_type(target)),
+            Expr::Bitcast { value, target, .. } => format!(
+                "unsafe {{ std::mem::transmute::<_, {}>({}) }}",
+                self.map_type(target),
+                self.gen_expr(value)
+            ),
             Expr::Try(value, _) => format!("({}?)", self.gen_expr(value)),
             Expr::Await(value, _) => format!("({}.await)", self.gen_expr(value)),
             Expr::AsyncBlock(value, _) => match value.as_ref() {
@@ -3199,7 +3204,9 @@ impl RustGen {
             }
             Expr::Decay { target, .. } => self.collect_mutated_bindings_in_expr(target, names),
             Expr::Teleport { value, .. } => self.collect_mutated_bindings_in_expr(value, names),
-            Expr::Cast { value, .. } => self.collect_mutated_bindings_in_expr(value, names),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.collect_mutated_bindings_in_expr(value, names)
+            }
             Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
                 for (_, value) in init {
                     self.collect_mutated_bindings_in_expr(value, names);

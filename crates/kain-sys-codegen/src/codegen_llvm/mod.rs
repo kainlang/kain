@@ -984,7 +984,10 @@ impl LlvmGenerator {
                 }
             }
             Expr::Lambda { body, .. } => self.collect_pointer_let_types_from_expr(body),
-            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } | Expr::Cast { value, .. } => {
+            Expr::Ref { value, .. }
+            | Expr::AddrOf { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. } => {
                 self.collect_pointer_let_types_from_expr(value)
             }
             Expr::PtrOffset {
@@ -1531,6 +1534,7 @@ impl LlvmGenerator {
             "I32" | "i32" | "U32" | "u32" => "i32".into(),
             "I128" | "i128" | "U128" | "u128" => "i128".into(),
             "UInt" | "U64" | "u64" | "ISize" | "isize" | "USize" | "usize" => "i64".into(),
+            "F32" | "f32" => "float".into(),
             "Float" | "f64" | "double" => "double".into(),
             "Bool" | "bool" => "i1".into(),
             "String" | "str" => "i8*".into(),
@@ -1621,7 +1625,9 @@ impl LlvmGenerator {
                 }
             }
             Expr::Paren(inner, _) => self.ownership_pointer_provenance_for_expr(inner),
-            Expr::Cast { value, .. } => self.ownership_pointer_provenance_for_expr(value),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.ownership_pointer_provenance_for_expr(value)
+            }
             Expr::PtrOffset { pointer, .. } => self.ownership_pointer_provenance_for_expr(pointer),
             Expr::Call { callee, args, .. } => match callee.as_ref() {
                 Expr::Ident(name, _) if name == "__kain_alloc" => {
@@ -1661,7 +1667,11 @@ impl LlvmGenerator {
 
     fn obvious_llvm_type_alignment(llvm_ty: &str) -> i64 {
         match Self::obvious_llvm_type_byte_width(llvm_ty) {
-            Some(width @ 1) | Some(width @ 2) | Some(width @ 4) | Some(width @ 8) => width as i64,
+            Some(width @ 1)
+            | Some(width @ 2)
+            | Some(width @ 4)
+            | Some(width @ 8)
+            | Some(width @ 16) => width as i64,
             _ => 1,
         }
     }
@@ -1725,7 +1735,9 @@ impl LlvmGenerator {
         llvm_ty: &str,
     ) -> KainResult<(String, i64)> {
         match pointer {
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 self.compile_non_ephemeral_typed_memory_pointer(inner, llvm_ty)
             }
             Expr::PtrOffset {
@@ -1816,7 +1828,9 @@ impl LlvmGenerator {
                 }
                 Ok(Some((storage_i8, witness)))
             }
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 self.compile_ephemeral_storage_i8_pointer(inner)
             }
             Expr::PtrOffset {
@@ -1913,7 +1927,9 @@ impl LlvmGenerator {
                     Self::obvious_llvm_type_alignment(llvm_ty).min(witness.storage_alignment);
                 Ok(Some((typed_ptr, alignment)))
             }
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 self.compile_ephemeral_typed_memory_pointer(inner, llvm_ty)
             }
             Expr::PtrOffset {
@@ -1969,7 +1985,9 @@ impl LlvmGenerator {
             Expr::Int(value, _) => Some(format!("i:{value}")),
             Expr::Bool(value, _) => Some(format!("b:{value}")),
             Expr::Ident(name, _) => Some(format!("v:{name}")),
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 self.scalar_forward_key(inner)
             }
             Expr::Unary { op, operand, .. } => {
@@ -2006,7 +2024,9 @@ impl LlvmGenerator {
             Expr::Ident(name, _) if self.ephemeral_owned_pointer_locals.contains_key(name) => {
                 Some(format!("ephemeral:{name}"))
             }
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 self.forwardable_mem_pointer_key(inner)
             }
             Expr::PtrOffset {
@@ -2051,7 +2071,7 @@ impl LlvmGenerator {
             {
                 self.forwardable_mem_pointer_key(&args[0].value)?
             }
-            Expr::Cast { value, .. } | Expr::Paren(value, _) => {
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } | Expr::Paren(value, _) => {
                 return self.forwarded_mem_load_slot(value)
             }
             _ => return None,
@@ -2104,7 +2124,7 @@ impl LlvmGenerator {
             Expr::Call { callee, .. } if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_mem_load") => {
                 true
             }
-            Expr::Cast { value, .. } | Expr::Paren(value, _) => {
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } | Expr::Paren(value, _) => {
                 Self::expr_is_mem_load_surface(value)
             }
             _ => false,
@@ -2302,7 +2322,9 @@ impl LlvmGenerator {
             Expr::Int(value, _) => Some(*value),
             Expr::Ident(name, _) => known_i64_bindings.get(name).copied(),
             Expr::Paren(inner, _) => Self::resolve_i64_literal(inner, known_i64_bindings),
-            Expr::Cast { value, .. } => Self::resolve_i64_literal(value, known_i64_bindings),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                Self::resolve_i64_literal(value, known_i64_bindings)
+            }
             Expr::Binary {
                 left, op, right, ..
             } => {
@@ -2333,7 +2355,9 @@ impl LlvmGenerator {
         match expr {
             Expr::Bool(value, _) => Some(*value),
             Expr::Paren(inner, _) => Self::resolve_zeroed_literal(inner, known_i64_bindings),
-            Expr::Cast { value, .. } => Self::resolve_zeroed_literal(value, known_i64_bindings),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                Self::resolve_zeroed_literal(value, known_i64_bindings)
+            }
             _ => match Self::resolve_i64_literal(expr, known_i64_bindings) {
                 Some(0) => Some(false),
                 Some(1) => Some(true),
@@ -2377,7 +2401,9 @@ impl LlvmGenerator {
                         .map(|bounds| bounds.lower_inclusive >= 0)
                         .unwrap_or(false)
             }
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => self
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => self
                 .expr_is_proven_nonnegative_i64_with(inner, known_i64_bindings, known_nonnegative),
             Expr::Binary {
                 left, op, right, ..
@@ -2554,6 +2580,7 @@ impl LlvmGenerator {
             Expr::Ref { value, .. }
             | Expr::AddrOf { value, .. }
             | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Observe { target: value, .. }
             | Expr::Collapse { target: value, .. }
             | Expr::Share { target: value, .. }
@@ -2683,7 +2710,9 @@ impl LlvmGenerator {
         match expr {
             Expr::Ident(name, _) => name == target,
             Expr::Paren(inner, _) => Self::expr_is_exact_target_pointer(inner, target),
-            Expr::Cast { value, .. } => Self::expr_is_exact_target_pointer(value, target),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                Self::expr_is_exact_target_pointer(value, target)
+            }
             _ => false,
         }
     }
@@ -2691,7 +2720,9 @@ impl LlvmGenerator {
     fn expr_is_ephemeral_target_address(expr: &Expr, target: &str) -> bool {
         match expr {
             Expr::Ident(name, _) => name == target,
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 Self::expr_is_ephemeral_target_address(inner, target)
             }
             Expr::PtrOffset {
@@ -2780,6 +2811,7 @@ impl LlvmGenerator {
             | Expr::Comptime(operand, _)
             | Expr::Paren(operand, _)
             | Expr::Cast { value: operand, .. }
+            | Expr::Bitcast { value: operand, .. }
             | Expr::Ref { value: operand, .. }
             | Expr::AddrOf { value: operand, .. } => {
                 Self::collect_expr_assigned_identifier_names(operand, assigned);
@@ -3100,8 +3132,11 @@ impl LlvmGenerator {
     fn obvious_llvm_type_byte_width(llvm_ty: &str) -> Option<i64> {
         match llvm_ty {
             "i1" | "i8" => Some(1),
+            "i16" => Some(2),
             "i32" => Some(4),
+            "float" => Some(4),
             "i64" | "double" => Some(8),
+            "i128" => Some(16),
             ty if ty.ends_with('*') => Some(8),
             _ => None,
         }
@@ -3127,6 +3162,7 @@ impl LlvmGenerator {
             | Expr::Ref { value: inner, .. }
             | Expr::AddrOf { value: inner, .. }
             | Expr::Cast { value: inner, .. } => self.expr_obvious_llvm_ty(inner, known_llvm_types),
+            Expr::Bitcast { target, .. } => Some(self.map_type_from_ast(target)),
             Expr::Unary { operand, .. } => self.expr_obvious_llvm_ty(operand, known_llvm_types),
             Expr::Binary { left, right, .. } => {
                 let left_ty = self.expr_obvious_llvm_ty(left, known_llvm_types);
@@ -3436,7 +3472,10 @@ impl LlvmGenerator {
                         .unwrap_or(true)
             }
             Expr::Lambda { body, .. } => Self::expr_is_safe_for_ephemeral_local(body, target),
-            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } | Expr::Cast { value, .. } => {
+            Expr::Ref { value, .. }
+            | Expr::AddrOf { value, .. }
+            | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. } => {
                 Self::expr_is_safe_for_ephemeral_local(value, target)
             }
             Expr::PtrOffset {
@@ -3766,6 +3805,7 @@ impl LlvmGenerator {
                         | Expr::Bool(_, _)
                         | Expr::Paren(_, _)
                         | Expr::Cast { .. }
+                        | Expr::Bitcast { .. }
                         | Expr::Binary { .. }
                 )
             })
@@ -3958,12 +3998,16 @@ impl LlvmGenerator {
                 } if Self::expr_is_exact_target_pointer(indexed_object, target) => {
                     !Self::debug_mentions_identifier(index, target)
                 }
-                Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+                Expr::Paren(inner, _)
+                | Expr::Cast { value: inner, .. }
+                | Expr::Bitcast { value: inner, .. } => {
                     Self::expr_matches_closed_shatter_field_projection(inner, target)
                 }
                 _ => false,
             },
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 Self::expr_matches_closed_shatter_field_projection(inner, target)
             }
             _ => false,
@@ -5270,7 +5314,9 @@ impl LlvmGenerator {
     fn expr_strip_parens<'a>(expr: &'a Expr) -> &'a Expr {
         match expr {
             Expr::Paren(inner, _) => Self::expr_strip_parens(inner),
-            Expr::Cast { value, .. } => Self::expr_strip_parens(value),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                Self::expr_strip_parens(value)
+            }
             _ => expr,
         }
     }
@@ -6051,8 +6097,10 @@ impl LlvmGenerator {
     fn abi_layout_for_ty(&self, ty: &str, span: Span) -> KainResult<(usize, usize)> {
         match ty {
             "i1" | "i8" => Ok((1, 1)),
-            "i32" => Ok((4, 4)),
+            "i16" => Ok((2, 2)),
+            "float" | "i32" => Ok((4, 4)),
             "i64" | "double" => Ok((8, 8)),
+            "i128" => Ok((16, 16)),
             "void" => Err(KainError::codegen(
                 "Cannot compute runtime memory layout for void",
                 span,
@@ -6078,6 +6126,51 @@ impl LlvmGenerator {
                 span,
             )),
         }
+    }
+
+    fn compile_bitcast_expr(
+        &mut self,
+        value: &Expr,
+        target: &kain_core::ast::Type,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let dst_ty = self.map_type_from_ast(target);
+        let (val, src_ty) = self.compile_expr(value)?;
+        if src_ty == dst_ty {
+            return Ok((val, dst_ty));
+        }
+        let src_width = Self::obvious_llvm_type_byte_width(&src_ty).ok_or_else(|| {
+            KainError::codegen(
+                format!("bitcast source type {} does not have an obvious LLVM width", src_ty),
+                span,
+            )
+        })?;
+        let dst_width = Self::obvious_llvm_type_byte_width(&dst_ty).ok_or_else(|| {
+            KainError::codegen(
+                format!("bitcast target type {} does not have an obvious LLVM width", dst_ty),
+                span,
+            )
+        })?;
+        if src_width != dst_width {
+            return Err(KainError::codegen(
+                format!(
+                    "bitcast requires equal-width LLVM types, got {} ({}) and {} ({})",
+                    src_ty, src_width, dst_ty, dst_width
+                ),
+                span,
+            ));
+        }
+        let res = self.next_reg();
+        if src_ty.ends_with('*') && dst_ty.ends_with('*') {
+            self.emit(&format!("  {} = bitcast {} {} to {}", res, src_ty, val, dst_ty));
+        } else if src_ty.ends_with('*') {
+            self.emit(&format!("  {} = ptrtoint {} {} to {}", res, src_ty, val, dst_ty));
+        } else if dst_ty.ends_with('*') {
+            self.emit(&format!("  {} = inttoptr {} {} to {}", res, src_ty, val, dst_ty));
+        } else {
+            self.emit(&format!("  {} = bitcast {} {} to {}", res, src_ty, val, dst_ty));
+        }
+        Ok((res, dst_ty))
     }
 
     fn emit_tagged_value_handle_bits(&mut self, boxed_value: &str) -> String {
@@ -7733,7 +7826,9 @@ impl LlvmGenerator {
         match expr {
             Expr::Ident(name, _) => self.json_handle_locals.contains(name),
             Expr::Paren(inner, _) => self.expr_returns_json_handle(inner),
-            Expr::Cast { value, .. } => self.expr_returns_json_handle(value),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.expr_returns_json_handle(value)
+            }
             Expr::Call { callee, .. } => matches!(
                 callee.as_ref(),
                 Expr::Ident(name, _)
@@ -8711,7 +8806,9 @@ impl LlvmGenerator {
                         && bounds.upper_exclusive <= element_count
                 })
                 .unwrap_or(false),
-            Expr::Paren(inner, _) | Expr::Cast { value: inner, .. } => {
+            Expr::Paren(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
                 self.shattered_index_is_proven_in_bounds(inner, element_count as usize)
             }
             _ => false,
@@ -14197,6 +14294,11 @@ impl LlvmGenerator {
                     Ok((val, dst_ty))
                 }
             }
+            Expr::Bitcast {
+                value,
+                target,
+                span,
+            } => self.compile_bitcast_expr(value, target, *span),
             Expr::Ref { value, .. } => {
                 let (addr, ty) = self.compile_addressable_ptr(value)?;
                 Ok((addr, format!("{}*", ty)))
@@ -14408,28 +14510,12 @@ impl LlvmGenerator {
             ),
             Expr::SizeOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
-                let size = if mapped == "double" {
-                    8
-                } else if mapped == "i8" {
-                    1
-                } else if mapped == "i1" {
-                    1
-                } else {
-                    8
-                };
+                let (size, _) = self.abi_layout_for_ty(&mapped, target.span())?;
                 Ok((size.to_string(), "i64".into()))
             }
             Expr::AlignOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
-                let align = if mapped == "double" {
-                    8
-                } else if mapped == "i8" {
-                    1
-                } else if mapped == "i1" {
-                    1
-                } else {
-                    8
-                };
+                let (_, align) = self.abi_layout_for_ty(&mapped, target.span())?;
                 Ok((align.to_string(), "i64".into()))
             }
             Expr::Alloca { ty, .. } => {

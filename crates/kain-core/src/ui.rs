@@ -1269,6 +1269,7 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
         | Expr::Alloc { .. }
         | Expr::Realloc { .. }
         | Expr::Cast { .. }
+        | Expr::Bitcast { .. }
         | Expr::Try(_, _)
         | Expr::Await(_, _)
         | Expr::AsyncBlock(_, _)

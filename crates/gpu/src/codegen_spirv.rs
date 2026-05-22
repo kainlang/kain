@@ -797,7 +797,7 @@ fn infer_kain_type(expr: &Expr, known: &HashMap<String, Type>) -> Option<Type> {
                 .or(then_ty)
                 .or(else_ty)
         }
-        Expr::Cast { target, .. } => Some(target.clone()),
+        Expr::Cast { target, .. } | Expr::Bitcast { target, .. } => Some(target.clone()),
         Expr::Field { object, field, .. } => {
             // Derive element type from parent vector type.
             let parent_ty = infer_kain_type(object, known);
@@ -2287,6 +2287,18 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
             };
             Ok((converted, dst_ty))
         }
+        Expr::Bitcast {
+            value,
+            target,
+            span,
+        } => emit_expr(
+            ctx,
+            &Expr::Cast {
+                value: value.clone(),
+                target: target.clone(),
+                span: *span,
+            },
+        ),
         Expr::Assign { target, value, .. } => {
             let (next_val, next_ty) = emit_expr(ctx, value)?;
             match target.as_ref() {
@@ -2613,6 +2625,7 @@ fn expr_kind_name(expr: &Expr) -> &'static str {
         Expr::Share { .. } => "Share",
         Expr::Teleport { .. } => "Teleport",
         Expr::Cast { .. } => "Cast",
+        Expr::Bitcast { .. } => "Bitcast",
         Expr::Try(..) => "Try",
         Expr::Await(..) => "Await",
         Expr::AsyncBlock(..) => "AsyncBlock",

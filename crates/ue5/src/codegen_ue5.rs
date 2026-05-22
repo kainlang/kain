@@ -6265,6 +6265,13 @@ impl Ue5Gen {
                     self.gen_expr(value)
                 )
             }
+            Expr::Bitcast { value, target, .. } => {
+                format!(
+                    "reinterpret_cast<{}>({})",
+                    self.map_type(target),
+                    self.gen_expr(value)
+                )
+            }
 
             Expr::Paren(inner, _) => {
                 format!("({})", self.gen_expr(inner))
@@ -7299,6 +7306,7 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
         Expr::Unary { operand, .. }
         | Expr::Ref { value: operand, .. }
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
         | Expr::AsyncBlock(operand, _)

@@ -6,6 +6,7 @@ use crate::diagnostics::SpanMapper;
 use crate::effects::{check_effect_call, Effect, EffectSet};
 use crate::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
 use crate::lexer::Lexer;
+use crate::low_level_abi::{default_c_abi_policy, CAbiPolicy};
 use crate::module_resolution::{
     resolve_filesystem_module_file_with_context, resolve_stdlib_module_file,
     FilesystemModuleResolutionContext,
@@ -345,6 +346,127 @@ struct SymbolOrigin {
 
 fn context_allows_raw_memory_intrinsics(ctx: Option<&SemanticContext>) -> bool {
     ctx.is_some_and(|ctx| ctx.effects.effects.contains(&Effect::Unsafe))
+}
+
+fn resolved_type_bit_width(ty: &ResolvedType, abi: &CAbiPolicy) -> Option<usize> {
+    match peel_shared_refs(ty) {
+        ResolvedType::Bool => Some(abi.bool_bits),
+        ResolvedType::Char => Some(abi.char_bits),
+        ResolvedType::Int(size) => Some(match size {
+            IntSize::I8 | IntSize::U8 => 8,
+            IntSize::I16 | IntSize::U16 => 16,
+            IntSize::I32 | IntSize::U32 => 32,
+            IntSize::I64 | IntSize::U64 => 64,
+            IntSize::I128 | IntSize::U128 => 128,
+            IntSize::Isize | IntSize::Usize => abi.pointer_bits,
+        }),
+        ResolvedType::Float(size) => Some(match size {
+            FloatSize::F32 => 32,
+            FloatSize::F64 => 64,
+        }),
+        ResolvedType::Ref { .. } | ResolvedType::Ptr { .. } => Some(abi.pointer_bits),
+        _ => None,
+    }
+}
+
+fn resolved_type_supports_bitcast(ty: &ResolvedType) -> bool {
+    matches!(
+        peel_shared_refs(ty),
+        ResolvedType::Bool
+            | ResolvedType::Char
+            | ResolvedType::Int(_)
+            | ResolvedType::Float(_)
+            | ResolvedType::Ref { .. }
+            | ResolvedType::Ptr { .. }
+    )
+}
+
+fn resolved_type_is_pointer_like(ty: &ResolvedType) -> bool {
+    matches!(peel_shared_refs(ty), ResolvedType::Ref { .. } | ResolvedType::Ptr { .. })
+}
+
+fn resolved_type_is_float_like(ty: &ResolvedType) -> bool {
+    matches!(peel_shared_refs(ty), ResolvedType::Float(_))
+}
+
+fn resolved_type_is_integer_like(ty: &ResolvedType) -> bool {
+    matches!(
+        peel_shared_refs(ty),
+        ResolvedType::Bool | ResolvedType::Char | ResolvedType::Int(_)
+    )
+}
+
+fn ensure_bitcast_compatible(
+    env: &TypeEnv<'_>,
+    source_ty: &ResolvedType,
+    target_ty: &ResolvedType,
+    span: Span,
+) -> KainResult<()> {
+    let abi = default_c_abi_policy();
+    let source = peel_shared_refs(source_ty);
+    let target = peel_shared_refs(target_ty);
+    if !resolved_type_supports_bitcast(source) || !resolved_type_supports_bitcast(target) {
+        return Err(env.type_error(
+            format!(
+                "bitcast requires scalar or pointer-like types, got {} and {}",
+                describe_type(source),
+                describe_type(target)
+            ),
+            span,
+        ));
+    }
+    let Some(source_bits) = resolved_type_bit_width(source, abi) else {
+        return Err(env.type_error(
+            format!("bitcast could not determine bit width for {}", describe_type(source)),
+            span,
+        ));
+    };
+    let Some(target_bits) = resolved_type_bit_width(target, abi) else {
+        return Err(env.type_error(
+            format!("bitcast could not determine bit width for {}", describe_type(target)),
+            span,
+        ));
+    };
+    if source_bits != target_bits {
+        return Err(env.type_error(
+            format!(
+                "bitcast requires equal-width source and target types, got {}-bit {} and {}-bit {}",
+                source_bits,
+                describe_type(source),
+                target_bits,
+                describe_type(target)
+            ),
+            span,
+        ));
+    }
+    let pointer_float_mix =
+        (resolved_type_is_pointer_like(source) && resolved_type_is_float_like(target))
+            || (resolved_type_is_float_like(source) && resolved_type_is_pointer_like(target));
+    if pointer_float_mix {
+        return Err(env.type_error(
+            format!(
+                "bitcast does not support direct pointer/float reinterprets between {} and {}",
+                describe_type(source),
+                describe_type(target)
+            ),
+            span,
+        ));
+    }
+    let allowed_mix = resolved_type_is_integer_like(source)
+        || resolved_type_is_integer_like(target)
+        || (resolved_type_is_pointer_like(source) && resolved_type_is_pointer_like(target))
+        || (resolved_type_is_float_like(source) && resolved_type_is_float_like(target));
+    if !allowed_mix {
+        return Err(env.type_error(
+            format!(
+                "bitcast only supports integer/float reinterprets, integer/pointer reinterprets, or pointer/pointer reinterprets; got {} and {}",
+                describe_type(source),
+                describe_type(target)
+            ),
+            span,
+        ));
+    }
+    Ok(())
 }
 
 /// Type environment for checking
@@ -4190,6 +4312,7 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
         }
         | Expr::Teleport { value: pointer, .. }
         | Expr::Cast { value: pointer, .. }
+        | Expr::Bitcast { value: pointer, .. }
         | Expr::Comptime(pointer, _) => collect_patch_mutation_paths_from_expr(pointer, output),
         Expr::Observe { target, body, .. }
         | Expr::Collapse { target, body, .. }
@@ -4321,6 +4444,7 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
         | Expr::Deref(operand, _)
         | Expr::Paren(operand, _)
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Comptime(operand, _) => expr_requires_best_effort_patch_mode(operand),
         Expr::Field { object, .. } => expr_requires_best_effort_patch_mode(object),
         Expr::Index { object, index, .. } => {
@@ -4600,6 +4724,7 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         | Expr::Deref(operand, _)
         | Expr::Paren(operand, _)
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Comptime(operand, _) => first_stage_call_in_expr(operand),
         Expr::Field { object, .. } => first_stage_call_in_expr(object),
         Expr::Index { object, index, .. } => {
@@ -6347,7 +6472,15 @@ fn infer_expr_type(
             )?;
             Ok(ResolvedType::Bool)
         }
-        Expr::AtomicFence { .. } => Ok(ResolvedType::Unit),
+        Expr::AtomicFence { span, .. } => {
+            if !env.in_shared_region() && !context_allows_raw_memory_intrinsics(ctx) {
+                return Err(env.type_error(
+                    "atomic_fence requires an enclosing share scope or Unsafe effect",
+                    *span,
+                ));
+            }
+            Ok(ResolvedType::Unit)
+        }
         Expr::SizeOfType { .. } | Expr::AlignOfType { .. } => Ok(ResolvedType::Int(IntSize::I64)),
         Expr::Alloca { ty, .. } => Ok(ResolvedType::Ptr {
             mutable: true,
@@ -6437,6 +6570,19 @@ fn infer_expr_type(
             Ok(value_ty)
         }
         Expr::Cast { target, .. } => resolve_type_in_env(env, target),
+        Expr::Bitcast {
+            value,
+            target,
+            span,
+        } => {
+            if !context_allows_raw_memory_intrinsics(ctx) {
+                return Err(env.type_error("bitcast requires Unsafe effect", *span));
+            }
+            let source_ty = infer_expr_type(env, value, ctx)?;
+            let target_ty = resolve_type_in_env(env, target)?;
+            ensure_bitcast_compatible(env, &source_ty, &target_ty, *span)?;
+            Ok(target_ty)
+        }
         Expr::Try(value, span) => {
             let value_ty = infer_expr_type(env, value, ctx)?;
             match value_ty {
@@ -6708,6 +6854,7 @@ fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
         | Expr::AddrOf { value: operand, .. }
         | Expr::Deref(operand, _)
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
         | Expr::AsyncBlock(operand, _)

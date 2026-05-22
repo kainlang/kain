@@ -611,7 +611,7 @@ fn substitute_stmt(stmt: &mut Stmt, mapping: &HashMap<String, ResolvedType>) {
 
 fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, ResolvedType>) {
     match expr {
-        Expr::Cast { value, target, .. } => {
+        Expr::Cast { value, target, .. } | Expr::Bitcast { value, target, .. } => {
             substitute_expr(value, mapping);
             substitute_type_ast(target, mapping);
         }

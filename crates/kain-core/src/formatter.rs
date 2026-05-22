@@ -2211,6 +2211,11 @@ impl SourceFormatter {
                     self.format_type(target)
                 )
             }
+            Expr::Bitcast { value, target, .. } => format!(
+                "bitcast({}, {})",
+                self.format_expr(value)?,
+                self.quote_string(&self.format_type(target))
+            ),
             Expr::Try(value, _) => format!("{}?", self.format_expr_with_prec(value, 14)?),
             Expr::Await(value, _) => format!("await {}", self.format_expr_with_prec(value, 13)?),
             Expr::AsyncBlock(value, _) => {
@@ -2292,7 +2297,7 @@ impl SourceFormatter {
         match expr {
             Expr::Assign { .. } => 1,
             Expr::Binary { op, .. } => self.binary_precedence(*op),
-            Expr::Cast { .. } => 12,
+            Expr::Cast { .. } | Expr::Bitcast { .. } => 12,
             Expr::Unary { .. }
             | Expr::Ref { .. }
             | Expr::Deref(..)

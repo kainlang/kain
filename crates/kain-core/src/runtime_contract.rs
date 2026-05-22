@@ -1642,6 +1642,7 @@ fn expr_contains_ownership_expr(expr: &Expr) -> bool {
         | Expr::AddrOf { value: operand, .. }
         | Expr::Deref(operand, _)
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
         | Expr::AsyncBlock(operand, _)
@@ -1809,6 +1810,7 @@ fn expr_contains_shared_fanout_expr(expr: &Expr) -> bool {
         | Expr::AddrOf { value: operand, .. }
         | Expr::Deref(operand, _)
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
         | Expr::AsyncBlock(operand, _)
@@ -2001,6 +2003,7 @@ fn expr_contains_atomic_seqcst_expr(expr: &Expr) -> bool {
         | Expr::AddrOf { value: operand, .. }
         | Expr::Deref(operand, _)
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
         | Expr::AsyncBlock(operand, _)
@@ -2174,6 +2177,7 @@ fn expr_contains_teleport_expr(expr: &Expr) -> bool {
         | Expr::AddrOf { value: operand, .. }
         | Expr::Deref(operand, _)
         | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. }
         | Expr::Try(operand, _)
         | Expr::Await(operand, _)
         | Expr::AsyncBlock(operand, _)

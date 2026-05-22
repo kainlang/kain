@@ -1192,6 +1192,7 @@ impl WasmCompiler {
             }
             Expr::Teleport { value, .. }
             | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
@@ -1403,6 +1404,7 @@ impl WasmCompiler {
             | Expr::Ref { value: inner, .. }
             | Expr::AddrOf { value: inner, .. }
             | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. }
             | Expr::Comptime(inner, _)
             | Expr::Await(inner, _)
             | Expr::AsyncBlock(inner, _)
@@ -1664,6 +1666,7 @@ impl WasmCompiler {
             | Expr::Ref { value: inner, .. }
             | Expr::AddrOf { value: inner, .. }
             | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. }
             | Expr::Comptime(inner, _)
             | Expr::Await(inner, _)
             | Expr::AsyncBlock(inner, _)
@@ -1875,6 +1878,7 @@ impl WasmCompiler {
             | Expr::Ref { value: inner, .. }
             | Expr::AddrOf { value: inner, .. }
             | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. }
             | Expr::Comptime(inner, _)
             | Expr::Await(inner, _)
             | Expr::AsyncBlock(inner, _)
@@ -2485,6 +2489,7 @@ impl WasmCompiler {
             }
             Expr::Teleport { value, .. }
             | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
@@ -2699,6 +2704,7 @@ impl WasmCompiler {
             }
             Expr::Teleport { value, .. }
             | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
@@ -2946,6 +2952,7 @@ impl WasmCompiler {
             | Expr::Ref { value: inner, .. }
             | Expr::AddrOf { value: inner, .. }
             | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. }
             | Expr::Comptime(inner, _)
             | Expr::Await(inner, _)
             | Expr::AsyncBlock(inner, _)
@@ -3911,6 +3918,7 @@ impl WasmCompiler {
             }
             Expr::Teleport { value, .. }
             | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
@@ -4104,6 +4112,7 @@ impl WasmCompiler {
             | Expr::Ref { value: operand, .. }
             | Expr::AddrOf { value: operand, .. }
             | Expr::Cast { value: operand, .. }
+            | Expr::Bitcast { value: operand, .. }
             | Expr::Teleport { value: operand, .. } => {
                 self.preallocate_locals_in_expr(operand, locals)
             }
@@ -4400,6 +4409,7 @@ impl WasmCompiler {
             Expr::Observe { body, .. } | Expr::Collapse { body, .. } => self.infer_wasm_type(body),
             Expr::Teleport { value, .. }
             | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
@@ -5392,6 +5402,7 @@ impl WasmCompiler {
             Expr::Observe { body, .. } | Expr::Collapse { body, .. } => self.is_i32_expr(body),
             Expr::Teleport { value, .. }
             | Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
@@ -5831,6 +5842,7 @@ impl WasmCompiler {
                 self.compile_expr(ctx, builder, inner)?;
             }
             Expr::Cast { value, .. }
+            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)

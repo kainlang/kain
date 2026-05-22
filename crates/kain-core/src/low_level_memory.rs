@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::error::{DiagnosticBuilder, ErrorKind, KainResult};
 use crate::low_level_abi::{
-    c_abi_policy_for_target, promoted_integer_bits, promoted_type_for_arithmetic,
+    c_abi_policy_for_target, named_scalar_layout, promoted_integer_bits, promoted_type_for_arithmetic,
     should_apply_usual_arithmetic_conversions, usual_arithmetic_conversion_type, CAbiPolicy,
 };
 use crate::low_level_memory_metadata::{
@@ -357,12 +357,9 @@ impl LayoutRegistry {
 
     fn type_size_fallback(&self, ty: &Type) -> KainResult<usize> {
         match ty {
-            Type::Named { name, .. } => Ok(match name.as_str() {
-                "Bool" => self.abi.bool_bits.div_ceil(8),
-                "Char" => self.abi.char_bits.div_ceil(8),
-                "Int" | "isize" | "usize" => self.abi.long_bits.div_ceil(8),
-                "Float" => self.abi.double_bits.div_ceil(8),
-                other => self.structs.get(other).map(|info| info.size).unwrap_or(8),
+            Type::Named { name, .. } => Ok(match named_scalar_layout(name, self.abi) {
+                Some(layout) => layout.size_bytes,
+                None => self.structs.get(name).map(|info| info.size).unwrap_or(8),
             }),
             Type::Array(inner, size, _) => checked_layout_mul(
                 self.type_size_fallback(inner)?,
@@ -399,14 +396,11 @@ impl LayoutRegistry {
 
     fn type_align_fallback(&self, ty: &Type) -> usize {
         match ty {
-            Type::Named { name, .. } => match name.as_str() {
-                "Bool" => self.abi.bool_bits.div_ceil(8),
-                "Char" => self.abi.char_bits.div_ceil(8),
-                "Int" | "isize" | "usize" => self.abi.long_bits.div_ceil(8),
-                "Float" => self.abi.double_bits.div_ceil(8),
-                other => self
+            Type::Named { name, .. } => match named_scalar_layout(name, self.abi) {
+                Some(layout) => layout.align_bytes,
+                None => self
                     .structs
-                    .get(other)
+                    .get(name)
                     .map(|info| info.align.max(1))
                     .unwrap_or(8),
             },
@@ -1706,6 +1700,15 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             target: lower_type_memory(target),
             span: *span,
         },
+        Expr::Bitcast {
+            value,
+            target,
+            span,
+        } => Expr::Bitcast {
+            value: Box::new(lower_expr_memory_with_ctx(value, ctx)),
+            target: lower_type_memory(target),
+            span: *span,
+        },
         Expr::Try(inner, inner_span) => Expr::Try(
             Box::new(lower_expr_memory_with_ctx(inner, ctx)),
             *inner_span,
@@ -2070,7 +2073,7 @@ fn infer_expr_type(expr: &Expr, ctx: &FunctionMemoryCtx<'_>) -> Option<Type> {
             field_type_from_object(&object_ty, field, ctx)
         }
         Expr::Index { object, .. } => infer_element_type(object, ctx),
-        Expr::Cast { target, .. } => Option::Some(target.clone()),
+        Expr::Cast { target, .. } | Expr::Bitcast { target, .. } => Option::Some(target.clone()),
         _ => Option::None,
     }
 }
@@ -2346,11 +2349,9 @@ fn memory_stride_for_type(ty: Option<&Type>, layouts: &LayoutRegistry) -> Option
 
 fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
     match ty {
-        Type::Named { name, .. } => match name.as_str() {
-            "Bool" | "Char" => 1,
-            "Int" | "isize" | "usize" => 8,
-            "Float" => 8,
-            _ => layouts
+        Type::Named { name, .. } => match named_scalar_layout(name, layouts.abi) {
+            Some(layout) => layout.size_bytes,
+            None => layouts
                 .type_size_fallback(ty)
                 .unwrap_or_else(|err| panic!("{err}")),
         },
@@ -2389,9 +2390,12 @@ fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
 
 fn estimate_type_align(ty: &Type, layouts: &LayoutRegistry) -> usize {
     match ty {
-        Type::Named { name, .. } => match layouts.structs.get(name) {
-            Some(info) => info.align.max(1),
-            None => layouts.type_align_fallback(ty),
+        Type::Named { name, .. } => match named_scalar_layout(name, layouts.abi) {
+            Some(layout) => layout.align_bytes,
+            None => match layouts.structs.get(name) {
+                Some(info) => info.align.max(1),
+                None => layouts.type_align_fallback(ty),
+            },
         },
         Type::Array(inner, _, _) => estimate_type_align(inner, layouts),
         Type::Tuple(types, _) => types
@@ -2997,7 +3001,9 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
         | Expr::AsyncBlock(operand, _)
         | Expr::Comptime(operand, _)
         | Expr::Paren(operand, _) => first_memory_expr_context(operand, base),
-        Expr::Cast { value, .. } => first_memory_expr_context(value, base),
+        Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+            first_memory_expr_context(value, base)
+        }
         Expr::Call { callee, args, .. } => {
             if let Some(context) = first_memory_expr_context(callee, base.clone()) {
                 Some(context)

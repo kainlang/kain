@@ -47,6 +47,12 @@ pub struct CAbiPolicy {
     pub packed_struct_align: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScalarLayout {
+    pub size_bytes: usize,
+    pub align_bytes: usize,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct CAbiPolicyEntry {
     kind: CAbiKind,
@@ -189,6 +195,32 @@ pub fn c_abi_policy_for_target(target: CompileTarget) -> &'static CAbiPolicy {
 
 pub fn promoted_integer_bits(width: usize, _signed: bool, abi: &CAbiPolicy) -> usize {
     width.max(abi.integer_promotion_bits)
+}
+
+fn scalar_layout_from_bits(bits: usize) -> ScalarLayout {
+    let width = bits.div_ceil(8).max(1);
+    ScalarLayout {
+        size_bytes: width,
+        align_bytes: width,
+    }
+}
+
+pub fn named_scalar_layout(name: &str, abi: &CAbiPolicy) -> Option<ScalarLayout> {
+    match name {
+        "Bool" | "bool" => Some(scalar_layout_from_bits(abi.bool_bits)),
+        "Byte" | "byte" | "I8" | "i8" | "U8" | "u8" => Some(scalar_layout_from_bits(8)),
+        "Char" | "char" => Some(scalar_layout_from_bits(abi.char_bits)),
+        "I16" | "i16" | "U16" | "u16" => Some(scalar_layout_from_bits(16)),
+        "I32" | "i32" | "U32" | "u32" => Some(scalar_layout_from_bits(32)),
+        "Int" | "ISize" | "isize" | "UInt" | "USize" | "usize" => {
+            Some(scalar_layout_from_bits(abi.long_bits))
+        }
+        "I64" | "i64" | "U64" | "u64" => Some(scalar_layout_from_bits(64)),
+        "I128" | "i128" | "U128" | "u128" => Some(scalar_layout_from_bits(128)),
+        "Float" | "f64" | "F64" | "double" => Some(scalar_layout_from_bits(abi.double_bits)),
+        "f32" | "F32" => Some(scalar_layout_from_bits(abi.float_bits)),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

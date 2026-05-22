@@ -4,6 +4,7 @@ use crate::ast::*;
 use crate::error::{KainError, KainResult};
 use crate::language_features::runtime_supports_binary_op;
 use crate::lexer::Lexer;
+use crate::low_level_abi::{default_c_abi_policy, named_scalar_layout};
 use crate::module_resolution::{
     filesystem_module_candidates, resolve_filesystem_module_file, resolve_stdlib_module_file,
 };
@@ -39,6 +40,116 @@ static RUNTIME_FS_SANDBOX: Lazy<RwLock<FsSandbox>> =
     Lazy::new(|| RwLock::new(FsSandbox::unrestricted_project()));
 static RUNTIME_FS_WATCHERS: Lazy<RwLock<HashMap<i64, FsWatcher>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
+
+fn runtime_layout_for_type(target: &Type) -> Option<(i64, i64)> {
+    let abi = default_c_abi_policy();
+    match target {
+        Type::Named { name, .. } => named_scalar_layout(name, abi)
+            .map(|layout| (layout.size_bytes as i64, layout.align_bytes as i64)),
+        Type::Ptr { .. } | Type::Ref { .. } => {
+            let width = abi.pointer_bits.div_ceil(8) as i64;
+            Some((width, width))
+        }
+        Type::Array(inner, size, _) => {
+            let (inner_size, inner_align) = runtime_layout_for_type(inner)?;
+            Some((inner_size.checked_mul(*size as i64)?, inner_align))
+        }
+        Type::Unit(_) | Type::Never(_) => Some((0, 1)),
+        _ => None,
+    }
+}
+
+fn runtime_cast_value(value: Value, target: &Type) -> KainResult<Value> {
+    match target {
+        Type::Named { name, .. }
+            if matches!(
+                name.as_str(),
+                "Int"
+                    | "UInt"
+                    | "I8"
+                    | "I16"
+                    | "I32"
+                    | "I64"
+                    | "I128"
+                    | "ISize"
+                    | "U8"
+                    | "U16"
+                    | "U32"
+                    | "U64"
+                    | "U128"
+                    | "USize"
+                    | "isize"
+                    | "usize"
+                    | "i8"
+                    | "i16"
+                    | "i32"
+                    | "i64"
+                    | "i128"
+                    | "u8"
+                    | "u16"
+                    | "u32"
+                    | "u64"
+                    | "u128"
+            ) =>
+        {
+            match value {
+                Value::Int(bits) => Ok(Value::Int(bits)),
+                Value::Float(number) => Ok(Value::Int(number as i64)),
+                Value::Bool(flag) => Ok(Value::Int(if flag { 1 } else { 0 })),
+                other => Ok(other),
+            }
+        }
+        Type::Named { name, .. } if matches!(name.as_str(), "Float" | "f32" | "F32" | "f64" | "F64" | "double") => {
+            match value {
+                Value::Int(bits) => Ok(Value::Float(bits as f64)),
+                Value::Float(number) => Ok(Value::Float(number)),
+                Value::Bool(flag) => Ok(Value::Float(if flag { 1.0 } else { 0.0 })),
+                other => Ok(other),
+            }
+        }
+        Type::Named { name, .. } if matches!(name.as_str(), "Bool" | "bool") => match value {
+            Value::Bool(flag) => Ok(Value::Bool(flag)),
+            Value::Int(bits) => Ok(Value::Bool(bits != 0)),
+            Value::Float(number) => Ok(Value::Bool(number != 0.0)),
+            other => Ok(other),
+        },
+        Type::Ptr { .. } | Type::Ref { .. } => Ok(value),
+        _ => Ok(value),
+    }
+}
+
+fn runtime_bitcast_value(value: Value, target: &Type) -> KainResult<Value> {
+    match target {
+        Type::Named { name, .. } if matches!(name.as_str(), "f32" | "F32") => match value {
+            Value::Int(bits) => Ok(Value::Float(f32::from_bits(bits as u32) as f64)),
+            Value::Float(number) => Ok(Value::Float(number as f32 as f64)),
+            Value::Bool(flag) => Ok(Value::Float(f32::from_bits(if flag { 1 } else { 0 }) as f64)),
+            other => Ok(other),
+        },
+        Type::Named { name, .. } if matches!(name.as_str(), "Float" | "f64" | "F64" | "double") => {
+            match value {
+                Value::Int(bits) => Ok(Value::Float(f64::from_bits(u64::from_ne_bytes(bits.to_ne_bytes())))),
+                Value::Float(number) => Ok(Value::Float(number)),
+                Value::Bool(flag) => Ok(Value::Float(f64::from_bits(if flag { 1 } else { 0 }))),
+                other => Ok(other),
+            }
+        }
+        Type::Named { name, .. } if matches!(name.as_str(), "Bool" | "bool") => match value {
+            Value::Bool(flag) => Ok(Value::Bool(flag)),
+            Value::Int(bits) => Ok(Value::Bool((bits & 0xff) != 0)),
+            other => Ok(other),
+        },
+        Type::Named { .. } | Type::Ptr { .. } | Type::Ref { .. } => match value {
+            Value::Float(number) => {
+                Ok(Value::Int(i64::from_ne_bytes(number.to_bits().to_ne_bytes())))
+            }
+            Value::Int(bits) => Ok(Value::Int(bits)),
+            Value::Bool(flag) => Ok(Value::Int(if flag { 1 } else { 0 })),
+            other => Ok(other),
+        },
+        _ => Ok(value),
+    }
+}
 static RUNTIME_FS_TRANSACTIONS: Lazy<RwLock<HashMap<i64, kain_fs::FsTransaction>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 static RUNTIME_INPUT_SESSIONS: Lazy<RwLock<HashMap<i64, InputSession>>> =
@@ -5999,6 +6110,15 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
         // This keeps imported C-like code parseable/executable in non-native backends.
         Expr::Deref(inner, _) => eval_expr(env, inner),
 
+        Expr::Cast { value, target, .. } => {
+            let evaluated = eval_expr(env, value)?;
+            runtime_cast_value(evaluated, target)
+        }
+        Expr::Bitcast { value, target, .. } => {
+            let evaluated = eval_expr(env, value)?;
+            runtime_bitcast_value(evaluated, target)
+        }
+
         // Pointer offset is currently modeled as transparent pointer propagation.
         // Backend memory validation should stop unsupported targets before codegen.
         Expr::PtrOffset { pointer, .. } => eval_expr(env, pointer),
@@ -6015,35 +6135,12 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             Ok(Value::Unit)
         }
 
-        // Layout-backed size query currently uses the same coarse scalar sizing as lowering fallback.
-        Expr::SizeOfType { target, .. } => Ok(Value::Int(match target {
-            Type::Named { name, .. } if name == "Int" || name == "UInt" || name == "Float" => 8,
-            Type::Named { name, .. } if name == "Bool" || name == "Byte" || name == "Char" => 1,
-            Type::Ptr { .. } | Type::Ref { .. } => 8,
-            Type::Array(inner, size, _) => {
-                let inner_size = match inner.as_ref() {
-                    Type::Named { name, .. }
-                        if name == "Int" || name == "UInt" || name == "Float" =>
-                    {
-                        8
-                    }
-                    Type::Named { name, .. }
-                        if name == "Bool" || name == "Byte" || name == "Char" =>
-                    {
-                        1
-                    }
-                    Type::Ptr { .. } | Type::Ref { .. } => 8,
-                    _ => 8,
-                };
-                inner_size * *size as i64
-            }
-            _ => 8,
-        })),
-        Expr::AlignOfType { target, .. } => Ok(Value::Int(match target {
-            Type::Named { name, .. } if name == "Bool" || name == "Byte" || name == "Char" => 1,
-            Type::Unit(_) | Type::Never(_) => 1,
-            _ => 8,
-        })),
+        Expr::SizeOfType { target, .. } => Ok(Value::Int(
+            runtime_layout_for_type(target).map(|(size, _)| size).unwrap_or(8),
+        )),
+        Expr::AlignOfType { target, .. } => Ok(Value::Int(
+            runtime_layout_for_type(target).map(|(_, align)| align).unwrap_or(8),
+        )),
         Expr::Alloca { ty, .. } => Ok(match ty {
             Type::Array(_, count, _) => Value::Array(Arc::new(RwLock::new(
                 (0..*count).map(|_| Value::None).collect(),
@@ -7051,7 +7148,8 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
         | Expr::Deref(operand, _)
         | Expr::Paren(operand, _)
         | Expr::Comptime(operand, _)
-        | Expr::Cast { value: operand, .. } => expr_contains_runtime_best_effort_effects(operand),
+        | Expr::Cast { value: operand, .. }
+        | Expr::Bitcast { value: operand, .. } => expr_contains_runtime_best_effort_effects(operand),
         Expr::Field { object, .. } => expr_contains_runtime_best_effort_effects(object),
         Expr::Index { object, index, .. } => {
             expr_contains_runtime_best_effort_effects(object)
