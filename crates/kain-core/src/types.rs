@@ -506,6 +506,7 @@ pub struct TypeEnv<'a> {
     method_origins: HashMap<(String, String), SymbolOrigin>,
     enum_variants: HashMap<String, HashMap<String, EnumVariantTypeInfo>>,
     loaded_stdlib_modules: HashSet<String>,
+    stdlib_registration_depth: usize,
     entangle_endpoints: HashSet<String>,
     shared_region_depth: usize,
     fanout_depth: usize,
@@ -527,6 +528,7 @@ impl<'a> TypeEnv<'a> {
             method_origins: HashMap::new(),
             enum_variants: HashMap::new(),
             loaded_stdlib_modules: HashSet::new(),
+            stdlib_registration_depth: 0,
             entangle_endpoints: HashSet::new(),
             shared_region_depth: 0,
             fanout_depth: 0,
@@ -737,6 +739,7 @@ impl<'a> TypeEnv<'a> {
             self.types.contains_key(&name),
             "type",
             DiagnosticCode::TypeGeneric,
+            false,
         )?;
         self.types.insert(name.clone(), ty);
         self.type_origins.insert(name, SymbolOrigin { span, kind });
@@ -758,6 +761,7 @@ impl<'a> TypeEnv<'a> {
             self.globals.contains_key(&name),
             "global",
             DiagnosticCode::TypeGeneric,
+            self.is_registering_stdlib() || self.is_stdlib_source_span(span),
         )?;
         self.define_global(name.clone(), ty);
         self.global_origins
@@ -814,6 +818,7 @@ impl<'a> TypeEnv<'a> {
         already_defined: bool,
         namespace: &'static str,
         code: DiagnosticCode,
+        allow_originless_shadow: bool,
     ) -> KainResult<()> {
         if let Some(existing) = origins.get(name) {
             if existing.span != span || existing.kind != kind {
@@ -823,10 +828,32 @@ impl<'a> TypeEnv<'a> {
             }
             return Ok(());
         }
+        if already_defined && allow_originless_shadow {
+            return Ok(());
+        }
         if already_defined {
             return Err(self.shadow_builtin_symbol_error(name, span, kind, namespace, code));
         }
         Ok(())
+    }
+
+    fn is_stdlib_source_span(&self, span: Span) -> bool {
+        self.span_mapper
+            .span_origin_file(span)
+            .is_some_and(is_stdlib_source_file)
+            || is_stdlib_source_file(self.filename)
+    }
+
+    fn push_stdlib_registration(&mut self) {
+        self.stdlib_registration_depth += 1;
+    }
+
+    fn pop_stdlib_registration(&mut self) {
+        self.stdlib_registration_depth = self.stdlib_registration_depth.saturating_sub(1);
+    }
+
+    fn is_registering_stdlib(&self) -> bool {
+        self.stdlib_registration_depth > 0
     }
 
     fn duplicate_symbol_error(
@@ -2806,30 +2833,50 @@ where
 fn predeclare_item_types(env: &mut TypeEnv, item: &Item) {
     match item {
         Item::Struct(s) => {
-            env.types
-                .entry(s.name.clone())
-                .or_insert_with(|| ResolvedType::Struct(s.name.clone(), HashMap::new()));
+            predeclare_type_user(
+                env,
+                &s.name,
+                ResolvedType::Struct(s.name.clone(), HashMap::new()),
+                s.span,
+                "struct",
+            );
         }
         Item::Enum(e) => {
-            env.types
-                .entry(e.name.clone())
-                .or_insert_with(|| ResolvedType::Enum(e.name.clone(), Vec::new()));
+            predeclare_type_user(
+                env,
+                &e.name,
+                ResolvedType::Enum(e.name.clone(), Vec::new()),
+                e.span,
+                "enum",
+            );
             env.enum_variants.entry(e.name.clone()).or_default();
         }
         Item::World(world) => {
-            env.types
-                .entry(world.name.clone())
-                .or_insert_with(|| ResolvedType::Struct(world.name.clone(), HashMap::new()));
+            predeclare_type_user(
+                env,
+                &world.name,
+                ResolvedType::Struct(world.name.clone(), HashMap::new()),
+                world.span,
+                "world",
+            );
         }
         Item::Component(component) => {
-            env.types
-                .entry(component.name.clone())
-                .or_insert_with(|| ResolvedType::Struct(component.name.clone(), HashMap::new()));
+            predeclare_type_user(
+                env,
+                &component.name,
+                ResolvedType::Struct(component.name.clone(), HashMap::new()),
+                component.span,
+                "component",
+            );
         }
         Item::Actor(actor) => {
-            env.types
-                .entry(actor.name.clone())
-                .or_insert_with(|| ResolvedType::Struct(actor.name.clone(), HashMap::new()));
+            predeclare_type_user(
+                env,
+                &actor.name,
+                ResolvedType::Struct(actor.name.clone(), HashMap::new()),
+                actor.span,
+                "actor",
+            );
         }
         Item::Mod(module) => {
             if let Some(children) = &module.inline {
@@ -2842,6 +2889,26 @@ fn predeclare_item_types(env: &mut TypeEnv, item: &Item) {
         }
         _ => {}
     }
+}
+
+fn predeclare_type_user(
+    env: &mut TypeEnv,
+    name: &str,
+    ty: ResolvedType,
+    span: Span,
+    kind: &'static str,
+) {
+    if env.types.contains_key(name) {
+        return;
+    }
+    env.types.insert(name.to_string(), ty);
+    env.type_origins
+        .insert(name.to_string(), SymbolOrigin { span, kind });
+}
+
+fn is_stdlib_source_file(file: &str) -> bool {
+    let normalized = file.replace('\\', "/");
+    normalized.starts_with("stdlib/") || normalized.contains("/stdlib/")
 }
 
 fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
@@ -3082,23 +3149,30 @@ fn register_stdlib_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> 
         return Ok(false);
     };
 
-    for item in &program.items {
-        predeclare_item_types(env, item);
-    }
-
-    for item in &program.items {
-        if matches!(item, Item::Use(_)) {
-            continue;
+    env.push_stdlib_registration();
+    let registration_result: KainResult<()> = (|| {
+        for item in &program.items {
+            predeclare_item_types(env, item);
         }
-        register_item_types(env, item)?;
-    }
 
-    for item in &program.items {
-        if matches!(item, Item::Use(_)) {
-            continue;
+        for item in &program.items {
+            if matches!(item, Item::Use(_)) {
+                continue;
+            }
+            register_item_types(env, item)?;
         }
-        register_item_types(env, item)?;
-    }
+
+        for item in &program.items {
+            if matches!(item, Item::Use(_)) {
+                continue;
+            }
+            register_item_types(env, item)?;
+        }
+
+        Ok(())
+    })();
+    env.pop_stdlib_registration();
+    registration_result?;
 
     env.loaded_stdlib_modules.insert(module_key);
 
@@ -10134,10 +10208,21 @@ fn builtin_variant_expr_type(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diagnostics::SpanMapper;
+    use crate::diagnostics::{SourceOriginSegment, SpanMapper};
     use crate::error::{ErrorKind, KainError};
     use crate::lexer::Lexer;
     use crate::parser::Parser;
+
+    fn parse_source_for_typecheck(
+        source: &str,
+        span_mapper: &SpanMapper,
+        filename: &str,
+    ) -> Program {
+        let tokens = Lexer::new(source).tokenize().expect("source should lex");
+        Parser::new(&tokens, span_mapper, filename)
+            .parse()
+            .expect("source should parse")
+    }
 
     #[test]
     fn type_env_registers_stdlib_registry_bridge_globals() {
@@ -10146,6 +10231,109 @@ mod tests {
         assert!(
             env.lookup("kain_input_reset").is_some(),
             "stdlib registry globals should be visible to the typechecker"
+        );
+    }
+
+    #[test]
+    fn typecheck_predeclared_user_types_do_not_shadow_their_declarations() {
+        let source = r#"
+struct Packet:
+    value: Int
+
+fn main() -> Int:
+    let packet = Packet { value: 7 }
+    return packet.value
+"#;
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, "<test>");
+
+        check(&program, &span_mapper, "<test>")
+            .expect("predeclared struct should register cleanly");
+    }
+
+    #[test]
+    fn typecheck_allows_stdlib_origin_to_wrap_builtin_global() {
+        let source = r#"
+pub fn fs_read_text(path: String) -> String:
+    return path
+"#;
+        let span_mapper = SpanMapper::with_origins(
+            source,
+            vec![SourceOriginSegment {
+                file: "D:/Kain-Lang/stdlib/fs.kn".to_string(),
+                combined_span: Span::new(0, source.len()),
+                source: source.to_string(),
+            }],
+        );
+        let program = parse_source_for_typecheck(source, &span_mapper, "<input>");
+
+        check(&program, &span_mapper, "<input>")
+            .expect("stdlib wrapper should be allowed to occupy builtin global name");
+    }
+
+    #[test]
+    fn typecheck_dynamic_stdlib_import_can_wrap_builtin_global() {
+        let source = r#"
+use std::fs
+
+fn main() -> String:
+    return fs_read_text("shadow-smoke.txt")
+"#;
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, "<test>");
+
+        check(&program, &span_mapper, "<test>")
+            .expect("dynamic stdlib import should wrap builtin globals cleanly");
+    }
+
+    #[test]
+    fn typecheck_dynamic_stdlib_import_can_register_collections_types_once() {
+        let source = r#"
+use std::collections
+
+fn main() -> Int:
+    let map = typed_map_set(typed_map_new(), "route", 41)
+    return typed_map_get(map, "route")
+"#;
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, "<test>");
+
+        check(&program, &span_mapper, "<test>")
+            .expect("dynamic stdlib import should not self-shadow StringIntMap");
+    }
+
+    #[test]
+    fn typecheck_rejects_user_origin_shadowing_builtin_global() {
+        let source = r#"
+fn fs_read_text(path: String) -> String:
+    return path
+"#;
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, "<test>");
+        let err = check(&program, &span_mapper, "<test>")
+            .expect_err("user wrapper should still shadow builtin global");
+
+        assert!(
+            err.to_string()
+                .contains("shadows an existing global symbol"),
+            "unexpected diagnostic: {err}"
+        );
+    }
+
+    #[test]
+    fn typecheck_rejects_user_origin_shadowing_builtin_type() {
+        let source = r#"
+struct String:
+    value: Int
+"#;
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, "<test>");
+        let err = check(&program, &span_mapper, "<test>")
+            .expect_err("user type should still shadow builtin type");
+
+        assert!(
+            err.to_string().contains("shadows an existing type symbol"),
+            "unexpected diagnostic: {err}"
         );
     }
 

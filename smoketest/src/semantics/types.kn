@@ -86,6 +86,14 @@ pub fn smoke_lane_rank(lane: SmokeLane) -> Int:
         SmokeLane::CBridge => 29
         _ => 0
 
+// Cross-workspace utility: imported by actor.kn, shatter.kn, patch.kn etc.
+pub fn smoke_weighted_checksum(packet: SmokePacket) -> Int:
+    let rank = smoke_lane_rank(packet.lane)
+    let base = (packet.id * rank + packet.payload) % SMOKE_MODULUS
+    if packet.hot:
+        return (base * 3 + 7) % SMOKE_MODULUS
+    return (base + 13) % SMOKE_MODULUS
+
 pub fn smoke_types_lane() -> Int:
     let packet = SmokePacket { id: 1, lane: SmokeLane::Types, payload: 42, tag: "smoke", hot: true }
     if packet.weight() != 73:
@@ -99,4 +107,7 @@ pub fn smoke_types_lane() -> Int:
     let checksum: SmokeChecksum = (packet.id + packet.payload) % SMOKE_MODULUS
     if checksum != 43:
         return 5
+    let wc = smoke_weighted_checksum(packet)
+    if wc <= 0:
+        return 6
     return 0

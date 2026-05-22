@@ -1,5 +1,26 @@
 # Kain Memory
 
+# 2026-05-22 - stdlib and smoke-album shadow diagnostics now preserve predeclare origins
+
+The typechecker no longer mistakes its own forward predeclare placeholders for user/builtin shadowing, and stdlib-origin wrappers can intentionally occupy originless runtime/builtin global names.
+
+What changed:
+
+- `crates/kain-core/src/types.rs`
+  - `predeclare_item_types` now records real declaration origins for structs, enums, worlds, components, and actors when it creates the placeholder, so the later registration pass recognizes the same declaration instead of reporting self-shadowing.
+  - stdlib registration now carries an explicit `stdlib_registration_depth`, and span-origin checks also recognize `stdlib/*.kn`; this lets authored stdlib wrappers such as `fs_read_text` and vector/math helpers replace originless builtin globals without granting the same privilege to user files.
+  - Regression tests cover predeclared user type registration, dynamic `use std::collections` without `StringIntMap` self-shadow, dynamic `use std::fs` builtin-wrapper registration, stdlib-origin wrapper allowance, and user-origin builtin shadow rejection.
+
+Validation:
+
+- `cargo check -p kain-core --target-dir target/codex-bootstrap-core-shadow`
+- `cargo test -p kain-core typecheck_dynamic_stdlib_import_can_wrap_builtin_global --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-core typecheck_dynamic_stdlib_import_can_register_collections_types_once --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-core typecheck_predeclared_user_types_do_not_shadow_their_declarations --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-core typecheck_rejects_user_origin_shadowing_builtin_global --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-core typecheck_rejects_user_origin_shadowing_builtin_type --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+- `cargo test -p kain-check --target-dir target/codex-bootstrap-core-shadow -- --nocapture`
+
 # 2026-05-21 - Kaintana's public surface now needs root-owned theme/layout helpers, and the desktop adapter stays standalone-checkable through `@extern`
 
 The current Kaintana modernization pass shook out a real package-surface rule in this compiler lane: `pub use ...::*` from internal modules was not enough for every consumer/check surface. The library entry `blades/kaintana/src/kaintana.kn` now owns the durable public helpers directly for the hot paths consumers actually import.

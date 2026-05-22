@@ -1,7 +1,7 @@
 use std::runtime
 
 comptime:
-    const SMOKE_COMPTIME_MAGIC: Int = 0xCAFE
+    const SMOKE_COMPTIME_MAGIC: Int = 51966
     const SMOKE_COMPTIME_LANES: Int = 29
     const SMOKE_COMPTIME_VERSION: Int = 1
 

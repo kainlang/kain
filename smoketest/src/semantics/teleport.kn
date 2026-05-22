@@ -3,9 +3,14 @@ use std::machine
 use world::SmokeAuthority
 use world::SmokeMirror
 use shatter::SmokeShard
+use shatter::smoke_shard_score
 
 pub fn smoke_teleport_lane() -> Int:
     let shard = SmokeShard { bias: 42, phase: 7, salt: 13, alive: true }
+
+    // Cross-file: score the shard before teleport using shatter.kn's pub fn
+    let score_before = smoke_shard_score(shard)
+
     let moved = teleport shard from SmokeAuthority to SmokeMirror via smoke_teleport_bus
     if moved.bias != 42:
         return 1
@@ -13,7 +18,14 @@ pub fn smoke_teleport_lane() -> Int:
         return 2
     if moved.alive != true:
         return 3
+
+    // Cross-file: score after teleport — must match pre-teleport score
+    let score_after = smoke_shard_score(moved)
+    if score_after != score_before:
+        return 4
+
     let teleport_count = runtime_machine_teleport_count()
     if teleport_count < 1:
-        return 4
+        return 5
     return 0
+

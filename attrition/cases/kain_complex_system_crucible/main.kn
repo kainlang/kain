@@ -1,0 +1,195 @@
+use std::runtime
+use std::actor
+use std::collections
+use std::text
+use std::crypto
+use std::alloc
+use std::time
+use std::process
+use std::platform
+
+const CRUCIBLE_MODULUS: Int = 1000000007
+
+actor Worker:
+    state id: Int = 0
+    state score: Int = 0
+
+    on Work(reply_to: P, data: Int):
+        self.score = (self.score + data * 13 + 7) % CRUCIBLE_MODULUS
+        send reply_to.Reply(value = self.score)
+
+fn digit_value(ch: String) -> Int:
+    if ch == "0": return 0
+    if ch == "1": return 1
+    if ch == "2": return 2
+    if ch == "3": return 3
+    if ch == "4": return 4
+    if ch == "5": return 5
+    if ch == "6": return 6
+    if ch == "7": return 7
+    if ch == "8": return 8
+    return 9
+
+fn parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    var index = 0
+    var sign = 1
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    var value = 0
+    while index < len(text):
+        value = value * 10 + digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn attrition_env_int(key: String, fallback: Int) -> Int:
+    let text = env(key)
+    if len(text) == 0:
+        return fallback
+    return parse_int_text(text)
+
+fn attrition_complete(status: Int, checksum: Int, message: String) -> Int:
+    let _result = runtime_attrition_result_set(checksum, status, message)
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        if status != 0:
+            return status
+        return 200 + shutdown_status
+    return status
+
+fn exercise_allocators(iteration: Int) -> Int:
+    var bump = bump_create(16)
+    let cell1 = bump_alloc(bump, 2)
+    if cell1.ok == false: return -1
+    bump = cell1.allocator
+    mem_store(cell1.ptr, iteration * 101, "Int")
+    
+    let cell2 = bump_alloc(bump, 2)
+    if cell2.ok == false:
+        let _err = bump_allocator_destroy(bump)
+        return -2
+    bump = cell2.allocator
+    mem_store(cell2.ptr, iteration * 202 + 1, "Int")
+    
+    let score = mem_load(cell1.ptr, "Int") + mem_load(cell2.ptr, "Int")
+    let _bump_destroy = bump_allocator_destroy(bump)
+    return score % CRUCIBLE_MODULUS
+
+fn exercise_collections(iteration: Int) -> Int:
+    var slots = slot_map_create(4)
+    let sa = slot_map_insert(slots, iteration * 10)
+    if sa.ok == false: return -3
+    slots = sa.map
+    
+    let sb = slot_map_insert(slots, iteration * 20 + 3)
+    if sb.ok == false:
+        let _err = slot_map_destroy(slots)
+        return -4
+    slots = sb.map
+    
+    var pq = priority_queue_create(4)
+    pq = priority_queue_push(pq, slot_map_get_or(slots, sa.key, 0), 5)
+    pq = priority_queue_push(pq, slot_map_get_or(slots, sb.key, 0), 10)
+    
+    let val = priority_queue_peek_value(pq)
+    let pri = priority_queue_peek_priority(pq)
+    
+    let _pq_destroy = priority_queue_destroy(pq)
+    let _slots_destroy = slot_map_destroy(slots)
+    return (val + pri) % CRUCIBLE_MODULUS
+
+fn exercise_process(iteration: Int) -> Int:
+    if iteration % 8 != 0:
+        return 42
+    
+    let platform = process_platform_available()
+    if platform < 0:
+        return -5
+
+    let is_windows = text_contains(text_from(platform_current_name()), "windows")
+    var command_name = "echo"
+    if is_windows:
+        command_name = "cmd.exe"
+    
+    let spec_id = process_spec_create(command_name)
+    if spec_id <= 0:
+        return -6
+    
+    if is_windows:
+        let _arg0 = process_spec_add_arg(spec_id, "/c")
+        let _arg1 = process_spec_add_arg(spec_id, "echo kain-attrition")
+    else:
+        let _arg0 = process_spec_add_arg(spec_id, "kain-attrition")
+        
+    let _stdio = process_spec_set_pipe_stdio(spec_id)
+    let process_id = process_spawn(spec_id)
+    if process_id <= 0:
+        let _err = process_spec_destroy(spec_id)
+        return -7
+
+    let wait_res = process_wait(process_id, 2000)
+    let stdout_text = text_trim(text_from(process_stdout_capture_text(process_id)))
+    let _close = process_close(process_id)
+    let _spec_destroy = process_spec_destroy(spec_id)
+
+    if text_contains(stdout_text, "kain-attrition") == false:
+        return -8
+
+    return len(stdout_text)
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot < 0:
+        return 100 + boot
+
+    let ops = attrition_env_int("KAIN_ATTRITION_OPS", 16)
+    let w1 = spawn Worker(id = 1)
+    let w2 = spawn Worker(id = 2)
+
+    if actor_id_is_valid(w1) == false or actor_id_is_valid(w2) == false:
+        let _s1 = actor_shutdown(w1)
+        let _s2 = actor_shutdown(w2)
+        return attrition_complete(1, 0, "worker spawns invalid")
+
+    var index = 0
+    var checksum = 0
+    while index < ops:
+        let actor_score1 = ask(w1, "Work", index)
+        let actor_score2 = ask(w2, "Work", index + 1)
+        
+        let alloc_score = exercise_allocators(index)
+        if alloc_score < 0:
+            let _s1 = actor_shutdown(w1)
+            let _s2 = actor_shutdown(w2)
+            return attrition_complete(10 - alloc_score, checksum, "allocator pressure failed")
+
+        let coll_score = exercise_collections(index)
+        if coll_score < 0:
+            let _s1 = actor_shutdown(w1)
+            let _s2 = actor_shutdown(w2)
+            return attrition_complete(20 - coll_score, checksum, "collections pressure failed")
+
+        let proc_score = exercise_process(index)
+        if proc_score < 0:
+            let _s1 = actor_shutdown(w1)
+            let _s2 = actor_shutdown(w2)
+            return attrition_complete(30 - proc_score, checksum, "process pressure failed")
+
+        let state_repr = sha256(env("KAIN_ATTRITION_CASE_ID") + "iteration:" + text_materialize(text_from("sc:" + char_at("0123456789", index % 10))))
+        let state_len = len(state_repr)
+
+        checksum = (checksum + actor_score1 + actor_score2 + alloc_score + coll_score + proc_score + state_len + index * 17) % CRUCIBLE_MODULUS
+        
+        if index % 4 == 0:
+            let _progress = runtime_attrition_note_progress(index, checksum)
+        index = index + 1
+
+    let _s1 = actor_shutdown(w1)
+    let _s2 = actor_shutdown(w2)
+
+    if runtime_heap_validate() < 0:
+        return attrition_complete(90, checksum, "runtime heap validate failed")
+
+    return attrition_complete(0, checksum, "")

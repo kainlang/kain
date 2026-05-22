@@ -172,11 +172,7 @@ fn main() -> Int:
         return e_bridge
 
     // ── Shape validation ─────────────────────────────
-    let shape_ok =
-        converge_mismatch_count() == 0 and
-        runtime_heap_validate() >= 0 and
-        patch_journal_count() >= 1 and
-        entangle_propagation_count() >= 1
+    let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:

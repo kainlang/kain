@@ -1,5 +1,8 @@
 use std::runtime
 use std::memory
+use memory::smoke_alloc_cells
+use converge::smoke_mix_pair
+use law::smoke_validate_range
 
 pub fn smoke_ownership_lane() -> Int:
     let stride: Int = sizeof_type("Int")
@@ -41,4 +44,34 @@ pub fn smoke_ownership_lane() -> Int:
     decay imported_cell
     if imported_value != 13:
         return 6
+
+    // Cross-file: allocate via memory.kn helper, then run converge mix over the cells
+    let count: Int = 8
+    let mut cells: ptr<Int> = smoke_alloc_cells(count)
+
+    collapse cells:
+        var i: Int = 0
+        while i < count:
+            mem_store(ptr_offset(cells, i, "Int"), (i * 7 + 3) % 1000000007, "Int")
+            i = i + 1
+        0
+
+    let observed_sum: Int = observe cells:
+        var acc: Int = 0
+        var j: Int = 0
+        while j < count:
+            acc = (acc + mem_load(ptr_offset(cells, j, "Int"), "Int")) % 1000000007
+            j = j + 1
+        acc
+
+    // Cross-file: run the two-cell mix through converge.kn's smoke_mix_pair
+    let mixed = smoke_mix_pair(observed_sum, count)
+    if mixed < 0:
+        return 7
+
+    // Cross-file: validate the mix result is in range via law.kn
+    if smoke_validate_range(mixed, 0, 1000000007) == false:
+        return 8
+
+    decay cells
     return 0

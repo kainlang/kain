@@ -366,6 +366,35 @@
         "actor.occupancy_floor_only"
       ],
       "expected_fail_sabotages": []
+    },
+    {
+      "id": "kain_complex_system_crucible",
+      "title": "Kain Complex System Crucible Attrition",
+      "description": "Extreme Kain LLVM attrition lane stressing dynamic worker actors, bump/pool allocators, maps/queues, processes, time, and Z3 math constraints.",
+      "lane_kind": "mixed",
+      "determinism_tier": 1,
+      "source_kind": "kain",
+      "source": "cases/kain_complex_system_crucible/main.kn",
+      "runtime_manifest": "runtime/native_core_runtime.toml",
+      "ops": {
+        "small": 16,
+        "medium": 128,
+        "full": 1024
+      },
+      "validation": {
+        "closure_groups": ["rc", "actor", "process"]
+      },
+      "invariants": [
+        "rc.live_objects_zero",
+        "rc.bytes_return_to_floor",
+        "rc.alloc_free_reconciled",
+        "actor.live_zero",
+        "actor.reply_ports_zero",
+        "actor.occupancy_floor_only",
+        "process.live_zero",
+        "process.occupancy_zero"
+      ],
+      "expected_fail_sabotages": []
     }
   ]
 }

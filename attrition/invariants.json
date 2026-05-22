@@ -10,7 +10,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": ["skip_final_release", "retain_without_release_every_1024", "skip_mixed_cleanup"],
       "isolate_lane": "saturated_rc_hot_object",
-      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition", "kain_complex_system_crucible"]
     },
     {
       "id": "rc.bytes_return_to_floor",
@@ -21,7 +21,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": ["skip_final_release", "retain_without_release_every_1024", "skip_mixed_cleanup"],
       "isolate_lane": "saturated_rc_hot_object",
-      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition", "kain_complex_system_crucible"]
     },
     {
       "id": "rc.alloc_free_reconciled",
@@ -32,7 +32,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": ["skip_final_release", "retain_without_release_every_1024", "skip_mixed_cleanup"],
       "isolate_lane": "saturated_rc_hot_object",
-      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition", "kain_complex_system_crucible"]
     },
     {
       "id": "rc.no_underflow",
@@ -43,7 +43,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": [],
       "isolate_lane": "saturated_rc_hot_object",
-      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition", "kain_complex_system_crucible"]
     },
     {
       "id": "rc.no_overflow",
@@ -54,7 +54,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": [],
       "isolate_lane": "saturated_rc_hot_object",
-      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_actor_ask_roundtrip", "kain_stdlib_domains", "kain_quantumerlang_attrition", "kain_semantic_singularity_crucible_attrition", "kain_complex_system_crucible"]
     },
     {
       "id": "async.tasks_zero",
@@ -98,7 +98,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": ["skip_destroy"],
       "isolate_lane": "actor_reply_port_recycle",
-      "mixed_lane_membership": ["mixed_runtime_boss"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_complex_system_crucible"]
     },
     {
       "id": "actor.reply_ports_zero",
@@ -109,7 +109,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": ["skip_destroy"],
       "isolate_lane": "actor_reply_port_recycle",
-      "mixed_lane_membership": ["mixed_runtime_boss"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_complex_system_crucible"]
     },
     {
       "id": "actor.occupancy_floor_only",
@@ -120,7 +120,7 @@
       "allowed_permanent_floor_entries": ["reserved_invalid_actor_slot_bit0"],
       "sabotage_knobs_expected_to_trip_it": ["skip_destroy"],
       "isolate_lane": "actor_reply_port_recycle",
-      "mixed_lane_membership": ["mixed_runtime_boss"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_complex_system_crucible"]
     },
     {
       "id": "actor.stale_rejects_advance",
@@ -142,7 +142,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": ["skip_close", "skip_mixed_cleanup"],
       "isolate_lane": "process_slot_recycle",
-      "mixed_lane_membership": ["mixed_runtime_boss"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_complex_system_crucible"]
     },
     {
       "id": "process.occupancy_zero",
@@ -153,7 +153,7 @@
       "allowed_permanent_floor_entries": [],
       "sabotage_knobs_expected_to_trip_it": ["skip_close", "skip_mixed_cleanup"],
       "isolate_lane": "process_slot_recycle",
-      "mixed_lane_membership": ["mixed_runtime_boss"]
+      "mixed_lane_membership": ["mixed_runtime_boss", "kain_complex_system_crucible"]
     },
     {
       "id": "process.stale_rejects_advance",

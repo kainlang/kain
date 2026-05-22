@@ -1,5 +1,9 @@
 use std::runtime
 use std::actor
+use types::SmokePacket
+use types::SmokeLane
+use types::smoke_lane_rank
+use types::smoke_weighted_checksum
 
 actor SmokeRelay:
     state bias: Int = 11
@@ -17,4 +21,15 @@ pub fn smoke_actor_lane() -> Int:
         return 1
     if reply < 0:
         return 2
+
+    // Cross-file calls into types.kn — verify lane rank and weighted checksum
+    let actor_rank = smoke_lane_rank(SmokeLane::Actor)
+    if actor_rank != 10:
+        return 3
+
+    let probe = SmokePacket { id: reply, lane: SmokeLane::Actor, payload: warm + actor_rank, tag: "actor", hot: true }
+    let wc = smoke_weighted_checksum(probe)
+    if wc < 0:
+        return 4
+
     return 0
