@@ -20,7 +20,7 @@ Never use this skill alone. Pair it with the owning `bootstrap-*`, `runtime-*`, 
 - This is a logging pipeline, not a repair lane. Confirm, minimize, and record the bug; do not silently fix it as part of this skill.
 - Prefer concrete evidence over vibes: solver witness, crash text, failing command, minimized input, proof report, or deterministic observed misbehavior.
 - Pair the hunt with the owning subsystem validation loop, but do not let passing tests overrule a real counterexample.
-- Save or reference proof artifacts under the nearest subsystem `z3/` area or report path when you had to build solver evidence.
+- **CRITICAL / MANDATORY**: Every logged bug entry MUST be mathematically verified and accompanied by a dedicated Z3 proof file (YAML/SMT2). You MUST save this proof under the nearest subsystem's `z3/proofs/` directory and explicitly document its absolute `file:///` path under the `- Z3 Proof:` field of the bug entry. Bug entries without a verified Z3 proof path are strictly invalid.
 
 ## Hunt Loop
 
@@ -28,7 +28,7 @@ Never use this skill alone. Pair it with the owning `bootstrap-*`, `runtime-*`, 
 2. Inspect the pointed code for closed domains, masks, bounds math, pointer offsets, packed fields, state transitions, concurrency handoffs, lowering mismatches, and other finite surfaces where the machine can search harder than a human.
 3. Use the right `mcp__z3_local__` tool for the failure shape.
 4. Minimize the witness until a future agent can rerun it without reconstructing your whole session.
-5. Append only real, reproducible bugs to `D:\Kain-Lang\BUGS.md`.
+5. Append only real, reproducible bugs to `D:\Kain-Lang\BUGS.md`. Each entry MUST include the absolute `file:///` path to the supporting Z3 proof file under the required `- Z3 Proof:` line.
 6. If the solver cannot model the issue and you lack strong runtime evidence, log nothing.
 
 ## Z3 Lens
@@ -71,7 +71,7 @@ Use this exact structure so future LLMs can scan and triage quickly:
 - Minimal repro: <command/file/input/seed>
 - Evidence: <error text, report path, solver result, or crash artifact>
 - Z3 angle: <what was proved, disproved, or still needs modeling>
-- Z3 Proof: <absolute or relative path to the Z3 SMT2/YAML proof file, e.g., [name](file:///absolute/path/to/proof.yaml)>
+- Z3 Proof: [proof-name](file:///absolute/path/to/proof.yaml)  <-- MANDATORY: The absolute file:/// path to the verified Z3 YAML/SMT2 proof file.
 - Suggested follow-up: <small concrete next move for a future fixing agent>
 ```
 
