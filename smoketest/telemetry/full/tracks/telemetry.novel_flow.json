@@ -1,0 +1,23 @@
+{
+  "mode": "full",
+  "category": "telemetry",
+  "track": "telemetry.novel_flow",
+  "lane": "telemetry_flow",
+  "offset": 3100,
+  "status": 0,
+  "ok": 1,
+  "started_ms": 140,
+  "ended_ms": 142,
+  "elapsed_ms": 2,
+  "track_checksum": 288466,
+  "composition_checksum": 3128473,
+  "cpu_feature_fingerprint": -7409408978278525106,
+  "patch_journal_count": 147,
+  "entangle_propagation_count": 147,
+  "converge_mismatch_count": 0,
+  "runtime_converge_telemetry_count": 1,
+  "runtime_machine_teleport_count": 59,
+  "runtime_machine_pulse_total_fire_count": 10,
+  "actor_scheduler_queue_depth": 0,
+  "actor_scheduler_total_enqueued": 0
+}

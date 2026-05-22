@@ -857,6 +857,7 @@ static int kain_actor_reply_port_state_wait(
     }
 
     if (timeout_ms != 0) {
+        /* Proof: runtime/native/src/core/z3/proofs/actor-reply-port-spin-wait-preserves-fallback.yaml */
         for (spin_index = 0u; spin_index < KAIN_ACTOR_REPLY_PORT_WAIT_SPINS; ++spin_index) {
             kain_actor_reply_port_spin_pause(spin_index);
             if (kain_actor_reply_port_state_try_copy_completed(
@@ -1099,6 +1100,7 @@ static int kain_actor_reply_port_state_rearm_synthetic_actor(KainActorReplyPortS
         actor != NULL &&
         actor->execution_class == KAIN_ACTOR_EXECUTION_CLASS_SYNTHETIC_REPLY_PORT &&
         actor->user_data == state) {
+        /* Proof: runtime/native/src/core/z3/proofs/actor-reply-port-rearm-invalidates-stale-generation.yaml */
         next_generation = g_actor_table.generations[actor_ref.actor_id] + 1u;
         if (next_generation == 0u) {
             next_generation = 1u;
@@ -1144,6 +1146,7 @@ static int kain_actor_reply_port_state_prepare_direct_token(
         kain_actor_reply_port_state_unbind_synthetic_actor(state);
     }
 
+    /* Proof: runtime/native/src/core/z3/proofs/actor-reply-port-direct-token-rearm-invalidates-stale-generation.yaml */
 #ifdef _WIN32
     EnterCriticalSection(&state->lock);
     reply_data_to_free = state->reply_data;
@@ -1410,6 +1413,7 @@ void kain_actor_runtime_shutdown(void) {
 #else
         pthread_mutex_unlock(&g_actor_table.lock);
 #endif
+        /* Proof: runtime/native/src/core/z3/proofs/actor-shutdown-joins-direct-thread-before-cleanup.yaml */
         kain_actor_join_direct_thread(actor);
     }
 
@@ -1539,6 +1543,7 @@ static void kain_actor_mailbox_cache_or_free_node(KainActorMailbox* mailbox, Mes
     node->data = NULL;
     node->data_size = 0u;
     node->sender_id = KAIN_ACTOR_ID_INVALID;
+    /* Proof: runtime/native/src/core/z3/proofs/actor-mailbox-node-cache-stays-bounded.yaml */
     if (mailbox != NULL && mailbox->free_node_count < KAIN_ACTOR_MAILBOX_NODE_CACHE_LIMIT) {
         node->next = mailbox->free_nodes;
         mailbox->free_nodes = node;
@@ -1561,6 +1566,7 @@ static int kain_actor_mailbox_append_copied_locked(
     if (mailbox->closed) {
         return -2;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/actor-mailbox-bounded-send-count-stays-within-capacity.yaml */
     if (mailbox->capacity > 0 && mailbox->count >= mailbox->capacity) {
         return -3;
     }
@@ -1760,6 +1766,7 @@ static int kain_actor_table_ref_matches_locked(
     if (actor == NULL) {
         return 0;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/actor-reply-port-ref-match-requires-equal-generation.yaml */
     if (g_actor_table.generations[actor_ref->actor_id] != actor_ref->generation ||
         actor->ref_generation != actor_ref->generation ||
         actor->execution_class != actor_ref->execution_class ||
@@ -1794,6 +1801,7 @@ static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
             uint64_t low_bit = kain_actor_isolate_low_bit_u64(free_mask);
             unsigned int bit_index = kain_actor_low_bit_index_u64(low_bit);
             id = (KainActorId)(word_index * KAIN_ACTOR_TABLE_WORD_BITS + bit_index);
+            /* Proof: runtime/native/src/core/z3/proofs/actor-table-insert-never-returns-invalid-id.yaml */
             if (id != KAIN_ACTOR_ID_INVALID && id < KAIN_ACTOR_TABLE_SIZE) {
                 unsigned int next_generation = g_actor_table.generations[id] + 1u;
                 if (next_generation == 0u) {
@@ -2575,6 +2583,10 @@ int kain_actor_ask_send_ref(
         actor->inline_ask_payload_policy == KAIN_ACTOR_INLINE_ASK_PAYLOAD_POLICY_BORROWED &&
         (actor->state == KAIN_ACTOR_STATE_INITIALIZING ||
          actor->state == KAIN_ACTOR_STATE_RUNNING)) {
+        /*
+         * Proof: runtime/native/src/core/z3/proofs/actor-local-ask-inline-fast-path-rejects-backlog.yaml
+         * Proof: runtime/native/src/core/z3/proofs/actor-local-ask-inline-claim-preserves-exclusive-turn.yaml
+         */
         if (!kain_actor_scheduler_flag_load(&g_scheduler.shutdown) &&
             !kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) &&
             mailbox->count == 0u &&
@@ -2630,6 +2642,7 @@ int kain_actor_ask_send_ref(
         actor->locality_class == KAIN_ACTOR_LOCALITY_LOCAL &&
         (actor->state == KAIN_ACTOR_STATE_INITIALIZING ||
          actor->state == KAIN_ACTOR_STATE_RUNNING)) {
+        /* Proof: runtime/native/src/core/z3/proofs/actor-local-ask-inline-claim-preserves-exclusive-turn.yaml */
         if (!kain_actor_scheduler_flag_load(&g_scheduler.shutdown) &&
             !kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) &&
             mailbox->count == 1u &&
@@ -2718,6 +2731,7 @@ int kain_actor_receive(
     if (mailbox->head == NULL) {
         mailbox->tail = NULL;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/actor-mailbox-receive-count-never-underflows.yaml */
     mailbox->count--;
 
     /* Copy message data */
@@ -2780,6 +2794,7 @@ int kain_actor_try_receive(
     if (mailbox->head == NULL) {
         mailbox->tail = NULL;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/actor-mailbox-try-receive-count-never-underflows.yaml */
     mailbox->count--;
 
     /* Copy message data */
@@ -3898,6 +3913,10 @@ static void kain_scheduler_ready_actor(KainActorState_Internal* actor) {
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
 
+    /*
+     * Proof: runtime/native/src/core/z3/proofs/actor-microcell-ready-state-is-exclusive.yaml
+     * Proof: runtime/native/src/core/z3/proofs/actor-scheduler-enqueue-max-depth-is-monotonic.yaml
+     */
     if (kain_actor_scheduler_flag_load(&g_scheduler.shutdown) ||
         kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) ||
         kain_actor_scheduler_flag_load(&actor->in_scheduler_turn) ||
@@ -3960,6 +3979,10 @@ static void kain_scheduler_finish_turn(KainActorState_Internal* actor) {
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
     kain_actor_scheduler_flag_store(&actor->in_scheduler_turn, 0);
+    /*
+     * Proof: runtime/native/src/core/z3/proofs/actor-microcell-finish-turn-requeues-live-mailbox.yaml
+     * Proof: runtime/native/src/core/z3/proofs/actor-scheduler-enqueue-max-depth-is-monotonic.yaml
+     */
     if (should_requeue &&
         !kain_actor_scheduler_flag_load(&g_scheduler.shutdown) &&
         !kain_actor_scheduler_flag_load(&actor->in_scheduler_queue) &&
@@ -4065,7 +4088,10 @@ static KainActorId kain_scheduler_dequeue(void) {
     {
         KainActorState_Internal* actor = kain_actor_table_get(actor_id);
         if (actor != NULL) {
-            /* Proof: runtime/native/src/core/z3/proofs-experimental/inline-ask-turn-claim-no-double-owner.smt2 */
+            /*
+             * Proof: runtime/native/src/core/z3/proofs/actor-scheduler-dequeue-preserves-depth-accounting.yaml
+             * Proof: runtime/native/src/core/z3/proofs/actor-microcell-ready-state-is-exclusive.yaml
+             */
             kain_actor_scheduler_flag_store(&actor->in_scheduler_turn, 1);
             kain_actor_scheduler_flag_store(&actor->in_scheduler_queue, 0);
         }
@@ -4145,6 +4171,7 @@ static int kain_actor_restart_limit_exceeded(KainActorState_Internal* child) {
     }
 
     /* Check if restart count exceeds limit */
+    /* Proof: runtime/native/src/core/z3/proofs/actor-supervision-restart-count-stays-within-window-limit.yaml */
     if (child->supervisor.restart_count >= KAIN_SUPERVISION_MAX_RESTARTS) {
         child->supervisor.restart_limit_hit = 1;
         return 1;

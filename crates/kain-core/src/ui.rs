@@ -1225,7 +1225,9 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
             options,
             ..
         } => {
-            let mut rendered = vec![serde_json::to_string(template).unwrap_or_else(|_| format!(r#""{}""#, template))];
+            let mut rendered =
+                vec![serde_json::to_string(template)
+                    .unwrap_or_else(|_| format!(r#""{}""#, template))];
             for operand in operands {
                 rendered.push(render_authored_expr_contract(operand));
             }

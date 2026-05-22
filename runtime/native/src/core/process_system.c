@@ -475,6 +475,7 @@ static int abi_process_capture_append(
     }
     remaining_capacity = ABI_PROCESS_MAX_CAPTURE_BYTES - capture->length;
     to_copy = byte_length < remaining_capacity ? byte_length : remaining_capacity;
+    /* Proof: runtime/native/src/core/z3/proofs/native-process-capture-append-required-length-does-not-wrap-under-capture-limit.yaml */
     if (abi_process_size_add_overflow(capture->length, to_copy, &required_length) ||
         !abi_process_capture_reserve(capture, required_length)) {
         return 0;
@@ -553,6 +554,7 @@ static const char* abi_process_encode_hex(const unsigned char* bytes, size_t byt
     if (bytes == 0 || byte_length == 0u) {
         return string_new("");
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-process-hex-encoding-allocation-does-not-wrap-under-capture-limit.yaml */
     if (abi_process_size_mul_overflow(byte_length, 2u, &allocation_size) ||
         abi_process_size_add_overflow(allocation_size, 1u, &allocation_size)) {
         return string_new("");
@@ -743,6 +745,7 @@ static int abi_process_wide_buffer_append_text(
         return 0;
     }
     text_length = wcslen(text);
+    /* Proof: runtime/native/src/core/z3/proofs/native-process-wide-buffer-append-text-required-length-does-not-wrap.yaml */
     if (abi_process_size_add_overflow(buffer->length, text_length, &required) ||
         abi_process_size_add_overflow(required, 1u, &required) ||
         !abi_process_wide_buffer_reserve(buffer, required)) {
@@ -832,6 +835,7 @@ static int abi_process_utf8_buffer_append_text(
         return 0;
     }
     text_length = strlen(text);
+    /* Proof: runtime/native/src/core/z3/proofs/native-process-utf8-buffer-append-text-required-length-does-not-wrap.yaml */
     if (abi_process_size_add_overflow(buffer->length, text_length, &required) ||
         abi_process_size_add_overflow(required, 1u, &required) ||
         !abi_process_utf8_buffer_reserve(buffer, required)) {
@@ -2256,6 +2260,7 @@ int64_t abi_process_spec_add_arg(int64_t spec_id, const char* argument) {
             "process argument cannot be null"
         );
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-process-argument-count-stays-within-capacity.yaml */
     if (spec->argument_count >= ABI_PROCESS_MAX_ARGUMENTS) {
         return abi_process_fail(
             ABI_PROCESS_CAPACITY_EXCEEDED,
@@ -2313,6 +2318,7 @@ int64_t abi_process_spec_set_env(int64_t spec_id, const char* key, const char* v
             return abi_process_ok();
         }
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-process-environment-count-stays-within-capacity.yaml */
     if (spec->environment_count >= ABI_PROCESS_MAX_ENVIRONMENT_ENTRIES) {
         return abi_process_fail(
             ABI_PROCESS_CAPACITY_EXCEEDED,

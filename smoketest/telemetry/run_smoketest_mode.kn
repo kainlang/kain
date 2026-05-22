@@ -1,0 +1,70 @@
+use python_bridge::smoke_python_bridge_run_mode
+
+fn smoke_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn smoke_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let mut sign = 1
+    let mut index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let mut value = 0
+    while index < len(text):
+        value = value * 10 + smoke_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn smoke_cli_value(argv: [String], flag: String, fallback: String) -> String:
+    let mut index = 0
+    let mut value = fallback
+    while index + 1 < len(argv):
+        if argv[index] == flag:
+            value = argv[index + 1]
+        index = index + 1
+    return value
+
+fn smoke_cli_int(argv: [String], flag: String, fallback: Int) -> Int:
+    let value = smoke_cli_value(argv, flag, "")
+    if len(value) == 0:
+        return fallback
+    return smoke_parse_int_text(value)
+
+fn main() -> Int:
+    let argv = args()
+    let mode = smoke_cli_value(argv, "--mode", "full")
+    let executable = smoke_cli_value(argv, "--executable", "smoketest/smoketest.exe")
+    let output_dir = smoke_cli_value(argv, "--output-dir", "smoketest/telemetry/" + mode)
+    let bench_rounds = smoke_cli_int(argv, "--bench-rounds", 0)
+    let bench_passes = smoke_cli_int(argv, "--bench-passes", 0)
+    let attrition_ops = smoke_cli_int(argv, "--attrition-ops", 0)
+    let attrition_rounds = smoke_cli_int(argv, "--attrition-rounds", 0)
+    return smoke_python_bridge_run_mode(
+        mode,
+        executable,
+        output_dir,
+        bench_rounds,
+        bench_passes,
+        attrition_ops,
+        attrition_rounds
+    )

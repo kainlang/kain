@@ -395,6 +395,7 @@ static int64_t abi_graphics_read_file_bytes(
         size_t read = fread(stack_buffer, 1, sizeof(stack_buffer), file);
         if (read > 0u) {
             size_t needed;
+            /* Proof: runtime/native/src/core/z3/proofs/native-graphics-file-read-needed-size-stays-within-int64-before-reserve.yaml */
             if (abi_graphics_size_add_overflows(total, read)) {
                 free(bytes);
                 fclose(file);
@@ -682,6 +683,7 @@ int64_t abi_graphics_buffer_create(
             "graphics buffer requires a kind and non-negative sizing"
         );
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-buffer-count-stays-within-capacity.yaml */
     if (session->buffer_count >= ABI_GRAPHICS_MAX_BUFFERS) {
         return abi_graphics_fail(
             ABI_GRAPHICS_CAPACITY_EXCEEDED,
@@ -1162,6 +1164,7 @@ int64_t abi_graphics_draw_mesh(
             "draw command requires a valid pipeline, mesh, and positive instance count"
         );
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-draw-command-count-stays-within-capacity.yaml */
     if (session->draw_command_count >= ABI_GRAPHICS_MAX_DRAW_COMMANDS) {
         return abi_graphics_fail(
             ABI_GRAPHICS_CAPACITY_EXCEEDED,

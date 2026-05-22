@@ -1,0 +1,61 @@
+version: 1
+id: kain.native.core.proofs.native_stdlib_abi_string_new_allocation_safety
+kind: check_smt2
+description: Mathematically proves that the guard length <= (SIZE_MAX - 1u) / 2u renders the (length * 2u) + 1u allocation 100% safe from integer overflow.
+tags:
+- native-runtime
+- stdlib_abi
+- allocation
+- overflow
+- correctness
+source:
+  path: runtime\native\src\core\stdlib_abi.c
+  symbol: string_new
+  start_line: 2704
+  reason: Proving that under the division-based guard condition, overflow is mathematically impossible.
+case:
+  smt2: |
+    (set-logic ALL)
+
+    ; Define length as 64-bit bit-vector (size_t on x86_64)
+    (declare-const length (_ BitVec 64))
+    
+    ; SIZE_MAX for 64-bit is 18446744073709551615
+    (define-fun size_max () (_ BitVec 64)
+      (_ bv18446744073709551615 64))
+      
+    ; Multiplication term: length * 2
+    (define-fun mult_term () (_ BitVec 64)
+      (bvmul length (_ bv2 64)))
+      
+    ; Total allocation size: (length * 2) + 1
+    (define-fun alloc_size () (_ BitVec 64)
+      (bvadd mult_term (_ bv1 64)))
+
+    ; Define condition for multiplication overflow
+    (define-fun mult_overflows () Bool
+      (bvugt length (bvudiv size_max (_ bv2 64))))
+
+    ; Define condition for addition overflow
+    (define-fun add_overflows () Bool
+      (= mult_term size_max))
+
+    ; Any overflow in the calculation
+    (define-fun any_overflow () Bool
+      (or mult_overflows add_overflows))
+
+    ; --- PART 2: The Guarded Safety Proof ---
+    ; Guard: length <= (SIZE_MAX - 1) / 2
+    (define-fun guard_passes () Bool
+      (bvule length (bvudiv (bvsub size_max (_ bv1 64)) (_ bv2 64))))
+
+    ; Precondition: the guard has passed successfully
+    (assert guard_passes)
+
+    ; We search for any input that can still overflow
+    (assert any_overflow)
+
+    ; This check must return UNSAT, proving that overflow is impossible!
+    (check-sat)
+  include_model: false
+  include_stats: false

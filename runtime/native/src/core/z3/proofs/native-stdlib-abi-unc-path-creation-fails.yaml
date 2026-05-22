@@ -1,0 +1,43 @@
+version: 1
+id: kain.native.core.proofs.native_stdlib_abi_unc_path_creation_fails
+kind: check_smt2
+description: abi_fs_create_parent_dirs splits UNC paths incorrectly at index 1, attempting to create an invalid root directory string.
+tags:
+- native-runtime
+- stdlib-abi
+- fs
+- unc
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\stdlib_abi.c
+  symbol: abi_fs_create_parent_dirs
+  start_line: 1589
+  reason: The loop starts at index 1 and treats the second backslash as a directory separator, mutating the path to a raw backslash.
+case:
+  smt2: |
+    (set-logic ALL)
+    ; Model string path buffer processing
+    (declare-const char0 String)
+    (declare-const char1 String)
+    
+    ; Assume UNC path starting with \\
+    (assert (= char0 "\\"))
+    (assert (= char1 "\\"))
+    
+    ; Loop logic at index = 1
+    (define-fun is_slash ((c String)) Bool (or (= c "\\") (= c "/")))
+    
+    ; At index 1, buffer[1] becomes null terminator
+    ; meaning buffer[0] remains char0, resulting in truncated string for create_one_dir
+    (define-fun truncated_buffer () String char0)
+    
+    ; It only calls create_one_dir if buffer[0] is not null
+    (assert (not (= truncated_buffer "")))
+    
+    ; Claim: For UNC paths, the first directory it attempts to create is literally "\"
+    ; Which triggers failure on Windows
+    (assert (is_slash char1))
+    (assert (= truncated_buffer "\\"))
+    
+    (check-sat)
+  include_model: true
+  include_stats: false

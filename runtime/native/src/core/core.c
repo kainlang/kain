@@ -1232,6 +1232,7 @@ static void kain_map_key_metadata(
 }
 
 static uint64_t kain_map_growth_threshold(uint64_t capacity) {
+    /* Proof: runtime/native/src/core/z3/proofs/native-map-growth-threshold-stays-below-capacity.yaml */
     return capacity - (capacity >> 2u);
 }
 
@@ -1291,6 +1292,7 @@ static int kain_map_tiny_get_prehashed(
     if (entry_index == KAIN_MAP_TINY_EMPTY_INDEX) {
         return 0;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-map-tiny-dispatch-metadata-guard.yaml */
     if ((uint64_t)entry_index >= (uint64_t)map->capacity) {
         return -1;
     }
@@ -1469,6 +1471,7 @@ static int kain_map_insert_prehashed(
 
     if (slot.has_match) {
         MapEntry* entry = &map->entries[slot.match_index];
+        /* Proof: runtime/native/src/core/z3/proofs/native-map-static-key-state-guard.yaml */
         if (entry->occupied == KAIN_MAP_ENTRY_OWNED_KEY && key_state == KAIN_MAP_ENTRY_STATIC_KEY) {
             rc_release(entry->key);
             entry->key = key;
@@ -1592,6 +1595,7 @@ void map_set(KainMap* map, char* key, long long value) {
 
     kain_map_key_metadata(key, &key_length, &key_hash, &key_prefix);
 
+    /* Proof: runtime/native/src/core/z3/proofs/native-map-entry-allocation-does-not-wrap-after-capacity-guard.yaml */
     if ((uint64_t)map->count >= kain_map_growth_threshold((uint64_t)map->capacity)) {
         uint64_t current_capacity = (uint64_t)map->capacity;
         uint64_t new_capacity = current_capacity << 1u;
@@ -1774,6 +1778,7 @@ long long map_get_prehashed(
     start_index = key_hash & map->mask;
     for (probe_offset = 0u; probe_offset < (uint64_t)map->capacity; ++probe_offset) {
         MapEntry* entry = &map->entries[(start_index + probe_offset) & map->mask];
+        /* Proof: runtime/native/src/core/z3/proofs/native-map-linear-probe-empty-slot-precludes-later-match.yaml */
         if (!entry->occupied) {
             return 0;
         }

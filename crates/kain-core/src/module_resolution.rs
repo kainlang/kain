@@ -193,10 +193,17 @@ fn append_importer_relative_candidates(
     let mut current = importer_dir.to_path_buf();
     loop {
         push_unique_path(candidates, current.join(&path).with_extension("kn"));
-        push_unique_path(candidates, current.join("src").join(&path).with_extension("kn"));
         push_unique_path(
             candidates,
-            current.join("src").join("core").join(module_base).with_extension("kn"),
+            current.join("src").join(&path).with_extension("kn"),
+        );
+        push_unique_path(
+            candidates,
+            current
+                .join("src")
+                .join("core")
+                .join(module_base)
+                .with_extension("kn"),
         );
         push_unique_path(candidates, current.join(format!("{path}.kn")));
         push_unique_path(candidates, current.join(base_path).with_extension("god"));
@@ -207,7 +214,10 @@ fn append_importer_relative_candidates(
                 candidates,
                 current.join("src").join(module_base).with_extension("kn"),
             );
-            push_unique_path(candidates, current.join(module_base_path).with_extension("god"));
+            push_unique_path(
+                candidates,
+                current.join(module_base_path).with_extension("god"),
+            );
         }
 
         let Some(parent) = current.parent() else {
@@ -222,7 +232,10 @@ fn append_blade_module_candidates(
     path_segments: &[String],
     context: &FilesystemModuleResolutionContext,
 ) {
-    let start = context.importer_file.as_deref().unwrap_or_else(|| Path::new("."));
+    let start = context
+        .importer_file
+        .as_deref()
+        .unwrap_or_else(|| Path::new("."));
     let Ok(module_roots) = blade::discover_blade_module_roots_from(start) else {
         return;
     };

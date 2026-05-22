@@ -1,0 +1,43 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_decay_heap_fast_path_leaks_slot
+kind: check_smt2
+description: When kain_ownership_decay_slot_unlocked processes a heap region with reclaim_helper_slot=0, it frees memory but leaves the slot occupied.
+tags:
+- native-runtime
+- ownership
+- decay
+- leak
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\ownership.c
+  symbol: kain_ownership_decay_slot_unlocked
+  start_line: 785
+  reason: The decay path does not call clear_slot_unlocked when reclaim_helper_slot == 0, causing a permanent slot leak.
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const is_heap Bool)
+    (declare-const reclaim_helper_slot Int)
+    (declare-const initial_occupied Int)
+    (declare-const final_occupied Int)
+    (declare-const calls_free Bool)
+    (declare-const calls_clear_slot Bool)
+    
+    (assert (= initial_occupied 1))
+    
+    ; Logic modeled from C
+    (assert (= calls_free is_heap))
+    (assert (= calls_clear_slot (and is_heap (not (= reclaim_helper_slot 0)))))
+    
+    (assert (= final_occupied (ite calls_clear_slot 0 initial_occupied)))
+    
+    ; Target the bug path:
+    (assert is_heap)
+    (assert (= reclaim_helper_slot 0))
+    
+    ; Show that memory is freed but the slot is still occupied
+    (assert calls_free)
+    (assert (= final_occupied 1))
+    
+    (check-sat)
+  include_model: true
+  include_stats: false

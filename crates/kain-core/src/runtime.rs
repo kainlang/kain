@@ -99,7 +99,12 @@ fn runtime_cast_value(value: Value, target: &Type) -> KainResult<Value> {
                 other => Ok(other),
             }
         }
-        Type::Named { name, .. } if matches!(name.as_str(), "Float" | "f32" | "F32" | "f64" | "F64" | "double") => {
+        Type::Named { name, .. }
+            if matches!(
+                name.as_str(),
+                "Float" | "f32" | "F32" | "f64" | "F64" | "double"
+            ) =>
+        {
             match value {
                 Value::Int(bits) => Ok(Value::Float(bits as f64)),
                 Value::Float(number) => Ok(Value::Float(number)),
@@ -128,7 +133,9 @@ fn runtime_bitcast_value(value: Value, target: &Type) -> KainResult<Value> {
         },
         Type::Named { name, .. } if matches!(name.as_str(), "Float" | "f64" | "F64" | "double") => {
             match value {
-                Value::Int(bits) => Ok(Value::Float(f64::from_bits(u64::from_ne_bytes(bits.to_ne_bytes())))),
+                Value::Int(bits) => Ok(Value::Float(f64::from_bits(u64::from_ne_bytes(
+                    bits.to_ne_bytes(),
+                )))),
                 Value::Float(number) => Ok(Value::Float(number)),
                 Value::Bool(flag) => Ok(Value::Float(f64::from_bits(if flag { 1 } else { 0 }))),
                 other => Ok(other),
@@ -140,9 +147,9 @@ fn runtime_bitcast_value(value: Value, target: &Type) -> KainResult<Value> {
             other => Ok(other),
         },
         Type::Named { .. } | Type::Ptr { .. } | Type::Ref { .. } => match value {
-            Value::Float(number) => {
-                Ok(Value::Int(i64::from_ne_bytes(number.to_bits().to_ne_bytes())))
-            }
+            Value::Float(number) => Ok(Value::Int(i64::from_ne_bytes(
+                number.to_bits().to_ne_bytes(),
+            ))),
             Value::Int(bits) => Ok(Value::Int(bits)),
             Value::Bool(flag) => Ok(Value::Int(if flag { 1 } else { 0 })),
             other => Ok(other),
@@ -6153,10 +6160,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
         }
 
         Expr::SizeOfType { target, .. } => Ok(Value::Int(
-            runtime_layout_for_type(target).map(|(size, _)| size).unwrap_or(8),
+            runtime_layout_for_type(target)
+                .map(|(size, _)| size)
+                .unwrap_or(8),
         )),
         Expr::AlignOfType { target, .. } => Ok(Value::Int(
-            runtime_layout_for_type(target).map(|(_, align)| align).unwrap_or(8),
+            runtime_layout_for_type(target)
+                .map(|(_, align)| align)
+                .unwrap_or(8),
         )),
         Expr::Alloca { ty, .. } => Ok(match ty {
             Type::Array(_, count, _) => Value::Array(Arc::new(RwLock::new(
@@ -7166,7 +7177,9 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
         | Expr::Paren(operand, _)
         | Expr::Comptime(operand, _)
         | Expr::Cast { value: operand, .. }
-        | Expr::Bitcast { value: operand, .. } => expr_contains_runtime_best_effort_effects(operand),
+        | Expr::Bitcast { value: operand, .. } => {
+            expr_contains_runtime_best_effort_effects(operand)
+        }
         Expr::Field { object, .. } => expr_contains_runtime_best_effort_effects(object),
         Expr::Index { object, index, .. } => {
             expr_contains_runtime_best_effort_effects(object)

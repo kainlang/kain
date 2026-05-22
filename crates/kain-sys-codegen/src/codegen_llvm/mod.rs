@@ -7349,6 +7349,54 @@ impl LlvmGenerator {
         self.emit(&format!("  store {} null, {}* {}", ty, ty, addr));
     }
 
+    fn helper_realloc_source_local_name<'a>(value: &'a Expr) -> Option<&'a str> {
+        let Expr::Call { callee, args, .. } = value else {
+            return None;
+        };
+        if !matches!(callee.as_ref(), Expr::Ident(name, _) if name == "__kain_realloc") {
+            return None;
+        }
+        let first_arg = args.first()?;
+        let Expr::Ident(name, _) = &first_arg.value else {
+            return None;
+        };
+        Some(name.as_str())
+    }
+
+    fn invalidate_helper_owned_local_storage(&mut self, name: &str) {
+        if !self.helper_owned_pointer_locals.contains_key(name) {
+            return;
+        }
+        let Some((addr, ty)) = self.locals.get(name).cloned() else {
+            return;
+        };
+        if ty != "i8*" {
+            return;
+        }
+        self.emit(&format!("  store i8* null, i8** {}", addr));
+    }
+
+    fn invalidate_consumed_helper_realloc_source_for_let(&mut self, value: &Expr) {
+        let Some(source_name) = Self::helper_realloc_source_local_name(value) else {
+            return;
+        };
+        self.invalidate_helper_owned_local_storage(source_name);
+    }
+
+    fn invalidate_consumed_helper_realloc_source_for_assignment(
+        &mut self,
+        target_name: &str,
+        value: &Expr,
+    ) {
+        let Some(source_name) = Self::helper_realloc_source_local_name(value) else {
+            return;
+        };
+        if source_name == target_name {
+            return;
+        }
+        self.invalidate_helper_owned_local_storage(source_name);
+    }
+
     fn compile_scoped_ownership_expr(
         &mut self,
         target: &Expr,
@@ -13448,6 +13496,7 @@ impl LlvmGenerator {
                                 self.emit_rc_retain_if_heap_i8(&val_reg);
                             }
                         }
+                        self.invalidate_consumed_helper_realloc_source_for_let(val_expr);
 
                         let local_pointer_provenance =
                             self.ownership_pointer_provenance_for_expr(val_expr);
@@ -14825,6 +14874,7 @@ impl LlvmGenerator {
                             }
                         }
                         self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, ty, addr));
+                        self.invalidate_consumed_helper_realloc_source_for_assignment(name, value);
                         self.record_helper_owned_pointer_local(
                             name,
                             self.ownership_pointer_provenance_for_expr(value),

@@ -500,7 +500,7 @@ impl DriverSession {
                 resolved_world.root_component.as_deref().unwrap_or("<none>")
             );
         }
-        let prepared_ui_source = prepare_frontend_source_for_target(source, target)?;
+        let prepared_ui_source = prepare_frontend_source_for_target(source, source_path, target)?;
         if trace_realtime_bundle {
             eprintln!(
                 "[kain-driver][realtime] prepared_ui_source_ms={} bytes={}",
@@ -1049,7 +1049,8 @@ impl FrontendImportCollector {
                 module_file.display()
             ))
         })?;
-        let prepared_module_source = prepare_frontend_source_for_target(&module_source, target)?;
+        let prepared_module_source =
+            prepare_frontend_source_for_target(&module_source, Some(&module_file), target)?;
         self.collect_from_source(&prepared_module_source, Some(&module_file), target)?;
         self.module_sources.push(FrontendSourceUnit {
             file_path: module_file,
@@ -1075,7 +1076,7 @@ fn build_frontend_source_bundle(
         return Ok(cached.bundle);
     }
 
-    let prepared_source = prepare_frontend_source_for_target(source, target)?;
+    let prepared_source = prepare_frontend_source_for_target(source, source_path, target)?;
     let mut collector = FrontendImportCollector {
         entry_path: source_path.map(canonicalize_existing_path),
         ..FrontendImportCollector::default()
@@ -1293,17 +1294,38 @@ fn item_uses_c_bridge(item: &Item) -> bool {
     }
 }
 
-fn prepare_rust_ffi_source(source: &str, target: CompileTarget) -> Result<String, KainError> {
+fn source_prepare_dir(source_path: Option<&Path>) -> Option<PathBuf> {
+    source_path
+        .and_then(|path| path.parent())
+        .and_then(|parent| {
+            if parent.as_os_str().is_empty() {
+                std::env::current_dir().ok()
+            } else {
+                Some(parent.to_path_buf())
+            }
+        })
+        .or_else(|| std::env::current_dir().ok())
+}
+
+fn prepare_rust_ffi_source(
+    source: &str,
+    source_path: Option<&Path>,
+    target: CompileTarget,
+) -> Result<String, KainError> {
     let prepare = kain_crate_ffi::PrepareContext {
-        current_dir: std::env::current_dir().ok(),
+        current_dir: source_prepare_dir(source_path),
         manifest_path: None,
     };
     kain_crate_ffi::augment_source_for_runtime(source, target, &prepare)
 }
 
-fn prepare_c_ffi_source(source: &str, target: CompileTarget) -> Result<String, KainError> {
+fn prepare_c_ffi_source(
+    source: &str,
+    source_path: Option<&Path>,
+    target: CompileTarget,
+) -> Result<String, KainError> {
     let prepare = kain_c_ffi::PrepareContext {
-        current_dir: std::env::current_dir().ok(),
+        current_dir: source_prepare_dir(source_path),
         manifest_path: None,
     };
     kain_c_ffi::augment_source_for_runtime(source, target, &prepare)
@@ -1311,7 +1333,7 @@ fn prepare_c_ffi_source(source: &str, target: CompileTarget) -> Result<String, K
 
 fn register_frontend_extensions_for_target(target: CompileTarget) {
     match target {
-        CompileTarget::Interpret | CompileTarget::Test => {
+        CompileTarget::Interpret | CompileTarget::Test | CompileTarget::Llvm => {
             kain_interop::register();
             kain_codebase::register();
             kain_python::register();
@@ -1328,16 +1350,17 @@ fn register_frontend_extensions_for_target(target: CompileTarget) {
 
 fn prepare_frontend_source_for_target(
     source: &str,
+    source_path: Option<&Path>,
     target: CompileTarget,
 ) -> Result<String, KainError> {
     match target {
         CompileTarget::Interpret | CompileTarget::Test => {
-            let source = prepare_c_ffi_source(source, target)?;
+            let source = prepare_c_ffi_source(source, source_path, target)?;
             let source = kain_node::prepare_source_for_runtime(&source, target)?;
-            prepare_rust_ffi_source(&source, target)
+            prepare_rust_ffi_source(&source, source_path, target)
         }
         CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm => {
-            prepare_c_ffi_source(source, target)
+            prepare_c_ffi_source(source, source_path, target)
         }
         _ => Ok(source.to_string()),
     }
@@ -2667,6 +2690,70 @@ fn main() -> Int:
             "pub fn native_actor_spawn(actor_name: String, init_payload: String) -> Int:"
         ));
         assert!(!frontend.full_source.contains("actor GenServer:"));
+    }
+
+    #[test]
+    fn frontend_to_typed_program_with_source_path_resolves_c_ffi_relative_to_source_file() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace = temp.path().join("workspace");
+        let outside = temp.path().join("outside");
+        let cache_dir = workspace
+            .join(".kain")
+            .join("cache")
+            .join("c_ffi")
+            .join("probe");
+        fs::create_dir_all(workspace.join("native")).expect("native dir");
+        fs::create_dir_all(&cache_dir).expect("cache dir");
+        fs::create_dir_all(&outside).expect("outside dir");
+        fs::write(
+            workspace.join("KAIN.toml"),
+            r#"
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "tiny"
+tier = "inline"
+header = "native/tiny.h"
+sources = ["native/tiny.c"]
+"#,
+        )
+        .expect("manifest");
+        fs::write(
+            workspace.join("native").join("tiny.h"),
+            "int tiny_add(int value);\n",
+        )
+        .expect("header");
+        fs::write(
+            workspace.join("native").join("tiny.c"),
+            "int tiny_add(int value) { return value + 1; }\n",
+        )
+        .expect("source");
+        let prelude_path = cache_dir.join("tiny_prelude.kn");
+        fs::write(
+            &prelude_path,
+            r#"
+use c::tiny::c_tiny_tiny_add as c_tiny_tiny_add
+
+fn main() -> Int:
+    return 0
+"#,
+        )
+        .expect("prelude");
+
+        let source = fs::read_to_string(&prelude_path).expect("read prelude");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(&outside).expect("set cwd");
+            DriverSession::default().frontend_to_typed_program_with_source_path(
+                &source,
+                Some(prelude_path.as_path()),
+                CompileTarget::Llvm,
+            )
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        result.expect("c ffi imports should resolve from the source file workspace");
     }
 
     #[test]

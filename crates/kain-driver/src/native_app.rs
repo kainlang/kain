@@ -587,7 +587,7 @@ impl DriverSession {
             .clone()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| root_component.clone());
-        let prepared_ui_source = crate::prepare_c_ffi_source(source, CompileTarget::Rust)?;
+        let prepared_ui_source = crate::prepare_c_ffi_source(source, None, CompileTarget::Rust)?;
         let mut runtime_contract =
             self.compile_runtime_contract_bundle(source, CompileTarget::Rust)?;
         let realtime = self

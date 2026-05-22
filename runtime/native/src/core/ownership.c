@@ -285,11 +285,13 @@ static int kain_ownership_helper_slot_from_token_unlocked(const void* ptr, uint1
     }
 
     uint32_t slot = (uint32_t)slot_token - 1u;
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-slot-token-stays-within-registry-capacity.yaml */
     if (slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
         return -1;
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-fast-path-requires-heap-slot-match.yaml */
     if (!region->occupied || region->ptr != ptr || !kain_ownership_region_is_heap(region)) {
         return -1;
     }
@@ -408,6 +410,7 @@ int __kain_ownership_ensure_imported(const void* ptr) {
     }
 
     kain_ownership_lock();
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-imported-ensure-fake-header-does-not-bypass-registration.yaml */
     int slot = kain_ownership_find_slot(ptr);
     int status = slot >= 0
         ? KAIN_OWNERSHIP_OK
@@ -449,6 +452,7 @@ int __kain_ownership_relocate_helper_allocation(
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-realloc-slot-fast-path-rejects-non-idle-region.yaml */
     if (region->state != KAIN_OWNERSHIP_STATE_IDLE || region->observers != 0u) {
         int status = kain_ownership_fail(kain_ownership_status_for_busy_region(region));
         kain_ownership_unlock();
@@ -526,6 +530,7 @@ static int kain_ownership_begin_observe_slot_unlocked(int slot) {
     if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-observer-count-does-not-overflow-when-guard-passes.yaml */
     if (region->observers == UINT32_MAX) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_OVERFLOW);
     }
@@ -699,6 +704,7 @@ static int kain_ownership_begin_share_slot_unlocked(int slot) {
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-share-requires-idle-region.yaml */
     if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_DECAYED);
     }
@@ -788,6 +794,7 @@ static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_h
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-decay-free-only-for-idle-heap-region.yaml */
     if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_DECAYED);
     }
@@ -807,6 +814,7 @@ static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_h
             return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
         }
         if (reclaim_helper_slot) {
+            /* Proof: runtime/native/src/core/z3/proofs/native-ownership-helper-decay-reclaims-slot.yaml */
             kain_ownership_clear_slot_unlocked(slot);
             return KAIN_OWNERSHIP_OK;
         }

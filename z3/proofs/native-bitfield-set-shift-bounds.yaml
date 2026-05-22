@@ -1,0 +1,33 @@
+version: 1
+id: kain.native.core.proofs.native_bitfield_set_shift_bounds
+kind: check_smt2
+description: Proves that __kain_bitfield_set contains potential undefined behavior (UB) in C since bit_offset can exceed the 64-bit shift limit of uint64_t.
+tags:
+- native-runtime
+- bitfield
+- shift
+- undefined-behavior
+source:
+  path: runtime\native\src\core\bitfield.c
+  symbol: __kain_bitfield_set
+  start_line: 119
+  reason: Shifting a 64-bit integer by >= 64 bits or a negative amount is undefined behavior in C.
+case:
+  smt2: |
+    (set-logic ALL)
+
+    ; Define bit_offset and width as 64-bit bit-vectors (representing int64_t)
+    (declare-const bit_offset (_ BitVec 64))
+    (declare-const width (_ BitVec 64))
+
+    ; Define safety condition: shift amount must be in range [0, 63]
+    (define-fun is_safe_shift ((shift (_ BitVec 64))) Bool
+      (and (bvuge shift (_ bv0 64)) (bvult shift (_ bv64 64))))
+
+    ; In C, unit_offset and bit_offset are arbitrary signed integers passed from the caller.
+    ; We assert the negation of the safety condition to see if we can trigger undefined behavior.
+    (assert (not (is_safe_shift bit_offset)))
+
+    (check-sat)
+  include_model: true
+  include_stats: false

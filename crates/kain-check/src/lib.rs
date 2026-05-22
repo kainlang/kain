@@ -295,6 +295,7 @@ fn should_skip_directory(path: &Path) -> bool {
         ".git"
             | ".hg"
             | ".svn"
+            | ".kain"
             | "target"
             | "node_modules"
             | "dist"
@@ -367,6 +368,21 @@ mod tests {
     }
 
     #[test]
+    fn check_source_allows_python_bridge_imports_in_llvm_frontend_checks() {
+        let report = check_source(
+            "<test>",
+            "use std::python::bridge\n\nfn main() -> Int:\n    py_bridge_exec(\"value = 1\")\n    return 0\n",
+            &CheckOptions::new(CompileTarget::Llvm),
+        );
+
+        assert!(
+            report.passed(),
+            "llvm frontend checks should see python bridge globals: {:?}",
+            report.error
+        );
+    }
+
+    #[test]
     fn discover_kain_files_skips_generated_directories() {
         let temp = tempfile::tempdir().expect("temp dir");
         kfs::write_text(
@@ -377,6 +393,9 @@ mod tests {
         kfs::create_dir_all(temp.path().join("generated")).expect("generated dir");
         kfs::write_text(temp.path().join("generated").join("skip.kn"), "")
             .expect("generated source");
+        kfs::create_dir_all(temp.path().join(".kain").join("cache")).expect("workspace cache dir");
+        kfs::write_text(temp.path().join(".kain").join("cache").join("skip.kn"), "")
+            .expect("workspace cache source");
 
         let files = discover_kain_files(temp.path()).expect("discover files");
         assert_eq!(files, vec![temp.path().join("root.kn")]);
@@ -409,7 +428,11 @@ pub fn four() -> Int:
         .expect("module source");
 
         let report = check_file(&main_path, &CheckOptions::new(CompileTarget::Llvm));
-        assert!(report.passed(), "expected importer-relative check to pass: {:?}", report.error);
+        assert!(
+            report.passed(),
+            "expected importer-relative check to pass: {:?}",
+            report.error
+        );
         assert!(report.item_count >= 1);
     }
 }

@@ -52,6 +52,7 @@ static void kain_fanout_drain_job(KainFanoutJob* job) {
             1,
             memory_order_seq_cst
         );
+        /* Proof: runtime/native/src/core/z3/proofs/native-fanout-range-drain-stays-within-end.yaml */
         if (index >= job->end) {
             return;
         }

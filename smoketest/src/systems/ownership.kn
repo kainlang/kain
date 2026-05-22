@@ -5,8 +5,7 @@ use converge::smoke_mix_pair
 use law::smoke_validate_range
 
 pub fn smoke_ownership_lane() -> Int:
-    let stride: Int = sizeof_type("Int")
-    let mut heap_cell: ptr<Int> = alloc_zeroed(stride, "Int")
+    let mut heap_cell: ptr<Int> = alloc_zeroed(1, "Int")
     mem_store(heap_cell, 21, "Int")
 
     let heap_observed: Int = observe heap_cell:

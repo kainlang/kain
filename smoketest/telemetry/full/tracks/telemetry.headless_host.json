@@ -1,0 +1,23 @@
+{
+  "mode": "full",
+  "category": "telemetry",
+  "track": "telemetry.headless_host",
+  "lane": "headless_host",
+  "offset": 3000,
+  "status": 0,
+  "ok": 1,
+  "started_ms": 33,
+  "ended_ms": 140,
+  "elapsed_ms": 107,
+  "track_checksum": 270487,
+  "composition_checksum": 2840007,
+  "cpu_feature_fingerprint": -7409408978278525106,
+  "patch_journal_count": 3,
+  "entangle_propagation_count": 3,
+  "converge_mismatch_count": 0,
+  "runtime_converge_telemetry_count": 0,
+  "runtime_machine_teleport_count": 11,
+  "runtime_machine_pulse_total_fire_count": 10,
+  "actor_scheduler_queue_depth": 0,
+  "actor_scheduler_total_enqueued": 0
+}

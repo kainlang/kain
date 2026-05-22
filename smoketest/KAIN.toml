@@ -19,6 +19,7 @@ source_roots = [
   "src/interop",
   "src/wasm",
   "src/telemetry",
+  "telemetry",
 ]
 module_roots = [
   "src",
@@ -29,6 +30,7 @@ module_roots = [
   "src/interop",
   "src/wasm",
   "src/telemetry",
+  "telemetry",
 ]
 build_targets = ["llvm"]
 

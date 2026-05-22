@@ -10,7 +10,7 @@ This file is only the live skill split for current agents.
 - `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.
 - `package-*`: durable package-owned surfaces.
 - `wildcard-*`: explicit high-freedom authoring overrides that deliberately cap repo context and favor intuition-first Kain drafting when the user wants creativity and speed over pattern-matching.
-- `tool-*`: rare cross-cutting operator lanes such as build plumbing, black-magic optimization, and release gating.
+- `tool-*`: rare cross-cutting operator lanes such as build plumbing, black-magic optimization, exploratory bug hunting, and release gating.
 
 ## Active Skills
 
@@ -39,6 +39,7 @@ This file is only the live skill split for current agents.
 - `wildcard-justwritebro`
 - `tool-build-system`
 - `tool-z3-black-magic`
+- `tool-z3-bug-hunter`
 - `tool-release-readiness`
 
 ## Rules
@@ -50,4 +51,5 @@ This file is only the live skill split for current agents.
 - Use `lang-interop` for Kain-side native/foreign boundaries; keep `lang-c-abi-ffi` as the narrow C ABI card until it is intentionally merged or archived.
 - Keep `wildcard-*` rare and explicit. They are authoring overrides, not replacements for the owning `lang-*` field manuals.
 - `tool-build-system` is the single build/Bazel/operator lane.
+- `tool-z3-bug-hunter` is the logging-only sibling of `tool-z3-black-magic`: use it to inventory reproducible bugs and edge cases, not to patch them inline.
 - `package-*` should stay rare and only exist for real package surfaces.

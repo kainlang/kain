@@ -1190,6 +1190,7 @@ int64_t abi_patch_begin(const char* patch_name) {
 
 int64_t abi_patch_record_i64(const char* patch_name, const char* path, int64_t old_value, int64_t new_value) {
     KainNativePatchJournalEntry* entry;
+    /* Proof: runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-count-stays-within-capacity.yaml */
     if (g_kain_native_patch_journal_count >= ABI_PATCH_JOURNAL_MAX) {
         return -3;
     }
@@ -1478,6 +1479,7 @@ static int abi_fs_builder_reserve(KainNativeFsTextBuilder* builder, size_t addit
         errno = EINVAL;
         return -1;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-stdlib-fs-builder-required-length-does-not-wrap-before-reserve.yaml */
     if (abi_size_add_overflows(builder->length, additional)) {
         errno = EOVERFLOW;
         return -1;
@@ -1594,6 +1596,7 @@ static int64_t abi_fs_create_parent_dirs(const char* path) {
         return 0;
     }
     length = strlen(path);
+    /* Proof: runtime/native/src/core/z3/proofs/native-stdlib-fs-parent-dir-copy-fits-stack-buffer-before-memcpy.yaml */
     if (length >= sizeof(buffer)) {
         errno = ENAMETOOLONG;
         return -1;

@@ -461,6 +461,7 @@ static int graphics_bundle_parse_binding_objects(
         if (!object_end) {
             break;
         }
+        /* Proof: runtime/native/src/core/z3/proofs/native-realtime-binding-count-stays-within-capacity.yaml */
         binding = &bindings[count];
         graphics_bundle_binding_init(binding);
         realtime_extract_string_field(object_start, object_end, "\"key\"", binding->key, sizeof(binding->key));

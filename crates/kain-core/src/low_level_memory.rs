@@ -2,8 +2,9 @@ use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::error::{DiagnosticBuilder, ErrorKind, KainResult};
 use crate::low_level_abi::{
-    c_abi_policy_for_target, named_scalar_layout, promoted_integer_bits, promoted_type_for_arithmetic,
-    should_apply_usual_arithmetic_conversions, usual_arithmetic_conversion_type, CAbiPolicy,
+    c_abi_policy_for_target, named_scalar_layout, promoted_integer_bits,
+    promoted_type_for_arithmetic, should_apply_usual_arithmetic_conversions,
+    usual_arithmetic_conversion_type, CAbiPolicy,
 };
 use crate::low_level_memory_metadata::{
     attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_PACKED_ATTR,

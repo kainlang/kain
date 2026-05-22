@@ -522,6 +522,7 @@ This codebase is too unsafe and too cross-layer for unaided human intuition to b
 - The proof standard is `unsat`: no valid binary sequence, state transition, capacity relation, or arithmetic input can violate the invariant.
 - Z3 is also a performance weapon. Use it for magic constants, branchless replacements, selector tables, bit masks, proof-backed unsafe Rust, C hot paths, Kain low-level math, and black-magic optimizer work.
 - Use `$tool-z3-black-magic` when the task is exploratory optimization, alien math, perfect hashes, bit hacks, branch elimination, or solver-guided replacement algorithms.
+- Use `$tool-z3-bug-hunter` when the task is exploratory bug discovery, weird edge-case pressure, or solver-backed defect triage that should be logged to `BUGS.md` rather than fixed inline.
 - Passing tests are useful telemetry. They are not proof.
 
 The old unit-test mindset checks a few numbers we remembered to write down. The Kain standard asks the solver to search the entire state space. If a buffer rule is `length + byte_count + slack < capacity`, encode the real bounds and make Z3 prove the violation impossible.
@@ -649,7 +650,7 @@ Do not let new Kain files collapse into plain `fn` and `let` soup when the probl
 - `test-*`: certification lanes such as harness, benchmark, attrition, and crash forensics.
 - `package-*`: package-owned surfaces that deserve their own lane, currently `package-kaintana` and `package-vulkain`.
 - `wildcard-*`: deliberate high-freedom authoring overrides for fast intuition-first Kain drafting when broad repo pattern-matching would get in the way.
-- `tool-*`: cross-cutting operator surfaces such as repo build plumbing, exploratory Z3 black magic, and release gating.
+- `tool-*`: cross-cutting operator surfaces such as repo build plumbing, exploratory Z3 black magic, exploratory bug hunting, and release gating.
 - Prefer updating an existing namespaced skill over spawning a new micro-skill. Do not create `misc-*`. 
 - Keep `wildcard-*` rare and explicit. They are authoring overrides, not substitutes for the owning `lang-*` lanes.
 - When a legacy `kain-*` skill name appears in old notes, resolve it through `.agents/skills/TAXONOMY.md` instead of reviving the old namespace.
@@ -663,6 +664,7 @@ Do not let new Kain files collapse into plain `fn` and `let` soup when the probl
 - Legacy is created by discovering capability the old stack could not express. Compliance is recreating the old stack with new filenames.
 - Try and use the lang-skills before going on a scavenger hunt and searching the entire repo. This is important as if you search the codebase for past examples always, it can poison the new code with past examples etc. The goal is fresh new kain files etc that difer from the other. If you use examples and references constantly, the language just ends up with the same set of examples
 - After writing kain or authoring it, consider using the $lang-feedback skill if you encounter fundamental issues with the language itself. This skills allows for a QA flow and improvement of the core language itself.
+- After a dedicated audit or strange edge-case hunt, consider using the $tool-z3-bug-hunter skill to log reproducible repo/system bugs into `BUGS.md` for future fixing agents instead of mixing discovery with repair.
 
 ## Canonical Commands
 

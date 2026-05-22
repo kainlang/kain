@@ -161,6 +161,7 @@ static uint32_t kain_machine_token_signature(const char* key) {
 }
 
 static uint64_t kain_machine_capability_mask_for_key(const char* key) {
+    /* Proof: runtime/native/src/core/z3/proofs/native-machine-capability-token-signatures-are-collision-free.yaml */
     switch (kain_machine_token_signature(key)) {
         case KAIN_MACHINE_TOKEN_SIG(14u, 'a', 't', 'k'):
             return strcmp(key, "atomic.bitmask") == 0 ? KAIN_MACHINE_CAP_ATOMIC_BITMASK : 0u;
@@ -389,6 +390,7 @@ void kain_machine_pulse_snapshot(
     }
     if (out_missed != NULL) {
         uint64_t tolerated = interval_ns + jitter_ns;
+        /* Proof: runtime/native/src/core/z3/proofs/native-machine-pulse-missed-beat-stays-bounded.yaml */
         *out_missed = (advanced > 1u && elapsed_ns > tolerated) ? advanced - 1u : 0u;
     }
     kain_machine_unlock(&g_machine_pulse_lock);
@@ -469,6 +471,7 @@ void* kain_machine_teleport_ptr(
     const char* target_world,
     const char* channel
 ) {
+    /* Proof: runtime/native/src/core/z3/proofs/native-machine-teleport-token-handoff-is-exclusive.yaml */
     uint64_t token = kain_machine_hash_text((uintptr_t)ptr, source_world);
     token ^= kain_machine_hash_text(token, target_world);
     token ^= kain_machine_hash_text(token, channel);
@@ -548,6 +551,7 @@ void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t 
         errno = ERANGE;
         return NULL;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-machine-shatter-lane-offset-stays-in-payload.yaml */
     if (kain_machine_mul_overflow_u64(lane_index, buffer->element_count, &linear_index) ||
         kain_machine_add_overflow_u64(linear_index, element_index, &linear_index) ||
         kain_machine_mul_overflow_u64(linear_index, KAIN_MACHINE_SHATTER_SLOT_BYTES, &byte_offset) ||
@@ -566,6 +570,7 @@ void* kain_machine_shatter_lane_base(void* handle, uint64_t lane_index) {
         errno = ERANGE;
         return NULL;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-machine-shatter-lane-base-shift-offset-stays-in-payload.yaml */
     if (kain_machine_mul_overflow_u64(lane_index, buffer->element_count, &lane_slots) ||
         kain_machine_mul_overflow_u64(lane_slots, KAIN_MACHINE_SHATTER_SLOT_BYTES, &byte_offset) ||
         byte_offset >= buffer->payload_bytes) {

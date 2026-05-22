@@ -1,0 +1,71 @@
+use std::collections
+use std::fs
+use std::python::bridge
+use report::smoke_telemetry_track_checksum
+
+const SMOKE_PYTHON_RUNNER_TRACK_ID: Int = 6100
+const SMOKE_PYTHON_RUNNER_LANE_RANK: Int = 37
+
+fn smoke_python_bridge_install_runner():
+    py_bridge_exec("import os\nimport pathlib\nimport subprocess\nimport sys\nimport time\n\n\ndef __kain_smoketest_python_probe():\n    cwd = pathlib.Path.cwd()\n    return {\n        'ok': True,\n        'python': pathlib.Path(sys.executable).as_posix(),\n        'version': sys.version.split()[0],\n        'platform': sys.platform,\n        'cwd': cwd.as_posix(),\n        'subprocess_available': True,\n    }\n\n\ndef __kain_smoketest_run(mode, executable, output_dir, bench_rounds, bench_passes, attrition_ops, attrition_rounds):\n    cwd = pathlib.Path.cwd()\n    exe_path = pathlib.Path(executable)\n    if not exe_path.is_absolute():\n        exe_path = (cwd / exe_path).resolve()\n    out_path = pathlib.Path(output_dir)\n    if not out_path.is_absolute():\n        out_path = (cwd / out_path).resolve()\n    out_path.mkdir(parents=True, exist_ok=True)\n\n    env = os.environ.copy()\n    env['KAIN_SMOKETEST_MODE'] = str(mode)\n    env['KAIN_SMOKETEST_OUTPUT_DIR'] = str(out_path)\n    if int(bench_rounds) > 0:\n        env['KAIN_SMOKETEST_BENCH_ROUNDS'] = str(int(bench_rounds))\n    if int(bench_passes) > 0:\n        env['KAIN_SMOKETEST_BENCH_PASSES'] = str(int(bench_passes))\n    if int(attrition_ops) > 0:\n        env['KAIN_SMOKETEST_ATTRITION_OPS'] = str(int(attrition_ops))\n    if int(attrition_rounds) > 0:\n        env['KAIN_SMOKETEST_ATTRITION_ROUNDS'] = str(int(attrition_rounds))\n\n    started_ms = int(time.time() * 1000)\n    completed = subprocess.run(\n        [str(exe_path)],\n        cwd=str(cwd),\n        env=env,\n        text=True,\n        capture_output=True,\n    )\n    ended_ms = int(time.time() * 1000)\n    summary_path = out_path / 'summary.json'\n    return {\n        'mode': str(mode),\n        'status': int(completed.returncode),\n        'stdout': completed.stdout,\n        'stderr': completed.stderr,\n        'started_ms': started_ms,\n        'ended_ms': ended_ms,\n        'elapsed_ms': ended_ms - started_ms,\n        'summary_exists': summary_path.exists(),\n        'summary_path': summary_path.as_posix(),\n        'output_dir': out_path.as_posix(),\n        'executable': exe_path.as_posix(),\n        'python': pathlib.Path(sys.executable).as_posix(),\n        'python_version': sys.version.split()[0],\n    }\n")
+
+pub fn smoke_python_bridge_probe_note() -> String:
+    smoke_python_bridge_install_runner()
+    let probe = py_bridge_call("__kain_smoketest_python_probe", [])
+    var note: String = "{\n"
+    note = note + "  \"ok\": " + str(bool_to_int(probe.ok)) + ",\n"
+    note = note + "  \"python\": \"" + probe.python + "\",\n"
+    note = note + "  \"version\": \"" + probe.version + "\",\n"
+    note = note + "  \"platform\": \"" + probe.platform + "\",\n"
+    note = note + "  \"cwd\": \"" + probe.cwd + "\",\n"
+    note = note + "  \"subprocess_available\": " + str(bool_to_int(probe.subprocess_available)) + "\n"
+    note = note + "}\n"
+    return note
+
+pub fn smoke_python_bridge_run_mode(mode: String, executable: String, output_dir: String, bench_rounds: Int, bench_passes: Int, attrition_ops: Int, attrition_rounds: Int) -> Int:
+    smoke_python_bridge_install_runner()
+    let result = py_bridge_call(
+        "__kain_smoketest_run",
+        [mode, executable, output_dir, bench_rounds, bench_passes, attrition_ops, attrition_rounds]
+    )
+    let note_checksum = smoke_telemetry_track_checksum(
+        SMOKE_PYTHON_RUNNER_TRACK_ID,
+        SMOKE_PYTHON_RUNNER_LANE_RANK,
+        result.status,
+        result.elapsed_ms,
+        mode
+    )
+    let probe_note = smoke_python_bridge_probe_note()
+    let notes_dir = fs_path_join(output_dir, "notes")
+    fs_create_dir_all(notes_dir)
+    let note_path = fs_path_join(notes_dir, "python_runner.json")
+    var note: String = "{\n"
+    note = note + "  \"mode\": \"" + mode + "\",\n"
+    note = note + "  \"status\": " + str(result.status) + ",\n"
+    note = note + "  \"elapsed_ms\": " + str(result.elapsed_ms) + ",\n"
+    note = note + "  \"summary_exists\": " + str(bool_to_int(result.summary_exists)) + ",\n"
+    note = note + "  \"summary_path\": \"" + result.summary_path + "\",\n"
+    note = note + "  \"output_dir\": \"" + result.output_dir + "\",\n"
+    note = note + "  \"executable\": \"" + result.executable + "\",\n"
+    note = note + "  \"python\": \"" + result.python + "\",\n"
+    note = note + "  \"python_version\": \"" + result.python_version + "\",\n"
+    note = note + "  \"stdout_len\": " + str(len(result.stdout)) + ",\n"
+    note = note + "  \"stderr_len\": " + str(len(result.stderr)) + ",\n"
+    note = note + "  \"runner_checksum\": " + str(note_checksum) + ",\n"
+    note = note + "  \"probe\": " + probe_note
+    note = note + "}\n"
+    fs_atomic_write_text(note_path, note)
+
+    if len(result.stdout) != 0:
+        println(result.stdout)
+    if len(result.stderr) != 0:
+        println(result.stderr)
+    if result.status != 0:
+        return result.status
+    if result.summary_exists == false:
+        return 3
+    if fs_exists(result.summary_path) == false:
+        return 4
+    if len(result.python_version) == 0:
+        return 5
+    return 0

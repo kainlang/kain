@@ -1,0 +1,23 @@
+{
+  "mode": "full",
+  "category": "semantics",
+  "track": "semantics.orchestrate",
+  "lane": "orchestrate",
+  "offset": 1200,
+  "status": 0,
+  "ok": 1,
+  "started_ms": 24,
+  "ended_ms": 24,
+  "elapsed_ms": 0,
+  "track_checksum": 43306,
+  "composition_checksum": 195945,
+  "cpu_feature_fingerprint": -7409408978278525106,
+  "patch_journal_count": 3,
+  "entangle_propagation_count": 3,
+  "converge_mismatch_count": 0,
+  "runtime_converge_telemetry_count": 0,
+  "runtime_machine_teleport_count": 2,
+  "runtime_machine_pulse_total_fire_count": 2,
+  "actor_scheduler_queue_depth": 0,
+  "actor_scheduler_total_enqueued": 0
+}

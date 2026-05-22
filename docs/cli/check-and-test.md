@@ -47,9 +47,10 @@ The check report records:
 
 Use `--target` when the same source needs to be checked against a specific backend profile. The default is `run`, matching the interpreter-oriented local authoring loop.
 
-The current tree walk can still see local `.kn` files under `.kain` if they sit
-beneath the chosen root. Keep unpacked capsule probes or other generated Kain
-source out of the checked blade root when you want a clean directory-wide pass.
+Directory-wide `kain check` skips generated cache roots such as `.kain`,
+`target`, and `generated` so workspace checks stay focused on authored source.
+If you intentionally want to validate a generated Kain file, pass that file
+path directly.
 
 ## Test Modes
 

@@ -92,6 +92,7 @@ static int kain_alloc_cache_release(KainAllocHeader* header, size_t payload_size
 
     size_t bucket = kain_alloc_cache_bucket(payload_size);
     kain_alloc_cache_lock();
+    /* Proof: runtime/native/src/core/z3/proofs/native-memory-helper-allocation-cache-bounds.yaml */
     if (KAIN_ALLOC_CACHE_NODES >= KAIN_ALLOC_CACHE_MAX_NODES ||
         KAIN_ALLOC_CACHE_BYTES > KAIN_ALLOC_CACHE_MAX_BYTES - allocation_size) {
         kain_alloc_cache_unlock();
@@ -179,6 +180,7 @@ static int kain_pointer_with_signed_byte_offset(void* ptr, int64_t byte_offset, 
 
 static int kain_pointer_with_size_offset(void* ptr, size_t byte_offset, void** out) {
     uintptr_t result_address = 0;
+    /* Proof: runtime/native/src/core/z3/proofs/native-memory-pointer-size-offset-does-not-wrap-before-pointer-rebuild.yaml */
     if (kain_add_overflow_uintptr((uintptr_t)ptr, (uintptr_t)byte_offset, &result_address)) {
         return 1;
     }
@@ -521,6 +523,10 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
     KainAllocHeader* header = NULL;
     uint16_t slot_token = 0u;
 
+    /*
+     * Proof: runtime/native/src/core/z3/proofs/native-memory-alloc-payload-size-does-not-wrap-before-header-accounting.yaml
+     * Proof: runtime/native/src/core/z3/proofs/native-memory-alloc-header-plus-payload-does-not-wrap-before-allocation.yaml
+     */
     if (kain_mul_overflow_size(size, stride, &payload_size)
         || kain_add_overflow_size(sizeof(KainAllocHeader), payload_size, &allocation_size)) {
         errno = ENOMEM;
@@ -595,6 +601,10 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
         return NULL;
     }
 
+    /*
+     * Proof: runtime/native/src/core/z3/proofs/native-memory-realloc-payload-size-does-not-wrap-before-header-accounting.yaml
+     * Proof: runtime/native/src/core/z3/proofs/native-memory-realloc-header-plus-payload-does-not-wrap-before-allocation.yaml
+     */
     if (kain_mul_overflow_size(size, stride, &new_payload_size)
         || kain_add_overflow_size(sizeof(KainAllocHeader), new_payload_size, &allocation_size)) {
         errno = ENOMEM;

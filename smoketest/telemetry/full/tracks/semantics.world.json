@@ -1,0 +1,23 @@
+{
+  "mode": "full",
+  "category": "semantics",
+  "track": "semantics.world",
+  "lane": "world",
+  "offset": 600,
+  "status": 0,
+  "ok": 1,
+  "started_ms": 22,
+  "ended_ms": 22,
+  "elapsed_ms": 0,
+  "track_checksum": 10870,
+  "composition_checksum": 27732,
+  "cpu_feature_fingerprint": -7409408978278525106,
+  "patch_journal_count": 0,
+  "entangle_propagation_count": 0,
+  "converge_mismatch_count": 0,
+  "runtime_converge_telemetry_count": 0,
+  "runtime_machine_teleport_count": 2,
+  "runtime_machine_pulse_total_fire_count": 2,
+  "actor_scheduler_queue_depth": 0,
+  "actor_scheduler_total_enqueued": 0
+}

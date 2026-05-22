@@ -187,6 +187,7 @@ static int abi_net_parse_content_length_header(const char* text, size_t* out_len
         ++text;
     }
 
+    /* Proof: runtime/native/src/core/z3/proofs/native-net-content-length-requires-nonnegative-parse.yaml */
     if (*text == '\0' || *text == '-' || *text == '+') {
         return 0;
     }
@@ -735,6 +736,7 @@ static int abi_net_append_bytes(unsigned char** buffer, size_t* length, size_t* 
     if (buffer == 0 || length == 0 || capacity == 0 || bytes == 0) {
         return 0;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-net-append-needed-size-does-not-wrap-after-guards.yaml */
     if (abi_net_size_add_overflow(*length, byte_count, &needed) ||
         abi_net_size_add_overflow(needed, 1u, &needed)) {
         return 0;
@@ -1364,6 +1366,10 @@ static int abi_net_parse_http_request(KainNativeHttpRequest* request, unsigned c
         }
     }
     if (body_length > 0u) {
+        /*
+         * Proof: runtime/native/src/core/z3/proofs/native-net-request-body-span-does-not-wrap-after-guards.yaml
+         * Proof: runtime/native/src/core/z3/proofs/native-net-request-body-allocation-does-not-wrap-after-guards.yaml
+         */
         if (abi_net_size_add_overflow(header_length, body_length, &required_length) ||
             required_length > length ||
             abi_net_size_add_overflow(body_length, 1u, &required_length)) {
@@ -1412,6 +1418,7 @@ static int64_t abi_net_store_http_response(
     }
     if (body_length > 0u) {
         size_t allocation_size = 0u;
+        /* Proof: runtime/native/src/core/z3/proofs/native-net-response-body-allocation-does-not-wrap.yaml */
         if (abi_net_size_add_overflow(body_length, 1u, &allocation_size)) {
             return abi_net_fail(ABI_NET_IO_ERROR, "allocation", "HTTP response body length overflowed");
         }

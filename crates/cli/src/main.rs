@@ -1898,7 +1898,7 @@ fn watch_mode(
     let (tx, rx) = channel();
     let mut _watcher =
         build_watch_mode_watcher(tx.clone(), &watch_inputs_for_session(&session, &input))
-        .expect("Failed to create watcher");
+            .expect("Failed to create watcher");
 
     while running.load(Ordering::SeqCst) {
         match rx.recv_timeout(Duration::from_millis(100)) {

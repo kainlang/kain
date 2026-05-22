@@ -35,6 +35,7 @@ static void kain_copy_text(char* out, size_t out_size, const char* text) {
     }
 
     length = strlen(text);
+    /* Proof: runtime/native/src/core/z3/proofs/native-services-copy-text-fits-destination-before-null-write.yaml */
     if (length >= out_size) {
         length = out_size - 1;
     }
@@ -1147,4 +1148,3 @@ KainServiceRegistry* kain_service_registry_global(void) {
     }
     return &g_service_registry;
 }
-

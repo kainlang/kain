@@ -1,5 +1,55 @@
 # Kain Memory
 
+# 2026-05-22 - `kain check` is now source-path anchored for C FFI and skips workspace `.kain` caches
+
+The `kain check` lane is less cwd-sensitive and less noisy now: frontend C FFI augmentation no longer depends on the shell launch directory when a real source path is known, and directory-wide checks stop recursing into generated `.kain` trees by default.
+
+What changed:
+
+- `crates/kain-driver/src/lib.rs`
+  - `prepare_frontend_source_for_target(...)` now takes `source_path` and threads it through C FFI and Rust FFI source preparation
+  - frontend import collection now prepares imported module sources relative to their own file path, not the ambient process cwd
+  - added a regression test that checks a generated `.kain/cache/c_ffi/.../tiny_prelude.kn` file from outside its workspace and proves the nearest `KAIN.toml` is still honored
+- `crates/kain-driver/src/native_app.rs`
+  - updated the native-app helper callsite to the new `prepare_c_ffi_source(..., source_path, ...)` signature
+- `crates/kain-check/src/lib.rs`
+  - directory discovery now skips `.kain` alongside other generated roots, so workspace checks only count authored source by default
+  - regression test now covers both `generated/` and `.kain/cache/`
+- `docs/cli/check-and-test.md`
+  - updated the operator contract to document that generated cache roots are skipped unless a generated file is passed explicitly
+
+Validation:
+
+- `cargo test -p kain-check discover_kain_files_skips_generated_directories --target-dir target/codex-check-pipeline`
+- `cargo test -p kain-driver frontend_to_typed_program_with_source_path_resolves_c_ffi_relative_to_source_file --target-dir target/codex-check-pipeline`
+- `cargo build -p cli --target-dir target/codex-check-pipeline`
+- fresh CLI binary:
+  - `D:\Kain-Lang\target\codex-check-pipeline\debug\kain.exe check .\smoketest --target llvm` -> `Check passed: 43/43 passed`
+  - from `D:\Kain-Lang\smoketest`: `..\target\codex-check-pipeline\debug\kain.exe check . --target llvm` -> `Check passed: 43/43 passed`
+  - from `D:\Kain-Lang\smoketest\src\systems`: `..\..\..\target\codex-check-pipeline\debug\kain.exe check . --target llvm` -> still `2/2 passed`
+  - from `D:\Kain-Lang\smoketest\src\systems`: `..\..\..\target\codex-check-pipeline\debug\kain.exe check ..\.. --target llvm` -> `43/43 passed`
+
+Durable lesson:
+
+- The reliability bugs were two different problems: generated cache recursion and cwd-anchored frontend FFI prep. Fixing both makes workspace-root checks boring again.
+- The bigger UX gap is still open: nested-folder `kain check .` remains local-folder scoped instead of auto-fanning out to the enclosing workspace root or build-graph check entry. That should be treated as a separate scope-selector feature, not confused with the cache/cwd correctness bug.
+
+# 2026-05-22 - added `tool-z3-bug-hunter` as the exploratory solver-backed bug logging lane
+
+The repo-local skill tree now includes `.agents/skills/tool-z3-bug-hunter`, a sibling to `tool-z3-black-magic` that keeps the same solver-aggressive spirit but changes the deliverable: find weird edge-case bugs, prove or witness them when possible, and append the evidence to `BUGS.md` instead of fixing the code in the same pass.
+
+What changed:
+
+- added `.agents/skills/tool-z3-bug-hunter/SKILL.md` as a logging-only Z3 bug hunt lane with qualifying issue rules, hunt loop, `BUGS.md` format, and anti-fix guardrails
+- added `.agents/skills/tool-z3-bug-hunter/agents/openai.yaml` UI metadata
+- updated `.agents/skills/TAXONOMY.md` and `AGENTS.md` so future agents can route solver-backed bug hunts into the new `tool-*` sibling lane intentionally
+
+Validation:
+
+- `python C:\\Users\\Admin\\.codex\\skills\\.system\\skill-creator\\scripts\\quick_validate.py D:\\Kain-Lang\\.agents\\skills\\tool-z3-bug-hunter`
+
+Future agents should use `$tool-z3-bug-hunter` when the assignment is to discover and log bugs with hard evidence, not when the goal is to land a rewrite or optimization. If the work turns into solver-guided replacement or hot-path mutation, pivot to `$tool-z3-black-magic` plus the owning subsystem skill.
+
 # 2026-05-22 - added `wildcard-justwritebro` as the anti-scavenger Kain authoring lane
 
 The repo-local skill tree now includes a deliberate `wildcard-*` namespace for intuition-first Kain authoring overrides. The first lane, `.agents/skills/wildcard-justwritebro`, tells agents to load the core authoring manuals and then start writing instead of spending several minutes pattern-matching against the whole repo.

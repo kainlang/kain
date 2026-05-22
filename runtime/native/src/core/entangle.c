@@ -11,6 +11,7 @@ static int runtime_copy_entangle_text(char* dst, size_t dst_cap, const char* src
     }
 
     size_t len = strlen(src);
+    /* Proof: runtime/native/src/core/z3/proofs/native-entangle-copy-text-fits-destination-before-null-copy.yaml */
     if (len >= dst_cap) {
         return -2;
     }
@@ -34,6 +35,7 @@ int entangle_registry_register(
     const char* policy,
     const char* type_name
 ) {
+    /* Proof: runtime/native/src/core/z3/proofs/native-entangle-register-count-stays-within-capacity.yaml */
     if (g_kain_entangle_binding_count >= ENTANGLE_MAX_BINDINGS) {
         return -3;
     }
