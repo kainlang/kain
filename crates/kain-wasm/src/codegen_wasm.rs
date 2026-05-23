@@ -290,6 +290,18 @@ fn main() -> Float:
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
     }
+
+    #[test]
+    fn wasm_generate_lowers_constructor_style_numeric_casts() {
+        let source = r#"
+fn main() -> Float:
+    return Float(7) + Float(3) + 0.5
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_constructor_casts.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+    }
 }
 
 struct WasmCompiler {
