@@ -4,10 +4,10 @@
 // kind:       kain_executable
 // storage:    editable
 // contents:   source
-// digest:     sha256:8eb517dac91278c7a24bef430b2ba736786ed3cb756e868ec966152cfb4d981f
+// digest:     sha256:34164dbb4d29463853ae8d1ad8ac38afff8b63c3ccda5a6e31b7429ebd942bee
 // capsule:    smoketest
 // entry:      src/main.kn
-// structure:  64 files | 50 modules
+// structure:  81 files | 67 modules
 // ---------------------------------------------------------------------------
 //
 // -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
@@ -15,18 +15,20 @@
 // [constants]
 //   SMOKE_C_ABI_ALBUM_MODULUS, SMOKE_C_BRIDGE_MODULUS, SMOKE_ALBUM_MODULUS
 //   SMOKE_COMPTIME_MAGIC, SMOKE_COMPTIME_LANES, SMOKE_COMPTIME_VERSION
-//   SMOKE_MODULUS, ABI_TLS_ANCHOR, ABI_TLS_COUNTER, ABI_TLS_BIAS, ABI_TLS_EXPERT
-//   ABI_CONST_BIAS, SMOKE_HUGE_PAGE_PROBE_BYTES, SMOKE_FLOW_CELL_COUNT
-//   SMOKE_FLOW_CONVERGE_KEY, SMOKE_FLOW_MODULUS, SMOKE_TELEMETRY_ROOT
-//   SMOKE_TELEMETRY_TRACKS_DIR, SMOKE_TELEMETRY_NOTES_DIR, SMOKE_TELEMETRY_MODULUS
-//   SMOKE_PYTHON_RUNNER_TRACK_ID, SMOKE_PYTHON_RUNNER_LANE_RANK
-//   SMOKE_PYTHON_RUNNER_MODULUS
+//   KEYWORD_MESH_MODULUS, SMOKE_MODULUS, ABI_TLS_ANCHOR, ABI_TLS_COUNTER
+//   ABI_TLS_BIAS, ABI_TLS_EXPERT, ABI_CONST_BIAS, SHARE_FANOUT_WORKERS
+//   SHARE_FANOUT_STEPS, SHARE_FANOUT_MODULUS, SMOKE_HUGE_PAGE_PROBE_BYTES
+//   SMOKE_FLOW_CELL_COUNT, SMOKE_FLOW_CONVERGE_KEY, SMOKE_FLOW_MODULUS
+//   SMOKE_TELEMETRY_ROOT, SMOKE_TELEMETRY_TRACKS_DIR, SMOKE_TELEMETRY_NOTES_DIR
+//   SMOKE_TELEMETRY_MODULUS, SMOKE_PYTHON_RUNNER_TRACK_ID
+//   SMOKE_PYTHON_RUNNER_LANE_RANK, SMOKE_PYTHON_RUNNER_MODULUS
 //
 // [types]
-//   shatter struct SmokeShard, struct SmokePacket, struct DeviceRegs
+//   struct KeywordMeshRecord, shatter struct SmokeShard, struct SmokePacket
+//   struct DeviceRegs
 //
 // [traits]
-//   trait SmokeFold
+//   trait KeywordFold, trait SmokeFold
 //
 // [components]
 //   component RcProbePanel(), component SmokePatchPanel()
@@ -60,15 +62,22 @@
 //   fn smoke_gpu_fn(value: Int) -> Int with GPU
 //   fn smoke_reactive_fn(value: Int) -> Int with Reactive
 //   fn smoke_unsafe_fn(value: Int) -> Int with Unsafe
+//   fn keyword_mix_pair(left: Int, right: Int) -> Int
+//   fn keyword_lane_rank(lane: SmokeLane) -> Int
+//   fn keyword_checksum(packet: SmokePacket) -> Int
+//   fn build_keyword_score(seed: Int) -> Int
+//   fn compose_keyword_summary(tag: String, score: Int) -> String
+//   fn smoke_async_effect(seed: Int) -> Int with Async
 //   fn smoke_maybe(flag: Bool) -> Option<Int>
 //   fn smoke_parse(flag: Bool) -> Result<Int, String>
 //   fn smoke_use_question_mark() -> Result<Int, String>
 //   fn smoke_stage_bias(value: Int) -> Int
 //   fn smoke_approx(a: Float, b: Float) -> Bool
+//   fn smoke_process_last_path_segment(path: String) -> String
 //   fn smoke_abi_symbol_lane(seed: Int) -> Int
 //   fn smoke_naked_trap_lane() with Unsafe, fn smoke_interrupt_lane() with Unsafe
 //   fn smoke_mmio_fold(regs: ptr<DeviceRegs>) -> Int with Unsafe
-//   fn smoke_digit_value(ch: String) -> Int
+//   fn share_fanout_expected() -> Int, fn smoke_digit_value(ch: String) -> Int
 //   fn smoke_parse_int_text(text: String) -> Int
 //   fn smoke_env_int(key: String, fallback: Int) -> Int, fn main() -> Int
 //   fn smoke_env_text(key: String, fallback: String) -> String
@@ -76,31 +85,8 @@
 //   fn wasm_fibonacci(n: Int) -> Int
 //   fn smoke_python_runner_track_checksum(track_id: Int, lane_rank: Int, status: Int, elapsed_ms: Int, tag: String) -> Int
 //   fn smoke_python_bridge_install_runner()
-//   fn smoke_cli_value(argv: [String], flag: String, fallback: String) -> String
-//   fn smoke_cli_int(argv: [String], flag: String, fallback: Int) -> Int
 //
-// [patches]
-//   patch smoke_commit_signal(authority: SmokePatchAuthority, value: Int) -> Int
-//   patch smoke_telemetry_commit_signal(authority: SmokeTelemetryAuthority, value: Int) -> Int
-//
-// [laws]
-//   law smoke_signal_in_bounds(value: Int) -> Bool
-//   law smoke_health_positive(health: Int) -> Bool
-//
-// [converges]
-//   converge smoke_mix(value: Int) -> Int
-//
-// [orchestrates]
-//   orchestrate smoke_pipeline(value: Int) -> Int
-//
-// [shaders]
-//   shader compute SmokeParticleStep(id: UVec3) -> Vec4
-//   shader compute SmokeReductionKernel(id: UVec3) -> Vec4
-//   shader fragment SmokeGradient(uv: Vec2) -> Vec4
-//   shader fragment SmokeVignette(uv: Vec2) -> Vec4
-//
-// [axioms]
-//   axiom smoke_machine_truth
+// [+14 more symbols hidden. use 'kain amalgamate inspect <capsule.kn>' for full log]
 //
 //!kain-capsule
 // schema = 2
@@ -109,14 +95,14 @@
 // contents = "source"
 // source_kind = "kain_executable"
 // compression = "none"
-// digest = "sha256:8eb517dac91278c7a24bef430b2ba736786ed3cb756e868ec966152cfb4d981f"
-// created_at = "2026-05-23T05:22:22.350286700+00:00"
-// file_count = 64
-// module_count = 50
+// digest = "sha256:34164dbb4d29463853ae8d1ad8ac38afff8b63c3ccda5a6e31b7429ebd942bee"
+// created_at = "2026-05-23T22:20:20.454341600+00:00"
+// file_count = 81
+// module_count = 67
 // preview_symbol_limit = 96
 // api_index = "auto"
 // module_index = "auto"
-// directories = ["native", "src", "src/c", "src/gpu", "src/interop", "src/semantics", "src/stdlib", "src/systems", "src/telemetry", "src/wasm", "telemetry", "telemetry/python_bridge.kn", "telemetry/run_smoketest_mode.kn"]
+// directories = ["native", "src", "src/c", "src/gpu", "src/interop", "src/semantics", "src/stdlib", "src/systems", "src/telemetry", "src/wasm", "telemetry"]
 // name = "smoketest"
 // capsule_set = "smoketest"
 // version = "0.1.0"
@@ -216,8 +202,8 @@
 // path = "build.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 11743
-// sha256 = "sha256:c8113e5f141d8afead5cbe4d763c41dbd998a994538bb80cc1193eb5b757b853"
+// bytes = 12471
+// sha256 = "sha256:f715bab2047234cb4cd31aefe135ec27ecc5abc44784ef50736390b6c13db828"
 // trailing_newline = true
 //!kain-file-content
 // use std::build
@@ -238,7 +224,7 @@
 //
 //     let run = run_defaults().entry("src/main.kn").target("llvm").watch("src/telemetry").watch("telemetry").watch("native").watch("telemetry/python_bridge.kn").watch("telemetry/run_smoketest_mode.kn")
 //
-//     let check_llvm = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.evidence").telemetry("smoketest.album").input("src/main.kn").input("src/semantics/types.kn").input("src/semantics/control.kn").input("src/semantics/effects.kn").input("src/semantics/option_result.kn").input("src/semantics/async_future.kn").input("src/semantics/world.kn").input("src/semantics/entangle.kn").input("src/semantics/law.kn").input("src/semantics/patch.kn").input("src/semantics/actor.kn").input("src/semantics/converge.kn").input("src/semantics/orchestrate.kn").input("src/semantics/axiom.kn").input("src/semantics/shatter.kn").input("src/semantics/pulse.kn").input("src/semantics/teleport.kn").input("src/semantics/comptime.kn").input("src/systems/memory.kn").input("src/systems/ownership.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/gpu/fragment.kn").input("src/gpu/compute.kn").input("src/stdlib/collections_lane.kn").input("src/stdlib/crypto_lane.kn").input("src/stdlib/text_lane.kn").input("src/stdlib/fs_lane.kn").input("src/stdlib/alloc_lane.kn").input("src/stdlib/math_lane.kn").input("src/stdlib/time_lane.kn").input("src/stdlib/diagnostics_lane.kn").input("src/stdlib/platform_lane.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
+//     let check_llvm = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.evidence").telemetry("smoketest.album").input("src/main.kn").input("src/semantics/types.kn").input("src/semantics/control.kn").input("src/semantics/effects.kn").input("src/semantics/option_result.kn").input("src/semantics/async_future.kn").input("src/semantics/world.kn").input("src/semantics/entangle.kn").input("src/semantics/law.kn").input("src/semantics/patch.kn").input("src/semantics/actor.kn").input("src/semantics/converge.kn").input("src/semantics/orchestrate.kn").input("src/semantics/axiom.kn").input("src/semantics/shatter.kn").input("src/semantics/pulse.kn").input("src/semantics/teleport.kn").input("src/semantics/comptime.kn").input("src/semantics/keyword_mesh.kn").input("src/systems/memory.kn").input("src/systems/ownership.kn").input("src/systems/share_fanout.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/gpu/fragment.kn").input("src/gpu/compute.kn").input("src/stdlib/ascii_lane.kn").input("src/stdlib/base64_lane.kn").input("src/stdlib/bytes_lane.kn").input("src/stdlib/collections_lane.kn").input("src/stdlib/crypto_lane.kn").input("src/stdlib/text_lane.kn").input("src/stdlib/fs_lane.kn").input("src/stdlib/alloc_lane.kn").input("src/stdlib/json_lane.kn").input("src/stdlib/math_lane.kn").input("src/stdlib/time_lane.kn").input("src/stdlib/unicode_lane.kn").input("src/stdlib/random_lane.kn").input("src/stdlib/uri_lane.kn").input("src/stdlib/semver_lane.kn").input("src/stdlib/sync_lane.kn").input("src/stdlib/io_lane.kn").input("src/stdlib/meta_lane.kn").input("src/stdlib/thread_lane.kn").input("src/stdlib/process_lane.kn").input("src/stdlib/diagnostics_lane.kn").input("src/stdlib/platform_lane.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
 //
 //     let check_runner = exec_task("check-telemetry-runner").command("powershell").cwd("..").telemetry("smoketest.python-ffi").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/telemetry/report.kn").input("build.kn").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("check").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret")
 //
@@ -252,15 +238,15 @@
 //
 //     let gpu_hlsl = build_task("gpu-hlsl").kind("gpu").entry("src/gpu/fragment.kn").target("hlsl").artifact_root(".kain/out/hlsl").requires("check-spirv").input("src/gpu/fragment.kn").input("src/gpu/compute.kn")
 //
-//     let source_tests = test_suite("source-tests").entry("src/main.kn").target("llvm").requires("check-llvm").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
+//     let source_tests = test_suite("source-tests").entry("src/main.kn").target("llvm").requires("check-llvm").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
 //
-//     let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/smoketest.exe").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
+//     let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/smoketest.exe").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
 //
-//     let telemetry_full = exec_task("telemetry-full").command("powershell").cwd("..").requires("root-executable").requires("check-telemetry-runner").telemetry("smoketest.full").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("run").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret").arg("--").arg("--mode").arg("full").arg("--executable").arg("$root/smoketest.exe").arg("--output-dir").arg("$root/telemetry/full").output("$root/telemetry/full")
+//     let telemetry_full = exec_task("telemetry-full").command("powershell").cwd("..").requires("root-executable").requires("check-telemetry-runner").telemetry("smoketest.full").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("run").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret").arg("--").arg("--mode").arg("full").arg("--executable").arg("$root/smoketest.exe").arg("--output-dir").arg("$root/telemetry/full").output("$root/telemetry/full")
 //
-//     let bench_album = exec_task("album-benchmark").command("powershell").cwd("..").requires("root-executable").requires("check-telemetry-runner").telemetry("smoketest.benchmark").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/telemetry/flow.kn").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("run").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret").arg("--").arg("--mode").arg("benchmark").arg("--executable").arg("$root/smoketest.exe").arg("--output-dir").arg("$root/telemetry/benchmark").arg("--bench-rounds").arg("256").arg("--bench-passes").arg("6").output("$root/telemetry/benchmark")
+//     let bench_album = exec_task("album-benchmark").command("powershell").cwd("..").requires("root-executable").requires("check-telemetry-runner").telemetry("smoketest.benchmark").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/flow.kn").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("run").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret").arg("--").arg("--mode").arg("benchmark").arg("--executable").arg("$root/smoketest.exe").arg("--output-dir").arg("$root/telemetry/benchmark").arg("--bench-rounds").arg("256").arg("--bench-passes").arg("6").output("$root/telemetry/benchmark")
 //
-//     let attrition_album = exec_task("album-attrition").command("powershell").cwd("..").requires("root-executable").requires("check-telemetry-runner").telemetry("smoketest.attrition").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/telemetry/flow.kn").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("run").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret").arg("--").arg("--mode").arg("attrition").arg("--executable").arg("$root/smoketest.exe").arg("--output-dir").arg("$root/telemetry/attrition").arg("--attrition-ops").arg("20").arg("--attrition-rounds").arg("96").output("$root/telemetry/attrition")
+//     let attrition_album = exec_task("album-attrition").command("powershell").cwd("..").requires("root-executable").requires("check-telemetry-runner").telemetry("smoketest.attrition").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/flow.kn").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("run").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret").arg("--").arg("--mode").arg("attrition").arg("--executable").arg("$root/smoketest.exe").arg("--output-dir").arg("$root/telemetry/attrition").arg("--attrition-ops").arg("20").arg("--attrition-rounds").arg("96").output("$root/telemetry/attrition")
 //
 //     let certify = certify_gate("certify").requires("check-llvm").requires("check-telemetry-runner").requires("check-spirv").requires("check-wasm").requires("source-tests").requires("root-executable").requires("telemetry-full").requires("album-benchmark").requires("album-attrition").certifies("smoketest.local")
 //
@@ -9927,11 +9913,17 @@
 // path = "src/gpu/fragment.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 686
-// sha256 = "sha256:ae99c65ce41501358daf1238565c69aa61f1530beb51857697ff0762071859e0"
+// bytes = 1067
+// sha256 = "sha256:25db165f1fc83073257e549666a4fcca5662b3e6e353022e1afacb87cfe95fc7"
 // trailing_newline = true
 //!kain-file-content
 // use std::math
+//
+// shader vertex SmokeVertex(position: Vec3, uv: Vec2) -> Vec4:
+//     uniform offset: Vec3 @0
+//     let lane = position.x + offset.x
+//     let bias = uv.x + uv.y
+//     return vec4(lane, position.y + offset.y + bias, position.z + offset.z, 1.0)
 //
 // shader fragment SmokeGradient(uv: Vec2) -> Vec4:
 //     uniform accent: Vec3 @0
@@ -9947,6 +9939,12 @@
 //     let dist: Float = center_x * center_x + center_y * center_y
 //     let edge: Float = (uv.x * (1.0 - uv.x) + uv.y * (1.0 - uv.y)) * 2.0
 //     return vec4(tint.x * (1.0 - dist), tint.y * (1.0 - dist), tint.z * edge, 1.0)
+//
+// pub fn smoke_vertex_lane() -> Int:
+//     let ridge = vec3(1.0, 2.0, 2.0)
+//     if abs(vec3_length(ridge) - 3.0) > 0.01:
+//         return 1
+//     return 0
 //!end-kain-file
 //!kain-file
 // path = "src/interop/c_abi_album.kn"
@@ -10084,8 +10082,8 @@
 // path = "src/main.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 23732
-// sha256 = "sha256:aabef51943b109eb23f2bb29f86ed754039d1d85ef1528cc800c13e1ce23e2d9"
+// bytes = 33607
+// sha256 = "sha256:6e45b7780e093b48b6c83cfcca84dfc8b2ea7de234bcafa48822b8fbefed7de2"
 // trailing_newline = true
 //!kain-file-content
 // use std::runtime
@@ -10110,24 +10108,43 @@
 // use pulse::smoke_pulse_lane
 // use teleport::smoke_teleport_lane
 // use comptime::smoke_comptime_lane
+// use keyword_mesh::smoke_keyword_mesh_lane
 //
 // // Systems tracks
 // use memory::smoke_memory_lane
 // use ownership::smoke_ownership_lane
+// use share_fanout::smoke_share_fanout_lane
 // use abi_control::smoke_abi_control_lane
 // use vm_topology::smoke_vm_topology_lane
 // use mmio_interrupt::smoke_mmio_interrupt_lane
+// use native_cli::smoke_native_cli_lane
+//
+// // GPU tracks
+// use fragment::smoke_vertex_lane
 //
 // // Stdlib tracks
+// use ascii_lane::smoke_ascii_lane
+// use base64_lane::smoke_base64_lane
+// use bytes_lane::smoke_bytes_lane
 // use collections_lane::smoke_collections_lane
 // use crypto_lane::smoke_crypto_lane
-// use text_lane::smoke_text_lane
-// use fs_lane::smoke_fs_lane
 // use alloc_lane::smoke_alloc_lane
-// use math_lane::smoke_math_lane
-// use time_lane::smoke_time_lane
 // use diagnostics_lane::smoke_diagnostics_lane
+// use fs_lane::smoke_fs_lane
+// use json_lane::smoke_json_lane
+// use math_lane::smoke_math_lane
 // use platform_lane::smoke_platform_lane
+// use process_lane::smoke_process_lane
+// use text_lane::smoke_text_lane
+// use time_lane::smoke_time_lane
+// use unicode_lane::smoke_unicode_lane
+// use random_lane::smoke_random_lane
+// use uri_lane::smoke_uri_lane
+// use semver_lane::smoke_semver_lane
+// use sync_lane::smoke_sync_lane
+// use io_lane::smoke_io_lane
+// use meta_lane::smoke_meta_lane
+// use thread_lane::smoke_thread_lane
 //
 // // Interop track
 // use c_bridge::smoke_c_bridge_lane
@@ -10202,7 +10219,7 @@
 //         return 10 + boot
 //
 //     let started_ms = now_millis()
-//     let total_tracks: Int = 35
+//     let total_tracks: Int = 52
 //     var succeeded_tracks: Int = 0
 //     var composition_checksum: Int = 0
 //
@@ -10359,6 +10376,15 @@
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_comptime, "semantics.comptime")
 //     succeeded_tracks = succeeded_tracks + 1
 //
+//     let started_keyword_mesh = now_millis()
+//     let lane_keyword_mesh = smoke_keyword_mesh_lane()
+//     let ended_keyword_mesh = now_millis()
+//     composition_checksum = smoke_record_track(mode, "semantics", "semantics.keyword_mesh", "keyword_mesh", 50, 1750, lane_keyword_mesh, started_keyword_mesh, ended_keyword_mesh, composition_checksum)
+//     let e_keyword_mesh = smoke_first_error(1750, lane_keyword_mesh)
+//     if e_keyword_mesh != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_keyword_mesh, "semantics.keyword_mesh")
+//     succeeded_tracks = succeeded_tracks + 1
+//
 //     let started_memory = now_millis()
 //     let lane_memory = smoke_memory_lane()
 //     let ended_memory = now_millis()
@@ -10404,6 +10430,24 @@
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_mmio_interrupt, "systems.mmio_interrupt")
 //     succeeded_tracks = succeeded_tracks + 1
 //
+//     let started_share_fanout = now_millis()
+//     let lane_share_fanout = smoke_share_fanout_lane()
+//     let ended_share_fanout = now_millis()
+//     composition_checksum = smoke_record_track(mode, "systems", "systems.share_fanout", "share_fanout", 51, 2250, lane_share_fanout, started_share_fanout, ended_share_fanout, composition_checksum)
+//     let e_share_fanout = smoke_first_error(2250, lane_share_fanout)
+//     if e_share_fanout != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_share_fanout, "systems.share_fanout")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_vertex = now_millis()
+//     let lane_vertex = smoke_vertex_lane()
+//     let ended_vertex = now_millis()
+//     composition_checksum = smoke_record_track(mode, "gpu", "gpu.vertex", "vertex", 52, 2275, lane_vertex, started_vertex, ended_vertex, composition_checksum)
+//     let e_vertex = smoke_first_error(2275, lane_vertex)
+//     if e_vertex != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_vertex, "gpu.vertex")
+//     succeeded_tracks = succeeded_tracks + 1
+//
 //     let started_collections = now_millis()
 //     let lane_collections = smoke_collections_lane()
 //     let ended_collections = now_millis()
@@ -10430,12 +10474,39 @@
 //     if e_text != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_text, "stdlib.text_lane")
 //     succeeded_tracks = succeeded_tracks + 1
+//     
+//     let started_ascii = now_millis()
+//     let lane_ascii = smoke_ascii_lane()
+//     let ended_ascii = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.ascii_lane", "ascii", 26, 2600, lane_ascii, started_ascii, ended_ascii, composition_checksum)
+//     let e_ascii = smoke_first_error(2600, lane_ascii)
+//     if e_ascii != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_ascii, "stdlib.ascii_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_base64 = now_millis()
+//     let lane_base64 = smoke_base64_lane()
+//     let ended_base64 = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.base64_lane", "base64", 27, 2700, lane_base64, started_base64, ended_base64, composition_checksum)
+//     let e_base64 = smoke_first_error(2700, lane_base64)
+//     if e_base64 != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_base64, "stdlib.base64_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_json = now_millis()
+//     let lane_json = smoke_json_lane()
+//     let ended_json = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.json_lane", "json", 28, 2800, lane_json, started_json, ended_json, composition_checksum)
+//     let e_json = smoke_first_error(2800, lane_json)
+//     if e_json != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_json, "stdlib.json_lane")
+//     succeeded_tracks = succeeded_tracks + 1
 //
 //     let started_fs = now_millis()
 //     let lane_fs = smoke_fs_lane()
 //     let ended_fs = now_millis()
-//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.fs_lane", "filesystem", 26, 2600, lane_fs, started_fs, ended_fs, composition_checksum)
-//     let e_fs = smoke_first_error(2600, lane_fs)
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.fs_lane", "filesystem", 29, 2900, lane_fs, started_fs, ended_fs, composition_checksum)
+//     let e_fs = smoke_first_error(2900, lane_fs)
 //     if e_fs != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_fs, "stdlib.fs_lane")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10443,8 +10514,8 @@
 //     let started_alloc = now_millis()
 //     let lane_alloc = smoke_alloc_lane()
 //     let ended_alloc = now_millis()
-//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.alloc_lane", "alloc", 27, 2700, lane_alloc, started_alloc, ended_alloc, composition_checksum)
-//     let e_alloc = smoke_first_error(2700, lane_alloc)
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.alloc_lane", "alloc", 30, 3000, lane_alloc, started_alloc, ended_alloc, composition_checksum)
+//     let e_alloc = smoke_first_error(3000, lane_alloc)
 //     if e_alloc != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_alloc, "stdlib.alloc_lane")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10452,8 +10523,8 @@
 //     let started_math = now_millis()
 //     let lane_math = smoke_math_lane()
 //     let ended_math = now_millis()
-//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.math_lane", "math", 28, 2800, lane_math, started_math, ended_math, composition_checksum)
-//     let e_math = smoke_first_error(2800, lane_math)
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.math_lane", "math", 31, 3100, lane_math, started_math, ended_math, composition_checksum)
+//     let e_math = smoke_first_error(3100, lane_math)
 //     if e_math != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_math, "stdlib.math_lane")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10461,8 +10532,8 @@
 //     let started_time = now_millis()
 //     let lane_time = smoke_time_lane()
 //     let ended_time = now_millis()
-//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.time_lane", "time", 29, 2900, lane_time, started_time, ended_time, composition_checksum)
-//     let e_time = smoke_first_error(2900, lane_time)
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.time_lane", "time", 32, 3200, lane_time, started_time, ended_time, composition_checksum)
+//     let e_time = smoke_first_error(3200, lane_time)
 //     if e_time != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_time, "stdlib.time_lane")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10470,8 +10541,8 @@
 //     let started_diagnostics = now_millis()
 //     let lane_diagnostics = smoke_diagnostics_lane()
 //     let ended_diagnostics = now_millis()
-//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.diagnostics_lane", "diagnostics", 30, 3000, lane_diagnostics, started_diagnostics, ended_diagnostics, composition_checksum)
-//     let e_diagnostics = smoke_first_error(3000, lane_diagnostics)
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.diagnostics_lane", "diagnostics", 33, 3300, lane_diagnostics, started_diagnostics, ended_diagnostics, composition_checksum)
+//     let e_diagnostics = smoke_first_error(3300, lane_diagnostics)
 //     if e_diagnostics != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_diagnostics, "stdlib.diagnostics_lane")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10479,8 +10550,8 @@
 //     let started_platform = now_millis()
 //     let lane_platform = smoke_platform_lane()
 //     let ended_platform = now_millis()
-//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.platform_lane", "platform", 31, 3100, lane_platform, started_platform, ended_platform, composition_checksum)
-//     let e_platform = smoke_first_error(3100, lane_platform)
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.platform_lane", "platform", 34, 3400, lane_platform, started_platform, ended_platform, composition_checksum)
+//     let e_platform = smoke_first_error(3400, lane_platform)
 //     if e_platform != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_platform, "stdlib.platform_lane")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10488,8 +10559,8 @@
 //     let started_bridge = now_millis()
 //     let lane_bridge = smoke_c_bridge_lane()
 //     let ended_bridge = now_millis()
-//     composition_checksum = smoke_record_track(mode, "interop", "interop.c_bridge", "c_bridge", 32, 3200, lane_bridge, started_bridge, ended_bridge, composition_checksum)
-//     let e_bridge = smoke_first_error(3200, lane_bridge)
+//     composition_checksum = smoke_record_track(mode, "interop", "interop.c_bridge", "c_bridge", 35, 3500, lane_bridge, started_bridge, ended_bridge, composition_checksum)
+//     let e_bridge = smoke_first_error(3500, lane_bridge)
 //     if e_bridge != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_bridge, "interop.c_bridge")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10497,8 +10568,8 @@
 //     let started_c_abi_album = now_millis()
 //     let lane_c_abi_album = smoke_c_abi_album_lane()
 //     let ended_c_abi_album = now_millis()
-//     composition_checksum = smoke_record_track(mode, "interop", "interop.c_abi_album", "c_abi_album", 33, 3300, lane_c_abi_album, started_c_abi_album, ended_c_abi_album, composition_checksum)
-//     let e_c_abi_album = smoke_first_error(3300, lane_c_abi_album)
+//     composition_checksum = smoke_record_track(mode, "interop", "interop.c_abi_album", "c_abi_album", 36, 3600, lane_c_abi_album, started_c_abi_album, ended_c_abi_album, composition_checksum)
+//     let e_c_abi_album = smoke_first_error(3600, lane_c_abi_album)
 //     if e_c_abi_album != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_c_abi_album, "interop.c_abi_album")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10506,8 +10577,8 @@
 //     let started_headless = now_millis()
 //     let lane_headless = smoke_headless_host_lane(mode)
 //     let ended_headless = now_millis()
-//     composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.headless_host", "headless_host", 34, 3400, lane_headless, started_headless, ended_headless, composition_checksum)
-//     let e_headless = smoke_first_error(3400, lane_headless)
+//     composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.headless_host", "headless_host", 37, 3700, lane_headless, started_headless, ended_headless, composition_checksum)
+//     let e_headless = smoke_first_error(3700, lane_headless)
 //     if e_headless != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_headless, "telemetry.headless_host")
 //     succeeded_tracks = succeeded_tracks + 1
@@ -10515,10 +10586,109 @@
 //     let started_flow = now_millis()
 //     let lane_flow = smoke_telemetry_flow_lane(mode)
 //     let ended_flow = now_millis()
-//     composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.novel_flow", "telemetry_flow", 35, 3500, lane_flow, started_flow, ended_flow, composition_checksum)
-//     let e_flow = smoke_first_error(3500, lane_flow)
+//     composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.novel_flow", "telemetry_flow", 38, 3800, lane_flow, started_flow, ended_flow, composition_checksum)
+//     let e_flow = smoke_first_error(3800, lane_flow)
 //     if e_flow != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_flow, "telemetry.novel_flow")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_native_cli = now_millis()
+//     let lane_native_cli = smoke_native_cli_lane()
+//     let ended_native_cli = now_millis()
+//     composition_checksum = smoke_record_track(mode, "systems", "systems.native_cli", "native_cli", 39, 3900, lane_native_cli, started_native_cli, ended_native_cli, composition_checksum)
+//     let e_native_cli = smoke_first_error(3900, lane_native_cli)
+//     if e_native_cli != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_native_cli, "systems.native_cli")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_unicode = now_millis()
+//     let lane_unicode = smoke_unicode_lane()
+//     let ended_unicode = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.unicode_lane", "unicode", 40, 4000, lane_unicode, started_unicode, ended_unicode, composition_checksum)
+//     let e_unicode = smoke_first_error(4000, lane_unicode)
+//     if e_unicode != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_unicode, "stdlib.unicode_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_random = now_millis()
+//     let lane_random = smoke_random_lane()
+//     let ended_random = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.random_lane", "random", 41, 4100, lane_random, started_random, ended_random, composition_checksum)
+//     let e_random = smoke_first_error(4100, lane_random)
+//     if e_random != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_random, "stdlib.random_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_uri = now_millis()
+//     let lane_uri = smoke_uri_lane()
+//     let ended_uri = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.uri_lane", "uri", 42, 4200, lane_uri, started_uri, ended_uri, composition_checksum)
+//     let e_uri = smoke_first_error(4200, lane_uri)
+//     if e_uri != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_uri, "stdlib.uri_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_semver = now_millis()
+//     let lane_semver = smoke_semver_lane()
+//     let ended_semver = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.semver_lane", "semver", 43, 4300, lane_semver, started_semver, ended_semver, composition_checksum)
+//     let e_semver = smoke_first_error(4300, lane_semver)
+//     if e_semver != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_semver, "stdlib.semver_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_sync = now_millis()
+//     let lane_sync = smoke_sync_lane()
+//     let ended_sync = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.sync_lane", "sync", 44, 4400, lane_sync, started_sync, ended_sync, composition_checksum)
+//     let e_sync = smoke_first_error(4400, lane_sync)
+//     if e_sync != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_sync, "stdlib.sync_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_bytes = now_millis()
+//     let lane_bytes = smoke_bytes_lane()
+//     let ended_bytes = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.bytes_lane", "bytes", 45, 4500, lane_bytes, started_bytes, ended_bytes, composition_checksum)
+//     let e_bytes = smoke_first_error(4500, lane_bytes)
+//     if e_bytes != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_bytes, "stdlib.bytes_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_io = now_millis()
+//     let lane_io = smoke_io_lane()
+//     let ended_io = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.io_lane", "io", 46, 4600, lane_io, started_io, ended_io, composition_checksum)
+//     let e_io = smoke_first_error(4600, lane_io)
+//     if e_io != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_io, "stdlib.io_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_meta = now_millis()
+//     let lane_meta = smoke_meta_lane()
+//     let ended_meta = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.meta_lane", "meta", 47, 4700, lane_meta, started_meta, ended_meta, composition_checksum)
+//     let e_meta = smoke_first_error(4700, lane_meta)
+//     if e_meta != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_meta, "stdlib.meta_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_thread = now_millis()
+//     let lane_thread = smoke_thread_lane()
+//     let ended_thread = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.thread_lane", "thread", 48, 4800, lane_thread, started_thread, ended_thread, composition_checksum)
+//     let e_thread = smoke_first_error(4800, lane_thread)
+//     if e_thread != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_thread, "stdlib.thread_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_process = now_millis()
+//     let lane_process = smoke_process_lane()
+//     let ended_process = now_millis()
+//     composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.process_lane", "process", 49, 4900, lane_process, started_process, ended_process, composition_checksum)
+//     let e_process = smoke_first_error(4900, lane_process)
+//     if e_process != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_process, "stdlib.process_lane")
 //     succeeded_tracks = succeeded_tracks + 1
 //
 //     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1
@@ -10870,6 +11040,120 @@
 //     return 0
 //!end-kain-file
 //!kain-file
+// path = "src/semantics/keyword_mesh.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 2737
+// sha256 = "sha256:3913027615e2fe08869a98f7af824166643383c556aa2e408e940481b0844583"
+// trailing_newline = true
+//!kain-file-content
+// use std::runtime
+// use converge::smoke_mix_pair
+// use types::SmokeLane
+// use types::SmokePacket
+// use types::smoke_lane_rank
+// use types::smoke_weighted_checksum
+//
+// const KEYWORD_MESH_MODULUS: Int = 1000000007
+//
+// pub mod keyword_helpers:
+//     pub fn classify(seed: Int) -> Int:
+//         if seed < 4:
+//             return 11
+//         elif seed < 8:
+//             return 17
+//         return 23
+//
+//     pub fn compose(tag: String, score: Int) -> String:
+//         return format!("keyword:", tag, ":", score)
+//
+// use keyword_helpers::classify
+// use keyword_helpers::compose
+//
+// fn keyword_mix_pair(left: Int, right: Int) -> Int:
+//     return smoke_mix_pair(left, right)
+//
+// fn keyword_lane_rank(lane: SmokeLane) -> Int:
+//     return smoke_lane_rank(lane)
+//
+// fn keyword_checksum(packet: SmokePacket) -> Int:
+//     return smoke_weighted_checksum(packet)
+//
+// fn build_keyword_score(seed: Int) -> Int:
+//     return classify(seed)
+//
+// fn compose_keyword_summary(tag: String, score: Int) -> String:
+//     return compose(tag, score)
+//
+// macro smoke_passthrough!(value: expr):
+//     value
+//
+// trait KeywordFold:
+//     fn summary(_self: Self_) -> String:
+//         let __placeholder = none
+//         return "keyword:none"
+//
+// struct KeywordMeshRecord:
+//     id: Int
+//     payload: Int
+//     tag: String
+//
+// impl KeywordMeshRecord:
+//     fn clone_self(_self: Self_) -> Self:
+//         let copy: Self = _self
+//         return copy
+//
+//     fn folded_score(_self: Self_) -> Int:
+//         return (_self.id + _self.payload + len(_self.tag)) % KEYWORD_MESH_MODULUS
+//
+// impl KeywordFold for KeywordMeshRecord:
+//     fn summary(_self: Self_) -> String:
+//         return compose_keyword_summary(_self.tag, _self.payload)
+//
+// fn smoke_async_effect(seed: Int) -> Int with Async:
+//     return seed + 3
+//
+// pub fn smoke_keyword_mesh_scalar(seed: Int) -> Int:
+//     return keyword_mix_pair(seed, build_keyword_score(seed))
+//
+// pub fn smoke_keyword_mesh_lane() -> Int with Unsafe:
+//     let class_score = build_keyword_score(6)
+//     if class_score != 17:
+//         return 1
+//
+//     let effect_score = smoke_async_effect(class_score)
+//     if effect_score != 20:
+//         return 2
+//
+//     let record = KeywordMeshRecord { id: 1, payload: effect_score, tag: "mesh" }
+//     let clone = record.clone_self()
+//     let values = vec!(record.id, clone.payload, effect_score)
+//     if len(values) != 3:
+//         return 3
+//
+//     if clone.summary() != "keyword:mesh:20":
+//         return 4
+//
+//     if clone.folded_score() != 25:
+//         return 5
+//
+//     let lane_rank = keyword_lane_rank(SmokeLane::KeywordMesh)
+//     if lane_rank != 33:
+//         return 6
+//
+//     let packet = SmokePacket {
+//         id: 50,
+//         lane: SmokeLane::KeywordMesh,
+//         payload: smoke_keyword_mesh_scalar(clone.payload),
+//         tag: clone.summary(),
+//         hot: true
+//     }
+//     if keyword_checksum(packet) <= 0:
+//         return 7
+//
+//     return 0
+//!end-kain-file
+//!kain-file
 // path = "src/semantics/law.kn"
 // kind = "text"
 // encoding = "utf8"
@@ -11161,8 +11445,8 @@
 // path = "src/semantics/types.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 4381
-// sha256 = "sha256:0a80d85263e90e240d7aadf42d5bc11e2948bd84f44433b0940c7f4ebed487f7"
+// bytes = 4691
+// sha256 = "sha256:163d4c43767ef05fda198a1dd98c6201b498680197aa1d72bcbe8fa640c34484"
 // trailing_newline = true
 //!kain-file-content
 // use std::runtime
@@ -11203,6 +11487,9 @@
 //     CAbiAlbum
 //     HeadlessHost
 //     TelemetryFlow
+//     KeywordMesh
+//     ShareFanout
+//     VertexShader
 //
 // struct SmokePacket:
 //     id: Int
@@ -11257,6 +11544,9 @@
 //         SmokeLane::CAbiAlbum => 30
 //         SmokeLane::HeadlessHost => 31
 //         SmokeLane::TelemetryFlow => 32
+//         SmokeLane::KeywordMesh => 33
+//         SmokeLane::ShareFanout => 34
+//         SmokeLane::VertexShader => 35
 //         _ => 0
 //
 // pub fn smoke_lane_name(lane: SmokeLane) -> String:
@@ -11293,6 +11583,9 @@
 //         SmokeLane::CAbiAlbum => "c_abi_album"
 //         SmokeLane::HeadlessHost => "headless_host"
 //         SmokeLane::TelemetryFlow => "telemetry_flow"
+//         SmokeLane::KeywordMesh => "keyword_mesh"
+//         SmokeLane::ShareFanout => "share_fanout"
+//         SmokeLane::VertexShader => "vertex_shader"
 //         _ => "unknown"
 //
 // // Cross-workspace utility: imported by actor.kn, shatter.kn, patch.kn etc.
@@ -11380,17 +11673,123 @@
 //     return 0
 //!end-kain-file
 //!kain-file
+// path = "src/stdlib/ascii_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 990
+// sha256 = "sha256:10dcb5402a14ad4aee20eee99b107a79041c96ecdd5a12802975a980d10a9671"
+// trailing_newline = true
+//!kain-file-content
+// use std::ascii
+//
+// pub fn smoke_ascii_lane() -> Int:
+//     if ascii_is_text("Gpu-HTTP2-42") == false:
+//         return 1
+//     if ascii_is_alpha("G") == false or ascii_is_alpha("z") == false:
+//         return 2
+//     if ascii_is_digit("7") == false or ascii_digit_value("7") != 7:
+//         return 3
+//     if ascii_is_hex("F") == false or ascii_hex_value("f") != 15:
+//         return 4
+//     if ascii_hex_char_lower(15) != "f" or ascii_hex_char_upper(15) != "F":
+//         return 5
+//     if ascii_to_lower("Q") != "q" or ascii_to_upper("q") != "Q":
+//         return 6
+//     if ascii_lowercase("KAIN-HTTP2") != "kain-http2":
+//         return 7
+//     if ascii_uppercase("gpu-field") != "GPU-FIELD":
+//         return 8
+//     if ascii_equals_ignore_case("Relay-A9", "relay-a9") == false:
+//         return 9
+//     if ascii_is_whitespace(" ") == false or ascii_is_whitespace(chr(ASCII_HT)) == false:
+//         return 10
+//     if ascii_is_punctuation("!") == false or ascii_is_control(chr(ASCII_DEL)) == false:
+//         return 11
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/base64_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 534
+// sha256 = "sha256:9eecbc0f2805f0c894d07cf13ef198ef250ecf1e36a8a8ca5339e5027fb417c5"
+// trailing_newline = true
+//!kain-file-content
+// use std::base64
+//
+// pub fn smoke_base64_lane() -> Int:
+//     if base64_encode("Kain") != "S2Fpbg==":
+//         return 1
+//     if base64_decode("S2Fpbg==") != "Kain":
+//         return 2
+//     if base64_encode_url_padded(chr(255)) != "_w==":
+//         return 3
+//     let raw = base64_decode_url("_w")
+//     if len(raw) != 1:
+//         return 4
+//     if byte_at(raw, 0) != 255:
+//         return 5
+//     if hex_encode("Hi") != "4869":
+//         return 6
+//     if hex_decode("4869") != "Hi":
+//         return 7
+//     if hex_decode("zz") != "":
+//         return 8
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/bytes_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1113
+// sha256 = "sha256:c5aad53191bb479f667dda05a48197e28cbf73ad82f3cae66fbe5c7749eb400d"
+// trailing_newline = true
+//!kain-file-content
+// use std::bytes
+// use std::text
+//
+// pub fn smoke_bytes_lane() -> Int:
+//     let wire = bytes_slice("::wire-data::", 2, 9)
+//     if bytes_len(wire) != 9:
+//         return 1
+//     if bytes_find(wire, "data") != 5:
+//         return 2
+//     if bytes_starts_with(wire, "wire") == false or bytes_ends_with(wire, "data") == false:
+//         return 3
+//     let packed = bytes_materialize(wire)
+//     let arr = bytes_array(wire)
+//     if len(arr) != 9 or arr[0] != 119:
+//         return 4
+//     if bytes_from_array(arr) != packed:
+//         return 5
+//     let decoded = bytes_from_hex(bytes_hex(packed))
+//     if decoded.ok == false or decoded.value != packed:
+//         return 6
+//     var builder = bytes_builder_new()
+//     builder = bytes_builder_push_string(builder, "zero")
+//     builder = bytes_builder_push_byte(builder, ord("-"))
+//     builder = bytes_builder_push_slice(builder, bytes_from("copy"))
+//     if bytes_builder_build(builder) != "zero-copy":
+//         return 7
+//     let as_text = text_from_bytes(bytes_builder_view(builder))
+//     if text_materialize(as_text) != "zero-copy":
+//         return 8
+//     if bytes_from_hex("0g").ok:
+//         return 9
+//     return 0
+//!end-kain-file
+//!kain-file
 // path = "src/stdlib/collections_lane.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 882
-// sha256 = "sha256:5da2f744c3171dfc9e0d519e11bb8a3e6d3d8c0f9da93c656303c385a3d6064f"
+// bytes = 2906
+// sha256 = "sha256:cb767df3a0a88c36d73f17e14b95b2cf55da5e42bfaa267c7f6a63232511c9b7"
 // trailing_newline = true
 //!kain-file-content
 // use std::runtime
 // use std::collections
 //
-// pub fn smoke_collections_lane() -> Int:
+// pub fn smoke_collections_lane() -> Int with Unsafe:
 //     let map = typed_map_set(typed_map_new(), "alpha", 41)
 //     let value = typed_map_get(map, "alpha")
 //     if value != 41:
@@ -11417,6 +11816,63 @@
 //         return 5
 //     let _slots_destroy = slot_map_destroy(slots)
 //     let _map_destroy = typed_map_destroy(map)
+//
+//     # 5. Test Intrusive Zero-Allocation Hash Map (uthash Evolution)
+//     let item_size = 6
+//     let buffer = alloc_zeroed(3 * item_size, "Int")
+//     
+//     # Initialize item 0: id=100, value=1000
+//     let item0 = ptr_offset(buffer, 0 * item_size, "Int")
+//     mem_store(ptr_offset(item0, 0, "Int"), 100, "Int") # id
+//     mem_store(ptr_offset(item0, 1, "Int"), 1000, "Int") # value
+//     
+//     # Initialize item 1: id=200, value=2000
+//     let item1 = ptr_offset(buffer, 1 * item_size, "Int")
+//     mem_store(ptr_offset(item1, 0, "Int"), 200, "Int") # id
+//     mem_store(ptr_offset(item1, 1, "Int"), 2000, "Int") # value
+//
+//     # Initialize item 2: id=300, value=3000
+//     let item2 = ptr_offset(buffer, 2 * item_size, "Int")
+//     mem_store(ptr_offset(item2, 0, "Int"), 300, "Int") # id
+//     mem_store(ptr_offset(item2, 1, "Int"), 3000, "Int") # value
+//
+//     var ih_map = intrusive_hash_map_create(8)
+//     
+//     # Node offset is field 2
+//     let node_offset = 2
+//     
+//     # Insert items
+//     ih_map = intrusive_hash_map_insert(ih_map, node_offset, item0, 100, 100)
+//     ih_map = intrusive_hash_map_insert(ih_map, node_offset, item1, 200, 200)
+//     ih_map = intrusive_hash_map_insert(ih_map, node_offset, item2, 300, 300)
+//     
+//     if ih_map.count != 3:
+//         return 6
+//         
+//     # Search for items
+//     let found1 = intrusive_hash_map_find(ih_map, node_offset, 200, 200)
+//     if ptr_to_int(found1) == 0:
+//         return 7
+//     let found1_val = mem_load(ptr_offset(found1, 1, "Int"), "Int")
+//     if found1_val != 2000:
+//         return 8
+//         
+//     let found2 = intrusive_hash_map_find(ih_map, node_offset, 400, 400) # not present
+//     if ptr_to_int(found2) != 0:
+//         return 9
+//         
+//     # Remove item 1
+//     ih_map = intrusive_hash_map_remove(ih_map, node_offset, item1)
+//     if ih_map.count != 2:
+//         return 10
+//         
+//     let found1_after = intrusive_hash_map_find(ih_map, node_offset, 200, 200)
+//     if ptr_to_int(found1_after) != 0:
+//         return 11
+//         
+//     let _ih_destroy = intrusive_hash_map_destroy(ih_map)
+//     decay buffer
+//
 //     return 0
 //!end-kain-file
 //!kain-file
@@ -11499,6 +11955,186 @@
 //     return 0
 //!end-kain-file
 //!kain-file
+// path = "src/stdlib/io_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 4111
+// sha256 = "sha256:0b75073a7604331e01a5ec59946b79ecf0ec7357a8deafc2897b33dd5f0506b9"
+// trailing_newline = true
+//!kain-file-content
+// use std::runtime
+// use std::memory
+// use std::io
+//
+// pub fn smoke_io_lane() -> Int with Unsafe:
+//     # 1. Test RingBuffer circular boundaries
+//     let rb = ring_buffer_new(5) # capacity 5
+//     let rb_ptr: ptr<RingBuffer> = addr_of(rb, "RingBuffer")
+//     
+//     # We allocate some stack-like test memory words
+//     let src = alloc_zeroed(5, "Int")
+//     let dest = alloc_zeroed(5, "Int")
+//
+//     # Load src values
+//     mem_store(ptr_offset(src, 0, "Int"), 10, "Int")
+//     mem_store(ptr_offset(src, 1, "Int"), 20, "Int")
+//     mem_store(ptr_offset(src, 2, "Int"), 30, "Int")
+//     mem_store(ptr_offset(src, 3, "Int"), 40, "Int")
+//     mem_store(ptr_offset(src, 4, "Int"), 50, "Int")
+//
+//     # Initial available write space should be 4 (capacity - 1 for boundary)
+//     if ring_buffer_available_write(rb) != 4:
+//         return 101
+//
+//     # Write 3 words to ring buffer
+//     let w1 = ring_buffer_write(rb_ptr, src, 3)
+//     if w1 != 3:
+//         return 102
+//     
+//     if ring_buffer_available_read(rb) != 3:
+//         return 103
+//     if ring_buffer_available_write(rb) != 1:
+//         return 104
+//
+//     # Read 2 words out
+//     let r1 = ring_buffer_read(rb_ptr, dest, 2)
+//     if r1 != 2:
+//         return 105
+//     if mem_load(ptr_offset(dest, 0, "Int"), "Int") != 10 or mem_load(ptr_offset(dest, 1, "Int"), "Int") != 20:
+//         return 106
+//
+//     # Ring buffer pos wrapped around. Write 2 more words (30, 40)
+//     # The buffer now has 1 unread word (30).
+//     let w2 = ring_buffer_write(rb_ptr, ptr_offset(src, 3, "Int"), 2)
+//     if w2 != 2:
+//         return 107
+//
+//     # Cleanup memory
+//     decay src
+//     decay dest
+//     ring_buffer_destroy(rb)
+//
+//
+//     # 2. Test growable StringBuilder reallocations
+//     let sb = string_builder_new(4) # start small to trigger reallocation
+//     let sb_ptr: ptr<StringBuilder> = addr_of(sb, "StringBuilder")
+//     
+//     # Append chars 'K', 'a', 'i', 'n'
+//     let _a1 = string_builder_append_char(sb_ptr, 75)  # K
+//     let _a2 = string_builder_append_char(sb_ptr, 97)  # a
+//     let _a3 = string_builder_append_char(sb_ptr, 105) # i
+//     let _a4 = string_builder_append_char(sb_ptr, 110) # n
+//
+//     if sb.len != 4:
+//         return 108
+//
+//     # Append String "-lang" (this triggers capacity doubling)
+//     let _a5 = string_builder_append_string(sb_ptr, "-lang")
+//     if sb.len != 9:
+//         return 109
+//
+//     # Materialize final string
+//     let materialized = string_builder_to_string(sb)
+//     if materialized != "Kain-lang":
+//         return 110
+//
+//     string_builder_destroy(sb)
+//
+//
+//     # 3. Test BufferedReader & BufferedWriter composing
+//     let br = buffered_reader_new(8)
+//     let bw = buffered_writer_new(4)
+//     let br_ptr: ptr<BufferedReader> = addr_of(br, "BufferedReader")
+//     let bw_ptr: ptr<BufferedWriter> = addr_of(bw, "BufferedWriter")
+//
+//     let test_buf = alloc_zeroed(8, "Int")
+//     let read_buf = alloc_zeroed(8, "Int")
+//     let target_buf = alloc_zeroed(8, "Int")
+//
+//     # Load test values
+//     mem_store(ptr_offset(test_buf, 0, "Int"), 100, "Int")
+//     mem_store(ptr_offset(test_buf, 1, "Int"), 200, "Int")
+//     mem_store(ptr_offset(test_buf, 2, "Int"), 300, "Int")
+//     mem_store(ptr_offset(test_buf, 3, "Int"), 400, "Int")
+//     mem_store(ptr_offset(test_buf, 4, "Int"), 500, "Int")
+//
+//     # Fill reader
+//     let filled = buffered_reader_fill(br_ptr, test_buf, 5)
+//     if filled != 5:
+//         return 111
+//
+//     # Read from reader
+//     let read_bytes = buffered_reader_read(br_ptr, read_buf, 3)
+//     if read_bytes != 3:
+//         return 112
+//     if mem_load(ptr_offset(read_buf, 0, "Int"), "Int") != 100 or mem_load(ptr_offset(read_buf, 2, "Int"), "Int") != 300:
+//         return 113
+//
+//     # Write to writer (writes 3 items into writer capacity 4)
+//     let written = buffered_writer_write(bw_ptr, read_buf, 3, target_buf)
+//     if written != 3:
+//         return 114
+//
+//     # Flush writer to complete transfer
+//     let flushed = buffered_writer_flush(bw_ptr, target_buf)
+//     if flushed != 3:
+//         return 115
+//     if mem_load(ptr_offset(target_buf, 0, "Int"), "Int") != 100 or mem_load(ptr_offset(target_buf, 2, "Int"), "Int") != 300:
+//         return 116
+//
+//     decay test_buf
+//     decay read_buf
+//     decay target_buf
+//     buffered_reader_destroy(br)
+//     buffered_writer_destroy(bw)
+//
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/json_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1252
+// sha256 = "sha256:74b6c78c35d1e9e3e834f7400765701e1ad5f668a65467528e9ecc1d5d9de4dc"
+// trailing_newline = true
+//!kain-file-content
+// use std::json
+// use std::text
+//
+// pub fn smoke_json_lane() -> Int:
+//     let payload = json_object()
+//     let tags = json_array()
+//     let _tag_alpha = json_array_push_string(tags, "alpha")
+//     let _tag_beta = json_array_push_string(tags, "beta")
+//     let _name = json_object_set_string(payload, "name", "kain")
+//     let _version = json_object_set_int(payload, "version", 1)
+//     let _ok = json_object_set_bool(payload, "ok", true)
+//     let _tags = json_object_set_value(payload, "tags", tags)
+//     let rendered = json_stringify(payload)
+//     if text_contains_string(rendered, "\"name\"") == false:
+//         return 1
+//     let parsed = json_parse_text(rendered)
+//     if json_string_or(parsed, "name", "") != "kain":
+//         return 2
+//     if json_int_or(parsed, "version", 0) != 1:
+//         return 3
+//     if json_bool_or(parsed, "ok", false) == false:
+//         return 4
+//     let parsed_tags = json_string_array_field(parsed, "tags")
+//     if len(parsed_tags) != 2:
+//         return 5
+//     if parsed_tags[1] != "beta":
+//         return 6
+//     let tokens = json_scan_significant("{\"ok\": true, \"count\": 2}")
+//     if len(tokens) < 5:
+//         return 7
+//     if tokens[0].kind != JSON_TOKEN_LBRACE:
+//         return 8
+//     if tokens[1].kind != JSON_TOKEN_STRING:
+//         return 9
+//     return 0
+//!end-kain-file
+//!kain-file
 // path = "src/stdlib/math_lane.kn"
 // kind = "text"
 // encoding = "utf8"
@@ -11547,6 +12183,169 @@
 //     return 0
 //!end-kain-file
 //!kain-file
+// path = "src/stdlib/meta_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 5143
+// sha256 = "sha256:ffd46dbb842022607814edee8c06ff0ce77bb5080b978cfb8332918cb603992b"
+// trailing_newline = true
+//!kain-file-content
+// use std::runtime
+// use std::memory
+// use std::atomic
+// use std::target
+// use std::reflect
+// use std::compress
+// use std::tar
+// use std::io
+//
+// pub fn smoke_meta_lane() -> Int with Unsafe:
+//     # 1. Test std::atomic (AtomicInt, AtomicBool, AtomicPtr)
+//     let a_int = atomic_int_new(10)
+//     if atomic_int_load(a_int, Ordering::SeqCst) != 10:
+//         return 101
+//     
+//     let _s1 = atomic_int_store(a_int, 20, Ordering::SeqCst)
+//     if atomic_int_add(a_int, 5) != 20: # Returns previous value (20)
+//         return 102
+//     if atomic_int_load(a_int, Ordering::SeqCst) != 25:
+//         return 103
+//
+//     if atomic_int_compare_exchange(a_int, 25, 42) == false:
+//         return 104
+//     if atomic_int_load(a_int, Ordering::SeqCst) != 42:
+//         return 105
+//
+//     atomic_int_destroy(a_int)
+//
+//     let a_bool = atomic_bool_new(false)
+//     if atomic_bool_load(a_bool, Ordering::SeqCst) == true:
+//         return 106
+//     let _b1 = atomic_bool_store(a_bool, true, Ordering::SeqCst)
+//     if atomic_bool_load(a_bool, Ordering::SeqCst) == false:
+//         return 107
+//     atomic_bool_destroy(a_bool)
+//
+//
+//     # 2. Test std::target
+//     let t = target_current()
+//     if t.is_64bit == false:
+//         return 108
+//     
+//     # Query features (should return true/false cleanly without crashing)
+//     let has_avx = target_has_feature("cpu.x86.avx2")
+//
+//
+//     # 3. Test std::reflect
+//     let val = 123
+//     let kind = reflect_type_kind(val)
+//     if kind != TypeKind::Int:
+//         return 109
+//
+//     let desc = reflect_descriptor(val)
+//     if desc.size_bytes != 8:
+//         return 110
+//
+//
+//     # 4. Test std::compress (RLE compression streams)
+//     let dest_buf = buffered_writer_new(16)
+//     let dest_buf_ptr: ptr<BufferedWriter> = addr_of(dest_buf, "BufferedWriter")
+//     let flush_target = alloc_zeroed(16, "Int")
+//     
+//     var cw = rle_writer_new(dest_buf_ptr)
+//     let cw_ptr: ptr<RleCompressionWriter> = addr_of(cw, "RleCompressionWriter")
+//     
+//     # Compress 5 characters: 'A', 'A', 'A', 'B', 'B'
+//     let _w1 = rle_writer_write_char(cw_ptr, 65, flush_target)
+//     let _w2 = rle_writer_write_char(cw_ptr, 65, flush_target)
+//     let _w3 = rle_writer_write_char(cw_ptr, 65, flush_target)
+//     let _w4 = rle_writer_write_char(cw_ptr, 66, flush_target)
+//     let _w5 = rle_writer_write_char(cw_ptr, 66, flush_target)
+//     
+//     let _f1 = rle_writer_flush(cw_ptr, flush_target)
+//     let _f2 = buffered_writer_flush(dest_buf_ptr, flush_target)
+//
+//     # Verifies compressed run format in flush_target
+//     # Run 1: character 'A' (65), count 3
+//     if mem_load(ptr_offset(flush_target, 0, "Int"), "Int") != 65:
+//         return 111
+//     if mem_load(ptr_offset(flush_target, 1, "Int"), "Int") != 3:
+//         return 112
+//     # Run 2: character 'B' (66), count 2
+//     if mem_load(ptr_offset(flush_target, 2, "Int"), "Int") != 66:
+//         return 113
+//     if mem_load(ptr_offset(flush_target, 3, "Int"), "Int") != 2:
+//         return 114
+//
+//     # Decompress using RleCompressionReader
+//     let src_buf = buffered_reader_new(16)
+//     let src_buf_ptr: ptr<BufferedReader> = addr_of(src_buf, "BufferedReader")
+//     let _fill = buffered_reader_fill(src_buf_ptr, flush_target, 4)
+//     var cr = rle_reader_new(src_buf_ptr)
+//     let cr_ptr: ptr<RleCompressionReader> = addr_of(cr, "RleCompressionReader")
+//
+//     if rle_reader_read_char(cr_ptr) != 65:
+//         return 115
+//     if rle_reader_read_char(cr_ptr) != 65:
+//         return 116
+//     if rle_reader_read_char(cr_ptr) != 65:
+//         return 117
+//     if rle_reader_read_char(cr_ptr) != 66:
+//         return 118
+//     if rle_reader_read_char(cr_ptr) != 66:
+//         return 119
+//     if rle_reader_read_char(cr_ptr) != -1:
+//         return 120
+//
+//     decay flush_target
+//     buffered_writer_destroy(dest_buf)
+//     buffered_reader_destroy(src_buf)
+//     rle_writer_destroy(cw)
+//     rle_reader_destroy(cr)
+//
+//
+//     # 5. Test std::tar (TarHeader block archive builder & reader)
+//     let tar_write_buf = buffered_writer_new(128)
+//     let tar_write_buf_ptr: ptr<BufferedWriter> = addr_of(tar_write_buf, "BufferedWriter")
+//     let tar_flush_target = alloc_zeroed(128, "Int")
+//     let tw = tar_writer_new(tar_write_buf_ptr)
+//
+//     # Write archive file "test.txt" of size 10 words
+//     let _tw_h = tar_write_header(tw, "test.txt", 10, tar_flush_target)
+//     
+//     let file_data = alloc_zeroed(10, "Int")
+//     mem_store(file_data, 999, "Int") # Dummy data
+//     let _tw_d = tar_write_file_data(tw, file_data, 10, tar_flush_target)
+//     decay file_data
+//
+//     let _tw_f = buffered_writer_flush(tar_write_buf_ptr, tar_flush_target)
+//
+//     # Read archive back using TarReader
+//     let tar_read_buf = buffered_reader_new(128)
+//     let tar_read_buf_ptr: ptr<BufferedReader> = addr_of(tar_read_buf, "BufferedReader")
+//     let _tar_fill = buffered_reader_fill(tar_read_buf_ptr, tar_flush_target, 128)
+//     let tr = tar_reader_new(tar_read_buf_ptr)
+//
+//     let entry = tar_read_entry(tr)
+//     if entry.is_valid == false:
+//         return 121
+//     if entry.name != "test.txt":
+//         return 122
+//     if entry.size != 10:
+//         return 123
+//
+//     # Skip entry's 10 words (pads to 64 words)
+//     let skipped = tar_skip_data(tr, 10)
+//     if skipped != 64:
+//         return 124
+//
+//     decay tar_flush_target
+//     buffered_writer_destroy(tar_write_buf)
+//     buffered_reader_destroy(tar_read_buf)
+//
+//     return 0
+//!end-kain-file
+//!kain-file
 // path = "src/stdlib/platform_lane.kn"
 // kind = "text"
 // encoding = "utf8"
@@ -11573,13 +12372,409 @@
 //     return 0
 //!end-kain-file
 //!kain-file
+// path = "src/stdlib/process_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1335
+// sha256 = "sha256:99eb03a7734131eaeff978931c27deca4c571b900c11748cd3d51a50e2b747ae"
+// trailing_newline = true
+//!kain-file-content
+// use std::process
+//
+// fn smoke_process_last_path_segment(path: String) -> String:
+//     var start = 0
+//     var index = 0
+//     while index < len(path):
+//         let ch = char_at(path, index)
+//         if ch == "/" or ch == "\\":
+//             start = index + 1
+//         index = index + 1
+//     return substring(path, start, len(path))
+//
+// pub fn smoke_process_lane() -> Int:
+//     let argv = process_args()
+//     if len(argv) < 1:
+//         return 1
+//     if process_arg_count() != len(argv):
+//         return 2
+//     if process_arg(0) == "":
+//         return 3
+//     if len(process_current_working_directory()) == 0:
+//         return 4
+//     let executable = process_current_executable_path()
+//     if len(executable) == 0:
+//         return 5
+//     let user_args = process_user_args()
+//     if len(user_args) > len(argv):
+//         return 6
+//
+//     let executable_name = to_lower(smoke_process_last_path_segment(executable))
+//     let first_name = to_lower(smoke_process_last_path_segment(argv[0]))
+//     let skip = if executable_name != "" and first_name == executable_name:
+//         1
+//     else:
+//         0
+//     if len(user_args) != len(argv) - skip:
+//         return 7
+//
+//     var index = 0
+//     while index < len(user_args):
+//         if user_args[index] != argv[index + skip]:
+//             return 8 + index
+//         index = index + 1
+//
+//     if process_current_id() <= 0:
+//         return 40
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/random_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 3790
+// sha256 = "sha256:415f6b703b8c318be82ff0ddb622bcbece79ee8d7cb8bfe45268f4c703295080"
+// trailing_newline = true
+//!kain-file-content
+// use std::random
+// use std::intent
+//
+// pub fn smoke_random_lane() -> Int with Unsafe:
+//     # 1. Test Xoshiro128 creation and deterministic sequence
+//     let rng = xoshiro128_new(42)
+//     if rng.s0 == 0:
+//         return 1
+//
+//     let res1 = xoshiro128_next(rng)
+//     let res2 = xoshiro128_next(res1.rng)
+//     if res1.value == res2.value:
+//         return 2
+//
+//     # Verify that seed 42 produces deterministic sequence
+//     let rng_twin = xoshiro128_new(42)
+//     let res_twin = xoshiro128_next(rng_twin)
+//     if res1.value != res_twin.value:
+//         return 3
+//
+//     # 2. Test unbiased integer range (Lemire's algorithm)
+//     # Check 100 samples are in range [5, 15]
+//     var current_rng = res2.rng
+//     var i = 0
+//     while i < 100:
+//         let range_res = random_int_in_range(current_rng, 5, 15)
+//         current_rng = range_res.rng
+//         if range_res.value < 5 or range_res.value > 15:
+//             return 4
+//         i = i + 1
+//
+//     # 3. Test uniform float in [0.0, 1.0)
+//     var j = 0
+//     while j < 50:
+//         let float_res = random_float(current_rng)
+//         current_rng = float_res.rng
+//         if float_res.value < 0.0 or float_res.value >= 1.0:
+//             return 5
+//         j = j + 1
+//
+//     # 4. Test Box-Muller normal floats (math_ln + random_float_norm)
+//     let norm_res = random_float_norm(current_rng)
+//     current_rng = norm_res.rng
+//     # Simply check that Box-Muller produces a real float value
+//     if norm_res.value < -100.0 or norm_res.value > 100.0:
+//         return 6
+//
+//     # 5. Test Kain-native Ambient PRNG and patch transactions!
+//     # Record starting patch journal transaction count
+//     let start_journal = patch_journal_count()
+//
+//     # Mutate the global PRNG world state via patch call
+//     let a1 = random_ambient_next()
+//     let a2 = random_ambient_next()
+//
+//     if a1 == a2:
+//         # Extremely unlikely for two 32-bit generations to match
+//         return 7
+//
+//     # Assert that Kains patch journal counter incremented!
+//     # Every random_ambient_next() fires a transaction-journaled patch mutation!
+//     let end_journal = patch_journal_count()
+//     if end_journal <= start_journal:
+//         return 8
+//
+//     # 6. Test ambient range helpers
+//     let val_in_range = random_ambient_int_in_range(100, 200)
+//     if val_in_range < 100 or val_in_range > 200:
+//         return 9
+//
+//     let ambient_float = random_ambient_float()
+//     if ambient_float < 0.0 or ambient_float >= 1.0:
+//         return 10
+//
+//     # 7. Test Shattered Parallel Entropy Buffer
+//     let sh_rng = shattered_rng_buffer_new(99, 4)
+//     if sh_rng.lanes != 4:
+//         return 11
+//
+//     let sh_out: ptr<Int> = alloc_zeroed(4, "Int")
+//     let sh_ret = shattered_rng_buffer_next_block(sh_rng, sh_out)
+//     if sh_ret != 4:
+//         return 12
+//
+//     let val0 = mem_load(ptr_offset(sh_out, 0, "Int"), "Int")
+//     let val1 = mem_load(ptr_offset(sh_out, 1, "Int"), "Int")
+//     let val2 = mem_load(ptr_offset(sh_out, 2, "Int"), "Int")
+//     let val3 = mem_load(ptr_offset(sh_out, 3, "Int"), "Int")
+//
+//     # Confirm that all 4 values are different (highly likely) and initialized
+//     if val0 == 0 or val1 == 0 or val2 == 0 or val3 == 0:
+//         return 13
+//
+//     if val0 == val1 or val1 == val2 or val2 == val3:
+//         return 14
+//
+//     decay sh_out
+//     let _sh_destroy = shattered_rng_buffer_destroy(sh_rng)
+//
+//     # 8. Test Quantum Entanglement synchronization
+//     # Record current mirror seeds
+//     let m0 = AmbientRandomMirrorWorld.seed0_copy
+//     let m1 = AmbientRandomMirrorWorld.seed1_copy
+//
+//     # Generate from ambient authority
+//     let _a3 = random_ambient_next()
+//
+//     # Mirror seeds MUST have automatically updated and matched!
+//     if AmbientRandomMirrorWorld.seed0_copy == m0:
+//         return 15
+//
+//     if AmbientRandomMirrorWorld.seed0_copy != AmbientRandomWorld.seed0:
+//         return 16
+//
+//     if AmbientRandomMirrorWorld.seed1_copy != AmbientRandomWorld.seed1:
+//         return 17
+//
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/semver_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1557
+// sha256 = "sha256:0b47dba79d42313de6d654348a954e57200aa585c42119d6dca8daf26fc210b4"
+// trailing_newline = true
+//!kain-file-content
+// use std::semver
+//
+// pub fn smoke_semver_lane() -> Int:
+//     let parsed = semver_parse("1.2.3-alpha.1+build.7")
+//     if parsed.ok == false:
+//         return 1
+//     if semver_format(parsed.version) != "1.2.3-alpha.1+build.7":
+//         return 2
+//     if semver_normalize(" 1.2.3-alpha.1+build.7 ") != "1.2.3-alpha.1+build.7":
+//         return 3
+//
+//     let stable = semver_parse("1.2.3")
+//     if stable.ok == false:
+//         return 4
+//     if semver_compare(parsed.version, stable.version) != SEMVER_ORDER_LT:
+//         return 5
+//     if semver_compare_text("2.0.0", "1.9.9") != SEMVER_ORDER_GT:
+//         return 6
+//     if semver_is_prerelease(parsed.version) == false or semver_is_prerelease(stable.version):
+//         return 7
+//     if semver_equal(parsed.version, parsed.version) == false:
+//         return 8
+//
+//     let range = semver_range_parse("^1.2.3 || >= 2.0.0 < 3.0.0")
+//     if range.ok == false:
+//         return 9
+//     if semver_range_matches(range.range, stable.version) == false:
+//         return 10
+//     if semver_satisfies_text("2.5.1", "^1.2.3 || >= 2.0.0 < 3.0.0") == false:
+//         return 11
+//     if semver_satisfies_text("1.2.9", "1.2.x") == false:
+//         return 12
+//     if semver_satisfies_text("1.4.0", "1.2.x || 2.x"):
+//         return 13
+//     if semver_satisfies_text("1.4.5", "1.2 - 1.4.5") == false:
+//         return 14
+//     if semver_satisfies_text("0.2.5", "~ 0.2.0") == false:
+//         return 15
+//     if semver_satisfies_text("0.3.0", "~ 0.2.0"):
+//         return 16
+//     if semver_parse("01.2.3").ok:
+//         return 17
+//     if semver_parse("1.02.3").ok:
+//         return 18
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/sync_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 3873
+// sha256 = "sha256:f4a698b13f5bd427b00dfd633caa0b81aa49982ad5011721e287c6e1e138c631"
+// trailing_newline = true
+//!kain-file-content
+// use std::runtime
+// use std::memory
+// use std::sync
+//
+// pub fn smoke_sync_lane() -> Int with Unsafe:
+//     # 1. Test McsMutex intrusive enqueuing and locks
+//     if mcs_node_words() != 2:
+//         return 100
+//
+//     let lock = mcs_mutex_new()
+//     let node1 = mcs_node_new()
+//     let node2 = mcs_node_new()
+//
+//     let l1 = mcs_mutex_lock(lock, node1)
+//     if l1 != SYNC_OK:
+//         return 101
+//
+//     let u1 = mcs_mutex_unlock(lock, node1)
+//     if u1 != SYNC_OK:
+//         return 102
+//
+//     let l2 = mcs_mutex_lock(lock, node2)
+//     if l2 != SYNC_OK:
+//         return 103
+//
+//     let u2 = mcs_mutex_unlock(lock, node2)
+//     if u2 != SYNC_OK:
+//         return 104
+//
+//     let _node1_destroy = mcs_node_destroy(node1)
+//     let _node2_destroy = mcs_node_destroy(node2)
+//     let _lock_destroy = mcs_mutex_destroy(lock)
+//
+//
+//     # 2. Capacity clamp path should still yield a usable one-slot queue.
+//     let chan_min = teleport_channel_new(0)
+//     let item_min = alloc_zeroed(1, "Int")
+//     let item_min_bits = ptr_to_int(item_min)
+//     if teleport_channel_send(chan_min, item_min_bits) == false:
+//         return 105
+//     if teleport_channel_send(chan_min, item_min_bits):
+//         return 106
+//     if teleport_channel_recv(chan_min) != item_min_bits:
+//         return 107
+//     if teleport_channel_recv(chan_min) != 0:
+//         return 108
+//     decay item_min
+//     let _chan_min_destroy = teleport_channel_destroy(chan_min)
+//
+//     # 3. Test TeleportChannel lockless queue operations.
+//     let chan = teleport_channel_new(3)
+//     let item1 = alloc_zeroed(1, "Int")
+//     let item2 = alloc_zeroed(1, "Int")
+//     let item3 = alloc_zeroed(1, "Int")
+//     let item4 = alloc_zeroed(1, "Int")
+//
+//     let addr1 = ptr_to_int(item1)
+//     let addr2 = ptr_to_int(item2)
+//     let addr3 = ptr_to_int(item3)
+//     let addr4 = ptr_to_int(item4)
+//
+//     if teleport_channel_send(chan, addr1) == false:
+//         return 109
+//     if teleport_channel_send(chan, addr2) == false:
+//         return 110
+//     if teleport_channel_send(chan, addr3) == false:
+//         return 111
+//
+//     if teleport_channel_send(chan, addr4) == true:
+//         return 112
+//
+//     let recv1 = teleport_channel_recv(chan)
+//     if recv1 != addr1:
+//         return 113
+//
+//     if teleport_channel_send(chan, addr4) == false:
+//         return 114
+//
+//     let recv2 = teleport_channel_recv(chan)
+//     if recv2 != addr2:
+//         return 115
+//
+//     let recv3 = teleport_channel_recv(chan)
+//     if recv3 != addr3:
+//         return 116
+//
+//     let recv4 = teleport_channel_recv(chan)
+//     if recv4 != addr4:
+//         return 117
+//
+//     if teleport_channel_recv(chan) != 0:
+//         return 118
+//
+//     decay item1
+//     decay item2
+//     decay item3
+//     decay item4
+//     let _chan_destroy = teleport_channel_destroy(chan)
+//
+//
+//     # 4. Test Once lazy initialization, completion, and reset.
+//     let o = once_new()
+//     let w1 = once_do(o)
+//     if w1 != 1:
+//         return 119
+//
+//     if once_complete(o) != SYNC_OK:
+//         return 120
+//     let w2 = once_do(o)
+//     if w2 != 0:
+//         return 121
+//
+//     let _once_destroy = once_destroy(o)
+//
+//     let reset_once = once_new()
+//     if once_do(reset_once) != 1:
+//         return 122
+//     if once_reset(reset_once) != SYNC_OK:
+//         return 123
+//     if once_do(reset_once) != 1:
+//         return 124
+//     if once_complete(reset_once) != SYNC_OK:
+//         return 125
+//     let _reset_once_destroy = once_destroy(reset_once)
+//
+//
+//     # 5. Test WaitGroup coordination plus underflow rejection.
+//     let wg = wait_group_new()
+//     if wait_group_add(wg, 2) != SYNC_OK:
+//         return 126
+//     if wait_group_count(wg) != 2:
+//         return 127
+//     if wait_group_done(wg) != SYNC_OK:
+//         return 128
+//     if wait_group_count(wg) != 1:
+//         return 129
+//     if wait_group_done(wg) != SYNC_OK:
+//         return 130
+//     if wait_group_wait(wg) != SYNC_OK:
+//         return 131
+//     if wait_group_count(wg) != 0:
+//         return 132
+//     if wait_group_done(wg) != SYNC_ERR_NEGATIVE_COUNT:
+//         return 133
+//     let _wg_destroy = wait_group_destroy(wg)
+//
+//     return 0
+//!end-kain-file
+//!kain-file
 // path = "src/stdlib/text_lane.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 353
-// sha256 = "sha256:b110f87a573ca6a67f567c940331e459245590d086f261b3d4f2a775f7c5ee60"
+// bytes = 2065
+// sha256 = "sha256:ff5f4b5b2899ad6b778a968857b378fd0b3ed4cdb9b32e6813bab671fb81dd28"
 // trailing_newline = true
 //!kain-file-content
+// use std::bytes
+// use std::ascii
+// use std::fmt
 // use std::runtime
 // use std::text
 //
@@ -11593,29 +12788,571 @@
 //     let materialized = text_materialize(wire)
 //     if len(materialized) <= 0:
 //         return 3
+//     let parts = text_split_string("alpha,beta,gamma", ",")
+//     if len(parts) != 3:
+//         return 4
+//     if text_join_strings(parts, "|") != "alpha|beta|gamma":
+//         return 5
+//     let lines = text_split_lines("zero\r\ncopy\nwire")
+//     if len(lines) != 3:
+//         return 6
+//     if lines[1] != "copy":
+//         return 7
+//     let tokens = text_tokenize_whitespace("  zero   copy   wire  ")
+//     if len(tokens) != 3:
+//         return 8
+//     if text_repeat("ka", 3) != "kakaka":
+//         return 9
+//     if ascii_lowercase("AbC-09") != "abc-09":
+//         return 10
+//     if ascii_hex_value("F") != 15:
+//         return 11
+//     if fmt_pad_left("7", 3, "0") != "007":
+//         return 12
+//     if fmt_json_string("a\"b") != "\"a\\\"b\"":
+//         return 13
+//     let escaped = text_escape_basic("line\n\"quote\"")
+//     if escaped != "line\\n\\\"quote\\\"":
+//         return 14
+//     let unescaped = text_unescape_basic(escaped)
+//     if unescaped.ok == false or unescaped.value != "line\n\"quote\"":
+//         return 15
+//     let byte_view = text_as_bytes(text_from("mesh"))
+//     if bytes_hex(bytes_materialize(byte_view)) != "6d657368":
+//         return 16
+//     var builder = text_builder_new()
+//     builder = text_builder_push(builder, "zero")
+//     builder = text_builder_push_char_code(builder, ord("-"))
+//     builder = text_builder_push_view(builder, text_from("copy"))
+//     if text_builder_build(builder) != "zero-copy":
+//         return 17
+//     var writer = fmt_writer_new()
+//     writer = fmt_writer_push_key_value(writer, "lane", "text")
+//     writer = fmt_writer_push_string(writer, " ")
+//     writer = fmt_writer_push_json_string(writer, "ok")
+//     if fmt_writer_build(writer) != "lane=text \"ok\"":
+//         return 18
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/thread_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 4649
+// sha256 = "sha256:94af1e9293a025d4c779289639772f83f6e93b41d752d58ebef499257c9ea12d"
+// trailing_newline = true
+//!kain-file-content
+// use std::runtime
+// use std::memory
+// use std::thread
+// use std::fs
+// use std::zip
+// use std::elf
+// use std::wasm
+// use std::diagnostics
+//
+//
+// pub fn smoke_thread_lane() -> Int with Unsafe:
+//     # 1. Test std::thread
+//     let tid = thread_current_id()
+//     if tid <= 0:
+//         return 101
+//         
+//     let _s1 = thread_set_name("smoke-thread")
+//     
+//     let cpu_count = thread_logical_count()
+//     if cpu_count <= 0:
+//         return 102
+//         
+//     let mask = thread_affinity_mask()
+//     if mask <= 0:
+//         return 103
+//         
+//     # Set affinity to core 0 (should be safe on all systems)
+//     let _aff = thread_set_affinity(0)
+//
+//
+//     # 2. Test path helpers through std::fs wrappers
+//     let p_join = fs_path_join("a", "b")
+//     if len(p_join) != 3:
+//         return 104
+//         
+//     let p_parent = fs_path_parent("a/b/c")
+//     if len(p_parent) == 0:
+//         return 105
+//         
+//     let p_file = fs_path_file_name("a/b/c.txt")
+//     if p_file != "c.txt":
+//         return 106
+//         
+//     let p_ext = fs_path_extension("a/b/c.txt")
+//     if p_ext != "txt" and p_ext != ".txt":
+//         if p_ext != "txt":
+//             return 107
+//             
+//     let p_stem = fs_path_stem("a/b/c.txt")
+//     if p_stem != "c":
+//         return 108
+//
+//
+//     # 3. Test std::fs (File handles binary read/write)
+//     let tmp_path = "test_handle.tmp"
+//     let file_w = fs_open(tmp_path, "wb")
+//     if ptr_to_int(file_w.handle) == 0:
+//         return 112
+//         
+//     let write_buf = alloc_zeroed(2, "Int")
+//     mem_store(write_buf, 987654321, "Int")
+//     
+//     let written = fs_write(file_w, write_buf, 8)
+//     if written != 8:
+//         return 113
+//         
+//     let _c1 = fs_close(file_w)
+//     
+//     # Read back
+//     let file_r = fs_open(tmp_path, "rb")
+//     if ptr_to_int(file_r.handle) == 0:
+//         return 114
+//         
+//     let read_buf = alloc_zeroed(2, "Int")
+//     let read_bytes = fs_read(file_r, read_buf, 8)
+//     if read_bytes != 8:
+//         return 115
+//         
+//     if mem_load(read_buf, "Int") != 987654321:
+//         return 116
+//         
+//     let _c2 = fs_close(file_r)
+//     
+//     fs_remove_file(tmp_path)
+//     decay write_buf
+//     decay read_buf
+//
+//
+//     # 4. Test std::zip (Local file header and EOCD)
+//     let zip_buf = alloc_zeroed(10, "Int")
+//     let zip_h = ZipLocalHeader {
+//         version_needed: 20,
+//         flags: 0,
+//         compression_method: 0,
+//         last_mod_time: 1234,
+//         last_mod_date: 5678,
+//         crc32: 11111,
+//         compressed_size: 100,
+//         uncompressed_size: 100,
+//         file_name_len: 8,
+//         extra_field_len: 0
+//     }
+//     
+//     let zip_w_size = zip_write_local_header(zip_buf, zip_h)
+//     if zip_w_size != 30:
+//         return 117
+//         
+//     let zip_parsed = zip_read_local_header(zip_buf)
+//     if zip_parsed.version_needed != 20:
+//         return 118
+//     if zip_parsed.crc32 != 11111:
+//         return 119
+//     if zip_parsed.compressed_size != 100:
+//         return 120
+//         
+//     decay zip_buf
+//
+//
+//     # 5. Test std::elf (ElfHeader)
+//     let elf_buf = alloc_zeroed(12, "Int")
+//     # ELF Magic is 1179403647 (0x464c457f)
+//     mem_store(elf_buf, ELF_MAGIC, "Int")
+//     # Store Class (64-bit), encoding (LSB) in word 1
+//     mem_store(ptr_offset(elf_buf, 1, "Int"), (ELF_DATA_LSB << 8) | ELF_CLASS_64, "Int")
+//     # Store file type, machine in word 2
+//     mem_store(ptr_offset(elf_buf, 2, "Int"), (ELF_MACHINE_X86_64 << 16) | ELF_TYPE_EXEC, "Int")
+//     
+//     let elf_h = elf_read_header(elf_buf)
+//     if elf_h.elf_class != ELF_CLASS_64:
+//         return 121
+//     if elf_h.machine != ELF_MACHINE_X86_64:
+//         return 122
+//         
+//     decay elf_buf
+//
+//
+//     # 6. Test std::wasm (WasmHeader & Section details)
+//     let wasm_buf = alloc_zeroed(10, "Int")
+//     mem_store(wasm_buf, WASM_MAGIC, "Int")
+//     mem_store(ptr_offset(wasm_buf, 1, "Int"), WASM_VERSION, "Int")
+//     
+//     if wasm_validate_header(wasm_buf) == false:
+//         return 123
+//         
+//     decay wasm_buf
+//
+//
+//     # 7. Test std::diagnostics
+//     let status_val = bool_to_status(true)
+//     if status_val != 0:
+//         return 124
+//         
+//     let fail_val = bool_to_status(false)
+//     if status_failed(fail_val) == false:
+//         return 125
+//         
+//     # Execute structured logs (prints outputs to verify no crash occurs)
+//     let _l1 = log_info("smoke-test", "Verifying standard library systems floor completion")
+//     let _l2 = log_warning("smoke-test", "High pressure verification locks engaged")
+//     let _l3 = log_error("smoke-test", "Simulated error condition bypass check", 404)
+//     let _l4 = progress_emit("stdlib-certify", 100)
+//     
+//     let dummy_mem = alloc_zeroed(2, "Int")
+//     mem_store(dummy_mem, 1111, "Int")
+//     mem_store(ptr_offset(dummy_mem, 1, "Int"), 2222, "Int")
+//     let _d1 = debug_dump_memory("smoke-memory", dummy_mem, 2)
+//     decay dummy_mem
+//
 //     return 0
 //!end-kain-file
 //!kain-file
 // path = "src/stdlib/time_lane.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 305
-// sha256 = "sha256:730b062ac480cc130ee645918bfa7f01f0149c4832320f9133167a8d3c408f73"
+// bytes = 4033
+// sha256 = "sha256:52aed7f103af33fbe3babc36db419b8570f7534d73952b5df98cb292e0775c91"
 // trailing_newline = true
 //!kain-file-content
 // use std::runtime
 // use std::time
 //
 // pub fn smoke_time_lane() -> Int:
-//     let now = now_millis()
-//     if now < 0:
+//     # 1. Test Duration builders and comparisons
+//     let d1 = duration_from_millis(500)
+//     let d2 = duration_from_secs(2)
+//     let d3 = duration_from_mins(1)
+//     let d4 = duration_from_hours(1)
+//
+//     if duration_to_millis(d1) != 500:
+//         return 101
+//     if duration_to_millis(d2) != 2000:
+//         return 102
+//     if duration_to_secs(d2) != 2:
+//         return 103
+//     if duration_to_millis(d3) != 60000:
+//         return 104
+//     if duration_to_millis(d4) != 3600000:
+//         return 105
+//
+//     let d_sum = duration_add(d1, d2)
+//     if duration_to_millis(d_sum) != 2500:
+//         return 106
+//
+//     let d_diff = duration_sub(d2, d1)
+//     if duration_to_millis(d_diff) != 1500:
+//         return 107
+//
+//     # Clamping sub below zero
+//     let d_clamped = duration_sub(d1, d2)
+//     if duration_to_millis(d_clamped) != 0:
+//         return 108
+//
+//     if duration_compare(d1, d2) != -1:
+//         return 109
+//     if duration_compare(d2, d1) != 1:
+//         return 110
+//     if duration_compare(d1, d1) != 0:
+//         return 111
+//
+//
+//     # 2. Test Instant monotonic now & calculations
+//     let t0 = instant_now()
+//     let _sleep = sleep_millis(5)
+//     let t1 = instant_now()
+//
+//     let elapsed = instant_elapsed(t0)
+//     if duration_to_millis(elapsed) < 4:
+//         # Monotonic time should have advanced by at least 4-5ms
+//         return 112
+//
+//     let diff = instant_sub_instant(t1, t0)
+//     if duration_to_millis(diff) < 4:
+//         return 113
+//
+//     let t_fut = instant_add_duration(t0, d2)
+//     if instant_compare(t_fut, t0) != 1:
+//         return 114
+//     if instant_compare(t0, t_fut) != -1:
+//         return 115
+//     if instant_compare(t0, t0) != 0:
+//         return 116
+//
+//
+//     # 3. Test Deadline threshold and remaining
+//     let dl = deadline_from_duration(duration_from_millis(50))
+//     if deadline_is_elapsed(dl) == true:
+//         return 117
+//     
+//     let rem0 = deadline_remaining(dl)
+//     if duration_to_millis(rem0) <= 0:
+//         return 118
+//
+//     let _sleep_dl = sleep_millis(55)
+//     if deadline_is_elapsed(dl) == false:
+//         return 119
+//     
+//     let rem1 = deadline_remaining(dl)
+//     if duration_to_millis(rem1) != 0:
+//         return 120
+//
+//
+//     # 4. Test Zero-Allocation periodic Ticker
+//     let interval = duration_from_millis(2)
+//     var ticker = ticker_new(interval)
+//     
+//     # Tick 3 times
+//     var tick_count = 0
+//     while tick_count < 3:
+//         ticker = ticker_next(ticker)
+//         tick_count = tick_count + 1
+//
+//     if tick_count != 3:
+//         return 121
+//
+//
+//     # 5. Test UTC DateTime calendar conversions
+//     # Verify epoch 0 (1970-01-01 00:00:00.000 UTC)
+//     let dt_epoch = datetime_from_epoch_millis(0)
+//     if dt_epoch.year != 1970 or dt_epoch.month != 1 or dt_epoch.day != 1:
+//         return 122
+//     if dt_epoch.hour != 0 or dt_epoch.minute != 0 or dt_epoch.second != 0 or dt_epoch.millis != 0:
+//         return 123
+//
+//     # Verify a known modern date: 1609459200000ms (2021-01-01 00:00:00.000 UTC)
+//     let dt_2021 = datetime_from_epoch_millis(1609459200000)
+//     if dt_2021.year != 2021 or dt_2021.month != 1 or dt_2021.day != 1:
+//         return 124
+//     if dt_2021.hour != 0 or dt_2021.minute != 0 or dt_2021.second != 0:
+//         return 125
+//
+//     # Verify a leap-year boundary: Feb 28 to March 1 roll in leap-year 2020.
+//     # 2020 is a leap year (Feb has 29 days).
+//     # 1583020800000ms is 2020-03-01 00:00:00.000 UTC.
+//     let dt_leap = datetime_from_epoch_millis(1583020800000)
+//     if dt_leap.year != 2020 or dt_leap.month != 3 or dt_leap.day != 1:
+//         return 126
+//
+//     # 1582934400000ms is 2020-02-29 00:00:00.000 UTC (Leap Day!).
+//     let dt_leap_day = datetime_from_epoch_millis(1582934400000)
+//     if dt_leap_day.year != 2020 or dt_leap_day.month != 2 or dt_leap_day.day != 29:
+//         return 127
+//
+//     # Verify non-leap year Feb 28 roll to March 1 (e.g. 2021).
+//     # 2021 is not a leap year.
+//     # 1614556800000ms is 2021-03-01 00:00:00.000 UTC.
+//     let dt_nonleap = datetime_from_epoch_millis(1614556800000)
+//     if dt_nonleap.year != 2021 or dt_nonleap.month != 3 or dt_nonleap.day != 1:
+//         return 128
+//
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/unicode_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 3592
+// sha256 = "sha256:86cb7d3938ac2e6ced0b4425e31a065cbfb1119f43304b40db578c50b5a8410c"
+// trailing_newline = true
+//!kain-file-content
+// use std::unicode
+//
+// pub fn smoke_unicode_lane() -> Int:
+//     # 1. Test unicode_utf8_char_length
+//     if unicode_utf8_char_length(65) != 1:
 //         return 1
-//     let deadline = deadline_millis(1000)
-//     if deadline < now:
+//     if unicode_utf8_char_length(194) != 2:
 //         return 2
-//     let elapsed = deadline_elapsed(deadline)
-//     if elapsed == true:
+//     if unicode_utf8_char_length(224) != 3:
 //         return 3
+//     if unicode_utf8_char_length(240) != 4:
+//         return 4
+//     if unicode_utf8_char_length(248) != -1:
+//         return 5
+//     if unicode_utf8_char_length(-5) != -1:
+//         return 6
+//
+//     # 2. Test unicode_utf8_decode_at with valid characters
+//     let test_str = "A¢€𐍈"
+//     
+//     let res0 = unicode_utf8_decode_at(test_str, 0)
+//     if res0.valid == false or res0.codepoint != 65 or res0.length != 1:
+//         return 7
+//         
+//     let res1 = unicode_utf8_decode_at(test_str, 1)
+//     if res1.valid == false or res1.codepoint != 162 or res1.length != 2:
+//         return 8
+//         
+//     let res2 = unicode_utf8_decode_at(test_str, 3)
+//     if res2.valid == false or res2.codepoint != 8364 or res2.length != 3:
+//         return 9
+//         
+//     let res3 = unicode_utf8_decode_at(test_str, 6)
+//     if res3.valid == false or res3.codepoint != 66376 or res3.length != 4:
+//         return 10
+//
+//     # 3. Test unicode_utf8_decode_at with invalid/overlong characters
+//     # Overlong 2-byte A: C0 81 (192, 129)
+//     let overlong_2 = chr(192) + chr(129)
+//     let res_overlong = unicode_utf8_decode_at(overlong_2, 0)
+//     if res_overlong.valid != false or res_overlong.length != 1:
+//         return 11
+//
+//     # Surrogate U+D800: ED A0 80 (237, 160, 128)
+//     let surrogate = chr(237) + chr(160) + chr(128)
+//     let res_surrogate = unicode_utf8_decode_at(surrogate, 0)
+//     if res_surrogate.valid != false or res_surrogate.length != 1:
+//         return 12
+//
+//     # Out of bounds codepoint (> 0x10FFFF)
+//     let out_of_bounds = chr(245) + chr(144) + chr(128) + chr(128)
+//     let res_oob = unicode_utf8_decode_at(out_of_bounds, 0)
+//     if res_oob.valid != false or res_oob.length != 1:
+//         return 13
+//
+//     # 4. Test unicode_utf8_encode
+//     if unicode_utf8_encode(65) != "A":
+//         return 14
+//     if unicode_utf8_encode(162) != "¢":
+//         return 15
+//     if unicode_utf8_encode(8364) != "€":
+//         return 16
+//     if unicode_utf8_encode(66376) != "𐍈":
+//         return 17
+//     # U+FFFD Replacement Character (65533) when encoding out of bounds
+//     if unicode_utf8_encode(-10) != unicode_utf8_encode(65533):
+//         return 18
+//     if unicode_utf8_encode(1114115) != unicode_utf8_encode(65533):
+//         return 19
+//
+//     # 5. Test validation and counting
+//     if unicode_utf8_is_valid(test_str) == false:
+//         return 20
+//     if unicode_utf8_is_valid(overlong_2) == true:
+//         return 21
+//     if unicode_utf8_codepoint_count(test_str) != 4:
+//         return 22
+//     if unicode_utf8_codepoint_at(test_str, 2) != 8364:
+//         return 23
+//
+//     # 6. Test cursor-based iteration
+//     let cursor = unicode_cursor_new(test_str)
+//     if unicode_cursor_has_next(cursor) == false:
+//         return 24
+//         
+//     let c1 = unicode_cursor_next(cursor)
+//     if c1.decode.codepoint != 65 or c1.has_next == false:
+//         return 25
+//         
+//     let c2 = unicode_cursor_next(c1.cursor)
+//     if c2.decode.codepoint != 162 or c2.has_next == false:
+//         return 26
+//         
+//     let c3 = unicode_cursor_next(c2.cursor)
+//     if c3.decode.codepoint != 8364 or c3.has_next == false:
+//         return 27
+//         
+//     let c4 = unicode_cursor_next(c3.cursor)
+//     if c4.decode.codepoint != 66376 or c4.has_next == true:
+//         return 28
+//
+//     # 7. Test normalization stubs
+//     let norm = unicode_normalize(test_str, UnicodeNormalizationForm::Nfc)
+//     if norm != test_str:
+//         return 29
+//
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/stdlib/uri_lane.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1950
+// sha256 = "sha256:1a99e575df9550693afe184bc9acc08681618447dbdaf865330df1ab58d525ac"
+// trailing_newline = true
+//!kain-file-content
+// use std::uri
+// use std::text
+//
+// pub fn smoke_uri_lane() -> Int:
+//     # 1. Test basic parsing
+//     let url = "https://user:pass@example.com:8080/path/to/resource?key=val&flag#frag"
+//     let u = uri_parse(url)
+//     
+//     if u.valid == false:
+//         return 1
+//         
+//     if text_materialize(u.scheme) != "https":
+//         return 2
+//         
+//     if text_materialize(u.userinfo) != "user:pass":
+//         return 3
+//         
+//     if text_materialize(u.host) != "example.com":
+//         return 4
+//         
+//     if u.port != 8080:
+//         return 5
+//         
+//     if text_materialize(u.path) != "/path/to/resource":
+//         return 6
+//         
+//     if text_materialize(u.query) != "key=val&flag":
+//         return 7
+//         
+//     if text_materialize(u.frag_part) != "frag":
+//         return 8
+//
+//     # 2. Test IPv6 host parsing
+//     let url_v6 = "http://[2001:db8::1]:80/index.html"
+//     let u_v6 = uri_parse(url_v6)
+//     if u_v6.valid == false:
+//         return 9
+//     if text_materialize(u_v6.host) != "[2001:db8::1]":
+//         return 10
+//     if u_v6.port != 80:
+//         return 11
+//
+//     # 3. Test percent decoding & encoding
+//     let decoded = uri_decode("hello+world%20%3F%23%25")
+//     if decoded != "hello world ?#%":
+//         return 12
+//
+//     let encoded = uri_encode("hello world ?#%")
+//     if encoded != "hello%20world%20%3F%23%25":
+//         return 13
+//
+//     # 4. Test query parameter iterator (zero-copy)
+//     let it = uri_query_param_iterator(u)
+//     if uri_query_param_has_next(it) == false:
+//         return 14
+//
+//     let p1 = uri_query_param_next(it)
+//     if text_materialize(p1.param.key) != "key":
+//         return 15
+//     if text_materialize(p1.param.value) != "val":
+//         return 16
+//     if p1.param.has_value == false:
+//         return 17
+//
+//     if p1.has_next == false:
+//         return 18
+//
+//     let p2 = uri_query_param_next(p1.iterator)
+//     if text_materialize(p2.param.key) != "flag":
+//         return 19
+//     if p2.param.has_value:
+//         return 20
+//
+//     if p2.has_next:
+//         return 21
+//
 //     return 0
 //!end-kain-file
 //!kain-file
@@ -11786,6 +13523,50 @@
 //     return 0
 //!end-kain-file
 //!kain-file
+// path = "src/systems/native_cli.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 824
+// sha256 = "sha256:52916cf9291e74d98de90239013fc0beb221488e1fa41d83f075691a5799a2fb"
+// trailing_newline = true
+//!kain-file-content
+// use fs_lane::smoke_fs_lane
+// use platform_lane::smoke_platform_lane
+//
+// pub fn smoke_native_cli_lane() -> Int:
+//     let argv = args()
+//     if len(argv) < 1:
+//         return 1
+//
+//     let cwd_path = cwd()
+//     if len(cwd_path) == 0:
+//         return 2
+//
+//     let probe = path_join(cwd_path, "smoketest.exe")
+//     if path_parent(probe) != cwd_path:
+//         return 3
+//     if path_file_name(probe) != "smoketest.exe":
+//         return 4
+//     if path_extension(probe) != "exe":
+//         return 5
+//     if path_stem(probe) != "smoketest":
+//         return 6
+//
+//     let entries = read_dir(cwd_path)
+//     if len(entries) < 1:
+//         return 7
+//
+//     let fs_status = smoke_fs_lane()
+//     if fs_status != 0:
+//         return 20 + fs_status
+//
+//     let platform_status = smoke_platform_lane()
+//     if platform_status != 0:
+//         return 40 + platform_status
+//
+//     return 0
+//!end-kain-file
+//!kain-file
 // path = "src/systems/ownership.kn"
 // kind = "text"
 // encoding = "utf8"
@@ -11868,6 +13649,83 @@
 //         return 8
 //
 //     decay cells
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/systems/share_fanout.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 2074
+// sha256 = "sha256:4dcbf4eae62a12eb2aa0d437d6bf334193306b18f76e7b560b53c2851e2d33d5"
+// trailing_newline = true
+//!kain-file-content
+// use std::runtime
+// use std::memory
+// use keyword_mesh::smoke_keyword_mesh_scalar
+// use law::smoke_validate_range
+// use types::SmokeLane
+// use types::SmokePacket
+// use types::smoke_lane_rank
+// use types::smoke_weighted_checksum
+//
+// const SHARE_FANOUT_WORKERS: Int = 4
+// const SHARE_FANOUT_STEPS: Int = 16
+// const SHARE_FANOUT_MODULUS: Int = 1000000007
+//
+// fn share_fanout_expected() -> Int:
+//     var worker: Int = 0
+//     var total: Int = 0
+//     while worker < SHARE_FANOUT_WORKERS:
+//         var step: Int = 0
+//         var local: Int = 0
+//         while step < SHARE_FANOUT_STEPS:
+//             local = (local + smoke_keyword_mesh_scalar(worker + step)) % SHARE_FANOUT_MODULUS
+//             step = step + 1
+//         total = (total + local) % SHARE_FANOUT_MODULUS
+//         worker = worker + 1
+//     return total
+//
+// pub fn smoke_share_fanout_lane() -> Int with Unsafe:
+//     let mut partials: ptr<Int> = alloc_zeroed(SHARE_FANOUT_WORKERS, "Int")
+//
+//     share partials:
+//         fanout worker in 0..SHARE_FANOUT_WORKERS:
+//             let slot: ptr<Int> = ptr_offset(partials, worker, "Int")
+//             var step: Int = 0
+//             var local: Int = 0
+//             while step < SHARE_FANOUT_STEPS:
+//                 local = (local + smoke_keyword_mesh_scalar(worker + step)) % SHARE_FANOUT_MODULUS
+//                 step = step + 1
+//             atomic_store(slot, local)
+//
+//     let total: Int = observe partials:
+//         var worker: Int = 0
+//         var acc: Int = 0
+//         while worker < SHARE_FANOUT_WORKERS:
+//             acc = (acc + mem_load(ptr_offset(partials, worker, "Int"), "Int")) % SHARE_FANOUT_MODULUS
+//             worker = worker + 1
+//         acc
+//     decay partials
+//
+//     if total != share_fanout_expected():
+//         return 1
+//
+//     if smoke_validate_range(total, 0, SHARE_FANOUT_MODULUS) == false:
+//         return 2
+//
+//     if smoke_lane_rank(SmokeLane::ShareFanout) != 34:
+//         return 3
+//
+//     let packet = SmokePacket {
+//         id: 51,
+//         lane: SmokeLane::ShareFanout,
+//         payload: total,
+//         tag: "share-fanout",
+//         hot: true
+//     }
+//     if smoke_weighted_checksum(packet) <= 0:
+//         return 4
+//
 //     return 0
 //!end-kain-file
 //!kain-file
@@ -12557,8 +14415,8 @@
 // path = "src/telemetry/report.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 7376
-// sha256 = "sha256:5a252a3475ec34d52f54dedad4d3d4217ee138bd7c1cf443e223859390d9167b"
+// bytes = 7467
+// sha256 = "sha256:6199df91b4c48b69497924d2aefa80755c0d8168204c14c362c0a33a352a1382"
 // trailing_newline = true
 //!kain-file-content
 // use std::runtime
@@ -12567,6 +14425,7 @@
 // use std::intent
 // use std::time
 // use std::fs
+// use std::fmt
 //
 // const SMOKE_TELEMETRY_ROOT: String = "telemetry"
 // const SMOKE_TELEMETRY_TRACKS_DIR: String = "tracks"
@@ -12616,10 +14475,10 @@
 //     let elapsed_ms = ended_ms - started_ms
 //     let ok = bool_to_int(status == 0)
 //     var content: String = "{\n"
-//     content = content + "  \"mode\": \"" + mode + "\",\n"
-//     content = content + "  \"category\": \"" + category + "\",\n"
-//     content = content + "  \"track\": \"" + track + "\",\n"
-//     content = content + "  \"lane\": \"" + lane_name + "\",\n"
+//     content = content + "  \"mode\": " + fmt_json_string(mode) + ",\n"
+//     content = content + "  \"category\": " + fmt_json_string(category) + ",\n"
+//     content = content + "  \"track\": " + fmt_json_string(track) + ",\n"
+//     content = content + "  \"lane\": " + fmt_json_string(lane_name) + ",\n"
 //     content = content + "  \"offset\": " + str(offset) + ",\n"
 //     content = content + "  \"status\": " + str(status) + ",\n"
 //     content = content + "  \"ok\": " + str(ok) + ",\n"
@@ -12647,10 +14506,10 @@
 //     let total_elapsed_ms = ended_ms - started_ms
 //     let ok = bool_to_int(failure_code == 0)
 //     var content: String = "{\n"
-//     content = content + "  \"mode\": \"" + mode + "\",\n"
+//     content = content + "  \"mode\": " + fmt_json_string(mode) + ",\n"
 //     content = content + "  \"ok\": " + str(ok) + ",\n"
 //     content = content + "  \"failure_code\": " + str(failure_code) + ",\n"
-//     content = content + "  \"failure_track\": \"" + failure_track + "\",\n"
+//     content = content + "  \"failure_track\": " + fmt_json_string(failure_track) + ",\n"
 //     content = content + "  \"total_tracks\": " + str(total_tracks) + ",\n"
 //     content = content + "  \"succeeded_tracks\": " + str(succeeded_tracks) + ",\n"
 //     content = content + "  \"composition_checksum\": " + str(composition_checksum) + ",\n"
@@ -12710,6 +14569,23 @@
 //     return 0
 //!end-kain-file
 //!kain-file
+// path = "src/tmp_extern_probe.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 155
+// sha256 = "sha256:c642e9acd0cee58b5a6b05a98502a5bc6e8446eaaa41d46a682ca91aefba63fd"
+// trailing_newline = true
+//!kain-file-content
+// @extern
+// pub fn extern_probe(value: Int) -> Int
+//
+// pub fn extern_probe_use(value: Int) -> Int:
+//     return extern_probe(value)
+//
+// fn main() -> Int:
+//     return 0
+//!end-kain-file
+//!kain-file
 // path = "src/wasm/wasm_main.kn"
 // kind = "text"
 // encoding = "utf8"
@@ -12756,8 +14632,8 @@
 // path = "telemetry/invoke_kain.ps1"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 1359
-// sha256 = "sha256:ec6c3f9e828510c92c40c5e55c3b7e34cee394deab2665c3106db11e61b7692a"
+// bytes = 2605
+// sha256 = "sha256:e05892f810213701548dfef9db7efe5784140af895223e3535a2aca66558fa6a"
 // trailing_newline = true
 //!kain-file-content
 // $ErrorActionPreference = "Stop"
@@ -12776,15 +14652,48 @@
 //     $scriptPath = [System.IO.Path]::GetFullPath($scriptPathValue)
 //     $repoRoot = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $scriptPath) "..\.."))
 //
-//     $candidates = @()
-//     if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BIN)) {
-//         $candidates += $env:KAIN_BIN
+//     if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BIN) -and (Test-Path $env:KAIN_BIN)) {
+//         return (Resolve-Path $env:KAIN_BIN).Path
 //     }
-//     $candidates += (Join-Path $repoRoot "target\debug\kain.exe")
-//     $candidates += (Join-Path $repoRoot "target\release\kain.exe")
+//
+//     $bazelCommand = Get-Command bazel -ErrorAction SilentlyContinue
+//     if ($bazelCommand) {
+//         Push-Location $repoRoot
+//         try {
+//             & $bazelCommand.Source build "//:kain" "--config=dev"
+//             if ($LASTEXITCODE -eq 0) {
+//                 $bazelBinText = & $bazelCommand.Source info bazel-bin "--config=dev"
+//                 if ($LASTEXITCODE -eq 0) {
+//                     $ansiEscape = [char]27
+//                     $bazelBin = $bazelBinText |
+//                         ForEach-Object { ($_ -replace "$ansiEscape\[[0-9;]*m", "").Trim() } |
+//                         Where-Object { $_ -and ($_ -match "[:/\\]") } |
+//                         Select-Object -Last 1
+//                     if ($bazelBin) {
+//                         $bazelKain = Join-Path $bazelBin "crates\cli\kain.exe"
+//                         if (Test-Path $bazelKain) {
+//                             return (Resolve-Path $bazelKain).Path
+//                         }
+//                         $aliasKain = Join-Path $bazelBin "kain.exe"
+//                         if (Test-Path $aliasKain) {
+//                             return (Resolve-Path $aliasKain).Path
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//         finally {
+//             Pop-Location
+//         }
+//     }
+//
+//     $candidates = @(
+//         (Join-Path $repoRoot "target\debug\kain.exe"),
+//         (Join-Path $repoRoot "target\release\kain.exe")
+//     )
 //
 //     foreach ($candidate in $candidates) {
-//         if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
+//         if (Test-Path $candidate) {
 //             return (Resolve-Path $candidate).Path
 //         }
 //     }

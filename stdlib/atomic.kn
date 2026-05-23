@@ -24,18 +24,22 @@ pub fn atomic_int_destroy(a: AtomicInt) -> Int:
     return 0
 
 pub fn atomic_int_load(self: AtomicInt, order: Ordering) -> Int with Unsafe:
+    var value = 0
     match order:
-        Ordering::Relaxed => return atomic_load_relaxed(self.ptr)
-        Ordering::Acquire => return atomic_load_acquire(self.ptr)
-        Ordering::SeqCst => return atomic_load_seqcst(self.ptr)
-        _ => return atomic_load_seqcst(self.ptr)
+        Ordering::Relaxed => value = atomic_load_relaxed(self.ptr)
+        Ordering::Acquire => value = atomic_load_acquire(self.ptr)
+        Ordering::SeqCst => value = atomic_load_seqcst(self.ptr)
+        _ => value = atomic_load_seqcst(self.ptr)
+    return value
 
 pub fn atomic_int_store(self: AtomicInt, value: Int, order: Ordering) -> Int with Unsafe:
+    var stored = 0
     match order:
-        Ordering::Relaxed => return atomic_store_relaxed(self.ptr, value)
-        Ordering::Release => return atomic_store_release(self.ptr, value)
-        Ordering::SeqCst => return atomic_store_seqcst(self.ptr, value)
-        _ => return atomic_store_seqcst(self.ptr, value)
+        Ordering::Relaxed => stored = atomic_store_relaxed(self.ptr, value)
+        Ordering::Release => stored = atomic_store_release(self.ptr, value)
+        Ordering::SeqCst => stored = atomic_store_seqcst(self.ptr, value)
+        _ => stored = atomic_store_seqcst(self.ptr, value)
+    return stored
 
 pub fn atomic_int_add(self: AtomicInt, delta: Int) -> Int with Unsafe:
     return atomic_add_acqrel(self.ptr, delta)

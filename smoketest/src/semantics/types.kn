@@ -36,6 +36,9 @@ enum SmokeLane:
     CAbiAlbum
     HeadlessHost
     TelemetryFlow
+    KeywordMesh
+    ShareFanout
+    VertexShader
 
 struct SmokePacket:
     id: Int
@@ -90,6 +93,9 @@ pub fn smoke_lane_rank(lane: SmokeLane) -> Int:
         SmokeLane::CAbiAlbum => 30
         SmokeLane::HeadlessHost => 31
         SmokeLane::TelemetryFlow => 32
+        SmokeLane::KeywordMesh => 33
+        SmokeLane::ShareFanout => 34
+        SmokeLane::VertexShader => 35
         _ => 0
 
 pub fn smoke_lane_name(lane: SmokeLane) -> String:
@@ -126,6 +132,9 @@ pub fn smoke_lane_name(lane: SmokeLane) -> String:
         SmokeLane::CAbiAlbum => "c_abi_album"
         SmokeLane::HeadlessHost => "headless_host"
         SmokeLane::TelemetryFlow => "telemetry_flow"
+        SmokeLane::KeywordMesh => "keyword_mesh"
+        SmokeLane::ShareFanout => "share_fanout"
+        SmokeLane::VertexShader => "vertex_shader"
         _ => "unknown"
 
 // Cross-workspace utility: imported by actor.kn, shatter.kn, patch.kn etc.

@@ -1,0 +1,105 @@
+use std::runtime
+use converge::smoke_mix_pair
+use types::SmokeLane
+use types::SmokePacket
+use types::smoke_lane_rank
+use types::smoke_weighted_checksum
+
+const KEYWORD_MESH_MODULUS: Int = 1000000007
+
+pub mod keyword_helpers:
+    pub fn classify(seed: Int) -> Int:
+        if seed < 4:
+            return 11
+        elif seed < 8:
+            return 17
+        return 23
+
+    pub fn compose(tag: String, score: Int) -> String:
+        return format!("keyword:", tag, ":", score)
+
+use keyword_helpers::classify
+use keyword_helpers::compose
+
+fn keyword_mix_pair(left: Int, right: Int) -> Int:
+    return smoke_mix_pair(left, right)
+
+fn keyword_lane_rank(lane: SmokeLane) -> Int:
+    return smoke_lane_rank(lane)
+
+fn keyword_checksum(packet: SmokePacket) -> Int:
+    return smoke_weighted_checksum(packet)
+
+fn build_keyword_score(seed: Int) -> Int:
+    return classify(seed)
+
+fn compose_keyword_summary(tag: String, score: Int) -> String:
+    return compose(tag, score)
+
+macro smoke_passthrough!(value: expr):
+    value
+
+trait KeywordFold:
+    fn summary(_self: Self_) -> String:
+        let __placeholder = none
+        return "keyword:none"
+
+struct KeywordMeshRecord:
+    id: Int
+    payload: Int
+    tag: String
+
+impl KeywordMeshRecord:
+    fn clone_self(_self: Self_) -> Self:
+        let copy: Self = _self
+        return copy
+
+    fn folded_score(_self: Self_) -> Int:
+        return (_self.id + _self.payload + len(_self.tag)) % KEYWORD_MESH_MODULUS
+
+impl KeywordFold for KeywordMeshRecord:
+    fn summary(_self: Self_) -> String:
+        return compose_keyword_summary(_self.tag, _self.payload)
+
+fn smoke_async_effect(seed: Int) -> Int with Async:
+    return seed + 3
+
+pub fn smoke_keyword_mesh_scalar(seed: Int) -> Int:
+    return keyword_mix_pair(seed, build_keyword_score(seed))
+
+pub fn smoke_keyword_mesh_lane() -> Int with Unsafe:
+    let class_score = build_keyword_score(6)
+    if class_score != 17:
+        return 1
+
+    let effect_score = smoke_async_effect(class_score)
+    if effect_score != 20:
+        return 2
+
+    let record = KeywordMeshRecord { id: 1, payload: effect_score, tag: "mesh" }
+    let clone = record.clone_self()
+    let values = vec!(record.id, clone.payload, effect_score)
+    if len(values) != 3:
+        return 3
+
+    if clone.summary() != "keyword:mesh:20":
+        return 4
+
+    if clone.folded_score() != 25:
+        return 5
+
+    let lane_rank = keyword_lane_rank(SmokeLane::KeywordMesh)
+    if lane_rank != 33:
+        return 6
+
+    let packet = SmokePacket {
+        id: 50,
+        lane: SmokeLane::KeywordMesh,
+        payload: smoke_keyword_mesh_scalar(clone.payload),
+        tag: clone.summary(),
+        hot: true
+    }
+    if keyword_checksum(packet) <= 0:
+        return 7
+
+    return 0

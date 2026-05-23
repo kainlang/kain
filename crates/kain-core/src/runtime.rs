@@ -3045,6 +3045,15 @@ impl Env {
             runtime_fs_strict_unit("fs_create_dir_all", kain_fs::create_dir_all(path))
         });
 
+        // Keep std::fs extern wrappers usable in interpret-mode helper programs.
+        self.define_native("abi_fs_create_dir_all", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_create_dir_all", "path")?;
+            runtime_fs_strict(
+                "abi_fs_create_dir_all",
+                kain_fs::create_dir_all(path).map(|_| Value::Int(0)),
+            )
+        });
+
         self.define_native("fs_try_create_dir_all", |_env, args| {
             let path = runtime_expect_string_arg(&args, 0, "fs_try_create_dir_all", "path")?;
             runtime_fs_result(kain_fs::create_dir_all(path).map(|_| Value::Unit))

@@ -20,14 +20,19 @@ use shatter::smoke_shatter_lane
 use pulse::smoke_pulse_lane
 use teleport::smoke_teleport_lane
 use comptime::smoke_comptime_lane
+use keyword_mesh::smoke_keyword_mesh_lane
 
 // Systems tracks
 use memory::smoke_memory_lane
 use ownership::smoke_ownership_lane
+use share_fanout::smoke_share_fanout_lane
 use abi_control::smoke_abi_control_lane
 use vm_topology::smoke_vm_topology_lane
 use mmio_interrupt::smoke_mmio_interrupt_lane
 use native_cli::smoke_native_cli_lane
+
+// GPU tracks
+use fragment::smoke_vertex_lane
 
 // Stdlib tracks
 use ascii_lane::smoke_ascii_lane
@@ -126,7 +131,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 49
+    let total_tracks: Int = 52
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -283,6 +288,15 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_comptime, "semantics.comptime")
     succeeded_tracks = succeeded_tracks + 1
 
+    let started_keyword_mesh = now_millis()
+    let lane_keyword_mesh = smoke_keyword_mesh_lane()
+    let ended_keyword_mesh = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.keyword_mesh", "keyword_mesh", 50, 1750, lane_keyword_mesh, started_keyword_mesh, ended_keyword_mesh, composition_checksum)
+    let e_keyword_mesh = smoke_first_error(1750, lane_keyword_mesh)
+    if e_keyword_mesh != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_keyword_mesh, "semantics.keyword_mesh")
+    succeeded_tracks = succeeded_tracks + 1
+
     let started_memory = now_millis()
     let lane_memory = smoke_memory_lane()
     let ended_memory = now_millis()
@@ -326,6 +340,24 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_mmio_interrupt = smoke_first_error(2200, lane_mmio_interrupt)
     if e_mmio_interrupt != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_mmio_interrupt, "systems.mmio_interrupt")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_share_fanout = now_millis()
+    let lane_share_fanout = smoke_share_fanout_lane()
+    let ended_share_fanout = now_millis()
+    composition_checksum = smoke_record_track(mode, "systems", "systems.share_fanout", "share_fanout", 51, 2250, lane_share_fanout, started_share_fanout, ended_share_fanout, composition_checksum)
+    let e_share_fanout = smoke_first_error(2250, lane_share_fanout)
+    if e_share_fanout != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_share_fanout, "systems.share_fanout")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_vertex = now_millis()
+    let lane_vertex = smoke_vertex_lane()
+    let ended_vertex = now_millis()
+    composition_checksum = smoke_record_track(mode, "gpu", "gpu.vertex", "vertex", 52, 2275, lane_vertex, started_vertex, ended_vertex, composition_checksum)
+    let e_vertex = smoke_first_error(2275, lane_vertex)
+    if e_vertex != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_vertex, "gpu.vertex")
     succeeded_tracks = succeeded_tracks + 1
 
     let started_collections = now_millis()

@@ -1904,7 +1904,10 @@ fn lower_addr_of_memory(
     } else {
         let mut args = vec![lower_expr_memory_with_ctx(value, ctx)];
         if let Some(ty) = pointee_ty {
-            args.push(Expr::String(type_key(ty), span));
+            args.push(Expr::Int(
+                memory_stride_for_type(Some(ty), ctx.layouts).unwrap_or(1),
+                span,
+            ));
         }
         helper_call("__kain_addr_of", args, span)
     }

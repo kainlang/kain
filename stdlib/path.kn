@@ -2,15 +2,19 @@ use std::target
 
 pub fn path_sep() -> String:
     let tgt = target_current()
+    var sep = "/"
     match tgt.os:
-        OS::Windows => return "\\"
-        _ => return "/"
+        OS::Windows => sep = "\\"
+        _ => sep = "/"
+    return sep
 
 pub fn path_delimiter() -> String:
     let tgt = target_current()
+    var delimiter = ":"
     match tgt.os:
-        OS::Windows => return ";"
-        _ => return ":"
+        OS::Windows => delimiter = ";"
+        _ => delimiter = ":"
+    return delimiter
 
 pub fn path_is_absolute(path: String) -> Bool:
     if len(path) == 0:

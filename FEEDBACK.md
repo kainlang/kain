@@ -175,3 +175,16 @@
 - Minimal repro: `kain check stdlib/random.kn --target llvm`
 - Evidence: failure points at `stdlib/random.kn:258` on `pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int:` with the `verify random(n)` diagnostic above.
 - Suggested direction: either extend `verify random(n)` so pointer-bearing converge signatures can be proved when the pointer arguments are not part of the randomized domain, or emit a more structured diagnostic with the supported parameter shapes and a sanctioned escape hatch for pointer-oriented converge kernels.
+
+---
+
+## 2026-05-23 - wasm authored semantics / codegen
+### `alloc_zeroed` plus `collapse/observe/decay` in authored wasm specimens hit `Function 'map_new' not found`
+- Categories: correctness, developer-experience, wasm
+- Status: Active
+- Surface: wasm codegen / authored semantics
+- Symptom: `kain build website/kain/src/demonstration/neural_sieve.kn --target wasm` failed with `Kain error: Codegen error at Span { start: 82315, end: 82326 }: Function 'map_new' not found` when the specimen used `use std::alloc`, `alloc_zeroed(...)`, then `collapse cells: ...`, `observe cells: ...`, and `decay cells` inside helper functions.
+- Workflow impact: the website’s new neural lattice wasm specimen only shipped after those helper functions were rewritten to scalar equivalents. `world`, `entangle`, `patch`, `actor`, `teleport`, and `converge` all lowered to wasm successfully in the same module, so future authored demos that try to bring ownership/allocation semantics into the wasm lane are likely to rediscover this exact blocker.
+- Minimal repro: author a wasm-target `.kn` file that imports `std::alloc`, allocates a temporary pointer buffer with `alloc_zeroed`, and runs `collapse/observe/decay` over it, then build with `--target wasm`.
+- Evidence: `website/kain/.kain/reports/build/session-1779568374054-2088.json`
+- Suggested direction: inspect the wasm lowering path for authored allocation/ownership helpers and trace why it reaches a missing `map_new` dependency. This looks like a real authored-surface lowering gap rather than a website-specific bug.

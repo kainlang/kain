@@ -451,6 +451,29 @@ fn ts_memory_lowering_uses_layout_offsets_for_field_addresses() {
 }
 
 #[test]
+fn ts_memory_lowering_sizes_non_addressable_addr_of_helpers() {
+    let source = "struct Pair:\n    left: Int\n    right: Int\n\nfn make_pair() -> Pair:\n    return Pair { left: 3, right: 5 }\n\nfn pair_ptr() -> ptr<Pair>:\n    return addr_of(make_pair(), \"Pair\")\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "pair_addr.kn")
+        .parse()
+        .expect("parse");
+    let typed = kain_core::types::check(&program, &mapper, "pair_addr.kn").expect("typecheck");
+    let lowered = lower_typed_program_memory_for_target(&typed, CompileTarget::Ts).expect("lower");
+
+    let function = match &lowered.items[2] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Return(Some(expr), _) = &function.ast.body.stmts[0] else {
+        panic!("expected helper return");
+    };
+    let args = expect_call(expr, "__kain_addr_of");
+    assert!(matches!(&args[1].value, kain_core::ast::Expr::Int(size, _) if *size == 16));
+}
+
+#[test]
 fn ts_memory_lowering_resolves_sizeof_type_from_layouts() {
     let source = "struct Pair:\n    left: Int\n    right: Int\n\nfn size() -> Int:\n    return sizeof_type(\"Pair\")\n";
     let tokens = Lexer::new(source).tokenize().expect("lex");
