@@ -81,6 +81,28 @@ fn kg_parse_int_text(text: String) -> Int:
         index = index + 1
     return value * sign
 
+fn kg_trim_cr(text: String) -> String:
+    if len(text) == 0:
+        return text
+    if char_at(text, len(text) - 1) == "\r":
+        return substring(text, 0, len(text) - 1)
+    return text
+
+fn kg_split_lines(text: String) -> Array<String>:
+    let lines = []
+    var start = 0
+    var index = 0
+    while index < len(text):
+        if char_at(text, index) == "\n":
+            push(lines, kg_trim_cr(substring(text, start, index)))
+            start = index + 1
+        index = index + 1
+    if start < len(text):
+        push(lines, kg_trim_cr(substring(text, start, len(text))))
+    elif len(text) == 0:
+        push(lines, "")
+    return lines
+
 fn kg_normalize_needle(needle: String, ignore_case: Bool) -> String:
     if ignore_case:
         return to_lower(needle)
@@ -250,30 +272,6 @@ fn kg_lightest_lane(actual_workers: Int, lane0_load: Int, lane1_load: Int, lane2
     if actual_workers > 7 and lane7_load < best_load:
         best_lane = 7
     return best_lane
-
-fn kg_collect_paths(root: String, include_hidden: Bool) -> Array<String>:
-    let pending = [root]
-    let files = []
-    var pending_index = 0
-    while pending_index < len(pending):
-        let current = pending[pending_index]
-        pending_index = pending_index + 1
-        if fs_is_dir(current):
-            let entries = fs_read_dir_paths(current)
-            var entry_index = 0
-            while entry_index < len(entries):
-                let entry = entries[entry_index]
-                if kg_path_is_ignored(entry, include_hidden):
-                    entry_index = entry_index + 1
-                    continue
-                if fs_is_dir(entry):
-                    push(pending, entry)
-                elif fs_is_file(entry):
-                    push(files, entry)
-                entry_index = entry_index + 1
-        elif fs_is_file(current) and kg_path_is_ignored(current, include_hidden) == false:
-            push(files, current)
-    return files
 
 fn kg_scan_file(path: String, normalized_needle: String, ignore_case: Bool, files_only: Bool, count_only: Bool, line_numbers: Bool, max_file_bytes: Int) -> KgFileReport:
     if fs_is_file(path) == false:
@@ -589,10 +587,20 @@ fn main() -> Int:
             push(shard0, config.root)
             shard0_load = 1
     else:
-        let entries = kg_collect_paths(config.root, config.include_hidden)
+        let walked = fs_walk_paths_text(config.root)
+        let entries = kg_split_lines(walked)
         var entry_index = 0
         while entry_index < len(entries):
             let entry = entries[entry_index]
+            if len(entry) == 0:
+                entry_index = entry_index + 1
+                continue
+            if fs_is_file(entry) == false:
+                entry_index = entry_index + 1
+                continue
+            if kg_path_is_ignored(entry, config.include_hidden):
+                entry_index = entry_index + 1
+                continue
             let target = kg_lightest_lane(
                 actual_workers,
                 shard0_load,
