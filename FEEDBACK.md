@@ -129,10 +129,10 @@
 ## 2026-05-22 - LLVM / TLS section control
 ### `@thread_local` plus custom `@section` loses the authored initializer on Windows LLVM runs
 - Categories: correctness, developer-experience, lowering, runtime
-- Status: Bypass-Applied
+- Status: Patched
 - Surface: lowering
-- Symptom: a `@thread_local` `const` with a custom TLS section reads back as `0` at runtime even though the emitted LLVM IR shows `thread_local global i64 7`.
-- Workflow impact: The new systems ABI smoke lane initially failed with exit code `2002` because `@thread_local @section(".tls.kain.smoke") const ABI_TLS_COUNTER: Int = 7` behaved like zero-initialized storage in the executable path. I had to split the smoke so `thread_local` is exercised separately from custom section/link-name control instead of validating the combined surface directly.
+- Symptom: a `@thread_local` `const` with a custom TLS section read back as `0` at runtime even though the emitted LLVM IR showed `thread_local global i64 7`.
+- Workflow impact: The new systems ABI smoke lane initially failed with exit code `2002` because `@thread_local @section(".tls.kain.smoke") const ABI_TLS_COUNTER: Int = 7` behaved like zero-initialized storage in the executable path. The fix was to make Windows COFF lowering canonicalize unsafe authored TLS sections into a live `.tls$KAIN...` subsection band while still preserving expert-authored subsections that already sort before the CRT terminator.
 - Minimal repro: Author a file with `@thread_local @section(".tls.kain.smoke") const TLS_COUNTER: Int = 7` and a `main()` that returns `TLS_COUNTER + 9`, then run `kain run <file> --target llvm` on Windows; the observed result comes back as zero-bias behavior instead of the expected initialized value.
 - Evidence: `smoketest/.kain/cache/run/abi_control_probe.ll` contained `@__kain_smoke_tls_counter = thread_local global i64 7, section ".tls.kain.smoke"`, but the executable from `./target/debug/kain.exe run smoketest/src/systems/abi_control_probe.kn --target llvm` exited with `16`, implying the TLS read observed `0` while the plain `@thread_local` + separate sectioned const probe exited with `5007023`.
-- Suggested direction: Audit the Windows LLVM/native link path for authored TLS globals placed in custom sections. If the backend cannot preserve initialized TLS semantics under arbitrary `@section`, either remap supported TLS sections to the platform's canonical TLS segment machinery or reject the combination with a target-specific diagnostic instead of silently emitting a zero-reading runtime artifact.
+- Suggested direction: Keep the COFF TLS normalization rule documented and covered by both LLVM IR regression tests and full smoketest runtime coverage so future ABI/section-control work does not regress back into zero-reading custom TLS storage.

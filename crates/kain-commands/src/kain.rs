@@ -613,6 +613,14 @@ pub enum KainCommand {
         #[arg(long = "meta")]
         meta: Vec<String>,
 
+        /// Capsule content policy: source, snapshot, assets, artifacts, or evidence
+        #[arg(long, default_value = "source")]
+        contents: String,
+
+        /// Optional sibling capsule set name for automatic sidecar discovery
+        #[arg(long = "capsule-set")]
+        capsule_set: Option<String>,
+
         /// Store a compressed archive payload instead of inline editable file blocks
         #[arg(long)]
         archive: bool,
@@ -1211,6 +1219,8 @@ mod tests {
                 command: None,
                 input,
                 output,
+                contents,
+                capsule_set,
                 archive,
                 header,
                 preview_symbols,
@@ -1218,6 +1228,8 @@ mod tests {
             }) => {
                 assert_eq!(input, Some(PathBuf::from("./capsule-probe")));
                 assert_eq!(output, Some(PathBuf::from("capsule.kn")));
+                assert_eq!(contents, "source");
+                assert_eq!(capsule_set, None);
                 assert!(!archive);
                 assert_eq!(header, "rich");
                 assert_eq!(preview_symbols, 16);
@@ -1243,6 +1255,33 @@ mod tests {
                 ..
             }) => {
                 assert!(archive);
+            }
+            other => panic!("expected amalgamate pack command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_amalgamate_contents_and_capsule_set() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "amalgamate",
+            "./capsule-probe",
+            "-o",
+            "capsule.kn",
+            "--contents",
+            "artifacts",
+            "--capsule-set",
+            "smoketest",
+        ]);
+        match cli.command {
+            Some(KainCommand::Amalgamate {
+                command: None,
+                contents,
+                capsule_set,
+                ..
+            }) => {
+                assert_eq!(contents, "artifacts");
+                assert_eq!(capsule_set.as_deref(), Some("smoketest"));
             }
             other => panic!("expected amalgamate pack command, got {other:?}"),
         }

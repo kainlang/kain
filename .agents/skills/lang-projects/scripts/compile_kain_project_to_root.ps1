@@ -5,7 +5,7 @@ param(
     [string]$OutputName,
     [string]$KainBin = $env:KAIN_BIN,
     [ValidateSet("bazel", "cargo", "auto")]
-    [string]$CompilerBuild = "bazel",
+    [string]$CompilerBuild = "auto",
     [ValidateSet("dev", "release")]
     [string]$BazelConfig = "dev",
     [ValidateSet("project-root", "repo-root")]
@@ -59,6 +59,19 @@ function Resolve-KainBinary {
         return (Resolve-NormalizedPath $Requested)
     }
 
+    $localCandidates = @(
+        (Join-Path $repoRoot "target\debug\kain.exe"),
+        (Join-Path $repoRoot "target\release\kain.exe")
+    )
+
+    if ($CompilerBuild -eq "auto") {
+        foreach ($candidate in $localCandidates) {
+            if (Test-Path $candidate) {
+                return (Resolve-Path $candidate).Path
+            }
+        }
+    }
+
     if ($CompilerBuild -eq "bazel" -or $CompilerBuild -eq "auto") {
         $bazelCommand = Get-Command bazel -ErrorAction SilentlyContinue
         if ($bazelCommand) {
@@ -106,12 +119,7 @@ function Resolve-KainBinary {
         }
     }
 
-    $candidates = @(
-        (Join-Path $repoRoot "target\debug\kain.exe"),
-        (Join-Path $repoRoot "target\release\kain.exe")
-    )
-
-    foreach ($candidate in $candidates) {
+    foreach ($candidate in $localCandidates) {
         if (Test-Path $candidate) {
             return (Resolve-Path $candidate).Path
         }

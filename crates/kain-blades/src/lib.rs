@@ -1413,8 +1413,9 @@ fn extract_build_script_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection
                     "tag" => push_unique_strings(&mut task.tags, &values),
                     "note" => push_unique_strings(&mut task.notes, &values),
                     "author" => push_unique_strings(&mut task.authors, &values),
-                    "name" | "version" | "storage" | "header" | "compression" | "preview_symbols"
-                    | "api_index" | "module_index" | "timeout_ms" | "stdout" | "stderr" => {
+                    "name" | "version" | "storage" | "contents" | "capsule_set" | "header"
+                    | "compression" | "preview_symbols" | "api_index" | "module_index"
+                    | "timeout_ms" | "stdout" | "stderr" => {
                         if let Some(value) = values.first() {
                             task.options.insert(method.clone(), value.clone());
                         }

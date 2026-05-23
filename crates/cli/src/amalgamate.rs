@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use kain_amalgamate::{
     default_materialize_root, inspect_capsule, materialize_capsule, maybe_capsule_metadata,
-    pack_capsule, unpack_capsule, CapsuleCompression, CapsuleHeaderStyle, CapsuleIndexMode,
-    CapsuleStorage, InspectReport, MaterializedCapsule, PackOptions,
+    pack_capsule, unpack_capsule, CapsuleCompression, CapsuleContents, CapsuleHeaderStyle,
+    CapsuleIndexMode, CapsuleStorage, InspectReport, MaterializedCapsule, PackOptions,
 };
 use kain_commands::kain::AmalgamateCommand;
 
@@ -18,6 +18,8 @@ pub fn run(
     notes: Vec<String>,
     tags: Vec<String>,
     meta: Vec<String>,
+    contents: String,
+    capsule_set: Option<String>,
     archive: bool,
     header: String,
     preview_symbols: usize,
@@ -42,6 +44,8 @@ pub fn run(
             options.notes = notes;
             options.tags = tags;
             options.meta = parse_meta_items(meta)?;
+            options.contents = parse_contents(&contents)?;
+            options.capsule_set = capsule_set;
             options.storage = if archive {
                 CapsuleStorage::Archive
             } else {
@@ -55,6 +59,7 @@ pub fn run(
             let report = pack_capsule(&options).map_err(|err| err.to_string())?;
             println!(" Packed capsule: {}", report.output_path.display());
             println!("  kind: {}", report.kind);
+            println!("  contents: {}", options.contents);
             println!("  name: {}", report.name);
             println!("  digest: {}", report.digest);
             println!(
@@ -110,6 +115,10 @@ fn print_inspect_report(report: &InspectReport) {
     println!("  kind: {}", report.metadata.display_kind());
     println!("  digest: {}", report.metadata.digest);
     println!("  storage: {}", report.metadata.storage);
+    println!("  contents: {}", report.metadata.contents);
+    if let Some(capsule_set) = report.metadata.capsule_set.as_deref() {
+        println!("  capsule_set: {}", capsule_set);
+    }
     if report.metadata.storage == CapsuleStorage::Archive {
         println!("  compression: {}", report.metadata.compression);
     }
@@ -231,6 +240,20 @@ fn parse_index_mode(value: &str) -> Result<CapsuleIndexMode, String> {
         "off" => Ok(CapsuleIndexMode::Off),
         other => Err(format!(
             "unknown capsule index mode '{}'; expected auto or off",
+            other
+        )),
+    }
+}
+
+fn parse_contents(value: &str) -> Result<CapsuleContents, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "source" => Ok(CapsuleContents::Source),
+        "snapshot" => Ok(CapsuleContents::Snapshot),
+        "assets" => Ok(CapsuleContents::Assets),
+        "artifacts" => Ok(CapsuleContents::Artifacts),
+        "evidence" => Ok(CapsuleContents::Evidence),
+        other => Err(format!(
+            "unknown capsule contents '{}'; expected source, snapshot, assets, artifacts, or evidence",
             other
         )),
     }

@@ -225,8 +225,23 @@ fn fast_lane(value: Int) -> Int:
 
 @thread_local
 @section(".tls")
+@link_name("__kain_tls_anchor")
+const TLS_ANCHOR: Int = 3
+
+@thread_local
+@section(".tls.kain.smoke")
 @link_name("__kain_tls_counter")
 const TLS_COUNTER: Int = 7
+
+@thread_local
+@section(".tls$smoke")
+@link_name("__kain_tls_bias")
+const TLS_BIAS: Int = 11
+
+@thread_local
+@section(".tls$B")
+@link_name("__kain_tls_expert")
+const TLS_EXPERT: Int = 13
 
 @packed
 struct DeviceRegs:
@@ -234,7 +249,7 @@ struct DeviceRegs:
     status: Int
 
 fn main() -> Int:
-    let regs = DeviceRegs { control: TLS_COUNTER, status: 9 }
+    let regs = DeviceRegs { control: TLS_ANCHOR + TLS_COUNTER + TLS_BIAS + TLS_EXPERT, status: 9 }
     return fast_lane(regs.control)
 "#;
 
@@ -242,13 +257,23 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("@__kain_tls_counter = thread_local global i64 7, section \".tls\""));
+    assert!(llvm.contains("@__kain_tls_anchor = thread_local global i64 3, section \".tls$KAIN\""));
+    assert!(llvm.contains(
+        "@__kain_tls_counter = thread_local global i64 7, section \".tls$KAIN$kain.smoke\""
+    ));
+    assert!(
+        llvm.contains("@__kain_tls_bias = thread_local global i64 11, section \".tls$KAIN$smoke\"")
+    );
+    assert!(llvm.contains("@__kain_tls_expert = thread_local global i64 13, section \".tls$B\""));
     assert!(llvm.contains("%DeviceRegs = type <{ i64, i64 }>"));
     assert!(llvm.contains(
         "define win64cc i64 @__kain_fast_lane(i64 %arg0) #0 section \".text.kain.fast\" {"
     ));
     assert!(llvm.contains("call win64cc i64 @__kain_fast_lane("));
+    assert!(llvm.contains("load i64, i64* @__kain_tls_anchor"));
     assert!(llvm.contains("load i64, i64* @__kain_tls_counter"));
+    assert!(llvm.contains("load i64, i64* @__kain_tls_bias"));
+    assert!(llvm.contains("load i64, i64* @__kain_tls_expert"));
 
     verify_llvm_ir_with_repo_llvm_as(&llvm, "systems-abi-control-attributes");
 }
@@ -275,9 +300,7 @@ fn main() -> Int with Unsafe:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains(
-        "define internal void @trap_lane() #1 section \".text.kain.trap\" {"
-    ));
+    assert!(llvm.contains("define internal void @trap_lane() #1 section \".text.kain.trap\" {"));
     assert!(llvm.contains("call void asm sideeffect \"ret\", \"~{dirflag},~{fpsr},~{flags}\"()"));
     assert!(llvm.contains("define internal x86_intrcc void @irq_lane() {"));
     assert!(llvm.contains("call void @trap_lane()"));
@@ -344,7 +367,10 @@ fn main() -> Int:
     assert!(llvm.contains("store volatile i64"));
     assert!(llvm.contains("load volatile i64, i64*"));
 
-    verify_llvm_ir_with_repo_llvm_as(&llvm, "module-scoped-mmio-pointer-param-volatile-field-access");
+    verify_llvm_ir_with_repo_llvm_as(
+        &llvm,
+        "module-scoped-mmio-pointer-param-volatile-field-access",
+    );
 }
 
 #[test]

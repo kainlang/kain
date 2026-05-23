@@ -502,6 +502,12 @@ impl BuildTaskSpec:
     fn storage(_self: Self_, value: String) -> BuildTaskSpec:
         return _self.option("storage", value)
 
+    fn contents(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("contents", value)
+
+    fn capsule_set(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("capsule_set", value)
+
     fn archive(_self: Self_, enabled: Bool) -> BuildTaskSpec:
         if enabled:
             return _self.storage("archive")

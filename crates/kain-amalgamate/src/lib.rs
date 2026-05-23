@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::io::Cursor;
@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
-use blade::KainManifest;
+use blade::{KainBuildTaskSection, KainManifest};
 use chrono::Utc;
 use kain_fs as kfs;
 use kain_fs::{FsFileType, WalkOptions};
@@ -159,12 +159,58 @@ impl Default for CapsuleIndexMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "lowercase")]
+pub enum CapsuleContents {
+    Source,
+    Snapshot,
+    Assets,
+    Artifacts,
+    Evidence,
+}
+
+impl CapsuleContents {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Source => "source",
+            Self::Snapshot => "snapshot",
+            Self::Assets => "assets",
+            Self::Artifacts => "artifacts",
+            Self::Evidence => "evidence",
+        }
+    }
+
+    fn materialize_priority(self) -> usize {
+        match self {
+            Self::Source => 0,
+            Self::Snapshot => 1,
+            Self::Assets => 2,
+            Self::Artifacts => 3,
+            Self::Evidence => 4,
+        }
+    }
+}
+
+impl Default for CapsuleContents {
+    fn default() -> Self {
+        Self::Snapshot
+    }
+}
+
+impl fmt::Display for CapsuleContents {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapsuleMetadata {
     pub schema: u32,
     pub kind: CapsuleKind,
     #[serde(default)]
     pub storage: CapsuleStorage,
+    #[serde(default)]
+    pub contents: CapsuleContents,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_kind: Option<String>,
     #[serde(default = "default_capsule_compression")]
@@ -190,6 +236,8 @@ pub struct CapsuleMetadata {
     pub directories: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capsule_set: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -271,7 +319,9 @@ pub struct PackOptions {
     pub input: PathBuf,
     pub output: PathBuf,
     pub storage: CapsuleStorage,
+    pub contents: CapsuleContents,
     pub name: Option<String>,
+    pub capsule_set: Option<String>,
     pub version: Option<String>,
     pub authors: Vec<String>,
     pub notes: Vec<String>,
@@ -290,7 +340,9 @@ impl PackOptions {
             input: input.into(),
             output: output.into(),
             storage: CapsuleStorage::Editable,
+            contents: CapsuleContents::Source,
             name: None,
+            capsule_set: None,
             version: None,
             authors: Vec::new(),
             notes: Vec::new(),
@@ -350,12 +402,28 @@ struct SourceSnapshot {
     source_kind: Option<String>,
     root_label: String,
     name: String,
+    capsule_set: String,
     version: Option<String>,
     manifest_rel: Option<String>,
     entry_rel: Option<String>,
     directories: Vec<String>,
     files: Vec<SourceFile>,
     preview: CapsulePreview,
+}
+
+#[derive(Debug, Clone)]
+struct DirectorySnapshot {
+    root: PathBuf,
+    kind: CapsuleKind,
+    source_kind: Option<String>,
+    root_label: String,
+    name: String,
+    capsule_set: String,
+    version: Option<String>,
+    manifest_rel: Option<String>,
+    entry_rel: Option<String>,
+    directories: Vec<String>,
+    files: Vec<SourceFile>,
 }
 
 #[derive(Debug, Clone)]
@@ -390,6 +458,23 @@ struct ResolvedCapsuleArchive {
     preview: CapsulePreview,
 }
 
+#[derive(Debug, Clone, Default)]
+struct CapsuleSelection {
+    source_files: BTreeSet<String>,
+    source_dirs: BTreeSet<String>,
+    artifact_files: BTreeSet<String>,
+    artifact_dirs: BTreeSet<String>,
+    evidence_files: BTreeSet<String>,
+    evidence_dirs: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone)]
+struct CompanionCapsule {
+    path: PathBuf,
+    metadata: CapsuleMetadata,
+    archive: ResolvedCapsuleArchive,
+}
+
 pub fn pack_capsule(options: &PackOptions) -> CapsuleResult<PackReport> {
     let snapshot = collect_source_snapshot(options)?;
     let archive = build_archive(&snapshot)?;
@@ -407,6 +492,7 @@ pub fn pack_capsule(options: &PackOptions) -> CapsuleResult<PackReport> {
         schema: CAPSULE_SCHEMA_VERSION,
         kind: snapshot.kind,
         storage: options.storage,
+        contents: options.contents,
         source_kind: snapshot.source_kind.clone(),
         compression: if options.storage == CapsuleStorage::Archive {
             options.compression
@@ -432,6 +518,7 @@ pub fn pack_capsule(options: &PackOptions) -> CapsuleResult<PackReport> {
         module_index: options.module_index,
         directories: snapshot.directories.clone(),
         name: Some(snapshot.name.clone()),
+        capsule_set: Some(snapshot.capsule_set.clone()),
         version: snapshot.version.clone(),
         root_label: Some(snapshot.root_label.clone()),
         entry: snapshot.entry_rel.clone(),
@@ -480,7 +567,7 @@ pub fn inspect_capsule(path: &Path) -> CapsuleResult<InspectReport> {
 }
 
 pub fn unpack_capsule(path: &Path, output_root: &Path) -> CapsuleResult<UnpackReport> {
-    let (_, _, archive) = read_capsule(path)?;
+    let (_, _, archive, _) = read_capsule_with_companions(path)?;
     unpack_resolved_archive(&archive, output_root)?;
     Ok(UnpackReport {
         output_root: output_root.to_path_buf(),
@@ -507,13 +594,13 @@ pub fn materialize_capsule(
     path: &Path,
     base_cache_root: &Path,
 ) -> CapsuleResult<MaterializedCapsule> {
-    let (_, metadata, archive) = read_capsule(path)?;
-    let digest_folder = digest_folder_name(&metadata.digest)?;
-    let cache_root = base_cache_root.join(digest_folder);
+    let (_, metadata, archive, companions) = read_capsule_with_companions(path)?;
+    let state_json = materialization_state_json(path, &metadata, &companions)?;
+    let cache_root = base_cache_root.join(hex_sha256(state_json.as_bytes()));
     let workspace_root = cache_root.join("workspace");
     let metadata_path = cache_root.join("metadata.json");
     let needs_refresh = match fs::read_to_string(&metadata_path) {
-        Ok(existing) => existing != serde_json::to_string_pretty(&metadata)?,
+        Ok(existing) => existing != state_json,
         Err(_) => true,
     };
     if needs_refresh {
@@ -522,7 +609,7 @@ pub fn materialize_capsule(
         }
         kfs::create_dir_all(&workspace_root)?;
         unpack_resolved_archive(&archive, &workspace_root)?;
-        kfs::write_text(&metadata_path, &serde_json::to_string_pretty(&metadata)?)?;
+        kfs::write_text(&metadata_path, &state_json)?;
     }
     let manifest_path = metadata
         .manifest
@@ -564,11 +651,13 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
             .name
             .clone()
             .unwrap_or_else(|| file_stem_string(&canonical));
+        let root_label = file_stem_string(&canonical);
         return Ok(SourceSnapshot {
             kind: CapsuleKind::Entry,
             source_kind: None,
-            root_label: file_stem_string(&canonical),
+            root_label: root_label.clone(),
             name,
+            capsule_set: options.capsule_set.clone().unwrap_or(root_label),
             version: options.version.clone(),
             manifest_rel: None,
             entry_rel: Some(rel_path.clone()),
@@ -579,12 +668,7 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
     }
 
     let root = PathBuf::from(kfs::canonicalize_path(input)?);
-    let manifest_path = root.join("KAIN.toml");
-    let manifest = if manifest_path.exists() {
-        Some(blade::load_kain_manifest(&manifest_path)?)
-    } else {
-        None
-    };
+    let manifest = blade::load_effective_kain_manifest(&root)?;
     let kind = determine_capsule_kind(&root, manifest.as_ref());
     let source_kind = manifest
         .as_ref()
@@ -595,6 +679,11 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
             .and_then(preferred_manifest_name)
             .unwrap_or_else(|| folder_name(&root))
     });
+    let root_label = folder_name(&root);
+    let capsule_set = options
+        .capsule_set
+        .clone()
+        .unwrap_or_else(|| name.clone());
     let version = options.version.clone().or_else(|| {
         manifest.as_ref().and_then(|manifest| {
             manifest
@@ -604,16 +693,64 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
                 .or(manifest.package.version.clone())
         })
     });
-    let manifest_rel = manifest.as_ref().map(|_| "KAIN.toml".to_string());
+    let manifest_rel = preferred_manifest_anchor(&root).map(|path| path_to_capsule_string(path));
     let entry_rel = manifest
         .as_ref()
         .and_then(preferred_manifest_entry)
         .map(path_to_capsule_string);
-    let output_rel = output_relative_to_root(&root, &options.output);
+    let directory = collect_directory_snapshot(
+        &root,
+        kind,
+        source_kind.clone(),
+        root_label.clone(),
+        name.clone(),
+        capsule_set.clone(),
+        version.clone(),
+        manifest_rel.clone(),
+        entry_rel.clone(),
+        &options.output,
+    )?;
+    let resolved_blade = resolve_snapshot_blade(&root, manifest.as_ref(), &name);
+    let selection = build_capsule_selection(&directory, manifest.as_ref(), resolved_blade.as_ref());
+    let (files, directories) = select_directory_contents(&directory, &selection, options.contents);
+    let preview = build_preview(
+        &files,
+        options.preview_symbol_limit,
+        options.api_index,
+        options.module_index,
+    );
+    Ok(SourceSnapshot {
+        kind: directory.kind,
+        source_kind: directory.source_kind,
+        root_label: directory.root_label,
+        name: directory.name,
+        capsule_set: directory.capsule_set,
+        version: directory.version,
+        manifest_rel: directory.manifest_rel,
+        entry_rel: directory.entry_rel,
+        directories,
+        files,
+        preview,
+    })
+}
+
+fn collect_directory_snapshot(
+    root: &Path,
+    kind: CapsuleKind,
+    source_kind: Option<String>,
+    root_label: String,
+    name: String,
+    capsule_set: String,
+    version: Option<String>,
+    manifest_rel: Option<String>,
+    entry_rel: Option<String>,
+    output: &Path,
+) -> CapsuleResult<DirectorySnapshot> {
+    let output_rel = output_relative_to_root(root, output);
     let mut directories = Vec::new();
     let mut files = Vec::new();
     let entries = kfs::walk_dir_entries(
-        &root,
+        root,
         WalkOptions {
             max_depth: None,
             include_files: true,
@@ -624,7 +761,7 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
     for entry in entries {
         let rel = entry
             .path
-            .strip_prefix(&root)
+            .strip_prefix(root)
             .map_err(|_| CapsuleError::Format("failed to relativize capsule path".to_string()))?;
         if rel.as_os_str().is_empty()
             || should_skip_relative(rel)
@@ -644,24 +781,566 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
     }
     files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
     directories.sort();
-    let preview = build_preview(
-        &files,
-        options.preview_symbol_limit,
-        options.api_index,
-        options.module_index,
-    );
-    Ok(SourceSnapshot {
+    directories.dedup();
+    Ok(DirectorySnapshot {
+        root: root.to_path_buf(),
         kind,
         source_kind,
-        root_label: folder_name(&root),
+        root_label,
         name,
+        capsule_set,
         version,
         manifest_rel,
         entry_rel,
         directories,
         files,
-        preview,
     })
+}
+
+fn build_capsule_selection(
+    directory: &DirectorySnapshot,
+    manifest: Option<&KainManifest>,
+    resolved_blade: Option<&blade::ResolvedBlade>,
+) -> CapsuleSelection {
+    let mut selection = CapsuleSelection::default();
+    let root = directory.root.as_path();
+
+    for anchor in ["KAIN.toml", "kain.toml", "build.kn", "platform.kn"] {
+        let path = root.join(anchor);
+        if path.exists() {
+            add_file_selection(&mut selection.source_files, root, &path);
+        }
+    }
+    if let Some(manifest_rel) = directory.manifest_rel.as_deref() {
+        selection.source_files.insert(manifest_rel.to_string());
+    }
+    if let Some(entry_rel) = directory.entry_rel.as_deref() {
+        selection.source_files.insert(entry_rel.to_string());
+    }
+
+    if let Some(manifest) = manifest {
+        add_optional_relative_file(&mut selection.source_files, root, manifest.build.entry.as_deref());
+        add_optional_relative_file(&mut selection.source_files, root, manifest.run.entry.as_deref());
+        add_optional_relative_file(&mut selection.source_files, root, manifest.blade.entry.as_deref());
+        add_optional_relative_dir(&mut selection.source_dirs, root, manifest.build.source_root.as_deref());
+        add_relative_dirs(&mut selection.source_dirs, root, &manifest.build.module_roots);
+        add_relative_dirs(&mut selection.source_dirs, root, &manifest.build.module_search_paths);
+        add_relative_dirs(&mut selection.source_dirs, root, &manifest.workspace.search_roots);
+        add_relative_dirs(&mut selection.source_dirs, root, &manifest.blade.source_roots);
+        add_relative_dirs(&mut selection.source_dirs, root, &manifest.blade.module_roots);
+        add_relative_dirs(&mut selection.source_dirs, root, &manifest.run.watch);
+        add_relative_dir(&mut selection.artifact_dirs, root, manifest.build.artifact_root.as_deref());
+        add_relative_dir(&mut selection.artifact_dirs, root, manifest.build.cache_root.as_deref());
+
+        for task in &manifest.build.tasks {
+            add_relative_file_or_dir(&mut selection.source_files, &mut selection.source_dirs, root, task.entry.as_deref());
+            add_relative_file_or_dir(
+                &mut selection.source_files,
+                &mut selection.source_dirs,
+                root,
+                task.manifest.as_deref(),
+            );
+            add_relative_paths(&mut selection.source_files, &mut selection.source_dirs, root, &task.inputs);
+            classify_task_outputs_into_selection(root, task, &mut selection);
+        }
+    }
+
+    if let Some(blade) = resolved_blade {
+        add_absolute_file(&mut selection.source_files, root, blade.entry.as_deref());
+        add_absolute_dirs(&mut selection.source_dirs, root, &blade.source_roots);
+        add_absolute_dirs(&mut selection.source_dirs, root, &blade.module_roots);
+        add_absolute_dirs(&mut selection.source_dirs, root, &blade.gpu_shader_roots);
+        add_absolute_files(&mut selection.source_files, root, &blade.gpu_shader_sources);
+        for library in &blade.c_ffi_libraries {
+            add_absolute_file(&mut selection.source_files, root, Some(&library.header));
+            add_absolute_files(&mut selection.source_files, root, &library.sources);
+            add_absolute_dirs(&mut selection.source_dirs, root, &library.include_paths);
+            add_absolute_file(
+                &mut selection.artifact_files,
+                root,
+                library.shared_lib.as_deref(),
+            );
+        }
+        for artifact in blade.artifacts.values() {
+            add_absolute_file(&mut selection.artifact_files, root, Some(artifact));
+            add_derived_artifact_sidecars(root, artifact, &mut selection);
+        }
+    }
+
+    selection
+}
+
+fn classify_task_outputs_into_selection(
+    root: &Path,
+    task: &KainBuildTaskSection,
+    selection: &mut CapsuleSelection,
+) {
+    let evidence_task = task_is_evidence_task(task);
+    for output in &task.outputs {
+        let resolved = resolve_task_graph_path(root, Some(task.id.as_str()), output);
+        if evidence_task {
+            add_resolved_file_or_dir(
+                &mut selection.evidence_files,
+                &mut selection.evidence_dirs,
+                root,
+                &resolved,
+            );
+        } else {
+            add_resolved_file_or_dir(
+                &mut selection.artifact_files,
+                &mut selection.artifact_dirs,
+                root,
+                &resolved,
+            );
+            add_derived_artifact_sidecars(root, &resolved, selection);
+        }
+    }
+    for key in ["stdout", "stderr"] {
+        if let Some(value) = task.options.get(key) {
+            let resolved = resolve_task_graph_path(root, Some(task.id.as_str()), Path::new(value));
+            if evidence_task {
+                add_resolved_file_or_dir(
+                    &mut selection.evidence_files,
+                    &mut selection.evidence_dirs,
+                    root,
+                    &resolved,
+                );
+            } else {
+                add_resolved_file_or_dir(
+                    &mut selection.artifact_files,
+                    &mut selection.artifact_dirs,
+                    root,
+                    &resolved,
+                );
+            }
+        }
+    }
+}
+
+fn task_is_evidence_task(task: &KainBuildTaskSection) -> bool {
+    let kind = task.kind.trim().to_ascii_lowercase();
+    if matches!(
+        kind.as_str(),
+        "test" | "proof" | "benchmark" | "bench" | "attrition" | "certify" | "check"
+    ) {
+        return true;
+    }
+    if kind == "exec" {
+        if task
+            .telemetry
+            .iter()
+            .any(|channel| looks_like_evidence_word(channel))
+        {
+            return true;
+        }
+        if task
+            .outputs
+            .iter()
+            .map(|path| path.to_string_lossy())
+            .any(|value| looks_like_evidence_word(&value))
+        {
+            return true;
+        }
+        if task
+            .options
+            .iter()
+            .filter(|(key, _)| matches!(key.as_str(), "stdout" | "stderr"))
+            .map(|(_, value)| value.as_str())
+            .any(looks_like_evidence_word)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn looks_like_evidence_word(value: &str) -> bool {
+    let lower = value.replace('\\', "/").to_ascii_lowercase();
+    [
+        "telemetry",
+        "benchmark",
+        "attrition",
+        "evidence",
+        "proof",
+        "certify",
+        "report",
+        "summary",
+        "full",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+fn add_derived_artifact_sidecars(root: &Path, output: &Path, selection: &mut CapsuleSelection) {
+    let lower = output.to_string_lossy().to_ascii_lowercase();
+    if lower.ends_with(".exe")
+        || lower.ends_with(".dll")
+        || lower.ends_with(".so")
+        || lower.ends_with(".dylib")
+        || lower.ends_with(".ll")
+    {
+        for suffix in [
+            ".runtime_contract.json",
+            ".realtime_app.json",
+            ".pdb",
+            ".ilk",
+            ".lib",
+            ".exp",
+            ".obj",
+            ".obj.d",
+        ] {
+            let derived = append_suffix_to_path(output, suffix);
+            add_absolute_file(&mut selection.artifact_files, root, Some(&derived));
+        }
+    }
+}
+
+fn append_suffix_to_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut rendered = path.to_string_lossy().into_owned();
+    rendered.push_str(suffix);
+    PathBuf::from(rendered)
+}
+
+fn select_directory_contents(
+    directory: &DirectorySnapshot,
+    selection: &CapsuleSelection,
+    contents: CapsuleContents,
+) -> (Vec<SourceFile>, Vec<String>) {
+    if contents == CapsuleContents::Snapshot {
+        return (directory.files.clone(), directory.directories.clone());
+    }
+    let mut files = Vec::new();
+    for file in &directory.files {
+        if looks_like_capsule_file(file) {
+            continue;
+        }
+        if classify_snapshot_file(file, selection) == contents {
+            files.push(file.clone());
+        }
+    }
+    let explicit_dirs = match contents {
+        CapsuleContents::Source => selection.source_dirs.iter().cloned().collect::<Vec<_>>(),
+        CapsuleContents::Artifacts => selection.artifact_dirs.iter().cloned().collect::<Vec<_>>(),
+        CapsuleContents::Evidence => selection.evidence_dirs.iter().cloned().collect::<Vec<_>>(),
+        CapsuleContents::Assets | CapsuleContents::Snapshot => Vec::new(),
+    };
+    (files.clone(), merge_directory_inventory(&files, &explicit_dirs))
+}
+
+fn classify_snapshot_file(file: &SourceFile, selection: &CapsuleSelection) -> CapsuleContents {
+    if matches_selection_path(
+        &file.rel_path,
+        &selection.evidence_files,
+        &selection.evidence_dirs,
+    ) || looks_like_evidence_path(&file.rel_path)
+    {
+        return CapsuleContents::Evidence;
+    }
+    if matches_selection_path(
+        &file.rel_path,
+        &selection.artifact_files,
+        &selection.artifact_dirs,
+    ) || looks_like_artifact_path(&file.rel_path)
+    {
+        return CapsuleContents::Artifacts;
+    }
+    if looks_like_asset_file(file) {
+        return CapsuleContents::Assets;
+    }
+    CapsuleContents::Source
+}
+
+fn matches_selection_path(path: &str, files: &BTreeSet<String>, dirs: &BTreeSet<String>) -> bool {
+    if files.contains(path) {
+        return true;
+    }
+    dirs.iter()
+        .any(|dir| path == dir || path.starts_with(&format!("{dir}/")))
+}
+
+fn looks_like_evidence_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.starts_with("telemetry/full/")
+        || lower.starts_with("telemetry/benchmark/")
+        || lower.starts_with("telemetry/attrition/")
+        || lower.ends_with("kain-evidence.json")
+}
+
+fn looks_like_artifact_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    if lower.starts_with("generated/native_runtime/") {
+        return true;
+    }
+    [
+        ".obj",
+        ".o",
+        ".a",
+        ".lib",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".exe",
+        ".pdb",
+        ".ilk",
+        ".exp",
+        ".wasm",
+        ".ll",
+        ".bc",
+        ".spv",
+        ".ptx",
+        ".cubin",
+        ".obj.d",
+        ".o.d",
+        ".fingerprint",
+        ".runtime_contract.json",
+        ".realtime_app.json",
+        ".reflect.json",
+        ".gpu.rs",
+    ]
+    .iter()
+    .any(|suffix| lower.ends_with(suffix))
+}
+
+fn looks_like_capsule_file(file: &SourceFile) -> bool {
+    file.rel_path.to_ascii_lowercase().ends_with(".kn")
+        && std::str::from_utf8(&file.bytes)
+            .ok()
+            .is_some_and(|text| text.contains(CAPSULE_SENTINEL_START))
+}
+
+fn looks_like_asset_file(file: &SourceFile) -> bool {
+    let lower = file.rel_path.to_ascii_lowercase();
+    if [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".tga",
+        ".webp",
+        ".ico",
+        ".icns",
+        ".dds",
+        ".ktx",
+        ".ktx2",
+        ".hdr",
+        ".exr",
+        ".ttf",
+        ".otf",
+        ".woff",
+        ".woff2",
+        ".mp3",
+        ".wav",
+        ".ogg",
+        ".flac",
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".mkv",
+        ".webm",
+        ".glb",
+        ".gltf",
+        ".fbx",
+        ".dae",
+        ".zip",
+        ".7z",
+        ".tar",
+        ".gz",
+        ".pdf",
+    ]
+    .iter()
+    .any(|suffix| lower.ends_with(suffix))
+    {
+        return true;
+    }
+    std::str::from_utf8(&file.bytes).is_err()
+}
+
+fn preferred_manifest_anchor(root: &Path) -> Option<PathBuf> {
+    for candidate in ["KAIN.toml", "kain.toml", "build.kn", "platform.kn"] {
+        let path = root.join(candidate);
+        if path.exists() {
+            return Some(PathBuf::from(candidate));
+        }
+    }
+    None
+}
+
+fn resolve_snapshot_blade(
+    root: &Path,
+    manifest: Option<&KainManifest>,
+    fallback_name: &str,
+) -> Option<blade::ResolvedBlade> {
+    let workspace = blade::discover_workspace(root).ok()?;
+    let root_portable = portable_compare_path(root);
+    workspace
+        .blades
+        .iter()
+        .find(|blade| portable_compare_path(&blade.root) == root_portable)
+        .cloned()
+        .or_else(|| {
+            manifest
+                .and_then(preferred_manifest_name)
+                .or_else(|| Some(fallback_name.to_string()))
+                .and_then(|name| workspace.find_blade(&name).cloned())
+        })
+}
+
+fn add_relative_paths(
+    files: &mut BTreeSet<String>,
+    dirs: &mut BTreeSet<String>,
+    root: &Path,
+    paths: &[PathBuf],
+) {
+    for path in paths {
+        add_relative_file_or_dir(files, dirs, root, Some(path.as_path()));
+    }
+}
+
+fn add_relative_dirs(dirs: &mut BTreeSet<String>, root: &Path, paths: &[PathBuf]) {
+    for path in paths {
+        add_relative_dir(dirs, root, Some(path.as_path()));
+    }
+}
+
+fn add_absolute_files(files: &mut BTreeSet<String>, root: &Path, paths: &[PathBuf]) {
+    for path in paths {
+        add_absolute_file(files, root, Some(path.as_path()));
+    }
+}
+
+fn add_absolute_dirs(dirs: &mut BTreeSet<String>, root: &Path, paths: &[PathBuf]) {
+    for path in paths {
+        add_absolute_dir(dirs, root, Some(path.as_path()));
+    }
+}
+
+fn add_optional_relative_file(files: &mut BTreeSet<String>, root: &Path, path: Option<&Path>) {
+    if let Some(path) = path {
+        add_resolved_file(files, root, &root.join(path));
+    }
+}
+
+fn add_optional_relative_dir(dirs: &mut BTreeSet<String>, root: &Path, path: Option<&Path>) {
+    if let Some(path) = path {
+        add_resolved_dir(dirs, root, &root.join(path));
+    }
+}
+
+fn add_relative_dir(dirs: &mut BTreeSet<String>, root: &Path, path: Option<&Path>) {
+    if let Some(path) = path {
+        add_resolved_dir(dirs, root, &root.join(path));
+    }
+}
+
+fn add_relative_file_or_dir(
+    files: &mut BTreeSet<String>,
+    dirs: &mut BTreeSet<String>,
+    root: &Path,
+    path: Option<&Path>,
+) {
+    if let Some(path) = path {
+        add_resolved_file_or_dir(files, dirs, root, &root.join(path));
+    }
+}
+
+fn add_absolute_file(files: &mut BTreeSet<String>, root: &Path, path: Option<&Path>) {
+    if let Some(path) = path {
+        add_resolved_file(files, root, path);
+    }
+}
+
+fn add_absolute_dir(dirs: &mut BTreeSet<String>, root: &Path, path: Option<&Path>) {
+    if let Some(path) = path {
+        add_resolved_dir(dirs, root, path);
+    }
+}
+
+fn add_file_selection(files: &mut BTreeSet<String>, root: &Path, path: &Path) {
+    add_resolved_file(files, root, path);
+}
+
+fn add_resolved_file_or_dir(
+    files: &mut BTreeSet<String>,
+    dirs: &mut BTreeSet<String>,
+    root: &Path,
+    path: &Path,
+) {
+    if path_looks_like_dir(path) {
+        add_resolved_dir(dirs, root, path);
+    } else {
+        add_resolved_file(files, root, path);
+    }
+}
+
+fn add_resolved_file(files: &mut BTreeSet<String>, root: &Path, path: &Path) {
+    if let Some(rel) = path_relative_to_root(root, path) {
+        files.insert(rel);
+    }
+}
+
+fn add_resolved_dir(dirs: &mut BTreeSet<String>, root: &Path, path: &Path) {
+    if let Some(rel) = path_relative_to_root(root, path) {
+        if !rel.is_empty() {
+            dirs.insert(rel);
+        }
+    }
+}
+
+fn path_relative_to_root(root: &Path, path: &Path) -> Option<String> {
+    let root = portable_compare_path(root);
+    let path = portable_compare_path(path);
+    let rel = path.strip_prefix(root).ok()?;
+    let rendered = path_to_capsule_string(rel);
+    if rendered.is_empty() {
+        None
+    } else {
+        Some(rendered)
+    }
+}
+
+fn path_looks_like_dir(path: &Path) -> bool {
+    if path.is_dir() {
+        return true;
+    }
+    path.extension().is_none()
+        && path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| !value.contains('.'))
+}
+
+fn resolve_task_graph_path(root: &Path, task_id: Option<&str>, path: &Path) -> PathBuf {
+    let raw = path.to_string_lossy().replace('\\', "/");
+    let task_root = root
+        .join(".kain")
+        .join("out")
+        .join("capsule")
+        .join(task_id.unwrap_or("task").replace([':', '/', '\\'], "_"));
+    for (prefix, base) in [
+        ("$root", root),
+        ("$repo", root),
+        ("$workspace", root),
+        ("$blade", root),
+        ("$task", task_root.as_path()),
+        ("$out", task_root.as_path()),
+    ] {
+        if raw == prefix {
+            return base.to_path_buf();
+        }
+        if let Some(suffix) = raw.strip_prefix(&format!("{prefix}/")) {
+            let mut joined = base.to_path_buf();
+            if !suffix.is_empty() {
+                joined.push(PathBuf::from(suffix));
+            }
+            return joined;
+        }
+    }
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    }
 }
 
 fn build_archive(snapshot: &SourceSnapshot) -> CapsuleResult<CapsuleArchive> {
@@ -748,7 +1427,11 @@ fn render_header(
         Some(&format!("kind:       {}", metadata.display_kind())),
     );
     push_comment_line(output, Some(&format!("storage:    {}", metadata.storage)));
+    push_comment_line(output, Some(&format!("contents:   {}", metadata.contents)));
     push_comment_line(output, Some(&format!("digest:     {}", metadata.digest)));
+    if let Some(capsule_set) = metadata.capsule_set.as_deref() {
+        push_comment_line(output, Some(&format!("capsule:    {capsule_set}")));
+    }
     if let Some(entry) = metadata.entry.as_deref() {
         push_comment_line(output, Some(&format!("entry:      {entry}")));
     }
@@ -910,6 +1593,148 @@ fn read_capsule(path: &Path) -> CapsuleResult<(String, CapsuleMetadata, Resolved
         }
     };
     Ok((text, metadata, archive))
+}
+
+fn read_capsule_with_companions(
+    path: &Path,
+) -> CapsuleResult<(
+    String,
+    CapsuleMetadata,
+    ResolvedCapsuleArchive,
+    Vec<CompanionCapsule>,
+)> {
+    let (text, metadata, archive) = read_capsule(path)?;
+    let companions = discover_companion_capsules(path, &metadata)?;
+    let merged = merge_companion_archives(path, &metadata, archive, &companions)?;
+    Ok((text, metadata, merged, companions))
+}
+
+fn discover_companion_capsules(
+    path: &Path,
+    metadata: &CapsuleMetadata,
+) -> CapsuleResult<Vec<CompanionCapsule>> {
+    if metadata.contents != CapsuleContents::Source {
+        return Ok(Vec::new());
+    }
+    let Some(capsule_set) = metadata.capsule_set.as_deref() else {
+        return Ok(Vec::new());
+    };
+    let Some(parent) = path.parent() else {
+        return Ok(Vec::new());
+    };
+    let mut companions = Vec::new();
+    for entry in kfs::read_dir_entries(parent)? {
+        if entry.file_type != FsFileType::File {
+            continue;
+        }
+        if portable_compare_path(&entry.path) == portable_compare_path(path) {
+            continue;
+        }
+        if entry
+            .path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| !value.eq_ignore_ascii_case("kn"))
+            .unwrap_or(true)
+        {
+            continue;
+        }
+        let Some(candidate_metadata) = maybe_capsule_metadata(&entry.path)? else {
+            continue;
+        };
+        if candidate_metadata.capsule_set.as_deref() != Some(capsule_set) {
+            continue;
+        }
+        if matches!(
+            candidate_metadata.contents,
+            CapsuleContents::Source | CapsuleContents::Snapshot
+        ) {
+            continue;
+        }
+        let (_, companion_metadata, archive) = read_capsule(&entry.path)?;
+        companions.push(CompanionCapsule {
+            path: entry.path,
+            metadata: companion_metadata,
+            archive,
+        });
+    }
+    companions.sort_by(|left, right| {
+        left.metadata
+            .contents
+            .materialize_priority()
+            .cmp(&right.metadata.contents.materialize_priority())
+            .then(left.path.cmp(&right.path))
+    });
+    Ok(companions)
+}
+
+fn merge_companion_archives(
+    path: &Path,
+    metadata: &CapsuleMetadata,
+    archive: ResolvedCapsuleArchive,
+    companions: &[CompanionCapsule],
+) -> CapsuleResult<ResolvedCapsuleArchive> {
+    if companions.is_empty() {
+        return Ok(archive);
+    }
+    let mut files = BTreeMap::<String, Vec<u8>>::new();
+    for file in &archive.files {
+        files.insert(file.rel_path.clone(), file.bytes.clone());
+    }
+    let mut directories = archive.directories.clone();
+    for companion in companions {
+        directories.extend(companion.archive.directories.iter().cloned());
+        for file in &companion.archive.files {
+            if let Some(existing) = files.get(&file.rel_path) {
+                if existing != &file.bytes {
+                    return Err(CapsuleError::Format(format!(
+                        "capsule companion '{}' conflicts with '{}' at '{}'",
+                        companion.path.display(),
+                        path.display(),
+                        file.rel_path
+                    )));
+                }
+                continue;
+            }
+            files.insert(file.rel_path.clone(), file.bytes.clone());
+        }
+    }
+    let mut merged_files = files
+        .into_iter()
+        .map(|(rel_path, bytes)| SourceFile { rel_path, bytes })
+        .collect::<Vec<_>>();
+    merged_files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
+    directories = merge_directory_inventory(&merged_files, &directories);
+    let preview = build_preview(
+        &merged_files,
+        metadata.preview_symbol_limit,
+        metadata.api_index,
+        metadata.module_index,
+    );
+    Ok(ResolvedCapsuleArchive {
+        root_label: archive.root_label,
+        directories,
+        files: merged_files,
+        preview,
+    })
+}
+
+fn materialization_state_json(
+    path: &Path,
+    metadata: &CapsuleMetadata,
+    companions: &[CompanionCapsule],
+) -> CapsuleResult<String> {
+    Ok(serde_json::to_string_pretty(&serde_json::json!({
+        "schema_version": 1,
+        "primary_path": process_portable_path(path),
+        "primary": metadata,
+        "companions": companions.iter().map(|companion| serde_json::json!({
+            "path": process_portable_path(&companion.path),
+            "digest": companion.metadata.digest,
+            "contents": companion.metadata.contents.as_str(),
+            "capsule_set": companion.metadata.capsule_set,
+        })).collect::<Vec<_>>(),
+    }))?)
 }
 
 fn parse_capsule_metadata(text: &str) -> CapsuleResult<CapsuleMetadata> {
@@ -1506,6 +2331,10 @@ fn portable_compare_path(path: &Path) -> PathBuf {
     path.to_path_buf()
 }
 
+fn process_portable_path(path: &Path) -> String {
+    portable_compare_path(path).display().to_string()
+}
+
 fn should_skip_relative(path: &Path) -> bool {
     path.components().any(|component| {
         if let Component::Normal(name) = component {
@@ -1598,17 +2427,6 @@ fn file_stem_string(path: &Path) -> String {
         .unwrap_or_else(|| "capsule".to_string())
 }
 
-fn digest_folder_name(digest: &str) -> CapsuleResult<String> {
-    let value = digest.strip_prefix("sha256:").unwrap_or(digest);
-    if value.is_empty() || !value.chars().all(|char| char.is_ascii_hexdigit()) {
-        return Err(CapsuleError::Format(format!(
-            "capsule digest '{}' is not a valid sha256 identifier",
-            digest
-        )));
-    }
-    Ok(value.to_ascii_lowercase())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1640,6 +2458,150 @@ mod tests {
 
         assert!(inspect.files.iter().any(|file| file.path == "main.kn"));
         assert!(!inspect.files.iter().any(|file| file.path == "capsule.kn"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn contents_profiles_split_source_assets_artifacts_and_evidence() {
+        let root = unique_temp_dir("contents-split");
+        fs::create_dir_all(root.join("src")).expect("create src");
+        fs::create_dir_all(root.join("native")).expect("create native");
+        fs::create_dir_all(root.join("telemetry").join("full")).expect("create telemetry");
+        fs::create_dir_all(root.join("generated").join("native_runtime").join("objects"))
+            .expect("create generated");
+        fs::write(
+            root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("write main");
+        fs::write(root.join("native").join("bridge.c"), "int bridge(void) { return 7; }\n")
+            .expect("write bridge");
+        fs::write(root.join("README.md"), "# Smoketest\n").expect("write readme");
+        fs::write(root.join("logo.png"), [0u8, 1, 2, 3]).expect("write asset");
+        fs::write(root.join("manual-smoketest.exe"), b"MZ").expect("write exe");
+        fs::write(root.join("manual-smoketest.runtime_contract.json"), "{}")
+            .expect("write runtime contract");
+        fs::write(
+            root.join("generated")
+                .join("native_runtime")
+                .join("objects")
+                .join("manual-smoketest.obj"),
+            [9u8, 8, 7],
+        )
+        .expect("write obj");
+        fs::write(
+            root.join("telemetry").join("full").join("summary.json"),
+            "{\"ok\":true}\n",
+        )
+        .expect("write telemetry");
+
+        let mut source_options = PackOptions::new(&root, root.join("source.kn"));
+        source_options.contents = CapsuleContents::Source;
+        let source_report = pack_capsule(&source_options).expect("pack source");
+        let source = inspect_capsule(&source_report.output_path).expect("inspect source");
+        assert!(source.files.iter().any(|file| file.path == "src/main.kn"));
+        assert!(source.files.iter().any(|file| file.path == "native/bridge.c"));
+        assert!(source.files.iter().any(|file| file.path == "README.md"));
+        assert!(!source.files.iter().any(|file| file.path == "logo.png"));
+        assert!(!source
+            .files
+            .iter()
+            .any(|file| file.path == "manual-smoketest.exe"));
+        assert!(!source
+            .files
+            .iter()
+            .any(|file| file.path == "manual-smoketest.runtime_contract.json"));
+        assert!(!source
+            .files
+            .iter()
+            .any(|file| file.path == "telemetry/full/summary.json"));
+
+        let mut asset_options = PackOptions::new(&root, root.join("assets.kn"));
+        asset_options.contents = CapsuleContents::Assets;
+        let asset_report = pack_capsule(&asset_options).expect("pack assets");
+        let assets = inspect_capsule(&asset_report.output_path).expect("inspect assets");
+        assert!(assets.files.iter().any(|file| file.path == "logo.png"));
+        assert!(!assets.files.iter().any(|file| file.path == "src/main.kn"));
+
+        let mut artifact_options = PackOptions::new(&root, root.join("artifacts.kn"));
+        artifact_options.contents = CapsuleContents::Artifacts;
+        let artifact_report = pack_capsule(&artifact_options).expect("pack artifacts");
+        let artifacts = inspect_capsule(&artifact_report.output_path).expect("inspect artifacts");
+        assert!(artifacts
+            .files
+            .iter()
+            .any(|file| file.path == "manual-smoketest.exe"));
+        assert!(artifacts
+            .files
+            .iter()
+            .any(|file| file.path == "manual-smoketest.runtime_contract.json"));
+        assert!(artifacts.files.iter().any(|file| {
+            file.path == "generated/native_runtime/objects/manual-smoketest.obj"
+        }));
+        assert!(!artifacts
+            .files
+            .iter()
+            .any(|file| file.path == "telemetry/full/summary.json"));
+
+        let mut evidence_options = PackOptions::new(&root, root.join("evidence.kn"));
+        evidence_options.contents = CapsuleContents::Evidence;
+        let evidence_report = pack_capsule(&evidence_options).expect("pack evidence");
+        let evidence = inspect_capsule(&evidence_report.output_path).expect("inspect evidence");
+        assert!(evidence
+            .files
+            .iter()
+            .any(|file| file.path == "telemetry/full/summary.json"));
+        assert!(!evidence
+            .files
+            .iter()
+            .any(|file| file.path == "manual-smoketest.exe"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn materialize_source_capsule_merges_matching_companions() {
+        let root = unique_temp_dir("materialize-companions");
+        fs::create_dir_all(root.join("src")).expect("create src");
+        fs::create_dir_all(root.join("telemetry").join("full")).expect("create telemetry");
+        fs::write(
+            root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("write main");
+        fs::write(root.join("manual-smoketest.exe"), b"MZ").expect("write exe");
+        fs::write(
+            root.join("telemetry").join("full").join("summary.json"),
+            "{\"ok\":true}\n",
+        )
+        .expect("write telemetry");
+
+        let mut source_options = PackOptions::new(&root, root.join("smoketest.kn"));
+        source_options.contents = CapsuleContents::Source;
+        source_options.capsule_set = Some("smoketest".to_string());
+        let source_report = pack_capsule(&source_options).expect("pack source");
+
+        let mut artifact_options = PackOptions::new(&root, root.join("smoketest.artifacts.kn"));
+        artifact_options.contents = CapsuleContents::Artifacts;
+        artifact_options.capsule_set = Some("smoketest".to_string());
+        pack_capsule(&artifact_options).expect("pack artifacts");
+
+        let mut evidence_options = PackOptions::new(&root, root.join("smoketest.evidence.kn"));
+        evidence_options.contents = CapsuleContents::Evidence;
+        evidence_options.capsule_set = Some("smoketest".to_string());
+        pack_capsule(&evidence_options).expect("pack evidence");
+
+        let materialized = materialize_capsule(&source_report.output_path, &root.join(".cache"))
+            .expect("materialize source capsule");
+        assert!(materialized.workspace_root.join("src").join("main.kn").exists());
+        assert!(materialized.workspace_root.join("manual-smoketest.exe").exists());
+        assert!(materialized
+            .workspace_root
+            .join("telemetry")
+            .join("full")
+            .join("summary.json")
+            .exists());
 
         let _ = fs::remove_dir_all(root);
     }

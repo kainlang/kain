@@ -4,8 +4,8 @@ use blade::{
     FABRIC_MANIFEST_NAME, KAIN_BUILD_SCRIPT_NAMES,
 };
 use kain_amalgamate::{
-    pack_capsule, CapsuleCompression, CapsuleHeaderStyle, CapsuleIndexMode, CapsuleStorage,
-    PackOptions, DEFAULT_PREVIEW_SYMBOL_LIMIT,
+    pack_capsule, CapsuleCompression, CapsuleContents, CapsuleHeaderStyle, CapsuleIndexMode,
+    CapsuleStorage, PackOptions, DEFAULT_PREVIEW_SYMBOL_LIMIT,
 };
 use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
@@ -368,7 +368,9 @@ enum NodeRuntimeKind {
 #[derive(Debug, Clone)]
 struct AmalgamateTaskSettings {
     storage: CapsuleStorage,
+    contents: CapsuleContents,
     name: Option<String>,
+    capsule_set: Option<String>,
     version: Option<String>,
     authors: Vec<String>,
     notes: Vec<String>,
@@ -1617,8 +1619,9 @@ fn extract_build_graph_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection>
                     "tag" => task.tags.extend(values),
                     "note" => task.notes.extend(values),
                     "author" => task.authors.extend(values),
-                    "name" | "version" | "storage" | "header" | "compression" | "preview_symbols"
-                    | "api_index" | "module_index" | "timeout_ms" | "stdout" | "stderr" => {
+                    "name" | "version" | "storage" | "contents" | "capsule_set" | "header"
+                    | "compression" | "preview_symbols" | "api_index" | "module_index"
+                    | "timeout_ms" | "stdout" | "stderr" => {
                         if let Some(value) = values.first() {
                             task.options.insert(method.clone(), value.clone());
                         }
@@ -3971,7 +3974,9 @@ fn run_fabric(manifest_path: &Path, run: bool) -> BuildResult<String> {
 fn build_amalgamate_task_settings(task: &KainBuildTaskSection) -> BuildResult<AmalgamateTaskSettings> {
     Ok(AmalgamateTaskSettings {
         storage: parse_capsule_storage_option(task, "storage")?.unwrap_or(CapsuleStorage::Editable),
+        contents: parse_capsule_contents_option(task, "contents")?.unwrap_or(CapsuleContents::Source),
         name: task.options.get("name").cloned(),
+        capsule_set: task.options.get("capsule_set").cloned(),
         version: task.options.get("version").cloned(),
         authors: task.authors.clone(),
         notes: task.notes.clone(),
@@ -4000,6 +4005,26 @@ fn parse_usize_option(task_id: &str, key: &str, value: &str) -> BuildResult<usiz
             task_id, key, value
         ))
     })
+}
+
+fn parse_capsule_contents_option(
+    task: &KainBuildTaskSection,
+    key: &str,
+) -> BuildResult<Option<CapsuleContents>> {
+    let Some(value) = task.options.get(key) else {
+        return Ok(None);
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "source" => Ok(Some(CapsuleContents::Source)),
+        "snapshot" => Ok(Some(CapsuleContents::Snapshot)),
+        "assets" => Ok(Some(CapsuleContents::Assets)),
+        "artifacts" => Ok(Some(CapsuleContents::Artifacts)),
+        "evidence" => Ok(Some(CapsuleContents::Evidence)),
+        other => Err(BuildError::Config(format!(
+            "task '{}' has invalid {} value '{}'; expected source, snapshot, assets, artifacts, or evidence",
+            task.id, key, other
+        ))),
+    }
 }
 
 fn parse_capsule_storage_option(
@@ -4183,7 +4208,9 @@ fn run_amalgamate_task(
     }
     let mut options = PackOptions::new(source_root, output_path);
     options.storage = settings.storage;
+    options.contents = settings.contents;
     options.name = settings.name.clone();
+    options.capsule_set = settings.capsule_set.clone();
     options.version = settings.version.clone();
     options.authors = settings.authors.clone();
     options.notes = settings.notes.clone();
@@ -4204,6 +4231,8 @@ fn run_amalgamate_task(
             "source_root": source_root,
             "output_path": output_path,
             "storage": settings.storage.as_str(),
+            "contents": settings.contents.as_str(),
+            "capsule_set": &settings.capsule_set,
             "header": settings.header_style.as_str(),
             "compression": settings.compression.as_str(),
             "preview_symbol_limit": settings.preview_symbol_limit,
@@ -5941,6 +5970,8 @@ fn build(ctx: BuildContext) -> BuildGraph:
                 ("name".to_string(), "smoketest".to_string()),
                 ("version".to_string(), "0.1.0".to_string()),
                 ("storage".to_string(), "editable".to_string()),
+                ("contents".to_string(), "source".to_string()),
+                ("capsule_set".to_string(), "smoketest".to_string()),
                 ("header".to_string(), "rich".to_string()),
                 ("preview_symbols".to_string(), "32".to_string()),
             ]),

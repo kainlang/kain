@@ -108,7 +108,7 @@ rust_test(
 )
 
 rust_binary(
-    name = "blade",
+    name = "blade_bin",
     crate_name = "blade",
     crate_root = "src/bin/blade.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -160,6 +160,10 @@ rust_binary(
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
+)
+alias(
+    name = "blade",
+    actual = ":blade_bin",
 )
 
 rust_binary(

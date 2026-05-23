@@ -1,0 +1,22 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.control_windows_custom_tls_prefix_sorts_before_crt_terminator
+kind: check_smt2
+description: When Windows COFF TLS section names must be canonicalized, Kain lowers them
+  into a `.tls$KAIN...` subsection. The CRT's terminal live-range marker begins with
+  `Z`, so the canonicalized prefix byte `K` sorts before the terminator byte and keeps
+  the payload inside the initialized TLS template regardless of the remaining suffix.
+tags:
+- llvm
+- control
+- tls
+- coff
+- windows
+source:
+  path: D:\Kain-Lang\crates\kain-sys-codegen\src\codegen_llvm\mod.rs
+  symbol: normalize_windows_tls_section_name_for_coff
+  start_line: 1231
+  reason: Windows COFF custom TLS sections must stay ahead of the CRT `.tls$ZZZ` terminator to preserve initialized per-thread storage.
+case:
+  smt2: "(set-logic QF_LIA)\n(define-fun canonical_prefix_byte () Int 75)\n(define-fun crt_terminator_prefix_byte () Int 90)\n(assert (not (< canonical_prefix_byte crt_terminator_prefix_byte)))\n(check-sat)"
+  include_model: false
+  include_stats: false

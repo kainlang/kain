@@ -777,7 +777,7 @@ impl LlvmGenerator {
             }
             TypedItem::Shader(shader) => {
                 self.collect_pointer_let_types_from_block(&shader.ast.body)
-            }            
+            }
             TypedItem::Actor(actor) => {
                 for handler in &actor.ast.handlers {
                     self.collect_pointer_param_types_from_params(&handler.params);
@@ -1228,12 +1228,60 @@ impl LlvmGenerator {
         Self::find_attribute(attributes, ATTR_SECTION).and_then(Self::attribute_string_arg)
     }
 
+    fn windows_tls_subsection_is_live(section: &str) -> bool {
+        let Some(suffix) = section.strip_prefix(".tls$") else {
+            return false;
+        };
+        suffix.as_bytes() < "ZZZ".as_bytes()
+    }
+
+    fn normalize_windows_tls_section_name_for_coff(authored: &str) -> String {
+        // Windows COFF only copies initialized TLS payload that sorts before the CRT's
+        // terminal `.tls$ZZZ` marker. Raw names like `.tls`, `.tls.kain`, or `.tls$kain`
+        // can compile into truthful-looking LLVM IR while reading back as zero at runtime.
+        // Proof: crates/kain-sys-codegen/z3/proofs/control-windows-custom-tls-prefix-sorts-before-crt-terminator.yaml
+        if Self::windows_tls_subsection_is_live(authored) {
+            return authored.to_string();
+        }
+        if authored == ".tls" {
+            return ".tls$KAIN".to_string();
+        }
+        let logical_suffix = if let Some(suffix) = authored.strip_prefix(".tls$") {
+            suffix.trim_start_matches('$')
+        } else if let Some(suffix) = authored.strip_prefix(".tls.") {
+            suffix
+        } else if let Some(suffix) = authored.strip_prefix(".tls") {
+            suffix.trim_start_matches(['.', '$'])
+        } else {
+            authored.trim_start_matches('.')
+        };
+        if logical_suffix.is_empty() {
+            ".tls$KAIN".to_string()
+        } else {
+            format!(".tls$KAIN${logical_suffix}")
+        }
+    }
+
+    fn const_section_name(&self, attributes: &[Attribute]) -> Option<String> {
+        let authored = Self::callable_section_name(attributes)?;
+        let thread_local = attributes
+            .iter()
+            .any(|attribute| attribute.name == ATTR_THREAD_LOCAL);
+        if thread_local && self.target_is_windows_x64() {
+            Some(Self::normalize_windows_tls_section_name_for_coff(&authored))
+        } else {
+            Some(authored)
+        }
+    }
+
     fn callable_link_name(attributes: &[Attribute]) -> Option<String> {
         Self::find_attribute(attributes, ATTR_LINK_NAME).and_then(Self::attribute_string_arg)
     }
 
     fn callable_is_naked(attributes: &[Attribute]) -> bool {
-        attributes.iter().any(|attribute| attribute.name == ATTR_NAKED)
+        attributes
+            .iter()
+            .any(|attribute| attribute.name == ATTR_NAKED)
     }
 
     fn callable_is_interrupt(attributes: &[Attribute]) -> bool {
@@ -1250,8 +1298,8 @@ impl LlvmGenerator {
         if Self::callable_is_interrupt(attributes) {
             return Ok(Some("x86_intrcc".to_string()));
         }
-        let Some(value) = Self::find_attribute(attributes, ATTR_CALLCONV)
-            .and_then(Self::attribute_string_arg)
+        let Some(value) =
+            Self::find_attribute(attributes, ATTR_CALLCONV).and_then(Self::attribute_string_arg)
         else {
             return Ok(None);
         };
@@ -1293,7 +1341,9 @@ impl LlvmGenerator {
     }
 
     fn callable_callconv_for_name(&self, authored_name: &str) -> Option<String> {
-        self.function_calling_conventions.get(authored_name).cloned()
+        self.function_calling_conventions
+            .get(authored_name)
+            .cloned()
     }
 
     fn callable_callconv_prefix_for_name(&self, authored_name: &str) -> String {
@@ -2591,7 +2641,9 @@ impl LlvmGenerator {
             _ => return None,
         };
         let pointee_ty = self.map_type_from_ast(inner);
-        pointee_ty.starts_with('%').then(|| format!("{pointee_ty}*"))
+        pointee_ty
+            .starts_with('%')
+            .then(|| format!("{pointee_ty}*"))
     }
 
     fn record_authored_struct_pointer_local(&mut self, name: &str, authored_ty: Option<&Type>) {
@@ -6147,7 +6199,9 @@ impl LlvmGenerator {
             _ => return None,
         };
         let pointee_ty = self.map_type(inner);
-        pointee_ty.starts_with('%').then(|| format!("{pointee_ty}*"))
+        pointee_ty
+            .starts_with('%')
+            .then(|| format!("{pointee_ty}*"))
     }
 
     fn intern_string_global_name(&mut self, s: &str) -> String {
@@ -9673,8 +9727,9 @@ impl LlvmGenerator {
                 }
                 if obj_ty == "i64" {
                     if let Some(authored_ptr_ty) = self.authored_pointer_locals.get(name).cloned() {
-                        if let Some(struct_name) =
-                            self.ptr_struct_name(&authored_ptr_ty).map(|name| name.to_string())
+                        if let Some(struct_name) = self
+                            .ptr_struct_name(&authored_ptr_ty)
+                            .map(|name| name.to_string())
                         {
                             let field_index =
                                 self.field_index(&struct_name, field).ok_or_else(|| {
@@ -9742,7 +9797,13 @@ impl LlvmGenerator {
                     "  store {} {}, {}* {}",
                     obj_ty, obj_val, obj_ty, tmp_addr
                 ));
-                (struct_name.clone(), tmp_addr, index, Some(struct_name), false)
+                (
+                    struct_name.clone(),
+                    tmp_addr,
+                    index,
+                    Some(struct_name),
+                    false,
+                )
             } else {
                 return Err(KainError::codegen(
                     format!(
@@ -11027,8 +11088,8 @@ impl LlvmGenerator {
                         Self::callable_link_name(&func.ast.attributes)
                             .unwrap_or_else(|| func.ast.name.clone()),
                     );
-                    if let Some(callconv) = self
-                        .callable_llvm_calling_convention(&func.ast.attributes, func.ast.span)?
+                    if let Some(callconv) =
+                        self.callable_llvm_calling_convention(&func.ast.attributes, func.ast.span)?
                     {
                         self.function_calling_conventions
                             .insert(func.ast.name.clone(), callconv);
@@ -11376,7 +11437,8 @@ impl LlvmGenerator {
             .attributes
             .iter()
             .any(|attribute| attribute.name == ATTR_THREAD_LOCAL);
-        let section_suffix = Self::callable_section_name(&constant.ast.attributes)
+        let section_suffix = self
+            .const_section_name(&constant.ast.attributes)
             .map(|section| {
                 format!(
                     ", section \"{}\"",
@@ -11398,10 +11460,7 @@ impl LlvmGenerator {
                 "@__kain_const_init_flag_{}",
                 Self::sanitize_symbol_fragment(name)
             ),
-            init_fn_name: format!(
-                "__kain_init_const_{}",
-                Self::sanitize_symbol_fragment(name)
-            ),
+            init_fn_name: format!("__kain_init_const_{}", Self::sanitize_symbol_fragment(name)),
             ty: llvm_ty.clone(),
             requires_runtime_init,
             is_known_string: Self::resolved_type_is_string(&constant.ty),
@@ -12514,8 +12573,7 @@ impl LlvmGenerator {
             ("main".to_string(), true)
         } else {
             (
-                Self::callable_link_name(attributes)
-                    .unwrap_or_else(|| callable_name.to_string()),
+                Self::callable_link_name(attributes).unwrap_or_else(|| callable_name.to_string()),
                 false,
             )
         };
@@ -13341,8 +13399,7 @@ impl LlvmGenerator {
             .insert(func.ast.name.clone(), ret_type.clone());
         self.function_symbols.insert(
             func.ast.name.clone(),
-            Self::callable_link_name(&func.ast.attributes)
-                .unwrap_or_else(|| func.ast.name.clone()),
+            Self::callable_link_name(&func.ast.attributes).unwrap_or_else(|| func.ast.name.clone()),
         );
         if let Some(callconv) =
             self.callable_llvm_calling_convention(&func.ast.attributes, func.ast.span)?
@@ -14060,11 +14117,7 @@ impl LlvmGenerator {
                         let local_pointer_provenance =
                             self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
-                        self.record_authored_struct_pointer_local_for_let(
-                            name,
-                            ty.as_ref(),
-                            *span,
-                        );
+                        self.record_authored_struct_pointer_local_for_let(name, ty.as_ref(), *span);
                         if self.expr_returns_json_handle(val_expr) {
                             self.json_handle_locals.insert(name.clone());
                         } else {

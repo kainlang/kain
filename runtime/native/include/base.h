@@ -179,7 +179,13 @@ static inline int kain_strncat_s(
     kain_strncat_s((destination), (capacity), (source), (count))
 #endif
 
+/* Distinguishes runtime-managed RC payloads from globals/imported pointers and
+ * preserves a freed tombstone for after-free diagnostics. */
+#define KAIN_RC_MAGIC_ALIVE UINT64_C(0x4b41494e52434131)
+#define KAIN_RC_MAGIC_FREED UINT64_C(0x4b41494e52434631)
+
 typedef struct {
+    uint64_t magic;
     long long ref_count;
     long long weak_count;
     long long type_tag;

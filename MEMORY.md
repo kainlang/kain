@@ -8438,3 +8438,48 @@ PATH/build note:
 Tooling gotcha:
 
 - Running several `kain check` commands in parallel on Windows can trip `Move-FileAtomically` in `scripts/windows/launch-bazel-cli.ps1` while the launcher refreshes cached CLI state. Use serial `kain check` runs for final certification until the launcher lock/replace path is hardened.
+
+# 2026-05-23 - Windows COFF TLS section lowering is now truthful for authored `@thread_local @section(...)`
+
+The phase-4/5 systems pass originally landed `@thread_local` plus `@section`, but the Windows LLVM/native path still had a silent truth gap: custom TLS section names could compile into plausible IR and then read back as zero at runtime. The root cause was PE/COFF TLS subsection ordering, not generic TLS support.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Added `windows_tls_subsection_is_live(...)`, `normalize_windows_tls_section_name_for_coff(...)`, and `const_section_name(...)`.
+  - Windows `@thread_local` const globals now normalize unsafe authored TLS sections into a stable `.tls$KAIN...` subsection band that sorts before the CRT `.tls$ZZZ` terminator.
+  - Exact expert-authored subsections are still preserved when they already live inside the initialized TLS range, e.g. `.tls$B`.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Expanded `llvm_lowers_systems_abi_control_attributes` to cover four real edge cases:
+    - `.tls`
+    - `.tls.kain.smoke`
+    - `.tls$smoke`
+    - preserved expert subsection `.tls$B`
+- `smoketest/src/systems/abi_control.kn`
+  - Rejoined the combined systems surface instead of the earlier bypass.
+  - The lane now validates four live TLS forms plus section/link-name/callconv together inside the full smoketest album.
+- `crates/kain-sys-codegen/z3/proofs/control-windows-custom-tls-prefix-sorts-before-crt-terminator.yaml`
+  - Added a proof breadcrumb for the COFF ordering rule behind the `.tls$KAIN...` canonical prefix.
+
+Why this matters:
+
+- On Windows COFF, raw names like `.tls`, `.tls.kain.smoke`, and `.tls$kain` can land outside the live TLS template window even though LLVM IR still says `thread_local global ...`.
+- The safe mental model is now: authored Kain keeps logical section control, and the Windows lowering layer maps unsafe TLS spellings into the real COFF subsection family needed for truthful initialized per-thread storage.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_systems_abi_control_attributes --target-dir target/codex-tls-section-fix -- --exact`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_x86_64_naked_and_interrupt_lanes --target-dir target/codex-tls-section-fix -- --exact`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_mmio_register_block_field_accesses_to_volatile_ops --target-dir target/codex-tls-section-fix -- --exact`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_module_scoped_mmio_pointer_params_to_volatile_ops --target-dir target/codex-tls-section-fix -- --exact`
+- `cargo check -p kain-core -p kain-sys-codegen --target-dir target/codex-tls-section-fix-check`
+- `./target/codex-kain-cli/debug/kain.exe check smoketest/src/main.kn --target llvm`
+- `./target/codex-kain-cli/debug/kain.exe run smoketest/src/main.kn --target llvm`
+- `./target/codex-kain-cli/debug/kain.exe blades build smoketest --json`
+- Z3: `windows-custom-tls-prefix-sorts-before-crt-terminator` -> `unsat`
+
+Durable lessons:
+
+- For Windows TLS, exact section strings are not enough; subsection ordering is semantic truth.
+- If authored systems features expose a platform ABI ordering rule, bake the rule into lowering and then prove it again in smoketest executable space, not only with IR text assertions.
+- The smoketest album was the right canary here. Keep systems ABI lanes wired into the whole album so platform-specific truth gaps show up before release-work theater starts.

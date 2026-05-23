@@ -1,1 +1,3 @@
-include!("../main.rs");
+fn main() {
+    cli::kain_launcher::main_entry();
+}

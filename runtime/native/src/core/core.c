@@ -8,8 +8,76 @@ static RcHeader* get_header(void* ptr) {
     return ((RcHeader*)ptr) - 1;
 }
 
+static int kain_rc_header_is_alive(const RcHeader* header) {
+    return header != NULL && header->magic == KAIN_RC_MAGIC_ALIVE;
+}
+
+static int kain_rc_header_is_freed(const RcHeader* header) {
+    return header != NULL && header->magic == KAIN_RC_MAGIC_FREED;
+}
+
+static int kain_rc_header_is_tracked(const RcHeader* header) {
+    return kain_rc_header_is_alive(header) || kain_rc_header_is_freed(header);
+}
+
 static int kain_rc_is_immediate_handle(const void* ptr) {
     return ptr != NULL && ((((uintptr_t)ptr) & 7u) != 0u);
+}
+
+int kain_rc_is_tracked_pointer(const void* ptr) {
+    const RcHeader* header;
+    if (!ptr || kain_rc_is_immediate_handle(ptr)) {
+        return 0;
+    }
+    header = ((const RcHeader*)ptr) - 1;
+    return kain_rc_header_is_tracked(header);
+}
+
+typedef struct {
+    const void* payload;
+    long long type_tag;
+    size_t payload_size;
+    size_t string_length;
+    void (*destructor)(void*);
+} KainRcFreedRecord;
+
+static KainRcFreedRecord g_kain_rc_freed_records[16384];
+static unsigned int g_kain_rc_freed_record_cursor = 0u;
+
+static int kain_rc_debug_enabled(void) {
+    return getenv("KAIN_RC_DEBUG") != NULL;
+}
+
+static void kain_rc_record_recent_free(
+    const void* payload,
+    long long type_tag,
+    size_t payload_size,
+    size_t string_length,
+    void (*destructor)(void*)
+) {
+    unsigned int slot;
+    if (!kain_rc_debug_enabled() || payload == NULL) {
+        return;
+    }
+    slot = g_kain_rc_freed_record_cursor++ % 16384u;
+    g_kain_rc_freed_records[slot].payload = payload;
+    g_kain_rc_freed_records[slot].type_tag = type_tag;
+    g_kain_rc_freed_records[slot].payload_size = payload_size;
+    g_kain_rc_freed_records[slot].string_length = string_length;
+    g_kain_rc_freed_records[slot].destructor = destructor;
+}
+
+static const KainRcFreedRecord* kain_rc_find_recent_free(const void* payload) {
+    unsigned int index;
+    if (!kain_rc_debug_enabled() || payload == NULL) {
+        return NULL;
+    }
+    for (index = 0u; index < 16384u; ++index) {
+        if (g_kain_rc_freed_records[index].payload == payload) {
+            return &g_kain_rc_freed_records[index];
+        }
+    }
+    return NULL;
 }
 
 static size_t kain_string_len_rc(const char* value) {
@@ -129,6 +197,7 @@ void* kain_alloc_rc(size_t size, long long type_tag) {
         );
         return NULL;
     }
+    header->magic = KAIN_RC_MAGIC_ALIVE;
     header->ref_count = 1;
     header->weak_count = 0;
     header->type_tag = type_tag;
@@ -151,6 +220,19 @@ void rc_retain(void* ptr) {
     RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     header = get_header(ptr);
+    if (!kain_rc_header_is_alive(header)) {
+        if (kain_rc_header_is_freed(header)) {
+            kain_attrition_note_rc_underflow();
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+                "RC retain after free",
+                "Retaining this object would reuse RC state that has already been torn down."
+            );
+        }
+        return;
+    }
     if (header->ref_count == LLONG_MAX) {
         kain_attrition_note_rc_overflow();
         emit_diagnostic(
@@ -167,8 +249,13 @@ void rc_retain(void* ptr) {
 }
 
 void rc_weak_retain(void* ptr) {
+    RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    get_header(ptr)->weak_count++;
+    header = get_header(ptr);
+    if (!kain_rc_header_is_alive(header)) {
+        return;
+    }
+    header->weak_count++;
 }
 
 void rc_release(void* ptr) {
@@ -176,7 +263,52 @@ void rc_release(void* ptr) {
     size_t total_size;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     header = get_header(ptr);
+    if (!kain_rc_header_is_alive(header)) {
+        if (kain_rc_header_is_freed(header)) {
+            kain_attrition_note_rc_underflow();
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+                "RC release after free",
+                "Releasing this object would reuse RC state that has already been torn down."
+            );
+        }
+        return;
+    }
     if (header->ref_count <= 0) {
+        if (kain_rc_debug_enabled()) {
+            const KainRcFreedRecord* freed_record = kain_rc_find_recent_free(ptr);
+            fprintf(
+                stderr,
+                "[MEMORY][RC_DEBUG] ptr=%p type_tag=%lld ref_count=%lld weak_count=%lld payload_size=%zu string_length=%zu",
+                ptr,
+                header->type_tag,
+                header->ref_count,
+                header->weak_count,
+                header->payload_size,
+                header->string_length
+            );
+            if (header->type_tag == 1 && header->payload_size > 0u) {
+                size_t preview_length = header->string_length;
+                const char* text = (const char*)ptr;
+                if (preview_length > 48u) {
+                    preview_length = 48u;
+                }
+                fprintf(stderr, " text=\"%.*s\"", (int)preview_length, text);
+            }
+            if (freed_record != NULL) {
+                fprintf(
+                    stderr,
+                    " last_free={type_tag=%lld payload_size=%zu string_length=%zu destructor=%p}",
+                    freed_record->type_tag,
+                    freed_record->payload_size,
+                    freed_record->string_length,
+                    (void*)freed_record->destructor
+                );
+            }
+            fprintf(stderr, "\n");
+        }
         kain_attrition_note_rc_underflow();
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
@@ -203,6 +335,14 @@ void rc_release(void* ptr) {
 
         if (header->weak_count == 0) {
             total_size = sizeof(RcHeader) + header->payload_size;
+            header->magic = KAIN_RC_MAGIC_FREED;
+            kain_rc_record_recent_free(
+                ptr,
+                header->type_tag,
+                header->payload_size,
+                header->string_length,
+                header->destructor
+            );
             kain_attrition_note_rc_free(total_size);
             if (!kain_attrition_heap_release(header, total_size)) {
                 free(header);
@@ -215,6 +355,9 @@ void rc_weak_release(void* ptr) {
     RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     header = get_header(ptr);
+    if (!kain_rc_header_is_alive(header) && !kain_rc_header_is_freed(header)) {
+        return;
+    }
     header->weak_count--;
 
     if (header->weak_count == 0 && header->ref_count == 0) {
@@ -227,6 +370,9 @@ void* weak_upgrade(void* ptr) {
     if (!ptr) return NULL;
     if (kain_rc_is_immediate_handle(ptr)) return ptr;
     header = get_header(ptr);
+    if (!kain_rc_header_is_alive(header)) {
+        return NULL;
+    }
     if (header->ref_count > 0) {
         if (header->ref_count == LLONG_MAX) {
             kain_attrition_note_rc_overflow();
@@ -247,8 +393,13 @@ void* weak_upgrade(void* ptr) {
 }
 
 void kain_set_destructor(void* ptr, void (*dtor)(void*)) {
+    RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    get_header(ptr)->destructor = dtor;
+    header = get_header(ptr);
+    if (!kain_rc_header_is_alive(header)) {
+        return;
+    }
+    header->destructor = dtor;
 }
 
 void KAIN_set_destructor(void* ptr, void (*dtor)(void*)) {

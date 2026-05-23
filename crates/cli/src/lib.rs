@@ -3,11 +3,14 @@
 //! Re-exports core compiler functionality and keeps the CLI surface thin over
 //! the embeddable `kain-driver` crate.
 
+extern crate self as cli;
+
 // Re-export core compiler
 pub use kain_core::*;
 
 // CLI-specific modules
 pub mod amalgamate;
+pub mod blade_launcher;
 pub mod blades;
 pub mod bridge;
 pub mod codebase;
@@ -22,6 +25,7 @@ pub mod import_platform;
 pub mod import_rust;
 pub mod import_typescript;
 pub mod llvm_native_stage;
+pub mod kain_launcher;
 pub mod lsp;
 pub mod native_ui_build;
 pub mod native_ui_dev;
