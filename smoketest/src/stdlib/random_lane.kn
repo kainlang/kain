@@ -72,4 +72,47 @@ pub fn smoke_random_lane() -> Int:
     if ambient_float < 0.0 or ambient_float >= 1.0:
         return 10
 
+    # 7. Test Shattered Parallel Entropy Buffer
+    let sh_rng = shattered_rng_buffer_new(99, 4)
+    if sh_rng.lanes != 4:
+        return 11
+
+    let sh_out: ptr<Int> = alloc_zeroed(4, "Int")
+    let sh_ret = shattered_rng_buffer_next_block(sh_rng, sh_out)
+    if sh_ret != 4:
+        return 12
+
+    let val0 = mem_load(ptr_offset(sh_out, 0, "Int"), "Int")
+    let val1 = mem_load(ptr_offset(sh_out, 1, "Int"), "Int")
+    let val2 = mem_load(ptr_offset(sh_out, 2, "Int"), "Int")
+    let val3 = mem_load(ptr_offset(sh_out, 3, "Int"), "Int")
+
+    # Confirm that all 4 values are different (highly likely) and initialized
+    if val0 == 0 or val1 == 0 or val2 == 0 or val3 == 0:
+        return 13
+
+    if val0 == val1 or val1 == val2 or val2 == val3:
+        return 14
+
+    decay sh_out
+    let _sh_destroy = shattered_rng_buffer_destroy(sh_rng)
+
+    # 8. Test Quantum Entanglement synchronization
+    # Record current mirror seeds
+    let m0 = AmbientRandomMirrorWorld.seed0_copy
+    let m1 = AmbientRandomMirrorWorld.seed1_copy
+
+    # Generate from ambient authority
+    let _a3 = random_ambient_next()
+
+    # Mirror seeds MUST have automatically updated and matched!
+    if AmbientRandomMirrorWorld.seed0_copy == m0:
+        return 15
+
+    if AmbientRandomMirrorWorld.seed0_copy != AmbientRandomWorld.seed0:
+        return 16
+
+    if AmbientRandomMirrorWorld.seed1_copy != AmbientRandomWorld.seed1:
+        return 17
+
     return 0

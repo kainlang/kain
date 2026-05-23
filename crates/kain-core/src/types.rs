@@ -1263,7 +1263,7 @@ impl<'a> TypeEnv<'a> {
             self.types.contains_key(&name),
             "type",
             DiagnosticCode::TypeGeneric,
-            false,
+            self.is_registering_stdlib() || self.is_stdlib_source_span(span),
         )?;
         self.types.insert(name.clone(), ty);
         self.type_origins.insert(name, SymbolOrigin { span, kind });

@@ -169,6 +169,104 @@ pub fn random_float_norm(rng: Xoshiro128) -> FloatNormResult:
     let z0 = sqrt(-2.0 * math_ln(u1)) * cos(2.0 * pi * u2)
     return FloatNormResult { rng: r2.rng, value: z0 }
 
+# --- Shattered Parallel High-Throughput Entropy Buffer (Alien Metal Lane) ---
+
+pub struct ShatteredRngBuffer:
+    buffer: ptr<Int>
+    lanes: Int
+
+pub fn shattered_rng_buffer_new(seed: Int, lanes: Int) -> ShatteredRngBuffer with Alloc:
+    var safe_lanes = lanes
+    if safe_lanes < 1:
+        safe_lanes = 1
+    let total_words = safe_lanes * 4
+    let buffer: ptr<Int> = alloc_zeroed(total_words, "Int")
+
+    var s = seed & 4294967295
+    if s == 0:
+        s = 123456789
+
+    var state = s
+    var i = 0
+    while i < safe_lanes:
+        state = (state + 2654435769) & 4294967295
+        var z = state
+        z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+        z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+        let s0 = z ^ (z >> 16)
+
+        state = (state + 2654435769) & 4294967295
+        z = state
+        z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+        z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+        let s1 = z ^ (z >> 16)
+
+        state = (state + 2654435769) & 4294967295
+        z = state
+        z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+        z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+        let s2 = z ^ (z >> 16)
+
+        state = (state + 2654435769) & 4294967295
+        z = state
+        z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+        z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+        let s3 = z ^ (z >> 16)
+
+        let base = i * 4
+        mem_store(ptr_offset(buffer, base + 0, "Int"), s0, "Int")
+        mem_store(ptr_offset(buffer, base + 1, "Int"), s1, "Int")
+        mem_store(ptr_offset(buffer, base + 2, "Int"), s2, "Int")
+        mem_store(ptr_offset(buffer, base + 3, "Int"), s3, "Int")
+        i = i + 1
+
+    return ShatteredRngBuffer { buffer: buffer, lanes: safe_lanes }
+
+pub fn shattered_rng_buffer_destroy(rng: ShatteredRngBuffer) -> Int:
+    decay rng.buffer
+    return 0
+
+fn shattered_rng_buffer_update_scalar(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int with Unsafe:
+    var i = 0
+    while i < lanes:
+        let base = i * 4
+        let s0 = mem_load(ptr_offset(buf, base + 0, "Int"), "Int")
+        let s1 = mem_load(ptr_offset(buf, base + 1, "Int"), "Int")
+        let s2 = mem_load(ptr_offset(buf, base + 2, "Int"), "Int")
+        let s3 = mem_load(ptr_offset(buf, base + 3, "Int"), "Int")
+
+        let result = xoshiro_scramble(s1)
+        let t = (s1 << 9) & 4294967295
+
+        let new_s2 = s2 ^ s0
+        let new_s3 = s3 ^ s1
+        let new_s1 = s1 ^ s2
+        let new_s0 = s0 ^ s3
+
+        let final_s2 = new_s2 ^ t
+        let final_s3 = rotl(new_s3, 11)
+
+        mem_store(ptr_offset(buf, base + 0, "Int"), new_s0, "Int")
+        mem_store(ptr_offset(buf, base + 1, "Int"), new_s1, "Int")
+        mem_store(ptr_offset(buf, base + 2, "Int"), final_s2, "Int")
+        mem_store(ptr_offset(buf, base + 3, "Int"), final_s3, "Int")
+
+        mem_store(ptr_offset(output, i, "Int"), result, "Int")
+        i = i + 1
+    return lanes
+
+pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int:
+    spec reference:
+        return shattered_rng_buffer_update_scalar(buf, output, lanes)
+    fast llvm_lane when target("llvm"):
+        return shattered_rng_buffer_update_scalar(buf, output, lanes)
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return shattered_rng_buffer_update_scalar(buf, output, lanes)
+    verify random(4)
+
+pub fn shattered_rng_buffer_next_block(rng: ShatteredRngBuffer, output: ptr<Int>) -> Int with Unsafe:
+    return shattered_rng_buffer_update(rng.buffer, output, rng.lanes)
+
 # --- Global / Ambient PRNG Authority Worlds and Patches ---
 
 component RandomDummyPanel():
@@ -180,6 +278,18 @@ world AmbientRandomWorld:
     state seed2: Int = 11121
     state seed3: Int = 31415
     surface native_ui => RandomDummyPanel
+
+world AmbientRandomMirrorWorld:
+    state seed0_copy: Int = 12345
+    state seed1_copy: Int = 67890
+    state seed2_copy: Int = 11121
+    state seed3_copy: Int = 31415
+    surface web => RandomDummyPanel
+
+entangle AmbientRandomWorld.seed0 <-> AmbientRandomMirrorWorld.seed0_copy with single_writer
+entangle AmbientRandomWorld.seed1 <-> AmbientRandomMirrorWorld.seed1_copy with single_writer
+entangle AmbientRandomWorld.seed2 <-> AmbientRandomMirrorWorld.seed2_copy with single_writer
+entangle AmbientRandomWorld.seed3 <-> AmbientRandomMirrorWorld.seed3_copy with single_writer
 
 pub patch patch_random_next(world_ref: AmbientRandomWorld) -> Int:
     let s0 = world_ref.seed0

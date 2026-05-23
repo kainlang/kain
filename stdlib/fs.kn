@@ -1,6 +1,47 @@
 use std::base64
 use std::text
 
+pub struct FsError:
+    kind: String
+    operation: String
+    path: String
+    other_path: String
+    message: String
+    raw_code: Int
+
+pub struct FsMetadata:
+    file_type: String
+    len: Int
+    readonly: Bool
+    created_millis: Int
+    modified_millis: Int
+    accessed_millis: Int
+
+pub struct FsDirEntry:
+    path: String
+    file_name: String
+    file_type: String
+    metadata: FsMetadata
+
+pub struct FsChunk:
+    index: Int
+    offset: Int
+    len: Int
+    bytes: Array<Int>
+
+pub struct FsWatchEvent:
+    kind: String
+    path: String
+    before_len: Int
+    after_len: Int
+
+pub struct FsJournalEntry:
+    operation: String
+    path: String
+    other_path: String
+    status: String
+    message: String
+
 @extern
 fn abi_fs_read_text(path: String) -> String
 
