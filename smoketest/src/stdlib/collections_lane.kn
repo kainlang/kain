@@ -1,7 +1,7 @@
 use std::runtime
 use std::collections
 
-pub fn smoke_collections_lane() -> Int:
+pub fn smoke_collections_lane() -> Int with Unsafe:
     let map = typed_map_set(typed_map_new(), "alpha", 41)
     let value = typed_map_get(map, "alpha")
     if value != 41:

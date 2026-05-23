@@ -20,6 +20,22 @@ What changed:
   - added a non-stdlib consumer so semver is exercised outside the root module itself
 - `stdlib/requirements.md`
   - marked the `std::semver` P0 row `DONE`
+- atlas
+  - `kain-stdlib-map` refreshed cleanly and now reports `43` modules with `2578` public symbols, including `std::semver`
+
+Validation:
+
+- `kain check stdlib/semver.kn --target llvm`
+- `kain check smoketest/src/stdlib/semver_lane.kn --target llvm`
+- `kain check blades/stdlib-foundations/src/main.kn --target llvm`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+- `python query_stdlib.py --search semver --limit 40`
+
+Shared blockers observed during album-scale validation:
+
+- `kain check stdlib/random.kn --target llvm` is currently blocked by `converge 'shattered_rng_buffer_update' verify random(n) does not support parameter 'buf' of type ptr<Int>`
+- `kain check smoketest/src/main.kn --target llvm` is currently blocked upstream by parse issues in the newly landed URI lane surface (`stdlib/uri.kn` / `smoketest/src/stdlib/uri_lane.kn`), not by `std::semver`
 
 Durable lessons:
 
