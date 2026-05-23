@@ -79,14 +79,12 @@ file:
 1. `<path>.kn`
 2. `src/<path>.kn`
 3. `src/core/<first-segment>.kn`
-4. `<path>.god`
 
 If that does not resolve and the import has more than one segment, Kain then
 tries first-segment module files:
 
 1. `<first-segment>.kn`
 2. `src/<first-segment>.kn`
-3. `<first-segment>.god`
 
 That fallback is what lets a file like `host_reflection.kn` satisfy:
 

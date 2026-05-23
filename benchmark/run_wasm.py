@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 BENCHMARK_ROOT = Path(__file__).resolve().parent
-RUNNER = BENCHMARK_ROOT / "wasm" / "run.py"
+RUNNER = BENCHMARK_ROOT / "lanes" / "wasm" / "run.py"
 
 
 def main() -> int:

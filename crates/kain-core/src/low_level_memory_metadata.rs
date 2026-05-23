@@ -8,6 +8,9 @@ pub const C_STORAGE_ALIGN_ATTR: &str = "c_storage_align";
 pub const C_PACKED_ATTR: &str = "c_packed";
 pub const C_PACK_ALIGN_ATTR: &str = "c_pack_align";
 pub const C_TYPE_ALIGN_ATTR: &str = "c_type_align";
+pub const PUBLIC_PACKED_ATTR: &str = "packed";
+pub const PUBLIC_ALIGNED_ATTR: &str = "aligned";
+pub const PUBLIC_MMIO_ATTR: &str = "mmio";
 
 pub fn marker_attr(name: &str, span: Span) -> Attribute {
     Attribute {

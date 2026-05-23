@@ -37,7 +37,7 @@ HISTORY_ROOT = OUT_ROOT / "history"
 NATIVE_CORE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 FFI_SHARED_CASE_ID = "ffi_shared_call_stress"
-DEFAULT_MINIMAL_REPORT_NAME = "latest.md"
+DEFAULT_MINIMAL_REPORT_NAME = "out/snapshots/latest.md"
 DEFAULT_LATEST_REPORT_STEM = "latest"
 DEFAULT_HISTORY_DB_PATH = HISTORY_ROOT / "benchmark_history.sqlite3"
 BASELINE_CACHE_SCHEMA_VERSION = 1
@@ -773,7 +773,7 @@ def ffi_shared_support_paths(case_id: str) -> dict[str, Path]:
     link_name = shared_link_artifact_name("ffi_boundary_shared")
     link_path = native_dir / link_name if link_name else shared_path
     return {
-        "source": BENCHMARK_ROOT / "ffi_boundary" / "native" / "ffi_boundary.c",
+        "source": BENCHMARK_ROOT / "lanes" / "ffi_boundary" / "native" / "ffi_boundary.c",
         "shared": shared_path,
         "link": link_path,
         "native_dir": native_dir,
@@ -1924,9 +1924,25 @@ def markdown_table_row(cells: list[str]) -> str:
 
 def root_snapshot_path(name: str) -> Path:
     candidate = Path(name)
-    if candidate.is_absolute() or len(candidate.parts) != 1 or candidate.name != name:
-        raise ValueError(f"minimal report name must stay in benchmark root: {name}")
-    return BENCHMARK_ROOT / candidate.name
+    if candidate.is_absolute():
+        raise ValueError(f"minimal report name must be relative to benchmark root: {name}")
+    resolved = (BENCHMARK_ROOT / candidate).resolve()
+    benchmark_root = BENCHMARK_ROOT.resolve()
+    out_root = OUT_ROOT.resolve()
+    try:
+        resolved.relative_to(benchmark_root)
+    except ValueError as exc:
+        raise ValueError(f"minimal report path escapes benchmark root: {name}") from exc
+    # Legacy one-segment names still land in benchmark root. Nested snapshot
+    # paths are allowed only under benchmark/out/.
+    if len(candidate.parts) == 1:
+        return BENCHMARK_ROOT / candidate.name
+    try:
+        resolved.relative_to(out_root)
+    except ValueError as exc:
+        raise ValueError(f"nested minimal report paths must stay under benchmark/out: {name}") from exc
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    return resolved
 
 
 def latest_report_stem(stem: str) -> str:

@@ -2026,6 +2026,7 @@ impl RustTransformer {
             name,
             ty,
             value,
+            attributes: vec![],
             visibility: visibility(&c.vis),
             span: S,
         })
@@ -2039,6 +2040,7 @@ impl RustTransformer {
             name,
             ty,
             value,
+            attributes: vec![],
             visibility: visibility(&s.vis),
             span: S,
         })

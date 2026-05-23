@@ -2740,6 +2740,7 @@ name = "kain-build"
 version = "0.1.0"
 dependencies = [
  "blade",
+ "kain-amalgamate",
  "kain-check",
  "kain-core",
  "kain-driver",

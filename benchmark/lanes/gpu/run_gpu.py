@@ -25,14 +25,14 @@ from typing import Any
 
 
 GPU_ROOT = Path(__file__).resolve().parent
-BENCHMARK_ROOT = GPU_ROOT.parent
+BENCHMARK_ROOT = GPU_ROOT.parent.parent
 REPO_ROOT = BENCHMARK_ROOT.parent
 OUT_ROOT = BENCHMARK_ROOT / "out"
 BUILD_ROOT = OUT_ROOT / "build" / "gpu"
 REPORT_ROOT = OUT_ROOT / "reports"
 DEFAULT_MANIFEST = GPU_ROOT / "gpu_cases.json"
 DEFAULT_LATEST_STEM = "latest_gpu"
-DEFAULT_MINIMAL_NAME = "latest_gpu.md"
+DEFAULT_MINIMAL_NAME = "out/snapshots/latest_gpu.md"
 LANGUAGE_ORDER = ["kain", "cpp", "rust"]
 
 SPIRV_OPCODE_NAMES = {
@@ -1187,7 +1187,9 @@ def write_reports(report: dict[str, Any], minimal_name: str, latest_stem: str) -
     latest_md.write_text(md_text, encoding="utf-8")
     stamped_json.write_text(json_text, encoding="utf-8")
     stamped_md.write_text(md_text, encoding="utf-8")
-    (BENCHMARK_ROOT / minimal_name).write_text(minimal_text, encoding="utf-8")
+    minimal_path = BENCHMARK_ROOT / minimal_name
+    minimal_path.parent.mkdir(parents=True, exist_ok=True)
+    minimal_path.write_text(minimal_text, encoding="utf-8")
 
 
 def parse_args() -> argparse.Namespace:

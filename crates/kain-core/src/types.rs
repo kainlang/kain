@@ -25,6 +25,16 @@ use kain_ownership::{
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+const ATTR_SECTION: &str = "section";
+const ATTR_LINK_NAME: &str = "link_name";
+const ATTR_CALLCONV: &str = "callconv";
+const ATTR_THREAD_LOCAL: &str = "thread_local";
+const ATTR_PACKED: &str = "packed";
+const ATTR_ALIGNED: &str = "aligned";
+const ATTR_NAKED: &str = "naked";
+const ATTR_INTERRUPT: &str = "interrupt";
+const ATTR_MMIO: &str = "mmio";
+
 /// Type-checked AST node
 #[derive(Debug, Clone)]
 pub struct TypedProgram {
@@ -348,6 +358,509 @@ fn context_allows_raw_memory_intrinsics(ctx: Option<&SemanticContext>) -> bool {
     ctx.is_some_and(|ctx| ctx.effects.effects.contains(&Effect::Unsafe))
 }
 
+fn recognized_metal_attribute(name: &str) -> bool {
+    matches!(
+        name,
+        ATTR_SECTION
+            | ATTR_LINK_NAME
+            | ATTR_CALLCONV
+            | ATTR_THREAD_LOCAL
+            | ATTR_PACKED
+            | ATTR_ALIGNED
+            | ATTR_NAKED
+            | ATTR_INTERRUPT
+            | ATTR_MMIO
+    )
+}
+
+fn function_is_extern_decl(function: &Function) -> bool {
+    function
+        .attributes
+        .iter()
+        .any(|attribute| attribute.name == "extern")
+        && function.body.stmts.is_empty()
+}
+
+fn ensure_metal_attributes_are_unique(env: &TypeEnv, attributes: &[Attribute]) -> KainResult<()> {
+    let mut seen = HashSet::new();
+    for attribute in attributes {
+        if !recognized_metal_attribute(&attribute.name) {
+            continue;
+        }
+        if !seen.insert(attribute.name.clone()) {
+            return Err(env.type_error(
+                format!("duplicate @{name} attribute is not allowed", name = attribute.name),
+                attribute.span,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn expr_as_attribute_string(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::String(value, _) => Some(value.clone()),
+        Expr::Paren(inner, _) => expr_as_attribute_string(inner),
+        _ => None,
+    }
+}
+
+fn expr_as_attribute_int(expr: &Expr) -> Option<i64> {
+    match expr {
+        Expr::Int(value, _) => Some(*value),
+        Expr::Paren(inner, _) => expr_as_attribute_int(inner),
+        _ => None,
+    }
+}
+
+fn expr_as_named_attribute_arg<'a>(expr: &'a Expr) -> Option<(&'a str, &'a Expr)> {
+    match expr {
+        Expr::Tuple(parts, _) if parts.len() == 2 => match &parts[0] {
+            Expr::Ident(name, _) => Some((name.as_str(), &parts[1])),
+            _ => None,
+        },
+        Expr::Paren(inner, _) => expr_as_named_attribute_arg(inner),
+        _ => None,
+    }
+}
+
+fn attribute_requires_zero_args(env: &TypeEnv, attribute: &Attribute) -> KainResult<()> {
+    if attribute.args.is_empty() {
+        return Ok(());
+    }
+    Err(env.type_error(
+        format!("@{} does not take any arguments", attribute.name),
+        attribute.span,
+    ))
+}
+
+fn attribute_single_arg<'a>(env: &TypeEnv, attribute: &'a Attribute) -> KainResult<&'a Expr> {
+    if attribute.args.len() != 1 {
+        return Err(env.type_error(
+            format!("@{} expects exactly one argument", attribute.name),
+            attribute.span,
+        ));
+    }
+    Ok(&attribute.args[0])
+}
+
+fn attribute_string_arg(env: &TypeEnv, attribute: &Attribute) -> KainResult<String> {
+    let expr = attribute_single_arg(env, attribute)?;
+    expr_as_attribute_string(expr).ok_or_else(|| {
+        env.type_error(
+            format!("@{} expects a string literal argument", attribute.name),
+            expr.span(),
+        )
+    })
+}
+
+fn attribute_int_arg(env: &TypeEnv, attribute: &Attribute) -> KainResult<i64> {
+    let expr = attribute_single_arg(env, attribute)?;
+    expr_as_attribute_int(expr).ok_or_else(|| {
+        env.type_error(
+            format!("@{} expects an integer literal argument", attribute.name),
+            expr.span(),
+        )
+    })
+}
+
+fn attribute_named_arg<'a>(
+    env: &TypeEnv,
+    attribute: &'a Attribute,
+    expected_name: &str,
+) -> KainResult<Option<&'a Expr>> {
+    let mut found = None;
+    for arg in &attribute.args {
+        let Some((name, value)) = expr_as_named_attribute_arg(arg) else {
+            continue;
+        };
+        if name != expected_name {
+            continue;
+        }
+        if found.replace(value).is_some() {
+            return Err(env.type_error(
+                format!(
+                    "@{} cannot repeat named argument '{}'",
+                    attribute.name, expected_name
+                ),
+                arg.span(),
+            ));
+        }
+    }
+    Ok(found)
+}
+
+fn attribute_requires_named_args_only(env: &TypeEnv, attribute: &Attribute) -> KainResult<()> {
+    for arg in &attribute.args {
+        if expr_as_named_attribute_arg(arg).is_none() {
+            return Err(env.type_error(
+                format!("@{} expects only named arguments", attribute.name),
+                arg.span(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_alignment_value(env: &TypeEnv, attribute: &Attribute, value: i64) -> KainResult<()> {
+    // Proof: crates/kain-core/z3/proofs/memory-public-aligned-attribute-requires-positive-power-of-two.yaml
+    if value <= 0 || (value & (value - 1)) != 0 {
+        return Err(env.type_error(
+            format!(
+                "@{} requires a positive power-of-two byte alignment",
+                attribute.name
+            ),
+            attribute.span,
+        ));
+    }
+    Ok(())
+}
+
+fn validate_zero_prologue_body(
+    env: &TypeEnv,
+    function: &Function,
+    attribute_name: &str,
+) -> KainResult<()> {
+    for stmt in &function.body.stmts {
+        let allowed = matches!(stmt, Stmt::Expr(Expr::InlineAsm { .. }) | Stmt::Return(None, _))
+            || matches!(stmt, Stmt::Expr(Expr::Return(None, _)));
+        if !allowed {
+            let stmt_span = match stmt {
+                Stmt::Let { span, .. }
+                | Stmt::Return(_, span)
+                | Stmt::Break(_, span)
+                | Stmt::Continue(span)
+                | Stmt::For { span, .. }
+                | Stmt::Fanout { span, .. }
+                | Stmt::While { span, .. }
+                | Stmt::Loop { span, .. } => *span,
+                Stmt::Expr(expr) => expr.span(),
+                Stmt::Item(item) => item_span(item),
+            };
+            return Err(env.type_error(
+                format!(
+                    "@{} functions may only contain inline asm statements and bare returns",
+                    attribute_name
+                ),
+                stmt_span,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_const_attributes(env: &TypeEnv, constant: &Const) -> KainResult<()> {
+    ensure_metal_attributes_are_unique(env, &constant.attributes)?;
+    for attribute in &constant.attributes {
+        match attribute.name.as_str() {
+            ATTR_SECTION | ATTR_LINK_NAME => {
+                let value = attribute_string_arg(env, attribute)?;
+                if value.trim().is_empty() {
+                    return Err(env.type_error(
+                        format!("@{} requires a non-empty string literal", attribute.name),
+                        attribute.span,
+                    ));
+                }
+            }
+            ATTR_THREAD_LOCAL => {
+                attribute_requires_zero_args(env, attribute)?;
+            }
+            ATTR_CALLCONV
+            | ATTR_PACKED
+            | ATTR_ALIGNED
+            | ATTR_NAKED
+            | ATTR_INTERRUPT
+            | ATTR_MMIO => {
+                return Err(env.type_error(
+                    format!(
+                        "@{} is not valid on const items; use it on the owning callable or struct instead",
+                        attribute.name
+                    ),
+                    attribute.span,
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_function_attributes(
+    env: &TypeEnv,
+    function: &Function,
+    return_type: &ResolvedType,
+) -> KainResult<()> {
+    ensure_metal_attributes_are_unique(env, &function.attributes)?;
+    let has_naked = function
+        .attributes
+        .iter()
+        .any(|attribute| attribute.name == ATTR_NAKED);
+    let has_interrupt = function
+        .attributes
+        .iter()
+        .any(|attribute| attribute.name == ATTR_INTERRUPT);
+
+    if has_naked && has_interrupt {
+        let span = function
+            .attributes
+            .iter()
+            .find(|attribute| attribute.name == ATTR_INTERRUPT)
+            .map(|attribute| attribute.span)
+            .unwrap_or(function.span);
+        return Err(env.type_error(
+            "@naked and @interrupt cannot be combined on the same function",
+            span,
+        ));
+    }
+
+    for attribute in &function.attributes {
+        match attribute.name.as_str() {
+            ATTR_SECTION | ATTR_LINK_NAME => {
+                let value = attribute_string_arg(env, attribute)?;
+                if value.trim().is_empty() {
+                    return Err(env.type_error(
+                        format!("@{} requires a non-empty string literal", attribute.name),
+                        attribute.span,
+                    ));
+                }
+            }
+            ATTR_CALLCONV => {
+                let value = attribute_string_arg(env, attribute)?;
+                match value.as_str() {
+                    "c" | "sysv64" | "win64" | "fastcall" => {}
+                    _ => {
+                        return Err(env.type_error(
+                            format!(
+                                "@callconv only supports \"c\", \"sysv64\", \"win64\", or \"fastcall\"; found \"{value}\""
+                            ),
+                            attribute.span,
+                        ));
+                    }
+                }
+                if has_interrupt {
+                    return Err(env.type_error(
+                        "@interrupt chooses its own ABI contract and cannot be combined with @callconv",
+                        attribute.span,
+                    ));
+                }
+            }
+            ATTR_NAKED => {
+                attribute_requires_zero_args(env, attribute)?;
+                if function_is_extern_decl(function) {
+                    return Err(env.type_error(
+                        "@naked cannot be applied to @extern declarations",
+                        attribute.span,
+                    ));
+                }
+                if !function.effects.contains(&Effect::Unsafe) {
+                    return Err(env.type_error(
+                        "@naked requires `with Unsafe` on the function",
+                        attribute.span,
+                    ));
+                }
+                if function.params.len() != 0 {
+                    return Err(env.type_error(
+                        "@naked functions currently require zero parameters",
+                        attribute.span,
+                    ));
+                }
+                if return_type != &ResolvedType::Unit {
+                    return Err(env.type_error(
+                        "@naked functions must return Unit",
+                        attribute.span,
+                    ));
+                }
+                if function
+                    .effects
+                    .iter()
+                    .any(|effect| !matches!(effect, Effect::Pure | Effect::Unsafe))
+                {
+                    return Err(env.type_error(
+                        "@naked functions cannot mix Async, IO, GPU, Reactive, Alloc, or Panic effects",
+                        attribute.span,
+                    ));
+                }
+                validate_zero_prologue_body(env, function, ATTR_NAKED)?;
+            }
+            ATTR_INTERRUPT => {
+                if attribute.args.len() > 1 {
+                    return Err(env.type_error(
+                        "@interrupt expects zero or one string argument",
+                        attribute.span,
+                    ));
+                }
+                if let Some(arg) = attribute.args.first() {
+                    let value = expr_as_attribute_string(arg).ok_or_else(|| {
+                        env.type_error(
+                            "@interrupt expects a string literal argument when one is provided",
+                            arg.span(),
+                        )
+                    })?;
+                    match value.as_str() {
+                        "x86" | "x86_64" | "x86-interrupt" => {}
+                        _ => {
+                            return Err(env.type_error(
+                                format!(
+                                    "@interrupt only supports \"x86\", \"x86_64\", or \"x86-interrupt\" in this pass; found \"{value}\""
+                                ),
+                                arg.span(),
+                            ));
+                        }
+                    }
+                }
+                if function_is_extern_decl(function) {
+                    return Err(env.type_error(
+                        "@interrupt cannot be applied to @extern declarations",
+                        attribute.span,
+                    ));
+                }
+                if !function.effects.contains(&Effect::Unsafe) {
+                    return Err(env.type_error(
+                        "@interrupt requires `with Unsafe` on the function",
+                        attribute.span,
+                    ));
+                }
+                if function.params.len() != 0 {
+                    return Err(env.type_error(
+                        "@interrupt handlers currently require zero parameters",
+                        attribute.span,
+                    ));
+                }
+                if return_type != &ResolvedType::Unit {
+                    return Err(env.type_error(
+                        "@interrupt handlers must return Unit",
+                        attribute.span,
+                    ));
+                }
+                if function
+                    .effects
+                    .iter()
+                    .any(|effect| !matches!(effect, Effect::Pure | Effect::Unsafe))
+                {
+                    return Err(env.type_error(
+                        "@interrupt handlers cannot mix Async, IO, GPU, Reactive, Alloc, or Panic effects",
+                        attribute.span,
+                    ));
+                }
+                validate_zero_prologue_body(env, function, ATTR_INTERRUPT)?;
+            }
+            ATTR_THREAD_LOCAL
+            | ATTR_PACKED
+            | ATTR_ALIGNED
+            | ATTR_MMIO => {
+                return Err(env.type_error(
+                    format!(
+                        "@{} is not valid on functions; use it on authored const globals or structs instead",
+                        attribute.name
+                    ),
+                    attribute.span,
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_struct_attributes(env: &TypeEnv, structure: &Struct) -> KainResult<()> {
+    ensure_metal_attributes_are_unique(env, &structure.attributes)?;
+    for attribute in &structure.attributes {
+        match attribute.name.as_str() {
+            ATTR_PACKED => {
+                attribute_requires_zero_args(env, attribute)?;
+            }
+            ATTR_ALIGNED => {
+                let value = attribute_int_arg(env, attribute)?;
+                validate_alignment_value(env, attribute, value)?;
+            }
+            ATTR_MMIO => {
+                attribute_requires_named_args_only(env, attribute)?;
+                let mut seen_names = HashSet::new();
+                for arg in &attribute.args {
+                    let Some((name, _)) = expr_as_named_attribute_arg(arg) else {
+                        continue;
+                    };
+                    if !seen_names.insert(name.to_string()) {
+                        return Err(env.type_error(
+                            format!("@mmio cannot repeat named argument '{name}'"),
+                            arg.span(),
+                        ));
+                    }
+                    match name {
+                        "base" | "stride" | "endian" => {}
+                        _ => {
+                            return Err(env.type_error(
+                                format!(
+                                    "@mmio only supports named arguments `base`, `stride`, and `endian`; found `{name}`"
+                                ),
+                                arg.span(),
+                            ));
+                        }
+                    }
+                }
+                if let Some(base) = attribute_named_arg(env, attribute, "base")? {
+                    let Some(value) = expr_as_attribute_int(base) else {
+                        return Err(env.type_error(
+                            "@mmio(base: ...) expects an integer literal",
+                            base.span(),
+                        ));
+                    };
+                    if value < 0 {
+                        return Err(env.type_error(
+                            "@mmio(base: ...) requires a non-negative base address",
+                            base.span(),
+                        ));
+                    }
+                }
+                if let Some(stride) = attribute_named_arg(env, attribute, "stride")? {
+                    let Some(value) = expr_as_attribute_int(stride) else {
+                        return Err(env.type_error(
+                            "@mmio(stride: ...) expects an integer literal",
+                            stride.span(),
+                        ));
+                    };
+                    if value <= 0 {
+                        return Err(env.type_error(
+                            "@mmio(stride: ...) requires a positive byte stride",
+                            stride.span(),
+                        ));
+                    }
+                }
+                if let Some(endian) = attribute_named_arg(env, attribute, "endian")? {
+                    let Some(value) = expr_as_attribute_string(endian) else {
+                        return Err(env.type_error(
+                            "@mmio(endian: ...) expects a string literal",
+                            endian.span(),
+                        ));
+                    };
+                    if value != "native" {
+                        return Err(env.type_error(
+                            "@mmio currently only supports endian: \"native\"",
+                            endian.span(),
+                        ));
+                    }
+                }
+            }
+            ATTR_SECTION
+            | ATTR_LINK_NAME
+            | ATTR_CALLCONV
+            | ATTR_THREAD_LOCAL
+            | ATTR_NAKED
+            | ATTR_INTERRUPT => {
+                return Err(env.type_error(
+                    format!(
+                        "@{} is not valid on structs; use it on the authored callable or const global instead",
+                        attribute.name
+                    ),
+                    attribute.span,
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 fn resolved_type_bit_width(ty: &ResolvedType, abi: &CAbiPolicy) -> Option<usize> {
     match peel_shared_refs(ty) {
         ResolvedType::Bool => Some(abi.bool_bits),
@@ -367,6 +880,10 @@ fn resolved_type_bit_width(ty: &ResolvedType, abi: &CAbiPolicy) -> Option<usize>
         ResolvedType::Ref { .. } | ResolvedType::Ptr { .. } => Some(abi.pointer_bits),
         _ => None,
     }
+}
+
+fn resolved_type_byte_width(ty: &ResolvedType, abi: &CAbiPolicy) -> Option<i64> {
+    resolved_type_bit_width(ty, abi).map(|bits| (bits as i64 + 7) / 8)
 }
 
 fn resolved_type_supports_bitcast(ty: &ResolvedType) -> bool {
@@ -3601,6 +4118,7 @@ fn check_mod(env: &mut TypeEnv, module: &Mod) -> KainResult<TypedMod> {
 }
 
 fn check_const(env: &mut TypeEnv, c: &Const) -> KainResult<TypedConst> {
+    validate_const_attributes(env, c)?;
     let ty = resolve_type_in_env(env, &c.ty)?;
     let value_ty = infer_expr_type(env, &c.value, None)?;
     ensure_type_compatible(env, &ty, &value_ty, c.value.span(), "const value")?;
@@ -3801,6 +4319,7 @@ fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> 
         ResolvedType::Function { ret, .. } => ret.as_ref().clone(),
         _ => ResolvedType::Unit,
     };
+    validate_function_attributes(env, f, &ret)?;
 
     let ctx = SemanticContext {
         function_name: f.name.clone(),
@@ -3837,6 +4356,7 @@ fn check_function_with_self(
         ResolvedType::Function { ret, .. } => ret.as_ref().clone(),
         _ => ResolvedType::Unit,
     };
+    validate_function_attributes(env, f, &ret)?;
     let ctx = SemanticContext {
         function_name: f.name.clone(),
         return_type: ret,
@@ -5052,9 +5572,54 @@ fn supports_converge_verify_sampling(ty: &ResolvedType) -> bool {
 }
 
 fn check_struct(env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
+    validate_struct_attributes(env, s)?;
+    let has_mmio = s.attributes.iter().any(|attribute| attribute.name == ATTR_MMIO);
+    let mmio_stride_bytes = if has_mmio {
+        s.attributes
+            .iter()
+            .find(|attribute| attribute.name == ATTR_MMIO)
+            .map(|attribute| -> KainResult<Option<i64>> {
+                Ok(attribute_named_arg(env, attribute, "stride")?.and_then(expr_as_attribute_int))
+            })
+            .transpose()?
+            .flatten()
+    } else {
+        None
+    };
+    let abi = default_c_abi_policy();
     let mut fields = HashMap::new();
     for f in &s.fields {
         let field_ty = resolve_type_in_env(env, &f.ty)?;
+        if has_mmio && !matches!(field_ty, ResolvedType::Int(_)) {
+            return Err(env.type_error(
+                format!(
+                    "@mmio register blocks currently only support integer register fields; field '{}' resolved to {}",
+                    f.name,
+                    describe_type(&field_ty)
+                ),
+                f.span,
+            ));
+        }
+        if let Some(stride_bytes) = mmio_stride_bytes {
+            let field_bytes = resolved_type_byte_width(&field_ty, &abi).ok_or_else(|| {
+                env.type_error(
+                    format!(
+                        "@mmio could not derive a byte width for register field '{}'",
+                        f.name
+                    ),
+                    f.span,
+                )
+            })?;
+            if field_bytes != stride_bytes {
+                return Err(env.type_error(
+                    format!(
+                        "@mmio(stride: {stride_bytes}) currently requires each register field to occupy exactly {stride_bytes} bytes, but '{}' occupies {field_bytes}",
+                        f.name
+                    ),
+                    f.span,
+                ));
+            }
+        }
         if let Some(default) = &f.default {
             let default_ty = infer_expr_type(env, default, None)?;
             ensure_type_compatible(
@@ -10239,6 +10804,126 @@ mod tests {
         Parser::new(&tokens, span_mapper, filename)
             .parse()
             .expect("source should parse")
+    }
+
+    fn typecheck_source(source: &str) -> KainResult<TypedProgram> {
+        let span_mapper = SpanMapper::new(source);
+        let program = parse_source_for_typecheck(source, &span_mapper, "<test>");
+        check(&program, &span_mapper, "<test>")
+    }
+
+    fn expect_typecheck_error_contains(source: &str, needle: &str) {
+        let err = typecheck_source(source).expect_err("source should fail typecheck");
+        assert!(
+            err.to_string().contains(needle),
+            "unexpected diagnostic: {err}"
+        );
+    }
+
+    #[test]
+    fn typecheck_allows_thread_local_const_with_symbol_controls() {
+        let source = r#"
+@thread_local
+@section(".tls")
+@link_name("__kain_tls_counter")
+const TLS_COUNTER: Int = 7
+
+fn main() -> Int:
+    return TLS_COUNTER
+"#;
+        typecheck_source(source).expect("thread_local const should typecheck");
+    }
+
+    #[test]
+    fn typecheck_rejects_thread_local_on_functions() {
+        let source = r#"
+@thread_local
+fn bad() -> Int:
+    return 1
+"#;
+        expect_typecheck_error_contains(source, "@thread_local is not valid on functions");
+    }
+
+    #[test]
+    fn typecheck_rejects_non_power_of_two_alignment() {
+        let source = r#"
+@aligned(24)
+struct Packet:
+    value: Int
+"#;
+        expect_typecheck_error_contains(source, "positive power-of-two byte alignment");
+    }
+
+    #[test]
+    fn typecheck_allows_mmio_integer_register_blocks() {
+        let source = r#"
+@packed
+@aligned(16)
+@mmio(base: 4096, stride: 8, endian: "native")
+struct DeviceRegs:
+    control: Int
+    status: Int
+"#;
+        typecheck_source(source).expect("mmio register block should typecheck");
+    }
+
+    #[test]
+    fn typecheck_rejects_mmio_non_integer_fields() {
+        let source = r#"
+@mmio(base: 4096, stride: 8, endian: "native")
+struct DeviceRegs:
+    control: Float
+"#;
+        expect_typecheck_error_contains(
+            source,
+            "@mmio register blocks currently only support integer register fields",
+        );
+    }
+
+    #[test]
+    fn typecheck_rejects_mmio_stride_that_does_not_match_register_width() {
+        let source = r#"
+@mmio(base: 4096, stride: 4, endian: "native")
+struct DeviceRegs:
+    control: Int
+"#;
+        expect_typecheck_error_contains(
+            source,
+            "@mmio(stride: 4) currently requires each register field to occupy exactly 4 bytes",
+        );
+    }
+
+    #[test]
+    fn typecheck_rejects_bad_calling_convention_name() {
+        let source = r#"
+@callconv("vectorcall")
+fn lane() -> Int:
+    return 1
+"#;
+        expect_typecheck_error_contains(source, "@callconv only supports");
+    }
+
+    #[test]
+    fn typecheck_rejects_naked_functions_with_non_asm_bodies() {
+        let source = r#"
+@naked
+fn lane() with Unsafe:
+    let value = 7
+"#;
+        expect_typecheck_error_contains(
+            source,
+            "@naked functions may only contain inline asm statements and bare returns",
+        );
+    }
+
+    #[test]
+    fn typecheck_allows_naked_inline_asm_lane() {
+        let source = r#"
+@naked
+fn lane() with Unsafe:
+    asm("ret")
+"#;
+        typecheck_source(source).expect("naked inline asm lane should typecheck");
     }
 
     #[test]

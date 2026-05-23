@@ -1875,7 +1875,7 @@ fn infer_target_from_path(path: &Path) -> RunTarget {
         return RunTarget::Fabric;
     }
     match path.extension().and_then(OsStr::to_str).unwrap_or_default() {
-        "kn" | "god" => RunTarget::Kain,
+        "kn" => RunTarget::Kain,
         "ll" => RunTarget::Llvm,
         "c" => RunTarget::C,
         "js" | "mjs" | "cjs" => RunTarget::Node,

@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 BENCHMARK_ROOT = Path(__file__).resolve().parent
-RUNNER = BENCHMARK_ROOT / "gpu" / "run_gpu.py"
+RUNNER = BENCHMARK_ROOT / "lanes" / "gpu" / "run_gpu.py"
 
 
 def main() -> int:
@@ -20,4 +20,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

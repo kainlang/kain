@@ -24,7 +24,7 @@ from pathlib import Path
 
 
 CASE_ROOT = Path(__file__).resolve().parent
-REPO_ROOT = CASE_ROOT.parent.parent
+REPO_ROOT = CASE_ROOT.parent.parent.parent
 OUT_ROOT = REPO_ROOT / "benchmark" / "out"
 BUILD_ROOT = OUT_ROOT / "build" / "ffi_boundary"
 REPORT_ROOT = OUT_ROOT / "reports"

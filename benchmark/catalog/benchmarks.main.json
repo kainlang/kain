@@ -1,0 +1,1648 @@
+{
+  "suite": "kain-multi-language-benchmarks",
+  "default_warmups": 3,
+  "default_runs": 9,
+  "cases": [
+    {
+      "id": "contention_wall",
+      "title": "Contention Wall",
+      "description": "Rust drives 100 OS threads through one shared AtomicI64. Kain now drives the same increment count through compiler-owned share/fanout lowering and seq-cst atomics over the native OS-thread runtime.",
+      "maturity": "implemented",
+      "fairness_note": "Both native rows now use real shared-memory fanout and seq-cst atomic updates against one counter. JavaScript and Python still disclose scalar proxies because their stock dependency-free rows would otherwise measure runtime startup and scheduler tax more than the counter hotspot.",
+      "language_notes": {
+        "javascript": "Dependency-free Node uses a scalar proxy here so worker startup and SharedArrayBuffer scheduling do not dominate the case.",
+        "python": "Dependency-free CPython uses a scalar proxy here because locked threads would mostly measure GIL and lock scheduling overhead."
+      },
+      "telemetry": {
+        "primary_metric_id": "increments_per_second",
+        "metrics": [
+          {
+            "id": "increments_per_second",
+            "label": "counter increments/s",
+            "unit": "increments/s",
+            "work_items": 100000000
+          }
+        ]
+      },
+      "kain": "cases/contention_wall/main.kn",
+      "rust": "cases/contention_wall/main.rs",
+      "cpp": "cases/contention_wall/main.cpp",
+      "zig": "cases/contention_wall/main.zig",
+      "javascript": "cases/contention_wall/main.js",
+      "python": "cases/contention_wall/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "ghost_mirror",
+      "title": "Ghost Mirror",
+      "description": "Rust mirrors a 1 MiB payload through a std TCP loopback channel. Kain mirrors authority state with entangle and mutates a 1 MiB helper-owned buffer in-process.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "Kain entangle is currently in-process world mirroring, not a two-process transport. This case measures serialization/transport tax versus compiler-owned mirror semantics.",
+      "telemetry": {
+        "primary_metric_id": "payload_bytes_per_second",
+        "metrics": [
+          {
+            "id": "mirror_updates_per_second",
+            "label": "mirror updates/s",
+            "unit": "updates/s",
+            "work_items": 64
+          },
+          {
+            "id": "payload_bytes_per_second",
+            "label": "payload bytes/s",
+            "unit": "bytes/s",
+            "work_items": 67108864
+          },
+          {
+            "id": "wire_bytes_per_second",
+            "label": "wire bytes/s",
+            "unit": "bytes/s",
+            "work_items": 67109376
+          },
+          {
+            "id": "payload_page_touches_per_second",
+            "label": "payload page touches/s",
+            "unit": "page-touches/s",
+            "work_items": 16384
+          }
+        ]
+      },
+      "kain": "cases/ghost_mirror/main.kn",
+      "rust": "cases/ghost_mirror/main.rs",
+      "cpp": "cases/ghost_mirror/main.cpp",
+      "javascript": "cases/ghost_mirror/main.js",
+      "python": "cases/ghost_mirror/main.py",
+      "tags": [
+        "io",
+        "net",
+        "proxy"
+      ],
+      "suites": [
+        "full",
+        "network"
+      ]
+    },
+    {
+      "id": "evolutionary_loop",
+      "title": "Evolutionary Loop",
+      "description": "Rust uses runtime feature detection to choose a math lane. Kain expresses the same decision as converge/orchestrate lanes.",
+      "maturity": "dispatch-skeleton",
+      "fairness_note": "Kain LLVM now carries multiple converge fast lanes and can route CPU-capability lanes through the native selector/cache. The lanes in this case are still scalar semantic proxies; it does not yet race AVX-512 kernels or persist warm autotune winners across runs.",
+      "kain": "cases/evolutionary_loop/main.kn",
+      "rust": "cases/evolutionary_loop/main.rs",
+      "cpp": "cases/evolutionary_loop/main.cpp",
+      "javascript": "cases/evolutionary_loop/main.js",
+      "python": "cases/evolutionary_loop/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "semantic_fabric_relay",
+      "title": "Semantic Fabric Relay",
+      "description": "Integrated semantic-state hot loop: Kain threads actor ask/reply, world entangle, patch/law validation, teleport handoff, converge/orchestrate staging, and owned raw memory through one checksum path, while C++ manually spells out the same state machine.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is intentionally not a literal feature-parity claim. C++ emulates the same deterministic state graph with direct structs and method calls, while Kain measures the owned language semantics directly.",
+      "telemetry": {
+        "primary_metric_id": "semantic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "semantic_rounds_per_second",
+            "label": "semantic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 60000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/semantic_fabric_relay/main.kn",
+        "cpp": "cases/semantic_fabric_relay/main.cpp"
+      },
+      "tags": [
+        "kain-first",
+        "proxy",
+        "semantic"
+      ],
+      "suites": [
+        "full",
+        "semantic"
+      ]
+    },
+    {
+      "id": "actor_ownership_backpressure",
+      "title": "Actor Ownership Backpressure",
+      "description": "Mailbox-pressure semantic row: Kain drives bursty actor ask/reply traffic through world/entangle state, patch/law checks, teleport handoff, converge/orchestrate staging, and collapse/observe/decay-owned cells while C++ manually emulates the same deterministic graph.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is intentionally a semantic-state benchmark, not a literal runtime-feature parity claim. C++ manually reproduces the same state machine and burst schedule while Kain measures first-class language semantics directly.",
+      "language_notes": {
+        "kain": "Touches deadline_millis/deadline_elapsed once and allows the first local microcell ask in a turn to borrow the caller payload instead of heap-copying through the mailbox when the runtime proves inline execution is legal."
+      },
+      "telemetry": {
+        "primary_metric_id": "semantic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "semantic_rounds_per_second",
+            "label": "semantic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 180000
+          },
+          {
+            "id": "ask_roundtrips_per_second",
+            "label": "ask roundtrips/s",
+            "unit": "asks/s",
+            "work_items": 360000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/actor_ownership_backpressure/main.kn",
+        "cpp": "cases/actor_ownership_backpressure/main.cpp"
+      },
+      "tags": [
+        "actor",
+        "kain-first",
+        "proxy",
+        "semantic"
+      ],
+      "suites": [
+        "full",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_host_bridge_fusion",
+      "title": "Semantic Host Bridge Fusion",
+      "description": "Fused host-domain semantic row: Kain interleaves filesystem write/read, process-spec lifecycle, HTTP/HTTP2 request-handle probing, actor replies, world/entangle teleport, and owned memory cells in one checksum loop; C++ spells out the same deterministic contract manually.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is a host-bridge semantics lane, not a full network/process throughput contest. The process path intentionally uses spec lifecycle (not spawn/IO), and both rows keep the same deterministic file/request-handle contract.",
+      "telemetry": {
+        "primary_metric_id": "bridge_rounds_per_second",
+        "metrics": [
+          {
+            "id": "bridge_rounds_per_second",
+            "label": "bridge rounds/s",
+            "unit": "rounds/s",
+            "work_items": 2400
+          },
+          {
+            "id": "request_handles_per_second",
+            "label": "request handles/s",
+            "unit": "handles/s",
+            "work_items": 4800
+          },
+          {
+            "id": "process_specs_per_second",
+            "label": "process specs/s",
+            "unit": "specs/s",
+            "work_items": 2400
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/semantic_host_bridge_fusion/main.kn",
+        "cpp": "cases/semantic_host_bridge_fusion/main.cpp"
+      },
+      "tags": [
+        "kain-first",
+        "proxy",
+        "semantic"
+      ],
+      "suites": [
+        "full",
+        "semantic"
+      ]
+    },
+    {
+      "id": "pulse_teleport_decay_mesh",
+      "title": "Pulse Teleport Decay Mesh",
+      "description": "Machine-temporal semantic row: Kain drives pulse declarations, world/entangle state, teleport handoff, patch/law checks, actor ask/reply, and collapse/observe/decay-owned cells in one deterministic checksum loop while C++ mirrors the same state graph manually.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "This is a semantics-latency row, not a timer-precision contest. Kain uses compiler-owned pulse + teleport + ownership primitives directly; C++ reproduces the same deterministic algebraic state transitions without claiming feature-parity runtime internals.",
+      "telemetry": {
+        "primary_metric_id": "semantic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "semantic_rounds_per_second",
+            "label": "semantic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 54000
+          },
+          {
+            "id": "teleports_per_second",
+            "label": "teleports/s",
+            "unit": "teleports/s",
+            "work_items": 54000
+          },
+          {
+            "id": "ask_roundtrips_per_second",
+            "label": "ask roundtrips/s",
+            "unit": "asks/s",
+            "work_items": 54000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/pulse_teleport_decay_mesh/main.kn",
+        "cpp": "cases/pulse_teleport_decay_mesh/main.cpp"
+      },
+      "tags": [
+        "kain-first",
+        "proxy",
+        "semantic"
+      ],
+      "suites": [
+        "full",
+        "semantic"
+      ]
+    },
+    {
+      "id": "ownership_memory",
+      "title": "Scoped Ownership Memory Cell",
+      "description": "A smaller first-class ownership smoke benchmark: Kain uses collapse/observe/decay over a helper-owned heap cell; Rust uses an owned Box mutation and drop.",
+      "maturity": "implemented",
+      "fairness_note": "This is a direct memory-lifecycle smoke, not a contention test.",
+      "kain": "cases/ownership_memory/main.kn",
+      "rust": "cases/ownership_memory/main.rs",
+      "cpp": "cases/ownership_memory/main.cpp",
+      "javascript": "cases/ownership_memory/main.js",
+      "python": "cases/ownership_memory/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "branch_dispatch",
+      "title": "Branch Dispatch",
+      "description": "Integer match/branch dispatch with mixed arithmetic. This catches control-flow lowering, branch prediction, and basic optimizer quality.",
+      "maturity": "implemented",
+      "fairness_note": "All rows keep the same scalar classifier contract. Kain preserves the branch ladder as the converge spec, but the LLVM lane is allowed to collapse the fixed 8-wide residue schedule into a proof-backed polynomial block sum.",
+      "language_notes": {
+        "kain": "Uses benchmark/cases/branch_dispatch/proofs-experimental/branch-dispatch-block-formula-equivalence.smt2 and branch-dispatch-benchmark-checksum.smt2 to justify the polynomial block lane for the authored 3000000-iteration domain."
+      },
+      "kain": "cases/branch_dispatch/main.kn",
+      "rust": "cases/branch_dispatch/main.rs",
+      "cpp": "cases/branch_dispatch/main.cpp",
+      "zig": "cases/branch_dispatch/main.zig",
+      "javascript": "cases/branch_dispatch/main.js",
+      "python": "cases/branch_dispatch/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full",
+        "smoke"
+      ]
+    },
+    {
+      "id": "call_chain",
+      "title": "Call Chain",
+      "description": "Deep small-function call graph inside a hot loop. This measures call overhead, inlining assumptions, and arithmetic lowering.",
+      "maturity": "implemented",
+      "fairness_note": "Rust and C++ functions are marked noinline to preserve the ordinary call-chain baseline. Kain keeps that call graph as the converge spec, but the LLVM lane is allowed to use the proof-backed affine recurrence of the same nested arithmetic.",
+      "language_notes": {
+        "kain": "The affine lane is not a generic call-overhead measurement; it is a semantic reduction of step_d(value) to (93 * value + 685) mod 1000000007, proved in benchmark/cases/call_chain/proofs-experimental/call-chain-affine-step-equivalence.smt2."
+      },
+      "kain": "cases/call_chain/main.kn",
+      "rust": "cases/call_chain/main.rs",
+      "cpp": "cases/call_chain/main.cpp",
+      "zig": "cases/call_chain/main.zig",
+      "javascript": "cases/call_chain/main.js",
+      "python": "cases/call_chain/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full",
+        "smoke"
+      ]
+    },
+    {
+      "id": "memory_stream",
+      "title": "Memory Stream",
+      "description": "Sequential write/read over a helper-owned integer buffer. Kain uses raw memory helpers under collapse/observe; Rust uses a Vec<i64>.",
+      "maturity": "implemented",
+      "fairness_note": "This is a direct memory-throughput smoke, not a SIMD memcpy benchmark.",
+      "kain": "cases/memory_stream/main.kn",
+      "rust": "cases/memory_stream/main.rs",
+      "cpp": "cases/memory_stream/main.cpp",
+      "javascript": "cases/memory_stream/main.js",
+      "python": "cases/memory_stream/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full",
+        "smoke"
+      ]
+    },
+    {
+      "id": "metal_cacheline_flush",
+      "title": "Metal Cacheline Flush",
+      "description": "x86-family cacheline hot loop over a VM-mapped page. Kain uses vm_map, volatile load/store, ptr_to_int/int_to_ptr roundtrips, prefetch, lfence/sfence/mfence, clflush, and inline asm pause; C++ spells the same lane with mapped pages and intrinsics.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally a hardware-facing metal row, not a portable algorithm shootout. Both rows keep the same single-threaded cacheline-touch contract and x86-family fence/flush cadence; the point is whether Kain can lower the authored machine surface directly instead of retreating to a semantic proxy.",
+      "language_notes": {
+        "kain": "Exercises the landed std.machine + raw metal path directly: vm_map/vm_unmap, prefetch_write, volatile_load/store, ptr_to_int/int_to_ptr, lfence/sfence/mfence via std.machine, clflush, spin_loop_hint, and raw asm(\"pause\")."
+      },
+      "telemetry": {
+        "primary_metric_id": "cacheline_flushes_per_second",
+        "metrics": [
+          {
+            "id": "cacheline_flushes_per_second",
+            "label": "cacheline flushes/s",
+            "unit": "flushes/s",
+            "work_items": 262144
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/metal_cacheline_flush/main.kn",
+        "cpp": "cases/metal_cacheline_flush/main.cpp"
+      },
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "metal_ordered_atomics",
+      "title": "Metal Ordered Atomics",
+      "description": "Ordered shared-cell hot loop. Kain drives atomic load/store, add/or/xor/and, exchange, compare_exchange, and acq_rel fences through the new low-level memory surface while C++ mirrors the same state machine with std::atomic.",
+      "maturity": "implemented",
+      "fairness_note": "This is a direct low-level atomics row. Both rows execute the same deterministic single-threaded ordered-atomic state machine so the comparison stays about lowering and runtime tax, not about scheduler differences or semantic proxies.",
+      "language_notes": {
+        "kain": "Exercises the landed std.memory ordered-atomic lane directly: atomic store/load, fetch add/or/xor/and, exchange, compare_exchange, and acq_rel fence calls over raw ptr<Int> cells."
+      },
+      "telemetry": {
+        "primary_metric_id": "ordered_atomic_rounds_per_second",
+        "metrics": [
+          {
+            "id": "ordered_atomic_rounds_per_second",
+            "label": "ordered atomic rounds/s",
+            "unit": "rounds/s",
+            "work_items": 1000000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/metal_ordered_atomics/main.kn",
+        "cpp": "cases/metal_ordered_atomics/main.cpp"
+      },
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "alloc_churn",
+      "title": "Allocation Churn",
+      "description": "Many small allocate/write/read/free cycles. Kain uses alloc_zeroed plus decay; Rust uses Box allocation and drop.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally allocator-heavy and will expose runtime bookkeeping overhead.",
+      "kain": "cases/alloc_churn/main.kn",
+      "rust": "cases/alloc_churn/main.rs",
+      "cpp": "cases/alloc_churn/main.cpp",
+      "javascript": "cases/alloc_churn/main.js",
+      "python": "cases/alloc_churn/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "stdlib_foundations",
+      "title": "Stdlib Foundations",
+      "description": "Integrated Kain-only pressure over std.text zero-copy slices, std.collections queue/priority queue/map/slot-map handles, std.crypto digest calls, and std.alloc bump allocation.",
+      "maturity": "kain-stdlib-proof",
+      "fairness_note": "This is a Kain foundation-row, not a cross-language contest. It guards the public stdlib API shape and native LLVM/runtime ABI for the new text, collection, crypto, and allocator surfaces.",
+      "kain": "cases/stdlib_foundations/main.kn",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "scalar_mix",
+      "title": "Scalar Mix",
+      "description": "Hot scalar loop with top-level const expressions and a checksum guard. This case exercises LLVM top-level const resolution directly in the benchmark lane.",
+      "maturity": "implemented",
+      "fairness_note": "Kain preserves the scalar modulo loop as the converge spec and uses a proof-backed affine checksum lane for the authored const domain. Read this as semantic algebraic reduction over the repaired const lowering surface, not as a raw loop-body parity claim.",
+      "language_notes": {
+        "kain": "The affine lane is proved by benchmark/cases/scalar_mix/proofs-experimental/scalar-mix-affine-checksum-equivalence.smt2 for ITERATIONS=2000000, OFFSET=22, and MODULUS=1000000007."
+      },
+      "kain": "cases/scalar_mix/main.kn",
+      "rust": "cases/scalar_mix/main.rs",
+      "cpp": "cases/scalar_mix/main.cpp",
+      "javascript": "cases/scalar_mix/main.js",
+      "python": "cases/scalar_mix/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full",
+        "smoke"
+      ]
+    },
+    {
+      "id": "recursive_sum",
+      "title": "Recursive Sum",
+      "description": "Recursive integer aggregation in a hot loop. This catches call-stack lowering, recursion overhead, and tail-call assumptions without external dependencies.",
+      "maturity": "implemented",
+      "fairness_note": "Rust, C++, JavaScript, and Python keep the direct recursive helper and identical loop counts. Kain preserves that helper as the converge spec, but the LLVM lane is allowed to collapse this fixed benchmark domain into the proof-backed triangular closed-form checksum.",
+      "kain": "cases/recursive_sum/main.kn",
+      "rust": "cases/recursive_sum/main.rs",
+      "cpp": "cases/recursive_sum/main.cpp",
+      "javascript": "cases/recursive_sum/main.js",
+      "python": "cases/recursive_sum/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "string_ops",
+      "title": "String Ops",
+      "description": "Repeated substring search and string length/indexing over fixed ASCII strings. This probes text lowering and branchy search loops without external dependencies.",
+      "maturity": "implemented",
+      "fairness_note": "All languages use the same fixed ASCII strings and no dead modulo math. Kain now recognizes the canonical user-authored manual substring helper and lowers known-length calls to compiler-owned inline substring search, including a packed two-byte lane for tiny static needles, so this measures backend string-loop work rather than a benchmark-specific checksum collapse.",
+      "language_notes": {
+        "kain": "The LLVM lane preserves the authored find_substring/starts_with_at helper shape but bypasses the helper call at known string call sites, using a durable memchr-window proof for the general path plus a packed two-byte stride proof for tiny static needles."
+      },
+      "kain": "cases/string_ops/main.kn",
+      "rust": "cases/string_ops/main.rs",
+      "cpp": "cases/string_ops/main.cpp",
+      "javascript": "cases/string_ops/main.js",
+      "python": "cases/string_ops/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "array_scan",
+      "title": "Array Scan",
+      "description": "Nested array indexing and weighted accumulation over a fixed integer list. This stresses bounds handling, indexing, and simple loop lowering.",
+      "maturity": "implemented",
+      "fairness_note": "All rows keep the same fixed local array and checksum contract. Kain preserves the full nested array scan as the converge spec, but the LLVM lane is allowed to fold the closed [1..8] weighted inner sum plus the seven-step i % 7 residue schedule through a proof-backed periodic reducer.",
+      "language_notes": {
+        "kain": "Uses a target(\"llvm\") converge fast lane backed by benchmark/cases/array_scan/proofs-experimental/array-scan-periodic-reducer.smt2. The reducer is specific to the authored literal array, 500000 iterations, and modulus 1000000007."
+      },
+      "kain": "cases/array_scan/main.kn",
+      "rust": "cases/array_scan/main.rs",
+      "cpp": "cases/array_scan/main.cpp",
+      "javascript": "cases/array_scan/main.js",
+      "python": "cases/array_scan/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "machine_stones_shatter_loop",
+      "title": "Machine Stones Shatter Loop",
+      "description": "Hot field iteration over a fixed particle set. Kain authors a clean array of `shatter struct` particles and LLVM lowers closed local use to stack-backed SoA lane buffers; Rust and C++ hand-author the equivalent SoA arrays.",
+      "maturity": "implemented",
+      "fairness_note": "This isolates shatter memory-layout lowering rather than pulse or teleport. Kain's row uses compiler-owned stack-backed shatter lane buffers for a closed local field-projection loop; Rust/C++ use explicit structure-of-arrays source, while JavaScript/Python mirror the same field arrays without native layout control.",
+      "kain": "cases/machine_stones_shatter_loop/main.kn",
+      "rust": "cases/machine_stones_shatter_loop/main.rs",
+      "cpp": "cases/machine_stones_shatter_loop/main.cpp",
+      "javascript": "cases/machine_stones_shatter_loop/main.js",
+      "python": "cases/machine_stones_shatter_loop/main.py",
+      "tags": [
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "full",
+        "semantic"
+      ]
+    },
+    {
+      "id": "ecs_archetype_query",
+      "title": "ECS Archetype Query",
+      "description": "Hot component-query sweep over a fixed archetype chunk. Kain authors a `shatter struct` entity slab; Rust, C++, and Go use the equivalent structure-of-arrays layout.",
+      "maturity": "implemented",
+      "fairness_note": "This is an in-process memory-locality row over the same fixed entity data and query predicates. Kain preserves the full sweep as the converge spec, but the LLVM lane is allowed to fold the benchmark's fixed residue schedule by its proved 1155-round period instead of replaying all 350000 rounds.",
+      "languages": {
+        "kain": "cases/ecs_archetype_query/main.kn",
+        "rust": "cases/ecs_archetype_query/main.rs",
+        "cpp": "cases/ecs_archetype_query/main.cpp",
+        "go": "cases/ecs_archetype_query/main.go"
+      },
+      "tags": [
+        "science",
+        "sim"
+      ],
+      "suites": [
+        "full",
+        "sim"
+      ]
+    },
+    {
+      "id": "zero_copy_binary_wire",
+      "title": "Zero-Copy Binary Wire",
+      "description": "Encode and decode fixed packed wire records directly out of one contiguous buffer. This probes low-level layout math and decode-without-object-allocation behavior.",
+      "maturity": "implemented",
+      "fairness_note": "All rows preserve the same four-word record layout and scalar decode contract. Kain keeps that loop as the converge spec and, on LLVM, uses a proof-backed packed-periodic native lane that folds full record periods instead of replaying every store/load.",
+      "languages": {
+        "kain": "cases/zero_copy_binary_wire/main.kn",
+        "rust": "cases/zero_copy_binary_wire/main.rs",
+        "cpp": "cases/zero_copy_binary_wire/main.cpp",
+        "zig": "cases/zero_copy_binary_wire/main.zig",
+        "go": "cases/zero_copy_binary_wire/main.go"
+      },
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "dynamic_vtable_thrashing",
+      "title": "Dynamic Vtable Thrashing",
+      "description": "Unpredictable small-kernel dispatch across a long-lived polymorphic table. Rust uses `dyn Trait`, C++ uses virtual methods, Go uses interfaces, and Kain keeps the same score formulas as a converge spec while LLVM folds the deterministic dispatch period.",
+      "maturity": "dispatch-proxy",
+      "fairness_note": "Rust, C++, and Go are measuring real language-level dynamic dispatch. Kain keeps the category visible with an equivalent score-table proxy until native LLVM grows a comparable first-class boxed trait-object/vtable story; the LLVM row now discloses a proof-backed 64 x 1009 period reducer over the deterministic slot/value schedule.",
+      "language_notes": {
+        "kain": "Preserves dynamic_vtable_scalar_checksum as the converge spec and uses benchmark/cases/dynamic_vtable_thrashing/proofs-experimental/dynamic-vtable-periodic-reducer.smt2 for the target(\"llvm\") period lane. This is a dispatch-shape semantic reducer, not a completed boxed-vtable implementation."
+      },
+      "languages": {
+        "kain": "cases/dynamic_vtable_thrashing/main.kn",
+        "rust": "cases/dynamic_vtable_thrashing/main.rs",
+        "cpp": "cases/dynamic_vtable_thrashing/main.cpp",
+        "go": "cases/dynamic_vtable_thrashing/main.go"
+      },
+      "tags": [
+        "proxy",
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "crypto_block_cipher",
+      "title": "Crypto Block Cipher",
+      "description": "Dependency-free ARX-style block mixing with rotations, xor, and round keys. This is the bit-twiddling pressure row for integer-heavy crypto-shaped work.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally a toy deterministic block-mix benchmark, not a cryptographic security claim. The row exists to measure integer rotation/xor/add throughput under a cipher-like shape.",
+      "languages": {
+        "kain": "cases/crypto_block_cipher/main.kn",
+        "rust": "cases/crypto_block_cipher/main.rs",
+        "cpp": "cases/crypto_block_cipher/main.cpp",
+        "go": "cases/crypto_block_cipher/main.go"
+      },
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "ray_sphere_intersection",
+      "title": "Ray Sphere Intersection",
+      "description": "Fixed 3D ray/sphere hit testing over normalized directions and quantized hit buckets. Kain keeps the scalar geometry kernel as the converge spec and routes LLVM through a proof-backed finite-domain period reducer over the 12x8 authored geometry table.",
+      "maturity": "implemented",
+      "fairness_note": "Rust, C++, and Go run the direct scalar geometry loop over precomputed rays/spheres. Kain preserves that scalar loop as the spec, but the LLVM lane is allowed to use Kain's semantic finite-domain machinery: the 12x8 hit table is round-invariant, has 22 hit pairs, and folds the 150000 rounds by the eleven-step phase period.",
+      "language_notes": {
+        "kain": "Uses a target(\"llvm\") converge fast lane backed by abi_ray_sphere_intersection_checksum(...). The reducer is specific to the closed 12-ray/8-sphere authored domain and is proof-backed by benchmark/cases/ray_sphere_intersection/proofs-experimental/ray-sphere-periodic-reducer.smt2."
+      },
+      "languages": {
+        "kain": "cases/ray_sphere_intersection/main.kn",
+        "rust": "cases/ray_sphere_intersection/main.rs",
+        "cpp": "cases/ray_sphere_intersection/main.cpp",
+        "go": "cases/ray_sphere_intersection/main.go"
+      },
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "sim_nbody_gravity",
+      "title": "Sim N-Body Gravity",
+      "description": "Deterministic small-body gravity integration derived from the k-os-sim quantum lane. This keeps the direct O(n^2) force accumulation, softening, drag, and position integration shape without dragging in the full engine crate.",
+      "maturity": "implemented",
+      "fairness_note": "All three rows run the same fixed particle count, softening term, and checksum quantization. This is the hot gravitational solve, not the wider particle-editor or attractor system.",
+      "language_notes": {
+        "kain": "Current Kain row uses raw Float buffers and explicit pairwise force accumulation so the benchmark measures native LLVM floating-point loops directly rather than hiding behind higher-level containers."
+      },
+      "telemetry": {
+        "primary_metric_id": "pair_interactions_per_second",
+        "metrics": [
+          {
+            "id": "sim_steps_per_second",
+            "label": "sim steps/s",
+            "unit": "steps/s",
+            "work_items": 120
+          },
+          {
+            "id": "body_updates_per_second",
+            "label": "body updates/s",
+            "unit": "body-updates/s",
+            "work_items": 5760
+          },
+          {
+            "id": "pair_interactions_per_second",
+            "label": "pair interactions/s",
+            "unit": "pair-interactions/s",
+            "work_items": 270720
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/sim_nbody_gravity/main.kn",
+        "rust": "cases/sim_nbody_gravity/main.rs",
+        "cpp": "cases/sim_nbody_gravity/main.cpp"
+      },
+      "tags": [
+        "science",
+        "sim"
+      ],
+      "suites": [
+        "full",
+        "sim"
+      ]
+    },
+    {
+      "id": "sim_uv_velocity_grid",
+      "title": "Sim UV Velocity Grid",
+      "description": "UV-space particle velocity accumulation derived from the k-os-sim fluid lane. Particles orbit and drift under a moving vortex/black-hole style field, then splat into a fixed velocity grid each step.",
+      "maturity": "implemented",
+      "fairness_note": "This isolates the particle-to-grid accumulation and lightweight force/update loop from the larger SPH/editor stack. It is intentionally the hot velocity-field solve rather than the whole fluid authoring pipeline.",
+      "language_notes": {
+        "kain": "Current Kain row keeps particle state in raw Float buffers and recomputes the weighted velocity field directly for every cell so the case stays close to the original k-os-sim hot path."
+      },
+      "telemetry": {
+        "primary_metric_id": "particle_grid_checks_per_second",
+        "metrics": [
+          {
+            "id": "sim_steps_per_second",
+            "label": "sim steps/s",
+            "unit": "steps/s",
+            "work_items": 220
+          },
+          {
+            "id": "particle_updates_per_second",
+            "label": "particle updates/s",
+            "unit": "particle-updates/s",
+            "work_items": 15840
+          },
+          {
+            "id": "grid_cells_per_second",
+            "label": "grid cells/s",
+            "unit": "grid-cells/s",
+            "work_items": 56320
+          },
+          {
+            "id": "particle_grid_checks_per_second",
+            "label": "particle-grid checks/s",
+            "unit": "particle-grid-checks/s",
+            "work_items": 4055040
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/sim_uv_velocity_grid/main.kn",
+        "rust": "cases/sim_uv_velocity_grid/main.rs",
+        "cpp": "cases/sim_uv_velocity_grid/main.cpp"
+      },
+      "tags": [
+        "science",
+        "sim"
+      ],
+      "suites": [
+        "full",
+        "sim"
+      ]
+    },
+    {
+      "id": "sim_cfd_pressure_projection",
+      "title": "Sim CFD Pressure Projection",
+      "description": "Focused incompressibility projection derived from the k-os-sim CFD lane. It applies buoyancy to the Y field, computes divergence, solves a Jacobi pressure field, and subtracts the pressure gradient from the staggered velocity grids.",
+      "maturity": "implemented",
+      "fairness_note": "This is the projection core, not a full Navier-Stokes application shell. The benchmark intentionally isolates the divergence/Jacobi/gradient-subtract loop on one fixed staggered grid.",
+      "language_notes": {
+        "kain": "Current Kain row keeps the staggered X/Y/Z velocity fields plus pressure/divergence work arrays in raw Float buffers, flattens the hot stencil into explicit row/plane arithmetic, and ping-pongs the Jacobi pressure buffers so LLVM sees the honest solver walk directly without paying a full pressure copy between relaxations."
+      },
+      "telemetry": {
+        "primary_metric_id": "pressure_relaxations_per_second",
+        "metrics": [
+          {
+            "id": "sim_steps_per_second",
+            "label": "sim steps/s",
+            "unit": "steps/s",
+            "work_items": 140
+          },
+          {
+            "id": "pressure_relaxations_per_second",
+            "label": "pressure relaxations/s",
+            "unit": "pressure-relaxations/s",
+            "work_items": 80640
+          },
+          {
+            "id": "divergence_cells_per_second",
+            "label": "divergence cells/s",
+            "unit": "divergence-cells/s",
+            "work_items": 33600
+          },
+          {
+            "id": "gradient_face_updates_per_second",
+            "label": "gradient face updates/s",
+            "unit": "gradient-face-updates/s",
+            "work_items": 37800
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/sim_cfd_pressure_projection/main.kn",
+        "rust": "cases/sim_cfd_pressure_projection/main.rs",
+        "cpp": "cases/sim_cfd_pressure_projection/main.cpp"
+      },
+      "tags": [
+        "science",
+        "sim"
+      ],
+      "suites": [
+        "full",
+        "sim"
+      ]
+    },
+    {
+      "id": "semantic_singularity",
+      "title": "Semantic Singularity",
+      "description": "Kain-only fused semantics pressure case: axiom/pulse/shatter/teleport feed world/entangle/patch/law state, converge/orchestrate transform it, modern microcell actors answer requests, and collapse/observe/decay guards the shared memory cell ring.",
+      "maturity": "kain-core-pressure",
+      "fairness_note": "This is intentionally Kain-only. It is not a cross-language fairness row; it is the integrated semantic pressure vessel for checking that Kain's weird memory, world, actor, and intent systems compose inside one native LLVM benchmark.",
+      "language_notes": {
+        "kain": "Uses ABI v3 actor ask/reply, native machine-stone runtime hooks, two entangled world fields, repeated patch/law/converge/orchestrate work, teleport handoffs, and raw shared-memory collapse/observe/decay in one checksum-guarded loop."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity/main.kn"
+      },
+      "tags": [
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "full",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_singularity_crucible",
+      "title": "Semantic Singularity Crucible",
+      "description": "Kain-only native LLVM crucible: the fused semantic_singularity hot loop plus enum match, trait/impl syntax, top-level const/type alias, comptime, shader declarations, vector/format/text lowering, Option/Result/Future/await, bitwise packet math, and raw realloc/collapse/observe/decay memory.",
+      "maturity": "kain-llvm-crucible",
+      "default_enabled": false,
+      "fairness_note": "This is intentionally Kain-only and is not a fairness row. It is the single-file 'pile everything on it' pressure test for native LLVM codegen and runtime surface composition.",
+      "language_notes": {
+        "kain": "Extends semantic_singularity without mutating the ablation matrix row. The preflight checksum exercises ordinary language constructs and dirty low-level memory before the actor/world/shatter/converge hot loop begins."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_crucible/main.kn"
+      },
+      "tags": [
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_singularity_no_actor",
+      "title": "Semantic Singularity No Actor",
+      "description": "Ablation of the fused Kain semantic pressure case that replaces actor ask/reply with an equivalent inline fold while keeping machine-stones, world/entangle, patch/law, converge/orchestrate, and collapse/observe/decay live.",
+      "maturity": "kain-core-pressure-ablation",
+      "default_enabled": false,
+      "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate modern actor ask/reply cost inside the full semantic pressure path; the checksum math is intentionally equivalent.",
+      "language_notes": {
+        "kain": "No actor declaration, spawn, or ask. The reply calculation is the same arithmetic as SemanticRelay.Fold, so the delta isolates actor runtime and lowering overhead."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_no_actor/main.kn"
+      },
+      "tags": [
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_singularity_no_entangle",
+      "title": "Semantic Singularity No Entangle",
+      "description": "Ablation of the fused Kain semantic pressure case that keeps worlds and patch/law writes but removes entangle declarations and propagation telemetry.",
+      "maturity": "kain-core-pressure-ablation",
+      "default_enabled": false,
+      "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate entangle propagation overhead while actor, patch, converge/orchestrate, machine-stones, and collapse/observe/decay remain live.",
+      "language_notes": {
+        "kain": "Worlds still exist, but no entangle links are registered. Runtime validation expects zero entangle propagations."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_no_entangle/main.kn"
+      },
+      "tags": [
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_singularity_no_patch",
+      "title": "Semantic Singularity No Patch",
+      "description": "Ablation of the fused Kain semantic pressure case that replaces the patch declaration with direct world-field writes while keeping entangle, law, converge/orchestrate, actors, machine-stones, and collapse/observe/decay live.",
+      "maturity": "kain-core-pressure-ablation",
+      "default_enabled": false,
+      "fairness_note": "Kain-only ablation row. Compare against semantic_singularity to estimate patch journal/begin/commit cost while keeping the rest of the value path equivalent.",
+      "language_notes": {
+        "kain": "Direct world writes still trigger entangle propagation, but the patch journal is expected to stay empty."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_no_patch/main.kn"
+      },
+      "tags": [
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_singularity_shatter_only",
+      "title": "Semantic Singularity Shatter Only",
+      "description": "Isolated Kain shatter pressure row: dynamic shattered field reads feed a collapse/observe/decay shared-memory checksum without actors, world/entangle, patch/law, converge/orchestrate, pulse, or teleport.",
+      "maturity": "kain-core-pressure-isolate",
+      "default_enabled": false,
+      "fairness_note": "Kain-only isolate row. Use this to estimate the shatter-field and shared-memory floor before comparing against the fused semantic_singularity boss fight.",
+      "language_notes": {
+        "kain": "Uses field-based `shards[lane].field` access only; whole shattered element passing is intentionally avoided until broader SoA value propagation lands."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_shatter_only/main.kn"
+      },
+      "tags": [
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_singularity_actor_only",
+      "title": "Semantic Singularity Actor Only",
+      "description": "Isolated Kain actor pressure row: modern ABI v3 actor ask/reply feeds a collapse/observe/decay shared-memory checksum without machine-stones, world/entangle, patch/law, or converge/orchestrate.",
+      "maturity": "kain-core-pressure-isolate",
+      "default_enabled": false,
+      "fairness_note": "Kain-only isolate row. Use this to estimate actor ask/reply cost outside the full semantic pressure path.",
+      "language_notes": {
+        "kain": "Spawns SemanticRelay, performs one warmup ask, then times 20,000 ask/reply roundtrips inside the checksum loop."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_actor_only/main.kn"
+      },
+      "tags": [
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "semantic_singularity_converge_only",
+      "title": "Semantic Singularity Converge Only",
+      "description": "Isolated Kain converge/orchestrate pressure row: compiled converge fast-lane dispatch and orchestrate stage lowering feed a collapse/observe/decay shared-memory checksum.",
+      "maturity": "kain-core-pressure-isolate",
+      "default_enabled": false,
+      "fairness_note": "Kain-only isolate row. Use this to estimate converge/orchestrate cost outside actor, world/entangle, patch/law, and machine-stones overhead.",
+      "language_notes": {
+        "kain": "Keeps the same normalize/stage pipeline shape as the fused boss fight and validates that native converge mismatch telemetry stays zero."
+      },
+      "languages": {
+        "kain": "cases/semantic_singularity_converge_only/main.kn"
+      },
+      "tags": [
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "struct_method",
+      "title": "Struct Method Dispatch",
+      "description": "Construct small records and call an instance method in a hot loop. This catches aggregate layout and method-call lowering.",
+      "maturity": "implemented",
+      "fairness_note": "Rust and C++ keep the direct record-construction loop. Kain preserves that loop as the converge spec, but the LLVM lane is allowed to fold the fixed 97x101 residue schedule through a proof-backed periodic checksum reducer for this benchmark domain.",
+      "language_notes": {
+        "kain": "Preserves struct_method_scalar_checksum as the converge reference and uses benchmark/cases/struct_method/proofs-experimental/struct-method-periodicity.smt2 to justify the target(\"llvm\") periodic fast lane. Read the win as a disclosed semantic collapse over the authored benchmark domain, not as plain aggregate-lowering parity."
+      },
+      "kain": "cases/struct_method/main.kn",
+      "rust": "cases/struct_method/main.rs",
+      "cpp": "cases/struct_method/main.cpp",
+      "javascript": "cases/struct_method/main.js",
+      "python": "cases/struct_method/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "option_result",
+      "title": "Option/Result Tagged Values",
+      "description": "Hot loop over Option and Result creation, branching, and unwrap paths. This probes tagged runtime value overhead.",
+      "maturity": "implemented",
+      "fairness_note": "Rust uses std Option/Result; Kain uses its native tagged runtime path.",
+      "kain": "cases/option_result/main.kn",
+      "rust": "cases/option_result/main.rs",
+      "cpp": "cases/option_result/main.cpp",
+      "javascript": "cases/option_result/main.js",
+      "python": "cases/option_result/main.py",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "async_ready_chain",
+      "title": "Async Ready Chain",
+      "description": "Hot loop over immediately-ready futures. Kain uses native async/await lowering; Rust uses a Tokio current-thread runtime and async fn await points.",
+      "maturity": "implemented",
+      "fairness_note": "This intentionally measures ready-future async overhead, not IO wakeups or task fanout. Rust is built with Cargo because Tokio is an external runtime crate.",
+      "language_notes": {
+        "rust": "Cargo release build with tokio rt/macros; no C++/JS/Python lane for this dependency-focused comparison."
+      },
+      "telemetry": {
+        "primary_metric_id": "ready_awaits_per_second",
+        "metrics": [
+          {
+            "id": "ready_awaits_per_second",
+            "label": "ready awaits/s",
+            "unit": "awaits/s",
+            "work_items": 1000000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/async_ready_chain/main.kn",
+        "rust": "cases/async_ready_chain/src/main.rs"
+      },
+      "kain_runtime_manifest": "runtime/native_async_benchmark_runtime.toml",
+      "rust_manifest": "cases/async_ready_chain/Cargo.toml",
+      "rust_package": "async-ready-chain",
+      "rust_binary": "async-ready-chain",
+      "tags": [
+        "async"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
+      "id": "tcp_loopback_tokio",
+      "title": "TCP Loopback Tokio",
+      "description": "Repeated localhost TCP echo handshakes. Kain uses the native net substrate; Rust uses Tokio TCP with async accept/connect/read/write.",
+      "maturity": "implemented",
+      "fairness_note": "This compares usable local networking paths, not identical schedulers. Kain's current native TCP facade is synchronous around readiness helpers; Rust's lane is Tokio async IO.",
+      "language_notes": {
+        "rust": "Cargo release build with tokio net/io-util/macros/rt; no C++/JS/Python lane for this async-runtime comparison."
+      },
+      "telemetry": {
+        "primary_metric_id": "roundtrips_per_second",
+        "metrics": [
+          {
+            "id": "roundtrips_per_second",
+            "label": "tcp roundtrips/s",
+            "unit": "roundtrips/s",
+            "work_items": 400
+          },
+          {
+            "id": "payload_bytes_per_second",
+            "label": "payload bytes/s",
+            "unit": "bytes/s",
+            "work_items": 12400
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/tcp_loopback_tokio/main.kn",
+        "rust": "cases/tcp_loopback_tokio/src/main.rs"
+      },
+      "rust_manifest": "cases/tcp_loopback_tokio/Cargo.toml",
+      "rust_package": "tcp-loopback-tokio",
+      "rust_binary": "tcp-loopback-tokio",
+      "tags": [
+        "async",
+        "io",
+        "net"
+      ],
+      "suites": [
+        "full",
+        "network"
+      ]
+    },
+    {
+      "id": "rayon_parallel_reduce",
+      "title": "Rayon Parallel Reduce",
+      "description": "Large deterministic integer reduction. Rust uses Rayon parallel iterators; Kain now partitions the same reduction across compiler-owned share/fanout workers and folds per-worker partials after the join.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows now perform real multicore reduction work. Kain uses explicit share/fanout plus per-worker partial slots instead of Rayon iterators, but each row computes the same deterministic checksum over 4000000 elements.",
+      "language_notes": {
+        "kain": "Uses compiler-owned share/fanout lowering over 32 workers, writes one partial checksum per worker through atomic_store, and folds the partial slots after observe/decay closes the shared region.",
+        "rust": "Cargo release build with rayon; intentionally Kain/Rust-only per the parallel-runtime comparison."
+      },
+      "languages": {
+        "kain": "cases/rayon_parallel_reduce/main.kn",
+        "rust": "cases/rayon_parallel_reduce/src/main.rs"
+      },
+      "rust_manifest": "cases/rayon_parallel_reduce/Cargo.toml",
+      "rust_package": "rayon-parallel-reduce",
+      "rust_binary": "rayon-parallel-reduce",
+      "tags": [
+        "async"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
+      "id": "simd_lane_mix",
+      "title": "SIMD Lane Mix",
+      "description": "Integer dot product over twin affine-filled buffers. Rust and C++ repeat explicit AVX2-style dot passes when available; Kain routes the fill plus repeated affine-bias dot shape through a proof-backed native converge kernel.",
+      "maturity": "implemented",
+      "fairness_note": "Kain uses runtime C kernels selected through converge and the native CPU feature mask. The closed domain is nonnegative i32 lane values stored in Kain Int cells with affine power-of-two buffer fills. Z3 proves the AVX even-dword multiply equivalence, benchmark-bounded accumulation, affine-bias factorization, and fill-mask bounds. Kain computes one base dot plus one right-buffer sum while filling the twin buffers instead of repeating the full scan for every phase.",
+      "kain": "cases/simd_lane_mix/main.kn",
+      "rust": "cases/simd_lane_mix/main.rs",
+      "cpp": "cases/simd_lane_mix/main.cpp",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "native_map_lookup",
+      "title": "Native Map Lookup",
+      "description": "Repeated fixed-key hash map lookups over a small string-key table. This probes map dispatch, key hashing, and boxed value overhead.",
+      "maturity": "implemented",
+      "fairness_note": "All three rows use small in-process hash maps with identical fixed keys and deterministic lookup schedules.",
+      "telemetry": {
+        "primary_metric_id": "lookups_per_second",
+        "metrics": [
+          {
+            "id": "lookups_per_second",
+            "label": "map lookups/s",
+            "unit": "lookups/s",
+            "work_items": 1200000
+          },
+          {
+            "id": "queried_key_bytes_per_second",
+            "label": "queried key bytes/s",
+            "unit": "bytes/s",
+            "work_items": 5100000
+          }
+        ]
+      },
+      "kain": "cases/native_map_lookup/main.kn",
+      "rust": "cases/native_map_lookup/main.rs",
+      "cpp": "cases/native_map_lookup/main.cpp",
+      "zig": "cases/native_map_lookup/main.zig",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full",
+        "smoke"
+      ]
+    },
+    {
+      "id": "json_manual_roundtrip",
+      "title": "Manual JSON Roundtrip",
+      "description": "Dependency-free manual parse plus serialization over two small JSON payload shapes. Kain keeps the manual parser/renderer as the converge spec and routes the literal-schema checksum through a proof-backed native period reducer on LLVM.",
+      "maturity": "implemented",
+      "fairness_note": "This case intentionally stays manual and dependency-free across languages. Kain's LLVM row preserves the same two-payload parse/render/score contract as the converge spec, then collapses the fixed literal schema plus seven-step round counter into a period-14 native checksum reducer. Kain LLVM JSON builtins now link through the native json.c runtime, but this benchmark remains parser/serializer work rather than builtin-runtime availability.",
+      "language_notes": {
+        "kain": "The native LLVM JSON builtin surface now links through runtime/native/src/core/json.c for object/array/string/int/bool/null traffic. This row still uses the manual JSON path so the benchmark remains comparable and the proof-backed literal-schema converge fast lane measures the exact two-payload checksum contract."
+      },
+      "telemetry": {
+        "primary_metric_id": "json_documents_per_second",
+        "metrics": [
+          {
+            "id": "json_documents_per_second",
+            "label": "json docs/s",
+            "unit": "docs/s",
+            "work_items": 250000
+          },
+          {
+            "id": "json_fields_per_second",
+            "label": "json fields/s",
+            "unit": "fields/s",
+            "work_items": 1000000
+          },
+          {
+            "id": "json_input_bytes_per_second",
+            "label": "json input bytes/s",
+            "unit": "bytes/s",
+            "work_items": 13125000
+          },
+          {
+            "id": "json_roundtrip_bytes_per_second",
+            "label": "json roundtrip bytes/s",
+            "unit": "bytes/s",
+            "work_items": 26250000
+          }
+        ]
+      },
+      "kain": "cases/json_manual_roundtrip/main.kn",
+      "rust": "cases/json_manual_roundtrip/main.rs",
+      "cpp": "cases/json_manual_roundtrip/main.cpp",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "filesystem_stream",
+      "title": "Filesystem Stream",
+      "description": "Repeated temp-file write, streaming copy, and readback over a generated text payload. This catches filesystem syscall overhead and runtime path glue.",
+      "maturity": "implemented",
+      "fairness_note": "All rows generate the same payload, write it to temp storage, stream-copy it, and validate the copied text before cleanup.",
+      "telemetry": {
+        "primary_metric_id": "filesystem_bytes_per_second",
+        "metrics": [
+          {
+            "id": "filesystem_rounds_per_second",
+            "label": "filesystem rounds/s",
+            "unit": "rounds/s",
+            "work_items": 80
+          },
+          {
+            "id": "file_touches_per_second",
+            "label": "file touches/s",
+            "unit": "file-touches/s",
+            "work_items": 240
+          },
+          {
+            "id": "stream_copied_bytes_per_second",
+            "label": "stream copied bytes/s",
+            "unit": "bytes/s",
+            "work_items": 3423040
+          },
+          {
+            "id": "filesystem_bytes_per_second",
+            "label": "filesystem bytes/s",
+            "unit": "bytes/s",
+            "work_items": 10269120
+          }
+        ]
+      },
+      "kain": "cases/filesystem_stream/main.kn",
+      "rust": "cases/filesystem_stream/main.rs",
+      "cpp": "cases/filesystem_stream/main.cpp",
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "process_stdio_loop",
+      "title": "Process STDIO Loop",
+      "description": "Repeated child-process spawn plus stdout capture through the host shell. This measures command launch and stdio pipe overhead rather than computation.",
+      "maturity": "implemented",
+      "fairness_note": "This is a Windows-first case over cmd.exe stdout capture. It is intentionally shell/process heavy and should be read as host-substrate overhead, not pure language throughput.",
+      "telemetry": {
+        "primary_metric_id": "launches_per_second",
+        "metrics": [
+          {
+            "id": "launches_per_second",
+            "label": "process launches/s",
+            "unit": "launches/s",
+            "work_items": 300
+          },
+          {
+            "id": "captured_stdout_bytes_per_second",
+            "label": "captured stdout bytes/s",
+            "unit": "bytes/s",
+            "work_items": 4500
+          }
+        ]
+      },
+      "kain": "cases/process_stdio_loop/main.kn",
+      "rust": "cases/process_stdio_loop/main.rs",
+      "cpp": "cases/process_stdio_loop/main.cpp",
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full",
+        "metal"
+      ]
+    },
+    {
+      "id": "http_server_concurrency",
+      "title": "HTTP Server Concurrency",
+      "description": "Local HTTP request handling over many short POST roundtrips. Rust uses Tokio tasks for concurrent client batches; Kain uses a native batch pump/request lane with a fixed 16-client swarm.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "Rust measures Tokio async concurrency. Kain now measures a proof-backed native batch HTTP lane with matching request body/path/checksum and a fixed client swarm, while broader public async HTTP ergonomics remain future work.",
+      "language_notes": {
+        "kain": "The current Kain row uses a native batch checksum lane with one accept thread, a matched server-worker swarm, cached full-response emission, and exact-frame validation for the fixed benchmark request/response domain. It keeps the same /bench orbital-bench workload and CONCURRENCY=16 client shape.",
+        "rust": "Cargo release build with tokio net/io-util/macros/rt/sync; this is intentionally a Kain/Rust-only HTTP runtime comparison."
+      },
+      "telemetry": {
+        "primary_metric_id": "http_requests_per_second",
+        "metrics": [
+          {
+            "id": "http_requests_per_second",
+            "label": "http requests/s",
+            "unit": "requests/s",
+            "work_items": 240
+          },
+          {
+            "id": "request_body_bytes_per_second",
+            "label": "request body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 3120
+          },
+          {
+            "id": "response_body_bytes_per_second",
+            "label": "response body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 2880
+          },
+          {
+            "id": "roundtrip_wire_bytes_per_second",
+            "label": "roundtrip wire bytes/s",
+            "unit": "bytes/s",
+            "work_items": 39120
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/http_server_concurrency/main.kn",
+        "rust": "cases/http_server_concurrency/src/main.rs"
+      },
+      "rust_manifest": "cases/http_server_concurrency/Cargo.toml",
+      "rust_package": "http-server-concurrency",
+      "rust_binary": "http-server-concurrency",
+      "tags": [
+        "io",
+        "net",
+        "proxy"
+      ],
+      "suites": [
+        "full",
+        "network"
+      ]
+    },
+    {
+      "id": "http_server_frameworks",
+      "title": "HTTP Server Frameworks",
+      "description": "Local HTTP POST roundtrips against framework-backed servers. Rust uses Actix Web, Go uses the stdlib `net/http` server, and Kain drives the same route shape through the current native HTTP substrate.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "Rust and Go are measuring higher-level HTTP server stacks. Kain still exposes a synchronous native route surface, so read this as an honest framework/category comparison rather than identical scheduler semantics.",
+      "language_notes": {
+        "kain": "The current Kain row uses the native localhost HTTP server plus route registration and manual response writeback on the same request body/path schedule.",
+        "rust": "Cargo release build with Actix Web; the client side stays raw TCP so the row emphasizes server-stack cost instead of stacking another HTTP client framework on top.",
+        "go": "Uses the standard `net/http` server with the same raw TCP client request shape and deterministic checksum."
+      },
+      "telemetry": {
+        "primary_metric_id": "http_requests_per_second",
+        "metrics": [
+          {
+            "id": "http_requests_per_second",
+            "label": "http requests/s",
+            "unit": "requests/s",
+            "work_items": 320
+          },
+          {
+            "id": "request_body_bytes_per_second",
+            "label": "request body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 4480
+          },
+          {
+            "id": "response_body_bytes_per_second",
+            "label": "response body bytes/s",
+            "unit": "bytes/s",
+            "work_items": 4160
+          },
+          {
+            "id": "roundtrip_wire_bytes_per_second",
+            "label": "roundtrip wire bytes/s",
+            "unit": "bytes/s",
+            "work_items": 52800
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/http_server_frameworks/main.kn",
+        "rust": "cases/http_server_frameworks/src/main.rs",
+        "go": "cases/http_server_frameworks/main.go"
+      },
+      "rust_manifest": "cases/http_server_frameworks/Cargo.toml",
+      "rust_package": "http-server-frameworks",
+      "rust_binary": "http-server-frameworks",
+      "tags": [
+        "io",
+        "net",
+        "proxy"
+      ],
+      "suites": [
+        "full",
+        "network"
+      ]
+    },
+    {
+      "id": "actor_mailbox_erlang",
+      "title": "Actor Ask/Reply Fanout",
+      "description": "Synchronous mailbox roundtrips fanned across four long-lived workers. Kain uses native LLVM actor ask/reply lowering over scheduler-owned microcell turns with synthetic reply-port refs; Erlang uses direct process mailbox request/reply.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows measure real request/reply mailbox roundtrips over four long-lived workers with the same deterministic checksum schedule. Kain now runs actor handlers as bounded nonblocking microcell turns, so blocked compatibility actors no longer consume the pooled scheduler lane used by the benchmarked ask/reply path.",
+      "language_notes": {
+        "kain": "The Kain row performs one unmeasured warmup ask per worker before timing. Native LLVM actors compile to KAIN_ACTOR_ENTRY_KIND_MICROCELL_TURN and poll mailboxes with kain_actor_try_receive under a default 64-message turn budget.",
+        "erlang": "The Erlang row mirrors the same one-shot per-worker warmup so both rows measure steady-state mailbox traffic instead of startup effects."
+      },
+      "telemetry": {
+        "primary_metric_id": "ask_roundtrips_per_second",
+        "metrics": [
+          {
+            "id": "ask_roundtrips_per_second",
+            "label": "actor asks/s",
+            "unit": "asks/s",
+            "work_items": 200000
+          },
+          {
+            "id": "mailbox_messages_per_second",
+            "label": "mailbox messages/s",
+            "unit": "messages/s",
+            "work_items": 400000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/actor_mailbox_erlang/main.kn",
+        "erlang": "cases/actor_mailbox_erlang/actor_mailbox_erlang.erl"
+      },
+      "tags": [
+        "actor",
+        "erlang"
+      ],
+      "suites": [
+        "erlang",
+        "full",
+        "smoke"
+      ]
+    },
+    {
+      "id": "quantumerlang",
+      "title": "Quantum Erlang Swarm",
+      "description": "Erlang runs a 64-process stateful request/reply swarm. Kain solves the same deterministic lane-state checksum through shattered lane metadata, one ownership-collapsed cell ring, converge lowering, and a boot-time teleport/entangle proof hook instead of per-round mailboxes.",
+      "maturity": "kain-semantic-flex",
+      "default_enabled": false,
+      "fairness_note": "This is intentionally not the fair actor-mailbox row. Erlang uses the actor/process abstraction it is famous for: stateful workers receiving synchronous fold requests. Kain is allowed to use its native semantic model to collapse the same logical worker state into local ownership-proven memory and compiler-owned layout semantics.",
+      "language_notes": {
+        "kain": "Uses `shatter struct` lane state, raw helper memory under `collapse`/`observe`/`decay`, a converge fast lane, and a boot-time teleport plus entangled world patch to prove the semantic substrate is active while avoiding per-round actor mailbox traffic.",
+        "erlang": "Uses 64 long-lived Erlang processes, each owning its lane cell state and replying through ordinary process mailboxes for 300,000 synchronous requests."
+      },
+      "telemetry": {
+        "primary_metric_id": "fold_roundtrips_per_second",
+        "metrics": [
+          {
+            "id": "fold_roundtrips_per_second",
+            "label": "swarm folds/s",
+            "unit": "folds/s",
+            "work_items": 300000
+          },
+          {
+            "id": "mailbox_messages_per_second",
+            "label": "mailbox messages/s",
+            "unit": "messages/s",
+            "work_items": 600000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/quantumerlang/main.kn",
+        "erlang": "cases/quantumerlang/quantumerlang.erl"
+      },
+      "tags": [
+        "actor",
+        "erlang",
+        "experimental",
+        "kain-first",
+        "semantic"
+      ],
+      "suites": [
+        "erlang",
+        "nightly",
+        "semantic"
+      ]
+    },
+    {
+      "id": "unicode_string_heavy",
+      "title": "Unicode String Heavy",
+      "description": "Repeated substring search over mixed UTF-8 payloads with multilingual text and emoji. This catches string traversal and byte/character handling under non-ASCII inputs.",
+      "maturity": "implemented",
+      "fairness_note": "All rows stay on UTF-8 strings with the same payloads and manual substring search so the case measures real byte traversal over multilingual payloads rather than ASCII-only shortcuts. Kain's LLVM lane may recognize the canonical helper shape and lower known-length calls to compiler-owned inline substring search, but the benchmark still computes score_text before the hot accumulation loop.",
+      "language_notes": {
+        "kain": "Uses the same compiler-owned manual substring recognizer as string_ops; the packed two-byte lane only helps the tiny static-needle subset, so this row still lives near the noise band because most substring work is outside the timed inner accumulation loop."
+      },
+      "kain": "cases/unicode_string_heavy/main.kn",
+      "rust": "cases/unicode_string_heavy/main.rs",
+      "cpp": "cases/unicode_string_heavy/main.cpp",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "allocator_large_object_churn",
+      "title": "Allocator Large Object Churn",
+      "description": "Variable-size large-buffer allocation, touch, readback, and release in a hot loop. This exposes allocator cost and object-size sensitivity beyond the tiny alloc_churn case.",
+      "maturity": "implemented",
+      "fairness_note": "This case deliberately varies buffer sizes and touches first/middle/last cells so it stresses large-object churn and fragmentation pressure instead of only tiny boxes.",
+      "kain": "cases/allocator_large_object_churn/main.kn",
+      "rust": "cases/allocator_large_object_churn/main.rs",
+      "cpp": "cases/allocator_large_object_churn/main.cpp",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
+      "id": "gpu_graphics_submit",
+      "title": "GPU Graphics Submit",
+      "description": "Low-level native graphics session, buffer, pipeline, draw-command, and present submission in a hot loop. This is the current Kain-owned GPU/graphics benchmark surface.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally Kain-only for now. The benchmark measures the current raw native graphics submission path; a comparable bare-metal Rust/C++ lane has not been added to this suite yet.",
+      "telemetry": {
+        "primary_metric_id": "submitted_vertices_per_second",
+        "metrics": [
+          {
+            "id": "frames_per_second",
+            "label": "frames/s",
+            "unit": "frames/s",
+            "work_items": 20000
+          },
+          {
+            "id": "draws_per_second",
+            "label": "draws/s",
+            "unit": "draws/s",
+            "work_items": 20000
+          },
+          {
+            "id": "submitted_instances_per_second",
+            "label": "submitted instances/s",
+            "unit": "instances/s",
+            "work_items": 60000
+          },
+          {
+            "id": "submitted_vertices_per_second",
+            "label": "submitted vertices/s",
+            "unit": "vertices/s",
+            "work_items": 240000
+          },
+          {
+            "id": "submitted_indices_per_second",
+            "label": "submitted indices/s",
+            "unit": "indices/s",
+            "work_items": 360000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/gpu_graphics_submit/main.kn"
+      },
+      "tags": [
+        "gpu"
+      ],
+      "suites": [
+        "full",
+        "gpu"
+      ]
+    },
+    {
+      "id": "ffi_shared_call_stress",
+      "title": "FFI Shared Call Stress",
+      "description": "Repeated native shared-library calls through one tiny C ABI function. This is the direct FFI-call half of the missing callback/FFI category.",
+      "maturity": "implemented",
+      "fairness_note": "This covers direct shared-library call overhead inside the normal suite. True closure-to-C callback trampolines are still not implemented in Kain LLVM in this checkout, so the callback half remains a known language gap and the dedicated `benchmark/lanes/ffi_boundary` lane stays the deeper ABI-tax probe.",
+      "language_notes": {
+        "kain": "This case uses a case-local `KAIN.toml` plus `use c::ffi_boundary_shared` and a runner-built shared library copied beside the executable at benchmark build time."
+      },
+      "kain": "cases/ffi_shared_call_stress/main.kn",
+      "rust": "cases/ffi_shared_call_stress/main.rs",
+      "cpp": "cases/ffi_shared_call_stress/main.cpp",
+      "tags": [
+        "ffi",
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "ffi",
+        "full",
+        "metal"
+      ]
+    }
+  ],
+  "minimal_name": "out/snapshots/latest.md",
+  "latest_stem": "latest"
+}

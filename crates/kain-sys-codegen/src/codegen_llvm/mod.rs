@@ -6,7 +6,7 @@
 
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
-    AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, ElseBranch, Expr,
+    Attribute, AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, ElseBranch, Expr,
     InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type, UnaryOp,
     VariantPatternFields,
 };
@@ -19,6 +19,15 @@ use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
 };
 use std::collections::{HashMap, HashSet};
+
+const ATTR_SECTION: &str = "section";
+const ATTR_LINK_NAME: &str = "link_name";
+const ATTR_CALLCONV: &str = "callconv";
+const ATTR_THREAD_LOCAL: &str = "thread_local";
+const ATTR_PACKED: &str = "packed";
+const ATTR_NAKED: &str = "naked";
+const ATTR_INTERRUPT: &str = "interrupt";
+const ATTR_MMIO: &str = "mmio";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum LlvmTargetId {
@@ -378,6 +387,7 @@ struct LlvmGenerator {
     fanout_function_counter: usize,
     /// Maps variable names to (stack_ptr, type)
     locals: HashMap<String, (String, String)>,
+    authored_pointer_locals: HashMap<String, String>,
     /// Pointer-like locals whose provenance is solver-proved helper-owned and may
     /// use the helper-header ownership fast path without imported registration.
     helper_owned_pointer_locals: HashMap<String, OwnershipPointerProvenance>,
@@ -422,6 +432,10 @@ struct LlvmGenerator {
     /// Tracks which direct-call parameters are language-level strings and can be
     /// treated as borrowed aliases instead of refcount-owned call-frame locals.
     string_function_params: HashMap<String, Vec<bool>>,
+    /// Authored function names mapped to their emitted LLVM symbol spelling.
+    function_symbols: HashMap<String, String>,
+    /// Authored function names mapped to their emitted LLVM calling convention.
+    function_calling_conventions: HashMap<String, String>,
     /// Functions that were emitted as extern declarations.
     extern_functions: HashSet<String>,
     /// Callable names defined by the lowered program itself, including target stdlib wrappers.
@@ -443,6 +457,7 @@ struct LlvmGenerator {
     struct_defs: HashMap<String, Vec<(String, String)>>,
     /// Ordinary POD structs and POD tuples that can safely travel by value.
     value_aggregate_structs: HashSet<String>,
+    mmio_structs: HashSet<String>,
     component_defs: HashMap<String, Vec<(String, String)>>,
     /// Current basic block label (for Phi nodes)
     current_block: String,
@@ -482,6 +497,10 @@ struct LlvmGenerator {
     /// span so LLVM-only post-lowering fast paths can recover pointee element
     /// intent after low-level memory normalization erases ptr<T> into Int.
     original_pointer_let_types: HashMap<Span, Type>,
+    /// Original authored pointer/ref parameter declarations keyed by param span
+    /// so lowered callable parameters can recover struct pointee intent after
+    /// ptr<T> normalization rewrites the ABI-visible type into Int.
+    original_pointer_param_types: HashMap<Span, Type>,
 }
 
 #[derive(Clone)]
@@ -490,6 +509,7 @@ struct LlvmFunctionState {
     reg_count: usize,
     label_count: usize,
     locals: HashMap<String, (String, String)>,
+    authored_pointer_locals: HashMap<String, String>,
     helper_owned_pointer_locals: HashMap<String, OwnershipPointerProvenance>,
     ephemeral_owned_pointer_locals: HashMap<String, EphemeralOwnershipLocalWitness>,
     ephemeral_candidate_scopes: Vec<HashSet<String>>,
@@ -531,6 +551,7 @@ impl LlvmGenerator {
             deferred_function_defs: Vec::new(),
             fanout_function_counter: 0,
             locals: HashMap::new(),
+            authored_pointer_locals: HashMap::new(),
             helper_owned_pointer_locals: HashMap::new(),
             ephemeral_owned_pointer_locals: HashMap::new(),
             ephemeral_candidate_scopes: Vec::new(),
@@ -546,6 +567,8 @@ impl LlvmGenerator {
             functions: HashMap::new(),
             function_params: HashMap::new(),
             string_function_params: HashMap::new(),
+            function_symbols: HashMap::new(),
+            function_calling_conventions: HashMap::new(),
             extern_functions: HashSet::new(),
             defined_functions: HashSet::new(),
             manual_find_substring_functions: HashMap::new(),
@@ -556,6 +579,7 @@ impl LlvmGenerator {
             scopes: Vec::new(),
             struct_defs: HashMap::new(),
             value_aggregate_structs: HashSet::new(),
+            mmio_structs: HashSet::new(),
             component_defs: HashMap::new(),
             current_block: "entry".to_string(),
             current_return_type: None,
@@ -581,6 +605,7 @@ impl LlvmGenerator {
             entry_preamble_insert_offset: None,
             entry_hoisted_const_inits: HashSet::new(),
             original_pointer_let_types: HashMap::new(),
+            original_pointer_param_types: HashMap::new(),
         }
     }
 
@@ -590,6 +615,7 @@ impl LlvmGenerator {
             reg_count: self.reg_count,
             label_count: self.label_count,
             locals: self.locals.clone(),
+            authored_pointer_locals: self.authored_pointer_locals.clone(),
             helper_owned_pointer_locals: self.helper_owned_pointer_locals.clone(),
             ephemeral_owned_pointer_locals: self.ephemeral_owned_pointer_locals.clone(),
             ephemeral_candidate_scopes: self.ephemeral_candidate_scopes.clone(),
@@ -628,6 +654,7 @@ impl LlvmGenerator {
         self.reg_count = state.reg_count;
         self.label_count = state.label_count;
         self.locals = state.locals;
+        self.authored_pointer_locals = state.authored_pointer_locals;
         self.helper_owned_pointer_locals = state.helper_owned_pointer_locals;
         self.ephemeral_owned_pointer_locals = state.ephemeral_owned_pointer_locals;
         self.ephemeral_candidate_scopes = state.ephemeral_candidate_scopes;
@@ -665,6 +692,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.label_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.ephemeral_owned_pointer_locals.clear();
         self.ephemeral_candidate_scopes.clear();
@@ -700,51 +728,75 @@ impl LlvmGenerator {
 
     fn collect_original_pointer_let_type_hints(&mut self, program: &TypedProgram) {
         self.original_pointer_let_types.clear();
+        self.original_pointer_param_types.clear();
         for item in &program.items {
             self.collect_pointer_let_types_from_typed_item(item);
+        }
+    }
+
+    fn collect_pointer_param_types_from_params(&mut self, params: &[kain_core::ast::Param]) {
+        for param in params {
+            if matches!(param.ty, Type::Ptr { .. } | Type::Ref { .. }) {
+                self.original_pointer_param_types
+                    .insert(param.span, param.ty.clone());
+            }
         }
     }
 
     fn collect_pointer_let_types_from_typed_item(&mut self, item: &TypedItem) {
         match item {
             TypedItem::Function(function) => {
+                self.collect_pointer_param_types_from_params(&function.ast.params);
                 self.collect_pointer_let_types_from_block(&function.ast.body)
             }
-            TypedItem::Patch(patch) => self.collect_pointer_let_types_from_block(&patch.ast.body),
-            TypedItem::Law(law) => self.collect_pointer_let_types_from_block(&law.ast.body),
+            TypedItem::Patch(patch) => {
+                self.collect_pointer_param_types_from_params(&patch.ast.params);
+                self.collect_pointer_let_types_from_block(&patch.ast.body)
+            }
+            TypedItem::Law(law) => {
+                self.collect_pointer_param_types_from_params(&law.ast.params);
+                self.collect_pointer_let_types_from_block(&law.ast.body)
+            }
             TypedItem::Converge(converge) => {
+                self.collect_pointer_param_types_from_params(&converge.ast.params);
                 self.collect_pointer_let_types_from_block(&converge.ast.spec_lane.body);
                 for lane in &converge.ast.fast_lanes {
                     self.collect_pointer_let_types_from_block(&lane.body);
                 }
             }
             TypedItem::Orchestrate(orchestrate) => {
+                self.collect_pointer_param_types_from_params(&orchestrate.ast.params);
                 self.collect_pointer_let_types_from_block(&orchestrate.ast.body);
             }
             TypedItem::Pulse(pulse) => self.collect_pointer_let_types_from_block(&pulse.ast.body),
             TypedItem::Component(component) => {
                 for method in &component.ast.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
             TypedItem::Shader(shader) => {
                 self.collect_pointer_let_types_from_block(&shader.ast.body)
-            }
+            }            
             TypedItem::Actor(actor) => {
                 for handler in &actor.ast.handlers {
+                    self.collect_pointer_param_types_from_params(&handler.params);
                     self.collect_pointer_let_types_from_block(&handler.body);
                 }
                 for method in &actor.ast.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
             TypedItem::Struct(struct_item) => {
                 for method in &struct_item.ast.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
             TypedItem::Impl(imp) => {
                 for method in &imp.ast.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
@@ -761,19 +813,26 @@ impl LlvmGenerator {
     fn collect_pointer_let_types_from_item(&mut self, item: &kain_core::ast::Item) {
         match item {
             kain_core::ast::Item::Function(function) => {
+                self.collect_pointer_param_types_from_params(&function.params);
                 self.collect_pointer_let_types_from_block(&function.body);
             }
             kain_core::ast::Item::Patch(patch) => {
+                self.collect_pointer_param_types_from_params(&patch.params);
                 self.collect_pointer_let_types_from_block(&patch.body)
             }
-            kain_core::ast::Item::Law(law) => self.collect_pointer_let_types_from_block(&law.body),
+            kain_core::ast::Item::Law(law) => {
+                self.collect_pointer_param_types_from_params(&law.params);
+                self.collect_pointer_let_types_from_block(&law.body)
+            }
             kain_core::ast::Item::Converge(converge) => {
+                self.collect_pointer_param_types_from_params(&converge.params);
                 self.collect_pointer_let_types_from_block(&converge.spec_lane.body);
                 for lane in &converge.fast_lanes {
                     self.collect_pointer_let_types_from_block(&lane.body);
                 }
             }
             kain_core::ast::Item::Orchestrate(orchestrate) => {
+                self.collect_pointer_param_types_from_params(&orchestrate.params);
                 self.collect_pointer_let_types_from_block(&orchestrate.body);
             }
             kain_core::ast::Item::Pulse(pulse) => {
@@ -781,6 +840,7 @@ impl LlvmGenerator {
             }
             kain_core::ast::Item::Component(component) => {
                 for method in &component.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
@@ -789,19 +849,23 @@ impl LlvmGenerator {
             }
             kain_core::ast::Item::Actor(actor) => {
                 for handler in &actor.handlers {
+                    self.collect_pointer_param_types_from_params(&handler.params);
                     self.collect_pointer_let_types_from_block(&handler.body);
                 }
                 for method in &actor.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
             kain_core::ast::Item::Struct(struct_item) => {
                 for method in &struct_item.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
             kain_core::ast::Item::Impl(imp) => {
                 for method in &imp.methods {
+                    self.collect_pointer_param_types_from_params(&method.params);
                     self.collect_pointer_let_types_from_block(&method.body);
                 }
             }
@@ -1143,6 +1207,99 @@ impl LlvmGenerator {
         } else {
             sanitized
         }
+    }
+
+    fn find_attribute<'a>(attributes: &'a [Attribute], name: &str) -> Option<&'a Attribute> {
+        attributes.iter().find(|attribute| attribute.name == name)
+    }
+
+    fn attribute_string_arg(attribute: &Attribute) -> Option<String> {
+        match attribute.args.first() {
+            Some(Expr::String(value, _)) => Some(value.clone()),
+            Some(Expr::Paren(inner, _)) => match inner.as_ref() {
+                Expr::String(value, _) => Some(value.clone()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn callable_section_name(attributes: &[Attribute]) -> Option<String> {
+        Self::find_attribute(attributes, ATTR_SECTION).and_then(Self::attribute_string_arg)
+    }
+
+    fn callable_link_name(attributes: &[Attribute]) -> Option<String> {
+        Self::find_attribute(attributes, ATTR_LINK_NAME).and_then(Self::attribute_string_arg)
+    }
+
+    fn callable_is_naked(attributes: &[Attribute]) -> bool {
+        attributes.iter().any(|attribute| attribute.name == ATTR_NAKED)
+    }
+
+    fn callable_is_interrupt(attributes: &[Attribute]) -> bool {
+        attributes
+            .iter()
+            .any(|attribute| attribute.name == ATTR_INTERRUPT)
+    }
+
+    fn callable_llvm_calling_convention(
+        &self,
+        attributes: &[Attribute],
+        span: Span,
+    ) -> KainResult<Option<String>> {
+        if Self::callable_is_interrupt(attributes) {
+            return Ok(Some("x86_intrcc".to_string()));
+        }
+        let Some(value) = Self::find_attribute(attributes, ATTR_CALLCONV)
+            .and_then(Self::attribute_string_arg)
+        else {
+            return Ok(None);
+        };
+        match value.as_str() {
+            "c" => Ok(None),
+            "sysv64" => Ok(Some("x86_64_sysvcc".to_string())),
+            "win64" => Ok(Some("win64cc".to_string())),
+            "fastcall" => {
+                if self.target_is_windows_x64() {
+                    Ok(Some("win64cc".to_string()))
+                } else {
+                    Err(KainError::codegen(
+                        format!(
+                            "@callconv(\"fastcall\") currently lowers truthfully only on x86_64 Windows, but LLVM target {} is active",
+                            self.target.triple
+                        ),
+                        span,
+                    ))
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn callable_needs_x86_64_abi_surface(attributes: &[Attribute]) -> bool {
+        Self::callable_is_naked(attributes)
+            || Self::callable_is_interrupt(attributes)
+            || matches!(
+                Self::find_attribute(attributes, ATTR_CALLCONV).and_then(Self::attribute_string_arg),
+                Some(value) if value != "c"
+            )
+    }
+
+    fn callable_symbol_for_name(&self, authored_name: &str) -> String {
+        self.function_symbols
+            .get(authored_name)
+            .cloned()
+            .unwrap_or_else(|| runtime_symbol_for_stdlib_function(authored_name).to_string())
+    }
+
+    fn callable_callconv_for_name(&self, authored_name: &str) -> Option<String> {
+        self.function_calling_conventions.get(authored_name).cloned()
+    }
+
+    fn callable_callconv_prefix_for_name(&self, authored_name: &str) -> String {
+        self.callable_callconv_for_name(authored_name)
+            .map(|callconv| format!("{callconv} "))
+            .unwrap_or_default()
     }
 
     fn stable_runtime_hash64(text: &str) -> u64 {
@@ -1711,6 +1868,10 @@ impl LlvmGenerator {
             self.target.id,
             LlvmTargetId::WindowsX64Msvc | LlvmTargetId::LinuxX64Gnu
         )
+    }
+
+    fn target_is_windows_x64(&self) -> bool {
+        matches!(self.target.id, LlvmTargetId::WindowsX64Msvc)
     }
 
     fn escape_llvm_inline_asm_fragment(value: &str) -> String {
@@ -2422,6 +2583,47 @@ impl LlvmGenerator {
             _ => self.original_pointer_let_types.get(&stmt_span),
         };
         self.preferred_ephemeral_storage_element_llvm_ty(authored_declared_ty, layout)
+    }
+
+    fn authored_struct_pointer_llvm_ty(&self, authored_ty: &Type) -> Option<String> {
+        let inner = match authored_ty {
+            Type::Ptr { inner, .. } | Type::Ref { inner, .. } => inner.as_ref(),
+            _ => return None,
+        };
+        let pointee_ty = self.map_type_from_ast(inner);
+        pointee_ty.starts_with('%').then(|| format!("{pointee_ty}*"))
+    }
+
+    fn record_authored_struct_pointer_local(&mut self, name: &str, authored_ty: Option<&Type>) {
+        if let Some(ptr_ty) = authored_ty.and_then(|ty| self.authored_struct_pointer_llvm_ty(ty)) {
+            self.authored_pointer_locals
+                .insert(name.to_string(), ptr_ty);
+        } else {
+            self.authored_pointer_locals.remove(name);
+        }
+    }
+
+    fn record_authored_struct_pointer_local_for_let(
+        &mut self,
+        name: &str,
+        lowered_declared_ty: Option<&Type>,
+        stmt_span: Span,
+    ) {
+        let authored_declared_ty = match lowered_declared_ty {
+            Some(Type::Ptr { .. }) | Some(Type::Ref { .. }) => lowered_declared_ty.cloned(),
+            _ => self.original_pointer_let_types.get(&stmt_span).cloned(),
+        };
+        self.record_authored_struct_pointer_local(name, authored_declared_ty.as_ref());
+    }
+
+    fn authored_pointer_param_type<'a>(
+        &'a self,
+        param: &'a kain_core::ast::Param,
+    ) -> Option<&'a Type> {
+        match &param.ty {
+            Type::Ptr { .. } | Type::Ref { .. } => Some(&param.ty),
+            _ => self.original_pointer_param_types.get(&param.span),
+        }
     }
 
     fn helper_alloc_stack_storage_shape(
@@ -5924,6 +6126,30 @@ impl LlvmGenerator {
         }
     }
 
+    fn prefer_resolved_param_codegen_type(
+        &self,
+        authored_ty: &kain_core::ast::Type,
+        resolved_ty: &ResolvedType,
+    ) -> String {
+        let authored_llvm_ty = self.map_type_from_ast(authored_ty);
+        if authored_llvm_ty == "i64" {
+            let resolved_llvm_ty = self.map_type(resolved_ty);
+            if resolved_llvm_ty != "i64" {
+                return resolved_llvm_ty;
+            }
+        }
+        authored_llvm_ty
+    }
+
+    fn resolved_struct_pointer_llvm_ty(&self, resolved_ty: &ResolvedType) -> Option<String> {
+        let inner = match resolved_ty {
+            ResolvedType::Ptr { inner, .. } | ResolvedType::Ref { inner, .. } => inner.as_ref(),
+            _ => return None,
+        };
+        let pointee_ty = self.map_type(inner);
+        pointee_ty.starts_with('%').then(|| format!("{pointee_ty}*"))
+    }
+
     fn intern_string_global_name(&mut self, s: &str) -> String {
         if let Some(name) = self.strings.get(s) {
             name.clone()
@@ -9413,6 +9639,133 @@ impl LlvmGenerator {
         }
     }
 
+    fn compile_field_addressable_ptr(
+        &mut self,
+        object: &Expr,
+        field: &str,
+        span: Span,
+    ) -> KainResult<(String, String, Option<String>, bool)> {
+        if let Some(result) = self.compile_shattered_field_ptr(object, field, span) {
+            return result.map(|(field_ptr, field_ty)| (field_ptr, field_ty, None, false));
+        }
+        if let Expr::Ident(name, _) = object {
+            if let Some((addr, obj_ty)) = self.locals.get(name).cloned() {
+                if obj_ty.starts_with('%') && !obj_ty.ends_with('*') {
+                    let struct_name = obj_ty[1..].to_string();
+                    let field_index = self.field_index(&struct_name, field).ok_or_else(|| {
+                        KainError::codegen(
+                            format!("Unknown field '{}' on {}", field, struct_name),
+                            span,
+                        )
+                    })?;
+                    let field_ty = self
+                        .struct_defs
+                        .get(&struct_name)
+                        .and_then(|fields| fields.get(field_index))
+                        .map(|(_, ty)| ty.clone())
+                        .unwrap_or_else(|| "i64".to_string());
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+                        field_ptr, struct_name, struct_name, addr, field_index
+                    ));
+                    return Ok((field_ptr, field_ty, Some(struct_name), false));
+                }
+                if obj_ty == "i64" {
+                    if let Some(authored_ptr_ty) = self.authored_pointer_locals.get(name).cloned() {
+                        if let Some(struct_name) =
+                            self.ptr_struct_name(&authored_ptr_ty).map(|name| name.to_string())
+                        {
+                            let field_index =
+                                self.field_index(&struct_name, field).ok_or_else(|| {
+                                    KainError::codegen(
+                                        format!("Unknown field '{}' on {}", field, struct_name),
+                                        span,
+                                    )
+                                })?;
+                            let field_ty = self
+                                .struct_defs
+                                .get(&struct_name)
+                                .and_then(|fields| fields.get(field_index))
+                                .map(|(_, ty)| ty.clone())
+                                .unwrap_or_else(|| "i64".to_string());
+                            let raw_ptr = self.next_reg();
+                            self.emit(&format!("  {} = load i64, i64* {}", raw_ptr, addr));
+                            let typed_ptr = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = inttoptr i64 {} to {}",
+                                typed_ptr, raw_ptr, authored_ptr_ty
+                            ));
+                            let field_ptr = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                                field_ptr, struct_name, authored_ptr_ty, typed_ptr, field_index
+                            ));
+                            return Ok((
+                                field_ptr,
+                                field_ty,
+                                Some(struct_name.clone()),
+                                self.mmio_structs.contains(&struct_name),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        let (obj_val, obj_ty) = self.compile_expr(object)?;
+        let (struct_name, struct_ptr, field_index, struct_name_hint, is_mmio_volatile) =
+            if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {
+                let index = self.field_index(struct_name, field).ok_or_else(|| {
+                    KainError::codegen(
+                        format!("Unknown field '{}' on {}", field, struct_name),
+                        span,
+                    )
+                })?;
+                (
+                    struct_name.to_string(),
+                    obj_val,
+                    index,
+                    Some(struct_name.to_string()),
+                    self.mmio_structs.contains(struct_name),
+                )
+            } else if obj_ty.starts_with('%') {
+                let struct_name = obj_ty[1..].to_string();
+                let index = self.field_index(&struct_name, field).ok_or_else(|| {
+                    KainError::codegen(
+                        format!("Unknown field '{}' on {}", field, struct_name),
+                        span,
+                    )
+                })?;
+                let tmp_addr = self.next_reg();
+                self.emit_entry_alloca(&tmp_addr, &obj_ty);
+                self.emit(&format!(
+                    "  store {} {}, {}* {}",
+                    obj_ty, obj_val, obj_ty, tmp_addr
+                ));
+                (struct_name.clone(), tmp_addr, index, Some(struct_name), false)
+            } else {
+                return Err(KainError::codegen(
+                    format!(
+                        "Field address for .{} requires a struct or struct pointer, but LLVM lowered {:?} to {}",
+                        field, object, obj_ty
+                    ),
+                    span,
+                ));
+            };
+        let field_ty = self
+            .struct_defs
+            .get(&struct_name)
+            .and_then(|fields| fields.get(field_index))
+            .map(|(_, ty)| ty.clone())
+            .unwrap_or_else(|| "i64".to_string());
+        let field_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+            field_ptr, struct_name, struct_name, struct_ptr, field_index
+        ));
+        Ok((field_ptr, field_ty, struct_name_hint, is_mmio_volatile))
+    }
+
     fn compile_addressable_ptr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
         match expr {
             Expr::Ident(name, span) => {
@@ -9432,84 +9785,9 @@ impl LlvmGenerator {
                 object,
                 field,
                 span,
-            } => {
-                if let Some(result) = self.compile_shattered_field_ptr(object, field, *span) {
-                    return result;
-                }
-                if let Expr::Ident(name, _) = object.as_ref() {
-                    if let Some((addr, obj_ty)) = self.locals.get(name).cloned() {
-                        if obj_ty.starts_with('%') && !obj_ty.ends_with('*') {
-                            let struct_name = obj_ty[1..].to_string();
-                            let field_index =
-                                self.field_index(&struct_name, field).ok_or_else(|| {
-                                    KainError::codegen(
-                                        format!("Unknown field '{}' on {}", field, struct_name),
-                                        *span,
-                                    )
-                                })?;
-                            let field_ty = self
-                                .struct_defs
-                                .get(&struct_name)
-                                .and_then(|fields| fields.get(field_index))
-                                .map(|(_, ty)| ty.clone())
-                                .unwrap_or_else(|| "i64".to_string());
-                            let field_ptr = self.next_reg();
-                            self.emit(&format!(
-                                "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
-                                field_ptr, struct_name, struct_name, addr, field_index
-                            ));
-                            return Ok((field_ptr, field_ty));
-                        }
-                    }
-                }
-                let (obj_val, obj_ty) = self.compile_expr(object)?;
-                let (struct_name, struct_ptr, field_index) = if let Some(struct_name) =
-                    self.ptr_struct_name(&obj_ty)
-                {
-                    let index = self.field_index(struct_name, field).ok_or_else(|| {
-                        KainError::codegen(
-                            format!("Unknown field '{}' on {}", field, struct_name),
-                            *span,
-                        )
-                    })?;
-                    (struct_name.to_string(), obj_val, index)
-                } else if obj_ty.starts_with('%') {
-                    let struct_name = obj_ty[1..].to_string();
-                    let index = self.field_index(&struct_name, field).ok_or_else(|| {
-                        KainError::codegen(
-                            format!("Unknown field '{}' on {}", field, struct_name),
-                            *span,
-                        )
-                    })?;
-                    let tmp_addr = self.next_reg();
-                    self.emit_entry_alloca(&tmp_addr, &obj_ty);
-                    self.emit(&format!(
-                        "  store {} {}, {}* {}",
-                        obj_ty, obj_val, obj_ty, tmp_addr
-                    ));
-                    (struct_name, tmp_addr, index)
-                } else {
-                    return Err(KainError::codegen(
-                            format!(
-                                "Field address for .{} requires a struct or struct pointer, but LLVM lowered {:?} to {}",
-                                field, object, obj_ty
-                            ),
-                            *span,
-                        ));
-                };
-                let field_ty = self
-                    .struct_defs
-                    .get(&struct_name)
-                    .and_then(|fields| fields.get(field_index))
-                    .map(|(_, ty)| ty.clone())
-                    .unwrap_or_else(|| "i64".to_string());
-                let field_ptr = self.next_reg();
-                self.emit(&format!(
-                    "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
-                    field_ptr, struct_name, struct_name, struct_ptr, field_index
-                ));
-                Ok((field_ptr, field_ty))
-            }
+            } => self
+                .compile_field_addressable_ptr(object, field, *span)
+                .map(|(field_ptr, field_ty, _, _)| (field_ptr, field_ty)),
             Expr::Index {
                 object,
                 index,
@@ -10659,7 +10937,10 @@ impl LlvmGenerator {
                         .map(|ty| self.map_type(ty))
                         .unwrap_or_else(|| "i64".to_string()))
                 } else {
-                    Ok(self.map_type_from_ast(&param.ty))
+                    Ok(resolved_params
+                        .get(index)
+                        .map(|ty| self.prefer_resolved_param_codegen_type(&param.ty, ty))
+                        .unwrap_or_else(|| self.map_type_from_ast(&param.ty)))
                 }
             })
             .collect()
@@ -10678,6 +10959,10 @@ impl LlvmGenerator {
         let param_tys = self.ast_param_codegen_types(&func.ast.params, &resolved_params)?;
         if let Some(return_type) = &func.ast.return_type {
             ret_ty = self.map_type_from_ast(return_type);
+        } else if Self::callable_is_naked(&func.ast.attributes)
+            || Self::callable_is_interrupt(&func.ast.attributes)
+        {
+            ret_ty = "void".to_string();
         }
         Ok((param_tys, ret_ty))
     }
@@ -10737,6 +11022,17 @@ impl LlvmGenerator {
                             })
                             .collect(),
                     );
+                    self.function_symbols.insert(
+                        func.ast.name.clone(),
+                        Self::callable_link_name(&func.ast.attributes)
+                            .unwrap_or_else(|| func.ast.name.clone()),
+                    );
+                    if let Some(callconv) = self
+                        .callable_llvm_calling_convention(&func.ast.attributes, func.ast.span)?
+                    {
+                        self.function_calling_conventions
+                            .insert(func.ast.name.clone(), callconv);
+                    }
                     if Self::function_is_extern(func) {
                         self.extern_functions.insert(func.ast.name.clone());
                     } else {
@@ -10828,12 +11124,26 @@ impl LlvmGenerator {
                     if struct_is_value_aggregate {
                         self.value_aggregate_structs.insert(s.ast.name.clone());
                     }
+                    if s.ast
+                        .attributes
+                        .iter()
+                        .any(|attribute| attribute.name == ATTR_MMIO)
+                    {
+                        self.mmio_structs.insert(s.ast.name.clone());
+                    }
 
                     let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
+                    let is_packed = s
+                        .ast
+                        .attributes
+                        .iter()
+                        .any(|attribute| attribute.name == ATTR_PACKED);
                     self.emit(&format!(
-                        "%{} = type {{ {} }}",
+                        "%{} = type {} {} {}",
                         s.ast.name,
-                        field_types.join(", ")
+                        if is_packed { "<{" } else { "{" },
+                        field_types.join(", "),
+                        if is_packed { "}>" } else { "}" }
                     ));
                 }
                 TypedItem::World(world) => {
@@ -11057,7 +11367,23 @@ impl LlvmGenerator {
     fn register_const_global(&mut self, constant: &TypedConst) {
         let name = &constant.ast.name;
         let llvm_ty = self.map_type(&constant.ty);
-        let symbol_name = Self::sanitize_symbol_fragment(name);
+        let link_name = Self::callable_link_name(&constant.ast.attributes);
+        let symbol_name = link_name
+            .clone()
+            .unwrap_or_else(|| format!("__kain_const_{}", Self::sanitize_symbol_fragment(name)));
+        let thread_local = constant
+            .ast
+            .attributes
+            .iter()
+            .any(|attribute| attribute.name == ATTR_THREAD_LOCAL);
+        let section_suffix = Self::callable_section_name(&constant.ast.attributes)
+            .map(|section| {
+                format!(
+                    ", section \"{}\"",
+                    Self::escape_llvm_inline_asm_fragment(&section)
+                )
+            })
+            .unwrap_or_default();
         let initializer = self.llvm_constant_initializer_for_expr(&constant.ast.value, &llvm_ty);
         let requires_runtime_init = initializer.is_none();
         let string_literal = if Self::resolved_type_is_string(&constant.ty) {
@@ -11067,9 +11393,15 @@ impl LlvmGenerator {
         };
 
         let info = ConstGlobalInfo {
-            global_symbol: format!("@__kain_const_{}", symbol_name),
-            init_flag_symbol: format!("@__kain_const_init_flag_{}", symbol_name),
-            init_fn_name: format!("__kain_init_const_{}", symbol_name),
+            global_symbol: format!("@{}", symbol_name),
+            init_flag_symbol: format!(
+                "@__kain_const_init_flag_{}",
+                Self::sanitize_symbol_fragment(name)
+            ),
+            init_fn_name: format!(
+                "__kain_init_const_{}",
+                Self::sanitize_symbol_fragment(name)
+            ),
             ty: llvm_ty.clone(),
             requires_runtime_init,
             is_known_string: Self::resolved_type_is_string(&constant.ty),
@@ -11079,15 +11411,29 @@ impl LlvmGenerator {
 
         if let Some(initializer) = initializer {
             self.emit(&format!(
-                "{} = internal constant {} {}",
-                info.global_symbol, llvm_ty, initializer
+                "{} = {}{}{} {} {}{}",
+                info.global_symbol,
+                if link_name.is_some() { "" } else { "internal " },
+                if thread_local { "thread_local " } else { "" },
+                if thread_local { "global" } else { "constant" },
+                llvm_ty,
+                initializer,
+                section_suffix
             ));
         } else {
             self.emit(&format!(
-                "{} = internal global {} zeroinitializer",
-                info.global_symbol, llvm_ty
+                "{} = {}{}global {} zeroinitializer{}",
+                info.global_symbol,
+                if link_name.is_some() { "" } else { "internal " },
+                if thread_local { "thread_local " } else { "" },
+                llvm_ty,
+                section_suffix
             ));
-            self.emit(&format!("{} = internal global i1 0", info.init_flag_symbol));
+            self.emit(&format!(
+                "{} = internal {}global i1 0",
+                info.init_flag_symbol,
+                if thread_local { "thread_local " } else { "" }
+            ));
         }
 
         self.const_globals.insert(name.clone(), info);
@@ -11130,6 +11476,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -11307,6 +11654,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -11476,6 +11824,7 @@ impl LlvmGenerator {
             // Setup scope for handler locals.
             self.scopes.push(Vec::new());
             self.locals.clear();
+            self.authored_pointer_locals.clear();
             self.helper_owned_pointer_locals.clear();
             self.shattered_array_locals.clear();
             self.fixed_array_locals.clear();
@@ -11508,6 +11857,8 @@ impl LlvmGenerator {
                 self.emit_entry_alloca(&addr_reg, &p_ty);
                 self.emit(&format!("  store {} {}, {}* {}", p_ty, val, p_ty, addr_reg));
                 self.locals.insert(param.name.clone(), (addr_reg, p_ty));
+                let authored_param_ty = self.authored_pointer_param_type(param).cloned();
+                self.record_authored_struct_pointer_local(&param.name, authored_param_ty.as_ref());
                 if let Some(scope) = self.scopes.last_mut() {
                     scope.push(param.name.clone());
                 }
@@ -11738,6 +12089,7 @@ impl LlvmGenerator {
         self.emit("");
         self.emit("; Inline hint for tiny hot helpers");
         self.emit("attributes #0 = { alwaysinline }");
+        self.emit("attributes #1 = { naked }");
     }
 
     fn emit_stdlib_externs(&mut self) {
@@ -11821,6 +12173,7 @@ impl LlvmGenerator {
     fn compile_component(&mut self, component: &TypedComponent) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -11912,6 +12265,7 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -12018,6 +12372,8 @@ impl LlvmGenerator {
             ));
             self.locals
                 .insert(param.name.clone(), (addr_reg.clone(), p_ty));
+            let authored_param_ty = self.authored_pointer_param_type(param).cloned();
+            self.record_authored_struct_pointer_local(&param.name, authored_param_ty.as_ref());
             if Self::ast_type_is_string(&param.ty) {
                 self.string_locals.insert(param.name.clone());
                 if Self::block_has_loop_that_mentions_identifier(&method.body, &param.name) {
@@ -12094,6 +12450,7 @@ impl LlvmGenerator {
     fn compile_named_callable(
         &mut self,
         callable_name: &str,
+        attributes: &[Attribute],
         params: &[kain_core::ast::Param],
         explicit_return_type: Option<&Type>,
         body: &Block,
@@ -12102,6 +12459,7 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -12118,10 +12476,28 @@ impl LlvmGenerator {
         self.entry_preamble_insert_offset = None;
         self.entry_hoisted_const_inits.clear();
 
+        if Self::callable_needs_x86_64_abi_surface(attributes) && !self.target_is_x86_64() {
+            return Err(KainError::codegen(
+                format!(
+                    "callable '{}' uses x86_64-only ABI controls (@callconv/@naked/@interrupt), but LLVM target {} is active",
+                    callable_name, self.target.triple
+                ),
+                span,
+            ));
+        }
+
         let (param_types, mut ret_type) =
             self.callable_signature(resolved_type, callable_name, span)?;
+        if let Some(registered_ret_type) = self.functions.get(callable_name) {
+            ret_type = registered_ret_type.clone();
+        }
         if let Some(return_type) = explicit_return_type {
             ret_type = self.map_type_from_ast(return_type);
+        }
+        if (Self::callable_is_naked(attributes) || Self::callable_is_interrupt(attributes))
+            && explicit_return_type.is_none()
+        {
+            ret_type = "void".to_string();
         }
         let borrowed_string_params = self
             .string_function_params
@@ -12135,11 +12511,23 @@ impl LlvmGenerator {
             if ret_type == "void" {
                 ret_type = "i64".to_string();
             }
-            ("main", true)
+            ("main".to_string(), true)
         } else {
-            (callable_name, false)
+            (
+                Self::callable_link_name(attributes)
+                    .unwrap_or_else(|| callable_name.to_string()),
+                false,
+            )
         };
-        let callable_linkage = if is_main { "" } else { " internal" };
+        let callable_linkage = if is_main || Self::callable_link_name(attributes).is_some() {
+            ""
+        } else {
+            " internal"
+        };
+        let callconv_prefix = self
+            .callable_llvm_calling_convention(attributes, span)?
+            .map(|callconv| format!("{callconv} "))
+            .unwrap_or_default();
 
         let mut param_str = String::new();
         for (index, _) in params.iter().enumerate() {
@@ -12150,14 +12538,32 @@ impl LlvmGenerator {
             param_str.push_str(&format!("{} %arg{}", param_ty, index));
         }
 
-        let inline_attr = if self.should_force_inline_callable(callable_name, body) {
+        let inline_attr = if Self::callable_is_naked(attributes) {
+            " #1"
+        } else if Self::callable_is_interrupt(attributes) {
+            ""
+        } else if self.should_force_inline_callable(callable_name, body) {
             " #0"
         } else {
             ""
         };
+        let section_suffix = Self::callable_section_name(attributes)
+            .map(|section| {
+                format!(
+                    " section \"{}\"",
+                    Self::escape_llvm_inline_asm_fragment(&section)
+                )
+            })
+            .unwrap_or_default();
         self.emit(&format!(
-            "define{} {} @{}({}){} {{",
-            callable_linkage, ret_type, llvm_name, param_str, inline_attr
+            "define{} {}{} @{}({}){}{} {{",
+            callable_linkage,
+            callconv_prefix,
+            ret_type,
+            llvm_name,
+            param_str,
+            inline_attr,
+            section_suffix
         ));
         self.emit_label("entry");
 
@@ -12187,6 +12593,16 @@ impl LlvmGenerator {
             ));
             self.locals
                 .insert(param.name.clone(), (addr_reg.clone(), param_ty));
+            let authored_param_ty = self.authored_pointer_param_type(param).cloned();
+            self.record_authored_struct_pointer_local(&param.name, authored_param_ty.as_ref());
+            if !self.authored_pointer_locals.contains_key(&param.name) {
+                if let Some(resolved_param_ty) = param_types.get(index) {
+                    if let Some(ptr_ty) = self.resolved_struct_pointer_llvm_ty(resolved_param_ty) {
+                        self.authored_pointer_locals
+                            .insert(param.name.clone(), ptr_ty);
+                    }
+                }
+            }
             if (!matches!(param.ty, Type::Infer(_)) && Self::ast_type_is_string(&param.ty))
                 || (matches!(param.ty, Type::Infer(_))
                     && param_types
@@ -12267,6 +12683,7 @@ impl LlvmGenerator {
         let previous_patch = self.current_patch_name.replace(patch.ast.name.clone());
         let result = self.compile_named_callable(
             &patch.ast.name,
+            &patch.ast.attributes,
             &patch.ast.params,
             patch.ast.return_type.as_ref(),
             &patch.ast.body,
@@ -12280,6 +12697,7 @@ impl LlvmGenerator {
     fn compile_law(&mut self, law: &kain_core::types::TypedLaw) -> KainResult<()> {
         self.compile_named_callable(
             &law.ast.name,
+            &law.ast.attributes,
             &law.ast.params,
             Some(&law.ast.return_type),
             &law.ast.body,
@@ -12291,6 +12709,7 @@ impl LlvmGenerator {
     fn compile_axiom(&mut self, axiom: &kain_core::types::TypedAxiom) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -12346,6 +12765,7 @@ impl LlvmGenerator {
     fn compile_pulse(&mut self, pulse: &kain_core::types::TypedPulse) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -12391,6 +12811,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -12454,6 +12875,7 @@ impl LlvmGenerator {
         if converge.ast.fast_lanes.is_empty() {
             return self.compile_named_callable(
                 &converge.ast.name,
+                &converge.ast.attributes,
                 &converge.ast.params,
                 converge.ast.return_type.as_ref(),
                 &converge.ast.spec_lane.body,
@@ -12495,6 +12917,7 @@ impl LlvmGenerator {
 
         self.compile_named_callable(
             &spec_name,
+            &[],
             &converge.ast.params,
             converge.ast.return_type.as_ref(),
             &converge.ast.spec_lane.body,
@@ -12504,6 +12927,7 @@ impl LlvmGenerator {
         for (lane, fast_name) in converge.ast.fast_lanes.iter().zip(fast_names.iter()) {
             self.compile_named_callable(
                 fast_name,
+                &[],
                 &converge.ast.params,
                 converge.ast.return_type.as_ref(),
                 &lane.body,
@@ -12514,6 +12938,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -12760,6 +13185,7 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
         self.fixed_array_locals.clear();
@@ -12834,6 +13260,7 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.compile_named_callable(
             &orchestrate.ast.name,
+            &orchestrate.ast.attributes,
             &orchestrate.ast.params,
             orchestrate.ast.return_type.as_ref(),
             &orchestrate.ast.body,
@@ -12873,6 +13300,7 @@ impl LlvmGenerator {
         }
         self.compile_named_callable(
             &func.ast.name,
+            &func.ast.attributes,
             &func.ast.params,
             func.ast.return_type.as_ref(),
             &func.ast.body,
@@ -12882,6 +13310,16 @@ impl LlvmGenerator {
     }
 
     fn compile_extern_function(&mut self, func: &TypedFunction) -> KainResult<()> {
+        if Self::callable_needs_x86_64_abi_surface(&func.ast.attributes) && !self.target_is_x86_64()
+        {
+            return Err(KainError::codegen(
+                format!(
+                    "extern callable '{}' uses x86_64-only ABI controls (@callconv/@naked/@interrupt), but LLVM target {} is active",
+                    func.ast.name, self.target.triple
+                ),
+                func.ast.span,
+            ));
+        }
         let (param_types, ret_type) = self.function_codegen_signature(func)?;
 
         let mut param_str = String::new();
@@ -12901,14 +13339,27 @@ impl LlvmGenerator {
         self.extern_functions.insert(func.ast.name.clone());
         self.functions
             .insert(func.ast.name.clone(), ret_type.clone());
+        self.function_symbols.insert(
+            func.ast.name.clone(),
+            Self::callable_link_name(&func.ast.attributes)
+                .unwrap_or_else(|| func.ast.name.clone()),
+        );
+        if let Some(callconv) =
+            self.callable_llvm_calling_convention(&func.ast.attributes, func.ast.span)?
+        {
+            self.function_calling_conventions
+                .insert(func.ast.name.clone(), callconv);
+        }
 
         if llvm_runtime_declaration_is_preemitted(&func.ast.name) {
             return Ok(());
         }
 
+        let emitted_symbol = self.callable_symbol_for_name(&func.ast.name);
+        let callconv_prefix = self.callable_callconv_prefix_for_name(&func.ast.name);
         self.emit(&format!(
-            "declare {} @{}({})",
-            ret_type, func.ast.name, param_str
+            "declare {}{} @{}({})",
+            callconv_prefix, ret_type, emitted_symbol, param_str
         ));
         self.emit("");
         Ok(())
@@ -13370,6 +13821,11 @@ impl LlvmGenerator {
                                 self.string_length_values.remove(name);
                                 self.locals
                                     .insert(name.clone(), (storage_reg.clone(), array_ty.clone()));
+                                self.record_authored_struct_pointer_local_for_let(
+                                    name,
+                                    ty.as_ref(),
+                                    *span,
+                                );
                                 self.helper_owned_pointer_locals.remove(name);
                                 self.ephemeral_owned_pointer_locals.remove(name);
                                 self.json_handle_locals.remove(name);
@@ -13430,6 +13886,11 @@ impl LlvmGenerator {
                                     self.locals.insert(
                                         name.clone(),
                                         (addr_reg.clone(), "i8*".to_string()),
+                                    );
+                                    self.record_authored_struct_pointer_local_for_let(
+                                        name,
+                                        ty.as_ref(),
+                                        *span,
                                     );
                                     self.helper_owned_pointer_locals.remove(name);
                                     self.ephemeral_owned_pointer_locals.remove(name);
@@ -13533,6 +13994,11 @@ impl LlvmGenerator {
                                 self.string_length_values.remove(name);
                                 self.locals
                                     .insert(name.clone(), (addr_reg, "i64".to_string()));
+                                self.record_authored_struct_pointer_local_for_let(
+                                    name,
+                                    ty.as_ref(),
+                                    *span,
+                                );
                                 self.helper_owned_pointer_locals.remove(name);
                                 self.json_handle_locals.remove(name);
                                 self.ephemeral_owned_pointer_locals.insert(
@@ -13594,6 +14060,11 @@ impl LlvmGenerator {
                         let local_pointer_provenance =
                             self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
+                        self.record_authored_struct_pointer_local_for_let(
+                            name,
+                            ty.as_ref(),
+                            *span,
+                        );
                         if self.expr_returns_json_handle(val_expr) {
                             self.json_handle_locals.insert(name.clone());
                         } else {
@@ -14377,16 +14848,20 @@ impl LlvmGenerator {
             .map(|(val, ty)| format!("{} {}", ty, val))
             .collect::<Vec<_>>()
             .join(", ");
-        let callee_symbol = runtime_symbol_for_stdlib_function(func_name);
+        let callee_symbol = self.callable_symbol_for_name(func_name);
+        let callconv_prefix = self.callable_callconv_prefix_for_name(func_name);
 
         if ret_ty == "void" {
-            self.emit(&format!("  call void @{}({})", callee_symbol, arg_str));
+            self.emit(&format!(
+                "  call {}void @{}({})",
+                callconv_prefix, callee_symbol, arg_str
+            ));
             Ok(("0".into(), "i64".into()))
         } else {
             let res = self.next_reg();
             self.emit(&format!(
-                "  {} = call {} @{}({})",
-                res, ret_ty, callee_symbol, arg_str
+                "  {} = call {}{} @{}({})",
+                res, callconv_prefix, ret_ty, callee_symbol, arg_str
             ));
             Ok((res, ret_ty))
         }
@@ -14945,13 +15420,20 @@ impl LlvmGenerator {
                 }
             }
             Expr::Field {
-                ..
+                object,
+                field,
+                span,
             } => {
-                let (field_ptr, field_ty) = self.compile_addressable_ptr(expr)?;
+                let (field_ptr, field_ty, _, is_mmio_volatile) =
+                    self.compile_field_addressable_ptr(object, field, *span)?;
                 let loaded = self.next_reg();
                 self.emit(&format!(
-                    "  {} = load {}, {}* {}",
-                    loaded, field_ty, field_ty, field_ptr
+                    "  {} = load {}{}, {}* {}",
+                    loaded,
+                    if is_mmio_volatile { "volatile " } else { "" },
+                    field_ty,
+                    field_ty,
+                    field_ptr
                 ));
                 Ok((loaded, field_ty))
             }
@@ -14993,44 +15475,11 @@ impl LlvmGenerator {
                     }
                 }
                 Expr::Field { object, field, .. } => {
-                    let (obj_val, obj_ty) = self.compile_expr(object)?;
-                    let (struct_name, struct_ptr, field_index) =
-                        if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {
-                            let index = self.field_index(struct_name, field).ok_or_else(|| {
-                                KainError::codegen(
-                                    format!("Unknown field '{}' on {}", field, struct_name),
-                                    *span,
-                                )
-                            })?;
-                            (struct_name.to_string(), obj_val, index)
-                        } else if obj_ty.starts_with('%') {
-                            let struct_name = obj_ty[1..].to_string();
-                            let index = self.field_index(&struct_name, field).ok_or_else(|| {
-                                KainError::codegen(
-                                    format!("Unknown field '{}' on {}", field, struct_name),
-                                    *span,
-                                )
-                            })?;
-                            let tmp_addr = self.next_reg();
-                            self.emit_entry_alloca(&tmp_addr, &obj_ty);
-                            self.emit(&format!(
-                                "  store {} {}, {}* {}",
-                                obj_ty, obj_val, obj_ty, tmp_addr
-                            ));
-                            (struct_name, tmp_addr, index)
-                        } else {
-                            return Err(KainError::codegen(
-                                "Field assignment requires a struct or struct pointer",
-                                *span,
-                            ));
-                        };
-                    let field_ty = self
-                        .struct_defs
-                        .get(&struct_name)
-                        .and_then(|fields| fields.get(field_index))
-                        .map(|(_, ty)| ty.clone())
-                        .unwrap_or_else(|| "i64".to_string());
-                    let field_path = self.native_world_field_path(&struct_name, field);
+                    let (field_ptr, field_ty, struct_name, is_mmio_volatile) =
+                        self.compile_field_addressable_ptr(object, field, *span)?;
+                    let field_path = struct_name
+                        .as_ref()
+                        .and_then(|name| self.native_world_field_path(name, field));
                     if let Some(path) = field_path.as_ref() {
                         if let Some(binding) = self.native_entangle_mirror_binding(path) {
                             return Err(KainError::codegen(
@@ -15042,14 +15491,14 @@ impl LlvmGenerator {
                             ));
                         }
                     }
-                    let field_ptr = self.next_reg();
-                    self.emit(&format!(
-                        "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
-                        field_ptr, struct_name, struct_name, struct_ptr, field_index
-                    ));
                     let old_value = if self.current_patch_name.is_some() && field_ty == "i64" {
                         let loaded = self.next_reg();
-                        self.emit(&format!("  {} = load i64, i64* {}", loaded, field_ptr));
+                        self.emit(&format!(
+                            "  {} = load {}i64, i64* {}",
+                            loaded,
+                            if is_mmio_volatile { "volatile " } else { "" },
+                            field_ptr
+                        ));
                         Some(loaded)
                     } else {
                         None
@@ -15060,8 +15509,12 @@ impl LlvmGenerator {
                         self.emit_patch_record_i64(path, old_value, &rhs);
                     }
                     self.emit(&format!(
-                        "  store {} {}, {}* {}",
-                        rhs_ty, rhs, field_ty, field_ptr
+                        "  store {}{} {}, {}* {}",
+                        if is_mmio_volatile { "volatile " } else { "" },
+                        rhs_ty,
+                        rhs,
+                        field_ty,
+                        field_ptr
                     ));
                     if field_ty == "i64" {
                         if let Some(path) = field_path.as_ref() {

@@ -147,7 +147,6 @@ pub fn filesystem_module_candidates_with_context(
         PathBuf::from(format!("src/core/{module_base}.kn")),
     );
     push_unique_path(&mut candidates, PathBuf::from(format!("{path}.kn")));
-    push_unique_path(&mut candidates, base_path.with_extension("god"));
 
     if path_segments.len() > 1 {
         push_unique_path(&mut candidates, module_base_path.with_extension("kn"));
@@ -155,7 +154,6 @@ pub fn filesystem_module_candidates_with_context(
             &mut candidates,
             PathBuf::from(format!("src/{module_base}.kn")),
         );
-        push_unique_path(&mut candidates, module_base_path.with_extension("god"));
     }
 
     append_context_module_candidates(&mut candidates, path_segments, context);
@@ -183,12 +181,10 @@ fn append_importer_relative_candidates(
         return;
     };
     let path = path_segments.join("/");
-    let base_path = Path::new(&path);
     let module_base = path_segments
         .first()
         .map(|segment| segment.as_str())
         .unwrap_or(path.as_str());
-    let module_base_path = Path::new(module_base);
 
     let mut current = importer_dir.to_path_buf();
     loop {
@@ -206,17 +202,12 @@ fn append_importer_relative_candidates(
                 .with_extension("kn"),
         );
         push_unique_path(candidates, current.join(format!("{path}.kn")));
-        push_unique_path(candidates, current.join(base_path).with_extension("god"));
 
         if path_segments.len() > 1 {
             push_unique_path(candidates, current.join(module_base).with_extension("kn"));
             push_unique_path(
                 candidates,
                 current.join("src").join(module_base).with_extension("kn"),
-            );
-            push_unique_path(
-                candidates,
-                current.join(module_base_path).with_extension("god"),
             );
         }
 
@@ -303,6 +294,18 @@ mod tests {
         assert!(candidates
             .iter()
             .any(|candidate| candidate.ends_with("blades/math/src/math.kn")));
+    }
+
+    #[test]
+    fn filesystem_candidates_no_longer_probe_god_files() {
+        let candidates =
+            filesystem_module_candidates(&["feature".to_string(), "panel".to_string()]);
+        assert!(candidates.iter().all(|candidate| {
+            candidate
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_none_or(|ext| ext != "god")
+        }));
     }
 
     #[test]

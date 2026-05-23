@@ -1,5 +1,42 @@
 # Kain Memory
 
+# 2026-05-22 - live `.god` module probing is gone from resolver and blade discovery
+
+The live Kain source-discovery path no longer spends time probing legacy `.god`
+module files during filesystem import resolution or blade module-root discovery.
+
+What changed:
+
+- `crates/kain-core/src/module_resolution.rs`
+  - removed `.god` candidate paths from shared filesystem module lookup
+  - added a regression test that asserts filesystem candidates no longer include
+    `.god`
+- `crates/kain-blades/src/lib.rs`
+  - module-root discovery now treats only `.kn` files as authored Kain source
+- `crates/kain-run/src/lib.rs`
+  - removed the explicit `.god` extension match from run-target inference
+- docs / architecture
+  - updated `ARCHITECTURE.md`, `docs/syntax-and-semantics/module-resolution.md`,
+    and `docs/cli/build-run-init.md` so they no longer advertise `.god` as a
+    live source extension
+
+Validation:
+
+- `cargo test -p kain-core module_resolution --target-dir target/codex-no-god`
+- `cargo test -p blade infers_nested_module_roots_from_source_tree --target-dir target/codex-no-god`
+- `cargo test -p kain-run infers_targets_from_file_names --target-dir target/codex-no-god`
+  - blocked by an unrelated current workspace failure in `crates/kain-sys-codegen`
+    (`ConstGlobalInfo` missing `thread_local`)
+
+Durable lesson:
+
+- There were no live `*.god` files left in the repo; the remaining references are
+  historical docs, legacy artifacts, or compatibility shims.
+- This pass removes lookup/discovery overhead and stale surface area, but it does
+  not yet hard-error on an explicitly provided `foo.god` path because generic
+  unknown-extension run inference still falls back to the Kain lane. Treat that
+  as a separate UX-tightening decision if full tombstoning is desired.
+
 # 2026-05-22 - `kain check` is now source-path anchored for C FFI and skips workspace `.kain` caches
 
 The `kain check` lane is less cwd-sensitive and less noisy now: frontend C FFI augmentation no longer depends on the shell launch directory when a real source path is known, and directory-wide checks stop recursing into generated `.kain` trees by default.

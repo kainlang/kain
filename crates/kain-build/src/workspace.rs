@@ -3,6 +3,10 @@ use blade::{
     BladeWorkspace, KainBuildTaskSection, KainManifest, ResolvedBlade, ResolvedCffiLibrary,
     FABRIC_MANIFEST_NAME, KAIN_BUILD_SCRIPT_NAMES,
 };
+use kain_amalgamate::{
+    pack_capsule, CapsuleCompression, CapsuleHeaderStyle, CapsuleIndexMode, CapsuleStorage,
+    PackOptions, DEFAULT_PREVIEW_SYMBOL_LIMIT,
+};
 use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
 use kain_core::format_program;
@@ -16,9 +20,11 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const DEFAULT_PROFILE: &str = "debug";
 const DEFAULT_ARTIFACT_ROOT: &str = ".kain/out";
@@ -205,6 +211,8 @@ pub enum BuildTaskKind {
     GpuArtifacts,
     FabricValidate,
     FabricRun,
+    Exec,
+    Amalgamate,
     Node,
     Bun,
 }
@@ -228,6 +236,8 @@ impl BuildTaskKind {
             Self::GpuArtifacts => "gpu-artifacts",
             Self::FabricValidate => "fabric-validate",
             Self::FabricRun => "fabric-run",
+            Self::Exec => "exec",
+            Self::Amalgamate => "amalgamate",
             Self::Node => "node",
             Self::Bun => "bun",
         }
@@ -321,6 +331,24 @@ enum BuildTaskAdapter {
         manifest_path: PathBuf,
         run: bool,
     },
+    Exec {
+        label: String,
+        program: String,
+        args: Vec<String>,
+        cwd: PathBuf,
+        env: BTreeMap<String, String>,
+        report_path: PathBuf,
+        stdout_path: Option<PathBuf>,
+        stderr_path: Option<PathBuf>,
+        timeout_ms: Option<u64>,
+        required_outputs: Vec<PathBuf>,
+    },
+    Amalgamate {
+        source_root: PathBuf,
+        output_path: PathBuf,
+        report_path: PathBuf,
+        settings: AmalgamateTaskSettings,
+    },
     NodeLike {
         runtime: NodeRuntimeKind,
         entry: Option<PathBuf>,
@@ -335,6 +363,22 @@ enum BuildTaskAdapter {
 enum NodeRuntimeKind {
     Node,
     Bun,
+}
+
+#[derive(Debug, Clone)]
+struct AmalgamateTaskSettings {
+    storage: CapsuleStorage,
+    name: Option<String>,
+    version: Option<String>,
+    authors: Vec<String>,
+    notes: Vec<String>,
+    tags: Vec<String>,
+    meta: BTreeMap<String, String>,
+    header_style: CapsuleHeaderStyle,
+    preview_symbol_limit: usize,
+    compression: CapsuleCompression,
+    api_index: CapsuleIndexMode,
+    module_index: CapsuleIndexMode,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -1503,6 +1547,10 @@ const BUILD_TASK_CONSTRUCTORS: &[(&str, Option<&str>)] = &[
     ("build_task", None),
     ("build_check", Some("check")),
     ("check_task", Some("check")),
+    ("exec_task", Some("exec")),
+    ("command_task", Some("exec")),
+    ("amalgamate_capsule", Some("amalgamate")),
+    ("capsule_task", Some("amalgamate")),
     ("native_executable", Some("native-executable")),
     ("root_executable", Some("native-executable")),
     ("build_native_executable", Some("native-executable")),
@@ -1537,7 +1585,9 @@ fn extract_build_graph_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection>
                 match method.as_str() {
                     "kind" => assign_first_string(&values, &mut task.kind),
                     "blade" => assign_first_optional_string(&values, &mut task.blade),
-                    "entry" => assign_first_optional_path(&values, &mut task.entry),
+                    "entry" | "source" | "path" => {
+                        assign_first_optional_path(&values, &mut task.entry)
+                    }
                     "manifest" => assign_first_optional_path(&values, &mut task.manifest),
                     "command" => assign_first_optional_string(&values, &mut task.command),
                     "arg" | "args" => task.args.extend(values),
@@ -1561,6 +1611,33 @@ fn extract_build_graph_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection>
                         .extend(canonical_matrix_axis_values(values)),
                     "telemetry" | "telemetry_channel" => task.telemetry.extend(values),
                     "certifies" | "certificate" => task.certifies.extend(values),
+                    "env" => insert_task_pair(&values, &mut task.env),
+                    "meta" => insert_task_pair(&values, &mut task.meta),
+                    "option" => insert_task_pair(&values, &mut task.options),
+                    "tag" => task.tags.extend(values),
+                    "note" => task.notes.extend(values),
+                    "author" => task.authors.extend(values),
+                    "name" | "version" | "storage" | "header" | "compression" | "preview_symbols"
+                    | "api_index" | "module_index" | "timeout_ms" | "stdout" | "stderr" => {
+                        if let Some(value) = values.first() {
+                            task.options.insert(method.clone(), value.clone());
+                        }
+                    }
+                    "archive" => {
+                        let enabled = values.first().map_or(true, |value| parse_bool_string(value));
+                        task.options.insert(
+                            "storage".to_string(),
+                            if enabled { "archive" } else { "editable" }.to_string(),
+                        );
+                    }
+                    "editable" => {
+                        task.options
+                            .insert("storage".to_string(), "editable".to_string());
+                    }
+                    "always_run" => {
+                        task.options
+                            .insert("always_run".to_string(), "true".to_string());
+                    }
                     "proof_mode" | "mode" => task.args.extend(values),
                     _ => {}
                 }
@@ -1632,6 +1709,19 @@ fn canonical_matrix_axis_values(values: Vec<String>) -> Vec<String> {
     }
 }
 
+fn parse_bool_string(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "y" | "on"
+    )
+}
+
+fn insert_task_pair(values: &[String], slot: &mut BTreeMap<String, String>) {
+    if values.len() >= 2 {
+        slot.insert(values[0].clone(), values[1].clone());
+    }
+}
+
 fn scan_string_call_chains(
     source: &str,
     function_name: &str,
@@ -1674,6 +1764,34 @@ fn find_function_call(source: &str, function_name: &str, mut offset: usize) -> O
 
 fn is_identifier_byte(byte: u8) -> bool {
     matches!(byte, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_')
+}
+
+fn is_unquoted_literal_start(byte: u8) -> bool {
+    byte.is_ascii_digit() || byte == b'-' || byte == b't' || byte == b'f'
+}
+
+fn parse_unquoted_literal(source: &str, mut index: usize) -> Option<(String, usize)> {
+    let bytes = source.as_bytes();
+    let start = index;
+    while let Some(byte) = bytes.get(index).copied() {
+        if matches!(byte, b',' | b')' | b' ' | b'\n' | b'\r' | b'\t') {
+            break;
+        }
+        index += 1;
+    }
+    let literal = source.get(start..index)?.trim().to_string();
+    if !is_supported_unquoted_literal(&literal) {
+        return None;
+    }
+    Some((literal, index))
+}
+
+fn is_supported_unquoted_literal(value: &str) -> bool {
+    if matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "false") {
+        return true;
+    }
+    let digits = value.strip_prefix('-').unwrap_or(value);
+    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn parse_string_method_chain(source: &str, mut index: usize) -> Vec<(String, Vec<String>, usize)> {
@@ -1720,6 +1838,18 @@ fn parse_string_call_arguments(source: &str, mut index: usize) -> Option<(Vec<St
                 let (value, after_string) = parse_quoted_string(source, index)?;
                 values.push(value);
                 index = skip_ascii_whitespace(bytes, after_string);
+                match bytes.get(index).copied()? {
+                    b',' => {
+                        index += 1;
+                    }
+                    b')' => return Some((values, index + 1)),
+                    _ => return None,
+                }
+            }
+            byte if is_unquoted_literal_start(byte) => {
+                let (value, after_literal) = parse_unquoted_literal(source, index)?;
+                values.push(value);
+                index = skip_ascii_whitespace(bytes, after_literal);
                 match bytes.get(index).copied()? {
                     b',' => {
                         index += 1;
@@ -1974,6 +2104,8 @@ fn build_explicit_task(
         "gpu" | "gpu-artifacts" => BuildTaskKind::GpuArtifacts,
         "fabric" | "fabric-run" => BuildTaskKind::FabricRun,
         "fabric-validate" => BuildTaskKind::FabricValidate,
+        "exec" | "command" => BuildTaskKind::Exec,
+        "amalgamate" | "capsule" => BuildTaskKind::Amalgamate,
         "node" => BuildTaskKind::Node,
         "bun" => BuildTaskKind::Bun,
         other => {
@@ -2001,11 +2133,16 @@ fn build_explicit_task(
         .map(|path| resolve_build_graph_path(&config.workspace_root, root, &task_root, path))
         .collect::<Vec<_>>();
     let default_evidence_report = evidence_report_path(&task_root);
+    let default_exec_report = exec_report_path(&task_root);
+    let default_amalgamate_report = amalgamate_report_path(&task_root);
     let outputs = if task.outputs.is_empty() {
-        if is_evidence_task_kind(kind) {
-            vec![default_evidence_report.clone()]
-        } else {
-            vec![task_root.clone()]
+        match kind {
+            kind if is_evidence_task_kind(kind) => vec![default_evidence_report.clone()],
+            BuildTaskKind::Exec => vec![default_exec_report.clone()],
+            BuildTaskKind::Amalgamate => {
+                vec![task_root.join(format!("{}.kn", sanitize_id(&task.id)))]
+            }
+            _ => vec![task_root.clone()],
         }
     } else {
         requested_outputs.clone()
@@ -2217,6 +2354,99 @@ fn build_explicit_task(
                 run: kind == BuildTaskKind::FabricRun,
             }
         }
+        BuildTaskKind::Exec => {
+            let program = task.command.clone().ok_or_else(|| {
+                BuildError::Config(format!("exec task '{}' requires command", task.id))
+            })?;
+            let stdout_path = task
+                .options
+                .get("stdout")
+                .map(|path| resolve_build_graph_path(&config.workspace_root, root, &task_root, Path::new(path)));
+            let stderr_path = task
+                .options
+                .get("stderr")
+                .map(|path| resolve_build_graph_path(&config.workspace_root, root, &task_root, Path::new(path)));
+            let timeout_ms = task
+                .options
+                .get("timeout_ms")
+                .map(|value| parse_usize_option(&task.id, "timeout_ms", value))
+                .transpose()?
+                .map(|value| value as u64);
+            BuildTaskAdapter::Exec {
+                label: task.id.clone(),
+                program,
+                args: task
+                    .args
+                    .iter()
+                    .map(|value| {
+                        resolve_build_graph_string_value(
+                            &config.workspace_root,
+                            root,
+                            &task_root,
+                            value,
+                        )
+                    })
+                    .collect(),
+                cwd: task
+                    .cwd
+                    .as_ref()
+                    .map(|path| {
+                        resolve_build_graph_path(&config.workspace_root, root, &task_root, path)
+                    })
+                    .unwrap_or_else(|| root.to_path_buf()),
+                env: task
+                    .env
+                    .iter()
+                    .map(|(key, value)| {
+                        (
+                            key.clone(),
+                            resolve_build_graph_string_value(
+                                &config.workspace_root,
+                                root,
+                                &task_root,
+                                value,
+                            ),
+                        )
+                    })
+                    .collect(),
+                report_path: default_exec_report.clone(),
+                stdout_path,
+                stderr_path,
+                timeout_ms,
+                required_outputs: requested_outputs.clone(),
+            }
+        }
+        BuildTaskKind::Amalgamate => {
+            if requested_outputs.len() > 1 {
+                return Err(BuildError::Config(format!(
+                    "amalgamate task '{}' accepts exactly one output capsule path",
+                    task.id
+                )));
+            }
+            let source_root = task.entry.as_ref().ok_or_else(|| {
+                BuildError::Config(format!(
+                    "amalgamate task '{}' requires path/source/entry",
+                    task.id
+                ))
+            })?;
+            let source_root =
+                resolve_build_graph_path(&config.workspace_root, root, &task_root, source_root);
+            if !inputs.iter().any(|path| path == &source_root) {
+                inputs.push(source_root.clone());
+            }
+            let output_path = outputs.first().cloned().ok_or_else(|| {
+                BuildError::Config(format!(
+                    "amalgamate task '{}' requires an output capsule path",
+                    task.id
+                ))
+            })?;
+            BuildTaskAdapter::Amalgamate {
+                source_root,
+                output_path,
+                report_path: default_amalgamate_report.clone(),
+                settings: build_amalgamate_task_settings(task)?,
+            }
+        }
         BuildTaskKind::Node | BuildTaskKind::Bun => {
             let runtime = if kind == BuildTaskKind::Bun {
                 NodeRuntimeKind::Bun
@@ -2248,6 +2478,42 @@ fn build_explicit_task(
             report_path,
             ..
         } => dedup_paths(vec![output.clone(), report_path.clone()]),
+        BuildTaskAdapter::Exec {
+            report_path,
+            stdout_path,
+            stderr_path,
+            ..
+        } => {
+            let mut command_outputs = outputs;
+            if !command_outputs.iter().any(|path| path == report_path) {
+                command_outputs.push(report_path.clone());
+            }
+            if let Some(stdout_path) = stdout_path {
+                if !command_outputs.iter().any(|path| path == stdout_path) {
+                    command_outputs.push(stdout_path.clone());
+                }
+            }
+            if let Some(stderr_path) = stderr_path {
+                if !command_outputs.iter().any(|path| path == stderr_path) {
+                    command_outputs.push(stderr_path.clone());
+                }
+            }
+            dedup_paths(command_outputs)
+        }
+        BuildTaskAdapter::Amalgamate {
+            output_path,
+            report_path,
+            ..
+        } => {
+            let mut capsule_outputs = outputs;
+            if !capsule_outputs.iter().any(|path| path == output_path) {
+                capsule_outputs.push(output_path.clone());
+            }
+            if !capsule_outputs.iter().any(|path| path == report_path) {
+                capsule_outputs.push(report_path.clone());
+            }
+            dedup_paths(capsule_outputs)
+        }
         BuildTaskAdapter::KainTest { report_path, .. }
         | BuildTaskAdapter::ExternalEvidence { report_path, .. }
         | BuildTaskAdapter::Certify { report_path } => {
@@ -2279,7 +2545,8 @@ fn build_explicit_task(
         certifies: task.certifies.clone(),
         cacheable: !matches!(
             kind,
-            BuildTaskKind::Node
+            BuildTaskKind::Exec
+                | BuildTaskKind::Node
                 | BuildTaskKind::Bun
                 | BuildTaskKind::Test
                 | BuildTaskKind::Proof
@@ -2641,6 +2908,35 @@ fn execute_task(
             output_base,
         } => run_gpu_artifacts(source, output_base),
         BuildTaskAdapter::Fabric { manifest_path, run } => run_fabric(manifest_path, *run),
+        BuildTaskAdapter::Exec {
+            label,
+            program,
+            args,
+            cwd,
+            env,
+            report_path,
+            stdout_path,
+            stderr_path,
+            timeout_ms,
+            required_outputs,
+        } => run_exec_task(
+            label,
+            program,
+            args,
+            cwd,
+            env,
+            report_path,
+            stdout_path.as_ref(),
+            stderr_path.as_ref(),
+            *timeout_ms,
+            required_outputs,
+        ),
+        BuildTaskAdapter::Amalgamate {
+            source_root,
+            output_path,
+            report_path,
+            settings,
+        } => run_amalgamate_task(source_root, output_path, report_path, settings),
         BuildTaskAdapter::NodeLike {
             runtime,
             entry,
@@ -2846,11 +3142,13 @@ fn run_external_evidence_command(
     cwd: &Path,
     report_path: &Path,
 ) -> BuildResult<String> {
-    let program = program.as_ref();
+    let program = process_portable_string(program.as_ref());
+    let args = process_portable_args(args);
+    let cwd = process_portable_path(cwd);
     let started_unix_ms = unix_timestamp_ms();
-    let output = Command::new(program)
-        .args(args)
-        .current_dir(cwd)
+    let output = Command::new(&program)
+        .args(&args)
+        .current_dir(&cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
@@ -3670,6 +3968,357 @@ fn run_fabric(manifest_path: &Path, run: bool) -> BuildResult<String> {
     }
 }
 
+fn build_amalgamate_task_settings(task: &KainBuildTaskSection) -> BuildResult<AmalgamateTaskSettings> {
+    Ok(AmalgamateTaskSettings {
+        storage: parse_capsule_storage_option(task, "storage")?.unwrap_or(CapsuleStorage::Editable),
+        name: task.options.get("name").cloned(),
+        version: task.options.get("version").cloned(),
+        authors: task.authors.clone(),
+        notes: task.notes.clone(),
+        tags: task.tags.clone(),
+        meta: task.meta.clone(),
+        header_style: parse_capsule_header_style_option(task, "header")?
+            .unwrap_or(CapsuleHeaderStyle::Rich),
+        preview_symbol_limit: task
+            .options
+            .get("preview_symbols")
+            .map(|value| parse_usize_option(&task.id, "preview_symbols", value))
+            .transpose()?
+            .unwrap_or(DEFAULT_PREVIEW_SYMBOL_LIMIT),
+        compression: parse_capsule_compression_option(task, "compression")?
+            .unwrap_or(CapsuleCompression::Zstd),
+        api_index: parse_capsule_index_option(task, "api_index")?.unwrap_or(CapsuleIndexMode::Auto),
+        module_index: parse_capsule_index_option(task, "module_index")?
+            .unwrap_or(CapsuleIndexMode::Auto),
+    })
+}
+
+fn parse_usize_option(task_id: &str, key: &str, value: &str) -> BuildResult<usize> {
+    value.parse::<usize>().map_err(|_| {
+        BuildError::Config(format!(
+            "task '{}' has invalid {} value '{}'; expected an unsigned integer",
+            task_id, key, value
+        ))
+    })
+}
+
+fn parse_capsule_storage_option(
+    task: &KainBuildTaskSection,
+    key: &str,
+) -> BuildResult<Option<CapsuleStorage>> {
+    let Some(value) = task.options.get(key) else {
+        return Ok(None);
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "editable" => Ok(Some(CapsuleStorage::Editable)),
+        "archive" => Ok(Some(CapsuleStorage::Archive)),
+        other => Err(BuildError::Config(format!(
+            "task '{}' has invalid {} value '{}'; expected editable or archive",
+            task.id, key, other
+        ))),
+    }
+}
+
+fn parse_capsule_header_style_option(
+    task: &KainBuildTaskSection,
+    key: &str,
+) -> BuildResult<Option<CapsuleHeaderStyle>> {
+    let Some(value) = task.options.get(key) else {
+        return Ok(None);
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "minimal" => Ok(Some(CapsuleHeaderStyle::Minimal)),
+        "rich" => Ok(Some(CapsuleHeaderStyle::Rich)),
+        "off" => Ok(Some(CapsuleHeaderStyle::Off)),
+        other => Err(BuildError::Config(format!(
+            "task '{}' has invalid {} value '{}'; expected minimal, rich, or off",
+            task.id, key, other
+        ))),
+    }
+}
+
+fn parse_capsule_compression_option(
+    task: &KainBuildTaskSection,
+    key: &str,
+) -> BuildResult<Option<CapsuleCompression>> {
+    let Some(value) = task.options.get(key) else {
+        return Ok(None);
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "zstd" => Ok(Some(CapsuleCompression::Zstd)),
+        "none" => Ok(Some(CapsuleCompression::None)),
+        other => Err(BuildError::Config(format!(
+            "task '{}' has invalid {} value '{}'; expected zstd or none",
+            task.id, key, other
+        ))),
+    }
+}
+
+fn parse_capsule_index_option(
+    task: &KainBuildTaskSection,
+    key: &str,
+) -> BuildResult<Option<CapsuleIndexMode>> {
+    let Some(value) = task.options.get(key) else {
+        return Ok(None);
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "auto" => Ok(Some(CapsuleIndexMode::Auto)),
+        "off" => Ok(Some(CapsuleIndexMode::Off)),
+        other => Err(BuildError::Config(format!(
+            "task '{}' has invalid {} value '{}'; expected auto or off",
+            task.id, key, other
+        ))),
+    }
+}
+
+fn capsule_index_mode_name(mode: CapsuleIndexMode) -> &'static str {
+    match mode {
+        CapsuleIndexMode::Auto => "auto",
+        CapsuleIndexMode::Off => "off",
+    }
+}
+
+#[derive(Debug)]
+struct CapturedCommandResult {
+    exit_code: Option<i32>,
+    timed_out: bool,
+    stdout: String,
+    stderr: String,
+}
+
+fn run_exec_task(
+    label: &str,
+    program: &str,
+    args: &[String],
+    cwd: &Path,
+    env: &BTreeMap<String, String>,
+    report_path: &Path,
+    stdout_path: Option<&PathBuf>,
+    stderr_path: Option<&PathBuf>,
+    timeout_ms: Option<u64>,
+    required_outputs: &[PathBuf],
+) -> BuildResult<String> {
+    let started_unix_ms = unix_timestamp_ms();
+    let program = process_portable_string(program);
+    let args = process_portable_args(args);
+    let cwd = process_portable_path(cwd);
+    let env = process_portable_env(env);
+    let mut command = Command::new(&program);
+    command
+        .args(&args)
+        .current_dir(&cwd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (key, value) in &env {
+        command.env(key, value);
+    }
+    let captured = run_captured_command(command, &format!("exec task '{label}'"), timeout_ms)?;
+    if let Some(stdout_path) = stdout_path {
+        write_optional_capture(stdout_path, &captured.stdout)?;
+    }
+    if let Some(stderr_path) = stderr_path {
+        write_optional_capture(stderr_path, &captured.stderr)?;
+    }
+    let finished_unix_ms = unix_timestamp_ms();
+    write_json_report(
+        report_path,
+        &json!({
+            "schema_version": 1,
+            "kind": "exec",
+            "task_id": label,
+            "program": program,
+            "args": args,
+            "cwd": cwd,
+            "env": env,
+            "timed_out": captured.timed_out,
+            "timeout_ms": timeout_ms,
+            "exit_code": captured.exit_code,
+            "status": if captured.timed_out {
+                "timed_out"
+            } else if captured.exit_code == Some(0) {
+                "passed"
+            } else {
+                "failed"
+            },
+            "stdout_path": stdout_path,
+            "stderr_path": stderr_path,
+            "stdout": captured.stdout,
+            "stderr": captured.stderr,
+            "started_unix_ms": started_unix_ms,
+            "finished_unix_ms": finished_unix_ms,
+        }),
+    )?;
+    if captured.timed_out {
+        return Err(BuildError::Command(format!(
+            "exec task '{}' timed out after {}ms; report {}",
+            label,
+            timeout_ms.unwrap_or(0),
+            report_path.display()
+        )));
+    }
+    if captured.exit_code != Some(0) {
+        return Err(BuildError::Command(format!(
+            "exec task '{}' exited with code {:?}; report {}",
+            label,
+            captured.exit_code,
+            report_path.display()
+        )));
+    }
+    validate_required_outputs(label, required_outputs)?;
+    Ok(format!(
+        "exec task '{}' succeeded; report {}",
+        label,
+        report_path.display()
+    ))
+}
+
+fn run_amalgamate_task(
+    source_root: &Path,
+    output_path: &Path,
+    report_path: &Path,
+    settings: &AmalgamateTaskSettings,
+) -> BuildResult<String> {
+    if let Some(parent) = output_path.parent() {
+        kfs::create_dir_all(parent)?;
+    }
+    let mut options = PackOptions::new(source_root, output_path);
+    options.storage = settings.storage;
+    options.name = settings.name.clone();
+    options.version = settings.version.clone();
+    options.authors = settings.authors.clone();
+    options.notes = settings.notes.clone();
+    options.tags = settings.tags.clone();
+    options.meta = settings.meta.clone();
+    options.header_style = settings.header_style;
+    options.preview_symbol_limit = settings.preview_symbol_limit;
+    options.compression = settings.compression;
+    options.api_index = settings.api_index;
+    options.module_index = settings.module_index;
+    let report = pack_capsule(&options)
+        .map_err(|err| BuildError::Command(format!("amalgamate failed: {err}")))?;
+    write_json_report(
+        report_path,
+        &json!({
+            "schema_version": 1,
+            "kind": "amalgamate",
+            "source_root": source_root,
+            "output_path": output_path,
+            "storage": settings.storage.as_str(),
+            "header": settings.header_style.as_str(),
+            "compression": settings.compression.as_str(),
+            "preview_symbol_limit": settings.preview_symbol_limit,
+            "api_index": capsule_index_mode_name(settings.api_index),
+            "module_index": capsule_index_mode_name(settings.module_index),
+            "name": &settings.name,
+            "version": &settings.version,
+            "authors": &settings.authors,
+            "notes": &settings.notes,
+            "tags": &settings.tags,
+            "meta": &settings.meta,
+            "report": report,
+        }),
+    )?;
+    validate_required_outputs("amalgamate", &[output_path.to_path_buf()])?;
+    Ok(format!(
+        "amalgamated {} into {} ({})",
+        source_root.display(),
+        output_path.display(),
+        settings.storage.as_str()
+    ))
+}
+
+fn run_captured_command(
+    mut command: Command,
+    label: &str,
+    timeout_ms: Option<u64>,
+) -> BuildResult<CapturedCommandResult> {
+    let mut child = command
+        .spawn()
+        .map_err(|err| BuildError::Command(format!("failed to invoke {label}: {err}")))?;
+    let stdout_reader = child.stdout.take().map(spawn_output_reader);
+    let stderr_reader = child.stderr.take().map(spawn_output_reader);
+    let start = Instant::now();
+    let (status, timed_out) = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|err| BuildError::Command(format!("failed while waiting for {label}: {err}")))?
+        {
+            break (status, false);
+        }
+        if let Some(timeout_ms) = timeout_ms {
+            if start.elapsed() >= Duration::from_millis(timeout_ms) {
+                let _ = child.kill();
+                let status = child.wait().map_err(|err| {
+                    BuildError::Command(format!(
+                        "failed to reap timed-out command for {label}: {err}"
+                    ))
+                })?;
+                break (status, true);
+            }
+        }
+        thread::sleep(Duration::from_millis(15));
+    };
+    let stdout = join_output_reader(stdout_reader, "stdout", label)?;
+    let stderr = join_output_reader(stderr_reader, "stderr", label)?;
+    Ok(CapturedCommandResult {
+        exit_code: status.code(),
+        timed_out,
+        stdout,
+        stderr,
+    })
+}
+
+fn spawn_output_reader<R>(mut reader: R) -> thread::JoinHandle<std::io::Result<Vec<u8>>>
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer)?;
+        Ok(buffer)
+    })
+}
+
+fn join_output_reader(
+    handle: Option<thread::JoinHandle<std::io::Result<Vec<u8>>>>,
+    stream_name: &str,
+    label: &str,
+) -> BuildResult<String> {
+    let Some(handle) = handle else {
+        return Ok(String::new());
+    };
+    let bytes = handle
+        .join()
+        .map_err(|_| BuildError::Command(format!("{label} {stream_name} reader panicked")))?
+        .map_err(|err| {
+            BuildError::Command(format!("failed to capture {stream_name} for {label}: {err}"))
+        })?;
+    Ok(String::from_utf8_lossy(&bytes).to_string())
+}
+
+fn write_optional_capture(path: &Path, contents: &str) -> BuildResult<()> {
+    if let Some(parent) = path.parent() {
+        kfs::create_dir_all(parent)?;
+    }
+    kfs::atomic_write_text(path, contents)?;
+    Ok(())
+}
+
+fn validate_required_outputs(label: &str, outputs: &[PathBuf]) -> BuildResult<()> {
+    let missing = outputs
+        .iter()
+        .filter(|path| !path.exists())
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(BuildError::Command(format!(
+        "{label} completed but did not create declared outputs: {}",
+        missing.join(", ")
+    )))
+}
+
 fn run_node_like(
     runtime: NodeRuntimeKind,
     entry: Option<&PathBuf>,
@@ -3677,16 +4326,19 @@ fn run_node_like(
     args: &[String],
     cwd: &Path,
 ) -> BuildResult<String> {
-    let program = command.cloned().unwrap_or_else(|| match runtime {
+    let program = process_portable_string(&command.cloned().unwrap_or_else(|| match runtime {
         NodeRuntimeKind::Node => "node".to_string(),
         NodeRuntimeKind::Bun => "bun".to_string(),
-    });
+    }));
+    let args = process_portable_args(args);
+    let cwd = process_portable_path(cwd);
+    let entry = entry.map(|value| process_portable_path(value));
     let mut process = Command::new(&program);
     process
-        .current_dir(cwd)
+        .current_dir(&cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    match (runtime, entry, command) {
+    match (runtime, entry.as_ref(), command) {
         (NodeRuntimeKind::Node, Some(entry), None) => {
             process.arg("--check").arg(entry);
         }
@@ -3694,7 +4346,7 @@ fn run_node_like(
             process.arg(entry);
         }
         _ => {
-            for arg in args {
+            for arg in &args {
                 process.arg(arg);
             }
             if let Some(entry) = entry {
@@ -3703,6 +4355,45 @@ fn run_node_like(
         }
     }
     run_command_capture(process, &format!("{program} task"))
+}
+
+fn process_portable_args(args: &[String]) -> Vec<String> {
+    args.iter()
+        .map(|value| process_portable_string(value))
+        .collect()
+}
+
+fn process_portable_env(env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+    env.iter()
+        .map(|(key, value)| (key.clone(), process_portable_string(value)))
+        .collect()
+}
+
+fn process_portable_string(value: &str) -> String {
+    #[cfg(windows)]
+    {
+        if let Some(stripped) = value.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{stripped}");
+        }
+        if let Some(stripped) = value.strip_prefix(r"\\?\") {
+            return stripped.to_string();
+        }
+    }
+    value.to_string()
+}
+
+fn process_portable_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let rendered = path.as_os_str().to_string_lossy();
+        if let Some(stripped) = rendered.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{stripped}"));
+        }
+        if let Some(stripped) = rendered.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+    path.to_path_buf()
 }
 
 fn run_command_capture(mut command: Command, label: &str) -> BuildResult<String> {
@@ -4089,6 +4780,14 @@ fn gpu_output_paths(output_base: &Path) -> Vec<PathBuf> {
 
 fn artifact_manifest_path(task_root: &Path) -> PathBuf {
     task_root.join("kain-artifacts.json")
+}
+
+fn exec_report_path(task_root: &Path) -> PathBuf {
+    task_root.join("kain-exec.json")
+}
+
+fn amalgamate_report_path(task_root: &Path) -> PathBuf {
+    task_root.join("kain-amalgamate.json")
 }
 
 fn evidence_report_path(task_root: &Path) -> PathBuf {
@@ -4501,6 +5200,29 @@ fn resolve_build_graph_path(
     blade_or_task_root.join(path)
 }
 
+fn resolve_build_graph_string_value(
+    workspace_root: &Path,
+    blade_or_task_root: &Path,
+    task_root: &Path,
+    value: &str,
+) -> String {
+    let raw = value.replace('\\', "/");
+    if ["$root", "$repo", "$workspace", "$blade", "$task", "$out"]
+        .iter()
+        .any(|prefix| raw == *prefix || raw.starts_with(&format!("{prefix}/")))
+    {
+        return process_portable_path(&resolve_build_graph_path(
+            workspace_root,
+            blade_or_task_root,
+            task_root,
+            Path::new(value),
+        ))
+        .display()
+        .to_string();
+    }
+    value.to_string()
+}
+
 fn resolve_workspace_path(root: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()
@@ -4775,6 +5497,87 @@ fn build(ctx: BuildContext) -> BuildGraph:
             ]
         );
         assert_eq!(by_id["bun-ish"].kind, "bun");
+    }
+
+    #[test]
+    fn build_graph_extracts_exec_and_amalgamate_task_metadata() {
+        let source = r#"
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let prep = exec_task("refresh-generated")
+        .command("cargo")
+        .arg("run")
+        .arg("-q")
+        .env("CARGO_TARGET_DIR", "$root/target/codex-build-graph")
+        .stdout("$task/stdout.txt")
+        .stderr("$task/stderr.txt")
+        .timeout_ms(60000)
+        .always_run()
+    let capsule = amalgamate_capsule("smoketest-capsule")
+        .path("smoketest")
+        .output("$root/.kain/capsules/smoketest.kn")
+        .name("smoketest")
+        .version("0.1.0")
+        .tag("portable")
+        .meta("album", "smoketest")
+        .storage("editable")
+        .header("rich")
+        .preview_symbols(32)
+        .archive(false)
+    return build_graph().task(prep).task(capsule)
+"#;
+
+        let tasks = extract_build_graph_explicit_tasks(source);
+        let by_id = tasks
+            .iter()
+            .map(|task| (task.id.as_str(), task))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(by_id["refresh-generated"].kind, "exec");
+        assert_eq!(
+            by_id["refresh-generated"]
+                .env
+                .get("CARGO_TARGET_DIR")
+                .map(String::as_str),
+            Some("$root/target/codex-build-graph")
+        );
+        assert_eq!(
+            by_id["refresh-generated"]
+                .options
+                .get("timeout_ms")
+                .map(String::as_str),
+            Some("60000")
+        );
+        assert_eq!(
+            by_id["refresh-generated"]
+                .options
+                .get("always_run")
+                .map(String::as_str),
+            Some("true")
+        );
+        assert_eq!(by_id["smoketest-capsule"].kind, "amalgamate");
+        assert_eq!(
+            by_id["smoketest-capsule"].outputs,
+            vec![PathBuf::from("$root/.kain/capsules/smoketest.kn")]
+        );
+        assert_eq!(
+            by_id["smoketest-capsule"]
+                .options
+                .get("storage")
+                .map(String::as_str),
+            Some("editable")
+        );
+        assert_eq!(
+            by_id["smoketest-capsule"]
+                .options
+                .get("preview_symbols")
+                .map(String::as_str),
+            Some("32")
+        );
+        assert_eq!(
+            by_id["smoketest-capsule"].meta.get("album").map(String::as_str),
+            Some("smoketest")
+        );
     }
 
     #[test]
@@ -5091,6 +5894,106 @@ fn build(ctx: BuildContext) -> BuildGraph:
             );
         }
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn explicit_exec_and_amalgamate_tasks_are_first_class_build_tasks() {
+        let root = unique_test_dir("explicit-exec-amalgamate");
+        let config = test_workspace_config(&root);
+
+        let exec_task = KainBuildTaskSection {
+            id: "refresh-generated".to_string(),
+            kind: "exec".to_string(),
+            command: Some("cargo".to_string()),
+            args: vec!["run".to_string(), "-q".to_string()],
+            env: BTreeMap::from([(
+                "CARGO_TARGET_DIR".to_string(),
+                "$root/target/codex-build".to_string(),
+            )]),
+            options: BTreeMap::from([
+                ("stdout".to_string(), "$task/stdout.txt".to_string()),
+                ("stderr".to_string(), "$task/stderr.txt".to_string()),
+                ("timeout_ms".to_string(), "60000".to_string()),
+                ("always_run".to_string(), "true".to_string()),
+            ]),
+            outputs: vec![PathBuf::from("$task/out.txt")],
+            ..KainBuildTaskSection::default()
+        };
+        let resolved_exec =
+            build_explicit_task(&config, None, &root, &exec_task).expect("build exec task");
+        assert_eq!(resolved_exec.kind, BuildTaskKind::Exec);
+        assert!(!resolved_exec.cacheable);
+        assert!(resolved_exec
+            .outputs
+            .iter()
+            .any(|path| path.file_name().and_then(OsStr::to_str) == Some("kain-exec.json")));
+        assert!(resolved_exec
+            .outputs
+            .iter()
+            .any(|path| path.file_name().and_then(OsStr::to_str) == Some("stdout.txt")));
+
+        let capsule_task = KainBuildTaskSection {
+            id: "smoketest-capsule".to_string(),
+            kind: "amalgamate".to_string(),
+            entry: Some(PathBuf::from(".")),
+            outputs: vec![PathBuf::from("$root/.kain/capsules/smoketest.kn")],
+            options: BTreeMap::from([
+                ("name".to_string(), "smoketest".to_string()),
+                ("version".to_string(), "0.1.0".to_string()),
+                ("storage".to_string(), "editable".to_string()),
+                ("header".to_string(), "rich".to_string()),
+                ("preview_symbols".to_string(), "32".to_string()),
+            ]),
+            tags: vec!["portable".to_string()],
+            meta: BTreeMap::from([("album".to_string(), "smoketest".to_string())]),
+            ..KainBuildTaskSection::default()
+        };
+        let resolved_capsule = build_explicit_task(&config, None, &root, &capsule_task)
+            .expect("build amalgamate task");
+        assert_eq!(resolved_capsule.kind, BuildTaskKind::Amalgamate);
+        assert!(resolved_capsule.cacheable);
+        assert!(resolved_capsule.inputs.iter().any(|path| path == &root));
+        assert!(resolved_capsule.outputs.iter().any(|path| {
+            path.file_name().and_then(OsStr::to_str) == Some("smoketest.kn")
+        }));
+        assert!(resolved_capsule.outputs.iter().any(|path| {
+            path.file_name().and_then(OsStr::to_str) == Some("kain-amalgamate.json")
+        }));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn process_portable_values_strip_windows_verbatim_prefixes() {
+        assert_eq!(
+            process_portable_string(r"\\?\D:\Kain-Lang\smoketest\telemetry\full"),
+            r"D:\Kain-Lang\smoketest\telemetry\full"
+        );
+        assert_eq!(
+            process_portable_string(r"\\?\UNC\server\share\album.kn"),
+            r"\\server\share\album.kn"
+        );
+        assert_eq!(
+            process_portable_path(Path::new(r"\\?\D:\Kain-Lang\smoketest\smoketest.exe")),
+            PathBuf::from(r"D:\Kain-Lang\smoketest\smoketest.exe")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resolve_build_graph_string_value_renders_portable_windows_paths() {
+        let workspace_root = Path::new(r"\\?\D:\Kain-Lang\smoketest");
+        let root = workspace_root;
+        let task_root = Path::new(r"\\?\D:\Kain-Lang\smoketest\.kain\out\task");
+        assert_eq!(
+            resolve_build_graph_string_value(workspace_root, root, task_root, "$root/telemetry/attrition"),
+            r"D:\Kain-Lang\smoketest\telemetry\attrition"
+        );
+        assert_eq!(
+            resolve_build_graph_string_value(workspace_root, root, task_root, "$task/runner.json"),
+            r"D:\Kain-Lang\smoketest\.kain\out\task\runner.json"
+        );
     }
 
     #[test]

@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "default_suite": "full",
+  "suites": {
+    "dev": {
+      "description": "Core day-to-day optimization suite.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "tags": [
+          "core"
+        ]
+      },
+      "defaults": {
+        "warmups": 2,
+        "runs": 5,
+        "baseline_mode": "auto",
+        "latest_stem": "latest_dev",
+        "minimal_name": "out/snapshots/latest_dev.md"
+      }
+    },
+    "fast": {
+      "description": "Reduced-language pass matching legacy run_fast wrapper.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "suites": [
+          "full"
+        ]
+      },
+      "defaults": {
+        "languages": "kain,rust,cpp,erlang",
+        "warmups": 1,
+        "runs": 3,
+        "baseline_mode": "auto",
+        "latest_stem": "latest_fast",
+        "minimal_name": "out/snapshots/latest_fast.md"
+      }
+    },
+    "ffi": {
+      "description": "Dedicated FFI boundary overhead lane.",
+      "runner": "lanes/ffi_boundary/run.py",
+      "defaults": {
+        "warmups": 2,
+        "runs": 5,
+        "timeout": 300
+      }
+    },
+    "full": {
+      "description": "Standard multi-language full benchmark sweep.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "suites": [
+          "full"
+        ]
+      },
+      "defaults": {
+        "warmups": 3,
+        "runs": 9,
+        "baseline_mode": "auto",
+        "latest_stem": "latest",
+        "minimal_name": "out/snapshots/latest.md"
+      }
+    },
+    "gpu": {
+      "description": "Dedicated GPU/SPIR-V lane.",
+      "runner": "lanes/gpu/run_gpu.py",
+      "defaults": {
+        "warmups": 1,
+        "runs": 5,
+        "latest_stem": "latest_gpu",
+        "minimal_name": "out/snapshots/latest_gpu.md"
+      }
+    },
+    "metal": {
+      "description": "Systems and runtime-heavy lanes.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "tags": [
+          "systems"
+        ]
+      },
+      "defaults": {
+        "warmups": 1,
+        "runs": 5,
+        "baseline_mode": "auto",
+        "latest_stem": "latest_metal",
+        "minimal_name": "out/snapshots/latest_metal.md"
+      }
+    },
+    "network": {
+      "description": "TCP/HTTP/IO pressure rows.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "tags": [
+          "net"
+        ]
+      },
+      "defaults": {
+        "warmups": 1,
+        "runs": 5,
+        "baseline_mode": "auto",
+        "latest_stem": "latest_network",
+        "minimal_name": "out/snapshots/latest_network.md"
+      }
+    },
+    "nightly": {
+      "description": "Expanded nightly sweep including experimental rows.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "suites": [
+          "full",
+          "nightly"
+        ]
+      },
+      "defaults": {
+        "warmups": 2,
+        "runs": 7,
+        "baseline_mode": "refresh-foreign",
+        "latest_stem": "latest_nightly",
+        "minimal_name": "out/snapshots/latest_nightly.md"
+      }
+    },
+    "semantic": {
+      "description": "Semantic pressure pack for world/actor/ownership primitives.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "tags": [
+          "semantic"
+        ]
+      },
+      "defaults": {
+        "warmups": 1,
+        "runs": 3,
+        "baseline_mode": "auto",
+        "latest_stem": "latest_semantic",
+        "minimal_name": "out/snapshots/latest_semantic.md"
+      }
+    },
+    "sim": {
+      "description": "Simulation extraction pack.",
+      "runner": "run.py",
+      "manifest": "benchmark/catalog/simulations/simulations.json",
+      "selectors": {
+        "suites": [
+          "sim"
+        ]
+      },
+      "defaults": {
+        "warmups": 1,
+        "runs": 3,
+        "baseline_mode": "auto",
+        "latest_stem": "latest_sim",
+        "minimal_name": "out/snapshots/latest_sim.md"
+      }
+    },
+    "smoke": {
+      "description": "Fast feedback pack across core scalar and actor paths.",
+      "runner": "run.py",
+      "manifest": "benchmark/benchmarks.json",
+      "selectors": {
+        "case_ids": [
+          "scalar_mix",
+          "branch_dispatch",
+          "call_chain",
+          "memory_stream",
+          "native_map_lookup",
+          "actor_mailbox_erlang"
+        ]
+      },
+      "defaults": {
+        "warmups": 1,
+        "runs": 3,
+        "baseline_mode": "auto",
+        "latest_stem": "latest_smoke",
+        "minimal_name": "out/snapshots/latest_smoke.md"
+      }
+    },
+    "wasm": {
+      "description": "Dedicated Kain-vs-Rust WASM parity lane.",
+      "runner": "lanes/wasm/run.py",
+      "defaults": {
+        "warmups": 1,
+        "runs": 3
+      }
+    }
+  }
+}

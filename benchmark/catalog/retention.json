@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "policies": {
+    "off": {
+      "enabled": false
+    },
+    "default": {
+      "enabled": true,
+      "root_delete_globs": [
+        "latest*.md"
+      ],
+      "root_delete_exact": [
+        "actor_direct_ask_canonical_probe",
+        "benchmark_hygiene_probe",
+        "direct_ask_prepare_probe",
+        "full_after_direct_ask_harness_fix",
+        "kain-benchmark.ll",
+        "kain-benchmark.realtime_app.json",
+        "kain-benchmark.runtime_contract.json"
+      ],
+      "report_keep_stems": [
+        "latest",
+        "latest_fast",
+        "latest_sim",
+        "latest_gpu",
+        "latest_dev",
+        "latest_smoke",
+        "latest_semantic",
+        "latest_network",
+        "latest_nightly",
+        "wasm_latest",
+        "ffi_boundary_latest"
+      ],
+      "report_max_age_days": 30,
+      "report_keep_recent_count": 120,
+      "tmp_delete_globs": [
+        "tmp_*",
+        "benchmark_run.log",
+        "benchmark_run.err",
+        "benchmark_full_*.log",
+        "benchmark_full_*.err"
+      ],
+      "tmp_max_age_days": 7,
+      "build_max_age_days": 14,
+      "baseline_max_age_days": 30
+    },
+    "aggressive": {
+      "enabled": true,
+      "inherits": "default",
+      "report_max_age_days": 14,
+      "report_keep_recent_count": 40,
+      "tmp_max_age_days": 2,
+      "build_max_age_days": 5,
+      "baseline_max_age_days": 14
+    }
+  }
+}

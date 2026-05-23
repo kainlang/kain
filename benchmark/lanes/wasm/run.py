@@ -25,14 +25,14 @@ from typing import Any
 
 
 WASM_ROOT = Path(__file__).resolve().parent
-BENCHMARK_ROOT = WASM_ROOT.parent
+BENCHMARK_ROOT = WASM_ROOT.parent.parent
 REPO_ROOT = BENCHMARK_ROOT.parent
 MANIFEST_PATH = WASM_ROOT / "wasm_cases.json"
 NODE_RUNNER = WASM_ROOT / "run_wasm_module.mjs"
 OUT_ROOT = BENCHMARK_ROOT / "out"
 BUILD_ROOT = OUT_ROOT / "build" / "wasm"
 REPORT_ROOT = OUT_ROOT / "reports"
-LATEST_ROOT_REPORT = BENCHMARK_ROOT / "latest_wasm.md"
+LATEST_ROOT_REPORT = OUT_ROOT / "snapshots" / "latest_wasm.md"
 LATEST_JSON_REPORT = REPORT_ROOT / "wasm_latest.json"
 LATEST_LLM_REPORT = REPORT_ROOT / "wasm_latest.llm.md"
 
@@ -382,6 +382,7 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 def write_reports(report: dict[str, Any]) -> None:
     REPORT_ROOT.mkdir(parents=True, exist_ok=True)
+    LATEST_ROOT_REPORT.parent.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     timestamp_json = REPORT_ROOT / f"wasm_{stamp}.json"
     timestamp_llm = REPORT_ROOT / f"wasm_{stamp}.llm.md"

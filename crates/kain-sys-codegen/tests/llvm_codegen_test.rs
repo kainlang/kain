@@ -215,6 +215,139 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_systems_abi_control_attributes() {
+    let source = r#"
+@callconv("win64")
+@section(".text.kain.fast")
+@link_name("__kain_fast_lane")
+fn fast_lane(value: Int) -> Int:
+    return value + 1
+
+@thread_local
+@section(".tls")
+@link_name("__kain_tls_counter")
+const TLS_COUNTER: Int = 7
+
+@packed
+struct DeviceRegs:
+    control: Int
+    status: Int
+
+fn main() -> Int:
+    let regs = DeviceRegs { control: TLS_COUNTER, status: 9 }
+    return fast_lane(regs.control)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("@__kain_tls_counter = thread_local global i64 7, section \".tls\""));
+    assert!(llvm.contains("%DeviceRegs = type <{ i64, i64 }>"));
+    assert!(llvm.contains(
+        "define win64cc i64 @__kain_fast_lane(i64 %arg0) #0 section \".text.kain.fast\" {"
+    ));
+    assert!(llvm.contains("call win64cc i64 @__kain_fast_lane("));
+    assert!(llvm.contains("load i64, i64* @__kain_tls_counter"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "systems-abi-control-attributes");
+}
+
+#[test]
+fn llvm_lowers_x86_64_naked_and_interrupt_lanes() {
+    let source = r#"
+@naked
+@section(".text.kain.trap")
+fn trap_lane() with Unsafe:
+    asm("ret")
+
+@interrupt("x86-interrupt")
+fn irq_lane() with Unsafe:
+    return
+
+fn main() -> Int with Unsafe:
+    trap_lane()
+    irq_lane()
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains(
+        "define internal void @trap_lane() #1 section \".text.kain.trap\" {"
+    ));
+    assert!(llvm.contains("call void asm sideeffect \"ret\", \"~{dirflag},~{fpsr},~{flags}\"()"));
+    assert!(llvm.contains("define internal x86_intrcc void @irq_lane() {"));
+    assert!(llvm.contains("call void @trap_lane()"));
+    assert!(llvm.contains("call x86_intrcc void @irq_lane()"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "x86-64-naked-and-interrupt-lanes");
+}
+
+#[test]
+fn llvm_lowers_mmio_register_block_field_accesses_to_volatile_ops() {
+    let source = r#"
+@packed
+@aligned(8)
+@mmio(base: 4096, stride: 8, endian: "native")
+struct DeviceRegs:
+    control: Int
+    status: Int
+
+fn main() -> Int with Unsafe:
+    let cells: ptr<Int> = alloc_zeroed(2, "Int")
+    let base = ptr_to_int(cells)
+    let regs: ptr<DeviceRegs> = int_to_ptr(base, "ptr<DeviceRegs>")
+    regs.control = 7
+    regs.status = regs.control + 1
+    let seen = regs.status
+    decay cells
+    return seen - 8
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("store volatile i64"));
+    assert!(llvm.contains("load volatile i64, i64*"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "mmio-register-block-volatile-field-access");
+}
+
+#[test]
+fn llvm_lowers_module_scoped_mmio_pointer_params_to_volatile_ops() {
+    let source = r#"
+mod systems:
+    @packed
+    @aligned(8)
+    @mmio(base: 4096, stride: 8, endian: "native")
+    struct DeviceRegs:
+        control: Int
+        status: Int
+
+    fn fold(regs: ptr<DeviceRegs>) -> Int with Unsafe:
+        regs.control = 7
+        regs.status = regs.control + 1
+        return regs.status
+
+fn main() -> Int:
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("store volatile i64"));
+    assert!(llvm.contains("load volatile i64, i64*"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "module-scoped-mmio-pointer-param-volatile-field-access");
+}
+
+#[test]
 fn llvm_lowers_named_vec_fields_and_tuple_alias_access() {
     let source = r#"
 struct Bounds:

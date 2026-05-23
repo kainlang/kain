@@ -15,7 +15,7 @@ standalone marketing layer.
 5. `runtime/` for execution, stdlib, and runtime behavior.
 6. `native-c-runtime/` for the C ABI floor.
 7. `cli/` for commands, flags, packaging lanes, and target/codegen rules.
-8. `pipelines/build-kn-evidence-dag.md`, `pipelines/omni.md`, and `pipelines/fabric.md` for evidence/build orchestration concepts.
+8. `pipelines/build-kn-evidence-dag.md`, `pipelines/build-kn-exec-and-amalgamate-v1.md`, `pipelines/omni.md`, and `pipelines/fabric.md` for evidence/build orchestration concepts.
 9. `ue5/overview.md` for the Unreal-facing conceptual guide.
 10. `crates/` for workspace structure and crate roles.
 11. `examples/` for proof surfaces and repo-local workflows.
@@ -94,6 +94,7 @@ These files define the truth that the guides are derived from:
 | `cli/selfhost-omni-fabric-lsp.md` | `selfhost`, `omni`, `fabric`, and `lsp` |
 | `cli/native-ui-and-packaging.md` | Native UI, inject, UE5 packaging, and artifact staging |
 | `pipelines/build-kn-evidence-dag.md` | `build.kn` evidence DAG tasks for check, test, proof, benchmark, attrition, native executable, and certify |
+| `pipelines/build-kn-exec-and-amalgamate-v1.md` | Shipped V1 status for `build.kn` exec tasks, first-class amalgamate capsules, and the remaining non-goals |
 | `pipelines/omni.md` | Omni manifest shape, staged imports, and target fan-out |
 | `pipelines/fabric.md` | Fabric runtime manifests, adapters, and execution reports |
 | `ue5/overview.md` | UE5 project layout, validation, plugin generation, and engine knowledge |

@@ -1,0 +1,25 @@
+version: 1
+id: kain.native.core.proofs.native_vm_byte_count_fits_size_t_before_platform_cast
+kind: check_smt2
+description: The VM byte-count guard only accepts positive signed 64-bit values whose sign bit is clear before the size_t platform cast.
+tags:
+- native-runtime
+- machine
+- vm
+- size_t
+- cast
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\cpu.c
+  symbol: abi_vm_byte_count_fits_platform
+  start_line: 394
+  reason: reserve/commit/decommit helpers cast byte counts into size_t after this signed-domain guard.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const byte_count (_ BitVec 64))
+    (assert (bvsgt byte_count #x0000000000000000))
+    (assert (not (= ((_ extract 63 63) byte_count) #b0)))
+    (check-sat)
+  include_model: false
+  include_stats: false

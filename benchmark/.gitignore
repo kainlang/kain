@@ -1,3 +1,9 @@
 latest.md
 latest_*.md
 out/baselines/
+out/archive/
+out/build/
+out/history/
+out/reports/
+out/snapshots/
+out/tmp/

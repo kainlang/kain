@@ -19,13 +19,55 @@ fn abi_cpu_prefetch_write(address: ptr<Int>, locality: Int) -> Unit
 fn abi_cpu_logical_count() -> Int
 
 @extern
+fn abi_cpu_core_count() -> Int
+
+@extern
+fn abi_cpu_package_count() -> Int
+
+@extern
+fn abi_cpu_cache_line_bytes() -> Int
+
+@extern
 fn abi_cpu_current_thread_id() -> Int
+
+@extern
+fn abi_cpu_current_thread_affinity_mask() -> Int
 
 @extern
 fn abi_cpu_set_current_thread_affinity(core_index: Int) -> Int
 
 @extern
+fn abi_cpu_numa_node_count() -> Int
+
+@extern
+fn abi_cpu_current_numa_node() -> Int
+
+@extern
+fn abi_cpu_bind_current_thread_to_numa(node_index: Int) -> Int
+
+@extern
 fn abi_vm_page_size() -> Int
+
+@extern
+fn abi_vm_reserve(byte_count: Int) -> ptr<Int>
+
+@extern
+fn abi_vm_commit(address: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_vm_decommit(address: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_vm_release(address: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_vm_lock(address: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_vm_unlock(address: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_vm_map_huge(byte_count: Int) -> ptr<Int>
 
 @extern
 fn abi_vm_map(byte_count: Int) -> ptr<Int>
@@ -78,14 +120,56 @@ pub fn prefetch_write(address: ptr<Int>, locality: Int) -> Unit:
 pub fn cpu_logical_count() -> Int:
     return abi_cpu_logical_count()
 
+pub fn cpu_core_count() -> Int:
+    return abi_cpu_core_count()
+
+pub fn cpu_package_count() -> Int:
+    return abi_cpu_package_count()
+
+pub fn cpu_cache_line_bytes() -> Int:
+    return abi_cpu_cache_line_bytes()
+
 pub fn current_thread_id() -> Int:
     return abi_cpu_current_thread_id()
+
+pub fn current_thread_affinity_mask() -> Int:
+    return abi_cpu_current_thread_affinity_mask()
 
 pub fn set_current_thread_affinity(core_index: Int) -> Int with Unsafe:
     return abi_cpu_set_current_thread_affinity(core_index)
 
+pub fn numa_node_count() -> Int:
+    return abi_cpu_numa_node_count()
+
+pub fn numa_current_node() -> Int:
+    return abi_cpu_current_numa_node()
+
+pub fn numa_bind_current_thread(node_index: Int) -> Int with Unsafe:
+    return abi_cpu_bind_current_thread_to_numa(node_index)
+
 pub fn vm_page_size() -> Int:
     return abi_vm_page_size()
+
+pub fn vm_reserve(byte_count: Int) -> ptr<Int> with Unsafe:
+    return abi_vm_reserve(byte_count)
+
+pub fn vm_commit(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_commit(address, byte_count)
+
+pub fn vm_decommit(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_decommit(address, byte_count)
+
+pub fn vm_release(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_release(address, byte_count)
+
+pub fn vm_lock(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_lock(address, byte_count)
+
+pub fn vm_unlock(address: ptr<Int>, byte_count: Int) -> Int with Unsafe:
+    return abi_vm_unlock(address, byte_count)
+
+pub fn vm_map_huge(byte_count: Int) -> ptr<Int> with Unsafe:
+    return abi_vm_map_huge(byte_count)
 
 pub fn vm_map(byte_count: Int) -> ptr<Int> with Unsafe:
     return abi_vm_map(byte_count)

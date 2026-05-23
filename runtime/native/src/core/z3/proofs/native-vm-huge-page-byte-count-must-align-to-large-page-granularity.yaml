@@ -1,0 +1,28 @@
+version: 1
+id: kain.native.core.proofs.native_vm_huge_page_byte_count_must_align_to_large_page_granularity
+kind: check_smt2
+description: Huge-page requests only proceed when the requested byte count is an exact positive multiple of the platform large-page granularity.
+tags:
+- native-runtime
+- machine
+- vm
+- huge-pages
+- alignment
+- divisibility
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\cpu.c
+  symbol: abi_vm_map_huge
+  start_line: 681
+  reason: the huge-page mapping path rejects misaligned requests before entering the platform allocator.
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const byte_count Int)
+    (declare-const huge_page_bytes Int)
+    (assert (> byte_count 0))
+    (assert (> huge_page_bytes 0))
+    (assert (= (mod byte_count huge_page_bytes) 0))
+    (assert (not (= byte_count (* huge_page_bytes (div byte_count huge_page_bytes)))))
+    (check-sat)
+  include_model: false
+  include_stats: false

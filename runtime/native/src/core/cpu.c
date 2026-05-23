@@ -2,6 +2,8 @@
 
 #include <stdlib.h>
 #include <stddef.h>
+#include <limits.h>
+#include <stdio.h>
 #include <string.h>
 
 #if defined(_WIN32)
@@ -338,6 +340,71 @@ void abi_cpu_prefetch_write(const void* ptr, int64_t locality) {
 #endif
 }
 
+static int64_t abi_cpu_detect_cache_line_bytes(void) {
+#if CPU_X86
+    int leaf[4] = {0, 0, 0, 0};
+    if (abi_cpuid((int)0x80000006u, 0, leaf)) {
+        int64_t cache_line = (int64_t)((uint32_t)leaf[2] & 0xffu);
+        if (cache_line > 0) {
+            return cache_line;
+        }
+    }
+#endif
+    return 64;
+}
+
+#if defined(_WIN32)
+static int64_t abi_windows_count_topology_relation(LOGICAL_PROCESSOR_RELATIONSHIP relation) {
+    DWORD bytes = 0;
+    BYTE* cursor = 0;
+    BYTE* end = 0;
+    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX buffer = 0;
+    int64_t count = -1;
+
+    if (GetLogicalProcessorInformationEx(relation, 0, &bytes) != 0 ||
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER ||
+        bytes == 0) {
+        return -1;
+    }
+
+    buffer = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)malloc((size_t)bytes);
+    if (buffer == 0) {
+        return -1;
+    }
+    if (GetLogicalProcessorInformationEx(relation, buffer, &bytes) == 0) {
+        free(buffer);
+        return -1;
+    }
+
+    count = 0;
+    cursor = (BYTE*)buffer;
+    end = cursor + bytes;
+    while (cursor < end) {
+        PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info =
+            (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)cursor;
+        count += 1;
+        cursor += info->Size;
+    }
+
+    free(buffer);
+    return count;
+}
+#endif
+
+/* Proof: runtime/native/src/core/z3/proofs/native-vm-byte-count-fits-size-t-before-platform-cast.yaml */
+static int abi_vm_byte_count_fits_platform(int64_t byte_count) {
+    return byte_count > 0 && (uint64_t)byte_count <= (uint64_t)SIZE_MAX;
+}
+
+static int64_t abi_vm_default_huge_page_bytes(void) {
+#if defined(_WIN32)
+    SIZE_T large_page_bytes = GetLargePageMinimum();
+    return large_page_bytes > 0 ? (int64_t)large_page_bytes : 0;
+#else
+    return 2ll * 1024ll * 1024ll;
+#endif
+}
+
 int64_t abi_cpu_logical_count(void) {
 #if defined(_WIN32)
     DWORD count = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
@@ -350,6 +417,30 @@ int64_t abi_cpu_logical_count(void) {
 #endif
 }
 
+int64_t abi_cpu_core_count(void) {
+#if defined(_WIN32)
+    int64_t count = abi_windows_count_topology_relation(RelationProcessorCore);
+    if (count > 0) {
+        return count;
+    }
+#endif
+    return abi_cpu_logical_count();
+}
+
+int64_t abi_cpu_package_count(void) {
+#if defined(_WIN32)
+    int64_t count = abi_windows_count_topology_relation(RelationProcessorPackage);
+    if (count > 0) {
+        return count;
+    }
+#endif
+    return 1;
+}
+
+int64_t abi_cpu_cache_line_bytes(void) {
+    return abi_cpu_detect_cache_line_bytes();
+}
+
 int64_t abi_cpu_current_thread_id(void) {
 #if defined(_WIN32)
     return (int64_t)GetCurrentThreadId();
@@ -357,6 +448,40 @@ int64_t abi_cpu_current_thread_id(void) {
     return (int64_t)(uintptr_t)pthread_self();
 #else
     return 0;
+#endif
+}
+
+int64_t abi_cpu_current_thread_affinity_mask(void) {
+#if defined(_WIN32)
+    GROUP_AFFINITY affinity;
+    memset(&affinity, 0, sizeof(affinity));
+    if (GetThreadGroupAffinity(GetCurrentThread(), &affinity) != 0) {
+        return (int64_t)affinity.Mask;
+    }
+    {
+        DWORD_PTR process_mask = 0;
+        DWORD_PTR system_mask = 0;
+        if (GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask) != 0) {
+            return (int64_t)process_mask;
+        }
+    }
+    return -1;
+#elif defined(__linux__)
+    cpu_set_t set;
+    uint64_t mask = 0;
+    int cpu_index = 0;
+    CPU_ZERO(&set);
+    if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) != 0) {
+        return -1;
+    }
+    for (cpu_index = 0; cpu_index < CPU_SETSIZE && cpu_index < 64; cpu_index += 1) {
+        if (CPU_ISSET(cpu_index, &set)) {
+            mask |= (uint64_t)1u << (uint64_t)cpu_index;
+        }
+    }
+    return (int64_t)mask;
+#else
+    return -1;
 #endif
 }
 
@@ -368,10 +493,16 @@ int64_t abi_cpu_set_current_thread_affinity(int64_t core_index) {
     if (core_index >= (int64_t)(sizeof(DWORD_PTR) * 8u)) {
         return -1;
     }
-    DWORD_PTR mask = ((DWORD_PTR)1u) << (DWORD_PTR)core_index;
-    return SetThreadAffinityMask(GetCurrentThread(), mask) == 0 ? -1 : 0;
+    /* Proof: runtime/native/src/core/z3/proofs/native-cpu-affinity-mask-shift-stays-within-word.yaml */
+    {
+        DWORD_PTR mask = ((DWORD_PTR)1u) << (DWORD_PTR)core_index;
+        return SetThreadAffinityMask(GetCurrentThread(), mask) == 0 ? -1 : 0;
+    }
 #elif defined(__linux__)
     cpu_set_t set;
+    if (core_index >= CPU_SETSIZE) {
+        return -1;
+    }
     CPU_ZERO(&set);
     CPU_SET((int)core_index, &set);
     return pthread_setaffinity_np(pthread_self(), sizeof(set), &set) == 0 ? 0 : -1;
@@ -379,6 +510,36 @@ int64_t abi_cpu_set_current_thread_affinity(int64_t core_index) {
     (void)core_index;
     return -1;
 #endif
+}
+
+int64_t abi_cpu_numa_node_count(void) {
+#if defined(_WIN32)
+    ULONG highest_node = 0;
+    return GetNumaHighestNodeNumber(&highest_node) != 0 ? (int64_t)highest_node + 1 : 1;
+#else
+    return 1;
+#endif
+}
+
+int64_t abi_cpu_current_numa_node(void) {
+#if defined(_WIN32)
+    PROCESSOR_NUMBER processor;
+    USHORT node = 0;
+    GetCurrentProcessorNumberEx(&processor);
+    return GetNumaProcessorNodeEx(&processor, &node) != 0 ? (int64_t)node : 0;
+#else
+    return 0;
+#endif
+}
+
+int64_t abi_cpu_bind_current_thread_to_numa(int64_t node_index) {
+    if (node_index < 0) {
+        return -1;
+    }
+    if (abi_cpu_numa_node_count() <= 1) {
+        return node_index == 0 ? 0 : -1;
+    }
+    return -1;
 }
 
 int64_t abi_vm_page_size(void) {
@@ -394,24 +555,65 @@ int64_t abi_vm_page_size(void) {
 #endif
 }
 
-void* abi_vm_map(int64_t byte_count) {
-    if (byte_count <= 0) {
+void* abi_vm_reserve(int64_t byte_count) {
+    if (!abi_vm_byte_count_fits_platform(byte_count)) {
         return 0;
     }
 #if defined(_WIN32)
-    return VirtualAlloc(0, (SIZE_T)byte_count, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    return VirtualAlloc(0, (SIZE_T)byte_count, MEM_RESERVE, PAGE_NOACCESS);
 #elif defined(MAP_PRIVATE) && defined(MAP_ANON)
-    void* ptr = mmap(0, (size_t)byte_count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-    return ptr == MAP_FAILED ? 0 : ptr;
+    {
+        void* ptr = mmap(0, (size_t)byte_count, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+        return ptr == MAP_FAILED ? 0 : ptr;
+    }
 #elif defined(MAP_PRIVATE) && defined(MAP_ANONYMOUS)
-    void* ptr = mmap(0, (size_t)byte_count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return ptr == MAP_FAILED ? 0 : ptr;
+    {
+        void* ptr =
+            mmap(0, (size_t)byte_count, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        return ptr == MAP_FAILED ? 0 : ptr;
+    }
 #else
     return malloc((size_t)byte_count);
 #endif
 }
 
-int64_t abi_vm_unmap(void* ptr, int64_t byte_count) {
+int64_t abi_vm_commit(void* ptr, int64_t byte_count) {
+    if (ptr == 0 || !abi_vm_byte_count_fits_platform(byte_count)) {
+        return -1;
+    }
+#if defined(_WIN32)
+    return VirtualAlloc(ptr, (SIZE_T)byte_count, MEM_COMMIT, PAGE_READWRITE) == ptr ? 0 : -1;
+#elif defined(PROT_NONE)
+    return mprotect(ptr, (size_t)byte_count, PROT_READ | PROT_WRITE) == 0 ? 0 : -1;
+#else
+    (void)ptr;
+    (void)byte_count;
+    return 0;
+#endif
+}
+
+int64_t abi_vm_decommit(void* ptr, int64_t byte_count) {
+    if (ptr == 0 || !abi_vm_byte_count_fits_platform(byte_count)) {
+        return -1;
+    }
+#if defined(_WIN32)
+    return VirtualFree(ptr, (SIZE_T)byte_count, MEM_DECOMMIT) != 0 ? 0 : -1;
+#elif defined(PROT_NONE)
+    int protected_ok = mprotect(ptr, (size_t)byte_count, PROT_NONE) == 0 ? 0 : -1;
+#if defined(MADV_DONTNEED)
+    if (protected_ok == 0) {
+        (void)madvise(ptr, (size_t)byte_count, MADV_DONTNEED);
+    }
+#endif
+    return protected_ok;
+#else
+    (void)ptr;
+    (void)byte_count;
+    return 0;
+#endif
+}
+
+int64_t abi_vm_release(void* ptr, int64_t byte_count) {
     if (ptr == 0) {
         return 0;
     }
@@ -419,7 +621,7 @@ int64_t abi_vm_unmap(void* ptr, int64_t byte_count) {
     (void)byte_count;
     return VirtualFree(ptr, 0, MEM_RELEASE) != 0 ? 0 : -1;
 #elif defined(MAP_PRIVATE) && (defined(MAP_ANON) || defined(MAP_ANONYMOUS))
-    if (byte_count <= 0) {
+    if (!abi_vm_byte_count_fits_platform(byte_count)) {
         return -1;
     }
     return munmap(ptr, (size_t)byte_count) == 0 ? 0 : -1;
@@ -428,6 +630,82 @@ int64_t abi_vm_unmap(void* ptr, int64_t byte_count) {
     free(ptr);
     return 0;
 #endif
+}
+
+int64_t abi_vm_lock(void* ptr, int64_t byte_count) {
+    if (ptr == 0 || !abi_vm_byte_count_fits_platform(byte_count)) {
+        return -1;
+    }
+#if defined(_WIN32)
+    return VirtualLock(ptr, (SIZE_T)byte_count) != 0 ? 0 : -1;
+#elif defined(__unix__) || defined(__APPLE__)
+    return mlock(ptr, (size_t)byte_count) == 0 ? 0 : -1;
+#else
+    (void)ptr;
+    (void)byte_count;
+    return -1;
+#endif
+}
+
+int64_t abi_vm_unlock(void* ptr, int64_t byte_count) {
+    if (ptr == 0 || !abi_vm_byte_count_fits_platform(byte_count)) {
+        return -1;
+    }
+#if defined(_WIN32)
+    return VirtualUnlock(ptr, (SIZE_T)byte_count) != 0 ? 0 : -1;
+#elif defined(__unix__) || defined(__APPLE__)
+    return munlock(ptr, (size_t)byte_count) == 0 ? 0 : -1;
+#else
+    (void)ptr;
+    (void)byte_count;
+    return -1;
+#endif
+}
+
+void* abi_vm_map_huge(int64_t byte_count) {
+    int64_t huge_page_bytes = abi_vm_default_huge_page_bytes();
+    /* Proof: runtime/native/src/core/z3/proofs/native-vm-huge-page-byte-count-must-align-to-large-page-granularity.yaml */
+    if (!abi_vm_byte_count_fits_platform(byte_count) ||
+        huge_page_bytes <= 0 ||
+        (byte_count % huge_page_bytes) != 0) {
+        return 0;
+    }
+#if defined(_WIN32)
+    return VirtualAlloc(
+        0,
+        (SIZE_T)byte_count,
+        MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES,
+        PAGE_READWRITE);
+#elif defined(MAP_PRIVATE) && defined(MAP_HUGETLB) && defined(MAP_ANONYMOUS)
+    {
+        void* ptr = mmap(
+            0,
+            (size_t)byte_count,
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
+            -1,
+            0);
+        return ptr == MAP_FAILED ? 0 : ptr;
+    }
+#else
+    return 0;
+#endif
+}
+
+void* abi_vm_map(int64_t byte_count) {
+    void* ptr = abi_vm_reserve(byte_count);
+    if (ptr == 0) {
+        return 0;
+    }
+    if (abi_vm_commit(ptr, byte_count) != 0) {
+        (void)abi_vm_release(ptr, byte_count);
+        return 0;
+    }
+    return ptr;
+}
+
+int64_t abi_vm_unmap(void* ptr, int64_t byte_count) {
+    return abi_vm_release(ptr, byte_count);
 }
 
 static int abi_vm_protection_mode(int64_t mode) {
@@ -468,7 +746,7 @@ static int abi_vm_protection_mode(int64_t mode) {
 }
 
 int64_t abi_vm_protect(void* ptr, int64_t byte_count, int64_t mode) {
-    if (ptr == 0 || byte_count <= 0) {
+    if (ptr == 0 || !abi_vm_byte_count_fits_platform(byte_count)) {
         return -1;
     }
 #if defined(_WIN32)

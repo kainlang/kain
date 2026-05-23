@@ -1,14 +1,14 @@
 @echo off
 setlocal
 
-REM Run the benchmark suite from the benchmark directory using the Python launcher.
+REM Run the benchmark suite from the benchmark directory using the unified control plane.
 pushd "%~dp0"
 if errorlevel 1 (
     echo [ERROR] Failed to enter benchmark directory.
     exit /b 1
 )
 
-py run.py %*
+py bench.py run %*
 set "EXIT_CODE=%ERRORLEVEL%"
 
 popd

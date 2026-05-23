@@ -231,6 +231,7 @@ impl TypeScriptTransformer {
                 name,
                 ty: Type::Infer(span),
                 value: Expr::None(span),
+                attributes: vec![],
                 visibility: Visibility::Private,
                 span,
             }));
@@ -582,6 +583,7 @@ impl TypeScriptTransformer {
                             name: self.rename_value(&name),
                             ty,
                             value,
+                            attributes: vec![],
                             visibility: Visibility::Private,
                             span,
                         }));
@@ -619,6 +621,7 @@ impl TypeScriptTransformer {
                 span,
             },
             value,
+            attributes: vec![],
             visibility: Visibility::Private,
             span,
         })

@@ -5,6 +5,8 @@ pub const BUILD_KIND_PROOF: String = "proof"
 pub const BUILD_KIND_BENCHMARK: String = "benchmark"
 pub const BUILD_KIND_ATTRITION: String = "attrition"
 pub const BUILD_KIND_CERTIFY: String = "certify"
+pub const BUILD_KIND_EXEC: String = "exec"
+pub const BUILD_KIND_AMALGAMATE: String = "amalgamate"
 
 pub struct BuildContext:
     workspace_root: String
@@ -72,6 +74,12 @@ pub struct BuildTaskSpec:
     matrix_axes: Array<String>
     telemetry_channels: Array<String>
     certificate_subjects: Array<String>
+    env_entries: Array<String>
+    option_entries: Array<String>
+    tag_values: Array<String>
+    note_values: Array<String>
+    author_values: Array<String>
+    meta_entries: Array<String>
 
 pub struct BuildGraphSpec:
     packages: Array<PackageSpec>
@@ -157,7 +165,13 @@ pub fn build_task_of_kind(id: String, kind: String) -> BuildTaskSpec:
         required_capabilities: [],
         matrix_axes: [],
         telemetry_channels: [],
-        certificate_subjects: []
+        certificate_subjects: [],
+        env_entries: [],
+        option_entries: [],
+        tag_values: [],
+        note_values: [],
+        author_values: [],
+        meta_entries: []
     }
 
 pub fn build_task(id: String) -> BuildTaskSpec:
@@ -177,6 +191,15 @@ pub fn root_executable(id: String) -> BuildTaskSpec:
 
 pub fn build_native_executable(id: String) -> BuildTaskSpec:
     return native_executable(id)
+
+pub fn exec_task(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_EXEC)
+
+pub fn command_task(id: String) -> BuildTaskSpec:
+    return exec_task(id)
+
+pub fn amalgamate_capsule(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_AMALGAMATE)
 
 impl PackageSpec:
     fn version(_self: Self_, value: String) -> PackageSpec:
@@ -342,6 +365,12 @@ impl BuildTaskSpec:
         next.manifest_path = path
         return next
 
+    fn source(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.entry(path)
+
+    fn path(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.entry(path)
+
     fn command(_self: Self_, value: String) -> BuildTaskSpec:
         let mut next = _self
         next.command_value = value
@@ -433,6 +462,80 @@ impl BuildTaskSpec:
         let mut next = _self
         push(next.certificate_subjects, subject)
         return next
+
+    fn env(_self: Self_, key: String, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.env_entries, key + "=" + value)
+        return next
+
+    fn option(_self: Self_, key: String, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.option_entries, key + "=" + value)
+        return next
+
+    fn name(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("name", value)
+
+    fn version(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("version", value)
+
+    fn author(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.author_values, value)
+        return next
+
+    fn note(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.note_values, value)
+        return next
+
+    fn tag(_self: Self_, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.tag_values, value)
+        return next
+
+    fn meta(_self: Self_, key: String, value: String) -> BuildTaskSpec:
+        let mut next = _self
+        push(next.meta_entries, key + "=" + value)
+        return next
+
+    fn storage(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("storage", value)
+
+    fn archive(_self: Self_, enabled: Bool) -> BuildTaskSpec:
+        if enabled:
+            return _self.storage("archive")
+        return _self.storage("editable")
+
+    fn editable(_self: Self_) -> BuildTaskSpec:
+        return _self.storage("editable")
+
+    fn header(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("header", value)
+
+    fn compression(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("compression", value)
+
+    fn preview_symbols(_self: Self_, value: Int) -> BuildTaskSpec:
+        return _self.option("preview_symbols", str(value))
+
+    fn api_index(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("api_index", value)
+
+    fn module_index(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("module_index", value)
+
+    fn timeout_ms(_self: Self_, value: Int) -> BuildTaskSpec:
+        return _self.option("timeout_ms", str(value))
+
+    fn stdout(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("stdout", path)
+
+    fn stderr(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("stderr", path)
+
+    fn always_run(_self: Self_) -> BuildTaskSpec:
+        return _self.option("always_run", "true")
 
     fn proof_mode(_self: Self_, value: String) -> BuildTaskSpec:
         return _self.arg(value)

@@ -7,6 +7,7 @@ license = "MIT"
 
 [dependencies]
 blade = { path = "../kain-blades" }
+kain-amalgamate = { path = "../kain-amalgamate" }
 kain-check = { path = "../kain-check" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver" }

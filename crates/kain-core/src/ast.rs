@@ -1348,6 +1348,7 @@ pub struct Const {
     pub name: String,
     pub ty: Type,
     pub value: Expr,
+    pub attributes: Vec<Attribute>,
     pub visibility: Visibility,
     pub span: Span,
 }

@@ -246,6 +246,7 @@ impl SourceFormatter {
                 self.push_text(&mut output, &self.format_mod(value)?);
             }
             Item::Const(value) => {
+                self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_const(value)?);
             }
             Item::Comptime(value) => {

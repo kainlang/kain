@@ -900,7 +900,7 @@ impl<'a> Parser<'a> {
             TokenKind::Struct => self.parse_struct_with_attrs(vis, attributes),
             TokenKind::Enum => self.parse_enum(vis),
             TokenKind::Actor => self.parse_actor_with_attrs(attributes),
-            TokenKind::Const => self.parse_const(vis),
+            TokenKind::Const => self.parse_const(vis, attributes),
             TokenKind::Comptime => self.parse_comptime_block(),
             TokenKind::Macro => self.parse_macro(),
             TokenKind::Test => self.parse_test(),
@@ -2736,7 +2736,7 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    fn parse_const(&mut self, vis: Visibility) -> KainResult<Item> {
+    fn parse_const(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
         self.expect(TokenKind::Const)?;
         let name = self.parse_ident()?;
@@ -2748,6 +2748,7 @@ impl<'a> Parser<'a> {
             name,
             ty,
             value,
+            attributes: attrs,
             visibility: vis,
             span: start.merge(self.current_span()),
         }))

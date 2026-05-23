@@ -3,6 +3,6 @@
   "runner": "run.py",
   "after_args": [
     "--manifest",
-    "benchmark/simulations/simulations.json"
+    "benchmark/catalog/simulations/simulations.json"
   ]
 }

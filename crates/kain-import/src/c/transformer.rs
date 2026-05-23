@@ -845,6 +845,7 @@ impl CTransformer {
                     name,
                     ty: ty.clone(),
                     value,
+                    attributes: vec![],
                     visibility: Visibility::Public,
                     span: Span::default(),
                 }));

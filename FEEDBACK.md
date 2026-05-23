@@ -123,3 +123,16 @@
 - Minimal repro: `kain blades build smoketest --json` from `D:\\Kain-Lang` with the default `native_executable` helper resolution path; compare with rerunning the same build while setting `KAIN_BIN=D:\\Kain-Lang\\target\\codex-smoketest-cabi-driverfix\\debug\\kain.exe`.
 - Evidence: `smoketest/.kain/reports/build/session-1779459491862-32992.json` failed at `smoketest:root-executable`, and `smoketest/.kain/out/llvm/x86_64-windows/dev/x86_64-windows/smoketest/smoketest-root-executable/kain-evidence.json` captured the missing-`.ll` clang error. The same DAG later succeeded as `smoketest/.kain/reports/build/session-1779460677572-36848.json` when `KAIN_BIN` pointed at the cargo-built CLI.
 - Suggested direction: Audit the Bazel-resolved CLI / helper-script path for raw-native output staging so the emitted `.ll` survives through the clang link step, or let `native_executable` prefer an explicitly resolved working `kain.exe` without requiring a manual env override.
+
+---
+
+## 2026-05-22 - LLVM / TLS section control
+### `@thread_local` plus custom `@section` loses the authored initializer on Windows LLVM runs
+- Categories: correctness, developer-experience, lowering, runtime
+- Status: Bypass-Applied
+- Surface: lowering
+- Symptom: a `@thread_local` `const` with a custom TLS section reads back as `0` at runtime even though the emitted LLVM IR shows `thread_local global i64 7`.
+- Workflow impact: The new systems ABI smoke lane initially failed with exit code `2002` because `@thread_local @section(".tls.kain.smoke") const ABI_TLS_COUNTER: Int = 7` behaved like zero-initialized storage in the executable path. I had to split the smoke so `thread_local` is exercised separately from custom section/link-name control instead of validating the combined surface directly.
+- Minimal repro: Author a file with `@thread_local @section(".tls.kain.smoke") const TLS_COUNTER: Int = 7` and a `main()` that returns `TLS_COUNTER + 9`, then run `kain run <file> --target llvm` on Windows; the observed result comes back as zero-bias behavior instead of the expected initialized value.
+- Evidence: `smoketest/.kain/cache/run/abi_control_probe.ll` contained `@__kain_smoke_tls_counter = thread_local global i64 7, section ".tls.kain.smoke"`, but the executable from `./target/debug/kain.exe run smoketest/src/systems/abi_control_probe.kn --target llvm` exited with `16`, implying the TLS read observed `0` while the plain `@thread_local` + separate sectioned const probe exited with `5007023`.
+- Suggested direction: Audit the Windows LLVM/native link path for authored TLS globals placed in custom sections. If the backend cannot preserve initialized TLS semantics under arbitrary `@section`, either remap supported TLS sections to the platform's canonical TLS segment machinery or reject the combination with a target-specific diagnostic instead of silently emitting a zero-reading runtime artifact.

@@ -5,7 +5,7 @@
     "--languages",
     "kain,rust,cpp,erlang",
     "--minimal-name",
-    "latest_fast.md",
+    "out/snapshots/latest_fast.md",
     "--latest-stem",
     "latest_fast"
   ]

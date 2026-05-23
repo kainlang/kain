@@ -95,6 +95,12 @@ pub struct KainBuildTaskSection {
     pub matrix_axes: Vec<String>,
     pub telemetry: Vec<String>,
     pub certifies: Vec<String>,
+    pub env: BTreeMap<String, String>,
+    pub options: BTreeMap<String, String>,
+    pub tags: Vec<String>,
+    pub notes: Vec<String>,
+    pub authors: Vec<String>,
+    pub meta: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -983,7 +989,7 @@ fn collect_kn_module_dirs(
                 .path
                 .extension()
                 .and_then(|ext| ext.to_str())
-                .is_some_and(|ext| matches!(ext, "kn" | "god"))
+                .is_some_and(|ext| ext == "kn")
     });
     if has_kain_file {
         push_unique_path(module_roots, root.to_path_buf());
@@ -1332,6 +1338,10 @@ const BUILD_TASK_CONSTRUCTORS: &[(&str, Option<&str>)] = &[
     ("build_task", None),
     ("build_check", Some("check")),
     ("check_task", Some("check")),
+    ("exec_task", Some("exec")),
+    ("command_task", Some("exec")),
+    ("amalgamate_capsule", Some("amalgamate")),
+    ("capsule_task", Some("amalgamate")),
     ("native_executable", Some("native-executable")),
     ("root_executable", Some("native-executable")),
     ("build_native_executable", Some("native-executable")),
@@ -1370,7 +1380,7 @@ fn extract_build_script_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection
                         }
                     }
                     "blade" => assign_first_string(&values, &mut task.blade),
-                    "entry" => assign_first_path(&values, &mut task.entry),
+                    "entry" | "source" | "path" => assign_first_path(&values, &mut task.entry),
                     "manifest" => assign_first_path(&values, &mut task.manifest),
                     "command" => assign_first_string(&values, &mut task.command),
                     "arg" | "args" => task.args.extend(values),
@@ -1396,6 +1406,33 @@ fn extract_build_script_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection
                     }
                     "certifies" | "certificate" => {
                         push_unique_strings(&mut task.certifies, &values)
+                    }
+                    "env" => insert_pair(&values, &mut task.env),
+                    "meta" => insert_pair(&values, &mut task.meta),
+                    "option" => insert_pair(&values, &mut task.options),
+                    "tag" => push_unique_strings(&mut task.tags, &values),
+                    "note" => push_unique_strings(&mut task.notes, &values),
+                    "author" => push_unique_strings(&mut task.authors, &values),
+                    "name" | "version" | "storage" | "header" | "compression" | "preview_symbols"
+                    | "api_index" | "module_index" | "timeout_ms" | "stdout" | "stderr" => {
+                        if let Some(value) = values.first() {
+                            task.options.insert(method.clone(), value.clone());
+                        }
+                    }
+                    "archive" => {
+                        let enabled = values.first().map_or(true, |value| parse_bool_string(value));
+                        task.options.insert(
+                            "storage".to_string(),
+                            if enabled { "archive" } else { "editable" }.to_string(),
+                        );
+                    }
+                    "editable" => {
+                        task.options
+                            .insert("storage".to_string(), "editable".to_string());
+                    }
+                    "always_run" => {
+                        task.options
+                            .insert("always_run".to_string(), "true".to_string());
                     }
                     "proof_mode" | "mode" => task.args.extend(values),
                     _ => {}
@@ -1602,6 +1639,18 @@ fn parse_string_call_arguments(source: &str, mut index: usize) -> Option<(Vec<St
                     _ => return None,
                 }
             }
+            byte if is_unquoted_literal_start(byte) => {
+                let (value, after_literal) = parse_unquoted_literal(source, index)?;
+                values.push(value);
+                index = skip_ascii_whitespace(bytes, after_literal);
+                match bytes.get(index).copied()? {
+                    b',' => {
+                        index += 1;
+                    }
+                    b')' => return Some((values, index + 1)),
+                    _ => return None,
+                }
+            }
             _ => return None,
         }
     }
@@ -1649,6 +1698,34 @@ fn is_identifier_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
+fn is_unquoted_literal_start(byte: u8) -> bool {
+    byte.is_ascii_digit() || byte == b'-' || byte == b't' || byte == b'f'
+}
+
+fn parse_unquoted_literal(source: &str, mut index: usize) -> Option<(String, usize)> {
+    let bytes = source.as_bytes();
+    let start = index;
+    while let Some(byte) = bytes.get(index).copied() {
+        if matches!(byte, b',' | b')' | b' ' | b'\n' | b'\r' | b'\t') {
+            break;
+        }
+        index += 1;
+    }
+    let literal = source.get(start..index)?.trim().to_string();
+    if !is_supported_unquoted_literal(&literal) {
+        return None;
+    }
+    Some((literal, index))
+}
+
+fn is_supported_unquoted_literal(value: &str) -> bool {
+    if matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "false") {
+        return true;
+    }
+    let digits = value.strip_prefix('-').unwrap_or(value);
+    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+}
+
 fn parse_bool_string(value: &str) -> bool {
     matches!(
         value.trim().to_ascii_lowercase().as_str(),
@@ -1682,6 +1759,12 @@ fn push_unique_paths_from_strings(values: &mut Vec<PathBuf>, additions: &[String
         if !values.iter().any(|existing| existing == &path) {
             values.push(path);
         }
+    }
+}
+
+fn insert_pair(values: &[String], slot: &mut BTreeMap<String, String>) {
+    if values.len() >= 2 {
+        slot.insert(values[0].clone(), values[1].clone());
     }
 }
 
@@ -1951,6 +2034,97 @@ fn build(ctx: BuildContext) -> BuildGraph:
         );
         assert_eq!(by_id["certify"].kind, "certify");
         assert_eq!(by_id["certify"].certifies, vec!["probe.local".to_string()]);
+    }
+
+    #[test]
+    fn build_script_manifest_extracts_exec_and_amalgamate_tasks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let blade_root = tmp.path().join("probe");
+        kfs::create_dir_all(blade_root.join("src")).unwrap();
+        kfs::write_text(
+            blade_root.join("build.kn"),
+            r#"
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let prep = exec_task("refresh-generated")
+        .command("cargo")
+        .arg("run")
+        .arg("-q")
+        .env("CARGO_TARGET_DIR", "$root/target/codex-build-graph")
+        .stdout("$task/stdout.txt")
+        .stderr("$task/stderr.txt")
+        .timeout_ms(60000)
+        .always_run()
+    let capsule = amalgamate_capsule("probe-capsule")
+        .path(".")
+        .output("$root/.kain/capsules/probe.kn")
+        .name("probe")
+        .version("0.1.0")
+        .tag("portable")
+        .meta("album", "probe")
+        .storage("editable")
+        .header("rich")
+        .preview_symbols(32)
+        .archive(false)
+    return build_graph().task(prep).task(capsule)
+"#,
+        )
+        .unwrap();
+
+        let manifest = load_effective_kain_manifest(&blade_root)
+            .unwrap()
+            .expect("effective manifest");
+        assert_eq!(manifest.build.tasks.len(), 2);
+        let by_id = manifest
+            .build
+            .tasks
+            .iter()
+            .map(|task| (task.id.as_str(), task))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(by_id["refresh-generated"].kind, "exec");
+        assert_eq!(
+            by_id["refresh-generated"]
+                .env
+                .get("CARGO_TARGET_DIR")
+                .map(String::as_str),
+            Some("$root/target/codex-build-graph")
+        );
+        assert_eq!(
+            by_id["refresh-generated"]
+                .options
+                .get("timeout_ms")
+                .map(String::as_str),
+            Some("60000")
+        );
+        assert_eq!(
+            by_id["refresh-generated"]
+                .options
+                .get("always_run")
+                .map(String::as_str),
+            Some("true")
+        );
+        assert_eq!(by_id["probe-capsule"].kind, "amalgamate");
+        assert_eq!(by_id["probe-capsule"].entry, Some(PathBuf::from(".")));
+        assert_eq!(
+            by_id["probe-capsule"]
+                .options
+                .get("storage")
+                .map(String::as_str),
+            Some("editable")
+        );
+        assert_eq!(
+            by_id["probe-capsule"]
+                .options
+                .get("preview_symbols")
+                .map(String::as_str),
+            Some("32")
+        );
+        assert_eq!(by_id["probe-capsule"].tags, vec!["portable".to_string()]);
+        assert_eq!(
+            by_id["probe-capsule"].meta.get("album").map(String::as_str),
+            Some("probe")
+        );
     }
 
     #[test]

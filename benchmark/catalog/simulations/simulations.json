@@ -7,9 +7,9 @@
     "rust",
     "cpp"
   ],
-  "minimal_name": "latest_sim.md",
+  "minimal_name": "out/snapshots/latest_sim.md",
   "latest_stem": "latest_sim",
-  "include_manifest": "benchmarks.json",
+  "include_manifest": "catalog/benchmarks.main.json",
   "case_ids": [
     "sim_nbody_gravity",
     "sim_uv_velocity_grid",

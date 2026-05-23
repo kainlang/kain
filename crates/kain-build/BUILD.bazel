@@ -30,6 +30,7 @@ rust_library(
     edition = "2021",
     aliases = aliases(),
     deps = [
+        "//crates/kain-amalgamate:kain-amalgamate",
         "//crates/kain-blades:blade",
         "//crates/kain-check:kain-check",
         "//crates/kain-core:kain-core",

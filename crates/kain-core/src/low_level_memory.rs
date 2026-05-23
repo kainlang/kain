@@ -9,6 +9,7 @@ use crate::low_level_abi::{
 use crate::low_level_memory_metadata::{
     attr_usize_arg, attr_usize_bool_args, has_attr, C_BITFIELD_ATTR, C_PACKED_ATTR,
     C_PACK_ALIGN_ATTR, C_STORAGE_ALIGN_ATTR, C_STORAGE_BITS_ATTR, C_TYPE_ALIGN_ATTR, C_UNION_ATTR,
+    PUBLIC_ALIGNED_ATTR, PUBLIC_PACKED_ATTR,
 };
 use crate::monomorphize::MonomorphizedProgram;
 use crate::span::Span;
@@ -118,7 +119,8 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) ->
             TypedItem::Struct(st) => {
                 let struct_name = st.ast.name.clone();
                 let is_union = has_attr(&st.ast.attributes, C_UNION_ATTR);
-                let is_packed = has_attr(&st.ast.attributes, C_PACKED_ATTR);
+                let is_packed = has_attr(&st.ast.attributes, C_PACKED_ATTR)
+                    || has_attr(&st.ast.attributes, PUBLIC_PACKED_ATTR);
                 let pack_align = match attr_usize_arg(&st.ast.attributes, C_PACK_ALIGN_ATTR) {
                     Some(bits) => {
                         let align = bits.div_ceil(8);
@@ -142,6 +144,14 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) ->
                         }
                         None => None,
                     };
+                let public_type_align =
+                    attr_usize_arg(&st.ast.attributes, PUBLIC_ALIGNED_ATTR).filter(|align| *align > 0);
+                let explicit_type_align = match (explicit_type_align, public_type_align) {
+                    (Some(internal), Some(public)) => Some(internal.max(public)),
+                    (Some(internal), None) => Some(internal),
+                    (None, Some(public)) => Some(public),
+                    (None, None) => None,
+                };
                 let mut offset = 0usize;
                 let mut max_field_size = 0usize;
                 let mut max_align = 1usize;
