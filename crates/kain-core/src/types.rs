@@ -11294,12 +11294,101 @@ mod tests {
         check(&program, &span_mapper, "<test>")
     }
 
+    fn combine_sources_with_origins(units: &[(&str, &str)]) -> (String, Vec<SourceOriginSegment>) {
+        let mut combined = String::new();
+        let mut origins = Vec::new();
+        let mut offset = 0usize;
+        for (file, source) in units {
+            combined.push_str(source);
+            let end = offset + source.len();
+            origins.push(SourceOriginSegment {
+                file: (*file).to_string(),
+                combined_span: Span::new(offset, end),
+                source: (*source).to_string(),
+            });
+            offset = end;
+            if !source.ends_with('\n') {
+                combined.push('\n');
+                offset += 1;
+            }
+        }
+        (combined, origins)
+    }
+
+    fn register_program_items_for_test<'a>(
+        program: &Program,
+        span_mapper: &'a SpanMapper,
+        filename: &'a str,
+    ) -> TypeEnv<'a> {
+        let mut env = TypeEnv::new(span_mapper, filename);
+        for item in &program.items {
+            predeclare_item_types(&mut env, item);
+        }
+        for item in &program.items {
+            register_item_types(&mut env, item).expect("registration pass should succeed");
+        }
+        for item in &program.items {
+            register_item_types(&mut env, item).expect("refresh pass should succeed");
+        }
+        env
+    }
+
     fn expect_typecheck_error_contains(source: &str, needle: &str) {
         let err = typecheck_source(source).expect_err("source should fail typecheck");
         assert!(
             err.to_string().contains(needle),
             "unexpected diagnostic: {err}"
         );
+    }
+
+    #[test]
+    fn typecheck_combined_stdlib_ascii_and_base64_bundle() {
+        let entry = r#"
+use std::base64
+
+fn main() -> Int:
+    return len(base64_encode("ok"))
+"#;
+        let (combined, origins) = combine_sources_with_origins(&[
+            ("D:/Kain-Lang/stdlib/ascii.kn", include_str!("../../../stdlib/ascii.kn")),
+            ("D:/Kain-Lang/stdlib/base64.kn", include_str!("../../../stdlib/base64.kn")),
+            ("<test>", entry),
+        ]);
+        let span_mapper = SpanMapper::with_origins(&combined, origins);
+        let program = parse_source_for_typecheck(&combined, &span_mapper, "<test>");
+        let env = register_program_items_for_test(&program, &span_mapper, "<test>");
+        assert!(
+            env.lookup("ascii_is_byte").is_some(),
+            "combined stdlib bundle should keep ascii_is_byte registered"
+        );
+        check(&program, &span_mapper, "<test>")
+            .expect("combined ascii/base64 stdlib bundle should typecheck");
+    }
+
+    #[test]
+    fn typecheck_combined_stdlib_fs_bundle_keeps_native_fs_externs_registered() {
+        let entry = r#"
+use std::fs
+
+fn main() -> Int:
+    return len(fs_read_text("shadow-smoke.txt"))
+"#;
+        let (combined, origins) = combine_sources_with_origins(&[
+            ("D:/Kain-Lang/stdlib/ascii.kn", include_str!("../../../stdlib/ascii.kn")),
+            ("D:/Kain-Lang/stdlib/base64.kn", include_str!("../../../stdlib/base64.kn")),
+            ("D:/Kain-Lang/stdlib/text.kn", include_str!("../../../stdlib/text.kn")),
+            ("D:/Kain-Lang/stdlib/fs.kn", include_str!("../../../stdlib/fs.kn")),
+            ("<test>", entry),
+        ]);
+        let span_mapper = SpanMapper::with_origins(&combined, origins);
+        let program = parse_source_for_typecheck(&combined, &span_mapper, "<test>");
+        let env = register_program_items_for_test(&program, &span_mapper, "<test>");
+        assert!(
+            env.lookup("abi_fs_metadata_text").is_some(),
+            "combined stdlib bundle should keep abi_fs_metadata_text registered"
+        );
+        check(&program, &span_mapper, "<test>")
+            .expect("combined fs stdlib bundle should typecheck");
     }
 
     #[test]

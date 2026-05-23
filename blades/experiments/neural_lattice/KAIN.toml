@@ -1,0 +1,46 @@
+[package]
+name = "neural_lattice"
+version = "0.1.0"
+description = "Standalone experimental Kain neural lattice blade with a blade-owned OpenGL presenter."
+
+[blade]
+name = "neural_lattice"
+kind = "kain_library"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/neural_entangled_sieve.kn",
+  "src/neural_lattice_presenter.kn",
+  "native/neural_lattice_bridge.h",
+  "native/neural_lattice_bridge_impl.c",
+  "build-neural-lattice-bridge.ps1",
+  "run.ps1",
+  "build.kn",
+]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "neural_lattice_bridge"
+header = "native/neural_lattice_bridge.h"
+shared_lib = ".kain/native/neural_lattice_bridge.obj"
+link_libs = ["user32", "gdi32", "opengl32"]

@@ -408,7 +408,7 @@ impl<'a> Parser<'a> {
             if self.errors.len() >= MAX_ERRORS {
                 break;
             }
-            self.skip_newlines();
+            self.skip_formatting();
             if self.at_end() {
                 break;
             }

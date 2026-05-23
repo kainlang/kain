@@ -1,0 +1,5 @@
+use c::neural_lattice_bridge
+use neural_entangled_sieve::run_neural_lattice_demo
+
+fn main() -> Int with Unsafe:
+    return run_neural_lattice_demo()

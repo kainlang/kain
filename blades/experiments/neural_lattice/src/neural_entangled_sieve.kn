@@ -1,0 +1,268 @@
+use std::actor
+use std::alloc
+use std::fs
+use std::graphics
+use std::intent
+use std::math
+use std::runtime
+use std::text
+use std::ui
+use neural_lattice_presenter::neural_lattice_present_window
+use neural_lattice_presenter::neural_lattice_presenter_cells
+use neural_lattice_presenter::neural_lattice_presenter_frames
+use neural_lattice_presenter::neural_lattice_presenter_probe
+use neural_lattice_presenter::neural_lattice_presenter_write_report
+
+const KAIN_LATTICE_MODULUS: Int = 1000000007
+const KAIN_LATTICE_OPTIMAL_BIAS: Int = 51966
+const KAIN_LATTICE_TOTAL_SYNAPSE_NODES: Int = 128
+const KAIN_LATTICE_WORDS_PER_SYNAPSE: Int = 4
+const KAIN_LATTICE_FRAME_BUDGET: Int = 180
+
+enum SynapseState:
+    Dormant
+    Excited
+    Entangled
+    Inhibited
+
+shatter struct ShatteredSynapse:
+    id: Int
+    charge: Int
+    phase: Int
+    state: SynapseState
+
+struct NeuralLatticeCore:
+    signal: Int
+    mirror_signal: Int
+    epoch: Int
+    lock_state: Int
+    observed_checksum: Int
+    hot_synapses: Int
+    actor_echo: Int
+
+component SieveDisplayPanel():
+    render <panel title="Neural Entanglement Scope" />
+
+world CorticalAuthority:
+    state network_charge: Int = 0
+    state epoch: Int = 0
+    state lock_state: Int = 0
+    surface native_ui => SieveDisplayPanel
+
+world DeepMirror:
+    state charge_copy: Int = 0
+    state epoch_copy: Int = 0
+    state lock_copy: Int = 0
+    surface web => SieveDisplayPanel
+
+entangle CorticalAuthority.network_charge <-> DeepMirror.charge_copy with single_writer
+entangle CorticalAuthority.epoch <-> DeepMirror.epoch_copy with single_writer
+entangle CorticalAuthority.lock_state <-> DeepMirror.lock_copy with single_writer
+
+law charge_is_stable(value: Int) -> Bool:
+    return value >= 0 and value < KAIN_LATTICE_MODULUS
+
+patch commit_sieve_charge(authority: CorticalAuthority, value: Int) -> Int:
+    authority.network_charge = value
+    authority.epoch = authority.epoch + 1
+    authority.lock_state = int_clamp(authority.lock_state + (value % 19), 0, 4096)
+    return authority.network_charge
+
+actor NeuralIgniter:
+    state activation_bias: Int = 1337
+    state ignite_count: Int = 0
+
+    on PulseIgnition(reply_to: P, input_signal: Int):
+        self.ignite_count = self.ignite_count + 1
+        let result = ((input_signal * 17) + self.activation_bias + self.ignite_count) % KAIN_LATTICE_MODULUS
+        send reply_to.Reply(value = result)
+
+pulse neural_sieve_beat every 4ms jitter 1ms:
+    let node = ShatteredSynapse { id: 101, charge: 999, phase: 0, state: SynapseState::Entangled }
+    let moved = teleport node from CorticalAuthority to DeepMirror via pulse_bus
+    let _sieve_dt = pulse_tick + moved.charge + moved.phase
+
+fn mix_charge_scalar(value: Int) -> Int:
+    return ((value * 53) + 13) % KAIN_LATTICE_MODULUS
+
+converge mix_lattice_charge(value: Int) -> Int:
+    spec reference:
+        return mix_charge_scalar(value)
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return ((value * 53) + 13) % KAIN_LATTICE_MODULUS
+    verify random(8)
+
+fn fold_synapse_charge(cells: ptr<Int>, total_nodes: Int) -> Int with Unsafe:
+    var index: Int = 0
+    var acc: Int = 0
+    while index < total_nodes:
+        let charge = mem_load(ptr_offset(cells, (index * KAIN_LATTICE_WORDS_PER_SYNAPSE) + 1, "Int"), "Int")
+        acc = (acc + charge) % KAIN_LATTICE_MODULUS
+        index = index + 1
+    return acc
+
+fn count_hot_synapses(cells: ptr<Int>, total_nodes: Int) -> Int with Unsafe:
+    var index: Int = 0
+    var hot: Int = 0
+    while index < total_nodes:
+        let charge = mem_load(ptr_offset(cells, (index * KAIN_LATTICE_WORDS_PER_SYNAPSE) + 1, "Int"), "Int")
+        if (charge % 7) <= 2:
+            hot = hot + 1
+        index = index + 1
+    return hot
+
+fn passive_graphics_probe(seed: Int) -> Int:
+    let _reset = graphics_reset()
+    let session = graphics_session_create("neural-lattice.graphics", 320, 240)
+    if session <= 0:
+        return 0
+    let _backend = graphics_backend_select(session, "software")
+    let vb = graphics_buffer_create_from_hex(session, "vertex", "neural.vertices", "00000000010000000200000003000000", 12)
+    let ib = graphics_buffer_create_from_hex(session, "index", "neural.indices", "000000000100000002000000000000000200000003000000", 4)
+    let mesh = graphics_mesh_create(session, "neural.mesh", vb, ib, 4, 6)
+    let vs = graphics_shader_spirv_from_hex(session, "neural.vertex", "vertex", "main", "03022307")
+    let fs = graphics_shader_spirv_from_hex(session, "neural.fragment", "fragment", "main", "03022307")
+    let pipeline = graphics_pipeline_create(session, "neural.pipeline", vs, fs, "software")
+    let _begin = graphics_begin_frame(session, 16.0)
+    let draw = graphics_draw_mesh(session, pipeline, mesh, (seed % 3) + 1)
+    let end_count = graphics_end_frame(session)
+    let presented = graphics_present(session)
+    let draw_count = graphics_draw_command_count(session)
+    let backend_score = len(graphics_active_backend(session)) + len(graphics_backend_status("software"))
+    let _destroy = graphics_session_destroy(session)
+    return draw + end_count + presented + draw_count + backend_score
+
+fn passive_ui_probe(signal: Int, hot_synapses: Int, actor_echo: Int) -> Int:
+    let _reset = ui_reset()
+    let session = ui_host_session_create("neural-lattice.ui", "Neural Lattice Passive UI", 720, 420, "software")
+    let body_font = native_ui_font_create(session, "font.neural.body", "JetBrains Mono", 14.0)
+    let root = ui_reconcile_node(session, 0, "neural.root", "root", 0.0, 0.0, 720.0, 420.0)
+    let lattice = ui_reconcile_text_node(session, root, "neural.surface", "surface", "entangled lattice", 24.0, 24.0, 672.0, 260.0)
+    let stats = ui_reconcile_text_node(session, root, "neural.stats", "stats", "signal " + str(signal) + " hot " + str(hot_synapses) + " echo " + str(actor_echo), 24.0, 320.0, 672.0, 48.0)
+    let _root_bg = ui_style_color_rgba(session, root, "ui.bg", 0.06, 0.08, 0.12, 1.0)
+    let _surface_bg = ui_style_color_rgba(session, lattice, "ui.surface", 0.12, 0.18, 0.24, 1.0)
+    let _stats_bg = ui_style_color_rgba(session, stats, "ui.stats", 0.19, 0.27, 0.21, 1.0)
+    let _stats_text = ui_style_color_rgba(session, stats, "ui.stats.text", 0.96, 0.98, 0.99, 1.0)
+    let _padding = ui_style_padding(session, lattice, "ui.layout", 18.0, 18.0, 18.0, 18.0)
+    let _begin = ui_frame_begin(session, 16.0)
+    let _draw_root = ui_render_box(session, root, "ui.bg")
+    let _draw_surface = ui_render_box(session, lattice, "ui.surface")
+    let _draw_stats = ui_render_box(session, stats, "ui.stats")
+    let _draw_lattice_text = ui_render_text_value(session, lattice, body_font, "phase field " + str(signal % 4096), 38.0, 68.0, "ui.stats.text")
+    let _draw_stats_text = ui_render_text(session, stats, body_font, native_ui_node_x(session, stats) + 16.0, native_ui_node_y(session, stats) + 26.0, "ui.stats.text")
+    let presented = ui_frame_submit(session)
+    let frame_hash = ui_host_frame_hash(session)
+    let host_draws = ui_host_presented_draw_count(session)
+    let _destroy = native_ui_session_destroy(session)
+    return frame_hash + host_draws + presented
+
+fn neural_lattice_report_text(core: NeuralLatticeCore, ui_hash: Int, graphics_score: Int, presenter_status: Int, frames_presented: Int, cells_drawn: Int) -> String:
+    var report = "signal=" + str(core.signal) + "\n"
+    report = report + "mirror_signal=" + str(core.mirror_signal) + "\n"
+    report = report + "epoch=" + str(core.epoch) + "\n"
+    report = report + "lock_state=" + str(core.lock_state) + "\n"
+    report = report + "observed_checksum=" + str(core.observed_checksum) + "\n"
+    report = report + "hot_synapses=" + str(core.hot_synapses) + "\n"
+    report = report + "actor_echo=" + str(core.actor_echo) + "\n"
+    report = report + "ui_frame_hash=" + str(ui_hash) + "\n"
+    report = report + "graphics_score=" + str(graphics_score) + "\n"
+    report = report + "presenter_status=" + str(presenter_status) + "\n"
+    report = report + "frames_presented=" + str(frames_presented) + "\n"
+    report = report + "cells_drawn=" + str(cells_drawn) + "\n"
+    return report
+
+pub fn execute_sieve_cycle() -> NeuralLatticeCore with Unsafe:
+    let authority = CorticalAuthority
+    let mirror = DeepMirror
+    let relay = spawn NeuralIgniter(activation_bias = KAIN_LATTICE_OPTIMAL_BIAS)
+    let _warmup = ask(relay, "PulseIgnition", 100)
+
+    let cells_count = KAIN_LATTICE_TOTAL_SYNAPSE_NODES * KAIN_LATTICE_WORDS_PER_SYNAPSE
+    let mut synapses: ptr<Int> = alloc_zeroed(cells_count, "Int")
+
+    var checksum: Int = 0
+    collapse synapses:
+        var index: Int = 0
+        while index < KAIN_LATTICE_TOTAL_SYNAPSE_NODES:
+            let base = index * KAIN_LATTICE_WORDS_PER_SYNAPSE
+            let mixing = mix_lattice_charge(index + 1)
+            mem_store(ptr_offset(synapses, base + 0, "Int"), index, "Int")
+            mem_store(ptr_offset(synapses, base + 1, "Int"), mixing, "Int")
+            mem_store(ptr_offset(synapses, base + 2, "Int"), KAIN_LATTICE_OPTIMAL_BIAS + (index % 17), "Int")
+            mem_store(ptr_offset(synapses, base + 3, "Int"), 2, "Int")
+            checksum = (checksum + mixing) % KAIN_LATTICE_MODULUS
+            index = index + 1
+        0
+
+    let observed_checksum = observe synapses:
+        fold_synapse_charge(synapses, KAIN_LATTICE_TOTAL_SYNAPSE_NODES)
+
+    let hot_synapses = observe synapses:
+        count_hot_synapses(synapses, KAIN_LATTICE_TOTAL_SYNAPSE_NODES)
+
+    let signal = commit_sieve_charge(authority, (checksum + observed_checksum + hot_synapses) % KAIN_LATTICE_MODULUS)
+    let actor_echo = ask(relay, "PulseIgnition", signal + observed_checksum + hot_synapses)
+    let _stable = charge_is_stable(signal)
+
+    decay synapses
+
+    return NeuralLatticeCore {
+        signal: signal,
+        mirror_signal: mirror.charge_copy,
+        epoch: authority.epoch,
+        lock_state: authority.lock_state,
+        observed_checksum: observed_checksum,
+        hot_synapses: hot_synapses,
+        actor_echo: actor_echo
+    }
+
+pub fn run_neural_lattice_demo() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    if neural_lattice_presenter_probe() != 1:
+        let shutdown_missing = runtime_shutdown()
+        if shutdown_missing != 0:
+            return 200 + shutdown_missing
+        return 11
+
+    let core = execute_sieve_cycle()
+    let ui_hash = passive_ui_probe(core.signal, core.hot_synapses, core.actor_echo)
+    let graphics_score = passive_graphics_probe(core.signal + core.actor_echo)
+    let presenter_status = neural_lattice_present_window(
+        "Neural Entanglement Scope // Retro Proof Blade",
+        1280,
+        720,
+        KAIN_LATTICE_FRAME_BUDGET,
+        core.signal,
+        core.mirror_signal,
+        core.epoch,
+        core.lock_state,
+        core.hot_synapses,
+        core.actor_echo,
+        ui_hash,
+        graphics_score
+    )
+    let frames_presented = neural_lattice_presenter_frames()
+    let cells_drawn = neural_lattice_presenter_cells()
+    let report_text = neural_lattice_report_text(core, ui_hash, graphics_score, presenter_status, frames_presented, cells_drawn)
+    let _report = fs_write_text(".kain/run/neural_lattice_report.txt", report_text)
+    let _presenter_report = neural_lattice_presenter_write_report(".kain/run/neural_lattice_window_report.txt")
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if presenter_status != 0:
+        return 20 + presenter_status
+    if charge_is_stable(core.signal) == false:
+        return 31
+    if frames_presented < 1:
+        return 32
+    if cells_drawn < 64:
+        return 33
+    if ui_hash <= 0:
+        return 34
+    if graphics_score <= 0:
+        return 35
+    return 0

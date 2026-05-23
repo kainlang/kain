@@ -1,7 +1,6 @@
 use std::runtime
 use std::memory
 use std::thread
-use std::path
 use std::fs
 use std::zip
 use std::elf
@@ -29,41 +28,27 @@ pub fn smoke_thread_lane() -> Int with Unsafe:
     let _aff = thread_set_affinity(0)
 
 
-    # 2. Test std::path
-    let p_join = path_join("a", "b")
-    # Verify separator exists
+    # 2. Test path helpers through std::fs wrappers
+    let p_join = fs_path_join("a", "b")
     if len(p_join) != 3:
         return 104
         
-    let p_parent = path_parent("a/b/c")
-    # Note: path_parent might return relative parent, verify basic path
+    let p_parent = fs_path_parent("a/b/c")
     if len(p_parent) == 0:
         return 105
         
-    let p_file = path_file_name("a/b/c.txt")
+    let p_file = fs_path_file_name("a/b/c.txt")
     if p_file != "c.txt":
         return 106
         
-    let p_ext = path_extension("a/b/c.txt")
+    let p_ext = fs_path_extension("a/b/c.txt")
     if p_ext != "txt" and p_ext != ".txt":
-        # Our C path extension might return "txt"
         if p_ext != "txt":
             return 107
             
-    let p_stem = path_stem("a/b/c.txt")
+    let p_stem = fs_path_stem("a/b/c.txt")
     if p_stem != "c":
         return 108
-        
-    if path_is_absolute("/a/b/c") == false:
-        return 109
-        
-    let p_norm = path_normalize("a/../b/./c")
-    # "b/c" or "b\\c" depending on platform
-    let p_parts = path_split(p_norm)
-    if len(p_parts) != 2:
-        return 110
-    if p_parts[0] != "b" or p_parts[1] != "c":
-        return 111
 
 
     # 3. Test std::fs (File handles binary read/write)

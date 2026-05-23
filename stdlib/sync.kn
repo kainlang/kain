@@ -10,7 +10,13 @@ const MCS_NODE_WORDS: Int = 2
 const MCS_NODE_NEXT_SLOT: Int = 0
 const MCS_NODE_WAITING_SLOT: Int = 1
 const TELEPORT_CHANNEL_MIN_REQUESTED_CAPACITY: Int = 1
+const TELEPORT_CHANNEL_MAX_REQUESTED_CAPACITY: Int = 2147483646
 const TELEPORT_CHANNEL_PADDING_SLOTS: Int = 1
+const TELEPORT_CHANNEL_CONTROL_WORDS: Int = 4
+const TELEPORT_CHANNEL_BUFFER_SLOT: Int = 0
+const TELEPORT_CHANNEL_CAPACITY_SLOT: Int = 1
+const TELEPORT_CHANNEL_WRITE_IDX_SLOT: Int = 2
+const TELEPORT_CHANNEL_READ_IDX_SLOT: Int = 3
 const ONCE_STATE_UNINITIALIZED: Int = 0
 const ONCE_STATE_INITIALIZING: Int = 1
 const ONCE_STATE_DONE: Int = 2
@@ -61,35 +67,40 @@ pub fn mcs_mutex_lock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
     return SYNC_OK
 
 pub fn mcs_mutex_unlock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
-    var next_waiting_bits = atomic_load_acquire(node)
-    var next_waiting: ptr<Int> = int_to_ptr(next_waiting_bits, "ptr<Int>")
-
-    if next_waiting_bits == 0:
+    while true:
+        let next_waiting_bits = atomic_load_acquire(node)
+        if next_waiting_bits != 0:
+            let next_waiting: ptr<Int> = int_to_ptr(next_waiting_bits, "ptr<Int>")
+            atomic_store_release(next_waiting, 0)
+            return SYNC_OK
         if atomic_compare_exchange_seqcst(lock.tail, ptr_to_int(node), 0):
             return SYNC_OK
-
-        while next_waiting_bits == 0:
-            spin_loop_hint()
-            next_waiting_bits = atomic_load_acquire(node)
-        next_waiting = int_to_ptr(next_waiting_bits, "ptr<Int>")
-
-    atomic_store_release(next_waiting, 0)
-    return SYNC_OK
+        spin_loop_hint()
 
 
 # --- TeleportChannel (Lockless Zero-Copy SPSC Ring Buffer Queue) ---
 
 pub struct TeleportChannel:
-    buffer: ptr<Int>
-    capacity: Int
-    write_idx: ptr<Int>
-    read_idx: ptr<Int>
+    control: ptr<Int>
+
+fn teleport_channel_buffer_ptr(chan: TeleportChannel) -> ptr<Int> with Unsafe:
+    let bits = mem_load(ptr_offset(chan.control, TELEPORT_CHANNEL_BUFFER_SLOT, "Int"), "Int")
+    return int_to_ptr(bits, "ptr<Int>")
+
+fn teleport_channel_capacity(chan: TeleportChannel) -> Int with Unsafe:
+    return mem_load(ptr_offset(chan.control, TELEPORT_CHANNEL_CAPACITY_SLOT, "Int"), "Int")
+
+fn teleport_channel_write_idx_ptr(chan: TeleportChannel) -> ptr<Int> with Unsafe:
+    return ptr_offset(chan.control, TELEPORT_CHANNEL_WRITE_IDX_SLOT, "Int")
+
+fn teleport_channel_read_idx_ptr(chan: TeleportChannel) -> ptr<Int> with Unsafe:
+    return ptr_offset(chan.control, TELEPORT_CHANNEL_READ_IDX_SLOT, "Int")
 
 fn sync_clamp_channel_capacity(capacity: Int) -> Int:
     if capacity < TELEPORT_CHANNEL_MIN_REQUESTED_CAPACITY:
         return TELEPORT_CHANNEL_MIN_REQUESTED_CAPACITY
-    if capacity > SYNC_INT_MAX - TELEPORT_CHANNEL_PADDING_SLOTS:
-        return SYNC_INT_MAX - TELEPORT_CHANNEL_PADDING_SLOTS
+    if capacity > TELEPORT_CHANNEL_MAX_REQUESTED_CAPACITY:
+        return TELEPORT_CHANNEL_MAX_REQUESTED_CAPACITY
     return capacity
 
 pub fn teleport_channel_new(capacity: Int) -> TeleportChannel:
@@ -97,40 +108,44 @@ pub fn teleport_channel_new(capacity: Int) -> TeleportChannel:
     # Proof: crates/kain-core/z3/proofs/stdlib-sync-teleport-channel-index-bounds.yaml
     let safe_capacity = requested_capacity + TELEPORT_CHANNEL_PADDING_SLOTS
     let buffer = alloc_zeroed(safe_capacity, "Int")
-    let write_idx = alloc_zeroed(1, "Int")
-    let read_idx = alloc_zeroed(1, "Int")
-    return TeleportChannel {
-        buffer: buffer,
-        capacity: safe_capacity,
-        write_idx: write_idx,
-        read_idx: read_idx
-    }
+    let control = alloc_zeroed(TELEPORT_CHANNEL_CONTROL_WORDS, "Int")
+    mem_store(ptr_offset(control, TELEPORT_CHANNEL_BUFFER_SLOT, "Int"), ptr_to_int(buffer), "Int")
+    mem_store(ptr_offset(control, TELEPORT_CHANNEL_CAPACITY_SLOT, "Int"), safe_capacity, "Int")
+    return TeleportChannel { control: control }
 
-pub fn teleport_channel_destroy(chan: TeleportChannel) -> Int:
-    decay chan.buffer
-    decay chan.write_idx
-    decay chan.read_idx
+pub fn teleport_channel_destroy(chan: TeleportChannel) -> Int with Unsafe:
+    let buffer = teleport_channel_buffer_ptr(chan)
+    decay buffer
+    decay chan.control
     return SYNC_OK
 
 pub fn teleport_channel_send(chan: TeleportChannel, item_ptr: Int) -> Bool with Unsafe:
-    let w = mem_load(chan.write_idx, "Int")
-    let r = atomic_load_acquire(chan.read_idx)
-    let next_w = (w + 1) % chan.capacity
+    let write_idx = teleport_channel_write_idx_ptr(chan)
+    let read_idx = teleport_channel_read_idx_ptr(chan)
+    let capacity = teleport_channel_capacity(chan)
+    let w = atomic_load_acquire(write_idx)
+    let r = atomic_load_acquire(read_idx)
+    let next_w = (w + 1) % capacity
     if next_w == r:
         return false
 
-    mem_store(ptr_offset(chan.buffer, w, "Int"), item_ptr, "Int")
-    atomic_store_release(chan.write_idx, next_w)
+    let buffer = teleport_channel_buffer_ptr(chan)
+    atomic_store_release(ptr_offset(buffer, w, "Int"), item_ptr)
+    atomic_store_release(write_idx, next_w)
     return true
 
 pub fn teleport_channel_recv(chan: TeleportChannel) -> Int with Unsafe:
-    let r = mem_load(chan.read_idx, "Int")
-    let w = atomic_load_acquire(chan.write_idx)
+    let write_idx = teleport_channel_write_idx_ptr(chan)
+    let read_idx = teleport_channel_read_idx_ptr(chan)
+    let capacity = teleport_channel_capacity(chan)
+    let r = atomic_load_acquire(read_idx)
+    let w = atomic_load_acquire(write_idx)
     if r == w:
         return 0
 
-    let item_ptr = mem_load(ptr_offset(chan.buffer, r, "Int"), "Int")
-    atomic_store_release(chan.read_idx, (r + 1) % chan.capacity)
+    let buffer = teleport_channel_buffer_ptr(chan)
+    let item_ptr = atomic_load_acquire(ptr_offset(buffer, r, "Int"))
+    atomic_store_release(read_idx, (r + 1) % capacity)
     return item_ptr
 
 
@@ -161,18 +176,26 @@ pub fn once_do(o: Once) -> Int with Unsafe:
             return SYNC_ERR_INVALID_ONCE_STATE
 
 pub fn once_complete(o: Once) -> Int with Unsafe:
-    if atomic_compare_exchange_seqcst(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_DONE):
-        return SYNC_OK
-    if atomic_load_acquire(o.state) == ONCE_STATE_DONE:
-        return SYNC_OK
-    return SYNC_ERR_INVALID_ONCE_STATE
+    while true:
+        let observed = atomic_load_acquire(o.state)
+        if observed == ONCE_STATE_DONE:
+            return SYNC_OK
+        if observed != ONCE_STATE_INITIALIZING:
+            return SYNC_ERR_INVALID_ONCE_STATE
+        if atomic_compare_exchange_seqcst(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_DONE):
+            return SYNC_OK
+        spin_loop_hint()
 
 pub fn once_reset(o: Once) -> Int with Unsafe:
-    if atomic_compare_exchange_seqcst(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_UNINITIALIZED):
-        return SYNC_OK
-    if atomic_load_acquire(o.state) == ONCE_STATE_UNINITIALIZED:
-        return SYNC_OK
-    return SYNC_ERR_INVALID_ONCE_STATE
+    while true:
+        let observed = atomic_load_acquire(o.state)
+        if observed == ONCE_STATE_UNINITIALIZED:
+            return SYNC_OK
+        if observed != ONCE_STATE_INITIALIZING:
+            return SYNC_ERR_INVALID_ONCE_STATE
+        if atomic_compare_exchange_seqcst(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_UNINITIALIZED):
+            return SYNC_OK
+        spin_loop_hint()
 
 
 # --- WaitGroup (Structured Thread Synchronization Barrier) ---

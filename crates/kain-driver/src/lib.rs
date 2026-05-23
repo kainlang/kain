@@ -1192,6 +1192,8 @@ fn assemble_frontend_source_bundle(
             combined.push('\n');
             offset += 1;
         }
+        combined.push('\n');
+        offset += 1;
     }
     combined.push_str(entry_source);
     origins.push(SourceOriginSegment {
@@ -3756,6 +3758,168 @@ fn main() -> Int:
         assert!(typed.items.iter().any(|item| {
             matches!(item, TypedItem::Function(function) if function.ast.name == "vec3_length")
         }));
+    }
+
+    #[test]
+    fn frontend_bundle_native_cli_keeps_ascii_and_fs_top_level_functions_visible() {
+        let path = Path::new("D:/Kain-Lang/smoketest/src/systems/native_cli.kn");
+        let source = fs::read_to_string(path).expect("read native cli source");
+        let session = DriverSession::default();
+        let frontend =
+            build_frontend_source_bundle(&session, &source, Some(path), CompileTarget::Llvm)
+                .expect("frontend bundle");
+        let origin_files: Vec<String> = frontend
+            .origins
+            .iter()
+            .map(|origin| origin.file.clone())
+            .collect();
+        let ascii_origin = frontend
+            .origins
+            .iter()
+            .find(|origin| origin.file.replace('\\', "/").ends_with("stdlib/ascii.kn"))
+            .expect("frontend bundle should include ascii origin");
+        let ascii_context_start = ascii_origin.combined_span.start.saturating_sub(80);
+        let ascii_context_end =
+            (ascii_origin.combined_span.start + 160).min(frontend.full_source.len());
+        let ascii_context = frontend.full_source[ascii_context_start..ascii_context_end].to_string();
+        assert!(
+            origin_files
+                .iter()
+                .any(|file| file.replace('\\', "/").ends_with("stdlib/ascii.kn")),
+            "frontend bundle missing stdlib/ascii.kn origin: {origin_files:?}"
+        );
+        assert!(
+            origin_files
+                .iter()
+                .any(|file| file.replace('\\', "/").ends_with("stdlib/fs.kn")),
+            "frontend bundle missing stdlib/fs.kn origin: {origin_files:?}"
+        );
+        let span_mapper =
+            diagnostics::SpanMapper::with_origins(&frontend.full_source, frontend.origins.clone());
+        let tokens = Lexer::new(&frontend.full_source)
+            .tokenize()
+            .expect("frontend bundle should lex");
+        let ascii_boundary_tokens: Vec<String> = tokens
+            .iter()
+            .filter(|token| {
+                token.span.start >= ascii_origin.combined_span.start.saturating_sub(16)
+                    && token.span.start <= ascii_origin.combined_span.start + 64
+            })
+            .map(|token| format!("{:?}@{}", token.kind, token.span.start))
+            .collect();
+        let program = Parser::new(&tokens, &span_mapper, path.to_str().unwrap_or("<test>"))
+            .parse()
+            .expect("frontend bundle should parse");
+
+        let ascii_functions: Vec<String> = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function)
+                    if span_mapper
+                        .span_origin_file(function.span)
+                        .is_some_and(|file| file.ends_with("stdlib/ascii.kn")) =>
+                {
+                    Some(function.name.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        let ascii_items: Vec<String> = program
+            .items
+            .iter()
+            .filter_map(|item| {
+                let (kind, name, span) = match item {
+                    Item::Function(function) => ("fn", function.name.as_str(), function.span),
+                    Item::Const(constant) => ("const", constant.name.as_str(), constant.span),
+                    _ => return None,
+                };
+                let Some(file) = span_mapper.span_origin_file(span) else {
+                    return None;
+                };
+                if !file.ends_with("stdlib/ascii.kn") {
+                    return None;
+                }
+                Some(format!("{kind}:{name}"))
+            })
+            .collect();
+        let ascii_named_items: Vec<String> = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function)
+                    if function.name.starts_with("ascii_") || function.name.starts_with("ASCII_") =>
+                {
+                    Some(format!(
+                        "fn:{}@{:?}",
+                        function.name,
+                        span_mapper.span_origin_file(function.span)
+                    ))
+                }
+                Item::Const(constant)
+                    if constant.name.starts_with("ascii_") || constant.name.starts_with("ASCII_") =>
+                {
+                    Some(format!(
+                        "const:{}@{:?}",
+                        constant.name,
+                        span_mapper.span_origin_file(constant.span)
+                    ))
+                }
+                _ => None,
+            })
+            .collect();
+        let ascii_is_byte_origins: Vec<Option<String>> = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function) if function.name == "ascii_is_byte" => Some(
+                    span_mapper
+                        .span_origin_file(function.span)
+                        .map(|file| file.to_string()),
+                ),
+                _ => None,
+            })
+            .collect();
+        let fs_functions: Vec<String> = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function)
+                    if span_mapper
+                        .span_origin_file(function.span)
+                        .is_some_and(|file| file.ends_with("stdlib/fs.kn")) =>
+                {
+                    Some(function.name.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        let abi_fs_metadata_text_origins: Vec<Option<String>> = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function) if function.name == "abi_fs_metadata_text" => Some(
+                    span_mapper
+                        .span_origin_file(function.span)
+                        .map(|file| file.to_string()),
+                ),
+                _ => None,
+            })
+            .collect();
+
+        assert!(
+            ascii_functions.iter().any(|name| name == "ascii_is_byte"),
+            "ascii bundle functions missing ascii_is_byte: count={} origins={origin_files:?} ascii_items={ascii_items:?} ascii_named={ascii_named_items:?} names={ascii_functions:?} direct={ascii_is_byte_origins:?} context={ascii_context:?} tokens={ascii_boundary_tokens:?}",
+            frontend.full_source.matches("pub fn ascii_is_byte(value: Int) -> Bool:").count(),
+        );
+        assert!(
+            fs_functions.iter().any(|name| name == "abi_fs_metadata_text"),
+            "fs bundle functions missing abi_fs_metadata_text: count={} origins={origin_files:?} names={fs_functions:?} direct={abi_fs_metadata_text_origins:?}",
+            frontend
+                .full_source
+                .matches("pub fn abi_fs_metadata_text(path: String) -> String")
+                .count()
+        );
     }
 
     #[test]

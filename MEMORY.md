@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-23 - `blades/experiments/neural_lattice` landed as a standalone visual specimen
+
+The new `blades/experiments` pipeline now has its first real specimen: `neural_lattice` is a self-contained experimental blade that keeps the semantic core in authored Kain while using a blade-owned Win32/WGL presenter for real pixels.
+
+What changed:
+
+- `blades/experiments/neural_lattice/src/neural_entangled_sieve.kn`
+  - graduated the half-built semantic sketch into a runnable specimen with `world`, `entangle`, `patch`, `law`, `actor`, `pulse`, `shatter`, `collapse`, `observe`, and `decay`
+  - added passive `std::graphics` and `std::ui` telemetry passes so the visual seed still flows through public root stdlib before the native presenter runs
+  - writes a blade-local semantic report to `.kain/run/neural_lattice_report.txt`
+- `blades/experiments/neural_lattice/src/main.kn`
+  - owns the `use c::neural_lattice_bridge` import so helper modules stay on the safer side of the current C-import workflow
+- `blades/experiments/neural_lattice/native/neural_lattice_bridge.h`
+- `blades/experiments/neural_lattice/native/neural_lattice_bridge_impl.c`
+  - added a blade-owned Win32/OpenGL compatibility presenter that draws an animated lattice grid and can dump a BMP screenshot through `NEURAL_LATTICE_SCREENSHOT_PATH`
+- `blades/experiments/neural_lattice/build.kn`
+- `blades/experiments/neural_lattice/KAIN.toml`
+- `blades/experiments/neural_lattice/build-neural-lattice-bridge.ps1`
+- `blades/experiments/neural_lattice/run.ps1`
+  - the practical proof path is now `run.ps1`: prebuild the bridge object, compile `src/main.kn` to `neural_lattice.exe`, run it, and verify the semantic report, presenter report, and screenshot
+
+Validation and repo truth:
+
+- passed:
+  - `kain check blades/experiments/neural_lattice/src/main.kn --target llvm`
+  - `powershell -ExecutionPolicy Bypass -File blades/experiments/neural_lattice/run.ps1`
+- produced artifacts:
+  - `blades/experiments/neural_lattice/neural_lattice.exe`
+  - `blades/experiments/neural_lattice/.kain/run/neural_lattice_report.txt`
+  - `blades/experiments/neural_lattice/.kain/run/neural_lattice_window_report.txt`
+  - `blades/experiments/neural_lattice/.kain/run/neural_lattice.bmp`
+
+Durable lessons:
+
+- In this checkout, a blade-owned live window still wants the same split used by `blades/pong`: keep Kain semantics in `.kn`, but own the actual presenter in blade-local native code.
+- `blade build <blade> --json` still fails for this lane because the generic `c-shared-library` task is not linking the Win32/OpenGL import libs even though the compile-to-root path succeeds. Treat that as a build-lane/tooling issue, not as a problem with the authored specimen.
+- The original 3-second auto-close came from a hard `180`-frame budget. `neural_lattice` now treats normal launches as interactive by default and only uses a finite frame budget when `NEURAL_LATTICE_FRAME_BUDGET` or the screenshot automation path injects one.
+
 # 2026-05-23 - `std::sync` hardening pass landed with proof-backed channel/wait-group guards
 
 The root `std::sync` surface was worth keeping, but it needed a serious systems cleanup before we could treat it as honest stdlib instead of a promising first draft.
@@ -17,10 +55,12 @@ What changed:
     - `crates/kain-core/z3/proofs/stdlib-sync-wait-group-counter-stays-in-range.yaml`
 - `smoketest/src/stdlib/sync_lane.kn`
   - now proves the repaired mutex path, channel clamp/full/empty behavior, `Once` completion plus reset, and `WaitGroup` underflow rejection
-- `benchmark/cases/stdlib_foundations/main.kn`
-  - now consumes `std::sync` directly so the root sync surface is exercised outside the isolated stdlib lane
+- `benchmark/cases/sync_primitives/main.kn`
+  - added a dedicated sync-only benchmark row around repeated MCS mutex, one-slot teleport channel pointer-token reuse, `Once`, and `WaitGroup` pressure under benchmark-release settings
 - `attrition/cases/kain_stdlib_foundations/main.kn`
   - now owns sync teardown pressure across mutex/channel/once/wait-group flows
+- `stdlib/thread.kn`
+  - now reuses `std::machine` CPU/thread topology wrappers instead of redeclaring the same `abi_cpu_*` globals and blocking downstream checks
 - `stdlib/requirements.md`
   - tightened the `std::sync` `DONE` row to reflect the real landed surface and its evidence
 
@@ -29,14 +69,20 @@ Validation and repo truth:
 - passed:
   - `kain check stdlib/sync.kn --target llvm`
   - `kain check smoketest/src/stdlib/sync_lane.kn --target llvm`
-  - `kain check benchmark/cases/stdlib_foundations/main.kn --target llvm`
+  - `kain check benchmark/cases/sync_primitives/main.kn --target llvm`
   - `kain check attrition/cases/kain_stdlib_foundations/main.kn --target llvm`
+  - `kain run smoketest/src/stdlib/sync_lane.kn --target llvm` through a temporary runner during validation
+  - `kain run benchmark/cases/sync_primitives/main.kn --target llvm`
+  - `kain run attrition/cases/kain_stdlib_foundations/main.kn --target llvm`
+  - `python benchmark/run.py --case sync_primitives --languages kain --runs 5 --warmups 1 --timeout 240`
+  - `python attrition/run.py --case kain_stdlib_foundations --scale small --timeout 120`
 - proof artifacts were added under `crates/kain-core/z3/proofs/` for the padded ring-buffer cursor bounds and wait-group counter range guards
-- full `smoketest/src/main.kn` is still blocked by unrelated in-flight `std::thread` work in `smoketest/src/stdlib/thread_lane.kn` (`elf_h.class` still collides with the reserved `class` keyword), not by `std::sync`
+- full `smoketest/src/main.kn` is currently blocked by unrelated in-flight `std::fs` work (`stdlib/fs.kn:261` refers to unknown `abi_fs_metadata_text`), not by `std::sync`
 
 Durable lessons:
 
 - `std::sync` was a good subsystem choice, but this repo absolutely needs guard rails around unsafe arithmetic and state transitions before we call a low-level public surface done.
+- The original by-value `TeleportChannel` control struct was not stable enough under repeated reuse and standalone benchmark-release compilation. Collapsing it into a single control block produced a much more reliable public function surface without changing the call-level API.
 - For Kain sync primitives, a small honest API with proof-backed invariants is better than a wider surface that silently accepts negative counters, zero-capacity rings, or invalid once states.
 
 # 2026-05-23 - authoring floor pack landed with `std::bytes` plus deeper `std::text` and `std::fmt`

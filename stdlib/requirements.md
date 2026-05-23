@@ -13,7 +13,7 @@ This backlog is derived from:
 
 Current reality:
 
-- Kain root stdlib atlas currently reports `51` modules, `2124` public symbols, and `2760` total symbols.
+- Kain root stdlib atlas currently reports `56` modules, `2282` public symbols, and `2899` total symbols.
 - The root profile is still much thinner than Zig's local `lib/std` capability envelope.
 - Kain is already unusually strong in `std::math`, `std::gpu`, `std::graphics`, `std::ui`, `std::build`, `std::bench`, `std::attrition`, `std::certify`, `std::actor`, and semantic/runtime-facing surfaces such as `std::intent` and `std::runtime`.
 - Kain is still obviously missing a large amount of boring-but-necessary authoring, systems, container, path, stream, encoding, archive, and binary-introspection depth.

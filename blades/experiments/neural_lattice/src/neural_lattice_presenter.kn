@@ -1,0 +1,14 @@
+pub fn neural_lattice_presenter_probe() -> Int:
+    return neural_lattice_native_probe()
+
+pub fn neural_lattice_present_window(title: String, width: Int, height: Int, frame_budget: Int, signal: Int, mirror_signal: Int, epoch: Int, lock_state: Int, hot_synapses: Int, actor_echo: Int, ui_hash: Int, graphics_score: Int) -> Int:
+    return neural_lattice_native_run_window(title, width, height, frame_budget, signal, mirror_signal, epoch, lock_state, hot_synapses, actor_echo, ui_hash, graphics_score)
+
+pub fn neural_lattice_presenter_frames() -> Int:
+    return neural_lattice_native_frames_presented()
+
+pub fn neural_lattice_presenter_cells() -> Int:
+    return neural_lattice_native_cells_drawn()
+
+pub fn neural_lattice_presenter_write_report(path: String) -> Int:
+    return neural_lattice_native_write_report(path)

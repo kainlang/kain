@@ -1,4 +1,5 @@
 use std::memory
+use std::machine
 
 @extern
 pub fn abi_thread_spawn(func: ptr<Int>, arg: ptr<Int>, thread_id_out: ptr<Int>, done_flag: ptr<Int>) -> ptr<Int>
@@ -8,21 +9,6 @@ pub fn abi_thread_join(thread_handle: ptr<Int>) -> Int
 
 @extern
 pub fn abi_thread_set_name(name: String) -> Int
-
-@extern
-pub fn abi_cpu_current_thread_id() -> Int
-
-@extern
-pub fn abi_cpu_current_thread_affinity_mask() -> Int
-
-@extern
-pub fn abi_cpu_set_current_thread_affinity(core_index: Int) -> Int
-
-@extern
-pub fn abi_cpu_logical_count() -> Int
-
-@extern
-pub fn abi_cpu_core_count() -> Int
 
 pub struct Thread:
     handle: ptr<Int>
@@ -47,19 +33,19 @@ pub fn thread_set_name(name: String) -> Int:
     return abi_thread_set_name(name)
 
 pub fn thread_current_id() -> Int:
-    return abi_cpu_current_thread_id()
+    return current_thread_id()
 
 pub fn thread_affinity_mask() -> Int:
-    return abi_cpu_current_thread_affinity_mask()
+    return current_thread_affinity_mask()
 
-pub fn thread_set_affinity(core_index: Int) -> Int:
-    return abi_cpu_set_current_thread_affinity(core_index)
+pub fn thread_set_affinity(core_index: Int) -> Int with Unsafe:
+    return set_current_thread_affinity(core_index)
 
 pub fn thread_logical_count() -> Int:
-    return abi_cpu_logical_count()
+    return cpu_logical_count()
 
 pub fn thread_core_count() -> Int:
-    return abi_cpu_core_count()
+    return cpu_core_count()
 
 pub fn thread_is_done(thread: Thread) -> Bool:
     return mem_load(thread.done_flag, "Int") != 0

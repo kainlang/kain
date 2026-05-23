@@ -453,6 +453,21 @@
       ]
     },
     {
+      "id": "sync_primitives",
+      "title": "Sync Primitives",
+      "description": "Focused Kain-only pressure over std.sync MCS mutex, one-slot teleport channel pointer tokens, Once completion, and WaitGroup add/done/wait reuse across a hot loop.",
+      "maturity": "kain-stdlib-proof",
+      "fairness_note": "This is a sync-specific stdlib proof row, not a cross-language contest. It exists to guard the repaired std.sync primitive semantics and native LLVM lowering under repeated steady-state reuse.",
+      "kain": "cases/sync_primitives/main.kn",
+      "tags": [
+        "core"
+      ],
+      "suites": [
+        "dev",
+        "full"
+      ]
+    },
+    {
       "id": "scalar_mix",
       "title": "Scalar Mix",
       "description": "Hot scalar loop with top-level const expressions and a checksum guard. This case exercises LLVM top-level const resolution directly in the benchmark lane.",

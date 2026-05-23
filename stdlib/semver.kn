@@ -596,18 +596,21 @@ fn semver_parse_clause(text: String) -> SemVerClauseParseResult:
     let tokens = semver_clause_tokens(trimmed)
     if len(tokens) == 0:
         return semver_clause_error("empty range clause")
-    if len(tokens) == 3 and tokens[1] == "-":
-        return semver_parse_hyphen_clause(tokens[0], tokens[2])
+    if len(tokens) == 3:
+        if tokens[1] == "-":
+            return semver_parse_hyphen_clause(tokens[0], tokens[2])
 
     let mut comparators: Array<SemVerComparator> = []
     var index = 0
     while index < len(tokens):
-        if tokens[index] == "-":
+        let current = tokens[index]
+        if current == "-":
             return semver_clause_error("hyphen ranges must use `left - right` as a full clause")
-        let token = if semver_is_operator_only_token(tokens[index]) and index + 1 < len(tokens): tokens[index] + tokens[index + 1] else: tokens[index]
-        if semver_is_operator_only_token(tokens[index]):
+        var token = current
+        if semver_is_operator_only_token(current):
             if index + 1 >= len(tokens):
-                return semver_clause_error("range operator `" + tokens[index] + "` is missing a version")
+                return semver_clause_error("range operator `" + current + "` is missing a version")
+            token = current + tokens[index + 1]
             index = index + 1
         let expanded = semver_parse_range_token(token)
         if expanded.ok == false:
