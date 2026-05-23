@@ -500,7 +500,7 @@ pub struct IntrusiveHashMap:
     bucket_count: Int
     count: Int
 
-pub fn intrusive_hash_map_create(bucket_count: Int) -> IntrusiveHashMap with Alloc:
+pub fn intrusive_hash_map_create(bucket_count: Int) -> IntrusiveHashMap:
     var safe_buckets = bucket_count
     if safe_buckets < 1:
         safe_buckets = 1
