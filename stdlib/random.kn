@@ -175,7 +175,7 @@ pub struct ShatteredRngBuffer:
     buffer: ptr<Int>
     lanes: Int
 
-pub fn shattered_rng_buffer_new(seed: Int, lanes: Int) -> ShatteredRngBuffer with Alloc:
+pub fn shattered_rng_buffer_new(seed: Int, lanes: Int) -> ShatteredRngBuffer:
     var safe_lanes = lanes
     if safe_lanes < 1:
         safe_lanes = 1
