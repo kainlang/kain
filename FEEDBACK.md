@@ -162,3 +162,16 @@
 - Minimal repro: author an actor with `state text: String = "hello"` and an `Output` handler that replies with `self.text`, then `print(ask(worker, "Output", 0))` under `kain run <file> --target llvm`.
 - Evidence: before the `Flush` reroute, `D:\Kain-Lang\kg.exe 'kg_parse_config' 'D:\Kain-Lang\blades\kg\src\main.kn' --line-number` produced a bare integer-like payload instead of the two matching source lines; after removing the `String` ask-reply path, the same command printed the expected lines.
 - Suggested direction: track actor reply payload types for `String` the same way runtime-array/string element typing is now tracked in LLVM lowering, and add a native fixture that asks an actor for exact string output.
+
+---
+
+## 2026-05-23 - stdlib random proof lane
+### `verify random(n)` currently rejects converge functions with pointer parameters
+- Categories: correctness, developer-experience, proof
+- Status: Active
+- Surface: proof
+- Symptom: `kain check stdlib/random.kn --target llvm` fails with `error[TYPE:KAIN-TYPE-0001]: converge 'shattered_rng_buffer_update' verify random(n) does not support parameter 'buf' of type ptr<Int>`
+- Workflow impact: album-scale validation for unrelated stdlib work was blocked after targeted semver checks passed, because `smoketest/src/main.kn` transitively pulls in `std::random` and the proof rule rejects the existing pointer-based converge surface before full workspace validation can finish.
+- Minimal repro: `kain check stdlib/random.kn --target llvm`
+- Evidence: failure points at `stdlib/random.kn:258` on `pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int:` with the `verify random(n)` diagnostic above.
+- Suggested direction: either extend `verify random(n)` so pointer-bearing converge signatures can be proved when the pointer arguments are not part of the randomized domain, or emit a more structured diagnostic with the supported parameter shapes and a sanctioned escape hatch for pointer-oriented converge kernels.
