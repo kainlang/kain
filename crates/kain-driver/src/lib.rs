@@ -3810,6 +3810,7 @@ fn main() -> Int:
         let program = Parser::new(&tokens, &span_mapper, path.to_str().unwrap_or("<test>"))
             .parse()
             .expect("frontend bundle should parse");
+        let origin_matches = |file: &str, suffix: &str| file.replace('\\', "/").ends_with(suffix);
 
         let ascii_functions: Vec<String> = program
             .items
@@ -3818,7 +3819,7 @@ fn main() -> Int:
                 Item::Function(function)
                     if span_mapper
                         .span_origin_file(function.span)
-                        .is_some_and(|file| file.ends_with("stdlib/ascii.kn")) =>
+                        .is_some_and(|file| origin_matches(file, "stdlib/ascii.kn")) =>
                 {
                     Some(function.name.clone())
                 }
@@ -3837,7 +3838,7 @@ fn main() -> Int:
                 let Some(file) = span_mapper.span_origin_file(span) else {
                     return None;
                 };
-                if !file.ends_with("stdlib/ascii.kn") {
+                if !origin_matches(file, "stdlib/ascii.kn") {
                     return None;
                 }
                 Some(format!("{kind}:{name}"))
@@ -3887,7 +3888,7 @@ fn main() -> Int:
                 Item::Function(function)
                     if span_mapper
                         .span_origin_file(function.span)
-                        .is_some_and(|file| file.ends_with("stdlib/fs.kn")) =>
+                        .is_some_and(|file| origin_matches(file, "stdlib/fs.kn")) =>
                 {
                     Some(function.name.clone())
                 }

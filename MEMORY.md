@@ -1,5 +1,51 @@
 # Kain Memory
 
+# 2026-05-23 - `blades/kg` CLI arg repair plus dispatcher metadata prefetch
+
+`kg` is usable again as a native Kain grep blade, but it is still nowhere near `rg` on honest timing.
+
+What changed:
+
+- `stdlib/process.kn`
+  - added `process_user_args()` so authored native CLIs can normalize away the current argv disagreement around whether `argv[0]` is the executable path
+- `smoketest/src/stdlib/process_lane.kn`
+- `smoketest/src/main.kn`
+- `smoketest/build.kn`
+  - added a stdlib proof lane for `process_user_args()` and wired it into the album/build inputs
+- `blades/kg/src/main.kn`
+  - direct `kg needle` invocation now parses user args instead of treating the first real positional as if it were the executable slot
+  - added `--` end-of-flags handling
+  - normalizes `.\path` roots before dispatch
+  - keeps the proven `fs_walk_paths_text` / `fs_metadata_text` traversal lane, but now prefetches file length in the dispatcher and sends `len|path` tasks so workers skip the second metadata pass
+
+Validation and repo truth:
+
+- passed:
+  - `.\target\debug\kain.exe check blades/kg/src/main.kn --target llvm`
+  - `.\target\debug\kain.exe check smoketest/src/stdlib/process_lane.kn --target llvm`
+  - `.\target\debug\kain.exe check blades/stdlib-domains/src/main.kn --target llvm`
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+  - `..\..\target\debug\kain.exe blades build . --json` from `blades/kg`
+- functional probes:
+  - `.\\kg.exe 12200002fffxx` now performs a real search and exits `1` on no matches instead of printing the old missing-needle error
+  - `.\\kg.exe kg_file_args .\\blades\\kg\\src\\main.kn --stats -l` dispatched `1` file and reported `1` match
+  - `.\\kg.exe process_user_args .\\stdlib --stats -l` dispatched `97` files and reported matches in `stdlib/process.kn`, `stdlib/stdlib.map.json`, and `stdlib/STDLIB_MAP.llm.md`
+- full `smoketest/src/main.kn` is still blocked by the pre-existing `stdlib/fs.kn:261` `Unknown identifier 'abi_fs_metadata_text'` issue, not by the new process lane
+
+Performance reality:
+
+- measured on the current tree:
+  - `kg process_user_args .\stdlib` took about `62.96 ms`; `rg process_user_args .\stdlib` took about `25.11 ms`
+  - `kg kg_task_path .\blades\kg` took about `151.47 ms`; `rg kg_task_path .\blades\kg` took about `22.42 ms`
+- `kg` improved correctness and cut redundant metadata work, but it is still materially slower than `rg`
+
+Durable lessons:
+
+- authored native Kain CLIs should use `process_user_args()` for now instead of assuming whether `process_args()[0]` is the executable path
+- in this checkout, the typed `std::fs` `fs_walk(...)` / `fs_metadata(...)` runtime path is not yet trustworthy enough for `kg` dispatch; the older text-backed traversal lane is still the honest floor here
+- the next real `kg` speed pass needs search-metal work, not more flag parsing: chunked reads, lower-allocation scanning, and a better ignore-case path than `to_lower(contents)`
+
 # 2026-05-23 - `blades/experiments/neural_lattice` landed as a standalone visual specimen
 
 The new `blades/experiments` pipeline now has its first real specimen: `neural_lattice` is a self-contained experimental blade that keeps the semantic core in authored Kain while using a blade-owned Win32/WGL presenter for real pixels.

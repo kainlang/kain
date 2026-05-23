@@ -4659,6 +4659,7 @@ impl<'a> Parser<'a> {
                 }
 
                 if is_variant_path {
+                    self.pos = saved_pos_for_check;
                     let variant = path_segments.last().cloned().unwrap_or_default();
                     let enum_name =
                         Self::join_path_segments(&path_segments[..path_segments.len() - 1]);
@@ -10018,5 +10019,106 @@ mod tests {
 
         assert_eq!(*success_ordering, AtomicOrdering::Release);
         assert_eq!(*failure_ordering, AtomicOrdering::Relaxed);
+    }
+
+    #[test]
+    fn concatenated_stdlib_files_keep_following_top_level_items_visible() {
+        let source = format!(
+            "{}\n\n{}",
+            include_str!("../../../stdlib/path.kn"),
+            include_str!("../../../stdlib/ascii.kn")
+        );
+        let program = parse_program(&source).expect("concatenated stdlib files should parse");
+
+        let top_level_names: Vec<String> = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function) => Some(format!("fn:{}", function.name)),
+                Item::Const(constant) => Some(format!("const:{}", constant.name)),
+                _ => None,
+            })
+            .collect();
+
+        assert!(
+            top_level_names.iter().any(|name| name == "fn:ascii_is_byte"),
+            "ascii follow-on function missing from top level: {top_level_names:?}"
+        );
+        assert!(
+            top_level_names.iter().any(|name| name == "const:ASCII_NUL"),
+            "ascii follow-on const missing from top level: {top_level_names:?}"
+        );
+    }
+
+    #[test]
+    fn ambient_frontend_bundle_prefix_keeps_ascii_items_visible() {
+        let source = format!(
+            "{}\n\n{}\n\n{}\n\n{}\n\n{}\n\n{}",
+            include_str!("../../../stdlib/runtime.kn"),
+            include_str!("../../../stdlib/actor.kn"),
+            include_str!("../../../stdlib/platform.kn"),
+            include_str!("../../../stdlib/target.kn"),
+            include_str!("../../../stdlib/path.kn"),
+            include_str!("../../../stdlib/ascii.kn")
+        );
+        let program = parse_program(&source).expect("ambient stdlib prefix should parse");
+
+        let top_level_names: Vec<String> = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function) => Some(format!("fn:{}", function.name)),
+                Item::Const(constant) => Some(format!("const:{}", constant.name)),
+                _ => None,
+            })
+            .collect();
+
+        assert!(
+            top_level_names.iter().any(|name| name == "fn:ascii_is_byte"),
+            "ascii function disappeared after ambient prefix: {top_level_names:?}"
+        );
+        assert!(
+            top_level_names.iter().any(|name| name == "const:ASCII_NUL"),
+            "ascii const disappeared after ambient prefix: {top_level_names:?}"
+        );
+    }
+
+    #[test]
+    fn target_stdlib_file_leaves_following_function_at_top_level_boundary() {
+        let source = include_str!("../../../stdlib/target.kn");
+        let tokens = Lexer::new(source).tokenize().expect("target tokens");
+        let span_mapper = SpanMapper::new(source);
+        let mut parser = Parser::new(&tokens, &span_mapper, "<target-stdlib>");
+
+        let mut parsed_names = Vec::new();
+        while !parser.at_end() {
+            parser.skip_formatting();
+            if parser.at_end() {
+                break;
+            }
+            let item = parser.parse_item().expect("target item should parse");
+            match &item {
+                Item::Use(import) => parsed_names.push(format!("use:{}", import.path.join("::"))),
+                Item::Enum(def) => parsed_names.push(format!("enum:{}", def.name)),
+                Item::Struct(def) => parsed_names.push(format!("struct:{}", def.name)),
+                Item::Function(def) => parsed_names.push(format!("fn:{}", def.name)),
+                other => parsed_names.push(format!("{other:?}")),
+            }
+            parser.skip_formatting();
+        }
+
+        assert_eq!(
+            parsed_names,
+            vec![
+                "use:std::runtime",
+                "enum:Arch",
+                "enum:OS",
+                "enum:Env",
+                "struct:Target",
+                "fn:target_current",
+                "fn:target_has_feature",
+            ],
+            "target stdlib parse lost the trailing function: {parsed_names:?}"
+        );
     }
 }

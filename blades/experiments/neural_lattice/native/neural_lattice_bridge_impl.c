@@ -3,6 +3,7 @@
 #ifdef _WIN32
 
 #include <windows.h>
+#include <windowsx.h>
 #include <GL/gl.h>
 
 #include <math.h>
@@ -14,6 +15,15 @@
 #define NEURAL_LATTICE_CLASS_NAME "KainBladeNeuralLatticeWindow"
 #define NEURAL_LATTICE_SCREENSHOT_ENV "NEURAL_LATTICE_SCREENSHOT_PATH"
 #define NEURAL_LATTICE_FRAME_BUDGET_ENV "NEURAL_LATTICE_FRAME_BUDGET"
+
+enum {
+    NEURAL_LATTICE_MODE_ENTANGLE = 0,
+    NEURAL_LATTICE_MODE_COLLAPSE = 1,
+    NEURAL_LATTICE_MODE_DECAY = 2,
+    NEURAL_LATTICE_MODE_BURST = 3,
+    NEURAL_LATTICE_MODE_DRIFT = 4,
+    NEURAL_LATTICE_MODE_COUNT = 5
+};
 
 typedef struct {
     HINSTANCE instance;
@@ -33,8 +43,26 @@ typedef struct {
     int lock_state;
     int hot_synapses;
     int actor_echo;
+    int collapse_signal;
+    int collapse_mirror;
+    int decay_signal;
+    int decay_mirror;
+    int burst_signal;
+    int burst_mirror;
+    int drift_signal;
+    int entangle_registered;
+    int entangle_propagations;
+    int patch_journal;
+    int teleport_count;
     int ui_hash;
     int graphics_score;
+    int current_mode;
+    int hover_mode;
+    int auto_cycle;
+    int mouse_x;
+    int mouse_y;
+    float display_authority;
+    float display_mirror;
     char screenshot_path[MAX_PATH];
 } NeuralLatticeWindowState;
 
@@ -101,7 +129,9 @@ static void neural_lattice_draw_outline(float left, float top, float right, floa
 }
 
 static void neural_lattice_draw_text(NeuralLatticeWindowState* state, float x, float y, float red, float green, float blue, const char* text) {
+    GLubyte glyph_indices[256];
     size_t text_length;
+    size_t index;
     if (!state || !state->font_list_base || !text) {
         return;
     }
@@ -109,10 +139,20 @@ static void neural_lattice_draw_text(NeuralLatticeWindowState* state, float x, f
     if (text_length == 0) {
         return;
     }
+    if (text_length > sizeof(glyph_indices)) {
+        text_length = sizeof(glyph_indices);
+    }
+    for (index = 0; index < text_length; index += 1) {
+        unsigned char glyph = (unsigned char)text[index];
+        if (glyph < 32u || glyph > 127u) {
+            glyph = (unsigned char)'?';
+        }
+        glyph_indices[index] = (GLubyte)(glyph - 32u);
+    }
     glColor3f(red, green, blue);
     glRasterPos2f(x, y);
-    glListBase(state->font_list_base - 32u);
-    glCallLists((GLsizei)text_length, GL_UNSIGNED_BYTE, text);
+    glListBase(state->font_list_base);
+    glCallLists((GLsizei)text_length, GL_UNSIGNED_BYTE, glyph_indices);
 }
 
 static void neural_lattice_draw_scanlines(int width, int height) {
@@ -125,6 +165,160 @@ static void neural_lattice_draw_scanlines(int width, int height) {
         glVertex2f((float)width, (float)y + 0.5f);
     }
     glEnd();
+}
+
+static const char* neural_lattice_mode_name(int mode) {
+    switch (mode) {
+        case NEURAL_LATTICE_MODE_COLLAPSE:
+            return "COLLAPSE";
+        case NEURAL_LATTICE_MODE_DECAY:
+            return "DECAY";
+        case NEURAL_LATTICE_MODE_BURST:
+            return "BURST";
+        case NEURAL_LATTICE_MODE_DRIFT:
+            return "DRIFT";
+        case NEURAL_LATTICE_MODE_ENTANGLE:
+        default:
+            return "ENTANGLE";
+    }
+}
+
+static const char* neural_lattice_mode_description(int mode) {
+    switch (mode) {
+        case NEURAL_LATTICE_MODE_COLLAPSE:
+            return "collapse owns helper lattice exclusively; mirror panel stays on the last entangled world snapshot";
+        case NEURAL_LATTICE_MODE_DECAY:
+            return "decay ends helper buffer lifetime; this view shows the fading ghost left behind before the region died";
+        case NEURAL_LATTICE_MODE_BURST:
+            return "actor ask/reply bursts punch extra pulse energy through the deck without breaking the semantic coupling";
+        case NEURAL_LATTICE_MODE_DRIFT:
+            return "rogue projection is not entangled; use this to compare real mirror lock against deliberate unsynced drift";
+        case NEURAL_LATTICE_MODE_ENTANGLE:
+        default:
+            return "world fields mirror through single_writer entangle; delta stays pinned while the bus keeps both lanes locked";
+    }
+}
+
+static int neural_lattice_mode_target_authority(const NeuralLatticeWindowState* state, int mode) {
+    if (!state) {
+        return 0;
+    }
+    switch (mode) {
+        case NEURAL_LATTICE_MODE_COLLAPSE:
+            return state->collapse_signal;
+        case NEURAL_LATTICE_MODE_DECAY:
+            return state->decay_signal;
+        case NEURAL_LATTICE_MODE_BURST:
+            return state->burst_signal;
+        case NEURAL_LATTICE_MODE_DRIFT:
+            return state->signal;
+        case NEURAL_LATTICE_MODE_ENTANGLE:
+        default:
+            return state->signal;
+    }
+}
+
+static int neural_lattice_mode_target_mirror(const NeuralLatticeWindowState* state, int mode) {
+    if (!state) {
+        return 0;
+    }
+    switch (mode) {
+        case NEURAL_LATTICE_MODE_COLLAPSE:
+            return state->collapse_mirror;
+        case NEURAL_LATTICE_MODE_DECAY:
+            return state->decay_mirror;
+        case NEURAL_LATTICE_MODE_BURST:
+            return state->burst_mirror;
+        case NEURAL_LATTICE_MODE_DRIFT:
+            return state->drift_signal;
+        case NEURAL_LATTICE_MODE_ENTANGLE:
+        default:
+            return state->mirror_signal;
+    }
+}
+
+static void neural_lattice_button_rect(const NeuralLatticeWindowState* state, int index, RECT* rect) {
+    int width = 114;
+    int height = 30;
+    int gap = 12;
+    int total_width = (NEURAL_LATTICE_MODE_COUNT * width) + ((NEURAL_LATTICE_MODE_COUNT - 1) * gap);
+    int left;
+    int top;
+
+    if (!rect) {
+        return;
+    }
+
+    if (!state) {
+        SetRect(rect, 0, 0, 0, 0);
+        return;
+    }
+
+    left = (state->width - total_width) / 2;
+    top = state->height - 48;
+    SetRect(rect, left + (index * (width + gap)), top, left + (index * (width + gap)) + width, top + height);
+}
+
+static int neural_lattice_hit_mode_button(const NeuralLatticeWindowState* state, int x, int y) {
+    int index;
+    for (index = 0; index < NEURAL_LATTICE_MODE_COUNT; index += 1) {
+        RECT rect;
+        neural_lattice_button_rect(state, index, &rect);
+        if (x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+static void neural_lattice_build_wave(
+    float* out_points,
+    int point_count,
+    int primary_seed,
+    int secondary_seed,
+    int mode,
+    float frame_phase,
+    float hot_ratio,
+    float lock_lane,
+    float amplitude_scale,
+    float phase_bias
+) {
+    int index;
+    if (!out_points || point_count <= 0) {
+        return;
+    }
+
+    for (index = 0; index < point_count; index += 1) {
+        float t = (float)index / (float)(point_count - 1);
+        float primary_lane = neural_lattice_unit(primary_seed + (index * 17), 4096);
+        float secondary_lane = neural_lattice_unit(secondary_seed + (index * 9), 4096);
+        float wave_a = sinf((t * 10.995574f) + frame_phase + (primary_lane * 6.2831853f) + phase_bias);
+        float wave_b = cosf((t * 24.138f) - (frame_phase * 1.35f) + (secondary_lane * 4.712389f) - (phase_bias * 0.5f));
+        float envelope = 0.50f + (wave_a * (0.23f + (hot_ratio * 0.10f)) * amplitude_scale) + (wave_b * (0.08f + (lock_lane * 0.04f)) * amplitude_scale);
+
+        switch (mode) {
+            case NEURAL_LATTICE_MODE_COLLAPSE:
+                envelope = floorf((envelope * 6.0f) + 0.5f) / 6.0f;
+                break;
+            case NEURAL_LATTICE_MODE_DECAY:
+                envelope = 0.50f + ((envelope - 0.50f) * (0.45f - (t * 0.20f)));
+                break;
+            case NEURAL_LATTICE_MODE_BURST: {
+                float burst = sinf((t * 34.0f) - (frame_phase * 4.0f) + ((float)(primary_seed & 255) * 0.03f));
+                if (burst > 0.72f) {
+                    envelope -= (burst - 0.72f) * 0.90f;
+                }
+                break;
+            }
+            case NEURAL_LATTICE_MODE_DRIFT:
+                envelope = 0.50f + (wave_a * (0.18f + (hot_ratio * 0.06f)) * amplitude_scale) - (wave_b * (0.18f + (lock_lane * 0.05f)) * amplitude_scale);
+                break;
+            default:
+                break;
+        }
+
+        out_points[index] = neural_lattice_clampf(envelope, 0.10f, 0.90f);
+    }
 }
 
 static void neural_lattice_reset_counters(void) {
@@ -350,9 +544,62 @@ static LRESULT CALLBACK neural_lattice_window_proc(HWND hwnd, UINT message, WPAR
                 state->height = HIWORD(l_param) > 0 ? (int)HIWORD(l_param) : state->height;
             }
             return 0;
+        case WM_MOUSEMOVE:
+            if (state) {
+                state->mouse_x = GET_X_LPARAM(l_param);
+                state->mouse_y = GET_Y_LPARAM(l_param);
+                state->hover_mode = neural_lattice_hit_mode_button(state, state->mouse_x, state->mouse_y);
+            }
+            return 0;
+        case WM_LBUTTONDOWN:
+            if (state) {
+                int hit = neural_lattice_hit_mode_button(state, GET_X_LPARAM(l_param), GET_Y_LPARAM(l_param));
+                if (hit >= 0) {
+                    state->current_mode = hit;
+                    state->auto_cycle = 0;
+                    SetFocus(hwnd);
+                }
+            }
+            return 0;
+        case WM_KEYDOWN:
+            if (state) {
+                switch (w_param) {
+                    case '1':
+                        state->current_mode = NEURAL_LATTICE_MODE_ENTANGLE;
+                        state->auto_cycle = 0;
+                        return 0;
+                    case '2':
+                        state->current_mode = NEURAL_LATTICE_MODE_COLLAPSE;
+                        state->auto_cycle = 0;
+                        return 0;
+                    case '3':
+                        state->current_mode = NEURAL_LATTICE_MODE_DECAY;
+                        state->auto_cycle = 0;
+                        return 0;
+                    case '4':
+                        state->current_mode = NEURAL_LATTICE_MODE_BURST;
+                        state->auto_cycle = 0;
+                        return 0;
+                    case '5':
+                        state->current_mode = NEURAL_LATTICE_MODE_DRIFT;
+                        state->auto_cycle = 0;
+                        return 0;
+                    case 'R':
+                        state->current_mode = NEURAL_LATTICE_MODE_ENTANGLE;
+                        state->auto_cycle = 0;
+                        return 0;
+                    case VK_SPACE:
+                        state->auto_cycle = state->auto_cycle ? 0 : 1;
+                        return 0;
+                    default:
+                        break;
+                }
+            }
+            break;
         default:
             return DefWindowProcA(hwnd, message, w_param, l_param);
     }
+    return DefWindowProcA(hwnd, message, w_param, l_param);
 }
 
 static int neural_lattice_register_class(HINSTANCE instance) {
@@ -474,15 +721,15 @@ static void neural_lattice_update_title(NeuralLatticeWindowState* state, int fra
     if (!state || !state->hwnd) {
         return;
     }
-    delta = neural_lattice_abs_int(state->signal - state->mirror_signal);
+    delta = neural_lattice_abs_int((int)state->display_authority - (int)state->display_mirror);
     snprintf(
         title,
         sizeof(title),
-        "Neural Entanglement Scope // authority=%d mirror=%d delta=%d epoch=%d frame=%d",
-        state->signal,
-        state->mirror_signal,
+        "Neural Entanglement Scope // mode=%s authority=%d mirror=%d delta=%d frame=%d",
+        neural_lattice_mode_name(state->current_mode),
+        (int)state->display_authority,
+        (int)state->display_mirror,
         delta,
-        state->epoch,
         frame_index
     );
     SetWindowTextA(state->hwnd, title);
@@ -495,6 +742,8 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     const float margin = 58.0f;
     const float center_gap = 140.0f;
     const float panel_top = 62.0f;
+    float left_wave[sample_count];
+    float right_wave[sample_count];
     float panel_bottom;
     float panel_width;
     float left_panel_left;
@@ -525,13 +774,45 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     float magenta_blue;
     float center_x;
     float sync_glow;
-    float shared_points[sample_count];
     char label_buffer[128];
+    const char* mode_name;
+    const char* mode_desc;
+    int target_authority;
+    int target_mirror;
+    int active_authority;
+    int active_mirror;
+    int left_mode;
+    int right_mode;
+    float left_amplitude = 1.0f;
+    float right_amplitude = 1.0f;
+    float right_phase_bias = 0.0f;
+    float bus_alpha;
     int sync_delta;
     int x;
     int y;
 
-    panel_bottom = (float)state->height - 62.0f;
+    if (!state) {
+        return;
+    }
+
+    if (state->auto_cycle && frame_index > 0 && (frame_index % 240) == 0) {
+        state->current_mode = (state->current_mode + 1) % NEURAL_LATTICE_MODE_COUNT;
+    }
+
+    target_authority = neural_lattice_mode_target_authority(state, state->current_mode);
+    target_mirror = neural_lattice_mode_target_mirror(state, state->current_mode);
+    if (frame_index == 0 && state->display_authority == 0.0f && state->display_mirror == 0.0f) {
+        state->display_authority = (float)target_authority;
+        state->display_mirror = (float)target_mirror;
+    }
+    state->display_authority += ((float)target_authority - state->display_authority) * 0.12f;
+    state->display_mirror += ((float)target_mirror - state->display_mirror) * 0.12f;
+    active_authority = (int)state->display_authority;
+    active_mirror = (int)state->display_mirror;
+    mode_name = neural_lattice_mode_name(state->current_mode);
+    mode_desc = neural_lattice_mode_description(state->current_mode);
+
+    panel_bottom = (float)state->height - 104.0f;
     panel_width = ((float)state->width - (margin * 2.0f) - center_gap) * 0.5f;
     left_panel_left = margin;
     left_panel_right = left_panel_left + panel_width;
@@ -544,12 +825,12 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     trace_width = trace_right - trace_left;
     trace_height = trace_bottom - trace_top;
     frame_phase = (float)frame_index * 0.035f;
-    bus_phase = (float)frame_index * 0.0125f;
-    signal_lane = neural_lattice_unit(state->signal + state->ui_hash, 2048);
-    mirror_lane = neural_lattice_unit(state->mirror_signal + state->graphics_score, 2048);
+    bus_phase = (float)frame_index * (state->current_mode == NEURAL_LATTICE_MODE_BURST ? 0.028f : 0.0125f);
+    signal_lane = neural_lattice_unit(active_authority + state->ui_hash, 2048);
+    mirror_lane = neural_lattice_unit(active_mirror + state->graphics_score, 2048);
     lock_lane = neural_lattice_unit(state->lock_state + state->hot_synapses, 4096);
     hot_ratio = neural_lattice_clampf((float)state->hot_synapses / 128.0f, 0.0f, 1.0f);
-    sync_delta = neural_lattice_abs_int(state->signal - state->mirror_signal);
+    sync_delta = neural_lattice_abs_int(active_authority - active_mirror);
     delta_lane = neural_lattice_clampf((float)sync_delta / 512.0f, 0.0f, 1.0f);
     amber_red = 0.98f;
     amber_green = 0.66f + (0.14f * hot_ratio);
@@ -562,6 +843,25 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     magenta_blue = 0.74f;
     center_x = (float)state->width * 0.5f;
     sync_glow = sync_delta == 0 ? 0.85f : 0.35f;
+    bus_alpha = state->current_mode == NEURAL_LATTICE_MODE_DRIFT ? 0.12f : (0.28f + (sync_glow * 0.18f));
+
+    left_mode = state->current_mode;
+    right_mode = state->current_mode;
+    if (state->current_mode == NEURAL_LATTICE_MODE_COLLAPSE) {
+        right_mode = NEURAL_LATTICE_MODE_ENTANGLE;
+        right_amplitude = 0.82f;
+    } else if (state->current_mode == NEURAL_LATTICE_MODE_DECAY) {
+        left_amplitude = 0.62f;
+        right_amplitude = 0.28f;
+    } else if (state->current_mode == NEURAL_LATTICE_MODE_BURST) {
+        right_phase_bias = 0.08f;
+    } else if (state->current_mode == NEURAL_LATTICE_MODE_DRIFT) {
+        left_mode = NEURAL_LATTICE_MODE_ENTANGLE;
+        right_phase_bias = 0.55f;
+    }
+
+    neural_lattice_build_wave(left_wave, sample_count, active_authority, state->actor_echo + state->hot_synapses, left_mode, frame_phase, hot_ratio, lock_lane, left_amplitude, 0.0f);
+    neural_lattice_build_wave(right_wave, sample_count, active_mirror, state->graphics_score + state->entangle_propagations, right_mode, frame_phase, hot_ratio, lock_lane, right_amplitude, right_phase_bias);
 
     glViewport(0, 0, state->width, state->height);
     glClearColor(0.028f, 0.020f, 0.050f, 1.0f);
@@ -619,23 +919,12 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     }
     glEnd();
 
-    for (x = 0; x < sample_count; x += 1) {
-        float t = (float)x / (float)(sample_count - 1);
-        float primary_wave;
-        float secondary_wave;
-        float envelope;
-        primary_wave = sinf((t * 10.995574f) + frame_phase + (signal_lane * 6.2831853f));
-        secondary_wave = cosf((t * 24.138f) - (frame_phase * 1.35f) + ((float)(state->actor_echo & 1023) * 0.009f));
-        envelope = 0.50f + (primary_wave * (0.26f + (hot_ratio * 0.12f))) + (secondary_wave * (0.08f + (lock_lane * 0.04f)));
-        shared_points[x] = neural_lattice_clampf(envelope, 0.10f, 0.90f);
-    }
-
     glLineWidth(4.0f);
     glBegin(GL_LINE_STRIP);
     for (x = 0; x < sample_count; x += 1) {
         float t = (float)x / (float)(sample_count - 1);
         float px = trace_left + (t * trace_width);
-        float py = trace_top + (shared_points[x] * trace_height);
+        float py = trace_top + (left_wave[x] * trace_height);
         glColor4f(amber_red, amber_green, amber_blue, 0.26f);
         glVertex2f(px, py);
     }
@@ -644,7 +933,7 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     for (x = 0; x < sample_count; x += 1) {
         float t = (float)x / (float)(sample_count - 1);
         float px = right_panel_right - 26.0f - (t * trace_width);
-        float py = trace_top + (shared_points[x] * trace_height);
+        float py = trace_top + (right_wave[x] * trace_height);
         glColor4f(cyan_red, cyan_green, cyan_blue, 0.26f);
         glVertex2f(px, py);
     }
@@ -655,7 +944,7 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     for (x = 0; x < sample_count; x += 1) {
         float t = (float)x / (float)(sample_count - 1);
         float px = trace_left + (t * trace_width);
-        float py = trace_top + (shared_points[x] * trace_height);
+        float py = trace_top + (left_wave[x] * trace_height);
         glColor4f(amber_red, amber_green, amber_blue, 0.96f);
         glVertex2f(px, py);
     }
@@ -664,7 +953,7 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     for (x = 0; x < sample_count; x += 1) {
         float t = (float)x / (float)(sample_count - 1);
         float px = right_panel_right - 26.0f - (t * trace_width);
-        float py = trace_top + (shared_points[x] * trace_height);
+        float py = trace_top + (right_wave[x] * trace_height);
         glColor4f(cyan_red, cyan_green, cyan_blue, 0.96f);
         glVertex2f(px, py);
     }
@@ -675,9 +964,9 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     for (y = 0; y < bus_lane_count; y += 1) {
         float lane_t = (float)y / (float)(bus_lane_count - 1);
         float lane_y = trace_top + 24.0f + (lane_t * (trace_height - 48.0f));
-        glColor4f(amber_red, amber_green, amber_blue, 0.28f + (sync_glow * 0.18f));
+        glColor4f(amber_red, amber_green, amber_blue, bus_alpha);
         glVertex2f(left_panel_right + 8.0f, lane_y);
-        glColor4f(cyan_red, cyan_green, cyan_blue, 0.28f + (sync_glow * 0.18f));
+        glColor4f(cyan_red, cyan_green, cyan_blue, bus_alpha);
         glVertex2f(right_panel_left - 8.0f, lane_y);
     }
     glEnd();
@@ -686,7 +975,8 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
         float lane_y = trace_top + 24.0f + (lane_t * (trace_height - 48.0f));
         float pulse = neural_lattice_fractf(bus_phase + ((float)y * 0.127f));
         float pulse_x = left_panel_right + 16.0f + pulse * ((right_panel_left - 16.0f) - (left_panel_right + 16.0f));
-        neural_lattice_draw_quad(pulse_x - 4.0f, lane_y - 3.0f, pulse_x + 4.0f, lane_y + 3.0f, magenta_red, magenta_green, magenta_blue, 0.90f);
+        float pulse_size = state->current_mode == NEURAL_LATTICE_MODE_BURST ? 6.0f : 4.0f;
+        neural_lattice_draw_quad(pulse_x - pulse_size, lane_y - 3.0f, pulse_x + pulse_size, lane_y + 3.0f, magenta_red, magenta_green, magenta_blue, state->current_mode == NEURAL_LATTICE_MODE_DRIFT ? 0.45f : 0.90f);
     }
 
     neural_lattice_draw_quad(center_x - 24.0f, ((float)state->height * 0.5f) - 24.0f, center_x + 24.0f, ((float)state->height * 0.5f) + 24.0f, 0.10f, 0.07f, 0.16f, 0.86f);
@@ -708,11 +998,11 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
 
     neural_lattice_draw_text(state, left_panel_left + 18.0f, panel_top + 26.0f, amber_red, amber_green, amber_blue, "AUTHORITY");
     neural_lattice_draw_text(state, right_panel_left + 18.0f, panel_top + 26.0f, cyan_red, cyan_green, cyan_blue, "MIRROR");
-    neural_lattice_draw_text(state, center_x - 44.0f, panel_top + 24.0f, magenta_red, magenta_green, magenta_blue, "ENTANGLE");
+    neural_lattice_draw_text(state, center_x - 44.0f, panel_top + 24.0f, magenta_red, magenta_green, magenta_blue, mode_name);
 
-    snprintf(label_buffer, sizeof(label_buffer), "SIGNAL %d", state->signal);
+    snprintf(label_buffer, sizeof(label_buffer), "SIGNAL %d", active_authority);
     neural_lattice_draw_text(state, left_panel_left + 18.0f, panel_top + 58.0f, 0.96f, 0.89f, 0.74f, label_buffer);
-    snprintf(label_buffer, sizeof(label_buffer), "SIGNAL %d", state->mirror_signal);
+    snprintf(label_buffer, sizeof(label_buffer), "SIGNAL %d", active_mirror);
     neural_lattice_draw_text(state, right_panel_left + 18.0f, panel_top + 58.0f, 0.78f, 0.97f, 0.94f, label_buffer);
     snprintf(label_buffer, sizeof(label_buffer), "HOT %d", state->hot_synapses);
     neural_lattice_draw_text(state, left_panel_left + 18.0f, panel_bottom - 26.0f, 0.96f, 0.89f, 0.74f, label_buffer);
@@ -720,12 +1010,48 @@ static void neural_lattice_render_frame(NeuralLatticeWindowState* state, int fra
     neural_lattice_draw_text(state, right_panel_left + 18.0f, panel_bottom - 26.0f, 0.78f, 0.97f, 0.94f, label_buffer);
 
     snprintf(label_buffer, sizeof(label_buffer), "DELTA %d", sync_delta);
-    neural_lattice_draw_text(state, center_x - 34.0f, ((float)state->height * 0.5f) - 40.0f, 0.98f, 0.92f, 0.78f, label_buffer);
+    neural_lattice_draw_text(state, center_x - 34.0f, panel_top + 58.0f, 0.98f, 0.92f, 0.78f, label_buffer);
     snprintf(label_buffer, sizeof(label_buffer), "EPOCH %d", state->epoch);
-    neural_lattice_draw_text(state, center_x - 34.0f, ((float)state->height * 0.5f) - 14.0f, 0.98f, 0.92f, 0.78f, label_buffer);
+    neural_lattice_draw_text(state, center_x - 34.0f, panel_top + 78.0f, 0.98f, 0.92f, 0.78f, label_buffer);
     snprintf(label_buffer, sizeof(label_buffer), "LOCK %d", state->lock_state);
-    neural_lattice_draw_text(state, center_x - 30.0f, ((float)state->height * 0.5f) + 12.0f, sync_delta == 0 ? 0.60f : 0.96f, sync_delta == 0 ? 0.94f : 0.32f, sync_delta == 0 ? 0.72f : 0.76f, label_buffer);
+    neural_lattice_draw_text(state, center_x - 30.0f, panel_top + 98.0f, sync_delta == 0 ? 0.60f : 0.96f, sync_delta == 0 ? 0.94f : 0.32f, sync_delta == 0 ? 0.72f : 0.76f, label_buffer);
+    snprintf(label_buffer, sizeof(label_buffer), "ENT %d/%d", state->entangle_registered, state->entangle_propagations);
+    neural_lattice_draw_text(state, center_x - 34.0f, panel_top + 118.0f, 0.82f, 0.95f, 0.86f, label_buffer);
+    snprintf(label_buffer, sizeof(label_buffer), "PATCH %d", state->patch_journal);
+    neural_lattice_draw_text(state, center_x - 34.0f, panel_top + 138.0f, 0.82f, 0.95f, 0.86f, label_buffer);
+    snprintf(label_buffer, sizeof(label_buffer), "TPORT %d", state->teleport_count);
+    neural_lattice_draw_text(state, center_x - 34.0f, panel_top + 158.0f, 0.82f, 0.95f, 0.86f, label_buffer);
     neural_lattice_draw_text(state, center_x - 48.0f, panel_bottom - 24.0f, 0.96f, 0.52f, 0.84f, sync_delta == 0 ? "SYNC LOCKED" : "SYNC DRIFT");
+    neural_lattice_draw_text(state, 118.0f, (float)state->height - 70.0f, 0.86f, 0.88f, 0.94f, mode_desc);
+    neural_lattice_draw_text(state, 118.0f, (float)state->height - 88.0f, 0.72f, 0.78f, 0.86f, "CLICK BUTTONS OR PRESS 1-5 // SPACE = AUTOCYCLE // R = RESET");
+
+    for (x = 0; x < NEURAL_LATTICE_MODE_COUNT; x += 1) {
+        RECT button_rect;
+        float left;
+        float top;
+        float right;
+        float bottom;
+        int is_current;
+        int is_hover;
+        neural_lattice_button_rect(state, x, &button_rect);
+        left = (float)button_rect.left;
+        top = (float)button_rect.top;
+        right = (float)button_rect.right;
+        bottom = (float)button_rect.bottom;
+        is_current = state->current_mode == x;
+        is_hover = state->hover_mode == x;
+        if (is_current) {
+            neural_lattice_draw_quad(left, top, right, bottom, 0.20f, 0.14f, 0.34f, 0.92f);
+            neural_lattice_draw_outline(left, top, right, bottom, 2.0f, magenta_red, magenta_green, magenta_blue, 0.95f);
+        } else if (is_hover) {
+            neural_lattice_draw_quad(left, top, right, bottom, 0.10f, 0.11f, 0.18f, 0.86f);
+            neural_lattice_draw_outline(left, top, right, bottom, 2.0f, 0.70f, 0.82f, 0.92f, 0.85f);
+        } else {
+            neural_lattice_draw_quad(left, top, right, bottom, 0.07f, 0.07f, 0.12f, 0.82f);
+            neural_lattice_draw_outline(left, top, right, bottom, 1.0f, 0.34f, 0.42f, 0.48f, 0.72f);
+        }
+        neural_lattice_draw_text(state, left + 14.0f, top + 20.0f, is_current ? 0.98f : 0.84f, is_current ? 0.96f : 0.88f, is_current ? 0.98f : 0.92f, neural_lattice_mode_name(x));
+    }
 
     neural_lattice_update_title(state, frame_index);
     glFinish();
@@ -750,6 +1076,17 @@ int neural_lattice_native_run_window(
     int lock_state,
     int hot_synapses,
     int actor_echo,
+    int collapse_signal,
+    int collapse_mirror,
+    int decay_signal,
+    int decay_mirror,
+    int burst_signal,
+    int burst_mirror,
+    int drift_signal,
+    int entangle_registered,
+    int entangle_propagations,
+    int patch_journal,
+    int teleport_count,
     int ui_hash,
     int graphics_score
 ) {
@@ -768,8 +1105,24 @@ int neural_lattice_native_run_window(
     state->lock_state = lock_state;
     state->hot_synapses = hot_synapses;
     state->actor_echo = actor_echo;
+    state->collapse_signal = collapse_signal;
+    state->collapse_mirror = collapse_mirror;
+    state->decay_signal = decay_signal;
+    state->decay_mirror = decay_mirror;
+    state->burst_signal = burst_signal;
+    state->burst_mirror = burst_mirror;
+    state->drift_signal = drift_signal;
+    state->entangle_registered = entangle_registered;
+    state->entangle_propagations = entangle_propagations;
+    state->patch_journal = patch_journal;
+    state->teleport_count = teleport_count;
     state->ui_hash = ui_hash;
     state->graphics_score = graphics_score;
+    state->current_mode = NEURAL_LATTICE_MODE_ENTANGLE;
+    state->hover_mode = -1;
+    state->auto_cycle = 0;
+    state->display_authority = (float)signal;
+    state->display_mirror = (float)mirror_signal;
     neural_lattice_read_screenshot_env(state);
     state->frame_budget = neural_lattice_resolve_frame_budget(frame_budget, state);
     neural_lattice_reset_counters();
@@ -843,6 +1196,17 @@ int neural_lattice_native_run_window(
     int lock_state,
     int hot_synapses,
     int actor_echo,
+    int collapse_signal,
+    int collapse_mirror,
+    int decay_signal,
+    int decay_mirror,
+    int burst_signal,
+    int burst_mirror,
+    int drift_signal,
+    int entangle_registered,
+    int entangle_propagations,
+    int patch_journal,
+    int teleport_count,
     int ui_hash,
     int graphics_score
 ) {
@@ -856,6 +1220,17 @@ int neural_lattice_native_run_window(
     (void)lock_state;
     (void)hot_synapses;
     (void)actor_echo;
+    (void)collapse_signal;
+    (void)collapse_mirror;
+    (void)decay_signal;
+    (void)decay_mirror;
+    (void)burst_signal;
+    (void)burst_mirror;
+    (void)drift_signal;
+    (void)entangle_registered;
+    (void)entangle_propagations;
+    (void)patch_journal;
+    (void)teleport_count;
     (void)ui_hash;
     (void)graphics_score;
     return -1;

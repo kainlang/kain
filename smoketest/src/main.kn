@@ -41,6 +41,7 @@ use fs_lane::smoke_fs_lane
 use json_lane::smoke_json_lane
 use math_lane::smoke_math_lane
 use platform_lane::smoke_platform_lane
+use process_lane::smoke_process_lane
 use text_lane::smoke_text_lane
 use time_lane::smoke_time_lane
 use unicode_lane::smoke_unicode_lane
@@ -125,7 +126,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 48
+    let total_tracks: Int = 49
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -559,6 +560,15 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_thread = smoke_first_error(4800, lane_thread)
     if e_thread != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_thread, "stdlib.thread_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_process = now_millis()
+    let lane_process = smoke_process_lane()
+    let ended_process = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.process_lane", "process", 49, 4900, lane_process, started_process, ended_process, composition_checksum)
+    let e_process = smoke_first_error(4900, lane_process)
+    if e_process != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_process, "stdlib.process_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1

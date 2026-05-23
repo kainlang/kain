@@ -18,6 +18,8 @@ const KAIN_LATTICE_OPTIMAL_BIAS: Int = 51966
 const KAIN_LATTICE_TOTAL_SYNAPSE_NODES: Int = 128
 const KAIN_LATTICE_WORDS_PER_SYNAPSE: Int = 4
 const KAIN_LATTICE_FRAME_BUDGET: Int = 180
+const KAIN_LATTICE_GHOST_CELLS: Int = 24
+const KAIN_LATTICE_BURST_TURNS: Int = 6
 
 enum SynapseState:
     Dormant
@@ -40,6 +42,20 @@ struct NeuralLatticeCore:
     hot_synapses: Int
     actor_echo: Int
 
+struct NeuralLatticeVisualDeck:
+    core: NeuralLatticeCore
+    collapse_signal: Int
+    collapse_mirror: Int
+    decay_signal: Int
+    decay_mirror: Int
+    burst_signal: Int
+    burst_mirror: Int
+    drift_signal: Int
+    entangle_registered: Int
+    entangle_propagations: Int
+    patch_journal: Int
+    teleport_count: Int
+
 component SieveDisplayPanel():
     render <panel title="Neural Entanglement Scope" />
 
@@ -55,6 +71,11 @@ world DeepMirror:
     state lock_copy: Int = 0
     surface web => SieveDisplayPanel
 
+world RogueProjection:
+    state rogue_charge: Int = 0
+    state rogue_epoch: Int = 0
+    surface web => SieveDisplayPanel
+
 entangle CorticalAuthority.network_charge <-> DeepMirror.charge_copy with single_writer
 entangle CorticalAuthority.epoch <-> DeepMirror.epoch_copy with single_writer
 entangle CorticalAuthority.lock_state <-> DeepMirror.lock_copy with single_writer
@@ -67,6 +88,11 @@ patch commit_sieve_charge(authority: CorticalAuthority, value: Int) -> Int:
     authority.epoch = authority.epoch + 1
     authority.lock_state = int_clamp(authority.lock_state + (value % 19), 0, 4096)
     return authority.network_charge
+
+patch commit_rogue_charge(rogue: RogueProjection, value: Int) -> Int:
+    rogue.rogue_charge = value
+    rogue.rogue_epoch = rogue.rogue_epoch + 1
+    return rogue.rogue_charge
 
 actor NeuralIgniter:
     state activation_bias: Int = 1337
@@ -110,6 +136,54 @@ fn count_hot_synapses(cells: ptr<Int>, total_nodes: Int) -> Int with Unsafe:
             hot = hot + 1
         index = index + 1
     return hot
+
+fn fold_scalar_cells(cells: ptr<Int>, count: Int) -> Int with Unsafe:
+    var index: Int = 0
+    var acc: Int = 0
+    while index < count:
+        let lane = mem_load(ptr_offset(cells, index, "Int"), "Int")
+        acc = (acc + lane) % KAIN_LATTICE_MODULUS
+        index = index + 1
+    return acc
+
+fn collapse_helper_signal(seed: Int, hot_synapses: Int, lock_state: Int) -> Int with Unsafe:
+    let mut cells: ptr<Int> = alloc_zeroed(KAIN_LATTICE_GHOST_CELLS, "Int")
+    collapse cells:
+        var index: Int = 0
+        while index < KAIN_LATTICE_GHOST_CELLS:
+            let lane = mix_lattice_charge(seed + (index * 41) + hot_synapses + lock_state)
+            let collapsed = ((lane / 97) * 97) % KAIN_LATTICE_MODULUS
+            mem_store(ptr_offset(cells, index, "Int"), collapsed, "Int")
+            index = index + 1
+        0
+    let observed = observe cells:
+        fold_scalar_cells(cells, KAIN_LATTICE_GHOST_CELLS)
+    decay cells
+    return observed
+
+fn decay_helper_signal(seed: Int, actor_echo: Int, hot_synapses: Int) -> Int with Unsafe:
+    let mut cells: ptr<Int> = alloc_zeroed(KAIN_LATTICE_GHOST_CELLS, "Int")
+    collapse cells:
+        var index: Int = 0
+        while index < KAIN_LATTICE_GHOST_CELLS:
+            let lane = mix_lattice_charge(seed + actor_echo + (index * 13))
+            mem_store(ptr_offset(cells, index, "Int"), lane, "Int")
+            index = index + 1
+        0
+    let _alive = observe cells:
+        fold_scalar_cells(cells, KAIN_LATTICE_GHOST_CELLS)
+    collapse cells:
+        var index: Int = 0
+        while index < KAIN_LATTICE_GHOST_CELLS:
+            let lane = mem_load(ptr_offset(cells, index, "Int"), "Int")
+            let dimmed = ((lane / 5) + (index * 3) + hot_synapses) % KAIN_LATTICE_MODULUS
+            mem_store(ptr_offset(cells, index, "Int"), dimmed, "Int")
+            index = index + 1
+        0
+    let ghost = observe cells:
+        fold_scalar_cells(cells, KAIN_LATTICE_GHOST_CELLS)
+    decay cells
+    return ghost
 
 fn passive_graphics_probe(seed: Int) -> Int:
     let _reset = graphics_reset()
@@ -156,14 +230,22 @@ fn passive_ui_probe(signal: Int, hot_synapses: Int, actor_echo: Int) -> Int:
     let _destroy = native_ui_session_destroy(session)
     return frame_hash + host_draws + presented
 
-fn neural_lattice_report_text(core: NeuralLatticeCore, ui_hash: Int, graphics_score: Int, presenter_status: Int, frames_presented: Int, cells_drawn: Int) -> String:
-    var report = "signal=" + str(core.signal) + "\n"
-    report = report + "mirror_signal=" + str(core.mirror_signal) + "\n"
-    report = report + "epoch=" + str(core.epoch) + "\n"
-    report = report + "lock_state=" + str(core.lock_state) + "\n"
-    report = report + "observed_checksum=" + str(core.observed_checksum) + "\n"
-    report = report + "hot_synapses=" + str(core.hot_synapses) + "\n"
-    report = report + "actor_echo=" + str(core.actor_echo) + "\n"
+fn neural_lattice_report_text(deck: NeuralLatticeVisualDeck, ui_hash: Int, graphics_score: Int, presenter_status: Int, frames_presented: Int, cells_drawn: Int) -> String:
+    var report = "signal=" + str(deck.core.signal) + "\n"
+    report = report + "mirror_signal=" + str(deck.core.mirror_signal) + "\n"
+    report = report + "epoch=" + str(deck.core.epoch) + "\n"
+    report = report + "lock_state=" + str(deck.core.lock_state) + "\n"
+    report = report + "observed_checksum=" + str(deck.core.observed_checksum) + "\n"
+    report = report + "hot_synapses=" + str(deck.core.hot_synapses) + "\n"
+    report = report + "actor_echo=" + str(deck.core.actor_echo) + "\n"
+    report = report + "collapse_signal=" + str(deck.collapse_signal) + "\n"
+    report = report + "decay_signal=" + str(deck.decay_signal) + "\n"
+    report = report + "burst_signal=" + str(deck.burst_signal) + "\n"
+    report = report + "drift_signal=" + str(deck.drift_signal) + "\n"
+    report = report + "entangle_registered=" + str(deck.entangle_registered) + "\n"
+    report = report + "entangle_propagations=" + str(deck.entangle_propagations) + "\n"
+    report = report + "patch_journal=" + str(deck.patch_journal) + "\n"
+    report = report + "teleport_count=" + str(deck.teleport_count) + "\n"
     report = report + "ui_frame_hash=" + str(ui_hash) + "\n"
     report = report + "graphics_score=" + str(graphics_score) + "\n"
     report = report + "presenter_status=" + str(presenter_status) + "\n"
@@ -171,9 +253,10 @@ fn neural_lattice_report_text(core: NeuralLatticeCore, ui_hash: Int, graphics_sc
     report = report + "cells_drawn=" + str(cells_drawn) + "\n"
     return report
 
-pub fn execute_sieve_cycle() -> NeuralLatticeCore with Unsafe:
+pub fn execute_visual_deck() -> NeuralLatticeVisualDeck with Unsafe:
     let authority = CorticalAuthority
     let mirror = DeepMirror
+    let rogue = RogueProjection
     let relay = spawn NeuralIgniter(activation_bias = KAIN_LATTICE_OPTIMAL_BIAS)
     let _warmup = ask(relay, "PulseIgnition", 100)
 
@@ -202,11 +285,19 @@ pub fn execute_sieve_cycle() -> NeuralLatticeCore with Unsafe:
 
     let signal = commit_sieve_charge(authority, (checksum + observed_checksum + hot_synapses) % KAIN_LATTICE_MODULUS)
     let actor_echo = ask(relay, "PulseIgnition", signal + observed_checksum + hot_synapses)
+    let collapse_signal = collapse_helper_signal(signal, hot_synapses, authority.lock_state)
+    let decay_signal = decay_helper_signal(signal + observed_checksum, actor_echo, hot_synapses)
+    var burst_signal: Int = signal
+    var burst_turn: Int = 0
+    while burst_turn < KAIN_LATTICE_BURST_TURNS:
+        burst_signal = ask(relay, "PulseIgnition", burst_signal + hot_synapses + authority.lock_state + (burst_turn * 17))
+        burst_turn = burst_turn + 1
+    let drift_signal = commit_rogue_charge(rogue, mix_lattice_charge(signal + actor_echo + hot_synapses + 777))
     let _stable = charge_is_stable(signal)
 
     decay synapses
 
-    return NeuralLatticeCore {
+    let core = NeuralLatticeCore {
         signal: signal,
         mirror_signal: mirror.charge_copy,
         epoch: authority.epoch,
@@ -214,6 +305,21 @@ pub fn execute_sieve_cycle() -> NeuralLatticeCore with Unsafe:
         observed_checksum: observed_checksum,
         hot_synapses: hot_synapses,
         actor_echo: actor_echo
+    }
+
+    return NeuralLatticeVisualDeck {
+        core: core,
+        collapse_signal: collapse_signal,
+        collapse_mirror: mirror.charge_copy,
+        decay_signal: decay_signal,
+        decay_mirror: int_clamp(decay_signal / 5, 0, KAIN_LATTICE_MODULUS - 1),
+        burst_signal: burst_signal,
+        burst_mirror: mix_lattice_charge(burst_signal + mirror.charge_copy + authority.lock_state),
+        drift_signal: drift_signal,
+        entangle_registered: native_entangle_registered_count(),
+        entangle_propagations: native_entangle_propagation_count(),
+        patch_journal: native_patch_journal_count(),
+        teleport_count: runtime_machine_teleport_count()
     }
 
 pub fn run_neural_lattice_demo() -> Int with Unsafe:
@@ -227,11 +333,12 @@ pub fn run_neural_lattice_demo() -> Int with Unsafe:
             return 200 + shutdown_missing
         return 11
 
-    let core = execute_sieve_cycle()
+    let deck = execute_visual_deck()
+    let core = deck.core
     let ui_hash = passive_ui_probe(core.signal, core.hot_synapses, core.actor_echo)
     let graphics_score = passive_graphics_probe(core.signal + core.actor_echo)
     let presenter_status = neural_lattice_present_window(
-        "Neural Entanglement Scope // Retro Proof Blade",
+        "Neural Entanglement Scope // Alien Experiment Blade",
         1280,
         720,
         KAIN_LATTICE_FRAME_BUDGET,
@@ -241,12 +348,23 @@ pub fn run_neural_lattice_demo() -> Int with Unsafe:
         core.lock_state,
         core.hot_synapses,
         core.actor_echo,
+        deck.collapse_signal,
+        deck.collapse_mirror,
+        deck.decay_signal,
+        deck.decay_mirror,
+        deck.burst_signal,
+        deck.burst_mirror,
+        deck.drift_signal,
+        deck.entangle_registered,
+        deck.entangle_propagations,
+        deck.patch_journal,
+        deck.teleport_count,
         ui_hash,
         graphics_score
     )
     let frames_presented = neural_lattice_presenter_frames()
     let cells_drawn = neural_lattice_presenter_cells()
-    let report_text = neural_lattice_report_text(core, ui_hash, graphics_score, presenter_status, frames_presented, cells_drawn)
+    let report_text = neural_lattice_report_text(deck, ui_hash, graphics_score, presenter_status, frames_presented, cells_drawn)
     let _report = fs_write_text(".kain/run/neural_lattice_report.txt", report_text)
     let _presenter_report = neural_lattice_presenter_write_report(".kain/run/neural_lattice_window_report.txt")
 
@@ -265,4 +383,12 @@ pub fn run_neural_lattice_demo() -> Int with Unsafe:
         return 34
     if graphics_score <= 0:
         return 35
+    if deck.entangle_registered < 3:
+        return 36
+    if deck.entangle_propagations < 1:
+        return 37
+    if deck.patch_journal < 2:
+        return 38
+    if deck.teleport_count < 1:
+        return 39
     return 0

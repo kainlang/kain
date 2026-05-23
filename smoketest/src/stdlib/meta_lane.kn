@@ -57,19 +57,21 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
 
     # 4. Test std::compress (RLE compression streams)
     let dest_buf = buffered_writer_new(16)
+    let dest_buf_ptr: ptr<BufferedWriter> = addr_of(dest_buf, "BufferedWriter")
     let flush_target = alloc_zeroed(16, "Int")
     
-    var cw = rle_writer_new(dest_buf)
+    var cw = rle_writer_new(dest_buf_ptr)
+    let cw_ptr: ptr<RleCompressionWriter> = addr_of(cw, "RleCompressionWriter")
     
     # Compress 5 characters: 'A', 'A', 'A', 'B', 'B'
-    let _w1 = rle_writer_write_char(cw, 65, flush_target)
-    let _w2 = rle_writer_write_char(cw, 65, flush_target)
-    let _w3 = rle_writer_write_char(cw, 65, flush_target)
-    let _w4 = rle_writer_write_char(cw, 66, flush_target)
-    let _w5 = rle_writer_write_char(cw, 66, flush_target)
+    let _w1 = rle_writer_write_char(cw_ptr, 65, flush_target)
+    let _w2 = rle_writer_write_char(cw_ptr, 65, flush_target)
+    let _w3 = rle_writer_write_char(cw_ptr, 65, flush_target)
+    let _w4 = rle_writer_write_char(cw_ptr, 66, flush_target)
+    let _w5 = rle_writer_write_char(cw_ptr, 66, flush_target)
     
-    let _f1 = rle_writer_flush(cw, flush_target)
-    let _f2 = buffered_writer_flush(dest_buf, flush_target)
+    let _f1 = rle_writer_flush(cw_ptr, flush_target)
+    let _f2 = buffered_writer_flush(dest_buf_ptr, flush_target)
 
     # Verifies compressed run format in flush_target
     # Run 1: character 'A' (65), count 3
@@ -85,20 +87,22 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
 
     # Decompress using RleCompressionReader
     let src_buf = buffered_reader_new(16)
-    let _fill = buffered_reader_fill(src_buf, flush_target, 4)
-    var cr = rle_reader_new(src_buf)
+    let src_buf_ptr: ptr<BufferedReader> = addr_of(src_buf, "BufferedReader")
+    let _fill = buffered_reader_fill(src_buf_ptr, flush_target, 4)
+    var cr = rle_reader_new(src_buf_ptr)
+    let cr_ptr: ptr<RleCompressionReader> = addr_of(cr, "RleCompressionReader")
 
-    if rle_reader_read_char(cr) != 65:
+    if rle_reader_read_char(cr_ptr) != 65:
         return 115
-    if rle_reader_read_char(cr) != 65:
+    if rle_reader_read_char(cr_ptr) != 65:
         return 116
-    if rle_reader_read_char(cr) != 65:
+    if rle_reader_read_char(cr_ptr) != 65:
         return 117
-    if rle_reader_read_char(cr) != 66:
+    if rle_reader_read_char(cr_ptr) != 66:
         return 118
-    if rle_reader_read_char(cr) != 66:
+    if rle_reader_read_char(cr_ptr) != 66:
         return 119
-    if rle_reader_read_char(cr) != -1:
+    if rle_reader_read_char(cr_ptr) != -1:
         return 120
 
     decay flush_target
@@ -110,8 +114,9 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
 
     # 5. Test std::tar (TarHeader block archive builder & reader)
     let tar_write_buf = buffered_writer_new(128)
+    let tar_write_buf_ptr: ptr<BufferedWriter> = addr_of(tar_write_buf, "BufferedWriter")
     let tar_flush_target = alloc_zeroed(128, "Int")
-    let tw = tar_writer_new(tar_write_buf)
+    let tw = tar_writer_new(tar_write_buf_ptr)
 
     # Write archive file "test.txt" of size 10 words
     let _tw_h = tar_write_header(tw, "test.txt", 10, tar_flush_target)
@@ -121,12 +126,13 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
     let _tw_d = tar_write_file_data(tw, file_data, 10, tar_flush_target)
     decay file_data
 
-    let _tw_f = buffered_writer_flush(tar_write_buf, tar_flush_target)
+    let _tw_f = buffered_writer_flush(tar_write_buf_ptr, tar_flush_target)
 
     # Read archive back using TarReader
     let tar_read_buf = buffered_reader_new(128)
-    let _tar_fill = buffered_reader_fill(tar_read_buf, tar_flush_target, 128)
-    let tr = tar_reader_new(tar_read_buf)
+    let tar_read_buf_ptr: ptr<BufferedReader> = addr_of(tar_read_buf, "BufferedReader")
+    let _tar_fill = buffered_reader_fill(tar_read_buf_ptr, tar_flush_target, 128)
+    let tr = tar_reader_new(tar_read_buf_ptr)
 
     let entry = tar_read_entry(tr)
     if entry.is_valid == false:

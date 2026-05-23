@@ -17,6 +17,17 @@ int neural_lattice_native_run_window(
     int lock_state,
     int hot_synapses,
     int actor_echo,
+    int collapse_signal,
+    int collapse_mirror,
+    int decay_signal,
+    int decay_mirror,
+    int burst_signal,
+    int burst_mirror,
+    int drift_signal,
+    int entangle_registered,
+    int entangle_propagations,
+    int patch_journal,
+    int teleport_count,
     int ui_hash,
     int graphics_score
 );

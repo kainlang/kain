@@ -168,6 +168,37 @@ pub fn process_reset() -> Int:
 pub fn process_platform_available() -> Int:
     return abi_process_platform_available()
 
+fn process_is_path_sep(ch: String) -> Bool:
+    if ch == "/":
+        return true
+    return ch == "\\"
+
+fn process_path_file_name(path: String) -> String:
+    var start = 0
+    var index = 0
+    while index < len(path):
+        if process_is_path_sep(char_at(path, index)):
+            start = index + 1
+        index = index + 1
+    return substring(path, start, len(path))
+
+fn process_args_include_executable(arguments: Array<String>) -> Bool:
+    if len(arguments) == 0:
+        return false
+    let first = arguments[0]
+    if first == "":
+        return false
+    let executable = abi_process_current_executable_path()
+    if executable == "":
+        return false
+    if first == executable:
+        return true
+    let first_name = to_lower(process_path_file_name(first))
+    let executable_name = to_lower(process_path_file_name(executable))
+    if executable_name == "":
+        return false
+    return first_name == executable_name
+
 pub fn process_args() -> Array<String>:
     let count = abi_process_arg_count()
     let values = []
@@ -176,6 +207,20 @@ pub fn process_args() -> Array<String>:
         push(values, abi_process_arg(index))
         index = index + 1
     return values
+
+pub fn process_user_args() -> Array<String>:
+    // Native and interpreter lanes do not always agree on whether argv[0] carries the executable.
+    let values = process_args()
+    let skip = if process_args_include_executable(values):
+        1
+    else:
+        0
+    let user_values = []
+    var index = skip
+    while index < len(values):
+        push(user_values, values[index])
+        index = index + 1
+    return user_values
 
 pub fn process_arg_count() -> Int:
     return abi_process_arg_count()
