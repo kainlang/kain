@@ -2,6 +2,7 @@ use std::actor
 use std::fs
 use std::process
 use std::runtime
+use std::text
 use std::time
 
 const KG_DEFAULT_MAX_FILE_BYTES: Int = 4194304
@@ -79,28 +80,6 @@ fn kg_parse_int_text(text: String) -> Int:
         value = value * 10 + kg_digit_value(char_at(text, index))
         index = index + 1
     return value * sign
-
-fn kg_trim_cr(text: String) -> String:
-    if len(text) == 0:
-        return text
-    if char_at(text, len(text) - 1) == "\r":
-        return substring(text, 0, len(text) - 1)
-    return text
-
-fn kg_split_lines(text: String) -> Array<String>:
-    let lines = []
-    var start = 0
-    var index = 0
-    while index < len(text):
-        if char_at(text, index) == "\n":
-            push(lines, kg_trim_cr(substring(text, start, index)))
-            start = index + 1
-        index = index + 1
-    if start < len(text):
-        push(lines, kg_trim_cr(substring(text, start, len(text))))
-    elif len(text) == 0:
-        push(lines, "")
-    return lines
 
 fn kg_normalize_needle(needle: String, ignore_case: Bool) -> String:
     if ignore_case:
@@ -234,11 +213,67 @@ fn kg_looks_binaryish(text: String) -> Bool:
         index = index + 1
     return false
 
-fn kg_line_matches(row_text: String, normalized_needle: String, ignore_case: Bool) -> Bool:
-    var searchable = row_text
-    if ignore_case:
-        searchable = to_lower(searchable)
-    return find_substring_from(searchable, normalized_needle, 0) >= 0
+fn kg_find_next_newline(text: String, start: Int) -> Int:
+    var index = start
+    while index < len(text):
+        if byte_at(text, index) == 10:
+            return index
+        index = index + 1
+    return len(text)
+
+fn kg_line_content_end(text: String, line_start: Int, newline_index: Int) -> Int:
+    if newline_index > line_start and byte_at(text, newline_index - 1) == 13:
+        return newline_index - 1
+    return newline_index
+
+fn kg_lightest_lane(actual_workers: Int, lane0_load: Int, lane1_load: Int, lane2_load: Int, lane3_load: Int, lane4_load: Int, lane5_load: Int, lane6_load: Int, lane7_load: Int) -> Int:
+    var best_lane = 0
+    var best_load = lane0_load
+    if actual_workers > 1 and lane1_load < best_load:
+        best_lane = 1
+        best_load = lane1_load
+    if actual_workers > 2 and lane2_load < best_load:
+        best_lane = 2
+        best_load = lane2_load
+    if actual_workers > 3 and lane3_load < best_load:
+        best_lane = 3
+        best_load = lane3_load
+    if actual_workers > 4 and lane4_load < best_load:
+        best_lane = 4
+        best_load = lane4_load
+    if actual_workers > 5 and lane5_load < best_load:
+        best_lane = 5
+        best_load = lane5_load
+    if actual_workers > 6 and lane6_load < best_load:
+        best_lane = 6
+        best_load = lane6_load
+    if actual_workers > 7 and lane7_load < best_load:
+        best_lane = 7
+    return best_lane
+
+fn kg_collect_paths(root: String, include_hidden: Bool) -> Array<String>:
+    let pending = [root]
+    let files = []
+    var pending_index = 0
+    while pending_index < len(pending):
+        let current = pending[pending_index]
+        pending_index = pending_index + 1
+        if fs_is_dir(current):
+            let entries = fs_read_dir_paths(current)
+            var entry_index = 0
+            while entry_index < len(entries):
+                let entry = entries[entry_index]
+                if kg_path_is_ignored(entry, include_hidden):
+                    entry_index = entry_index + 1
+                    continue
+                if fs_is_dir(entry):
+                    push(pending, entry)
+                elif fs_is_file(entry):
+                    push(files, entry)
+                entry_index = entry_index + 1
+        elif fs_is_file(current) and kg_path_is_ignored(current, include_hidden) == false:
+            push(files, current)
+    return files
 
 fn kg_scan_file(path: String, normalized_needle: String, ignore_case: Bool, files_only: Bool, count_only: Bool, line_numbers: Bool, max_file_bytes: Int) -> KgFileReport:
     if fs_is_file(path) == false:
@@ -251,35 +286,55 @@ fn kg_scan_file(path: String, normalized_needle: String, ignore_case: Bool, file
     if kg_looks_binaryish(contents):
         return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
 
-    let lines = kg_split_lines(contents)
+    var searchable = contents
+    if ignore_case:
+        searchable = to_lower(contents)
     var output = ""
     var matched_lines = 0
     var matched_files = 0
-    var line_number = 0
+    var line_number = 1
+    var line_start = 0
+    var search_from = 0
 
-    var scan_index = 0
-    while scan_index < len(lines):
-        let row_text = lines[scan_index]
-        line_number = line_number + 1
-        if kg_line_matches(row_text, normalized_needle, ignore_case):
-            matched_lines = matched_lines + 1
-            if matched_files == 0:
-                matched_files = 1
-            if files_only:
-                output = output + path + "\n"
-                return KgFileReport {
-                    output: output,
-                    matched_files: matched_files,
-                    matched_lines: matched_lines,
-                    bytes_scanned: bytes_scanned,
-                    errors: 0,
-                }
-            if count_only == false:
-                if line_numbers:
-                    output = output + path + ":" + str(line_number) + ":" + row_text + "\n"
-                else:
-                    output = output + path + ":" + row_text + "\n"
-        scan_index = scan_index + 1
+    while search_from <= len(searchable):
+        let match_index = find_substring_from(searchable, normalized_needle, search_from)
+        if match_index < 0:
+            break
+
+        while line_start < match_index:
+            let prior_break = kg_find_next_newline(contents, line_start)
+            if prior_break >= len(contents) or match_index <= prior_break:
+                break
+            line_start = prior_break + 1
+            line_number = line_number + 1
+
+        let newline_index = kg_find_next_newline(contents, line_start)
+        let line_end = kg_line_content_end(contents, line_start, newline_index)
+        matched_lines = matched_lines + 1
+        if matched_files == 0:
+            matched_files = 1
+        if files_only:
+            output = output + path + "\n"
+            return KgFileReport {
+                output: output,
+                matched_files: matched_files,
+                matched_lines: matched_lines,
+                bytes_scanned: bytes_scanned,
+                errors: 0,
+            }
+        if count_only == false:
+            let row_text = text_materialize(text_slice(contents, line_start, line_end - line_start))
+            if line_numbers:
+                output = output + path + ":" + str(line_number) + ":" + row_text + "\n"
+            else:
+                output = output + path + ":" + row_text + "\n"
+
+        if newline_index >= len(contents):
+            search_from = len(searchable) + 1
+        else:
+            search_from = newline_index + 1
+            line_start = search_from
+            line_number = line_number + 1
 
     if count_only and matched_lines > 0:
         output = output + path + ":" + str(matched_lines) + "\n"
@@ -308,7 +363,7 @@ actor KgWorker:
     state last_errors: Int = 0
     state done: Bool = true
 
-    on ProcessShard(shard_paths_text: String):
+    on ProcessFiles(paths: Array<String>):
         self.done = false
         self.last_jobs = 0
         self.last_output = ""
@@ -317,10 +372,9 @@ actor KgWorker:
         self.last_bytes_scanned = 0
         self.last_errors = 0
 
-        let entries = kg_split_lines(shard_paths_text)
-        var entry_index = 0
-        while entry_index < len(entries):
-            let entry = entries[entry_index]
+        var path_index = 0
+        while path_index < len(paths):
+            let entry = paths[path_index]
             if len(entry) > 0:
                 let report = kg_scan_file(
                     entry,
@@ -337,7 +391,7 @@ actor KgWorker:
                 self.last_matched_lines = self.last_matched_lines + report.matched_lines
                 self.last_bytes_scanned = self.last_bytes_scanned + report.bytes_scanned
                 self.last_errors = self.last_errors + report.errors
-            entry_index = entry_index + 1
+            path_index = path_index + 1
         self.done = true
 
     on Done(done_port: P, done_request: Int):
@@ -513,69 +567,84 @@ fn main() -> Int:
     else:
         worker6
 
-    var shard0 = ""
-    var shard1 = ""
-    var shard2 = ""
-    var shard3 = ""
-    var shard4 = ""
-    var shard5 = ""
-    var shard6 = ""
-    var shard7 = ""
+    let shard0 = []
+    let shard1 = []
+    let shard2 = []
+    let shard3 = []
+    let shard4 = []
+    let shard5 = []
+    let shard6 = []
+    let shard7 = []
+    var shard0_load = 0
+    var shard1_load = 0
+    var shard2_load = 0
+    var shard3_load = 0
+    var shard4_load = 0
+    var shard5_load = 0
+    var shard6_load = 0
+    var shard7_load = 0
 
     if fs_is_file(config.root):
         if kg_path_is_ignored(config.root, config.include_hidden) == false:
-            shard0 = config.root + "\n"
+            push(shard0, config.root)
+            shard0_load = 1
     else:
-        let walked = fs_walk_paths_text(config.root)
-        let entries = kg_split_lines(walked)
-        var route = 0
+        let entries = kg_collect_paths(config.root, config.include_hidden)
         var entry_index = 0
         while entry_index < len(entries):
             let entry = entries[entry_index]
-            if len(entry) == 0:
-                entry_index = entry_index + 1
-                continue
-            if fs_is_file(entry) == false:
-                entry_index = entry_index + 1
-                continue
-            if kg_path_is_ignored(entry, config.include_hidden):
-                entry_index = entry_index + 1
-                continue
-            let target = route % actual_workers
+            let target = kg_lightest_lane(
+                actual_workers,
+                shard0_load,
+                shard1_load,
+                shard2_load,
+                shard3_load,
+                shard4_load,
+                shard5_load,
+                shard6_load,
+                shard7_load
+            )
             if target == 0:
-                shard0 = shard0 + entry + "\n"
+                push(shard0, entry)
+                shard0_load = shard0_load + 1
             elif target == 1:
-                shard1 = shard1 + entry + "\n"
+                push(shard1, entry)
+                shard1_load = shard1_load + 1
             elif target == 2:
-                shard2 = shard2 + entry + "\n"
+                push(shard2, entry)
+                shard2_load = shard2_load + 1
             elif target == 3:
-                shard3 = shard3 + entry + "\n"
+                push(shard3, entry)
+                shard3_load = shard3_load + 1
             elif target == 4:
-                shard4 = shard4 + entry + "\n"
+                push(shard4, entry)
+                shard4_load = shard4_load + 1
             elif target == 5:
-                shard5 = shard5 + entry + "\n"
+                push(shard5, entry)
+                shard5_load = shard5_load + 1
             elif target == 6:
-                shard6 = shard6 + entry + "\n"
+                push(shard6, entry)
+                shard6_load = shard6_load + 1
             else:
-                shard7 = shard7 + entry + "\n"
-            route = route + 1
+                push(shard7, entry)
+                shard7_load = shard7_load + 1
             entry_index = entry_index + 1
 
-    send worker0.ProcessShard(shard_paths_text = shard0)
+    send worker0.ProcessFiles(paths = shard0)
     if actual_workers > 1:
-        send worker1.ProcessShard(shard_paths_text = shard1)
+        send worker1.ProcessFiles(paths = shard1)
     if actual_workers > 2:
-        send worker2.ProcessShard(shard_paths_text = shard2)
+        send worker2.ProcessFiles(paths = shard2)
     if actual_workers > 3:
-        send worker3.ProcessShard(shard_paths_text = shard3)
+        send worker3.ProcessFiles(paths = shard3)
     if actual_workers > 4:
-        send worker4.ProcessShard(shard_paths_text = shard4)
+        send worker4.ProcessFiles(paths = shard4)
     if actual_workers > 5:
-        send worker5.ProcessShard(shard_paths_text = shard5)
+        send worker5.ProcessFiles(paths = shard5)
     if actual_workers > 6:
-        send worker6.ProcessShard(shard_paths_text = shard6)
+        send worker6.ProcessFiles(paths = shard6)
     if actual_workers > 7:
-        send worker7.ProcessShard(shard_paths_text = shard7)
+        send worker7.ProcessFiles(paths = shard7)
 
     let _wait = kg_wait_until_done(actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
 

@@ -18,7 +18,7 @@ target = "llvm"
 entry = "src/main.kn"
 artifact_root = ".kain/out"
 cache_root = ".kain/cache/build"
-profile = "debug"
+profile = "release"
 
 [[build.tasks]]
 id = "check-llvm"
