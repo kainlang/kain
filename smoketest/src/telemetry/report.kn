@@ -4,6 +4,7 @@ use std::collections
 use std::intent
 use std::time
 use std::fs
+use std::fmt
 
 const SMOKE_TELEMETRY_ROOT: String = "telemetry"
 const SMOKE_TELEMETRY_TRACKS_DIR: String = "tracks"
@@ -53,10 +54,10 @@ pub fn smoke_write_track_report(mode: String, category: String, track: String, l
     let elapsed_ms = ended_ms - started_ms
     let ok = bool_to_int(status == 0)
     var content: String = "{\n"
-    content = content + "  \"mode\": \"" + mode + "\",\n"
-    content = content + "  \"category\": \"" + category + "\",\n"
-    content = content + "  \"track\": \"" + track + "\",\n"
-    content = content + "  \"lane\": \"" + lane_name + "\",\n"
+    content = content + "  \"mode\": " + fmt_json_string(mode) + ",\n"
+    content = content + "  \"category\": " + fmt_json_string(category) + ",\n"
+    content = content + "  \"track\": " + fmt_json_string(track) + ",\n"
+    content = content + "  \"lane\": " + fmt_json_string(lane_name) + ",\n"
     content = content + "  \"offset\": " + str(offset) + ",\n"
     content = content + "  \"status\": " + str(status) + ",\n"
     content = content + "  \"ok\": " + str(ok) + ",\n"
@@ -84,10 +85,10 @@ pub fn smoke_write_summary_report(mode: String, failure_code: Int, failure_track
     let total_elapsed_ms = ended_ms - started_ms
     let ok = bool_to_int(failure_code == 0)
     var content: String = "{\n"
-    content = content + "  \"mode\": \"" + mode + "\",\n"
+    content = content + "  \"mode\": " + fmt_json_string(mode) + ",\n"
     content = content + "  \"ok\": " + str(ok) + ",\n"
     content = content + "  \"failure_code\": " + str(failure_code) + ",\n"
-    content = content + "  \"failure_track\": \"" + failure_track + "\",\n"
+    content = content + "  \"failure_track\": " + fmt_json_string(failure_track) + ",\n"
     content = content + "  \"total_tracks\": " + str(total_tracks) + ",\n"
     content = content + "  \"succeeded_tracks\": " + str(succeeded_tracks) + ",\n"
     content = content + "  \"composition_checksum\": " + str(composition_checksum) + ",\n"

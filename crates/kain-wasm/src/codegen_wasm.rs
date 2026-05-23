@@ -24,14 +24,25 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::generate;
-    use kain_core::ast::{
-        Expr, Field, Function, Item, Param, Program, Stmt, Struct, Type, Visibility,
-    };
     use kain_core::diagnostics::SpanMapper;
+    use kain_core::lexer::Lexer;
     use kain_core::low_level_memory_metadata::{
         marker_attr, usize_bool_attr, C_BITFIELD_ATTR, C_UNION_ATTR,
     };
+    use kain_core::parser::Parser;
+    use kain_core::ast::{
+        Expr, Field, Function, Item, Param, Program, Stmt, Struct, Type, Visibility,
+    };
     use kain_core::types::check;
+
+    fn parse_and_typecheck(source: &str, filename: &str) -> kain_core::types::TypedProgram {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mapper = SpanMapper::new(source);
+        let program = Parser::new(&tokens, &mapper, filename)
+            .parse()
+            .expect("parse");
+        check(&program, &mapper, filename).expect("typecheck")
+    }
 
     #[test]
     fn wasm_generate_handles_lowered_union_and_bitfield_memory_helpers() {
@@ -152,6 +163,49 @@ mod tests {
 
         let mapper = SpanMapper::new("");
         let typed = check(&program, &mapper, "wasm_low_level.kn").expect("typecheck");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+    }
+
+    #[test]
+    fn wasm_generate_resolves_struct_fields_through_indexed_arrays() {
+        let source = r#"
+struct Packet:
+    bias: Int
+    phase: Int
+
+fn main() -> Int:
+    let packets = [
+        Packet { bias: 3, phase: 5 },
+        Packet { bias: 7, phase: 11 }
+    ]
+    let slot = 1
+    return packets[slot].bias + packets[slot].phase
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_indexed_packets.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+    }
+
+    #[test]
+    fn wasm_generate_allows_ask_through_actor_typed_helper_params() {
+        let source = r#"
+actor Relay:
+    state bias: Int = 7
+
+    on Fold(reply_to: P, request: Int):
+        send reply_to.Reply(value = request + self.bias)
+
+fn ask_helper(relay: Relay, request: Int) -> Int:
+    return ask(relay, "Fold", request)
+
+fn main() -> Int:
+    let relay = spawn Relay(bias = 5)
+    return ask_helper(relay, 9)
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_actor_helper.kn");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
     }
@@ -1887,6 +1941,13 @@ impl WasmCompiler {
                 .get(name)
                 .cloned()
                 .or_else(|| self.world_globals.contains_key(name).then(|| name.clone())),
+            Expr::Array(items, _) | Expr::Tuple(items, _) => self.merge_layout_candidates(
+                items.iter()
+                    .map(|item| self.resolve_layout_name_in_layout_scope(layout_locals, item)),
+            ),
+            Expr::Index { object, .. } => {
+                self.resolve_layout_name_in_layout_scope(layout_locals, object)
+            }
             Expr::Paren(inner, _)
             | Expr::Deref(inner, _)
             | Expr::Ref { value: inner, .. }
@@ -2939,10 +3000,38 @@ impl WasmCompiler {
     ) -> Option<&'a str> {
         match expr {
             Expr::Spawn { actor, .. } => Some(actor.as_str()),
-            Expr::Ident(name, _) => ctx.actor_locals.get(name).map(|actor| actor.as_str()),
+            Expr::Ident(name, _) => ctx
+                .actor_locals
+                .get(name)
+                .map(|actor| actor.as_str())
+                .or_else(|| {
+                    ctx.layout_locals.get(name).and_then(|layout_name| {
+                        self.actors
+                            .contains_key(layout_name)
+                            .then_some(layout_name.as_str())
+                    })
+                }),
             Expr::Paren(inner, _) => self.resolve_actor_name_in_context(ctx, inner),
             _ => None,
         }
+    }
+
+    fn merge_layout_candidates<I>(&self, layouts: I) -> Option<String>
+    where
+        I: IntoIterator<Item = Option<String>>,
+    {
+        let mut resolved: Option<String> = None;
+        for layout in layouts {
+            let Some(layout) = layout else {
+                continue;
+            };
+            match &resolved {
+                None => resolved = Some(layout),
+                Some(existing) if existing == &layout => {}
+                Some(_) => return None,
+            }
+        }
+        resolved
     }
 
     fn actor_handler_result_type_for_call(
@@ -2975,6 +3064,11 @@ impl WasmCompiler {
                 .cloned()
                 .or_else(|| ctx.actor_locals.get(name).cloned())
                 .or_else(|| ctx.world_globals.contains_key(name).then(|| name.clone())),
+            Expr::Array(items, _) | Expr::Tuple(items, _) => self.merge_layout_candidates(
+                items.iter()
+                    .map(|item| self.resolve_layout_name_in_context(ctx, item)),
+            ),
+            Expr::Index { object, .. } => self.resolve_layout_name_in_context(ctx, object),
             Expr::Paren(inner, _)
             | Expr::Deref(inner, _)
             | Expr::Ref { value: inner, .. }

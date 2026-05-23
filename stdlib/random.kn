@@ -1,0 +1,235 @@
+pub struct Xoshiro128:
+    s0: Int
+    s1: Int
+    s2: Int
+    s3: Int
+
+pub struct XoshiroNextResult:
+    rng: Xoshiro128
+    value: Int
+
+pub struct IntResult:
+    rng: Xoshiro128
+    value: Int
+
+pub struct FloatResult:
+    rng: Xoshiro128
+    value: Float
+
+pub struct FloatNormResult:
+    rng: Xoshiro128
+    value: Float
+
+pub fn rotl(x: Int, k: Int) -> Int:
+    let masked = x & 4294967295
+    let left = (masked << k) & 4294967295
+    let right = masked >> (32 - k)
+    return left | right
+
+fn xoshiro_scramble_scalar(s1: Int) -> Int:
+    let s1_masked = s1 & 4294967295
+    # rotl(s1 * 5, 7) * 9
+    let rotated = rotl((s1_masked * 5) & 4294967295, 7)
+    return (rotated * 9) & 4294967295
+
+pub converge xoshiro_scramble(s1: Int) -> Int:
+    spec reference:
+        return xoshiro_scramble_scalar(s1)
+    fast llvm_lane when target("llvm"):
+        return xoshiro_scramble_scalar(s1)
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return xoshiro_scramble_scalar(s1)
+    verify random(8)
+
+pub fn xoshiro128_new(seed: Int) -> Xoshiro128:
+    # A simple SplitMix32-like generator to initialize state from a single seed
+    var s = seed & 4294967295
+    if s == 0:
+        s = 123456789
+    
+    # Generate 4 states
+    var state = s
+    
+    state = (state + 2654435769) & 4294967295
+    var z = state
+    z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+    z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+    let s0 = z ^ (z >> 16)
+
+    state = (state + 2654435769) & 4294967295
+    z = state
+    z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+    z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+    let s1 = z ^ (z >> 16)
+
+    state = (state + 2654435769) & 4294967295
+    z = state
+    z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+    z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+    let s2 = z ^ (z >> 16)
+
+    state = (state + 2654435769) & 4294967295
+    z = state
+    z = ((z ^ (z >> 16)) * 2246822519) & 4294967295
+    z = ((z ^ (z >> 13)) * 3266489917) & 4294967295
+    let s3 = z ^ (z >> 16)
+
+    return Xoshiro128 { s0: s0, s1: s1, s2: s2, s3: s3 }
+
+pub fn xoshiro128_next(rng: Xoshiro128) -> XoshiroNextResult:
+    let s0 = rng.s0
+    let s1 = rng.s1
+    let s2 = rng.s2
+    let s3 = rng.s3
+
+    let result = xoshiro_scramble(s1)
+
+    let t = (s1 << 9) & 4294967295
+
+    let new_s2 = s2 ^ s0
+    let new_s3 = s3 ^ s1
+    let new_s1 = s1 ^ s2
+    let new_s0 = s0 ^ s3
+
+    let final_s2 = new_s2 ^ t
+    let final_s3 = rotl(new_s3, 11)
+
+    let next_rng = Xoshiro128 { s0: new_s0, s1: new_s1, s2: final_s2, s3: final_s3 }
+    return XoshiroNextResult { rng: next_rng, value: result }
+
+pub fn random_int_in_range(rng: Xoshiro128, min: Int, max: Int) -> IntResult:
+    let range = max - min + 1
+    if range <= 0:
+        return IntResult { rng, value: min }
+
+    # Unbiased Lemire's bounded integer algorithm
+    var current_rng = rng
+    var x = 0
+    var m = 0
+    var l = 0
+
+    let t = (4294967296 - range) % range
+
+    var done = false
+    while done == false:
+        let next_res = xoshiro128_next(current_rng)
+        current_rng = next_res.rng
+        x = next_res.value
+
+        m = x * range
+        l = m & 4294967295
+        if l >= t:
+            done = true
+
+    let value = min + (m >> 32)
+    return IntResult { rng: current_rng, value }
+
+pub fn random_float(rng: Xoshiro128) -> FloatResult:
+    let next_res = xoshiro128_next(rng)
+    let float_val = (next_res.value * 1.0) / 4294967296.0
+    return FloatResult { rng: next_res.rng, value: float_val }
+
+pub fn math_ln(x: Float) -> Float:
+    if x <= 0.0:
+        return -999999.0
+    
+    var val = x
+    var k = 0
+    while val < 0.5:
+        val = val * 2.0
+        k = k - 1
+    while val > 1.0:
+        val = val * 0.5
+        k = k + 1
+
+    let y = (val - 1.0) / (val + 1.0)
+    let y2 = y * y
+    var term = y
+    var sum = y
+    var denom = 3.0
+    var i = 0
+    while i < 7:
+        term = term * y2
+        sum = sum + term / denom
+        denom = denom + 2.0
+        i = i + 1
+
+    let ln_2 = 0.6931471805599453
+    return 2.0 * sum + (k * 1.0) * ln_2
+
+pub fn random_float_norm(rng: Xoshiro128) -> FloatNormResult:
+    # Box-Muller transform for normal distribution
+    let r1 = random_float(rng)
+    # Clamp u1 to (0, 1] to avoid log(0)
+    let u1 = 1.0 - r1.value
+    let r2 = random_float(r1.rng)
+    let u2 = r2.value
+
+    let pi = 3.141592653589793
+    let z0 = sqrt(-2.0 * math_ln(u1)) * cos(2.0 * pi * u2)
+    return FloatNormResult { rng: r2.rng, value: z0 }
+
+# --- Global / Ambient PRNG Authority Worlds and Patches ---
+
+component RandomDummyPanel():
+    render <panel title="Ambient Random Authority" />
+
+world AmbientRandomWorld:
+    state seed0: Int = 12345
+    state seed1: Int = 67890
+    state seed2: Int = 11121
+    state seed3: Int = 31415
+    surface native_ui => RandomDummyPanel
+
+pub patch patch_random_next(world_ref: AmbientRandomWorld) -> Int:
+    let s0 = world_ref.seed0
+    let s1 = world_ref.seed1
+    let s2 = world_ref.seed2
+    let s3 = world_ref.seed3
+
+    # Scramble step
+    let result = (rotl((s1 * 5) & 4294967295, 7) * 9) & 4294967295
+
+    let t = (s1 << 9) & 4294967295
+
+    let new_s2 = s2 ^ s0
+    let new_s3 = s3 ^ s1
+    let new_s1 = s1 ^ s2
+    let new_s0 = s0 ^ s3
+
+    let final_s2 = new_s2 ^ t
+    let final_s3 = rotl(new_s3, 11)
+
+    world_ref.seed0 = new_s0
+    world_ref.seed1 = new_s1
+    world_ref.seed2 = final_s2
+    world_ref.seed3 = final_s3
+    return result
+
+pub fn random_ambient_next() -> Int:
+    return patch_random_next(AmbientRandomWorld)
+
+pub fn random_ambient_float() -> Float:
+    let next_val = random_ambient_next()
+    return (next_val * 1.0) / 4294967296.0
+
+pub fn random_ambient_int_in_range(min: Int, max: Int) -> Int:
+    let range = max - min + 1
+    if range <= 0:
+        return min
+
+    let t = (4294967296 - range) % range
+
+    var done = false
+    var x = 0
+    var m = 0
+    var l = 0
+
+    while done == false:
+        x = random_ambient_next()
+        m = x * range
+        l = m & 4294967295
+        if l >= t:
+            done = true
+
+    return min + (m >> 32)

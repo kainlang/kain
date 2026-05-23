@@ -1,0 +1,4 @@
+interface:
+  display_name: "Data-Driven First"
+  short_description: "Prefer config over hardcoded paths."
+  default_prompt: "Enforce a data-driven-first approach by replacing hardcoded paths/constants with configuration, mappings, schemas, or environment-driven values where practical."

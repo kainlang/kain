@@ -459,6 +459,7 @@ struct LlvmGenerator {
     value_aggregate_structs: HashSet<String>,
     mmio_structs: HashSet<String>,
     component_defs: HashMap<String, Vec<(String, String)>>,
+    actor_message_reply_types: HashMap<(String, String), String>,
     /// Current basic block label (for Phi nodes)
     current_block: String,
     current_return_type: Option<String>,
@@ -584,6 +585,7 @@ impl LlvmGenerator {
             value_aggregate_structs: HashSet::new(),
             mmio_structs: HashSet::new(),
             component_defs: HashMap::new(),
+            actor_message_reply_types: HashMap::new(),
             current_block: "entry".to_string(),
             current_return_type: None,
             actor_return_label: None,
@@ -1522,6 +1524,13 @@ impl LlvmGenerator {
         } else {
             format!("%{}*", name)
         }
+    }
+
+    fn actor_message_reply_llvm_type(&self, actor_name: &str, message_name: &str) -> Option<String> {
+        self.actor_message_reply_types
+            .get(&(actor_name.to_string(), message_name.to_string()))
+            .cloned()
+            .filter(|ty| ty != "void")
     }
 
     fn register_tuple_struct(&mut self, field_tys: Vec<String>) -> String {
@@ -10844,12 +10853,13 @@ impl LlvmGenerator {
             ));
         }
 
-        let wait_target_ty = match reply_target_ty {
-            Some("void") | None => "i64",
-            Some(target_ty) => target_ty,
-        };
+        let wait_target_ty = reply_target_ty
+            .filter(|target_ty| *target_ty != "void")
+            .map(|target_ty| target_ty.to_string())
+            .or_else(|| self.actor_message_reply_llvm_type(&actor_name, &message_name))
+            .unwrap_or_else(|| "i64".to_string());
         let use_i64_wait = wait_target_ty == "i64";
-        let zero_reply_value = self.zero_value_for_ty(wait_target_ty);
+        let zero_reply_value = self.zero_value_for_ty(&wait_target_ty);
 
         let reply_port_ref_ptr = self.next_reg();
         self.emit_entry_alloca(&reply_port_ref_ptr, ACTOR_REF_LLVM_TYPE);
@@ -10992,7 +11002,7 @@ impl LlvmGenerator {
             reply_value
         } else {
             let reply_slot = self.next_reg();
-            self.emit_entry_alloca(&reply_slot, wait_target_ty);
+            self.emit_entry_alloca(&reply_slot, &wait_target_ty);
             self.emit(&format!(
                 "  store {} {}, {}* {}",
                 wait_target_ty, zero_reply_value, wait_target_ty, reply_slot
@@ -11005,7 +11015,7 @@ impl LlvmGenerator {
             let reply_size_out_ptr = self.next_reg();
             self.emit_entry_alloca(&reply_size_out_ptr, "i64");
             self.emit(&format!("  store i64 0, i64* {}", reply_size_out_ptr));
-            let reply_capacity = self.abi_layout_for_ty(wait_target_ty, span)?.0;
+            let reply_capacity = self.abi_layout_for_ty(&wait_target_ty, span)?.0;
             let wait_status = self.next_reg();
             self.emit(&format!(
                 "  {} = call i32 @kain_actor_reply_port_wait(i8* {}, i64 {}, i8* {}, i64 {}, i64* {})",
@@ -11068,7 +11078,7 @@ impl LlvmGenerator {
             "  {} = phi {} [{}, %{}], [{}, %{}]",
             result, wait_target_ty, reply_value, reply_block, zero_reply_value, label_fail
         ));
-        Ok(Some((result, wait_target_ty.into())))
+        Ok(Some((result, wait_target_ty)))
     }
 
     fn callable_signature(
@@ -11409,6 +11419,15 @@ impl LlvmGenerator {
                             msg_struct_name,
                             payload_fields.join(", ")
                         ));
+                    }
+
+                    for handler in &a.actor_contract.handlers {
+                        if let Some(reply) = &handler.message.reply {
+                            self.actor_message_reply_types.insert(
+                                (a.ast.name.clone(), handler.message.name.clone()),
+                                self.map_type_from_str(&reply.type_name),
+                            );
+                        }
                     }
                 }
                 TypedItem::Enum(e) => {

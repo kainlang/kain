@@ -1,4 +1,5 @@
 use std::runtime
+use std::ascii
 use std::text
 use std::collections
 use std::crypto
@@ -26,6 +27,24 @@ fn probe_text() -> Int:
     let alias = string_view(raw, 2, 5)
     if string_view_materialize(alias) != "alpha":
         return 6
+    return 0
+
+fn probe_ascii() -> Int:
+    let route = "Gpu-HTTP2-42"
+    if ascii_is_text(route) == false:
+        return 7
+    if ascii_lowercase(route) != "gpu-http2-42":
+        return 8
+    if ascii_uppercase("mesh-lane") != "MESH-LANE":
+        return 9
+    if ascii_equals_ignore_case("Relay-A9", "relay-a9") == false:
+        return 10
+    if ascii_is_punctuation("!") == false:
+        return 11
+    if ascii_digit_value("7") != 7 or ascii_hex_value("f") != 15:
+        return 12
+    if ascii_hex_char_upper(15) != "F" or ascii_hex_char_lower(15) != "f":
+        return 13
     return 0
 
 fn probe_collections() -> Int:
@@ -190,6 +209,9 @@ fn main() -> Int:
     let text_status = probe_text()
     if text_status != 0:
         return text_status
+    let ascii_status = probe_ascii()
+    if ascii_status != 0:
+        return ascii_status
     let collections_status = probe_collections()
     if collections_status != 0:
         return collections_status

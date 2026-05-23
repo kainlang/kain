@@ -126,10 +126,10 @@ Primary source anchors:
 
 The current native root profile reports:
 
-- `modules=35`
-- `public_symbols=1655`
-- `total_symbols=2172`
-- `rust_builtins=233`
+- `modules=39`
+- `public_symbols=1860`
+- `total_symbols=2445`
+- `rust_builtins=235`
 - `native_services=42`
 
 Current root imports:
@@ -137,7 +137,9 @@ Current root imports:
 ```kn
 use std::actor
 use std::alloc
+use std::ascii
 use std::attrition
+use std::base64
 use std::bench
 use std::bits
 use std::build
@@ -145,6 +147,7 @@ use std::certify
 use std::collections
 use std::crypto
 use std::diagnostics
+use std::fmt
 use std::fs
 use std::gen_server
 use std::gpu
@@ -155,6 +158,7 @@ use std::http
 use std::http2
 use std::input
 use std::intent
+use std::json
 use std::machine
 use std::math
 use std::memory
@@ -212,7 +216,7 @@ For exact signatures and full symbol lists, query the atlas instead of reading i
 
 Use `stdlib/requirements.md` for the authoritative rows, but remember the missing family clusters:
 
-- Text/data basics: `json`, `fmt`, `base64`, `ascii`, `unicode`, `uri`, `semver`
+- Text/data basics: `unicode`, `uri`, `semver`, and a likely `bytes` split, plus deeper second-pass work in `std::text`, `std::fmt`, and `std::json`
 - Container/algo depth: generic vectors/maps/sets, typed `SlotMap<T>`, bitsets, sort/search, richer allocator integration
 - Filesystem/path/I/O depth: typed metadata, typed directory entries, path toolkit, file handles, stream abstractions
 - Time/random/sync: richer time model, real RNG family, atomic/sync/thread modules

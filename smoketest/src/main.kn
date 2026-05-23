@@ -30,15 +30,20 @@ use mmio_interrupt::smoke_mmio_interrupt_lane
 use native_cli::smoke_native_cli_lane
 
 // Stdlib tracks
+use ascii_lane::smoke_ascii_lane
+use base64_lane::smoke_base64_lane
 use collections_lane::smoke_collections_lane
 use crypto_lane::smoke_crypto_lane
-use text_lane::smoke_text_lane
-use fs_lane::smoke_fs_lane
 use alloc_lane::smoke_alloc_lane
-use math_lane::smoke_math_lane
-use time_lane::smoke_time_lane
 use diagnostics_lane::smoke_diagnostics_lane
+use fs_lane::smoke_fs_lane
+use json_lane::smoke_json_lane
+use math_lane::smoke_math_lane
 use platform_lane::smoke_platform_lane
+use text_lane::smoke_text_lane
+use time_lane::smoke_time_lane
+use unicode_lane::smoke_unicode_lane
+use random_lane::smoke_random_lane
 
 // Interop track
 use c_bridge::smoke_c_bridge_lane
@@ -113,7 +118,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 36
+    let total_tracks: Int = 41
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -341,12 +346,39 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     if e_text != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_text, "stdlib.text_lane")
     succeeded_tracks = succeeded_tracks + 1
+    
+    let started_ascii = now_millis()
+    let lane_ascii = smoke_ascii_lane()
+    let ended_ascii = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.ascii_lane", "ascii", 26, 2600, lane_ascii, started_ascii, ended_ascii, composition_checksum)
+    let e_ascii = smoke_first_error(2600, lane_ascii)
+    if e_ascii != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_ascii, "stdlib.ascii_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_base64 = now_millis()
+    let lane_base64 = smoke_base64_lane()
+    let ended_base64 = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.base64_lane", "base64", 27, 2700, lane_base64, started_base64, ended_base64, composition_checksum)
+    let e_base64 = smoke_first_error(2700, lane_base64)
+    if e_base64 != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_base64, "stdlib.base64_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_json = now_millis()
+    let lane_json = smoke_json_lane()
+    let ended_json = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.json_lane", "json", 28, 2800, lane_json, started_json, ended_json, composition_checksum)
+    let e_json = smoke_first_error(2800, lane_json)
+    if e_json != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_json, "stdlib.json_lane")
+    succeeded_tracks = succeeded_tracks + 1
 
     let started_fs = now_millis()
     let lane_fs = smoke_fs_lane()
     let ended_fs = now_millis()
-    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.fs_lane", "filesystem", 26, 2600, lane_fs, started_fs, ended_fs, composition_checksum)
-    let e_fs = smoke_first_error(2600, lane_fs)
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.fs_lane", "filesystem", 29, 2900, lane_fs, started_fs, ended_fs, composition_checksum)
+    let e_fs = smoke_first_error(2900, lane_fs)
     if e_fs != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_fs, "stdlib.fs_lane")
     succeeded_tracks = succeeded_tracks + 1
@@ -354,8 +386,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_alloc = now_millis()
     let lane_alloc = smoke_alloc_lane()
     let ended_alloc = now_millis()
-    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.alloc_lane", "alloc", 27, 2700, lane_alloc, started_alloc, ended_alloc, composition_checksum)
-    let e_alloc = smoke_first_error(2700, lane_alloc)
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.alloc_lane", "alloc", 30, 3000, lane_alloc, started_alloc, ended_alloc, composition_checksum)
+    let e_alloc = smoke_first_error(3000, lane_alloc)
     if e_alloc != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_alloc, "stdlib.alloc_lane")
     succeeded_tracks = succeeded_tracks + 1
@@ -363,8 +395,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_math = now_millis()
     let lane_math = smoke_math_lane()
     let ended_math = now_millis()
-    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.math_lane", "math", 28, 2800, lane_math, started_math, ended_math, composition_checksum)
-    let e_math = smoke_first_error(2800, lane_math)
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.math_lane", "math", 31, 3100, lane_math, started_math, ended_math, composition_checksum)
+    let e_math = smoke_first_error(3100, lane_math)
     if e_math != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_math, "stdlib.math_lane")
     succeeded_tracks = succeeded_tracks + 1
@@ -372,8 +404,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_time = now_millis()
     let lane_time = smoke_time_lane()
     let ended_time = now_millis()
-    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.time_lane", "time", 29, 2900, lane_time, started_time, ended_time, composition_checksum)
-    let e_time = smoke_first_error(2900, lane_time)
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.time_lane", "time", 32, 3200, lane_time, started_time, ended_time, composition_checksum)
+    let e_time = smoke_first_error(3200, lane_time)
     if e_time != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_time, "stdlib.time_lane")
     succeeded_tracks = succeeded_tracks + 1
@@ -381,8 +413,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_diagnostics = now_millis()
     let lane_diagnostics = smoke_diagnostics_lane()
     let ended_diagnostics = now_millis()
-    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.diagnostics_lane", "diagnostics", 30, 3000, lane_diagnostics, started_diagnostics, ended_diagnostics, composition_checksum)
-    let e_diagnostics = smoke_first_error(3000, lane_diagnostics)
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.diagnostics_lane", "diagnostics", 33, 3300, lane_diagnostics, started_diagnostics, ended_diagnostics, composition_checksum)
+    let e_diagnostics = smoke_first_error(3300, lane_diagnostics)
     if e_diagnostics != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_diagnostics, "stdlib.diagnostics_lane")
     succeeded_tracks = succeeded_tracks + 1
@@ -390,8 +422,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_platform = now_millis()
     let lane_platform = smoke_platform_lane()
     let ended_platform = now_millis()
-    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.platform_lane", "platform", 31, 3100, lane_platform, started_platform, ended_platform, composition_checksum)
-    let e_platform = smoke_first_error(3100, lane_platform)
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.platform_lane", "platform", 34, 3400, lane_platform, started_platform, ended_platform, composition_checksum)
+    let e_platform = smoke_first_error(3400, lane_platform)
     if e_platform != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_platform, "stdlib.platform_lane")
     succeeded_tracks = succeeded_tracks + 1
@@ -399,8 +431,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_bridge = now_millis()
     let lane_bridge = smoke_c_bridge_lane()
     let ended_bridge = now_millis()
-    composition_checksum = smoke_record_track(mode, "interop", "interop.c_bridge", "c_bridge", 32, 3200, lane_bridge, started_bridge, ended_bridge, composition_checksum)
-    let e_bridge = smoke_first_error(3200, lane_bridge)
+    composition_checksum = smoke_record_track(mode, "interop", "interop.c_bridge", "c_bridge", 35, 3500, lane_bridge, started_bridge, ended_bridge, composition_checksum)
+    let e_bridge = smoke_first_error(3500, lane_bridge)
     if e_bridge != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_bridge, "interop.c_bridge")
     succeeded_tracks = succeeded_tracks + 1
@@ -408,8 +440,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_c_abi_album = now_millis()
     let lane_c_abi_album = smoke_c_abi_album_lane()
     let ended_c_abi_album = now_millis()
-    composition_checksum = smoke_record_track(mode, "interop", "interop.c_abi_album", "c_abi_album", 33, 3300, lane_c_abi_album, started_c_abi_album, ended_c_abi_album, composition_checksum)
-    let e_c_abi_album = smoke_first_error(3300, lane_c_abi_album)
+    composition_checksum = smoke_record_track(mode, "interop", "interop.c_abi_album", "c_abi_album", 36, 3600, lane_c_abi_album, started_c_abi_album, ended_c_abi_album, composition_checksum)
+    let e_c_abi_album = smoke_first_error(3600, lane_c_abi_album)
     if e_c_abi_album != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_c_abi_album, "interop.c_abi_album")
     succeeded_tracks = succeeded_tracks + 1
@@ -417,8 +449,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_headless = now_millis()
     let lane_headless = smoke_headless_host_lane(mode)
     let ended_headless = now_millis()
-    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.headless_host", "headless_host", 34, 3400, lane_headless, started_headless, ended_headless, composition_checksum)
-    let e_headless = smoke_first_error(3400, lane_headless)
+    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.headless_host", "headless_host", 37, 3700, lane_headless, started_headless, ended_headless, composition_checksum)
+    let e_headless = smoke_first_error(3700, lane_headless)
     if e_headless != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_headless, "telemetry.headless_host")
     succeeded_tracks = succeeded_tracks + 1
@@ -426,8 +458,8 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_flow = now_millis()
     let lane_flow = smoke_telemetry_flow_lane(mode)
     let ended_flow = now_millis()
-    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.novel_flow", "telemetry_flow", 35, 3500, lane_flow, started_flow, ended_flow, composition_checksum)
-    let e_flow = smoke_first_error(3500, lane_flow)
+    composition_checksum = smoke_record_track(mode, "telemetry", "telemetry.novel_flow", "telemetry_flow", 38, 3800, lane_flow, started_flow, ended_flow, composition_checksum)
+    let e_flow = smoke_first_error(3800, lane_flow)
     if e_flow != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_flow, "telemetry.novel_flow")
     succeeded_tracks = succeeded_tracks + 1
@@ -435,10 +467,28 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let started_native_cli = now_millis()
     let lane_native_cli = smoke_native_cli_lane()
     let ended_native_cli = now_millis()
-    composition_checksum = smoke_record_track(mode, "systems", "systems.native_cli", "native_cli", 36, 3600, lane_native_cli, started_native_cli, ended_native_cli, composition_checksum)
-    let e_native_cli = smoke_first_error(3600, lane_native_cli)
+    composition_checksum = smoke_record_track(mode, "systems", "systems.native_cli", "native_cli", 39, 3900, lane_native_cli, started_native_cli, ended_native_cli, composition_checksum)
+    let e_native_cli = smoke_first_error(3900, lane_native_cli)
     if e_native_cli != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_native_cli, "systems.native_cli")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_unicode = now_millis()
+    let lane_unicode = smoke_unicode_lane()
+    let ended_unicode = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.unicode_lane", "unicode", 40, 4000, lane_unicode, started_unicode, ended_unicode, composition_checksum)
+    let e_unicode = smoke_first_error(4000, lane_unicode)
+    if e_unicode != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_unicode, "stdlib.unicode_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_random = now_millis()
+    let lane_random = smoke_random_lane()
+    let ended_random = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.random_lane", "random", 41, 4100, lane_random, started_random, ended_random, composition_checksum)
+    let e_random = smoke_first_error(4100, lane_random)
+    if e_random != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_random, "stdlib.random_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1

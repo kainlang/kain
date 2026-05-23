@@ -1,0 +1,204 @@
+pub const ASCII_NUL: Int = 0
+pub const ASCII_HT: Int = 9
+pub const ASCII_LF: Int = 10
+pub const ASCII_VT: Int = 11
+pub const ASCII_FF: Int = 12
+pub const ASCII_CR: Int = 13
+pub const ASCII_SPACE: Int = 32
+pub const ASCII_DEL: Int = 127
+
+pub const ASCII_DIGITS: String = "0123456789"
+pub const ASCII_LOWERCASE: String = "abcdefghijklmnopqrstuvwxyz"
+pub const ASCII_UPPERCASE: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+pub const ASCII_HEX_LOWERCASE: String = "0123456789abcdef"
+pub const ASCII_HEX_UPPERCASE: String = "0123456789ABCDEF"
+
+fn ascii_byte_of(value: String) -> Int:
+    if len(value) != 1:
+        return -1
+    let byte = byte_at(value, 0)
+    if ascii_is_byte(byte) == false:
+        return -1
+    return byte
+
+pub fn ascii_is_byte(value: Int) -> Bool:
+    return value >= 0 and value < 128
+
+pub fn ascii_is_control_byte(value: Int) -> Bool:
+    if ascii_is_byte(value) == false:
+        return false
+    return value <= 31 or value == ASCII_DEL
+
+pub fn ascii_is_whitespace_byte(value: Int) -> Bool:
+    if ascii_is_byte(value) == false:
+        return false
+    return value == ASCII_SPACE or (value >= ASCII_HT and value <= ASCII_CR)
+
+pub fn ascii_is_printable_byte(value: Int) -> Bool:
+    return value >= ASCII_SPACE and value < ASCII_DEL
+
+pub fn ascii_is_graphical_byte(value: Int) -> Bool:
+    return value > ASCII_SPACE and value < ASCII_DEL
+
+pub fn ascii_is_upper_byte(value: Int) -> Bool:
+    return value >= 65 and value <= 90
+
+pub fn ascii_is_lower_byte(value: Int) -> Bool:
+    return value >= 97 and value <= 122
+
+pub fn ascii_is_alpha_byte(value: Int) -> Bool:
+    return ascii_is_upper_byte(value) or ascii_is_lower_byte(value)
+
+pub fn ascii_is_digit_byte(value: Int) -> Bool:
+    return value >= 48 and value <= 57
+
+pub fn ascii_is_alnum_byte(value: Int) -> Bool:
+    return ascii_is_alpha_byte(value) or ascii_is_digit_byte(value)
+
+pub fn ascii_is_hex_byte(value: Int) -> Bool:
+    if ascii_is_digit_byte(value):
+        return true
+    if value >= 65 and value <= 70:
+        return true
+    return value >= 97 and value <= 102
+
+pub fn ascii_is_punctuation_byte(value: Int) -> Bool:
+    return ascii_is_graphical_byte(value) and ascii_is_alnum_byte(value) == false
+
+pub fn ascii_to_upper_byte(value: Int) -> Int:
+    if ascii_is_lower_byte(value):
+        return value - 32
+    return value
+
+pub fn ascii_to_lower_byte(value: Int) -> Int:
+    if ascii_is_upper_byte(value):
+        return value + 32
+    return value
+
+pub fn ascii_digit_value_byte(value: Int) -> Int:
+    if ascii_is_digit_byte(value):
+        return value - 48
+    return -1
+
+pub fn ascii_hex_value_byte(value: Int) -> Int:
+    if ascii_is_digit_byte(value):
+        return value - 48
+    if value >= 65 and value <= 70:
+        return 10 + (value - 65)
+    if value >= 97 and value <= 102:
+        return 10 + (value - 97)
+    return -1
+
+pub fn ascii_digit_char(value: Int) -> String:
+    if value < 0 or value > 9:
+        return ""
+    return chr(48 + value)
+
+pub fn ascii_hex_char_lower(value: Int) -> String:
+    if value < 0 or value > 15:
+        return ""
+    if value < 10:
+        return ascii_digit_char(value)
+    return chr(87 + value)
+
+pub fn ascii_hex_char_upper(value: Int) -> String:
+    if value < 0 or value > 15:
+        return ""
+    if value < 10:
+        return ascii_digit_char(value)
+    return chr(55 + value)
+
+pub fn ascii_char_code(value: String) -> Int:
+    return ascii_byte_of(value)
+
+pub fn ascii_is_char(value: String) -> Bool:
+    return ascii_byte_of(value) >= 0
+
+pub fn ascii_is_control(value: String) -> Bool:
+    return ascii_is_control_byte(ascii_byte_of(value))
+
+pub fn ascii_is_whitespace(value: String) -> Bool:
+    return ascii_is_whitespace_byte(ascii_byte_of(value))
+
+pub fn ascii_is_printable(value: String) -> Bool:
+    return ascii_is_printable_byte(ascii_byte_of(value))
+
+pub fn ascii_is_graphical(value: String) -> Bool:
+    return ascii_is_graphical_byte(ascii_byte_of(value))
+
+pub fn ascii_is_punctuation(value: String) -> Bool:
+    return ascii_is_punctuation_byte(ascii_byte_of(value))
+
+pub fn ascii_is_upper(value: String) -> Bool:
+    return ascii_is_upper_byte(ascii_byte_of(value))
+
+pub fn ascii_is_lower(value: String) -> Bool:
+    return ascii_is_lower_byte(ascii_byte_of(value))
+
+pub fn ascii_is_alpha(value: String) -> Bool:
+    return ascii_is_alpha_byte(ascii_byte_of(value))
+
+pub fn ascii_is_alnum(value: String) -> Bool:
+    return ascii_is_alnum_byte(ascii_byte_of(value))
+
+pub fn ascii_is_digit(value: String) -> Bool:
+    return ascii_is_digit_byte(ascii_byte_of(value))
+
+pub fn ascii_is_hex(value: String) -> Bool:
+    return ascii_is_hex_byte(ascii_byte_of(value))
+
+pub fn ascii_digit_value(value: String) -> Int:
+    return ascii_digit_value_byte(ascii_byte_of(value))
+
+pub fn ascii_hex_value(value: String) -> Int:
+    return ascii_hex_value_byte(ascii_byte_of(value))
+
+pub fn ascii_to_upper(value: String) -> String:
+    let byte = ascii_byte_of(value)
+    if byte < 0:
+        return value
+    return chr(ascii_to_upper_byte(byte))
+
+pub fn ascii_to_lower(value: String) -> String:
+    let byte = ascii_byte_of(value)
+    if byte < 0:
+        return value
+    return chr(ascii_to_lower_byte(byte))
+
+pub fn ascii_is_text(value: String) -> Bool:
+    var index = 0
+    while index < len(value):
+        if ascii_is_byte(byte_at(value, index)) == false:
+            return false
+        index = index + 1
+    return true
+
+pub fn ascii_uppercase(value: String) -> String:
+    if ascii_is_text(value) == false:
+        return value
+    var index = 0
+    var output = ""
+    while index < len(value):
+        output = output + chr(ascii_to_upper_byte(byte_at(value, index)))
+        index = index + 1
+    return output
+
+pub fn ascii_lowercase(value: String) -> String:
+    if ascii_is_text(value) == false:
+        return value
+    var index = 0
+    var output = ""
+    while index < len(value):
+        output = output + chr(ascii_to_lower_byte(byte_at(value, index)))
+        index = index + 1
+    return output
+
+pub fn ascii_equals_ignore_case(left: String, right: String) -> Bool:
+    if len(left) != len(right):
+        return false
+    var index = 0
+    while index < len(left):
+        if ascii_to_lower_byte(byte_at(left, index)) != ascii_to_lower_byte(byte_at(right, index)):
+            return false
+        index = index + 1
+    return true

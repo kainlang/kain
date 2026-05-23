@@ -1457,16 +1457,19 @@ static void abi_fs_builder_free(KainNativeFsTextBuilder* builder) {
 }
 
 #ifdef _WIN32
-static long long abi_fs_filetime_to_unix_seconds(FILETIME value) {
+static long long abi_fs_filetime_to_unix_millis(FILETIME value) {
     ULARGE_INTEGER ticks;
-    const unsigned long long windows_epoch_delta_seconds = 11644473600ULL;
+    const unsigned long long windows_epoch_delta_100ns = 116444736000000000ULL;
 
     ticks.LowPart = value.dwLowDateTime;
     ticks.HighPart = value.dwHighDateTime;
     if (ticks.QuadPart == 0ULL) {
         return 0;
     }
-    return (long long)((ticks.QuadPart / 10000000ULL) - windows_epoch_delta_seconds);
+    if (ticks.QuadPart <= windows_epoch_delta_100ns) {
+        return 0;
+    }
+    return (long long)((ticks.QuadPart - windows_epoch_delta_100ns) / 10000ULL);
 }
 #endif
 
@@ -1953,26 +1956,21 @@ const char* abi_fs_read_bytes_hex(const char* path) {
     return abi_fs_read_byte_range_hex(path, 0, (int64_t)size);
 }
 
-int64_t abi_fs_write_bytes_hex(const char* path, const char* hex) {
+static int64_t abi_fs_write_bytes_hex_mode(const char* path, const char* hex, const char* mode, const char* operation) {
     FILE* file = 0;
     size_t length;
     size_t index;
     if (path == 0 || path[0] == '\0' || hex == 0) {
         errno = EINVAL;
-        return abi_fs_fail("write_bytes_hex", path);
+        return abi_fs_fail(operation, path);
     }
     length = strlen(hex);
-    if ((length % 2) != 0 || abi_fs_create_parent_dirs(path) != 0) {
+    if ((length % 2) != 0) {
         errno = EINVAL;
-        return abi_fs_fail("write_bytes_hex", path);
+        return abi_fs_fail(operation, path);
     }
-#ifdef _WIN32
-    if (fopen_s(&file, path, "wb") != 0) file = 0;
-#else
-    file = fopen(path, "wb");
-#endif
-    if (file == 0) {
-        return abi_fs_fail("write_bytes_hex", path);
+    if (abi_fs_open_write_retry_parent_dirs(path, mode, &file) != 0 || file == 0) {
+        return abi_fs_fail(operation, path);
     }
     for (index = 0; index < length; index += 2) {
         int hi = abi_fs_hex_value(hex[index]);
@@ -1981,16 +1979,24 @@ int64_t abi_fs_write_bytes_hex(const char* path, const char* hex) {
         if (hi < 0 || lo < 0) {
             fclose(file);
             errno = EINVAL;
-            return abi_fs_fail("write_bytes_hex", path);
+            return abi_fs_fail(operation, path);
         }
         byte = (unsigned char)((hi << 4) | lo);
         if (fwrite(&byte, 1, 1, file) != 1) {
             fclose(file);
-            return abi_fs_fail("write_bytes_hex", path);
+            return abi_fs_fail(operation, path);
         }
     }
     fclose(file);
     return abi_fs_ok();
+}
+
+int64_t abi_fs_write_bytes_hex(const char* path, const char* hex) {
+    return abi_fs_write_bytes_hex_mode(path, hex, "wb", "write_bytes_hex");
+}
+
+int64_t abi_fs_append_bytes_hex(const char* path, const char* hex) {
+    return abi_fs_write_bytes_hex_mode(path, hex, "ab", "append_bytes_hex");
 }
 
 int abi_fs_exists(const char* path) {
@@ -2054,9 +2060,14 @@ const char* abi_fs_metadata_text(const char* path) {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA file_info;
     ULARGE_INTEGER file_size;
-    long long modified_seconds;
+    long long created_millis;
+    long long modified_millis;
+    long long accessed_millis;
 #else
     struct stat info;
+    long long created_millis = 0;
+    long long modified_millis = 0;
+    long long accessed_millis = 0;
 #endif
     KainNativeFsTextBuilder builder;
     if (path == 0 || path[0] == '\0') {
@@ -2071,13 +2082,16 @@ const char* abi_fs_metadata_text(const char* path) {
     }
     file_size.LowPart = file_info.nFileSizeLow;
     file_size.HighPart = file_info.nFileSizeHigh;
-    modified_seconds =
-        abi_fs_filetime_to_unix_seconds(file_info.ftLastWriteTime);
+    created_millis = abi_fs_filetime_to_unix_millis(file_info.ftCreationTime);
+    modified_millis = abi_fs_filetime_to_unix_millis(file_info.ftLastWriteTime);
+    accessed_millis = abi_fs_filetime_to_unix_millis(file_info.ftLastAccessTime);
 #else
     if (stat(path, &info) != 0) {
         abi_fs_fail("metadata_text", path);
         return string_new("");
     }
+    modified_millis = (long long)info.st_mtime * 1000LL;
+    accessed_millis = (long long)info.st_atime * 1000LL;
 #endif
     if (abi_fs_builder_init(&builder) != 0) {
         abi_fs_fail("metadata_text", path);
@@ -2087,12 +2101,16 @@ const char* abi_fs_metadata_text(const char* path) {
     if (abi_fs_builder_appendf(&builder, "file_type=%s\n", abi_fs_file_type_text(path)) != 0
         || abi_fs_builder_appendf(&builder, "len=%lld\n", (long long)file_size.QuadPart) != 0
         || abi_fs_builder_appendf(&builder, "readonly=%d\n", (file_info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) ? 1 : 0) != 0
-        || abi_fs_builder_appendf(&builder, "modified_seconds=%lld\n", modified_seconds) != 0) {
+        || abi_fs_builder_appendf(&builder, "created_millis=%lld\n", created_millis) != 0
+        || abi_fs_builder_appendf(&builder, "modified_millis=%lld\n", modified_millis) != 0
+        || abi_fs_builder_appendf(&builder, "accessed_millis=%lld\n", accessed_millis) != 0) {
 #else
     if (abi_fs_builder_appendf(&builder, "file_type=%s\n", abi_fs_file_type_text(path, &info)) != 0
         || abi_fs_builder_appendf(&builder, "len=%lld\n", (long long)info.st_size) != 0
         || abi_fs_builder_appendf(&builder, "readonly=%d\n", (info.st_mode & S_IWUSR) ? 0 : 1) != 0
-        || abi_fs_builder_appendf(&builder, "modified_seconds=%lld\n", (long long)info.st_mtime) != 0) {
+        || abi_fs_builder_appendf(&builder, "created_millis=%lld\n", created_millis) != 0
+        || abi_fs_builder_appendf(&builder, "modified_millis=%lld\n", modified_millis) != 0
+        || abi_fs_builder_appendf(&builder, "accessed_millis=%lld\n", accessed_millis) != 0) {
 #endif
         abi_fs_builder_free(&builder);
         abi_fs_fail("metadata_text", path);
@@ -2163,7 +2181,8 @@ static int abi_fs_walk_append(KainNativeFsTextBuilder* builder, const char* path
             return -1;
         }
         if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-            if (abi_fs_walk_append(builder, child) != 0) {
+            int child_status = abi_fs_walk_append(builder, child);
+            if (child_status != 0 && errno != ENOENT && errno != EACCES && errno != EPERM) {
                 FindClose(handle);
                 return -1;
             }
@@ -2220,7 +2239,12 @@ static int abi_fs_walk_append(KainNativeFsTextBuilder* builder, const char* path
             return -1;
         }
         if (stat(child, &child_info) == 0 && S_ISDIR(child_info.st_mode)) {
-            if (abi_fs_walk_append(builder, child) != 0) {
+            int child_status = abi_fs_walk_append(builder, child);
+            if (child_status != 0
+                && errno != ENOENT
+                && errno != EACCES
+                && errno != EPERM
+                && errno != ENOTDIR) {
                 closedir(dir);
                 return -1;
             }
@@ -2580,6 +2604,30 @@ int64_t abi_fs_atomic_write_text_len(const char* path, const char* content, int6
     if (rename(temp_path, path) != 0) {
         remove(temp_path);
         return abi_fs_fail("atomic_write_text", path);
+    }
+    return abi_fs_ok();
+}
+
+int64_t abi_fs_atomic_write_bytes_hex(const char* path, const char* hex) {
+    char temp_path[4096];
+    if (path == 0 || path[0] == '\0' || hex == 0) {
+        errno = EINVAL;
+        return abi_fs_fail("atomic_write_bytes_hex", path);
+    }
+#ifdef _WIN32
+    _snprintf_s(temp_path, sizeof(temp_path), _TRUNCATE, "%s.%lld.tmp", path, (long long)time(NULL));
+#else
+    snprintf(temp_path, sizeof(temp_path), "%s.%lld.tmp", path, (long long)time(NULL));
+#endif
+    if (abi_fs_write_bytes_hex(temp_path, hex) != 0) {
+        return g_kain_native_fs_last_status;
+    }
+#ifdef _WIN32
+    DeleteFileA(path);
+#endif
+    if (rename(temp_path, path) != 0) {
+        remove(temp_path);
+        return abi_fs_fail("atomic_write_bytes_hex", path);
     }
     return abi_fs_ok();
 }

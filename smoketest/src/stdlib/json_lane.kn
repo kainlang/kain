@@ -1,0 +1,35 @@
+use std::json
+use std::text
+
+pub fn smoke_json_lane() -> Int:
+    let payload = json_object()
+    let tags = json_array()
+    let _tag_alpha = json_array_push_string(tags, "alpha")
+    let _tag_beta = json_array_push_string(tags, "beta")
+    let _name = json_object_set_string(payload, "name", "kain")
+    let _version = json_object_set_int(payload, "version", 1)
+    let _ok = json_object_set_bool(payload, "ok", true)
+    let _tags = json_object_set_value(payload, "tags", tags)
+    let rendered = json_stringify(payload)
+    if text_contains_string(rendered, "\"name\"") == false:
+        return 1
+    let parsed = json_parse_text(rendered)
+    if json_string_or(parsed, "name", "") != "kain":
+        return 2
+    if json_int_or(parsed, "version", 0) != 1:
+        return 3
+    if json_bool_or(parsed, "ok", false) == false:
+        return 4
+    let parsed_tags = json_string_array_field(parsed, "tags")
+    if len(parsed_tags) != 2:
+        return 5
+    if parsed_tags[1] != "beta":
+        return 6
+    let tokens = json_scan_significant("{\"ok\": true, \"count\": 2}")
+    if len(tokens) < 5:
+        return 7
+    if tokens[0].kind != JSON_TOKEN_LBRACE:
+        return 8
+    if tokens[1].kind != JSON_TOKEN_STRING:
+        return 9
+    return 0

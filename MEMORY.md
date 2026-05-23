@@ -1,5 +1,86 @@
 # Kain Memory
 
+# 2026-05-23 - root stdlib first-pass text/data expansion landed (`std::base64`, `std::fmt`, `std::json`, richer `std::text`)
+
+The root stdlib now has a real first-pass text/data floor instead of the old thin `text + crypto-random-hex` story. `stdlib/base64.kn`, `stdlib/fmt.kn`, and `stdlib/json.kn` are live root families, and `stdlib/text.kn` grew into a broader utility surface instead of staying just slice/find/trim/materialize.
+
+What changed:
+
+- root stdlib
+  - `stdlib/text.kn`
+    - expanded with split/join, line helpers, tokenize/count, replace/repeat, case helpers, and owned-string convenience functions layered over the existing view primitives
+  - `stdlib/fmt.kn`
+    - added string-oriented formatting helpers for ints, floats, booleans, hex, binary, padding, centered/left/right alignment, status lines, prefixed lines, JSON escaping, and debug-style array rendering
+  - `stdlib/base64.kn`
+    - added standard and URL-safe base64 encode/decode plus hex/base16 encode/decode helpers
+  - `stdlib/json.kn`
+    - added parse/stringify, key/value accessors, object/array builders, string-array helpers, and a lightweight token scanner
+- smoketest
+  - `smoketest/src/stdlib/text_lane.kn`
+    - expanded to exercise the broader text helpers plus `std::ascii` and `std::fmt` interplay
+  - `smoketest/src/stdlib/base64_lane.kn`
+    - added as the new binary-encoding proof lane
+  - `smoketest/src/stdlib/json_lane.kn`
+    - added as the new JSON proof lane
+  - `smoketest/src/main.kn`
+    - wired the new tracks into the album and bumped `total_tracks` to `39`
+  - `smoketest/build.kn`
+    - registered the new stdlib lanes as tracked inputs
+  - `smoketest/src/telemetry/report.kn`
+    - now uses `std::fmt::fmt_json_string` so the new formatting surface has a non-stdlib consumer and telemetry JSON escaping is less fragile
+- atlas tooling
+  - `crates/kain-stdlib-map/src/main.rs`
+    - now runs atlas generation on a dedicated large-stack worker thread because the richer root stdlib shape overflowed the old default-stack path
+- completion contract
+  - `stdlib/requirements.md`
+    - updated the live counts to `39` root modules and `1860` public symbols
+    - marked `std::base64` `DONE`
+    - tightened the remaining `std::text`, `std::fmt`, and `std::json` work instead of leaving those rows vague
+  - `.agents/skills/lang-stdlib/SKILL.md`
+    - refreshed the live profile and gap index so future stdlib work starts from the new floor
+
+Validation:
+
+- `kain check smoketest/src/stdlib/text_lane.kn --target llvm`
+- `kain check smoketest/src/stdlib/base64_lane.kn --target llvm`
+- `kain check smoketest/src/stdlib/json_lane.kn --target llvm`
+- `kain check smoketest/src/telemetry/report.kn --target llvm`
+- `kain check smoketest/src/main.kn --target llvm`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+
+Durable lessons:
+
+- `std::base64` currently treats `String` as the byte carrier. If future work needs honest binary/text separation, land that under the still-likely `std::bytes` family instead of overloading the encoding helpers with ad hoc conventions.
+- `std::fmt` is now good enough to stop the worst string-concatenation churn, but it is still a string-oriented first pass. Writer/builder-driven formatting remains open work.
+- `std::json` now covers the major authoring floor, but the deeper typed-decode and structured-error story is still open; do not pretend the first pass erased every `Any`-shaped edge.
+
+# 2026-05-23 - root `std::ascii` landed as a pure-Kain P0 family
+
+The root stdlib now has `stdlib/ascii.kn` with ASCII byte classes, digit/hex conversion helpers, per-char folds, whole-string upper/lower transforms, and case-insensitive equality without waiting on any runtime bridge work.
+
+What changed:
+
+- `stdlib/ascii.kn`
+  - added public ASCII byte constants plus uppercase/lowercase/digit/hex alphabets
+  - added byte predicates for control, whitespace, printable, graphical, punctuation, alpha, alnum, digit, and hex classes
+  - added digit/hex decode helpers, digit/hex emit helpers, char-level wrappers, ASCII-only whole-string transforms, and ignore-case comparison
+- `smoketest/src/stdlib/ascii_lane.kn`
+  - added the mixed-surface proof lane for the new root family
+- `smoketest/src/main.kn`
+  - wired the new stdlib track into the album and bumped `total_tracks` to `37`
+- `smoketest/build.kn`
+  - registered the new lane as a tracked input for `check-llvm`
+- `blades/stdlib-foundations/src/main.kn`
+  - added a non-stdlib consumer so the family is exercised outside the root module itself
+- `stdlib/requirements.md`
+  - marked the `std::ascii` P0 row `DONE`
+
+Durable lessons:
+
+- `std::ascii` is intentionally a pure-Kain byte lane right now: the whole-string fold helpers only transform when the input is fully 7-bit ASCII, and otherwise return the original text unchanged instead of pretending to do Unicode-aware case mapping.
+- If future work needs UTF-8 validation, codepoint iteration, or normalization, that belongs in the still-open `std::unicode` row rather than stretching `std::ascii` past its contract.
+
 # 2026-05-23 - `lang-stdlib` is now the full root-stdlib operator lane
 
 The repo-local `.agents/skills/lang-stdlib` skill is no longer just a quick import picker for existing `std::*` calls. It now covers the full root-stdlib completion workflow: consuming the current public surface, extending existing top-level `stdlib/*.kn` modules, adding missing root families, following `stdlib/requirements.md`, meshing changes into `smoketest/`, regenerating the atlas, and choosing benchmark/attrition/runtime-conformance/Z3 evidence lanes.

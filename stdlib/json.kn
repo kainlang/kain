@@ -1,0 +1,266 @@
+use std::ascii
+
+pub type JsonValue = Any
+pub type JsonObject = Any
+pub type JsonArray = Any
+
+pub const JSON_TOKEN_LBRACE: String = "lbrace"
+pub const JSON_TOKEN_RBRACE: String = "rbrace"
+pub const JSON_TOKEN_LBRACKET: String = "lbracket"
+pub const JSON_TOKEN_RBRACKET: String = "rbracket"
+pub const JSON_TOKEN_COLON: String = "colon"
+pub const JSON_TOKEN_COMMA: String = "comma"
+pub const JSON_TOKEN_STRING: String = "string"
+pub const JSON_TOKEN_NUMBER: String = "number"
+pub const JSON_TOKEN_TRUE: String = "true"
+pub const JSON_TOKEN_FALSE: String = "false"
+pub const JSON_TOKEN_NULL: String = "null"
+pub const JSON_TOKEN_WHITESPACE: String = "whitespace"
+pub const JSON_TOKEN_UNKNOWN: String = "unknown"
+
+pub struct JsonToken:
+    kind: String
+    start: Int
+    length: Int
+    lexeme: String
+
+fn json_token(kind: String, source: String, start: Int, length: Int) -> JsonToken:
+    return JsonToken {
+        kind: kind,
+        start: start,
+        length: length,
+        lexeme: substring(source, start, start + length)
+    }
+
+fn json_match_literal(text: String, start: Int, literal: String) -> Bool:
+    if start + len(literal) > len(text):
+        return false
+    var index = 0
+    while index < len(literal):
+        if char_at(text, start + index) != char_at(literal, index):
+            return false
+        index = index + 1
+    return true
+
+fn json_scan_string_end(text: String, start: Int) -> Int:
+    var index = start + 1
+    var escaped = false
+    while index < len(text):
+        let ch = char_at(text, index)
+        if escaped:
+            escaped = false
+        else:
+            if ch == "\\":
+                escaped = true
+            else:
+                if ch == "\"":
+                    return index + 1
+        index = index + 1
+    return len(text)
+
+fn json_scan_number_end(text: String, start: Int) -> Int:
+    var index = start
+    if char_at(text, index) == "-":
+        index = index + 1
+    if index < len(text) and char_at(text, index) == "0":
+        index = index + 1
+    else:
+        while index < len(text) and ascii_is_digit(char_at(text, index)):
+            index = index + 1
+    if index < len(text) and char_at(text, index) == ".":
+        index = index + 1
+        while index < len(text) and ascii_is_digit(char_at(text, index)):
+            index = index + 1
+    if index < len(text):
+        let ch = char_at(text, index)
+        if ch == "e" or ch == "E":
+            index = index + 1
+            if index < len(text):
+                let sign = char_at(text, index)
+                if sign == "+" or sign == "-":
+                    index = index + 1
+            while index < len(text) and ascii_is_digit(char_at(text, index)):
+                index = index + 1
+    return index
+
+pub fn json_parse_text(text: String) -> JsonValue:
+    return json_parse(text)
+
+pub fn json_stringify(value: JsonValue) -> String:
+    return json_string(value)
+
+pub fn json_has_key(object: JsonObject, key: String) -> Bool:
+    return json_has(object, key)
+
+pub fn json_get_value(object: JsonObject, key: String) -> JsonValue:
+    return json_get(object, key)
+
+pub fn json_string_required(object: JsonObject, key: String) -> String:
+    return json_get_string(object, key)
+
+pub fn json_int_required(object: JsonObject, key: String) -> Int:
+    return json_get_int(object, key)
+
+pub fn json_float_required(object: JsonObject, key: String) -> Float:
+    return json_get_float(object, key)
+
+pub fn json_bool_required(object: JsonObject, key: String) -> Bool:
+    return json_get_bool(object, key)
+
+pub fn json_string_or(object: JsonObject, key: String, default_value: String) -> String:
+    if !json_has_key(object, key):
+        return default_value
+    return json_string_required(object, key)
+
+pub fn json_int_or(object: JsonObject, key: String, default_value: Int) -> Int:
+    if !json_has_key(object, key):
+        return default_value
+    return json_int_required(object, key)
+
+pub fn json_float_or(object: JsonObject, key: String, default_value: Float) -> Float:
+    if !json_has_key(object, key):
+        return default_value
+    return json_float_required(object, key)
+
+pub fn json_bool_or(object: JsonObject, key: String, default_value: Bool) -> Bool:
+    if !json_has_key(object, key):
+        return default_value
+    return json_bool_required(object, key)
+
+pub fn json_object() -> JsonObject:
+    return json_object_new()
+
+pub fn json_object_set_value(object: JsonObject, key: String, value: JsonValue) -> JsonObject:
+    json_object_set(object, key, value)
+    return object
+
+pub fn json_object_set_string(object: JsonObject, key: String, value: String) -> JsonObject:
+    return json_object_set_value(object, key, value)
+
+pub fn json_object_set_int(object: JsonObject, key: String, value: Int) -> JsonObject:
+    return json_object_set_value(object, key, value)
+
+pub fn json_object_set_float(object: JsonObject, key: String, value: Float) -> JsonObject:
+    return json_object_set_value(object, key, value)
+
+pub fn json_object_set_bool(object: JsonObject, key: String, value: Bool) -> JsonObject:
+    return json_object_set_value(object, key, value)
+
+pub fn json_array() -> JsonArray:
+    return json_array_new()
+
+pub fn json_array_push_value(array: JsonArray, value: JsonValue) -> JsonArray:
+    json_array_push(array, value)
+    return array
+
+pub fn json_array_push_string(array: JsonArray, value: String) -> JsonArray:
+    return json_array_push_value(array, value)
+
+pub fn json_array_push_int(array: JsonArray, value: Int) -> JsonArray:
+    return json_array_push_value(array, value)
+
+pub fn json_array_push_float(array: JsonArray, value: Float) -> JsonArray:
+    return json_array_push_value(array, value)
+
+pub fn json_array_push_bool(array: JsonArray, value: Bool) -> JsonArray:
+    return json_array_push_value(array, value)
+
+pub fn json_array_length(array: JsonArray) -> Int:
+    return json_array_len(array)
+
+pub fn json_array_value_at(array: JsonArray, index: Int) -> JsonValue:
+    return json_array_get(array, index)
+
+pub fn json_string_array(values: JsonArray) -> Array<String>:
+    let mut items: Array<String> = []
+    var index = 0
+    while index < json_array_length(values):
+        push(items, to_string(json_array_value_at(values, index)))
+        index = index + 1
+    return items
+
+pub fn json_string_array_field(object: JsonObject, key: String) -> Array<String>:
+    if !json_has_key(object, key):
+        return []
+    return json_string_array(json_get_value(object, key))
+
+pub fn json_object_with_string(key: String, value: String) -> JsonObject:
+    return json_object_set_string(json_object(), key, value)
+
+pub fn json_object_with_int(key: String, value: Int) -> JsonObject:
+    return json_object_set_int(json_object(), key, value)
+
+pub fn json_object_with_bool(key: String, value: Bool) -> JsonObject:
+    return json_object_set_bool(json_object(), key, value)
+
+pub fn json_scan(text: String) -> Array<JsonToken>:
+    let mut tokens: Array<JsonToken> = []
+    var index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ascii_is_whitespace(ch):
+            var end = index + 1
+            while end < len(text) and ascii_is_whitespace(char_at(text, end)):
+                end = end + 1
+            push(tokens, json_token(JSON_TOKEN_WHITESPACE, text, index, end - index))
+            index = end
+        else:
+            if ch == "{":
+                push(tokens, json_token(JSON_TOKEN_LBRACE, text, index, 1))
+                index = index + 1
+            else:
+                if ch == "}":
+                    push(tokens, json_token(JSON_TOKEN_RBRACE, text, index, 1))
+                    index = index + 1
+                else:
+                    if ch == "[":
+                        push(tokens, json_token(JSON_TOKEN_LBRACKET, text, index, 1))
+                        index = index + 1
+                    else:
+                        if ch == "]":
+                            push(tokens, json_token(JSON_TOKEN_RBRACKET, text, index, 1))
+                            index = index + 1
+                        else:
+                            if ch == ":":
+                                push(tokens, json_token(JSON_TOKEN_COLON, text, index, 1))
+                                index = index + 1
+                            else:
+                                if ch == ",":
+                                    push(tokens, json_token(JSON_TOKEN_COMMA, text, index, 1))
+                                    index = index + 1
+                                else:
+                                    if ch == "\"":
+                                        let end = json_scan_string_end(text, index)
+                                        push(tokens, json_token(JSON_TOKEN_STRING, text, index, end - index))
+                                        index = end
+                                    else:
+                                        if ch == "-" or ascii_is_digit(ch):
+                                            let end = json_scan_number_end(text, index)
+                                            push(tokens, json_token(JSON_TOKEN_NUMBER, text, index, end - index))
+                                            index = end
+                                        else:
+                                            if json_match_literal(text, index, "true"):
+                                                push(tokens, json_token(JSON_TOKEN_TRUE, text, index, 4))
+                                                index = index + 4
+                                            else:
+                                                if json_match_literal(text, index, "false"):
+                                                    push(tokens, json_token(JSON_TOKEN_FALSE, text, index, 5))
+                                                    index = index + 5
+                                                else:
+                                                    if json_match_literal(text, index, "null"):
+                                                        push(tokens, json_token(JSON_TOKEN_NULL, text, index, 4))
+                                                        index = index + 4
+                                                    else:
+                                                        push(tokens, json_token(JSON_TOKEN_UNKNOWN, text, index, 1))
+                                                        index = index + 1
+    return tokens
+
+pub fn json_scan_significant(text: String) -> Array<JsonToken>:
+    let mut significant: Array<JsonToken> = []
+    let tokens = json_scan(text)
+    var index = 0
+    while index < len(tokens):
+        if tokens[index].kind != JSON_TOKEN_WHITESPACE:
+            push(significant, tokens[index])
+        index = index + 1
+    return significant

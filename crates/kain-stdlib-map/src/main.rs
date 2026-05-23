@@ -31,9 +31,24 @@ struct Args {
 }
 
 fn main() {
-    if let Err(err) = run() {
+    if let Err(err) = run_on_large_stack() {
         eprintln!("stdlib-map failed: {err}");
         std::process::exit(1);
+    }
+}
+
+fn run_on_large_stack() -> kain_stdlib_map::Result<()> {
+    const STDLIB_MAP_STACK_BYTES: usize = 32 * 1024 * 1024;
+
+    let worker = std::thread::Builder::new()
+        .name("kain-stdlib-map".to_string())
+        .stack_size(STDLIB_MAP_STACK_BYTES)
+        .spawn(|| run().map_err(|err| err.to_string()))
+        .map_err(|err| format!("failed to spawn stdlib-map worker thread: {err}"))?;
+
+    match worker.join() {
+        Ok(result) => result.map_err(Into::into),
+        Err(_) => Err("stdlib-map worker thread panicked".into()),
     }
 }
 

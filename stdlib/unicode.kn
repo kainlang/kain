@@ -1,0 +1,177 @@
+pub struct UnicodeDecodeResult:
+    codepoint: Int
+    length: Int
+    valid: Bool
+
+pub struct UnicodeCursor:
+    source: String
+    index: Int
+
+pub struct UnicodeCursorNextResult:
+    cursor: UnicodeCursor
+    decode: UnicodeDecodeResult
+    has_next: Bool
+
+enum UnicodeNormalizationForm:
+    Nfc
+    Nfd
+    Nfkc
+    Nfkd
+
+pub fn unicode_utf8_char_length(first_byte: Int) -> Int:
+    if first_byte < 0:
+        return -1
+    if first_byte < 128:
+        return 1
+    if first_byte >= 192 and first_byte < 224:
+        return 2
+    if first_byte >= 224 and first_byte < 240:
+        return 3
+    if first_byte >= 240 and first_byte < 248:
+        return 4
+    return -1
+
+pub fn unicode_utf8_decode_at(value: String, start_index: Int) -> UnicodeDecodeResult:
+    let string_len = len(value)
+    if start_index < 0 or start_index >= string_len:
+        return UnicodeDecodeResult { codepoint: 65533, length: 0, valid: false }
+
+    let byte0 = byte_at(value, start_index)
+    let expected_len = unicode_utf8_char_length(byte0)
+
+    if expected_len < 1:
+        return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+
+    if start_index + expected_len > string_len:
+        # Unexpected end of sequence; consume 1 byte to allow recovery
+        return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+
+    if expected_len == 1:
+        return UnicodeDecodeResult { codepoint: byte0, length: 1, valid: true }
+
+    if expected_len == 2:
+        let byte1 = byte_at(value, start_index + 1)
+        if byte1 < 128 or byte1 > 191:
+            return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+        
+        let cp = ((byte0 & 31) << 6) | (byte1 & 63)
+        if cp < 128:
+            # Overlong encoding
+            return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+        
+        return UnicodeDecodeResult { codepoint: cp, length: 2, valid: true }
+
+    if expected_len == 3:
+        let byte1 = byte_at(value, start_index + 1)
+        let byte2 = byte_at(value, start_index + 2)
+        if byte1 < 128 or byte1 > 191 or byte2 < 128 or byte2 > 191:
+            return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+        
+        let cp = ((byte0 & 15) << 12) | ((byte1 & 63) << 6) | (byte2 & 63)
+        if cp < 2048:
+            # Overlong encoding
+            return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+        
+        if cp >= 55296 and cp <= 57343:
+            # Surrogate pair codepoint ranges are invalid UTF-8
+            return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+        
+        return UnicodeDecodeResult { codepoint: cp, length: 3, valid: true }
+
+    if expected_len == 4:
+        let byte1 = byte_at(value, start_index + 1)
+        let byte2 = byte_at(value, start_index + 2)
+        let byte3 = byte_at(value, start_index + 3)
+        if byte1 < 128 or byte1 > 191 or byte2 < 128 or byte2 > 191 or byte3 < 128 or byte3 > 191:
+            return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+        
+        let cp = ((byte0 & 7) << 18) | ((byte1 & 63) << 12) | ((byte2 & 63) << 6) | (byte3 & 63)
+        if cp < 65536 or cp > 1114111:
+            # Overlong encoding or out of Unicode range
+            return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+        
+        return UnicodeDecodeResult { codepoint: cp, length: 4, valid: true }
+
+    return UnicodeDecodeResult { codepoint: 65533, length: 1, valid: false }
+
+pub fn unicode_utf8_encode(codepoint: Int) -> String:
+    var cp = codepoint
+    if cp < 0 or cp > 1114111 or (cp >= 55296 and cp <= 57343):
+        # Invalid codepoint, fallback to Unicode replacement char (65533)
+        cp = 65533
+
+    if cp < 128:
+        return chr(cp)
+
+    if cp < 2048:
+        let b0 = 192 | (cp >> 6)
+        let b1 = 128 | (cp & 63)
+        return chr(b0) + chr(b1)
+
+    if cp < 65536:
+        let b0 = 224 | (cp >> 12)
+        let b1 = 128 | ((cp >> 6) & 63)
+        let b2 = 128 | (cp & 63)
+        return chr(b0) + chr(b1) + chr(b2)
+
+    let b0 = 240 | (cp >> 18)
+    let b1 = 128 | ((cp >> 12) & 63)
+    let b2 = 128 | ((cp >> 6) & 63)
+    let b3 = 128 | (cp & 63)
+    return chr(b0) + chr(b1) + chr(b2) + chr(b3)
+
+pub fn unicode_utf8_is_valid(value: String) -> Bool:
+    let string_len = len(value)
+    var index = 0
+    while index < string_len:
+        let result = unicode_utf8_decode_at(value, index)
+        if result.valid == false:
+            return false
+        index = index + result.length
+    return true
+
+pub fn unicode_utf8_codepoint_count(value: String) -> Int:
+    let string_len = len(value)
+    var count = 0
+    var index = 0
+    while index < string_len:
+        let result = unicode_utf8_decode_at(value, index)
+        count = count + 1
+        if result.length > 0:
+            index = index + result.length
+        else:
+            index = index + 1
+    return count
+
+pub fn unicode_utf8_codepoint_at(value: String, codepoint_index: Int) -> Int:
+    let string_len = len(value)
+    var current_char = 0
+    var index = 0
+    while index < string_len:
+        let result = unicode_utf8_decode_at(value, index)
+        if current_char == codepoint_index:
+            return result.codepoint
+        current_char = current_char + 1
+        if result.length > 0:
+            index = index + result.length
+        else:
+            index = index + 1
+    return -1
+
+pub fn unicode_cursor_new(source: String) -> UnicodeCursor:
+    return UnicodeCursor { source: source, index: 0 }
+
+pub fn unicode_cursor_has_next(cursor: UnicodeCursor) -> Bool:
+    return cursor.index < len(cursor.source)
+
+pub fn unicode_cursor_next(cursor: UnicodeCursor) -> UnicodeCursorNextResult:
+    let decode_res = unicode_utf8_decode_at(cursor.source, cursor.index)
+    let new_index = cursor.index + decode_res.length
+    let next_cursor = UnicodeCursor { source: cursor.source, index: new_index }
+    let has_more = new_index < len(cursor.source)
+    return UnicodeCursorNextResult { cursor: next_cursor, decode: decode_res, has_next: has_more }
+
+pub fn unicode_normalize(value: String, form: UnicodeNormalizationForm) -> String:
+    # In this pure-Kain stdlib v1 core pass, direct database normalization is deferred.
+    # We expose the canonical API contract and return the string unmodified.
+    return value

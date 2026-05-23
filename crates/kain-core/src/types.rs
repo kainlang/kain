@@ -1011,6 +1011,7 @@ fn ensure_bitcast_compatible(
 }
 
 /// Type environment for checking
+#[derive(Clone)]
 pub struct TypeEnv<'a> {
     scopes: Vec<HashMap<String, ResolvedType>>,
     moved_scopes: Vec<HashSet<String>>,
@@ -1022,6 +1023,7 @@ pub struct TypeEnv<'a> {
     methods: HashMap<String, HashMap<String, ResolvedType>>,
     method_origins: HashMap<(String, String), SymbolOrigin>,
     enum_variants: HashMap<String, HashMap<String, EnumVariantTypeInfo>>,
+    actor_contracts: HashMap<String, ActorDefinition>,
     loaded_stdlib_modules: HashSet<String>,
     stdlib_registration_depth: usize,
     entangle_endpoints: HashSet<String>,
@@ -1044,6 +1046,7 @@ impl<'a> TypeEnv<'a> {
             methods: HashMap::new(),
             method_origins: HashMap::new(),
             enum_variants: HashMap::new(),
+            actor_contracts: HashMap::new(),
             loaded_stdlib_modules: HashSet::new(),
             stdlib_registration_depth: 0,
             entangle_endpoints: HashSet::new(),
@@ -1232,6 +1235,10 @@ impl<'a> TypeEnv<'a> {
     pub fn define_global(&mut self, name: String, ty: ResolvedType) {
         self.moved_globals.remove(&name);
         self.globals.insert(name, ty);
+    }
+
+    fn actor_contract(&self, name: &str) -> Option<&ActorDefinition> {
+        self.actor_contracts.get(name)
     }
 
     pub fn define_method(&mut self, type_name: String, method_name: String, ty: ResolvedType) {
@@ -4164,8 +4171,10 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
         env.push_scope();
         env.define("self".to_string(), self_ty.clone());
         let mut message_params = Vec::with_capacity(handler.params.len());
+        let mut handler_param_types = Vec::with_capacity(handler.params.len());
         for param in &handler.params {
             let ty = resolve_param_type(env, param, Some(&self_ty))?;
+            handler_param_types.push((param.name.clone(), ty.clone()));
             message_params.push(MessageParameter::required(
                 param.name.clone(),
                 resolved_type_contract_name(&ty),
@@ -4173,13 +4182,21 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
             env.define(param.name.clone(), ty);
         }
         check_block_semantics(env, &handler.body, &ctx)?;
+        let reply_contract = handler_param_types.first().and_then(|(param_name, param_ty)| {
+            if param_name != "reply_to" || !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
+                return None;
+            }
+            infer_reply_contract_from_handler_body(env, &handler.body)
+        });
         env.pop_scope();
+        let message_signature = if let Some(reply_contract) = reply_contract {
+            MessageSignature::call(handler.message_type.clone(), message_params, reply_contract)
+        } else {
+            MessageSignature::cast(handler.message_type.clone(), message_params)
+        };
         actor_contract
             .handlers
-            .push(ActorHandlerSignature::cast(MessageSignature::cast(
-                handler.message_type.clone(),
-                message_params,
-            )));
+            .push(ActorHandlerSignature::cast(message_signature));
     }
 
     for method in &a.methods {
@@ -4197,6 +4214,9 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
             .capabilities
             .retain(|capability| !matches!(capability, kain_actor::ActorCapability::Ask));
     }
+
+    env.actor_contracts
+        .insert(a.name.clone(), actor_contract.clone());
 
     Ok(TypedActor {
         ast: a.clone(),
@@ -4295,6 +4315,428 @@ fn resolved_type_contract_name(ty: &ResolvedType) -> String {
         ResolvedType::Never => "!".to_string(),
         ResolvedType::Unknown => "Unknown".to_string(),
     }
+}
+
+fn infer_reply_contract_from_handler_body(
+    env: &mut TypeEnv,
+    body: &Block,
+) -> Option<kain_actor::message::MessageReplyContract> {
+    let mut reply_type = None;
+    if collect_reply_contract_type(env, body, &mut reply_type).is_err() {
+        return None;
+    }
+    reply_type.map(|ty| kain_actor::message::MessageReplyContract::new(
+        resolved_type_contract_name(&ty),
+        kain_actor::lifecycle::DEFAULT_ASK_TIMEOUT_MS,
+    ))
+}
+
+fn collect_reply_contract_type(
+    env: &mut TypeEnv,
+    block: &Block,
+    reply_type: &mut Option<ResolvedType>,
+) -> Result<(), ()> {
+    for stmt in &block.stmts {
+        collect_reply_contract_type_from_stmt(env, stmt, reply_type)?;
+    }
+    Ok(())
+}
+
+fn collect_reply_contract_type_from_stmt(
+    env: &mut TypeEnv,
+    stmt: &Stmt,
+    reply_type: &mut Option<ResolvedType>,
+) -> Result<(), ()> {
+    match stmt {
+        Stmt::Let { value, .. } => {
+            if let Some(value) = value {
+                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+            }
+            Ok(())
+        }
+        Stmt::Expr(expr) => collect_reply_contract_type_from_expr(env, expr, reply_type),
+        Stmt::Return(value, _) => {
+            if let Some(value) = value {
+                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+            }
+            Ok(())
+        }
+        Stmt::While {
+            condition, body, ..
+        } => {
+            collect_reply_contract_type_from_expr(env, condition, reply_type)?;
+            collect_reply_contract_type(env, body, reply_type)
+        }
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
+            collect_reply_contract_type_from_expr(env, iter, reply_type)?;
+            collect_reply_contract_type(env, body, reply_type)
+        }
+        Stmt::Loop { body, .. } => collect_reply_contract_type(env, body, reply_type),
+        Stmt::Break(value, _) => {
+            if let Some(value) = value {
+                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+            }
+            Ok(())
+        }
+        Stmt::Continue(_) | Stmt::Item(_) => Ok(()),
+    }
+}
+
+fn collect_reply_contract_type_from_expr(
+    env: &mut TypeEnv,
+    expr: &Expr,
+    reply_type: &mut Option<ResolvedType>,
+) -> Result<(), ()> {
+    match expr {
+        Expr::SendMsg {
+            target,
+            message,
+            data,
+            ..
+        } => {
+            if matches!(target.as_ref(), Expr::Ident(name, _) if name == "reply_to") && message == "Reply" {
+                if data.len() > 1 {
+                    return Err(());
+                }
+                if let Some((field_name, value)) = data.first() {
+                    if field_name != "value" {
+                        return Err(());
+                    }
+                    let value_ty = infer_expr_type_read_only(env, value).map_err(|_| ())?;
+                    if let Some(existing) = reply_type.as_ref() {
+                        if !types_compatible(existing, &value_ty) || !types_compatible(&value_ty, existing) {
+                            return Err(());
+                        }
+                    } else {
+                        *reply_type = Some(value_ty);
+                    }
+                } else if reply_type.is_none() {
+                    *reply_type = Some(ResolvedType::Unit);
+                }
+            }
+            collect_reply_contract_type_from_expr(env, target, reply_type)?;
+            for (_, value) in data {
+                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::Block(block, _) => collect_reply_contract_type(env, block, reply_type),
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            collect_reply_contract_type_from_expr(env, condition, reply_type)?;
+            collect_reply_contract_type(env, then_branch, reply_type)?;
+            if let Some(branch) = else_branch {
+                collect_reply_contract_type_from_else_branch(env, branch, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            collect_reply_contract_type_from_expr(env, scrutinee, reply_type)?;
+            for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    collect_reply_contract_type_from_expr(env, guard, reply_type)?;
+                }
+                collect_reply_contract_type_from_expr(env, &arm.body, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::Paren(inner, _)
+        | Expr::Await(inner, _)
+        | Expr::AsyncBlock(inner, _)
+        | Expr::Comptime(inner, _)
+        | Expr::Deref(inner, _)
+        | Expr::Try(inner, _)
+        | Expr::Ref { value: inner, .. } => collect_reply_contract_type_from_expr(env, inner, reply_type),
+        Expr::Collapse { target, body, .. }
+        | Expr::Observe { target, body, .. }
+        | Expr::Share { target, body, .. } => {
+            collect_reply_contract_type_from_expr(env, target, reply_type)?;
+            collect_reply_contract_type_from_expr(env, body, reply_type)
+        }
+        Expr::Call { callee, args, .. } => {
+            collect_reply_contract_type_from_expr(env, callee, reply_type)?;
+            for arg in args {
+                collect_reply_contract_type_from_expr(env, &arg.value, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::MethodCall { receiver, args, .. } => {
+            collect_reply_contract_type_from_expr(env, receiver, reply_type)?;
+            for arg in args {
+                collect_reply_contract_type_from_expr(env, &arg.value, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::StageCall { args, .. } => {
+            for arg in args {
+                collect_reply_contract_type_from_expr(env, &arg.value, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::MacroCall { args, .. }
+        | Expr::Array(args, _)
+        | Expr::Tuple(args, _)
+        | Expr::FString(args, _) => {
+            for arg in args {
+                collect_reply_contract_type_from_expr(env, arg, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::Struct { fields, rest, .. } => {
+            for (_, value) in fields {
+                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+            }
+            if let Some(rest) = rest {
+                collect_reply_contract_type_from_expr(env, rest, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::AggregateInit { fields, .. } => {
+            for (_, value) in fields {
+                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::EnumVariant { fields, .. } => match fields {
+            EnumVariantFields::Unit => Ok(()),
+            EnumVariantFields::Tuple(values) => {
+                for value in values {
+                    collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                }
+                Ok(())
+            }
+            EnumVariantFields::Struct(values) => {
+                for (_, value) in values {
+                    collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                }
+                Ok(())
+            }
+        },
+        Expr::Assign { target, value, .. } => {
+            collect_reply_contract_type_from_expr(env, target, reply_type)?;
+            collect_reply_contract_type_from_expr(env, value, reply_type)
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_reply_contract_type_from_expr(env, left, reply_type)?;
+            collect_reply_contract_type_from_expr(env, right, reply_type)
+        }
+        Expr::MemStore { pointer, value, .. }
+        | Expr::VolatileStore { pointer, value, .. }
+        | Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
+            collect_reply_contract_type_from_expr(env, value, reply_type)
+        }
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => {
+            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
+            collect_reply_contract_type_from_expr(env, offset, reply_type)
+        }
+        Expr::Index { object, index, .. } => {
+            collect_reply_contract_type_from_expr(env, object, reply_type)?;
+            collect_reply_contract_type_from_expr(env, index, reply_type)
+        }
+        Expr::Field { object, .. }
+        | Expr::AddrOf { value: object, .. }
+        | Expr::Cast { value: object, .. }
+        | Expr::Bitcast { value: object, .. }
+        | Expr::Teleport { value: object, .. }
+        | Expr::MemLoad { pointer: object, .. }
+        | Expr::VolatileLoad { pointer: object, .. }
+        | Expr::AtomicLoad { pointer: object, .. }
+        | Expr::CpuCacheFlush { pointer: object, .. }
+        | Expr::Decay { target: object, .. } => collect_reply_contract_type_from_expr(env, object, reply_type),
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
+            collect_reply_contract_type_from_expr(env, expected, reply_type)?;
+            collect_reply_contract_type_from_expr(env, desired, reply_type)
+        }
+        Expr::Range { start, end, .. } => {
+            if let Some(start) = start {
+                collect_reply_contract_type_from_expr(env, start, reply_type)?;
+            }
+            if let Some(end) = end {
+                collect_reply_contract_type_from_expr(env, end, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::Lambda { body, .. } => collect_reply_contract_type_from_expr(env, body, reply_type),
+        Expr::Spawn { init, .. } => {
+            for (_, value) in init {
+                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::InlineAsm { operands, .. } => {
+            for operand in operands {
+                collect_reply_contract_type_from_expr(env, operand, reply_type)?;
+            }
+            Ok(())
+        }
+        Expr::Alloc { size, .. } => collect_reply_contract_type_from_expr(env, size, reply_type),
+        Expr::Realloc { pointer, size, .. } => {
+            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
+            collect_reply_contract_type_from_expr(env, size, reply_type)
+        }
+        Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
+            collect_reply_contract_type_from_expr(env, inner, reply_type)
+        }
+        Expr::Unary { operand, .. } => collect_reply_contract_type_from_expr(env, operand, reply_type),
+        Expr::AtomicFence { .. }
+        | Expr::CpuFence { .. }
+        | Expr::JSX(_, _)
+        | Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _)
+        | Expr::Return(None, _)
+        | Expr::Break(None, _)
+        | Expr::Continue(_)
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. } => Ok(()),
+    }
+}
+
+fn collect_reply_contract_type_from_else_branch(
+    env: &mut TypeEnv,
+    branch: &ElseBranch,
+    reply_type: &mut Option<ResolvedType>,
+) -> Result<(), ()> {
+    match branch {
+        ElseBranch::Else(block) => collect_reply_contract_type(env, block, reply_type),
+        ElseBranch::ElseIf(condition, block, next) => {
+            collect_reply_contract_type_from_expr(env, condition, reply_type)?;
+            collect_reply_contract_type(env, block, reply_type)?;
+            if let Some(next) = next {
+                collect_reply_contract_type_from_else_branch(env, next, reply_type)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+fn infer_expr_type_read_only(env: &TypeEnv, expr: &Expr) -> KainResult<ResolvedType> {
+    let mut read_only_env = TypeEnv {
+        scopes: env.scopes.clone(),
+        moved_scopes: env.moved_scopes.clone(),
+        types: env.types.clone(),
+        type_origins: env.type_origins.clone(),
+        globals: env.globals.clone(),
+        global_origins: env.global_origins.clone(),
+        moved_globals: env.moved_globals.clone(),
+        methods: env.methods.clone(),
+        method_origins: env.method_origins.clone(),
+        enum_variants: env.enum_variants.clone(),
+        actor_contracts: env.actor_contracts.clone(),
+        loaded_stdlib_modules: env.loaded_stdlib_modules.clone(),
+        stdlib_registration_depth: env.stdlib_registration_depth,
+        entangle_endpoints: env.entangle_endpoints.clone(),
+        shared_region_depth: env.shared_region_depth,
+        fanout_depth: env.fanout_depth,
+        span_mapper: env.span_mapper,
+        filename: env.filename,
+    };
+    infer_expr_type(&mut read_only_env, expr, None)
+}
+
+fn resolved_type_from_contract_name(env: &TypeEnv, contract_name: &str) -> ResolvedType {
+    match contract_name {
+        "Unit" | "Void" | "()" => ResolvedType::Unit,
+        "!" => ResolvedType::Never,
+        "Unknown" => ResolvedType::Unknown,
+        _ => env
+            .lookup_type(contract_name)
+            .cloned()
+            .unwrap_or(ResolvedType::Unknown),
+    }
+}
+
+fn infer_actor_ask_call_type(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    callee_name: &str,
+    args: &[CallArg],
+    span: Span,
+) -> Option<KainResult<ResolvedType>> {
+    if callee_name != "ask" && callee_name != "ask_timeout" {
+        return None;
+    }
+    let expected_args = if callee_name == "ask" { 3 } else { 4 };
+    if args.len() != expected_args {
+        return Some(Err(env.type_error(
+            format!(
+                "{callee_name} expects {} argument(s), found {}",
+                expected_args,
+                args.len()
+            ),
+            span,
+        )));
+    }
+    let target_ty = match infer_expr_type(env, &args[0].value, ctx) {
+        Ok(ty) => ty,
+        Err(error) => return Some(Err(error)),
+    };
+    let _ = match infer_expr_type(env, &args[1].value, ctx) {
+        Ok(ty) => ty,
+        Err(error) => return Some(Err(error)),
+    };
+    let _ = match infer_expr_type(env, &args[2].value, ctx) {
+        Ok(ty) => ty,
+        Err(error) => return Some(Err(error)),
+    };
+    if callee_name == "ask_timeout" {
+        let timeout_ty = match infer_expr_type(env, &args[3].value, ctx) {
+            Ok(ty) => ty,
+            Err(error) => return Some(Err(error)),
+        };
+        if !types_compatible(&ResolvedType::Int(IntSize::I64), &timeout_ty) {
+            return Some(Err(env.type_error(
+                format!(
+                    "ask_timeout timeout expects Int-compatible value, found {}",
+                    describe_type(&timeout_ty)
+                ),
+                args[3].span,
+            )));
+        }
+    }
+    let Some(actor_name) = resolved_type_name(&target_ty) else {
+        return Some(Ok(ResolvedType::Unknown));
+    };
+    let Expr::String(message_name, _) = &args[1].value else {
+        return Some(Ok(ResolvedType::Unknown));
+    };
+    let Some(actor_contract) = env.actor_contract(actor_name) else {
+        return Some(Ok(ResolvedType::Unknown));
+    };
+    let Some(handler) = actor_contract.handler(message_name) else {
+        return Some(Ok(ResolvedType::Unknown));
+    };
+    let Some(reply) = &handler.message.reply else {
+        return Some(Ok(ResolvedType::Unit));
+    };
+    let _ = span;
+    Some(Ok(resolved_type_from_contract_name(env, &reply.type_name)))
 }
 
 fn check_test(env: &mut TypeEnv, t: &TestDef) -> KainResult<TypedTest> {
@@ -6439,6 +6881,11 @@ fn infer_expr_type(
         }
         Expr::Call { callee, args, span } => {
             if let Expr::Ident(callee_name, _) = callee.as_ref() {
+                if let Some(actor_call_ty) =
+                    infer_actor_ask_call_type(env, ctx, callee_name, args, *span)
+                {
+                    return actor_call_ty;
+                }
                 if let Some(constructor_ty) =
                     infer_scalar_type_constructor_call(env, ctx, callee_name, args, *span)
                 {

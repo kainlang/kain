@@ -1,3 +1,5 @@
+use std::ascii
+use std::fmt
 use std::runtime
 use std::text
 
@@ -11,4 +13,27 @@ pub fn smoke_text_lane() -> Int:
     let materialized = text_materialize(wire)
     if len(materialized) <= 0:
         return 3
+    let parts = text_split_string("alpha,beta,gamma", ",")
+    if len(parts) != 3:
+        return 4
+    if text_join_strings(parts, "|") != "alpha|beta|gamma":
+        return 5
+    let lines = text_split_lines("zero\r\ncopy\nwire")
+    if len(lines) != 3:
+        return 6
+    if lines[1] != "copy":
+        return 7
+    let tokens = text_tokenize_whitespace("  zero   copy   wire  ")
+    if len(tokens) != 3:
+        return 8
+    if text_repeat("ka", 3) != "kakaka":
+        return 9
+    if ascii_lowercase("AbC-09") != "abc-09":
+        return 10
+    if ascii_hex_value("F") != 15:
+        return 11
+    if fmt_pad_left("7", 3, "0") != "007":
+        return 12
+    if fmt_json_string("a\"b") != "\"a\\\"b\"":
+        return 13
     return 0

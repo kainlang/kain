@@ -1,0 +1,177 @@
+use std::ascii
+
+fn fmt_pad_token(pad: String) -> String:
+    if len(pad) == 0:
+        return " "
+    return char_at(pad, 0)
+
+pub fn fmt_string(value: String) -> String:
+    return value
+
+pub fn fmt_any(value: Any) -> String:
+    return to_string(value)
+
+pub fn fmt_int(value: Int) -> String:
+    return to_string(value)
+
+pub fn fmt_float(value: Float) -> String:
+    return to_string(value)
+
+pub fn fmt_bool_word(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+pub fn fmt_bool_json(value: Bool) -> String:
+    return fmt_bool_word(value)
+
+pub fn fmt_join_strings(items: Array<String>, separator: String) -> String:
+    var joined = ""
+    var index = 0
+    while index < len(items):
+        if index > 0:
+            joined = joined + separator
+        joined = joined + items[index]
+        index = index + 1
+    return joined
+
+pub fn fmt_non_empty(value: String, fallback: String) -> String:
+    let trimmed = trim(value)
+    if len(trimmed) == 0:
+        return fallback
+    return trimmed
+
+pub fn fmt_key_value(key: String, value: String) -> String:
+    return key + "=" + value
+
+pub fn fmt_bracketed(label: String, value: String) -> String:
+    return "[" + label + "] " + value
+
+pub fn fmt_repeat(token: String, count: Int) -> String:
+    if count <= 0:
+        return ""
+    var output = ""
+    var index = 0
+    while index < count:
+        output = output + token
+        index = index + 1
+    return output
+
+pub fn fmt_pad_left(value: String, width: Int, pad: String) -> String:
+    if width <= len(value):
+        return value
+    let filler = fmt_pad_token(pad)
+    return fmt_repeat(filler, width - len(value)) + value
+
+pub fn fmt_pad_right(value: String, width: Int, pad: String) -> String:
+    if width <= len(value):
+        return value
+    let filler = fmt_pad_token(pad)
+    return value + fmt_repeat(filler, width - len(value))
+
+pub fn fmt_pad_center(value: String, width: Int, pad: String) -> String:
+    if width <= len(value):
+        return value
+    let filler = fmt_pad_token(pad)
+    let remaining = width - len(value)
+    let left = remaining / 2
+    let right = remaining - left
+    return fmt_repeat(filler, left) + value + fmt_repeat(filler, right)
+
+pub fn fmt_status_line(label: String, success: Bool) -> String:
+    return label + " " + fmt_key_value("success", fmt_bool_word(success))
+
+pub fn fmt_prefixed_lines(prefix: String, lines: Array<String>) -> String:
+    var rendered = ""
+    var index = 0
+    while index < len(lines):
+        if index > 0:
+            rendered = rendered + "\n"
+        rendered = rendered + prefix + lines[index]
+        index = index + 1
+    return rendered
+
+pub fn fmt_hex_u32(value: Int) -> String:
+    let lane = value & 4294967295
+    var output = ""
+    var shift = 28
+    var started = false
+    while shift >= 0:
+        let digit = (lane >> shift) & 15
+        if digit != 0 or started or shift == 0:
+            output = output + ascii_hex_char_lower(digit)
+            started = true
+        shift = shift - 4
+    return output
+
+pub fn fmt_hex_int(value: Int) -> String:
+    if value < 0:
+        return "-" + fmt_hex_u32(0 - value)
+    return fmt_hex_u32(value)
+
+pub fn fmt_binary_u32(value: Int) -> String:
+    let lane = value & 4294967295
+    var output = ""
+    var bit = 31
+    var started = false
+    while bit >= 0:
+        let digit = (lane >> bit) & 1
+        if digit != 0 or started or bit == 0:
+            output = output + ascii_digit_char(digit)
+            started = true
+        bit = bit - 1
+    return output
+
+pub fn fmt_binary_int(value: Int) -> String:
+    if value < 0:
+        return "-" + fmt_binary_u32(0 - value)
+    return fmt_binary_u32(value)
+
+pub fn fmt_json_escape(value: String) -> String:
+    var output = ""
+    var index = 0
+    while index < len(value):
+        let ch = char_at(value, index)
+        let code = ord(ch)
+        if ch == "\"":
+            output = output + "\\\""
+        else:
+            if ch == "\\":
+                output = output + "\\\\"
+            else:
+                if code == 8:
+                    output = output + "\\b"
+                else:
+                    if code == 9:
+                        output = output + "\\t"
+                    else:
+                        if code == 10:
+                            output = output + "\\n"
+                        else:
+                            if code == 12:
+                                output = output + "\\f"
+                            else:
+                                if code == 13:
+                                    output = output + "\\r"
+                                else:
+                                    if code >= 0 and code < 32:
+                                        output = output + "\\u00"
+                                        output = output + ascii_hex_char_lower((code >> 4) & 15)
+                                        output = output + ascii_hex_char_lower(code & 15)
+                                    else:
+                                        output = output + ch
+        index = index + 1
+    return output
+
+pub fn fmt_json_string(value: String) -> String:
+    return "\"" + fmt_json_escape(value) + "\""
+
+pub fn fmt_debug_string_array(items: Array<String>) -> String:
+    var output = "["
+    var index = 0
+    while index < len(items):
+        if index > 0:
+            output = output + ", "
+        output = output + fmt_json_string(items[index])
+        index = index + 1
+    return output + "]"

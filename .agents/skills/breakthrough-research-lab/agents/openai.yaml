@@ -1,0 +1,4 @@
+interface:
+  display_name: "Breakthrough Research Lab"
+  short_description: "Collaborative frontier research with solver rigor"
+  default_prompt: "Use $breakthrough-research-lab to brainstorm a frontier systems idea with me, translate it into equations, keep a repo-local research note, and use Z3 to prove or kill the strongest claims."

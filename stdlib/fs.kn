@@ -1,3 +1,6 @@
+use std::base64
+use std::text
+
 @extern
 fn abi_fs_read_text(path: String) -> String
 
@@ -30,6 +33,12 @@ fn abi_fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String
 
 @extern
 fn abi_fs_write_bytes_hex(path: String, hex: String) -> Int
+
+@extern
+fn abi_fs_append_bytes_hex(path: String, hex: String) -> Int
+
+@extern
+fn abi_fs_atomic_write_bytes_hex(path: String, hex: String) -> Int
 
 @extern
 fn abi_fs_exists(path: String) -> Bool
@@ -100,6 +109,68 @@ fn abi_fs_last_error_kind() -> String
 @extern
 fn abi_fs_last_error_message() -> String
 
+fn fs_parse_int_or_zero(value: String) -> Int:
+    if value == "":
+        return 0
+    return to_int(value)
+
+fn fs_hex_to_bytes(hex: String) -> Array<Int>:
+    let decoded = hex_decode(hex)
+    let mut bytes: Array<Int> = []
+    var index = 0
+    while index < len(decoded):
+        push(bytes, byte_at(decoded, index))
+        index = index + 1
+    return bytes
+
+fn fs_bytes_to_hex(bytes: Array<Int>) -> String:
+    var text = ""
+    var index = 0
+    while index < len(bytes):
+        text = text + chr(bytes[index] & 255)
+        index = index + 1
+    return hex_encode(text)
+
+fn fs_nonempty_lines(text: String) -> Array<String>:
+    let raw_lines = text_split_lines(text)
+    let mut lines: Array<String> = []
+    var index = 0
+    while index < len(raw_lines):
+        if raw_lines[index] != "":
+            push(lines, raw_lines[index])
+        index = index + 1
+    return lines
+
+fn fs_metadata_line_value(metadata_text: String, key: String) -> String:
+    let prefix = key + "="
+    let lines = fs_nonempty_lines(metadata_text)
+    var index = 0
+    while index < len(lines):
+        let metadata_row = lines[index]
+        if text_starts_with_string(metadata_row, prefix):
+            return text_substring_string(metadata_row, len(prefix), len(metadata_row) - len(prefix))
+        index = index + 1
+    return ""
+
+fn fs_parse_metadata_text(metadata_text: String) -> FsMetadata:
+    return FsMetadata {
+        file_type: fs_metadata_line_value(metadata_text, "file_type"),
+        len: fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "len")),
+        readonly: fs_metadata_line_value(metadata_text, "readonly") == "1",
+        created_millis: fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "created_millis")),
+        modified_millis: fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "modified_millis")),
+        accessed_millis: fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "accessed_millis"))
+    }
+
+fn fs_dir_entry_for_path(path: String) -> FsDirEntry:
+    let metadata = fs_metadata(path)
+    return FsDirEntry {
+        path: path,
+        file_name: fs_path_file_name(path),
+        file_type: metadata.file_type,
+        metadata: metadata
+    }
+
 pub fn native_fs_last_status() -> Int:
     return abi_fs_last_status()
 
@@ -124,6 +195,12 @@ pub fn fs_append_text(path: String, content: String) -> Unit:
 pub fn fs_atomic_write_text(path: String, content: String) -> Unit:
     let _status = abi_fs_atomic_write_text_len(path, content, len(content))
 
+pub fn fs_read_bytes(path: String) -> Array<Int>:
+    return fs_hex_to_bytes(abi_fs_read_bytes_hex(path))
+
+pub fn fs_read_bytes_range(path: String, offset: Int, length: Int) -> Array<Int>:
+    return fs_hex_to_bytes(abi_fs_read_byte_range_hex(path, offset, length))
+
 pub fn fs_read_bytes_hex(path: String) -> String:
     return abi_fs_read_bytes_hex(path)
 
@@ -132,6 +209,15 @@ pub fn fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String:
 
 pub fn fs_write_bytes_hex(path: String, hex: String) -> Unit:
     let _status = abi_fs_write_bytes_hex(path, hex)
+
+pub fn fs_write_bytes(path: String, bytes: Array<Int>) -> Unit:
+    let _status = abi_fs_write_bytes_hex(path, fs_bytes_to_hex(bytes))
+
+pub fn fs_append_bytes(path: String, bytes: Array<Int>) -> Unit:
+    let _status = abi_fs_append_bytes_hex(path, fs_bytes_to_hex(bytes))
+
+pub fn fs_atomic_write_bytes(path: String, bytes: Array<Int>) -> Unit:
+    let _status = abi_fs_atomic_write_bytes_hex(path, fs_bytes_to_hex(bytes))
 
 pub fn fs_exists(path: String) -> Bool:
     return abi_fs_exists(path)
@@ -145,11 +231,35 @@ pub fn fs_is_dir(path: String) -> Bool:
 pub fn fs_metadata_text(path: String) -> String:
     return abi_fs_metadata_text(path)
 
+pub fn fs_metadata(path: String) -> FsMetadata:
+    return fs_parse_metadata_text(abi_fs_metadata_text(path))
+
 pub fn fs_read_dir_paths_text(path: String) -> String:
     return abi_fs_read_dir_paths_text(path)
 
+pub fn fs_read_dir_paths(path: String) -> Array<String>:
+    return fs_nonempty_lines(abi_fs_read_dir_paths_text(path))
+
+pub fn fs_read_dir(path: String) -> Array<FsDirEntry>:
+    let paths = fs_read_dir_paths(path)
+    let mut entries: Array<FsDirEntry> = []
+    var index = 0
+    while index < len(paths):
+        push(entries, fs_dir_entry_for_path(paths[index]))
+        index = index + 1
+    return entries
+
 pub fn fs_walk_paths_text(path: String) -> String:
     return abi_fs_walk_paths_text(path)
+
+pub fn fs_walk(path: String) -> Array<FsDirEntry>:
+    let paths = fs_nonempty_lines(abi_fs_walk_paths_text(path))
+    let mut entries: Array<FsDirEntry> = []
+    var index = 0
+    while index < len(paths):
+        push(entries, fs_dir_entry_for_path(paths[index]))
+        index = index + 1
+    return entries
 
 pub fn fs_create_dir_all(path: String) -> Unit:
     let _status = abi_fs_create_dir_all(path)
@@ -159,6 +269,26 @@ pub fn fs_copy_file(src: String, dest: String) -> Unit:
 
 pub fn fs_copy_file_streaming(src: String, dest: String, chunk_size: Int) -> Int:
     return abi_fs_copy_file_streaming(src, dest, chunk_size)
+
+pub fn fs_stream_chunks(path: String, chunk_size: Int) -> Array<FsChunk>:
+    let metadata = fs_metadata(path)
+    let safe_chunk_size = int_max(chunk_size, 1)
+    let mut chunks: Array<FsChunk> = []
+    var index = 0
+    var offset = 0
+    while offset < metadata.len:
+        let remaining = metadata.len - offset
+        let current_size = int_min(safe_chunk_size, remaining)
+        let bytes = fs_read_bytes_range(path, offset, current_size)
+        push(chunks, FsChunk {
+            index: index,
+            offset: offset,
+            len: len(bytes),
+            bytes: bytes
+        })
+        index = index + 1
+        offset = offset + current_size
+    return chunks
 
 pub fn fs_move_path(src: String, dest: String) -> Unit:
     let _status = abi_fs_move_path(src, dest)

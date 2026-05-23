@@ -1,0 +1,75 @@
+use std::random
+use std::intent
+
+pub fn smoke_random_lane() -> Int:
+    # 1. Test Xoshiro128 creation and deterministic sequence
+    let rng = xoshiro128_new(42)
+    if rng.s0 == 0:
+        return 1
+
+    let res1 = xoshiro128_next(rng)
+    let res2 = xoshiro128_next(res1.rng)
+    if res1.value == res2.value:
+        return 2
+
+    # Verify that seed 42 produces deterministic sequence
+    let rng_twin = xoshiro128_new(42)
+    let res_twin = xoshiro128_next(rng_twin)
+    if res1.value != res_twin.value:
+        return 3
+
+    # 2. Test unbiased integer range (Lemire's algorithm)
+    # Check 100 samples are in range [5, 15]
+    var current_rng = res2.rng
+    var i = 0
+    while i < 100:
+        let range_res = random_int_in_range(current_rng, 5, 15)
+        current_rng = range_res.rng
+        if range_res.value < 5 or range_res.value > 15:
+            return 4
+        i = i + 1
+
+    # 3. Test uniform float in [0.0, 1.0)
+    var j = 0
+    while j < 50:
+        let float_res = random_float(current_rng)
+        current_rng = float_res.rng
+        if float_res.value < 0.0 or float_res.value >= 1.0:
+            return 5
+        j = j + 1
+
+    # 4. Test Box-Muller normal floats (math_ln + random_float_norm)
+    let norm_res = random_float_norm(current_rng)
+    current_rng = norm_res.rng
+    # Simply check that Box-Muller produces a real float value
+    if norm_res.value < -100.0 or norm_res.value > 100.0:
+        return 6
+
+    # 5. Test Kain-native Ambient PRNG and patch transactions!
+    # Record starting patch journal transaction count
+    let start_journal = patch_journal_count()
+
+    # Mutate the global PRNG world state via patch call
+    let a1 = random_ambient_next()
+    let a2 = random_ambient_next()
+
+    if a1 == a2:
+        # Extremely unlikely for two 32-bit generations to match
+        return 7
+
+    # Assert that Kains patch journal counter incremented!
+    # Every random_ambient_next() fires a transaction-journaled patch mutation!
+    let end_journal = patch_journal_count()
+    if end_journal <= start_journal:
+        return 8
+
+    # 6. Test ambient range helpers
+    let val_in_range = random_ambient_int_in_range(100, 200)
+    if val_in_range < 100 or val_in_range > 200:
+        return 9
+
+    let ambient_float = random_ambient_float()
+    if ambient_float < 0.0 or ambient_float >= 1.0:
+        return 10
+
+    return 0

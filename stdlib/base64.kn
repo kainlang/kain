@@ -1,0 +1,156 @@
+use std::ascii
+
+pub const BASE64_STANDARD_ALPHABET: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+pub const BASE64_URLSAFE_ALPHABET: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+fn base64_alphabet_char(alphabet: String, index: Int) -> String:
+    if index < 0 or index >= 64:
+        return ""
+    return char_at(alphabet, index)
+
+fn base64_value_from_code(code: Int) -> Int:
+    if ascii_is_upper_byte(code):
+        return code - 65
+    if ascii_is_lower_byte(code):
+        return 26 + (code - 97)
+    if ascii_is_digit_byte(code):
+        return 52 + (code - 48)
+    if code == ord("+") or code == ord("-"):
+        return 62
+    if code == ord("/") or code == ord("_"):
+        return 63
+    return -1
+
+fn base64_encode_with_alphabet(text: String, alphabet: String, padded: Bool) -> String:
+    var output = ""
+    var index = 0
+    while index < len(text):
+        let remaining = len(text) - index
+        let b0 = byte_at(text, index)
+        let b1 = if remaining > 1: byte_at(text, index + 1) else: 0
+        let b2 = if remaining > 2: byte_at(text, index + 2) else: 0
+        let triple = (b0 << 16) | (b1 << 8) | b2
+        output = output + base64_alphabet_char(alphabet, (triple >> 18) & 63)
+        output = output + base64_alphabet_char(alphabet, (triple >> 12) & 63)
+        if remaining > 1:
+            output = output + base64_alphabet_char(alphabet, (triple >> 6) & 63)
+        else:
+            if padded:
+                output = output + "="
+        if remaining > 2:
+            output = output + base64_alphabet_char(alphabet, triple & 63)
+        else:
+            if padded:
+                output = output + "="
+        index = index + 3
+    return output
+
+fn base64_normalize_input(text: String) -> String:
+    var output = ""
+    var index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ascii_is_whitespace(ch) == false:
+            output = output + ch
+        index = index + 1
+    while (len(output) % 4) != 0:
+        output = output + "="
+    return output
+
+fn base64_decode_normalized(text: String) -> String:
+    if len(text) == 0:
+        return ""
+    if (len(text) % 4) == 1:
+        return ""
+    var output = ""
+    var index = 0
+    while index + 3 < len(text):
+        let c0 = char_at(text, index)
+        let c1 = char_at(text, index + 1)
+        let c2 = char_at(text, index + 2)
+        let c3 = char_at(text, index + 3)
+        let v0 = base64_value_from_code(ord(c0))
+        let v1 = base64_value_from_code(ord(c1))
+        if v0 < 0 or v1 < 0:
+            return ""
+        if c2 == "=":
+            if c3 != "=":
+                return ""
+            output = output + chr(((v0 << 2) | (v1 >> 4)) & 255)
+            return output
+        let v2 = base64_value_from_code(ord(c2))
+        if v2 < 0:
+            return ""
+        if c3 == "=":
+            output = output + chr(((v0 << 2) | (v1 >> 4)) & 255)
+            output = output + chr((((v1 & 15) << 4) | (v2 >> 2)) & 255)
+            return output
+        let v3 = base64_value_from_code(ord(c3))
+        if v3 < 0:
+            return ""
+        output = output + chr(((v0 << 2) | (v1 >> 4)) & 255)
+        output = output + chr((((v1 & 15) << 4) | (v2 >> 2)) & 255)
+        output = output + chr((((v2 & 3) << 6) | v3) & 255)
+        index = index + 4
+    return output
+
+pub fn base64_encode(text: String) -> String:
+    return base64_encode_with_alphabet(text, BASE64_STANDARD_ALPHABET, true)
+
+pub fn base64_encode_nopad(text: String) -> String:
+    return base64_encode_with_alphabet(text, BASE64_STANDARD_ALPHABET, false)
+
+pub fn base64_encode_url(text: String) -> String:
+    return base64_encode_with_alphabet(text, BASE64_URLSAFE_ALPHABET, false)
+
+pub fn base64_encode_url_padded(text: String) -> String:
+    return base64_encode_with_alphabet(text, BASE64_URLSAFE_ALPHABET, true)
+
+pub fn base64_decode(text: String) -> String:
+    return base64_decode_normalized(base64_normalize_input(text))
+
+pub fn base64_decode_url(text: String) -> String:
+    return base64_decode_normalized(base64_normalize_input(text))
+
+pub fn base16_encode(text: String) -> String:
+    var output = ""
+    var index = 0
+    while index < len(text):
+        let value = byte_at(text, index)
+        output = output + ascii_hex_char_lower((value >> 4) & 15)
+        output = output + ascii_hex_char_lower(value & 15)
+        index = index + 1
+    return output
+
+pub fn base16_encode_upper(text: String) -> String:
+    var output = ""
+    var index = 0
+    while index < len(text):
+        let value = byte_at(text, index)
+        output = output + ascii_hex_char_upper((value >> 4) & 15)
+        output = output + ascii_hex_char_upper(value & 15)
+        index = index + 1
+    return output
+
+pub fn base16_decode(text: String) -> String:
+    if (len(text) % 2) != 0:
+        return ""
+    var output = ""
+    var index = 0
+    while index + 1 < len(text):
+        let high = ascii_hex_value(char_at(text, index))
+        let low = ascii_hex_value(char_at(text, index + 1))
+        if high < 0 or low < 0:
+            return ""
+        output = output + chr((high << 4) | low)
+        index = index + 2
+    return output
+
+pub fn hex_encode(text: String) -> String:
+    return base16_encode(text)
+
+pub fn hex_encode_upper(text: String) -> String:
+    return base16_encode_upper(text)
+
+pub fn hex_decode(text: String) -> String:
+    return base16_decode(text)

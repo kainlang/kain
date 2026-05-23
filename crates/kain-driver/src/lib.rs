@@ -5,13 +5,14 @@
 //! through the CLI binary.
 
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
+use std::sync::OnceLock;
 use std::time::Instant;
 
-use kain_core::ast::{Expr, Item, Program, ShaderStage, Use, WorldSurfaceKind};
+use kain_core::ast::{Block, Expr, Item, JSXNode, Program, ShaderStage, Stmt, Use, WorldSurfaceKind};
 use kain_core::diagnostics::SourceOriginSegment;
 use kain_core::error::KainError;
 use kain_core::module_resolution::{
@@ -25,6 +26,7 @@ use kain_core::{
     realtime_app_bundle_to_json, types, CompileTarget, Lexer, Parser, RealtimeAppBundle,
     ResolvedType, RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
 };
+use serde::Deserialize;
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
 use kain_core::{
@@ -275,7 +277,26 @@ struct FrontendWatchedInput {
     byte_len: Option<u64>,
 }
 
+#[derive(Debug, Deserialize)]
+struct StdlibLookupMap {
+    modules: Vec<StdlibLookupModule>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StdlibLookupModule {
+    import_path: String,
+    symbols: Vec<StdlibLookupSymbol>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StdlibLookupSymbol {
+    name: String,
+    visibility: String,
+}
+
 const AMBIENT_STDLIB_MODULES: &[&str] = &["runtime", "actor"];
+static ROOT_STDLIB_SYMBOL_MODULE_LOOKUP: OnceLock<HashMap<String, String>> = OnceLock::new();
+static STDLIB_MAP_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 #[cfg(feature = "sys")]
 #[derive(Debug, Clone)]
@@ -1037,6 +1058,12 @@ impl FrontendImportCollector {
                 filename
             ));
         }
+        for module_name in implicit_root_stdlib_modules_for_program(&program) {
+            let Some(module_file) = resolve_stdlib_module_file(&module_name) else {
+                continue;
+            };
+            self.collect_module_file(module_file, target)?;
+        }
         for item in program.items {
             let Item::Use(import) = item else {
                 continue;
@@ -1055,6 +1082,13 @@ impl FrontendImportCollector {
         target: CompileTarget,
     ) -> Result<(), KainError> {
         let module_file = canonicalize_existing_path(&module_file);
+        if self
+            .entry_path
+            .as_ref()
+            .is_some_and(|entry_path| *entry_path == module_file)
+        {
+            return Ok(());
+        }
         if !self.visited_module_files.insert(module_file.clone()) {
             return Ok(());
         }
@@ -1318,12 +1352,711 @@ fn discover_frontend_watch_inputs(
     for module_source in module_sources {
         push_unique_watch_input(&mut inputs, module_source.file_path.clone());
     }
+    if let Some(map_path) = stdlib_map_path() {
+        push_unique_watch_input(&mut inputs, map_path);
+    }
     inputs
 }
 
 fn push_unique_watch_input(inputs: &mut Vec<PathBuf>, path: PathBuf) {
     if !inputs.iter().any(|existing| existing == &path) {
         inputs.push(path);
+    }
+}
+
+fn stdlib_map_path() -> Option<PathBuf> {
+    STDLIB_MAP_PATH
+        .get_or_init(|| {
+            kain_core::stdlib::find_stdlib_search_roots()
+                .into_iter()
+                .find_map(|root| {
+                    let candidate = root.join("stdlib.map.json");
+                    candidate.is_file().then_some(candidate)
+                })
+        })
+        .clone()
+}
+
+fn root_stdlib_symbol_module_lookup() -> &'static HashMap<String, String> {
+    ROOT_STDLIB_SYMBOL_MODULE_LOOKUP.get_or_init(load_root_stdlib_symbol_module_lookup)
+}
+
+fn load_root_stdlib_symbol_module_lookup() -> HashMap<String, String> {
+    let Some(map_path) = stdlib_map_path() else {
+        return HashMap::new();
+    };
+    let Ok(raw_map) = std::fs::read_to_string(map_path) else {
+        return HashMap::new();
+    };
+    let Ok(parsed_map) = serde_json::from_str::<StdlibLookupMap>(&raw_map) else {
+        return HashMap::new();
+    };
+
+    let mut candidates: HashMap<String, HashSet<String>> = HashMap::new();
+    for module in parsed_map.modules {
+        let Some(module_name) = module.import_path.strip_prefix("std::") else {
+            continue;
+        };
+        let module_name = module_name.replace("::", "/");
+        for symbol in module.symbols {
+            if symbol.visibility != "public" {
+                continue;
+            }
+            candidates
+                .entry(symbol.name)
+                .or_default()
+                .insert(module_name.clone());
+        }
+    }
+
+    let mut lookup = HashMap::new();
+    for (symbol_name, module_names) in candidates {
+        if module_names.len() != 1 {
+            continue;
+        }
+        if let Some(module_name) = module_names.into_iter().next() {
+            lookup.insert(symbol_name, module_name);
+        }
+    }
+    lookup
+}
+
+fn implicit_root_stdlib_modules_for_program(program: &Program) -> HashSet<String> {
+    let symbol_lookup = root_stdlib_symbol_module_lookup();
+    if symbol_lookup.is_empty() {
+        return HashSet::new();
+    }
+
+    let mut module_names = HashSet::new();
+    for item in &program.items {
+        collect_implicit_root_stdlib_modules_from_item(item, symbol_lookup, &mut module_names);
+    }
+    module_names
+}
+
+fn collect_implicit_root_stdlib_modules_from_item(
+    item: &Item,
+    symbol_lookup: &HashMap<String, String>,
+    module_names: &mut HashSet<String>,
+) {
+    match item {
+        Item::Function(function) => {
+            collect_implicit_root_stdlib_modules_from_block(
+                &function.body,
+                symbol_lookup,
+                module_names,
+            );
+        }
+        Item::Patch(patch) => {
+            collect_implicit_root_stdlib_modules_from_block(&patch.body, symbol_lookup, module_names);
+        }
+        Item::Law(law) => {
+            collect_implicit_root_stdlib_modules_from_block(&law.body, symbol_lookup, module_names);
+        }
+        Item::Converge(converge) => {
+            collect_implicit_root_stdlib_modules_from_block(
+                &converge.spec_lane.body,
+                symbol_lookup,
+                module_names,
+            );
+            for lane in &converge.fast_lanes {
+                collect_implicit_root_stdlib_modules_from_block(
+                    &lane.body,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Item::Orchestrate(orchestrate) => {
+            collect_implicit_root_stdlib_modules_from_block(
+                &orchestrate.body,
+                symbol_lookup,
+                module_names,
+            );
+        }
+        Item::Pulse(pulse) => {
+            collect_implicit_root_stdlib_modules_from_block(&pulse.body, symbol_lookup, module_names);
+        }
+        Item::World(world) => {
+            for state in &world.states {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &state.initial,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+            for surface in &world.surfaces {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &surface.expr,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Item::Component(component) => {
+            for state in &component.state {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &state.initial,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+            for method in &component.methods {
+                collect_implicit_root_stdlib_modules_from_block(
+                    &method.body,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+            collect_implicit_root_stdlib_modules_from_jsx(&component.body, symbol_lookup, module_names);
+        }
+        Item::Shader(shader) => {
+            collect_implicit_root_stdlib_modules_from_block(&shader.body, symbol_lookup, module_names);
+        }
+        Item::Actor(actor) => {
+            for state in &actor.state {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &state.initial,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+            for handler in &actor.handlers {
+                collect_implicit_root_stdlib_modules_from_block(
+                    &handler.body,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+            for method in &actor.methods {
+                collect_implicit_root_stdlib_modules_from_block(
+                    &method.body,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Item::Struct(structure) => {
+            for field in &structure.fields {
+                if let Some(default_value) = &field.default {
+                    collect_implicit_root_stdlib_modules_from_expr(
+                        default_value,
+                        symbol_lookup,
+                        module_names,
+                    );
+                }
+            }
+            for method in &structure.methods {
+                collect_implicit_root_stdlib_modules_from_block(
+                    &method.body,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Item::Impl(implementation) => {
+            for method in &implementation.methods {
+                collect_implicit_root_stdlib_modules_from_block(
+                    &method.body,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Item::Const(constant) => {
+            collect_implicit_root_stdlib_modules_from_expr(
+                &constant.value,
+                symbol_lookup,
+                module_names,
+            );
+        }
+        Item::Comptime(comptime) => {
+            collect_implicit_root_stdlib_modules_from_block(
+                &comptime.body,
+                symbol_lookup,
+                module_names,
+            );
+        }
+        Item::Test(test) => {
+            collect_implicit_root_stdlib_modules_from_block(&test.body, symbol_lookup, module_names);
+        }
+        Item::Mod(module) => {
+            if let Some(items) = &module.inline {
+                for nested_item in items {
+                    collect_implicit_root_stdlib_modules_from_item(
+                        nested_item,
+                        symbol_lookup,
+                        module_names,
+                    );
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_implicit_root_stdlib_modules_from_jsx(
+    node: &JSXNode,
+    symbol_lookup: &HashMap<String, String>,
+    module_names: &mut HashSet<String>,
+) {
+    match node {
+        JSXNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            for attribute in attributes {
+                match &attribute.value {
+                    kain_core::ast::JSXAttrValue::Expr(expr) => {
+                        collect_implicit_root_stdlib_modules_from_expr(
+                            expr,
+                            symbol_lookup,
+                            module_names,
+                        );
+                    }
+                    kain_core::ast::JSXAttrValue::String(_)
+                    | kain_core::ast::JSXAttrValue::Bool(_) => {}
+                }
+            }
+            for child in children {
+                collect_implicit_root_stdlib_modules_from_jsx(child, symbol_lookup, module_names);
+            }
+        }
+        JSXNode::Expression(expr) => {
+            collect_implicit_root_stdlib_modules_from_expr(expr, symbol_lookup, module_names);
+        }
+        JSXNode::ComponentCall {
+            props, children, ..
+        } => {
+            for property in props {
+                match &property.value {
+                    kain_core::ast::JSXAttrValue::Expr(expr) => {
+                        collect_implicit_root_stdlib_modules_from_expr(
+                            expr,
+                            symbol_lookup,
+                            module_names,
+                        );
+                    }
+                    kain_core::ast::JSXAttrValue::String(_)
+                    | kain_core::ast::JSXAttrValue::Bool(_) => {}
+                }
+            }
+            for child in children {
+                collect_implicit_root_stdlib_modules_from_jsx(child, symbol_lookup, module_names);
+            }
+        }
+        JSXNode::For { iter, body, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(iter, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_jsx(body, symbol_lookup, module_names);
+        }
+        JSXNode::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            collect_implicit_root_stdlib_modules_from_expr(condition, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_jsx(
+                then_branch,
+                symbol_lookup,
+                module_names,
+            );
+            if let Some(else_branch) = else_branch {
+                collect_implicit_root_stdlib_modules_from_jsx(
+                    else_branch,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        JSXNode::Fragment(children, _) => {
+            for child in children {
+                collect_implicit_root_stdlib_modules_from_jsx(child, symbol_lookup, module_names);
+            }
+        }
+        JSXNode::Text(_, _) => {}
+    }
+}
+
+fn collect_implicit_root_stdlib_modules_from_block(
+    block: &Block,
+    symbol_lookup: &HashMap<String, String>,
+    module_names: &mut HashSet<String>,
+) {
+    for stmt in &block.stmts {
+        match stmt {
+            Stmt::Let { value, .. } => {
+                if let Some(value) = value {
+                    collect_implicit_root_stdlib_modules_from_expr(
+                        value,
+                        symbol_lookup,
+                        module_names,
+                    );
+                }
+            }
+            Stmt::Expr(expr)
+            | Stmt::Return(Some(expr), _)
+            | Stmt::Break(Some(expr), _) => {
+                collect_implicit_root_stdlib_modules_from_expr(expr, symbol_lookup, module_names);
+            }
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
+                collect_implicit_root_stdlib_modules_from_expr(iter, symbol_lookup, module_names);
+                collect_implicit_root_stdlib_modules_from_block(body, symbol_lookup, module_names);
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    condition,
+                    symbol_lookup,
+                    module_names,
+                );
+                collect_implicit_root_stdlib_modules_from_block(body, symbol_lookup, module_names);
+            }
+            Stmt::Loop { body, .. } => {
+                collect_implicit_root_stdlib_modules_from_block(body, symbol_lookup, module_names);
+            }
+            Stmt::Item(item) => {
+                collect_implicit_root_stdlib_modules_from_item(item, symbol_lookup, module_names);
+            }
+            Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => {}
+        }
+    }
+}
+
+fn collect_implicit_root_stdlib_modules_from_expr(
+    expr: &Expr,
+    symbol_lookup: &HashMap<String, String>,
+    module_names: &mut HashSet<String>,
+) {
+    match expr {
+        Expr::Ident(name, _) => {
+            if let Some(module_name) = symbol_lookup.get(name) {
+                module_names.insert(module_name.clone());
+            }
+        }
+        Expr::Call { callee, args, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(callee, symbol_lookup, module_names);
+            for arg in args {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &arg.value,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::StageCall { function, args, .. } => {
+            if let Some(module_name) = symbol_lookup.get(function) {
+                module_names.insert(module_name.clone());
+            }
+            for arg in args {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &arg.value,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::MethodCall { receiver, args, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(receiver, symbol_lookup, module_names);
+            for arg in args {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &arg.value,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::Struct { name, fields, rest, .. } => {
+            if let Some(module_name) = symbol_lookup.get(name) {
+                module_names.insert(module_name.clone());
+            }
+            for (_, field_expr) in fields {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    field_expr,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+            if let Some(rest) = rest {
+                collect_implicit_root_stdlib_modules_from_expr(rest, symbol_lookup, module_names);
+            }
+        }
+        Expr::EnumVariant {
+            enum_name, fields, ..
+        } => {
+            if let Some(module_name) = symbol_lookup.get(enum_name) {
+                module_names.insert(module_name.clone());
+            }
+            match fields {
+                kain_core::ast::EnumVariantFields::Unit => {}
+                kain_core::ast::EnumVariantFields::Tuple(values) => {
+                    for value in values {
+                        collect_implicit_root_stdlib_modules_from_expr(
+                            value,
+                            symbol_lookup,
+                            module_names,
+                        );
+                    }
+                }
+                kain_core::ast::EnumVariantFields::Struct(entries) => {
+                    for (_, value) in entries {
+                        collect_implicit_root_stdlib_modules_from_expr(
+                            value,
+                            symbol_lookup,
+                            module_names,
+                        );
+                    }
+                }
+            }
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(left, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(right, symbol_lookup, module_names);
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Paren(operand, _)
+        | Expr::Comptime(operand, _) => {
+            collect_implicit_root_stdlib_modules_from_expr(operand, symbol_lookup, module_names);
+        }
+        Expr::Field { object, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(object, symbol_lookup, module_names);
+        }
+        Expr::Index { object, index, .. }
+        | Expr::Assign {
+            target: object,
+            value: index,
+            ..
+        }
+        | Expr::PtrOffset {
+            pointer: object,
+            offset: index,
+            ..
+        } => {
+            collect_implicit_root_stdlib_modules_from_expr(object, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(index, symbol_lookup, module_names);
+        }
+        Expr::AggregateInit { fields, .. } => {
+            for (_, value) in fields {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    value,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            for value in values {
+                collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
+            }
+        }
+        Expr::Range { start, end, .. } => {
+            if let Some(start) = start {
+                collect_implicit_root_stdlib_modules_from_expr(start, symbol_lookup, module_names);
+            }
+            if let Some(end) = end {
+                collect_implicit_root_stdlib_modules_from_expr(end, symbol_lookup, module_names);
+            }
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            collect_implicit_root_stdlib_modules_from_expr(condition, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_block(
+                then_branch,
+                symbol_lookup,
+                module_names,
+            );
+            if let Some(else_branch) = else_branch {
+                match else_branch.as_ref() {
+                    kain_core::ast::ElseBranch::Else(block) => {
+                        collect_implicit_root_stdlib_modules_from_block(
+                            block,
+                            symbol_lookup,
+                            module_names,
+                        );
+                    }
+                    kain_core::ast::ElseBranch::ElseIf(expr, block, tail) => {
+                        collect_implicit_root_stdlib_modules_from_expr(
+                            expr,
+                            symbol_lookup,
+                            module_names,
+                        );
+                        collect_implicit_root_stdlib_modules_from_block(
+                            block,
+                            symbol_lookup,
+                            module_names,
+                        );
+                        if let Some(tail) = tail {
+                            match tail.as_ref() {
+                                kain_core::ast::ElseBranch::Else(block) => {
+                                    collect_implicit_root_stdlib_modules_from_block(
+                                        block,
+                                        symbol_lookup,
+                                        module_names,
+                                    );
+                                }
+                                kain_core::ast::ElseBranch::ElseIf(expr, block, nested_tail) => {
+                                    let nested_expr = Expr::If {
+                                        condition: expr.clone(),
+                                        then_branch: block.clone(),
+                                        else_branch: nested_tail.clone(),
+                                        span: expr.span(),
+                                    };
+                                    collect_implicit_root_stdlib_modules_from_expr(
+                                        &nested_expr,
+                                        symbol_lookup,
+                                        module_names,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            collect_implicit_root_stdlib_modules_from_expr(
+                scrutinee,
+                symbol_lookup,
+                module_names,
+            );
+            for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    collect_implicit_root_stdlib_modules_from_expr(
+                        guard,
+                        symbol_lookup,
+                        module_names,
+                    );
+                }
+                collect_implicit_root_stdlib_modules_from_expr(
+                    &arm.body,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::Lambda { body, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(body, symbol_lookup, module_names);
+        }
+        Expr::MemLoad { pointer, .. }
+        | Expr::VolatileLoad { pointer, .. }
+        | Expr::CpuCacheFlush { pointer, .. }
+        | Expr::Decay { target: pointer, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(pointer, symbol_lookup, module_names);
+        }
+        Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(pointer, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
+        }
+        Expr::AtomicLoad { pointer, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(pointer, symbol_lookup, module_names);
+        }
+        Expr::AtomicStore { pointer, value, .. }
+        | Expr::AtomicAdd { pointer, value, .. }
+        | Expr::AtomicSub { pointer, value, .. }
+        | Expr::AtomicAnd { pointer, value, .. }
+        | Expr::AtomicOr { pointer, value, .. }
+        | Expr::AtomicXor { pointer, value, .. }
+        | Expr::AtomicExchange { pointer, value, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(pointer, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
+        }
+        Expr::AtomicCompareExchange {
+            pointer,
+            expected,
+            desired,
+            ..
+        } => {
+            collect_implicit_root_stdlib_modules_from_expr(pointer, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(expected, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(desired, symbol_lookup, module_names);
+        }
+        Expr::InlineAsm {
+            operands, ..
+        } => {
+            for operand in operands {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    operand,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::Alloc { size, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(size, symbol_lookup, module_names);
+        }
+        Expr::Realloc { pointer, size, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(pointer, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(size, symbol_lookup, module_names);
+        }
+        Expr::Share { target, body, .. }
+        | Expr::Observe { target, body, .. }
+        | Expr::Collapse { target, body, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(target, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_expr(body, symbol_lookup, module_names);
+        }
+        Expr::Teleport { value, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
+        }
+        Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
+        }
+        Expr::Spawn { init, .. } => {
+            for (_, value) in init {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    value,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::SendMsg { target, data, .. } => {
+            collect_implicit_root_stdlib_modules_from_expr(target, symbol_lookup, module_names);
+            for (_, value) in data {
+                collect_implicit_root_stdlib_modules_from_expr(
+                    value,
+                    symbol_lookup,
+                    module_names,
+                );
+            }
+        }
+        Expr::Block(block, _) => {
+            collect_implicit_root_stdlib_modules_from_block(block, symbol_lookup, module_names);
+        }
+        Expr::JSX(node, _) => {
+            collect_implicit_root_stdlib_modules_from_jsx(node, symbol_lookup, module_names);
+        }
+        Expr::Return(Some(value), _) | Expr::Break(Some(value), _) => {
+            collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
+        }
+        Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::MacroCall { .. }
+        | Expr::AtomicFence { .. }
+        | Expr::CpuFence { .. }
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. }
+        | Expr::Return(None, _)
+        | Expr::Break(None, _)
+        | Expr::Continue(_) => {}
     }
 }
 
