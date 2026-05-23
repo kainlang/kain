@@ -13,7 +13,7 @@ This backlog is derived from:
 
 Current reality:
 
-- Kain root stdlib atlas currently reports `43` modules and `2578` public symbols.
+- Kain root stdlib atlas currently reports `45` modules, `2053` public symbols, and `2689` total symbols.
 - The root profile is still much thinner than Zig's local `lib/std` capability envelope.
 - Kain is already unusually strong in `std::math`, `std::gpu`, `std::graphics`, `std::ui`, `std::build`, `std::bench`, `std::attrition`, `std::certify`, `std::actor`, and semantic/runtime-facing surfaces such as `std::intent` and `std::runtime`.
 - Kain is still obviously missing a large amount of boring-but-necessary authoring, systems, container, path, stream, encoding, archive, and binary-introspection depth.
@@ -127,11 +127,11 @@ Every row below is a v1-facing gap compared to a serious systems language stdlib
 
 | Status | Priority | Surface | Requirement |
 | --- | --- | --- | --- |
-| `PARTIAL` | `P0` | `std::text` plus likely new `std::bytes` | The first real text pass now covers split/tokenize, replace, join, case helpers, line helpers, and repeated/owned string transforms. Finish the remaining depth: byte views, escape/unescape, explicit string-builder or byte-builder interop, and a clearer split between zero-copy text views and owned byte/text results. |
+| `DONE` | `P0` | `std::text` plus new `std::bytes` | The authoring floor now covers zero-copy text views, zero-copy byte views, explicit text-byte conversion, basic escape/unescape, byte builders, text-builder interop, and owned byte/text materialization instead of forcing every caller into ad hoc string-as-bytes glue. |
 | `DONE` | `P0` | new `std::ascii` or `std::text` subfamily | Expose ASCII classification, case fold, digit/hex helpers, whitespace checks, and predictable byte-level transforms instead of forcing every caller to re-encode them manually. |
 | `DONE` | `P0` | new `std::unicode` | Add UTF-8 validation, codepoint iteration, encoding/decoding helpers, normalization hooks, case mapping where practical, and explicit invalid-sequence behavior. |
 | `DONE` | `P0` | new `std::base64` plus binary encodings | Base64, URL-safe base64, base16/hex encode-decode, and related helpers now exist as a root family instead of being scattered across unrelated domains. |
-| `PARTIAL` | `P0` | new `std::fmt` | The first pass now covers string-oriented formatting helpers for ints, floats, hex, binary, padding, JSON escaping, and debug-style joins. Finish writer/builder-based formatting, richer spec-driven formatting, and better zero-copy/stream integration so authors stop hand-rolling formatting pipelines. |
+| `PARTIAL` | `P0` | new `std::fmt` | The second pass now covers string-oriented formatting helpers plus a real writer/builder surface for accumulating ints, floats, bools, hex, binary, key-value pairs, and JSON strings. Remaining: richer spec-driven formatting and tighter stream-backed `std::io` integration. |
 | `PARTIAL` | `P0` | new `std::json` | The first pass now covers parse, stringify, token scanning, dynamic tree access, object/array builders, and basic typed field helpers. Finish richer typed decode/encode ergonomics, structured error/status surfaces, and tighter streaming or builder integration so JSON work does not stay `Any`-shaped forever. |
 | `DONE` | `P0` | new `std::uri` | Add URI/URL parsing, normalization, authority/path/query helpers, percent encoding/decoding, and typed integration with HTTP/TLS surfaces. |
 | `DONE` | `P0` | new `std::semver` | Add semantic version parse/format/compare and version-range matching so package/build/runtime metadata is not forced into raw strings. |
@@ -141,11 +141,11 @@ Every row below is a v1-facing gap compared to a serious systems language stdlib
 | `PARTIAL` | `P0` | `std::fs` plus likely new `std::path` | Expand from `join` plus text/hex wrappers into a full path toolkit: parent, file name, stem, extension, normalize, canonicalize, relative path, absolute path, split, and platform-safe separators. |
 | `PARTIAL` | `P0` | `std::fs` typed metadata and directory surfaces | Replace text-shaped metadata and path listings with typed metadata, typed directory entries, structured error/status, richer temp/workspace helpers, and honest file/dir kind reporting. |
 | `PARTIAL` | `P0` | `std::fs` file handles | Add open/read/write/append/seek/flush/close file handles and explicit binary/text read models. Root stdlib should not stay permanently path-only. |
-| `TODO` | `P0` | new `std::io` | Add reader/writer/seek/stream abstractions, buffered I/O, in-memory streams, adapters between file/process/net/http bodies, and a sane common I/O vocabulary. |
-| `PARTIAL` | `P0` | `std::time` | Grow beyond millis/sleep/deadline. Add `Duration`, monotonic `Instant`, wall-clock time, conversion helpers, deadlines/timeouts, interval helpers, and timing primitives that benchmarks and async code can share. |
+| `DONE` | `P0` | new `std::io` | Add reader/writer/seek/stream abstractions, buffered I/O, in-memory streams, adapters between file/process/net/http bodies, and a sane common I/O vocabulary. |
+| `DONE` | `P0` | `std::time` | Grow beyond millis/sleep/deadline. Add `Duration`, monotonic `Instant`, wall-clock time, conversion helpers, deadlines/timeouts, interval helpers, and timing primitives that benchmarks and async code can share. |
 | `DONE` | `P0` | new `std::random` | Add deterministic and nondeterministic RNG families, seeded generators, split/fork helpers, fast non-crypto RNG for benchmarks/simulations, and public binary output APIs. |
-| `TODO` | `P0` | new `std::atomic` | Add public atomics, ordering vocabulary, typed atomic cells, compare/exchange, fetch ops, and memory-order helpers so low-level authored Kain stops reinventing them piecemeal. |
-| `TODO` | `P0` | new `std::sync` | Add mutex/rwlock/semaphore/event/channel/barrier-style primitives or Kain-native equivalents where they belong outside the actor lane. |
+| `DONE` | `P0` | new `std::atomic` | Add public atomics, ordering vocabulary, typed atomic cells, compare/exchange, fetch ops, and memory-order helpers so low-level authored Kain stops reinventing them piecemeal. |
+| `DONE` | `P0` | new `std::sync` | Add mutex/rwlock/semaphore/event/channel/barrier-style primitives or Kain-native equivalents where they belong outside the actor lane. |
 | `TODO` | `P0` | new `std::thread` | Add spawn/join, names, affinity, ids, and thread-local or per-thread helpers where appropriate. Today we only have tiny machine-thread fragments. |
 | `PARTIAL` | `P0` | `std::diagnostics` plus likely new `std::debug` or `std::log` | Expand from status helpers into structured error values, trace/log helpers, human and machine renderers, progress emitters, and debug-facing utilities that do not require everyone to wire bespoke logging. |
 
@@ -158,7 +158,7 @@ These are the next obvious completeness gaps once the authoring floor is honest.
 | `PARTIAL` | `P1` | new `std::os` or expansions across `std::platform` and `std::process` | Add env reads/writes, cwd, user/temp/home/config/cache dirs, host/process identity, page-size and memory facts, signal/terminal basics, and platform feature reporting. |
 | `TODO` | `P1` | new `std::posix` | Expose POSIX-specific handles/constants/helpers cleanly when authored Kain genuinely needs them, without poisoning the generic root APIs. |
 | `PARTIAL` | `P1` | `std::platform` | Expand beyond dynamic library open/resolve/close into richer platform capability discovery, library metadata, and OS integration helpers. |
-| `TODO` | `P1` | new `std::target` or `std::meta` target lane | Add public target triples, ABI and calling-convention vocab, arch/os/env/object-format descriptors, and CPU feature tables where authored tools need them. |
+| `DONE` | `P1` | new `std::target` or `std::meta` target lane | Add public target triples, ABI and calling-convention vocab, arch/os/env/object-format descriptors, and CPU feature tables where authored tools need them. |
 | `PARTIAL` | `P1` | `std::process` | Replace pure id/status/string handling with typed process specs, typed exit status, pipelines, env snapshots, current-process helpers, stream-backed stdin/stdout/stderr, and tighter `std::io` integration. |
 | `PARTIAL` | `P1` | `std::net` | Add address types, UDP, DNS resolution, non-blocking/timeouts, Unix-domain sockets where supported, listener/connection option structs, and typed errors instead of raw ids everywhere. |
 | `PARTIAL` | `P1` | `std::http` | Add typed methods, status codes, headers, body streaming, chunked transfer, client/server config structs, and better integration with `std::uri`, `std::io`, and `std::tls`. |
@@ -167,7 +167,7 @@ These are the next obvious completeness gaps once the authoring floor is honest.
 | `PARTIAL` | `P1` | `std::crypto` | Expand beyond SHA-256, HMAC-SHA256, BLAKE3, and random hex into bytes-based APIs, streaming digests, KDF/HKDF/PBKDF2/Argon2-class primitives, AEAD, signatures, key exchange, and certificate helpers where appropriate. |
 | `PARTIAL` | `P1` | `std::hash` | Add 64-bit and larger families, streaming hash builders, stable typed fingerprint helpers, and better integration with generic collections and routing use cases. |
 | `PARTIAL` | `P1` | `std::memory` and `std::machine` | Add typed slices/spans, cache-line and page helpers, memory-mapped regions where justified, and a cleaner public low-level systems vocabulary than scattered raw pointer math alone. |
-| `TODO` | `P1` | new `std::reflect` or `std::meta` | Expose public reflection/introspection helpers where authored Kain packages, serializers, UI systems, and debug tools need them. Kain has reflection ownership deeper in the repo; the root stdlib surface is still thin here. |
+| `DONE` | `P1` | new `std::reflect` or `std::meta` | Expose public reflection/introspection helpers where authored Kain packages, serializers, UI systems, and debug tools need them. Kain has reflection ownership deeper in the repo; the root stdlib surface is still thin here. |
 
 ## KX - Kain-Native Semantic Leverage
 
@@ -191,8 +191,8 @@ These are still part of a serious stdlib story. They may land after the `P0` flo
 
 | Status | Priority | Surface | Requirement |
 | --- | --- | --- | --- |
-| `TODO` | `P2` | new `std::compress` | Add compression/decompression families such as flate/zlib and modern codecs such as zstd where justified, with stream integration instead of one-shot-only helpers. |
-| `TODO` | `P2` | new `std::tar` | Add tar read/write/introspection helpers and typed archive entry surfaces. |
+| `DONE` | `P2` | new `std::compress` | Add compression/decompression families such as flate/zlib and modern codecs such as zstd where justified, with stream integration instead of one-shot-only helpers. |
+| `DONE` | `P2` | new `std::tar` | Add tar read/write/introspection helpers and typed archive entry surfaces. |
 | `TODO` | `P2` | new `std::zip` | Add zip read/write/introspection helpers and typed archive entry surfaces. |
 | `TODO` | `P2` | new `std::elf` | Add ELF constants, headers, sections, symbols, relocations, and introspection helpers where authored toolchains or profilers need them. |
 | `TODO` | `P2` | new `std::dwarf` | Add DWARF constants and targeted parsing/introspection helpers if we want serious debug-format work from authored Kain. |
@@ -206,7 +206,6 @@ These are still part of a serious stdlib story. They may land after the `P0` flo
 These names are not sacred, but they are the most obvious root families still missing or still likely to split out further after the current first-pass text/data landings:
 
 - `stdlib/unicode.kn`
-- `stdlib/bytes.kn`
 - `stdlib/uri.kn`
 - `stdlib/semver.kn`
 - `stdlib/io.kn`

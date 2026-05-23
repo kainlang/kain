@@ -1,0 +1,133 @@
+use std::memory
+
+# --- Memory Orderings ---
+
+pub enum Ordering:
+    Relaxed
+    Acquire
+    Release
+    AcqRel
+    SeqCst
+
+# --- AtomicInt (Type-Safe Atomic Integer Wrapper) ---
+
+pub struct AtomicInt:
+    ptr: ptr<Int>
+
+pub fn atomic_int_new(initial_value: Int) -> AtomicInt:
+    let p = alloc_zeroed(1, "Int")
+    mem_store(p, initial_value, "Int")
+    return AtomicInt { ptr: p }
+
+pub fn atomic_int_destroy(a: AtomicInt) -> Int:
+    decay a.ptr
+    return 0
+
+pub fn atomic_int_load(self: AtomicInt, order: Ordering) -> Int with Unsafe:
+    match order:
+        Ordering::Relaxed => return atomic_load_relaxed(self.ptr)
+        Ordering::Acquire => return atomic_load_acquire(self.ptr)
+        Ordering::SeqCst => return atomic_load_seqcst(self.ptr)
+        _ => return atomic_load_seqcst(self.ptr)
+
+pub fn atomic_int_store(self: AtomicInt, value: Int, order: Ordering) -> Int with Unsafe:
+    match order:
+        Ordering::Relaxed => return atomic_store_relaxed(self.ptr, value)
+        Ordering::Release => return atomic_store_release(self.ptr, value)
+        Ordering::SeqCst => return atomic_store_seqcst(self.ptr, value)
+        _ => return atomic_store_seqcst(self.ptr, value)
+
+pub fn atomic_int_add(self: AtomicInt, delta: Int) -> Int with Unsafe:
+    return atomic_add_acqrel(self.ptr, delta)
+
+pub fn atomic_int_sub(self: AtomicInt, delta: Int) -> Int with Unsafe:
+    return atomic_sub_acqrel(self.ptr, delta)
+
+pub fn atomic_int_exchange(self: AtomicInt, desired: Int) -> Int with Unsafe:
+    return atomic_exchange_acqrel(self.ptr, desired)
+
+pub fn atomic_int_compare_exchange(self: AtomicInt, expected: Int, desired: Int) -> Bool with Unsafe:
+    return atomic_compare_exchange_seqcst(self.ptr, expected, desired)
+
+
+# --- AtomicBool (Type-Safe Atomic Boolean Wrapper) ---
+
+pub struct AtomicBool:
+    ptr: ptr<Int>
+
+pub fn atomic_bool_new(initial_value: Bool) -> AtomicBool:
+    let p = alloc_zeroed(1, "Int")
+    var val = 0
+    if initial_value:
+        val = 1
+    mem_store(p, val, "Int")
+    return AtomicBool { ptr: p }
+
+pub fn atomic_bool_destroy(a: AtomicBool) -> Int:
+    decay a.ptr
+    return 0
+
+pub fn atomic_bool_load(self: AtomicBool, order: Ordering) -> Bool with Unsafe:
+    var val = 0
+    match order:
+        Ordering::Relaxed => val = atomic_load_relaxed(self.ptr)
+        Ordering::Acquire => val = atomic_load_acquire(self.ptr)
+        Ordering::SeqCst => val = atomic_load_seqcst(self.ptr)
+        _ => val = atomic_load_seqcst(self.ptr)
+    return val != 0
+
+pub fn atomic_bool_store(self: AtomicBool, value: Bool, order: Ordering) -> Bool with Unsafe:
+    var val = 0
+    if value:
+        val = 1
+    
+    match order:
+        Ordering::Relaxed => atomic_store_relaxed(self.ptr, val)
+        Ordering::Release => atomic_store_release(self.ptr, val)
+        Ordering::SeqCst => atomic_store_seqcst(self.ptr, val)
+        _ => atomic_store_seqcst(self.ptr, val)
+    return value
+
+pub fn atomic_bool_exchange(self: AtomicBool, desired: Bool) -> Bool with Unsafe:
+    var val = 0
+    if desired:
+        val = 1
+    let prev = atomic_exchange_acqrel(self.ptr, val)
+    return prev != 0
+
+
+# --- AtomicPtr (Type-Safe Atomic Pointer Wrapper) ---
+
+pub struct AtomicPtr:
+    ptr: ptr<Int>
+
+pub fn atomic_ptr_new(initial_ptr: ptr<Int>) -> AtomicPtr:
+    let p = alloc_zeroed(1, "Int")
+    mem_store(p, ptr_to_int(initial_ptr), "Int")
+    return AtomicPtr { ptr: p }
+
+pub fn atomic_ptr_destroy(a: AtomicPtr) -> Int:
+    decay a.ptr
+    return 0
+
+pub fn atomic_ptr_load(self: AtomicPtr, order: Ordering) -> ptr<Int> with Unsafe:
+    var val = 0
+    match order:
+        Ordering::Relaxed => val = atomic_load_relaxed(self.ptr)
+        Ordering::Acquire => val = atomic_load_acquire(self.ptr)
+        Ordering::SeqCst => val = atomic_load_seqcst(self.ptr)
+        _ => val = atomic_load_seqcst(self.ptr)
+    return int_to_ptr(val, "Int")
+
+pub fn atomic_ptr_store(self: AtomicPtr, value: ptr<Int>, order: Ordering) -> ptr<Int> with Unsafe:
+    let val = ptr_to_int(value)
+    match order:
+        Ordering::Relaxed => atomic_store_relaxed(self.ptr, val)
+        Ordering::Release => atomic_store_release(self.ptr, val)
+        Ordering::SeqCst => atomic_store_seqcst(self.ptr, val)
+        _ => atomic_store_seqcst(self.ptr, val)
+    return value
+
+pub fn atomic_ptr_exchange(self: AtomicPtr, desired: ptr<Int>) -> ptr<Int> with Unsafe:
+    let prev = atomic_exchange_acqrel(self.ptr, ptr_to_int(desired))
+    return int_to_ptr(prev, "Int")

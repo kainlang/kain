@@ -6,15 +6,37 @@ actor Gate:
     on Probe(reply_to: P, request: Int):
         send reply_to.Reply(value = request == 7)
 
+actor Banner:
+    state text: String = "hello from kain"
+
+    on Speak(outbox: P, request: Int):
+        if request == 0:
+            send outbox.Reply(value = self.text)
+            return
+        send outbox.Reply(value = "unexpected")
+
 fn main() -> Int:
     let _runtime = native_runtime_init()
     let echo = spawn Echo()
     let gate = spawn Gate()
+    let banner = spawn Banner()
     let first = ask(echo, "Call", 9)
     let second = ask_timeout(echo, "Call", 40, 1000)
     let allowed: Bool = ask(gate, "Probe", 7)
     let denied: Bool = ask_timeout(gate, "Probe", 9, 1000)
+    let spoken: String = ask(banner, "Speak", 0)
+    let spoken_timeout: String = ask_timeout(banner, "Speak", 0, 1000)
     let _shutdown = native_runtime_shutdown()
-    if first == 10 and second == 41 and allowed and denied == false:
-        return 0
-    return 1
+    if first != 10:
+        return 1
+    if second != 41:
+        return 2
+    if allowed == false:
+        return 3
+    if denied:
+        return 4
+    if spoken != "hello from kain":
+        return 5
+    if spoken_timeout != "hello from kain":
+        return 6
+    return 0

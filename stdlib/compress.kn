@@ -1,0 +1,122 @@
+use std::memory
+use std::io
+
+# --- RleCompressionWriter (Streamable Run-Length Encoder) ---
+
+pub struct RleCompressionWriter:
+    dest: ptr<BufferedWriter>
+    last_char: ptr<Int>
+    run_count: ptr<Int>
+
+pub fn rle_writer_new(dest: ptr<BufferedWriter>) -> RleCompressionWriter:
+    let last = alloc_zeroed(1, "Int")
+    let count = alloc_zeroed(1, "Int")
+    mem_store(last, -1, "Int")
+    mem_store(count, 0, "Int")
+    return RleCompressionWriter {
+        dest: dest,
+        last_char: last,
+        run_count: count
+    }
+
+pub fn rle_writer_destroy(w: RleCompressionWriter) -> Int:
+    decay w.last_char
+    decay w.run_count
+    return 0
+
+# Appends a byte/word value to the compressed stream.
+# Automatically flushes runs when they hit the 255 byte threshold.
+pub fn rle_writer_write_char(w: ptr<RleCompressionWriter>, c: Int, flush_target: ptr<Int>) -> Int with Unsafe:
+    let last = mem_load(w.last_char, "Int")
+    let count = mem_load(w.run_count, "Int")
+    let dest = w.dest
+
+    if last == -1:
+        # First character
+        mem_store(w.last_char, c, "Int")
+        mem_store(w.run_count, 1, "Int")
+        return 0
+
+    if c == last and count < 255:
+        mem_store(w.run_count, count + 1, "Int")
+    else:
+        # Flush the old run
+        let pair = alloc_zeroed(2, "Int")
+        mem_store(ptr_offset(pair, 0, "Int"), last, "Int")
+        mem_store(ptr_offset(pair, 1, "Int"), count, "Int")
+        let _ignored = buffered_writer_write(dest, pair, 2, flush_target)
+        decay pair
+
+        # Start a new run
+        mem_store(w.last_char, c, "Int")
+        mem_store(w.run_count, 1, "Int")
+    
+    return 0
+
+# Flushes all remaining compressed runs to the destination writer.
+pub fn rle_writer_flush(w: ptr<RleCompressionWriter>, flush_target: ptr<Int>) -> Int with Unsafe:
+    let last = mem_load(w.last_char, "Int")
+    let count = mem_load(w.run_count, "Int")
+    let dest = w.dest
+
+    if last != -1 and count > 0:
+        let pair = alloc_zeroed(2, "Int")
+        mem_store(ptr_offset(pair, 0, "Int"), last, "Int")
+        mem_store(ptr_offset(pair, 1, "Int"), count, "Int")
+        let _ignored = buffered_writer_write(dest, pair, 2, flush_target)
+        decay pair
+        
+        mem_store(w.last_char, -1, "Int")
+        mem_store(w.run_count, 0, "Int")
+        return 1
+    
+    return 0
+
+
+# --- RleCompressionReader (Streamable Run-Length Decoder) ---
+
+pub struct RleCompressionReader:
+    src: ptr<BufferedReader>
+    current_char: ptr<Int>
+    remaining_runs: ptr<Int>
+
+pub fn rle_reader_new(src: ptr<BufferedReader>) -> RleCompressionReader:
+    let curr = alloc_zeroed(1, "Int")
+    let rem = alloc_zeroed(1, "Int")
+    mem_store(curr, -1, "Int")
+    mem_store(rem, 0, "Int")
+    return RleCompressionReader {
+        src: src,
+        current_char: curr,
+        remaining_runs: rem
+    }
+
+pub fn rle_reader_destroy(r: RleCompressionReader) -> Int:
+    decay r.current_char
+    decay r.remaining_runs
+    return 0
+
+# Reads a decompressed byte/word from the stream, resolving compressed runs on the fly.
+pub fn rle_reader_read_char(r: ptr<RleCompressionReader>) -> Int with Unsafe:
+    let curr = mem_load(r.current_char, "Int")
+    let rem = mem_load(r.remaining_runs, "Int")
+    let src = r.src
+
+    if rem > 0:
+        mem_store(r.remaining_runs, rem - 1, "Int")
+        return curr
+
+    # Read next run pair (character, count) from the buffered reader
+    let pair = alloc_zeroed(2, "Int")
+    let read_count = buffered_reader_read(src, pair, 2)
+    if read_count < 2:
+        decay pair
+        return -1 # EOF or partial read
+    
+    let next_char = mem_load(ptr_offset(pair, 0, "Int"), "Int")
+    let next_count = mem_load(ptr_offset(pair, 1, "Int"), "Int")
+    decay pair
+
+    mem_store(r.current_char, next_char, "Int")
+    mem_store(r.remaining_runs, next_count - 1, "Int")
+    return next_char

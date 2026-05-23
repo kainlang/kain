@@ -1,7 +1,7 @@
 use std::random
 use std::intent
 
-pub fn smoke_random_lane() -> Int:
+pub fn smoke_random_lane() -> Int with Unsafe:
     # 1. Test Xoshiro128 creation and deterministic sequence
     let rng = xoshiro128_new(42)
     if rng.s0 == 0:

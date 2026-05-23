@@ -153,15 +153,15 @@
 ---
 
 ## 2026-05-23 - actor ask / LLVM native authoring
-### `ask(...)->String` actor replies can materialize as integer-looking output in LLVM/native runs
+### `ask(...)->String` actor replies used to materialize as integer-looking output in LLVM/native runs
 - Categories: correctness, developer-experience, lowering, runtime
-- Status: Bypass-Applied
+- Status: Patched
 - Surface: lowering
 - Symptom: an authored actor reply that should carry a `String` can arrive at the caller as a large integer-looking value instead of the text payload.
 - Workflow impact: `blades/kg` initially searched correctly but printed nonsense like `1459838791848` in place of matching lines when `main()` asked worker actors for their accumulated output strings. The blade had to switch to actor-local `Flush` messages and reserve `ask(...)` for integer telemetry only.
 - Minimal repro: author an actor with `state text: String = "hello"` and an `Output` handler that replies with `self.text`, then `print(ask(worker, "Output", 0))` under `kain run <file> --target llvm`.
-- Evidence: before the `Flush` reroute, `D:\Kain-Lang\kg.exe 'kg_parse_config' 'D:\Kain-Lang\blades\kg\src\main.kn' --line-number` produced a bare integer-like payload instead of the two matching source lines; after removing the `String` ask-reply path, the same command printed the expected lines.
-- Suggested direction: track actor reply payload types for `String` the same way runtime-array/string element typing is now tracked in LLVM lowering, and add a native fixture that asks an actor for exact string output.
+- Evidence: before the `Flush` reroute, `D:\Kain-Lang\kg.exe 'kg_parse_config' 'D:\Kain-Lang\blades\kg\src\main.kn' --line-number` produced a bare integer-like payload instead of the two matching source lines. On 2026-05-23, LLVM/native lowering was patched to carry actor reply payload types, handler reply-contract inference was fixed for generic reply-port parameter names, and actor spawn lowering was fixed to honor authored state defaults instead of silently zero-filling omitted fields. `D:\Kain-Lang\runtime\fixtures\native_actor_ask_roundtrip\main.kn` now proves `Int`, `Bool`, and `String` ask/reply roundtrips under `kain run ... --target llvm`, including a `String` reply through a non-`reply_to` generic port name.
+- Suggested direction: keep the fixture in the native proof lane so future actor/lowering work cannot regress `String` ask replies or actor state default initialization.
 
 ---
 

@@ -1,0 +1,127 @@
+use std::runtime
+use std::memory
+use std::io
+
+pub fn smoke_io_lane() -> Int with Unsafe:
+    # 1. Test RingBuffer circular boundaries
+    let rb = ring_buffer_new(5) # capacity 5
+    let rb_ptr: ptr<RingBuffer> = addr_of(rb, "RingBuffer")
+    
+    # We allocate some stack-like test memory words
+    let src = alloc_zeroed(5, "Int")
+    let dest = alloc_zeroed(5, "Int")
+
+    # Load src values
+    mem_store(ptr_offset(src, 0, "Int"), 10, "Int")
+    mem_store(ptr_offset(src, 1, "Int"), 20, "Int")
+    mem_store(ptr_offset(src, 2, "Int"), 30, "Int")
+    mem_store(ptr_offset(src, 3, "Int"), 40, "Int")
+    mem_store(ptr_offset(src, 4, "Int"), 50, "Int")
+
+    # Initial available write space should be 4 (capacity - 1 for boundary)
+    if ring_buffer_available_write(rb) != 4:
+        return 101
+
+    # Write 3 words to ring buffer
+    let w1 = ring_buffer_write(rb_ptr, src, 3)
+    if w1 != 3:
+        return 102
+    
+    if ring_buffer_available_read(rb) != 3:
+        return 103
+    if ring_buffer_available_write(rb) != 1:
+        return 104
+
+    # Read 2 words out
+    let r1 = ring_buffer_read(rb_ptr, dest, 2)
+    if r1 != 2:
+        return 105
+    if mem_load(ptr_offset(dest, 0, "Int"), "Int") != 10 or mem_load(ptr_offset(dest, 1, "Int"), "Int") != 20:
+        return 106
+
+    # Ring buffer pos wrapped around. Write 2 more words (30, 40)
+    # The buffer now has 1 unread word (30).
+    let w2 = ring_buffer_write(rb_ptr, ptr_offset(src, 3, "Int"), 2)
+    if w2 != 2:
+        return 107
+
+    # Cleanup memory
+    decay src
+    decay dest
+    ring_buffer_destroy(rb)
+
+
+    # 2. Test growable StringBuilder reallocations
+    let sb = string_builder_new(4) # start small to trigger reallocation
+    let sb_ptr: ptr<StringBuilder> = addr_of(sb, "StringBuilder")
+    
+    # Append chars 'K', 'a', 'i', 'n'
+    let _a1 = string_builder_append_char(sb_ptr, 75)  # K
+    let _a2 = string_builder_append_char(sb_ptr, 97)  # a
+    let _a3 = string_builder_append_char(sb_ptr, 105) # i
+    let _a4 = string_builder_append_char(sb_ptr, 110) # n
+
+    if sb.len != 4:
+        return 108
+
+    # Append String "-lang" (this triggers capacity doubling)
+    let _a5 = string_builder_append_string(sb_ptr, "-lang")
+    if sb.len != 9:
+        return 109
+
+    # Materialize final string
+    let materialized = string_builder_to_string(sb)
+    if materialized != "Kain-lang":
+        return 110
+
+    string_builder_destroy(sb)
+
+
+    # 3. Test BufferedReader & BufferedWriter composing
+    let br = buffered_reader_new(8)
+    let bw = buffered_writer_new(4)
+    let br_ptr: ptr<BufferedReader> = addr_of(br, "BufferedReader")
+    let bw_ptr: ptr<BufferedWriter> = addr_of(bw, "BufferedWriter")
+
+    let test_buf = alloc_zeroed(8, "Int")
+    let read_buf = alloc_zeroed(8, "Int")
+    let target_buf = alloc_zeroed(8, "Int")
+
+    # Load test values
+    mem_store(ptr_offset(test_buf, 0, "Int"), 100, "Int")
+    mem_store(ptr_offset(test_buf, 1, "Int"), 200, "Int")
+    mem_store(ptr_offset(test_buf, 2, "Int"), 300, "Int")
+    mem_store(ptr_offset(test_buf, 3, "Int"), 400, "Int")
+    mem_store(ptr_offset(test_buf, 4, "Int"), 500, "Int")
+
+    # Fill reader
+    let filled = buffered_reader_fill(br_ptr, test_buf, 5)
+    if filled != 5:
+        return 111
+
+    # Read from reader
+    let read_bytes = buffered_reader_read(br_ptr, read_buf, 3)
+    if read_bytes != 3:
+        return 112
+    if mem_load(ptr_offset(read_buf, 0, "Int"), "Int") != 100 or mem_load(ptr_offset(read_buf, 2, "Int"), "Int") != 300:
+        return 113
+
+    # Write to writer (writes 3 items into writer capacity 4)
+    let written = buffered_writer_write(bw_ptr, read_buf, 3, target_buf)
+    if written != 3:
+        return 114
+
+    # Flush writer to complete transfer
+    let flushed = buffered_writer_flush(bw_ptr, target_buf)
+    if flushed != 3:
+        return 115
+    if mem_load(ptr_offset(target_buf, 0, "Int"), "Int") != 100 or mem_load(ptr_offset(target_buf, 2, "Int"), "Int") != 300:
+        return 116
+
+    decay test_buf
+    decay read_buf
+    decay target_buf
+    buffered_reader_destroy(br)
+    buffered_writer_destroy(bw)
+
+    return 0

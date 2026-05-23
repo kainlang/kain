@@ -1,4 +1,5 @@
 use std::ascii
+use std::bytes
 use std::collections
 
 pub struct TextSlice:
@@ -10,6 +11,21 @@ pub struct StringView:
     source: String
     start: Int
     length: Int
+
+pub struct TextUnescapeResult:
+    ok: Bool
+    value: String
+    error: String
+
+fn text_unescape_error(message: String) -> TextUnescapeResult:
+    return TextUnescapeResult {
+        ok: false,
+        value: "",
+        error: message
+    }
+
+fn text_escape_hex_byte(value: Int) -> String:
+    return ascii_hex_char_lower((value >> 4) & 15) + ascii_hex_char_lower(value & 15)
 
 pub fn text_slice(source: String, start: Int, length: Int) -> TextSlice:
     let source_len = len(source)
@@ -140,6 +156,105 @@ pub fn text_trim(view: TextSlice) -> TextSlice:
 pub fn text_materialize(view: TextSlice) -> String:
     return substring(view.source, view.start, text_end(view))
 
+pub fn text_as_bytes(view: TextSlice) -> ByteSlice:
+    return bytes_slice(view.source, view.start, view.length)
+
+pub fn text_from_bytes(view: ByteSlice) -> TextSlice:
+    return text_slice(view.source, view.start, view.length)
+
+pub fn text_bytes_array(view: TextSlice) -> Array<Int>:
+    return bytes_array(text_as_bytes(view))
+
+pub fn text_from_byte_array(values: Array<Int>) -> String:
+    return bytes_from_array(values)
+
+pub fn text_escape_basic(source: String) -> String:
+    var output = ""
+    var index = 0
+    while index < len(source):
+        let code = byte_at(source, index)
+        let ch = char_at(source, index)
+        if ch == "\\":
+            output = output + "\\\\"
+        else:
+            if ch == "\"":
+                output = output + "\\\""
+            else:
+                if code == 8:
+                    output = output + "\\b"
+                else:
+                    if code == 9:
+                        output = output + "\\t"
+                    else:
+                        if code == 10:
+                            output = output + "\\n"
+                        else:
+                            if code == 12:
+                                output = output + "\\f"
+                            else:
+                                if code == 13:
+                                    output = output + "\\r"
+                                else:
+                                    if code >= 0 and code < 32:
+                                        output = output + "\\x" + text_escape_hex_byte(code)
+                                    else:
+                                        output = output + ch
+        index = index + 1
+    return output
+
+pub fn text_unescape_basic(source: String) -> TextUnescapeResult:
+    var output = ""
+    var index = 0
+    while index < len(source):
+        let ch = char_at(source, index)
+        if ch != "\\":
+            output = output + ch
+            index = index + 1
+        else:
+            if index + 1 >= len(source):
+                return text_unescape_error("trailing escape")
+            let esc = char_at(source, index + 1)
+            if esc == "\\" or esc == "\"" or esc == "'":
+                output = output + esc
+                index = index + 2
+            else:
+                if esc == "b":
+                    output = output + chr(8)
+                    index = index + 2
+                else:
+                    if esc == "t":
+                        output = output + chr(9)
+                        index = index + 2
+                    else:
+                        if esc == "n":
+                            output = output + chr(10)
+                            index = index + 2
+                        else:
+                            if esc == "f":
+                                output = output + chr(12)
+                                index = index + 2
+                            else:
+                                if esc == "r":
+                                    output = output + chr(13)
+                                    index = index + 2
+                                else:
+                                    if esc == "x":
+                                        if index + 3 >= len(source):
+                                            return text_unescape_error("short hex escape")
+                                        let high = ascii_hex_value_byte(byte_at(source, index + 2))
+                                        let low = ascii_hex_value_byte(byte_at(source, index + 3))
+                                        if high < 0 or low < 0:
+                                            return text_unescape_error("invalid hex escape")
+                                        output = output + chr((high << 4) | low)
+                                        index = index + 4
+                                    else:
+                                        return text_unescape_error("unsupported escape `" + esc + "`")
+    return TextUnescapeResult {
+        ok: true,
+        value: output,
+        error: ""
+    }
+
 pub fn text_lines(view: TextSlice) -> Array<String>:
     return text_split_lines(text_materialize(view))
 
@@ -160,6 +275,24 @@ pub fn string_view_to_text(view: StringView) -> TextSlice:
 
 pub fn string_view_materialize(view: StringView) -> String:
     return text_materialize(string_view_to_text(view))
+
+pub fn text_builder_new() -> BytesBuilder:
+    return bytes_builder_new()
+
+pub fn text_builder_len(builder: BytesBuilder) -> Int:
+    return bytes_builder_len(builder)
+
+pub fn text_builder_push(builder: BytesBuilder, value: String) -> BytesBuilder:
+    return bytes_builder_push_string(builder, value)
+
+pub fn text_builder_push_view(builder: BytesBuilder, view: TextSlice) -> BytesBuilder:
+    return bytes_builder_push_slice(builder, text_as_bytes(view))
+
+pub fn text_builder_push_char_code(builder: BytesBuilder, codepoint: Int) -> BytesBuilder:
+    return bytes_builder_push_byte(builder, codepoint)
+
+pub fn text_builder_build(builder: BytesBuilder) -> String:
+    return bytes_builder_build(builder)
 
 pub fn text_trim_string(source: String) -> String:
     return trim(source)

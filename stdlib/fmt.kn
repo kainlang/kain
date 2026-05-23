@@ -1,4 +1,8 @@
 use std::ascii
+use std::bytes
+
+pub struct FmtWriter:
+    builder: BytesBuilder
 
 fn fmt_pad_token(pad: String) -> String:
     if len(pad) == 0:
@@ -7,6 +11,58 @@ fn fmt_pad_token(pad: String) -> String:
 
 pub fn fmt_string(value: String) -> String:
     return value
+
+pub fn fmt_writer_new() -> FmtWriter:
+    return FmtWriter { builder: bytes_builder_new() }
+
+pub fn fmt_writer_len(writer: FmtWriter) -> Int:
+    return bytes_builder_len(writer.builder)
+
+pub fn fmt_writer_push_string(writer: FmtWriter, value: String) -> FmtWriter:
+    return FmtWriter {
+        builder: bytes_builder_push_string(writer.builder, value)
+    }
+
+pub fn fmt_writer_push_any(writer: FmtWriter, value: Any) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_any(value))
+
+pub fn fmt_writer_push_int(writer: FmtWriter, value: Int) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_int(value))
+
+pub fn fmt_writer_push_float(writer: FmtWriter, value: Float) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_float(value))
+
+pub fn fmt_writer_push_bool_word(writer: FmtWriter, value: Bool) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_bool_word(value))
+
+pub fn fmt_writer_push_hex_int(writer: FmtWriter, value: Int) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_hex_int(value))
+
+pub fn fmt_writer_push_binary_int(writer: FmtWriter, value: Int) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_binary_int(value))
+
+pub fn fmt_writer_push_json_string(writer: FmtWriter, value: String) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_json_string(value))
+
+pub fn fmt_writer_push_key_value(writer: FmtWriter, key: String, value: String) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_key_value(key, value))
+
+pub fn fmt_writer_push_line(writer: FmtWriter, value: String) -> FmtWriter:
+    let next_writer = fmt_writer_push_string(writer, value)
+    return fmt_writer_push_string(next_writer, "\n")
+
+pub fn fmt_writer_push_prefixed_lines(writer: FmtWriter, prefix: String, lines: Array<String>) -> FmtWriter:
+    var next_writer = writer
+    var index = 0
+    while index < len(lines):
+        if index > 0:
+            next_writer = fmt_writer_push_string(next_writer, "\n")
+        next_writer = fmt_writer_push_string(next_writer, prefix + lines[index])
+        index = index + 1
+    return next_writer
+
+pub fn fmt_writer_build(writer: FmtWriter) -> String:
+    return bytes_builder_build(writer.builder)
 
 pub fn fmt_any(value: Any) -> String:
     return to_string(value)

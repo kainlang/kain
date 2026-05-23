@@ -126,9 +126,9 @@ Primary source anchors:
 
 The current native root profile reports:
 
-- `modules=39`
-- `public_symbols=1860`
-- `total_symbols=2445`
+- `modules=45`
+- `public_symbols=2053`
+- `total_symbols=2689`
 - `rust_builtins=235`
 - `native_services=42`
 
@@ -143,6 +143,7 @@ use std::base64
 use std::bench
 use std::bits
 use std::build
+use std::bytes
 use std::certify
 use std::collections
 use std::crypto
@@ -169,11 +170,15 @@ use std::proof
 use std::reload
 use std::result
 use std::runtime
+use std::semver
+use std::sync
 use std::test
 use std::text
 use std::time
 use std::tls
 use std::ui
+use std::unicode
+use std::uri
 ```
 
 Remember that a large symbol count does not mean the root stdlib is done. `stdlib/requirements.md` is the completion truth, not the atlas count.
@@ -216,10 +221,10 @@ For exact signatures and full symbol lists, query the atlas instead of reading i
 
 Use `stdlib/requirements.md` for the authoritative rows, but remember the missing family clusters:
 
-- Text/data basics: `unicode`, `uri`, `semver`, and a likely `bytes` split, plus deeper second-pass work in `std::text`, `std::fmt`, and `std::json`
+- Text/data basics: `unicode`, `uri`, `semver`, and `bytes` now exist; the remaining pressure is deeper second-pass work in `std::fmt`, `std::json`, and richer text/data ergonomics
 - Container/algo depth: generic vectors/maps/sets, typed `SlotMap<T>`, bitsets, sort/search, richer allocator integration
 - Filesystem/path/I/O depth: typed metadata, typed directory entries, path toolkit, file handles, stream abstractions
-- Time/random/sync: richer time model, real RNG family, atomic/sync/thread modules
+- Time/random/sync: time, random, and sync now exist; the remaining root gap is the dedicated `std::atomic` and `std::thread` floor plus any deeper sync/channel evolution
 - Systems and OS surface: `os`, `posix`, better target/meta/reflect coverage
 - Network/process/crypto depth: stronger typed config, streaming, bytes-based APIs, richer status objects
 - Archives and binary tooling: `compress`, `tar`, `zip`, `elf`, `dwarf`, `macho`, `coff`, `pdb`, `wasm`
@@ -239,7 +244,7 @@ When the public root stdlib changes:
 - add or extend `smoketest/src/stdlib/*_lane.kn`
 - import the lane in `smoketest/src/main.kn`
 - call the lane from the album flow in `smoketest/src/main.kn`
-- update `total_tracks` in `smoketest/src/main.kn` when adding a new track; current value is `36`
+- update `total_tracks` in `smoketest/src/main.kn` when adding a new track; current value is `45`
 - add the new source file to the relevant input lists in `smoketest/build.kn`
 - reuse existing stdlib lanes as style anchors:
   - `smoketest/src/stdlib/alloc_lane.kn`

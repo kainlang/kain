@@ -29,3 +29,203 @@ pub fn deadline_millis(duration_millis: Int) -> Int:
 pub fn deadline_elapsed(deadline_millis: Int) -> Bool:
     return native_deadline_elapsed(deadline_millis)
 # end root-domain aliases
+
+# --- Rich Systems Primitives ---
+
+pub struct Duration:
+    millis: Int
+
+pub fn duration_from_millis(ms: Int) -> Duration:
+    return Duration { millis: ms }
+
+pub fn duration_from_secs(secs: Int) -> Duration:
+    return Duration { millis: secs * 1000 }
+
+pub fn duration_from_mins(mins: Int) -> Duration:
+    return Duration { millis: mins * 60000 }
+
+pub fn duration_from_hours(hours: Int) -> Duration:
+    return Duration { millis: hours * 3600000 }
+
+pub fn duration_to_millis(self: Duration) -> Int:
+    return self.millis
+
+pub fn duration_to_secs(self: Duration) -> Int:
+    return self.millis / 1000
+
+pub fn duration_add(a: Duration, b: Duration) -> Duration:
+    return Duration { millis: a.millis + b.millis }
+
+pub fn duration_sub(a: Duration, b: Duration) -> Duration:
+    var diff = a.millis - b.millis
+    if diff < 0:
+        diff = 0
+    return Duration { millis: diff }
+
+pub fn duration_compare(a: Duration, b: Duration) -> Int:
+    if a.millis < b.millis:
+        return -1
+    elif a.millis > b.millis:
+        return 1
+    return 0
+
+
+pub struct Instant:
+    millis: Int
+
+pub fn instant_now() -> Instant:
+    return Instant { millis: now_millis() }
+
+pub fn instant_elapsed(self: Instant) -> Duration:
+    let now = now_millis()
+    var diff = now - self.millis
+    if diff < 0:
+        diff = 0
+    return Duration { millis: diff }
+
+pub fn instant_add_duration(self: Instant, dur: Duration) -> Instant:
+    return Instant { millis: self.millis + dur.millis }
+
+pub fn instant_sub_instant(self: Instant, other: Instant) -> Duration:
+    var diff = self.millis - other.millis
+    if diff < 0:
+        diff = 0
+    return Duration { millis: diff }
+
+pub fn instant_compare(a: Instant, b: Instant) -> Int:
+    if a.millis < b.millis:
+        return -1
+    elif a.millis > b.millis:
+        return 1
+    return 0
+
+
+pub struct Deadline:
+    target: Instant
+
+pub fn deadline_from_duration(dur: Duration) -> Deadline:
+    let now = now_millis()
+    return Deadline { target: Instant { millis: now + dur.millis } }
+
+pub fn deadline_is_elapsed(self: Deadline) -> Bool:
+    return now_millis() >= self.target.millis
+
+pub fn deadline_remaining(self: Deadline) -> Duration:
+    let now = now_millis()
+    var diff = self.target.millis - now
+    if diff < 0:
+        diff = 0
+    return Duration { millis: diff }
+
+
+pub struct Ticker:
+    next_tick: Instant
+    interval: Duration
+
+pub fn ticker_new(interval: Duration) -> Ticker:
+    let now = now_millis()
+    return Ticker { next_tick: Instant { millis: now + interval.millis }, interval: interval }
+
+pub fn ticker_next(t: Ticker) -> Ticker:
+    let now = now_millis()
+    let diff = t.next_tick.millis - now
+    if diff > 0:
+        let _ignored = sleep_millis(diff)
+    return Ticker { next_tick: Instant { millis: t.next_tick.millis + t.interval.millis }, interval: t.interval }
+
+
+# --- Gregorian UTC DateTime Decomposition ---
+
+pub struct DateTime:
+    year: Int
+    month: Int
+    day: Int
+    hour: Int
+    minute: Int
+    second: Int
+    millis: Int
+
+pub fn datetime_from_epoch_millis(epoch_ms: Int) -> DateTime:
+    if epoch_ms < 0:
+        return DateTime {
+            year: 1970,
+            month: 1,
+            day: 1,
+            hour: 0,
+            minute: 0,
+            second: 0,
+            millis: 0
+        }
+
+    let total_secs = epoch_ms / 1000
+    let sub_ms = epoch_ms % 1000
+    
+    var remaining_days = total_secs / 86400
+    let seconds_in_day = total_secs % 86400
+
+    let hour = seconds_in_day / 3600
+    let minutes_in_hour = seconds_in_day % 3600
+    let minute = minutes_in_hour / 60
+    let second = minutes_in_hour % 60
+
+    var year = 1970
+    var done = false
+    while done == false:
+        var days_in_year = 365
+        var is_leap = false
+        if year % 4 == 0:
+            if year % 100 != 0:
+                is_leap = true
+            elif year % 400 == 0:
+                is_leap = true
+        
+        if is_leap:
+            days_in_year = 366
+        
+        if remaining_days >= days_in_year:
+            remaining_days = remaining_days - days_in_year
+            year = year + 1
+        else:
+            done = true
+
+    var month = 1
+    var month_done = false
+    while month_done == false:
+        var days_in_month = 31
+        if month == 2:
+            var is_leap = false
+            if year % 4 == 0:
+                if year % 100 != 0:
+                    is_leap = true
+                elif year % 400 == 0:
+                    is_leap = true
+            
+            if is_leap:
+                days_in_month = 29
+            else:
+                days_in_month = 28
+        elif month == 4:
+            days_in_month = 30
+        elif month == 6:
+            days_in_month = 30
+        elif month == 9:
+            days_in_month = 30
+        elif month == 11:
+            days_in_month = 30
+        
+        if remaining_days >= days_in_month:
+            remaining_days = remaining_days - days_in_month
+            month = month + 1
+        else:
+            month_done = true
+
+    let day = remaining_days + 1
+    return DateTime {
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        millis: sub_ms
+    }

@@ -32,6 +32,7 @@ use native_cli::smoke_native_cli_lane
 // Stdlib tracks
 use ascii_lane::smoke_ascii_lane
 use base64_lane::smoke_base64_lane
+use bytes_lane::smoke_bytes_lane
 use collections_lane::smoke_collections_lane
 use crypto_lane::smoke_crypto_lane
 use alloc_lane::smoke_alloc_lane
@@ -46,6 +47,9 @@ use unicode_lane::smoke_unicode_lane
 use random_lane::smoke_random_lane
 use uri_lane::smoke_uri_lane
 use semver_lane::smoke_semver_lane
+use sync_lane::smoke_sync_lane
+use io_lane::smoke_io_lane
+use meta_lane::smoke_meta_lane
 
 // Interop track
 use c_bridge::smoke_c_bridge_lane
@@ -120,7 +124,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 43
+    let total_tracks: Int = 47
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -509,6 +513,42 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_semver = smoke_first_error(4300, lane_semver)
     if e_semver != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_semver, "stdlib.semver_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_sync = now_millis()
+    let lane_sync = smoke_sync_lane()
+    let ended_sync = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.sync_lane", "sync", 44, 4400, lane_sync, started_sync, ended_sync, composition_checksum)
+    let e_sync = smoke_first_error(4400, lane_sync)
+    if e_sync != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_sync, "stdlib.sync_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_bytes = now_millis()
+    let lane_bytes = smoke_bytes_lane()
+    let ended_bytes = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.bytes_lane", "bytes", 45, 4500, lane_bytes, started_bytes, ended_bytes, composition_checksum)
+    let e_bytes = smoke_first_error(4500, lane_bytes)
+    if e_bytes != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_bytes, "stdlib.bytes_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_io = now_millis()
+    let lane_io = smoke_io_lane()
+    let ended_io = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.io_lane", "io", 46, 4600, lane_io, started_io, ended_io, composition_checksum)
+    let e_io = smoke_first_error(4600, lane_io)
+    if e_io != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_io, "stdlib.io_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_meta = now_millis()
+    let lane_meta = smoke_meta_lane()
+    let ended_meta = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.meta_lane", "meta", 47, 4700, lane_meta, started_meta, ended_meta, composition_checksum)
+    let e_meta = smoke_first_error(4700, lane_meta)
+    if e_meta != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_meta, "stdlib.meta_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1

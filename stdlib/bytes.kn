@@ -1,0 +1,196 @@
+use std::ascii
+use std::base64
+use std::collections
+
+pub struct ByteSlice:
+    source: String
+    start: Int
+    length: Int
+
+pub struct BytesBuilder:
+    buffer: String
+
+pub struct BytesDecodeResult:
+    ok: Bool
+    value: String
+    error: String
+
+fn bytes_decode_error(message: String) -> BytesDecodeResult:
+    return BytesDecodeResult {
+        ok: false,
+        value: "",
+        error: message
+    }
+
+fn bytes_hex_text_is_valid(text: String) -> Bool:
+    if (len(text) % 2) != 0:
+        return false
+    var index = 0
+    while index < len(text):
+        if ascii_hex_value_byte(byte_at(text, index)) < 0:
+            return false
+        index = index + 1
+    return true
+
+pub fn bytes_slice(source: String, start: Int, length: Int) -> ByteSlice:
+    let source_len = len(source)
+    let safe_start = int_clamp(start, 0, source_len)
+    let safe_length = int_clamp(length, 0, source_len - safe_start)
+    return ByteSlice {
+        source: source,
+        start: safe_start,
+        length: safe_length
+    }
+
+pub fn bytes_from(source: String) -> ByteSlice:
+    return bytes_slice(source, 0, len(source))
+
+pub fn bytes_len(view: ByteSlice) -> Int:
+    return view.length
+
+pub fn bytes_is_empty(view: ByteSlice) -> Bool:
+    return view.length == 0
+
+pub fn bytes_byte_at(view: ByteSlice, index: Int) -> Int:
+    if index < 0:
+        return 0
+    if index >= view.length:
+        return 0
+    return byte_at(view.source, view.start + index)
+
+pub fn bytes_char_at(view: ByteSlice, index: Int) -> String:
+    if index < 0:
+        return ""
+    if index >= view.length:
+        return ""
+    return char_at(view.source, view.start + index)
+
+pub fn bytes_find_from(view: ByteSlice, needle: String, start: Int) -> Int:
+    let safe_start = int_clamp(start, 0, view.length)
+    if len(needle) == 0:
+        return safe_start
+    if len(needle) > view.length - safe_start:
+        return -1
+    let found = find_substring_from(view.source, needle, view.start + safe_start)
+    if found < view.start + safe_start:
+        return -1
+    if found + len(needle) > view.start + view.length:
+        return -1
+    return found - view.start
+
+pub fn bytes_find(view: ByteSlice, needle: String) -> Int:
+    return bytes_find_from(view, needle, 0)
+
+pub fn bytes_contains(view: ByteSlice, needle: String) -> Bool:
+    return bytes_find(view, needle) >= 0
+
+pub fn bytes_starts_with(view: ByteSlice, prefix: String) -> Bool:
+    if len(prefix) > view.length:
+        return false
+    return bytes_find_from(view, prefix, 0) == 0
+
+pub fn bytes_ends_with(view: ByteSlice, suffix: String) -> Bool:
+    let suffix_len = len(suffix)
+    if suffix_len > view.length:
+        return false
+    return bytes_find_from(view, suffix, view.length - suffix_len) == view.length - suffix_len
+
+pub fn bytes_count(view: ByteSlice, needle: String) -> Int:
+    let needle_len = len(needle)
+    if needle_len == 0:
+        return 0
+    var total = 0
+    var cursor = 0
+    while cursor < view.length:
+        let found = bytes_find_from(view, needle, cursor)
+        if found < 0:
+            return total
+        total = total + 1
+        cursor = found + needle_len
+    return total
+
+pub fn bytes_subslice(view: ByteSlice, start: Int, length: Int) -> ByteSlice:
+    let safe_start = int_clamp(start, 0, view.length)
+    let safe_length = int_clamp(length, 0, view.length - safe_start)
+    return bytes_slice(view.source, view.start + safe_start, safe_length)
+
+pub fn bytes_materialize(view: ByteSlice) -> String:
+    return substring(view.source, view.start, view.start + view.length)
+
+pub fn bytes_equals_string(view: ByteSlice, other: String) -> Bool:
+    if view.length != len(other):
+        return false
+    var index = 0
+    while index < view.length:
+        if bytes_byte_at(view, index) != byte_at(other, index):
+            return false
+        index = index + 1
+    return true
+
+pub fn bytes_equals(left: ByteSlice, right: ByteSlice) -> Bool:
+    if left.length != right.length:
+        return false
+    var index = 0
+    while index < left.length:
+        if bytes_byte_at(left, index) != bytes_byte_at(right, index):
+            return false
+        index = index + 1
+    return true
+
+pub fn bytes_array(view: ByteSlice) -> Array<Int>:
+    let mut items: Array<Int> = []
+    var index = 0
+    while index < view.length:
+        push(items, bytes_byte_at(view, index))
+        index = index + 1
+    return items
+
+pub fn bytes_from_array(values: Array<Int>) -> String:
+    var output = ""
+    var index = 0
+    while index < len(values):
+        output = output + chr(values[index] & 255)
+        index = index + 1
+    return output
+
+pub fn bytes_hex(value: String) -> String:
+    return hex_encode(value)
+
+pub fn bytes_hex_upper(value: String) -> String:
+    return hex_encode_upper(value)
+
+pub fn bytes_from_hex(text: String) -> BytesDecodeResult:
+    if bytes_hex_text_is_valid(text) == false:
+        return bytes_decode_error("hex text must have even length and only hexadecimal digits")
+    return BytesDecodeResult {
+        ok: true,
+        value: hex_decode(text),
+        error: ""
+    }
+
+pub fn bytes_builder_new() -> BytesBuilder:
+    return BytesBuilder { buffer: "" }
+
+pub fn bytes_builder_len(builder: BytesBuilder) -> Int:
+    return len(builder.buffer)
+
+pub fn bytes_builder_push_byte(builder: BytesBuilder, value: Int) -> BytesBuilder:
+    return BytesBuilder { buffer: builder.buffer + chr(value & 255) }
+
+pub fn bytes_builder_push_string(builder: BytesBuilder, value: String) -> BytesBuilder:
+    return BytesBuilder { buffer: builder.buffer + value }
+
+pub fn bytes_builder_push_slice(builder: BytesBuilder, view: ByteSlice) -> BytesBuilder:
+    return bytes_builder_push_string(builder, bytes_materialize(view))
+
+pub fn bytes_builder_push_array(builder: BytesBuilder, values: Array<Int>) -> BytesBuilder:
+    return bytes_builder_push_string(builder, bytes_from_array(values))
+
+pub fn bytes_builder_clear(builder: BytesBuilder) -> BytesBuilder:
+    return BytesBuilder { buffer: "" }
+
+pub fn bytes_builder_build(builder: BytesBuilder) -> String:
+    return builder.buffer
+
+pub fn bytes_builder_view(builder: BytesBuilder) -> ByteSlice:
+    return bytes_from(builder.buffer)

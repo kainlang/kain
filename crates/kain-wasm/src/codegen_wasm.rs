@@ -44,6 +44,12 @@ mod tests {
         check(&program, &mapper, filename).expect("typecheck")
     }
 
+    fn assert_valid_wasm(bytes: &[u8]) {
+        walrus::ModuleConfig::new()
+            .parse(bytes)
+            .expect("generated wasm validates");
+    }
+
     #[test]
     fn wasm_generate_handles_lowered_union_and_bitfield_memory_helpers() {
         let span = kain_core::span::Span::default();
@@ -165,6 +171,7 @@ mod tests {
         let typed = check(&program, &mapper, "wasm_low_level.kn").expect("typecheck");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
     }
 
     #[test]
@@ -186,6 +193,7 @@ fn main() -> Int:
         let typed = parse_and_typecheck(source, "wasm_indexed_packets.kn");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
     }
 
     #[test]
@@ -208,6 +216,7 @@ fn main() -> Int:
         let typed = parse_and_typecheck(source, "wasm_actor_helper.kn");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
     }
 
     #[test]
@@ -233,6 +242,7 @@ fn main() -> Float:
         let typed = parse_and_typecheck(source, "wasm_function_vector_layout.kn");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
     }
 
     #[test]
@@ -262,6 +272,7 @@ fn main() -> Float:
         let typed = parse_and_typecheck(source, "wasm_if_vector_layout.kn");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
     }
 
     #[test]
@@ -289,6 +300,7 @@ fn main() -> Float:
         let typed = parse_and_typecheck(source, "wasm_if_param_branch_layout.kn");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
     }
 
     #[test]
@@ -301,6 +313,71 @@ fn main() -> Float:
         let typed = parse_and_typecheck(source, "wasm_constructor_casts.kn");
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
+    }
+
+    #[test]
+    fn wasm_generate_validates_if_expression_float_branches() {
+        let source = r#"
+struct ProbeVec3:
+    x: Float
+    y: Float
+    z: Float
+
+struct Ray:
+    direction: ProbeVec3
+
+fn main() -> Float:
+    let ray = Ray { direction: ProbeVec3 { x: 0.0, y: 2.0, z: 4.0 } }
+    let inv_x = if abs(ray.direction.x) <= 0.000001: 1000000000.0 else: 1.0 / ray.direction.x
+    let inv_y = if abs(ray.direction.y) <= 0.000001: 1000000000.0 else: 1.0 / ray.direction.y
+    return inv_x + inv_y
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_if_float_branches.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
+    }
+
+    #[test]
+    fn wasm_generate_validates_parenthesized_nested_float_field_arithmetic() {
+        let source = r#"
+struct ProbeVec3:
+    x: Float
+    y: Float
+    z: Float
+
+struct ProbeBounds:
+    min: ProbeVec3
+
+struct ProbeRay:
+    origin: ProbeVec3
+
+fn main(bounds: ProbeBounds, ray: ProbeRay) -> Float:
+    return (bounds.min.x - ray.origin.x) * 2.0
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_parenthesized_nested_float_fields.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
+    }
+
+    #[test]
+    fn wasm_generate_validates_statement_if_assigning_float_locals() {
+        let source = r#"
+fn main(value: Float) -> Float:
+    var hue = 0.0
+    if value > 0.0:
+        hue = value + 1.0
+    return hue
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_statement_if_float_local.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+        assert_valid_wasm(&wasm);
     }
 }
 
@@ -3656,6 +3733,21 @@ impl WasmCompiler {
 
     fn infer_expr_wasm_type_in_context(&self, ctx: &CompilationContext, expr: &Expr) -> ValType {
         match expr {
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Ref { value: inner, .. }
+            | Expr::AddrOf { value: inner, .. }
+            | Expr::Comptime(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Try(inner, _) => self.infer_expr_wasm_type_in_context(ctx, inner),
+            Expr::Observe { body: inner, .. } | Expr::Collapse { body: inner, .. } => {
+                self.infer_expr_wasm_type_in_context(ctx, inner)
+            }
+            Expr::Teleport { value, .. } => self.infer_expr_wasm_type_in_context(ctx, value),
+            Expr::Cast { target, .. } | Expr::Bitcast { target, .. } => {
+                self.map_authored_type(target)
+            }
             Expr::Field { object, field, .. } => self
                 .infer_field_val_type_in_context(ctx, object, field)
                 .unwrap_or_else(|| self.infer_wasm_type_with_locals(&ctx.locals, expr)),
@@ -3689,6 +3781,42 @@ impl WasmCompiler {
                 .get(method)
                 .and_then(|func_id| self.function_result_type(*func_id))
                 .unwrap_or_else(|| self.infer_wasm_type_with_locals(&ctx.locals, expr)),
+            Expr::Binary {
+                op, left, right, ..
+            } => match op {
+                BinaryOp::Eq
+                | BinaryOp::Ne
+                | BinaryOp::Lt
+                | BinaryOp::Gt
+                | BinaryOp::Le
+                | BinaryOp::Ge
+                | BinaryOp::And
+                | BinaryOp::Or => ValType::I32,
+                BinaryOp::Add => {
+                    let left_ty = self.infer_expr_wasm_type_in_context(ctx, left);
+                    let right_ty = self.infer_expr_wasm_type_in_context(ctx, right);
+                    if left_ty == ValType::I32 && right_ty == ValType::I32 {
+                        ValType::I32
+                    } else if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+                _ => {
+                    let left_ty = self.infer_expr_wasm_type_in_context(ctx, left);
+                    let right_ty = self.infer_expr_wasm_type_in_context(ctx, right);
+                    if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+            },
+            Expr::Unary { op, operand, .. } => match op {
+                kain_core::ast::UnaryOp::Not => ValType::I32,
+                _ => self.infer_expr_wasm_type_in_context(ctx, operand),
+            },
             _ => self.infer_wasm_type_with_locals(&ctx.locals, expr),
         }
     }
@@ -3805,13 +3933,13 @@ impl WasmCompiler {
             param_local_ids.push(local_id);
         }
 
-        self.preallocate_locals(&handler_info.body, &mut locals);
-        let mut actor_locals = HashMap::new();
-        actor_locals.insert("self".to_string(), actor.ast.name.clone());
-        self.collect_actor_locals_in_block(&handler_info.body, &mut actor_locals);
         let mut layout_locals = HashMap::new();
         layout_locals.insert("self".to_string(), actor.ast.name.clone());
         self.collect_layout_locals_in_block(&handler_info.body, &mut layout_locals);
+        self.preallocate_locals(&handler_info.body, &mut locals, &layout_locals);
+        let mut actor_locals = HashMap::new();
+        actor_locals.insert("self".to_string(), actor.ast.name.clone());
+        self.collect_actor_locals_in_block(&handler_info.body, &mut actor_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -4118,9 +4246,6 @@ impl WasmCompiler {
             param_local_ids.push(local_id);
         }
 
-        self.preallocate_locals(body, &mut text_locals_map);
-        let mut actor_locals = HashMap::new();
-        self.collect_actor_locals_in_block(body, &mut actor_locals);
         let mut layout_locals = HashMap::new();
         for (param, param_type) in converge.ast.params.iter().zip(param_types.iter()) {
             if let Some(layout_name) = self
@@ -4131,6 +4256,9 @@ impl WasmCompiler {
             }
         }
         self.collect_layout_locals_in_block(body, &mut layout_locals);
+        self.preallocate_locals(body, &mut text_locals_map, &layout_locals);
+        let mut actor_locals = HashMap::new();
+        self.collect_actor_locals_in_block(body, &mut actor_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -4275,9 +4403,6 @@ impl WasmCompiler {
             param_local_ids.push(local_id);
         }
 
-        self.preallocate_locals(body, &mut text_locals_map);
-        let mut actor_locals = HashMap::new();
-        self.collect_actor_locals_in_block(body, &mut actor_locals);
         let mut layout_locals = HashMap::new();
         for (param, param_type) in params.iter().zip(param_types.iter()) {
             if let Some(layout_name) = self
@@ -4288,6 +4413,9 @@ impl WasmCompiler {
             }
         }
         self.collect_layout_locals_in_block(body, &mut layout_locals);
+        self.preallocate_locals(body, &mut text_locals_map, &layout_locals);
+        let mut actor_locals = HashMap::new();
+        self.collect_actor_locals_in_block(body, &mut actor_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -4374,9 +4502,6 @@ impl WasmCompiler {
             locals.insert(param.name.clone(), local_id);
             param_local_ids.push(local_id);
         }
-        self.preallocate_locals(body, &mut locals);
-        let mut actor_locals = HashMap::new();
-        self.collect_actor_locals_in_block(body, &mut actor_locals);
         let mut layout_locals = HashMap::new();
         for param in params {
             if let Some(layout_name) = self.layout_name_from_authored_type(&param.ty) {
@@ -4384,6 +4509,9 @@ impl WasmCompiler {
             }
         }
         self.collect_layout_locals_in_block(body, &mut layout_locals);
+        self.preallocate_locals(body, &mut locals, &layout_locals);
+        let mut actor_locals = HashMap::new();
+        self.collect_actor_locals_in_block(body, &mut actor_locals);
 
         let tmp_i32 = self.module.locals.add(ValType::I32);
         let tmp_i32_2 = self.module.locals.add(ValType::I32);
@@ -4429,7 +4557,12 @@ impl WasmCompiler {
         Ok(())
     }
 
-    fn preallocate_locals(&mut self, block: &Block, locals: &mut HashMap<String, LocalId>) {
+    fn preallocate_locals(
+        &mut self,
+        block: &Block,
+        locals: &mut HashMap<String, LocalId>,
+        layout_locals: &HashMap<String, String>,
+    ) {
         for stmt in &block.stmts {
             match stmt {
                 Stmt::Let {
@@ -4438,21 +4571,21 @@ impl WasmCompiler {
                     let val_type = if let Some(authored_ty) = ty {
                         self.map_authored_type(authored_ty)
                     } else if let Some(expr) = value {
-                        self.infer_wasm_type_with_locals(locals, expr)
+                        self.infer_wasm_type_with_layout_locals(locals, layout_locals, expr)
                     } else {
                         ValType::I64
                     };
                     self.preallocate_pattern_locals(pattern, locals, val_type);
                     if let Some(expr) = value {
-                        self.preallocate_locals_in_expr(expr, locals);
+                        self.preallocate_locals_in_expr(expr, locals, layout_locals);
                     }
                 }
-                Stmt::Expr(expr) => self.preallocate_locals_in_expr(expr, locals),
+                Stmt::Expr(expr) => self.preallocate_locals_in_expr(expr, locals, layout_locals),
                 Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
-                    self.preallocate_locals_in_expr(expr, locals);
+                    self.preallocate_locals_in_expr(expr, locals, layout_locals);
                 }
                 Stmt::While { body, .. } => {
-                    self.preallocate_locals(body, locals);
+                    self.preallocate_locals(body, locals, layout_locals);
                 }
                 Stmt::For {
                     binding,
@@ -4467,11 +4600,11 @@ impl WasmCompiler {
                     ..
                 } => {
                     self.preallocate_pattern_locals(binding, locals, ValType::I64);
-                    self.preallocate_locals_in_expr(iter, locals);
-                    self.preallocate_locals(body, locals);
+                    self.preallocate_locals_in_expr(iter, locals, layout_locals);
+                    self.preallocate_locals(body, locals, layout_locals);
                 }
                 Stmt::Loop { body, .. } => {
-                    self.preallocate_locals(body, locals);
+                    self.preallocate_locals(body, locals, layout_locals);
                 }
                 _ => {}
             }
@@ -4517,6 +4650,252 @@ impl WasmCompiler {
                     ValType::I64
                 }
             }
+        }
+    }
+
+    fn infer_block_wasm_type_with_layout_locals(
+        &self,
+        locals: &HashMap<String, LocalId>,
+        layout_locals: &HashMap<String, String>,
+        block: &Block,
+    ) -> ValType {
+        match block.stmts.last() {
+            Some(Stmt::Expr(expr)) => {
+                self.infer_wasm_type_with_layout_locals(locals, layout_locals, expr)
+            }
+            Some(Stmt::Return(Some(expr), _)) | Some(Stmt::Break(Some(expr), _)) => {
+                self.infer_wasm_type_with_layout_locals(locals, layout_locals, expr)
+            }
+            _ => ValType::I64,
+        }
+    }
+
+    fn infer_else_branch_wasm_type_with_layout_locals(
+        &self,
+        locals: &HashMap<String, LocalId>,
+        layout_locals: &HashMap<String, String>,
+        branch: &kain_core::ast::ElseBranch,
+    ) -> ValType {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.infer_block_wasm_type_with_layout_locals(locals, layout_locals, block)
+            }
+            kain_core::ast::ElseBranch::ElseIf(_, then_block, next) => {
+                let then_ty =
+                    self.infer_block_wasm_type_with_layout_locals(locals, layout_locals, then_block);
+                let else_ty = next
+                    .as_deref()
+                    .map(|next_branch| {
+                        self.infer_else_branch_wasm_type_with_layout_locals(
+                            locals,
+                            layout_locals,
+                            next_branch,
+                        )
+                    })
+                    .unwrap_or(ValType::I64);
+                if then_ty == else_ty {
+                    then_ty
+                } else if then_ty == ValType::F64 || else_ty == ValType::F64 {
+                    ValType::F64
+                } else {
+                    ValType::I64
+                }
+            }
+        }
+    }
+
+    fn infer_wasm_type_with_layout_locals(
+        &self,
+        locals: &HashMap<String, LocalId>,
+        layout_locals: &HashMap<String, String>,
+        expr: &Expr,
+    ) -> ValType {
+        match expr {
+            Expr::Int(_, _) => ValType::I64,
+            Expr::None(_) => ValType::I32,
+            Expr::Float(_, _) => ValType::F64,
+            Expr::Bool(_, _) => ValType::I32,
+            Expr::String(_, _) => ValType::I32,
+            Expr::Ident(name, _) if name == "None" || self.world_globals.contains_key(name) => {
+                ValType::I32
+            }
+            Expr::Ident(name, _) => locals
+                .get(name)
+                .map(|local| self.module.locals.get(*local).ty())
+                .or_else(|| self.constants.get(name).map(|value| value.val_type()))
+                .unwrap_or(ValType::I64),
+            Expr::Field { object, field, .. } => self
+                .resolve_layout_name_in_layout_scope(layout_locals, object)
+                .and_then(|layout_name| {
+                    self.struct_field_types
+                        .get(&layout_name)
+                        .and_then(|fields| fields.get(field))
+                        .copied()
+                })
+                .or_else(|| self.infer_global_field_val_type(field))
+                .unwrap_or(ValType::I64),
+            Expr::Paren(inner, _) => {
+                self.infer_wasm_type_with_layout_locals(locals, layout_locals, inner)
+            }
+            Expr::Observe { body, .. } | Expr::Collapse { body, .. } => {
+                self.infer_wasm_type_with_layout_locals(locals, layout_locals, body)
+            }
+            Expr::Teleport { value, .. }
+            | Expr::Comptime(value, _)
+            | Expr::Await(value, _)
+            | Expr::AsyncBlock(value, _)
+            | Expr::Try(value, _) => {
+                self.infer_wasm_type_with_layout_locals(locals, layout_locals, value)
+            }
+            Expr::Cast { target, .. } | Expr::Bitcast { target, .. } => {
+                self.map_authored_type(target)
+            }
+            Expr::JSX(_, _)
+            | Expr::Array(_, _)
+            | Expr::Tuple(_, _)
+            | Expr::Struct { .. }
+            | Expr::AggregateInit { .. }
+            | Expr::EnumVariant { .. }
+            | Expr::Spawn { .. }
+            | Expr::Alloc { .. }
+            | Expr::Realloc { .. }
+            | Expr::Alloca { .. }
+            | Expr::Ref { .. }
+            | Expr::AddrOf { .. }
+            | Expr::PtrOffset { .. } => ValType::I32,
+            Expr::Block(block, _) => {
+                self.infer_block_wasm_type_with_layout_locals(locals, layout_locals, block)
+            }
+            Expr::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                let then_ty =
+                    self.infer_block_wasm_type_with_layout_locals(locals, layout_locals, then_branch);
+                let else_ty = else_branch
+                    .as_ref()
+                    .map(|branch| {
+                        self.infer_else_branch_wasm_type_with_layout_locals(
+                            locals,
+                            layout_locals,
+                            branch,
+                        )
+                    })
+                    .unwrap_or(ValType::I64);
+                if then_ty == else_ty {
+                    then_ty
+                } else if then_ty == ValType::F64 || else_ty == ValType::F64 {
+                    ValType::F64
+                } else {
+                    ValType::I64
+                }
+            }
+            Expr::Call { callee, args, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(cast_ty) = self.primitive_call_result_type(name) {
+                        return cast_ty;
+                    }
+                    let arg_types: Vec<_> = args
+                        .iter()
+                        .map(|arg| {
+                            self.infer_wasm_type_with_layout_locals(
+                                locals,
+                                layout_locals,
+                                &arg.value,
+                            )
+                        })
+                        .collect();
+                    if let Some(builtin_ty) = self.builtin_math_call_result_type(name, &arg_types) {
+                        return builtin_ty;
+                    }
+                    if name
+                        .chars()
+                        .next()
+                        .map(|c| c.is_uppercase())
+                        .unwrap_or(false)
+                    {
+                        return ValType::I32;
+                    }
+                    if matches!(
+                        name.as_str(),
+                        "to_string" | "str_concat" | "char_at" | "str_eq"
+                    ) || name.starts_with("dom_")
+                    {
+                        return ValType::I32;
+                    }
+                    if matches!(
+                        name.as_str(),
+                        "__kain_ptr_offset"
+                            | "__kain_alloc"
+                            | "__kain_realloc"
+                            | "__kain_union_wrap"
+                    ) {
+                        return ValType::I32;
+                    }
+                    if let Some(func_id) = self.functions.get(name) {
+                        if let Some(result_ty) = self.function_result_type(*func_id) {
+                            return result_ty;
+                        }
+                    }
+                }
+                ValType::I64
+            }
+            Expr::MethodCall { method, args, .. } => match method.as_str() {
+                "is_ok" | "is_err" | "is_some" | "is_none" => ValType::I32,
+                "unwrap_or" => args
+                    .first()
+                    .map(|arg| {
+                        self.infer_wasm_type_with_layout_locals(locals, layout_locals, &arg.value)
+                    })
+                    .unwrap_or(ValType::I64),
+                _ => self
+                    .functions
+                    .get(method)
+                    .and_then(|func_id| self.function_result_type(*func_id))
+                    .unwrap_or(ValType::I64),
+            },
+            Expr::Binary {
+                op, left, right, ..
+            } => match op {
+                BinaryOp::Eq
+                | BinaryOp::Ne
+                | BinaryOp::Lt
+                | BinaryOp::Gt
+                | BinaryOp::Le
+                | BinaryOp::Ge
+                | BinaryOp::And
+                | BinaryOp::Or => ValType::I32,
+                BinaryOp::Add => {
+                    let left_ty =
+                        self.infer_wasm_type_with_layout_locals(locals, layout_locals, left);
+                    let right_ty =
+                        self.infer_wasm_type_with_layout_locals(locals, layout_locals, right);
+                    if left_ty == ValType::I32 && right_ty == ValType::I32 {
+                        ValType::I32
+                    } else if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+                _ => {
+                    let left_ty =
+                        self.infer_wasm_type_with_layout_locals(locals, layout_locals, left);
+                    let right_ty =
+                        self.infer_wasm_type_with_layout_locals(locals, layout_locals, right);
+                    if left_ty == ValType::F64 || right_ty == ValType::F64 {
+                        ValType::F64
+                    } else {
+                        ValType::I64
+                    }
+                }
+            },
+            Expr::Unary { op, operand, .. } => match op {
+                kain_core::ast::UnaryOp::Not => ValType::I32,
+                _ => self.infer_wasm_type_with_layout_locals(locals, layout_locals, operand),
+            },
+            _ => self.infer_wasm_type(expr),
         }
     }
 
@@ -4620,6 +4999,11 @@ impl WasmCompiler {
                     ) {
                         return ValType::I32;
                     }
+                    if let Some(func_id) = self.functions.get(name) {
+                        if let Some(result_ty) = self.function_result_type(*func_id) {
+                            return result_ty;
+                        }
+                    }
                 }
                 ValType::I64
             }
@@ -4629,7 +5013,11 @@ impl WasmCompiler {
                     .first()
                     .map(|arg| self.infer_wasm_type_with_locals(locals, &arg.value))
                     .unwrap_or(ValType::I64),
-                _ => ValType::I64,
+                _ => self
+                    .functions
+                    .get(method)
+                    .and_then(|func_id| self.function_result_type(*func_id))
+                    .unwrap_or(ValType::I64),
             },
             Expr::Binary {
                 op, left, right, ..
@@ -4726,102 +5114,112 @@ impl WasmCompiler {
         &mut self,
         branch: &kain_core::ast::ElseBranch,
         locals: &mut HashMap<String, LocalId>,
+        layout_locals: &HashMap<String, String>,
     ) {
         match branch {
-            kain_core::ast::ElseBranch::Else(block) => self.preallocate_locals(block, locals),
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.preallocate_locals(block, locals, layout_locals)
+            }
             kain_core::ast::ElseBranch::ElseIf(condition, then_block, next) => {
-                self.preallocate_locals_in_expr(condition, locals);
-                self.preallocate_locals(then_block, locals);
+                self.preallocate_locals_in_expr(condition, locals, layout_locals);
+                self.preallocate_locals(then_block, locals, layout_locals);
                 if let Some(next) = next {
-                    self.preallocate_locals_in_else(next, locals);
+                    self.preallocate_locals_in_else(next, locals, layout_locals);
                 }
             }
         }
     }
 
-    fn preallocate_locals_in_expr(&mut self, expr: &Expr, locals: &mut HashMap<String, LocalId>) {
+    fn preallocate_locals_in_expr(
+        &mut self,
+        expr: &Expr,
+        locals: &mut HashMap<String, LocalId>,
+        layout_locals: &HashMap<String, String>,
+    ) {
         match expr {
             Expr::Paren(inner, _)
             | Expr::Deref(inner, _)
             | Expr::Comptime(inner, _)
             | Expr::Await(inner, _)
             | Expr::AsyncBlock(inner, _)
-            | Expr::Try(inner, _) => self.preallocate_locals_in_expr(inner, locals),
+            | Expr::Try(inner, _) => self.preallocate_locals_in_expr(inner, locals, layout_locals),
             Expr::Unary { operand, .. }
             | Expr::Ref { value: operand, .. }
             | Expr::AddrOf { value: operand, .. }
             | Expr::Cast { value: operand, .. }
             | Expr::Bitcast { value: operand, .. }
             | Expr::Teleport { value: operand, .. } => {
-                self.preallocate_locals_in_expr(operand, locals)
+                self.preallocate_locals_in_expr(operand, locals, layout_locals)
             }
             Expr::Binary { left, right, .. } => {
-                self.preallocate_locals_in_expr(left, locals);
-                self.preallocate_locals_in_expr(right, locals);
+                self.preallocate_locals_in_expr(left, locals, layout_locals);
+                self.preallocate_locals_in_expr(right, locals, layout_locals);
             }
             Expr::Assign { target, value, .. } => {
-                self.preallocate_locals_in_expr(target, locals);
-                self.preallocate_locals_in_expr(value, locals);
+                self.preallocate_locals_in_expr(target, locals, layout_locals);
+                self.preallocate_locals_in_expr(value, locals, layout_locals);
             }
             Expr::Call { callee, args, .. } => {
-                self.preallocate_locals_in_expr(callee, locals);
+                self.preallocate_locals_in_expr(callee, locals, layout_locals);
                 for arg in args {
-                    self.preallocate_locals_in_expr(&arg.value, locals);
+                    self.preallocate_locals_in_expr(&arg.value, locals, layout_locals);
                 }
             }
             Expr::StageCall { args, .. } => {
                 for arg in args {
-                    self.preallocate_locals_in_expr(&arg.value, locals);
+                    self.preallocate_locals_in_expr(&arg.value, locals, layout_locals);
                 }
             }
             Expr::MethodCall { receiver, args, .. } => {
-                self.preallocate_locals_in_expr(receiver, locals);
+                self.preallocate_locals_in_expr(receiver, locals, layout_locals);
                 for arg in args {
-                    self.preallocate_locals_in_expr(&arg.value, locals);
+                    self.preallocate_locals_in_expr(&arg.value, locals, layout_locals);
                 }
             }
-            Expr::Field { object, .. } => self.preallocate_locals_in_expr(object, locals),
+            Expr::Field { object, .. } => {
+                self.preallocate_locals_in_expr(object, locals, layout_locals)
+            }
             Expr::Index { object, index, .. } => {
-                self.preallocate_locals_in_expr(object, locals);
-                self.preallocate_locals_in_expr(index, locals);
+                self.preallocate_locals_in_expr(object, locals, layout_locals);
+                self.preallocate_locals_in_expr(index, locals, layout_locals);
             }
             Expr::Struct { fields, rest, .. } => {
                 for (_, value) in fields {
-                    self.preallocate_locals_in_expr(value, locals);
+                    self.preallocate_locals_in_expr(value, locals, layout_locals);
                 }
                 if let Some(rest) = rest {
-                    self.preallocate_locals_in_expr(rest, locals);
+                    self.preallocate_locals_in_expr(rest, locals, layout_locals);
                 }
             }
             Expr::AggregateInit { fields, .. } => {
                 for (_, value) in fields {
-                    self.preallocate_locals_in_expr(value, locals);
+                    self.preallocate_locals_in_expr(value, locals, layout_locals);
                 }
             }
             Expr::EnumVariant { fields, .. } => match fields {
                 kain_core::ast::EnumVariantFields::Unit => {}
                 kain_core::ast::EnumVariantFields::Tuple(items) => {
                     for item in items {
-                        self.preallocate_locals_in_expr(item, locals);
+                        self.preallocate_locals_in_expr(item, locals, layout_locals);
                     }
                 }
                 kain_core::ast::EnumVariantFields::Struct(fields) => {
                     for (_, value) in fields {
-                        self.preallocate_locals_in_expr(value, locals);
+                        self.preallocate_locals_in_expr(value, locals, layout_locals);
                     }
                 }
             },
             Expr::Array(items, _) | Expr::Tuple(items, _) | Expr::FString(items, _) => {
                 for item in items {
-                    self.preallocate_locals_in_expr(item, locals);
+                    self.preallocate_locals_in_expr(item, locals, layout_locals);
                 }
             }
             Expr::Range { start, end, .. } => {
                 if let Some(start) = start {
-                    self.preallocate_locals_in_expr(start, locals);
+                    self.preallocate_locals_in_expr(start, locals, layout_locals);
                 }
                 if let Some(end) = end {
-                    self.preallocate_locals_in_expr(end, locals);
+                    self.preallocate_locals_in_expr(end, locals, layout_locals);
                 }
             }
             Expr::If {
@@ -4830,42 +5228,44 @@ impl WasmCompiler {
                 else_branch,
                 ..
             } => {
-                self.preallocate_locals_in_expr(condition, locals);
-                self.preallocate_locals(then_branch, locals);
+                self.preallocate_locals_in_expr(condition, locals, layout_locals);
+                self.preallocate_locals(then_branch, locals, layout_locals);
                 if let Some(else_branch) = else_branch {
-                    self.preallocate_locals_in_else(else_branch, locals);
+                    self.preallocate_locals_in_else(else_branch, locals, layout_locals);
                 }
             }
             Expr::Match {
                 scrutinee, arms, ..
             } => {
-                self.preallocate_locals_in_expr(scrutinee, locals);
+                self.preallocate_locals_in_expr(scrutinee, locals, layout_locals);
                 for arm in arms {
                     self.preallocate_pattern_locals(&arm.pattern, locals, ValType::I64);
                     if let Some(guard) = &arm.guard {
-                        self.preallocate_locals_in_expr(guard, locals);
+                        self.preallocate_locals_in_expr(guard, locals, layout_locals);
                     }
-                    self.preallocate_locals_in_expr(&arm.body, locals);
+                    self.preallocate_locals_in_expr(&arm.body, locals, layout_locals);
                 }
             }
             Expr::Observe { target, body, .. }
             | Expr::Collapse { target, body, .. }
             | Expr::Share { target, body, .. } => {
-                self.preallocate_locals_in_expr(target, locals);
-                self.preallocate_locals_in_expr(body, locals);
+                self.preallocate_locals_in_expr(target, locals, layout_locals);
+                self.preallocate_locals_in_expr(body, locals, layout_locals);
             }
-            Expr::Decay { target, .. } => self.preallocate_locals_in_expr(target, locals),
+            Expr::Decay { target, .. } => {
+                self.preallocate_locals_in_expr(target, locals, layout_locals)
+            }
             Expr::PtrOffset {
                 pointer, offset, ..
             } => {
-                self.preallocate_locals_in_expr(pointer, locals);
-                self.preallocate_locals_in_expr(offset, locals);
+                self.preallocate_locals_in_expr(pointer, locals, layout_locals);
+                self.preallocate_locals_in_expr(offset, locals, layout_locals);
             }
             Expr::MemLoad { pointer, .. }
             | Expr::VolatileLoad { pointer, .. }
             | Expr::AtomicLoad { pointer, .. }
             | Expr::CpuCacheFlush { pointer, .. } => {
-                self.preallocate_locals_in_expr(pointer, locals)
+                self.preallocate_locals_in_expr(pointer, locals, layout_locals)
             }
             Expr::MemStore { pointer, value, .. }
             | Expr::VolatileStore { pointer, value, .. }
@@ -4876,8 +5276,8 @@ impl WasmCompiler {
             | Expr::AtomicOr { pointer, value, .. }
             | Expr::AtomicXor { pointer, value, .. }
             | Expr::AtomicExchange { pointer, value, .. } => {
-                self.preallocate_locals_in_expr(pointer, locals);
-                self.preallocate_locals_in_expr(value, locals);
+                self.preallocate_locals_in_expr(pointer, locals, layout_locals);
+                self.preallocate_locals_in_expr(value, locals, layout_locals);
             }
             Expr::AtomicCompareExchange {
                 pointer,
@@ -4885,43 +5285,45 @@ impl WasmCompiler {
                 desired,
                 ..
             } => {
-                self.preallocate_locals_in_expr(pointer, locals);
-                self.preallocate_locals_in_expr(expected, locals);
-                self.preallocate_locals_in_expr(desired, locals);
+                self.preallocate_locals_in_expr(pointer, locals, layout_locals);
+                self.preallocate_locals_in_expr(expected, locals, layout_locals);
+                self.preallocate_locals_in_expr(desired, locals, layout_locals);
             }
             Expr::AtomicFence { .. } | Expr::CpuFence { .. } => {}
             Expr::InlineAsm { operands, .. } => {
                 for operand in operands {
-                    self.preallocate_locals_in_expr(operand, locals);
+                    self.preallocate_locals_in_expr(operand, locals, layout_locals);
                 }
             }
-            Expr::Alloc { size, .. } => self.preallocate_locals_in_expr(size, locals),
+            Expr::Alloc { size, .. } => {
+                self.preallocate_locals_in_expr(size, locals, layout_locals)
+            }
             Expr::Realloc { pointer, size, .. } => {
-                self.preallocate_locals_in_expr(pointer, locals);
-                self.preallocate_locals_in_expr(size, locals);
+                self.preallocate_locals_in_expr(pointer, locals, layout_locals);
+                self.preallocate_locals_in_expr(size, locals, layout_locals);
             }
             Expr::Spawn { init, .. } => {
                 for (_, value) in init {
-                    self.preallocate_locals_in_expr(value, locals);
+                    self.preallocate_locals_in_expr(value, locals, layout_locals);
                 }
             }
             Expr::SendMsg { target, data, .. } => {
-                self.preallocate_locals_in_expr(target, locals);
+                self.preallocate_locals_in_expr(target, locals, layout_locals);
                 for (_, value) in data {
-                    self.preallocate_locals_in_expr(value, locals);
+                    self.preallocate_locals_in_expr(value, locals, layout_locals);
                 }
             }
             Expr::MacroCall { args, .. } => {
                 for arg in args {
-                    self.preallocate_locals_in_expr(arg, locals);
+                    self.preallocate_locals_in_expr(arg, locals, layout_locals);
                 }
             }
-            Expr::Block(block, _) => self.preallocate_locals(block, locals),
+            Expr::Block(block, _) => self.preallocate_locals(block, locals, layout_locals),
             Expr::Return(Some(value), _) | Expr::Break(Some(value), _) => {
-                self.preallocate_locals_in_expr(value, locals);
+                self.preallocate_locals_in_expr(value, locals, layout_locals);
             }
             Expr::Return(None, _) | Expr::Break(None, _) => {}
-            Expr::JSX(node, _) => self.preallocate_locals_in_jsx(node, locals),
+            Expr::JSX(node, _) => self.preallocate_locals_in_jsx(node, locals, layout_locals),
             Expr::Lambda { .. }
             | Expr::Int(_, _)
             | Expr::Float(_, _)
@@ -4941,6 +5343,7 @@ impl WasmCompiler {
         &mut self,
         node: &kain_core::ast::JSXNode,
         locals: &mut HashMap<String, LocalId>,
+        layout_locals: &HashMap<String, String>,
     ) {
         match node {
             kain_core::ast::JSXNode::Element {
@@ -4950,11 +5353,11 @@ impl WasmCompiler {
             } => {
                 for attr in attributes {
                     if let kain_core::ast::JSXAttrValue::Expr(expr) = &attr.value {
-                        self.preallocate_locals_in_expr(expr, locals);
+                        self.preallocate_locals_in_expr(expr, locals, layout_locals);
                     }
                 }
                 for child in children {
-                    self.preallocate_locals_in_jsx(child, locals);
+                    self.preallocate_locals_in_jsx(child, locals, layout_locals);
                 }
             }
             kain_core::ast::JSXNode::ComponentCall {
@@ -4962,24 +5365,24 @@ impl WasmCompiler {
             } => {
                 for attr in props {
                     if let kain_core::ast::JSXAttrValue::Expr(expr) = &attr.value {
-                        self.preallocate_locals_in_expr(expr, locals);
+                        self.preallocate_locals_in_expr(expr, locals, layout_locals);
                     }
                 }
                 for child in children {
-                    self.preallocate_locals_in_jsx(child, locals);
+                    self.preallocate_locals_in_jsx(child, locals, layout_locals);
                 }
             }
             kain_core::ast::JSXNode::Fragment(children, _) => {
                 for child in children {
-                    self.preallocate_locals_in_jsx(child, locals);
+                    self.preallocate_locals_in_jsx(child, locals, layout_locals);
                 }
             }
             kain_core::ast::JSXNode::Expression(expr) => {
-                self.preallocate_locals_in_expr(expr, locals)
+                self.preallocate_locals_in_expr(expr, locals, layout_locals)
             }
             kain_core::ast::JSXNode::For { iter, body, .. } => {
-                self.preallocate_locals_in_expr(iter, locals);
-                self.preallocate_locals_in_jsx(body, locals);
+                self.preallocate_locals_in_expr(iter, locals, layout_locals);
+                self.preallocate_locals_in_jsx(body, locals, layout_locals);
             }
             kain_core::ast::JSXNode::If {
                 condition,
@@ -4987,10 +5390,10 @@ impl WasmCompiler {
                 else_branch,
                 ..
             } => {
-                self.preallocate_locals_in_expr(condition, locals);
-                self.preallocate_locals_in_jsx(then_branch, locals);
+                self.preallocate_locals_in_expr(condition, locals, layout_locals);
+                self.preallocate_locals_in_jsx(then_branch, locals, layout_locals);
                 if let Some(else_branch) = else_branch {
-                    self.preallocate_locals_in_jsx(else_branch, locals);
+                    self.preallocate_locals_in_jsx(else_branch, locals, layout_locals);
                 }
             }
             kain_core::ast::JSXNode::Text(_, _) => {}
@@ -5256,15 +5659,7 @@ impl WasmCompiler {
             .resolve_field_offset_in_context(ctx, object, field)
             .map_err(|reason| match reason {
                 "ambiguous" => KainError::codegen(
-                    format!(
-                        "Field '{}' layout is ambiguous in WASM codegen for object {:?} with local layout {:?}",
-                        field,
-                        object,
-                        match object {
-                            Expr::Ident(name, _) => ctx.layout_locals.get(name).cloned(),
-                            _ => self.resolve_layout_name_in_context(ctx, object),
-                        }
-                    ),
+                    format!("Field '{}' layout is ambiguous in WASM codegen", field),
                     span,
                 ),
                 _ => KainError::codegen(format!("Field '{}' layout not found", field), span),
@@ -5851,25 +6246,47 @@ impl WasmCompiler {
     ) -> KainResult<()> {
         match stmt {
             Stmt::Expr(expr) => {
-                self.compile_expr(ctx, builder, expr)?;
-                builder.drop();
+                if let Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } = expr
+                {
+                    self.compile_expr(ctx, builder, condition)?;
+                    let branch_error = std::cell::RefCell::new(None);
+                    builder.if_else(
+                        None,
+                        |then_builder| {
+                            if let Err(err) = self.compile_block(ctx, then_builder, then_branch) {
+                                *branch_error.borrow_mut() = Some(err);
+                            }
+                        },
+                        |else_builder| {
+                            if let Some(else_br) = else_branch {
+                                if let Err(err) =
+                                    self.compile_else_branch(ctx, else_builder, else_br)
+                                {
+                                    *branch_error.borrow_mut() = Some(err);
+                                }
+                            }
+                        },
+                    );
+                    if let Some(err) = branch_error.into_inner() {
+                        return Err(err);
+                    }
+                } else {
+                    self.compile_expr(ctx, builder, expr)?;
+                    builder.drop();
+                }
             }
             Stmt::Let { value, pattern, .. } => {
                 if let Some(val_expr) = value {
                     if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
                         if let Some(local_id) = ctx.locals.get(name) {
                             let local_ty = self.module.locals.get(*local_id).ty();
-                            let value_is_i32 = self.expr_is_i32_in_context(ctx, val_expr);
                             self.compile_expr(ctx, builder, val_expr)?;
-                            match local_ty {
-                                ValType::I32 if !value_is_i32 => {
-                                    builder.unop(walrus::ir::UnaryOp::I32WrapI64);
-                                }
-                                ValType::I64 if value_is_i32 => {
-                                    builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
-                                }
-                                _ => {}
-                            }
+                            self.coerce_expr_stack_to_val_type(ctx, builder, val_expr, local_ty);
                             builder.local_set(*local_id);
                         } else {
                             self.compile_expr(ctx, builder, val_expr)?;
@@ -7260,11 +7677,8 @@ impl WasmCompiler {
                 if let Some((field_offsets, total_size)) = ctx.struct_layouts.get(name).cloned() {
                     // Allocate memory for struct using bump allocator
                     self.emit_alloc(ctx, builder, total_size);
-                    // Stack: [base_ptr]
-
-                    // We need to keep base_ptr for field stores AND return it
-                    // Strategy: for each field, dup the ptr, add offset, store
-                    // But walrus doesn't have dup... so we emit base_ptr before each store
+                    // We re-emit the base pointer for each store and for the final result.
+                    builder.drop();
 
                     // Store fields: emit [addr, value] then store
                     for (field_name, field_expr) in fields {

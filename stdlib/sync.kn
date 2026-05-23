@@ -1,0 +1,177 @@
+use std::memory
+
+# --- McsMutex (Mellor-Crummey & Scott Cache-Line-Isolated Intrusive Lock) ---
+
+pub struct McsNode:
+    next: ptr<Int>     # Stored as ptr<Int> for raw bitcast/addressing
+    waiting: Int       # 0 = released/not waiting, 1 = enqueued/waiting
+
+pub struct McsMutex:
+    tail: ptr<Int>     # Pointer to ptr<McsNode>
+
+pub fn mcs_mutex_new() -> McsMutex:
+    let tail = alloc_zeroed(1, "Int")
+    return McsMutex { tail: tail }
+
+pub fn mcs_mutex_destroy(lock: McsMutex) -> Int:
+    decay lock.tail
+    return 0
+
+pub fn mcs_mutex_lock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
+    # 1. Initialize the thread-local node
+    mem_store(node, 0, "Int")                          # node.next = null
+    mem_store(ptr_offset(node, 1, "Int"), 0, "Int")   # node.waiting = 0
+
+    # 2. Enqueue onto tail using atomic exchange
+    let prev_tail_val = atomic_exchange_acqrel(lock.tail, ptr_to_int(node))
+    if prev_tail_val != 0:
+        let prev_tail = int_to_ptr(prev_tail_val, "Int")
+        # There is a thread ahead of us. Enqueue ourselves.
+        mem_store(ptr_offset(node, 1, "Int"), 1, "Int") # node.waiting = 1
+        mem_store(prev_tail, ptr_to_int(node), "Int")   # prev_tail.next = node
+
+        # 3. Spin locally on our own waiting flag to eliminate false sharing
+        let waiting_ptr = ptr_offset(node, 1, "Int")
+        while volatile_load(waiting_ptr, "Int") == 1:
+            spin_loop_hint()
+    
+    return 0
+
+pub fn mcs_mutex_unlock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
+    # Get successor node
+    let next_node_val = mem_load(node, "Int")
+    var next_node = int_to_ptr(next_node_val, "Int")
+
+    if next_node_val == 0:
+        # No known successor. Check if we are still the tail node.
+        if atomic_compare_exchange_seqcst(lock.tail, ptr_to_int(node), 0):
+            # Enqueue tail set back to null successfully
+            return 0
+        
+        # Someone is enqueuing. Spin until our next pointer is filled.
+        var done = false
+        while done == false:
+            let check_val = volatile_load(node, "Int")
+            if check_val != 0:
+                next_node = int_to_ptr(check_val, "Int")
+                done = true
+            else:
+                spin_loop_hint()
+
+    # Hand off the lock to our successor by writing to their local waiting flag
+    let succ_waiting = ptr_offset(next_node, 1, "Int")
+    volatile_store(succ_waiting, 0, "Int")
+    return 0
+
+
+# --- TeleportChannel (Lockless Zero-Copy SPSC Ring Buffer Queue) ---
+
+pub struct TeleportChannel:
+    buffer: ptr<Int>
+    capacity: Int
+    write_idx: ptr<Int>
+    read_idx: ptr<Int>
+
+pub fn teleport_channel_new(capacity: Int) -> TeleportChannel:
+    let safe_capacity = capacity + 1 # Add padding slot for empty/full distinction
+    let buffer = alloc_zeroed(safe_capacity, "Int")
+    let write_idx = alloc_zeroed(1, "Int")
+    let read_idx = alloc_zeroed(1, "Int")
+    return TeleportChannel {
+        buffer: buffer,
+        capacity: safe_capacity,
+        write_idx: write_idx,
+        read_idx: read_idx
+    }
+
+pub fn teleport_channel_destroy(chan: TeleportChannel) -> Int:
+    decay chan.buffer
+    decay chan.write_idx
+    decay chan.read_idx
+    return 0
+
+pub fn teleport_channel_send(chan: TeleportChannel, item_ptr: Int) -> Bool with Unsafe:
+    let w = mem_load(chan.write_idx, "Int")
+    let r = atomic_load_acquire(chan.read_idx)
+    let next_w = (w + 1) % chan.capacity
+    if next_w == r:
+        return false # Full
+    
+    # Store item address into the SPSC buffer
+    mem_store(ptr_offset(chan.buffer, w, "Int"), item_ptr, "Int")
+    # Release write index to notify consumer
+    atomic_store_release(chan.write_idx, next_w)
+    return true
+
+pub fn teleport_channel_recv(chan: TeleportChannel) -> Int with Unsafe:
+    let r = mem_load(chan.read_idx, "Int")
+    let w = atomic_load_acquire(chan.write_idx)
+    if r == w:
+        return 0 # Empty
+    
+    # Read item address
+    let item_ptr = mem_load(ptr_offset(chan.buffer, r, "Int"), "Int")
+    # Release read index to notify producer
+    atomic_store_release(chan.read_idx, (r + 1) % chan.capacity)
+    return item_ptr
+
+
+# --- Once (Thread-Safe Lazy Initialization Guard) ---
+
+pub struct Once:
+    state: ptr<Int>    # 0 = uninitialized, 1 = initializing, 2 = done
+
+pub fn once_new() -> Once:
+    let state_cell = alloc_zeroed(1, "Int")
+    return Once { state: state_cell }
+
+pub fn once_destroy(o: Once) -> Int:
+    decay o.state
+    return 0
+
+# Returns 1 if caller won compare-exchange and must run initialization,
+# 0 if already initialized (the caller should skip init).
+pub fn once_do(o: Once) -> Int with Unsafe:
+    let s = atomic_load_acquire(o.state)
+    if s == 2:
+        return 0
+    
+    if atomic_compare_exchange_seqcst(o.state, 0, 1):
+        # We are the winner! Complete the initialization then call once_complete.
+        return 1
+    
+    # Wait for the winner to finish initializing
+    while atomic_load_acquire(o.state) == 1:
+        spin_loop_hint()
+    return 0
+
+pub fn once_complete(o: Once) -> Int with Unsafe:
+    atomic_store_release(o.state, 2)
+    return 0
+
+
+# --- WaitGroup (Structured Thread Synchronization Barrier) ---
+
+pub struct WaitGroup:
+    counter: ptr<Int>
+
+pub fn wait_group_new() -> WaitGroup:
+    let counter = alloc_zeroed(1, "Int")
+    return WaitGroup { counter: counter }
+
+pub fn wait_group_destroy(wg: WaitGroup) -> Int:
+    decay wg.counter
+    return 0
+
+pub fn wait_group_add(wg: WaitGroup, delta: Int) -> Int with Unsafe:
+    let _prev = atomic_add_acqrel(wg.counter, delta)
+    return 0
+
+pub fn wait_group_done(wg: WaitGroup) -> Int with Unsafe:
+    let _prev = atomic_add_acqrel(wg.counter, -1)
+    return 0
+
+pub fn wait_group_wait(wg: WaitGroup) -> Int with Unsafe:
+    while atomic_load_acquire(wg.counter) > 0:
+        spin_loop_hint()
+    return 0

@@ -12,7 +12,7 @@ use kain_core::ast::{
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{
-    ResolvedType, TypedComponent, TypedConst, TypedFunction, TypedItem, TypedProgram,
+    ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedItem, TypedProgram,
 };
 use kain_core::Span;
 use kain_core::{
@@ -459,6 +459,7 @@ struct LlvmGenerator {
     value_aggregate_structs: HashSet<String>,
     mmio_structs: HashSet<String>,
     component_defs: HashMap<String, Vec<(String, String)>>,
+    actor_state_initializers: HashMap<String, HashMap<String, Expr>>,
     actor_message_reply_types: HashMap<(String, String), String>,
     /// Current basic block label (for Phi nodes)
     current_block: String,
@@ -585,6 +586,7 @@ impl LlvmGenerator {
             value_aggregate_structs: HashSet::new(),
             mmio_structs: HashSet::new(),
             component_defs: HashMap::new(),
+            actor_state_initializers: HashMap::new(),
             actor_message_reply_types: HashMap::new(),
             current_block: "entry".to_string(),
             current_return_type: None,
@@ -11436,6 +11438,7 @@ impl LlvmGenerator {
                         .insert(component.ast.name.clone(), "i8*".to_string());
                 }
                 TypedItem::Actor(a) => {
+                    self.record_actor_state_initializers(a);
                     let mut fields = Vec::new();
                     fields.push(("__actor_ref".to_string(), ACTOR_REF_LLVM_TYPE.into()));
 
@@ -11627,6 +11630,15 @@ impl LlvmGenerator {
         self.emit("");
 
         Ok(())
+    }
+
+    fn record_actor_state_initializers(&mut self, actor: &TypedActor) {
+        let mut initializers = HashMap::new();
+        for state in &actor.ast.state {
+            initializers.insert(state.name.clone(), state.initial.clone());
+        }
+        self.actor_state_initializers
+            .insert(actor.ast.name.clone(), initializers);
     }
 
     fn llvm_constant_initializer_for_expr(&self, expr: &Expr, ty: &str) -> Option<String> {
@@ -16219,6 +16231,13 @@ impl LlvmGenerator {
 
                     let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
                         self.compile_expr_for_target_type(&expr, field_ty)?
+                    } else if let Some(initial_expr) = self
+                        .actor_state_initializers
+                        .get(actor)
+                        .and_then(|defaults| defaults.get(field_name))
+                        .cloned()
+                    {
+                        self.compile_expr_for_target_type(&initial_expr, field_ty)?
                     } else {
                         (self.zero_value_for_ty(field_ty), field_ty.clone())
                     };

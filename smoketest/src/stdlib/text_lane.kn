@@ -1,3 +1,4 @@
+use std::bytes
 use std::ascii
 use std::fmt
 use std::runtime
@@ -36,4 +37,25 @@ pub fn smoke_text_lane() -> Int:
         return 12
     if fmt_json_string("a\"b") != "\"a\\\"b\"":
         return 13
+    let escaped = text_escape_basic("line\n\"quote\"")
+    if escaped != "line\\n\\\"quote\\\"":
+        return 14
+    let unescaped = text_unescape_basic(escaped)
+    if unescaped.ok == false or unescaped.value != "line\n\"quote\"":
+        return 15
+    let byte_view = text_as_bytes(text_from("mesh"))
+    if bytes_hex(bytes_materialize(byte_view)) != "6d657368":
+        return 16
+    var builder = text_builder_new()
+    builder = text_builder_push(builder, "zero")
+    builder = text_builder_push_char_code(builder, ord("-"))
+    builder = text_builder_push_view(builder, text_from("copy"))
+    if text_builder_build(builder) != "zero-copy":
+        return 17
+    var writer = fmt_writer_new()
+    writer = fmt_writer_push_key_value(writer, "lane", "text")
+    writer = fmt_writer_push_string(writer, " ")
+    writer = fmt_writer_push_json_string(writer, "ok")
+    if fmt_writer_build(writer) != "lane=text \"ok\"":
+        return 18
     return 0

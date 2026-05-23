@@ -283,6 +283,55 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_spawn_initializes_actor_state_defaults_before_runtime_spawn() {
+    let source = r#"
+actor Banner:
+    state text: String = "hello from kain"
+
+    on Speak(reply_to: P, request: Int):
+        send reply_to.Reply(value = self.text)
+
+fn main() -> Int:
+    let banner = spawn Banner()
+    let spoken: String = ask(banner, "Speak", 0)
+    if spoken == "hello from kain":
+        return 0
+    return 1
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let main_ir = llvm_function_ir(&llvm, "define i64 @main()");
+
+    assert!(
+        main_ir.contains("call i8* @string_new(i8*"),
+        "actor spawn defaults should materialize string state literals at the spawn site:\n{}",
+        main_ir
+    );
+
+    let lines: Vec<&str> = main_ir.lines().collect();
+    let default_store_index = lines
+        .iter()
+        .position(|line| {
+            line.contains("getelementptr inbounds %Banner, %Banner*") && line.contains("i32 0, i32 1")
+        })
+        .expect("main should address the Banner.text field during spawn lowering");
+    let default_store_line = lines
+        .iter()
+        .skip(default_store_index + 1)
+        .find(|line| !line.trim().is_empty())
+        .expect("spawn field initialization should emit a store");
+    assert!(
+        default_store_line.contains("store i8*") && !default_store_line.contains("store i8* null"),
+        "actor spawn lowering must store the authored default state instead of nulling Banner.text:\n{}",
+        main_ir
+    );
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "actor-spawn-default-state-init");
+}
+
+#[test]
 fn llvm_resolves_top_level_const_values() {
     let source = r#"
 const ANSWER_BASE: Int = 40

@@ -1,5 +1,7 @@
 use std::runtime
 use std::ascii
+use std::bytes
+use std::fmt
 use std::semver
 use std::text
 use std::collections
@@ -66,6 +68,31 @@ fn probe_semver() -> Int:
         return 20
     if semver_parse("1.02.3").ok:
         return 21
+    return 0
+
+fn probe_authoring_floor() -> Int:
+    let view = bytes_slice("::telemetry::", 2, 9)
+    if bytes_materialize(view) != "telemetry":
+        return 70
+    let decoded = bytes_from_hex(bytes_hex(bytes_materialize(view)))
+    if decoded.ok == false or decoded.value != "telemetry":
+        return 71
+    let escaped = text_escape_basic("alpha\n\"beta\"")
+    let unescaped = text_unescape_basic(escaped)
+    if unescaped.ok == false or unescaped.value != "alpha\n\"beta\"":
+        return 72
+    var builder = text_builder_new()
+    builder = text_builder_push(builder, "kain")
+    builder = text_builder_push_char_code(builder, ord("-"))
+    builder = text_builder_push_view(builder, text_from("bytes"))
+    if text_builder_build(builder) != "kain-bytes":
+        return 73
+    var writer = fmt_writer_new()
+    writer = fmt_writer_push_key_value(writer, "lane", "authoring")
+    writer = fmt_writer_push_string(writer, " ")
+    writer = fmt_writer_push_json_string(writer, "steady")
+    if fmt_writer_build(writer) != "lane=authoring \"steady\"":
+        return 74
     return 0
 
 fn probe_collections() -> Int:
@@ -236,6 +263,9 @@ fn main() -> Int:
     let semver_status = probe_semver()
     if semver_status != 0:
         return semver_status
+    let authoring_floor_status = probe_authoring_floor()
+    if authoring_floor_status != 0:
+        return authoring_floor_status
     let collections_status = probe_collections()
     if collections_status != 0:
         return collections_status

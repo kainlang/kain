@@ -1,0 +1,54 @@
+use std::runtime
+
+pub enum TypeKind:
+    Int
+    Float
+    Bool
+    String
+    Struct
+    Enum
+    Actor
+    World
+    Ptr
+    Unknown
+
+pub struct TypeDescriptor:
+    kind: TypeKind
+    name: String
+    size_bytes: Int
+    field_count: Int
+
+pub fn reflect_type_kind(val: Any) -> TypeKind:
+    # Compile-time or runtime type-tag extraction helper
+    let typ_name = to_string(val)
+    if typ_name == "Int":
+        return TypeKind::Int
+    elif typ_name == "Float":
+        return TypeKind::Float
+    elif typ_name == "Bool":
+        return TypeKind::Bool
+    elif typ_name == "String":
+        return TypeKind::String
+    elif typ_name == "ptr":
+        return TypeKind::Ptr
+    return TypeKind::Struct
+
+pub fn reflect_type_name(val: Any) -> String:
+    return to_string(val)
+
+pub fn reflect_descriptor(val: Any) -> TypeDescriptor:
+    let k = reflect_type_kind(val)
+    let n = reflect_type_name(val)
+    
+    var size = 8
+    if k == TypeKind::Bool:
+        size = 1
+    elif k == TypeKind::Int or k == TypeKind::Float or k == TypeKind::Ptr:
+        size = 8
+    
+    return TypeDescriptor {
+        kind: k,
+        name: n,
+        size_bytes: size,
+        field_count: 0
+    }

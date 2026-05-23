@@ -1,5 +1,58 @@
 # Kain Memory
 
+# 2026-05-23 - authoring floor pack landed with `std::bytes` plus deeper `std::text` and `std::fmt`
+
+The root stdlib authoring floor now has a dedicated `stdlib/bytes.kn` surface and a stronger text/fmt stack on top of it. This was the pure-Kain authoring push, not the runtime-backed `std::io` / file-handle pass.
+
+What changed:
+
+- `stdlib/bytes.kn`
+  - added `ByteSlice`, `BytesBuilder`, and `BytesDecodeResult`
+  - exposes zero-copy byte views plus find/count/prefix/suffix/subslice/materialize helpers
+  - added explicit `String`/`Array<Int>` conversion helpers, hex encode/decode, and builder accumulation
+- `stdlib/text.kn`
+  - now imports `std::bytes`
+  - added `text_as_bytes`, `text_from_bytes`, `text_bytes_array`, and `text_from_byte_array`
+  - added `text_escape_basic` / `text_unescape_basic`
+  - added `TextUnescapeResult` plus text-builder wrappers over the bytes builder path
+- `stdlib/fmt.kn`
+  - added `FmtWriter`
+  - writer surface now accumulates strings, ints, floats, bool words, hex, binary, JSON-safe strings, prefixed lines, and key-value pairs before building one owned string
+- `smoketest/src/stdlib/bytes_lane.kn`
+  - added the new authoring-floor proof lane for byte views, byte-array conversion, hex roundtrip, builder flow, and text interop
+- `smoketest/src/stdlib/text_lane.kn`
+  - extended to prove text escape/unescape, byte interop, text builders, and `FmtWriter`
+- `blades/stdlib-foundations/src/main.kn`
+  - added `probe_authoring_floor()` so the new surface is consumed outside isolated stdlib smoke only
+- `smoketest/src/main.kn`
+  - imported `smoke_bytes_lane()`, added the `stdlib.bytes_lane` track, and bumped `total_tracks` to `45`
+- `smoketest/build.kn`
+  - added `src/stdlib/bytes_lane.kn` to the workspace inputs
+- `stdlib/requirements.md`
+  - marked the `std::text` + `std::bytes` P0 row `DONE`
+  - tightened the `std::fmt` row to reflect that the writer/builder pass is done while spec-driven formatting and `std::io` integration remain
+
+Atlas and validation truth:
+
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+  - passed and wrote `2689` symbols across `45` modules
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+  - passed
+- `python query_stdlib.py --summary`
+  - now reports `45` modules, `2053` public symbols, and `2689` total symbols
+- targeted checks passed for:
+  - `stdlib/bytes.kn`
+  - `stdlib/text.kn`
+  - `stdlib/fmt.kn`
+  - `smoketest/src/stdlib/bytes_lane.kn`
+  - `smoketest/src/stdlib/text_lane.kn`
+  - `blades/stdlib-foundations/src/main.kn`
+
+Follow-on repo truth:
+
+- `std::sync` initially blocked full album validation because `stdlib/sync.kn` used `let state = ...` in `once_new()`, and `state` is still parsed as a reserved pattern token in that position. Renaming the local unblocks parsing.
+- After this pack, the next highest-leverage backlog still looks like `std::alloc` growable/span helpers, then runtime-backed `std::io` + `std::fs` file handles and `std::path`.
+
 # 2026-05-23 - root `std::semver` landed as a pure-Kain P0 family
 
 The root stdlib now has `stdlib/semver.kn` with typed semantic versions, strict SemVer-style parsing, precedence comparison, normalized formatting, and range matching for exact, comparator, wildcard, caret, tilde, hyphen, and `||`-joined clauses.
@@ -21,7 +74,7 @@ What changed:
 - `stdlib/requirements.md`
   - marked the `std::semver` P0 row `DONE`
 - atlas
-  - `kain-stdlib-map` refreshed cleanly and now reports `43` modules with `2578` public symbols, including `std::semver`
+  - `kain-stdlib-map` refreshed cleanly and now reports `43` modules with `1945` public symbols and `2578` total symbols, including `std::semver`
 
 Validation:
 

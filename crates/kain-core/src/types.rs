@@ -4183,11 +4183,10 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
         }
         check_block_semantics(env, &handler.body, &ctx)?;
         let reply_contract = handler_param_types.first().and_then(|(param_name, param_ty)| {
-            let _ = param_name;
             if !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
                 return None;
             }
-            infer_reply_contract_from_handler_body(env, &handler.body)
+            infer_reply_contract_from_handler_body(env, &handler.body, param_name)
         });
         env.pop_scope();
         let message_signature = if let Some(reply_contract) = reply_contract {
@@ -4321,9 +4320,10 @@ fn resolved_type_contract_name(ty: &ResolvedType) -> String {
 fn infer_reply_contract_from_handler_body(
     env: &mut TypeEnv,
     body: &Block,
+    reply_port_name: &str,
 ) -> Option<kain_actor::message::MessageReplyContract> {
     let mut reply_type = None;
-    if collect_reply_contract_type(env, body, &mut reply_type).is_err() {
+    if collect_reply_contract_type(env, body, reply_port_name, &mut reply_type).is_err() {
         return None;
     }
     reply_type.map(|ty| kain_actor::message::MessageReplyContract::new(
@@ -4335,10 +4335,11 @@ fn infer_reply_contract_from_handler_body(
 fn collect_reply_contract_type(
     env: &mut TypeEnv,
     block: &Block,
+    reply_port_name: &str,
     reply_type: &mut Option<ResolvedType>,
 ) -> Result<(), ()> {
     for stmt in &block.stmts {
-        collect_reply_contract_type_from_stmt(env, stmt, reply_type)?;
+        collect_reply_contract_type_from_stmt(env, stmt, reply_port_name, reply_type)?;
     }
     Ok(())
 }
@@ -4346,36 +4347,37 @@ fn collect_reply_contract_type(
 fn collect_reply_contract_type_from_stmt(
     env: &mut TypeEnv,
     stmt: &Stmt,
+    reply_port_name: &str,
     reply_type: &mut Option<ResolvedType>,
 ) -> Result<(), ()> {
     match stmt {
         Stmt::Let { value, .. } => {
             if let Some(value) = value {
-                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
-        Stmt::Expr(expr) => collect_reply_contract_type_from_expr(env, expr, reply_type),
+        Stmt::Expr(expr) => collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type),
         Stmt::Return(value, _) => {
             if let Some(value) = value {
-                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
         Stmt::While {
             condition, body, ..
         } => {
-            collect_reply_contract_type_from_expr(env, condition, reply_type)?;
-            collect_reply_contract_type(env, body, reply_type)
+            collect_reply_contract_type_from_expr(env, condition, reply_port_name, reply_type)?;
+            collect_reply_contract_type(env, body, reply_port_name, reply_type)
         }
         Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
-            collect_reply_contract_type_from_expr(env, iter, reply_type)?;
-            collect_reply_contract_type(env, body, reply_type)
+            collect_reply_contract_type_from_expr(env, iter, reply_port_name, reply_type)?;
+            collect_reply_contract_type(env, body, reply_port_name, reply_type)
         }
-        Stmt::Loop { body, .. } => collect_reply_contract_type(env, body, reply_type),
+        Stmt::Loop { body, .. } => collect_reply_contract_type(env, body, reply_port_name, reply_type),
         Stmt::Break(value, _) => {
             if let Some(value) = value {
-                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
@@ -4386,6 +4388,7 @@ fn collect_reply_contract_type_from_stmt(
 fn collect_reply_contract_type_from_expr(
     env: &mut TypeEnv,
     expr: &Expr,
+    reply_port_name: &str,
     reply_type: &mut Option<ResolvedType>,
 ) -> Result<(), ()> {
     match expr {
@@ -4395,7 +4398,9 @@ fn collect_reply_contract_type_from_expr(
             data,
             ..
         } => {
-            if matches!(target.as_ref(), Expr::Ident(name, _) if name == "reply_to") && message == "Reply" {
+            if matches!(target.as_ref(), Expr::Ident(name, _) if name == reply_port_name)
+                && message == "Reply"
+            {
                 if data.len() > 1 {
                     return Err(());
                 }
@@ -4415,35 +4420,40 @@ fn collect_reply_contract_type_from_expr(
                     *reply_type = Some(ResolvedType::Unit);
                 }
             }
-            collect_reply_contract_type_from_expr(env, target, reply_type)?;
+            collect_reply_contract_type_from_expr(env, target, reply_port_name, reply_type)?;
             for (_, value) in data {
-                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
-        Expr::Block(block, _) => collect_reply_contract_type(env, block, reply_type),
+        Expr::Block(block, _) => collect_reply_contract_type(env, block, reply_port_name, reply_type),
         Expr::If {
             condition,
             then_branch,
             else_branch,
             ..
         } => {
-            collect_reply_contract_type_from_expr(env, condition, reply_type)?;
-            collect_reply_contract_type(env, then_branch, reply_type)?;
+            collect_reply_contract_type_from_expr(env, condition, reply_port_name, reply_type)?;
+            collect_reply_contract_type(env, then_branch, reply_port_name, reply_type)?;
             if let Some(branch) = else_branch {
-                collect_reply_contract_type_from_else_branch(env, branch, reply_type)?;
+                collect_reply_contract_type_from_else_branch(
+                    env,
+                    branch,
+                    reply_port_name,
+                    reply_type,
+                )?;
             }
             Ok(())
         }
         Expr::Match {
             scrutinee, arms, ..
         } => {
-            collect_reply_contract_type_from_expr(env, scrutinee, reply_type)?;
+            collect_reply_contract_type_from_expr(env, scrutinee, reply_port_name, reply_type)?;
             for arm in arms {
                 if let Some(guard) = &arm.guard {
-                    collect_reply_contract_type_from_expr(env, guard, reply_type)?;
+                    collect_reply_contract_type_from_expr(env, guard, reply_port_name, reply_type)?;
                 }
-                collect_reply_contract_type_from_expr(env, &arm.body, reply_type)?;
+                collect_reply_contract_type_from_expr(env, &arm.body, reply_port_name, reply_type)?;
             }
             Ok(())
         }
@@ -4453,30 +4463,32 @@ fn collect_reply_contract_type_from_expr(
         | Expr::Comptime(inner, _)
         | Expr::Deref(inner, _)
         | Expr::Try(inner, _)
-        | Expr::Ref { value: inner, .. } => collect_reply_contract_type_from_expr(env, inner, reply_type),
+        | Expr::Ref { value: inner, .. } => {
+            collect_reply_contract_type_from_expr(env, inner, reply_port_name, reply_type)
+        }
         Expr::Collapse { target, body, .. }
         | Expr::Observe { target, body, .. }
         | Expr::Share { target, body, .. } => {
-            collect_reply_contract_type_from_expr(env, target, reply_type)?;
-            collect_reply_contract_type_from_expr(env, body, reply_type)
+            collect_reply_contract_type_from_expr(env, target, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, body, reply_port_name, reply_type)
         }
         Expr::Call { callee, args, .. } => {
-            collect_reply_contract_type_from_expr(env, callee, reply_type)?;
+            collect_reply_contract_type_from_expr(env, callee, reply_port_name, reply_type)?;
             for arg in args {
-                collect_reply_contract_type_from_expr(env, &arg.value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, &arg.value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
         Expr::MethodCall { receiver, args, .. } => {
-            collect_reply_contract_type_from_expr(env, receiver, reply_type)?;
+            collect_reply_contract_type_from_expr(env, receiver, reply_port_name, reply_type)?;
             for arg in args {
-                collect_reply_contract_type_from_expr(env, &arg.value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, &arg.value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
         Expr::StageCall { args, .. } => {
             for arg in args {
-                collect_reply_contract_type_from_expr(env, &arg.value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, &arg.value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
@@ -4485,22 +4497,22 @@ fn collect_reply_contract_type_from_expr(
         | Expr::Tuple(args, _)
         | Expr::FString(args, _) => {
             for arg in args {
-                collect_reply_contract_type_from_expr(env, arg, reply_type)?;
+                collect_reply_contract_type_from_expr(env, arg, reply_port_name, reply_type)?;
             }
             Ok(())
         }
         Expr::Struct { fields, rest, .. } => {
             for (_, value) in fields {
-                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
             }
             if let Some(rest) = rest {
-                collect_reply_contract_type_from_expr(env, rest, reply_type)?;
+                collect_reply_contract_type_from_expr(env, rest, reply_port_name, reply_type)?;
             }
             Ok(())
         }
         Expr::AggregateInit { fields, .. } => {
             for (_, value) in fields {
-                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
@@ -4508,24 +4520,24 @@ fn collect_reply_contract_type_from_expr(
             EnumVariantFields::Unit => Ok(()),
             EnumVariantFields::Tuple(values) => {
                 for value in values {
-                    collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                    collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
                 }
                 Ok(())
             }
             EnumVariantFields::Struct(values) => {
                 for (_, value) in values {
-                    collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                    collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
                 }
                 Ok(())
             }
         },
         Expr::Assign { target, value, .. } => {
-            collect_reply_contract_type_from_expr(env, target, reply_type)?;
-            collect_reply_contract_type_from_expr(env, value, reply_type)
+            collect_reply_contract_type_from_expr(env, target, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)
         }
         Expr::Binary { left, right, .. } => {
-            collect_reply_contract_type_from_expr(env, left, reply_type)?;
-            collect_reply_contract_type_from_expr(env, right, reply_type)
+            collect_reply_contract_type_from_expr(env, left, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, right, reply_port_name, reply_type)
         }
         Expr::MemStore { pointer, value, .. }
         | Expr::VolatileStore { pointer, value, .. }
@@ -4536,18 +4548,18 @@ fn collect_reply_contract_type_from_expr(
         | Expr::AtomicOr { pointer, value, .. }
         | Expr::AtomicXor { pointer, value, .. }
         | Expr::AtomicExchange { pointer, value, .. } => {
-            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
-            collect_reply_contract_type_from_expr(env, value, reply_type)
+            collect_reply_contract_type_from_expr(env, pointer, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)
         }
         Expr::PtrOffset {
             pointer, offset, ..
         } => {
-            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
-            collect_reply_contract_type_from_expr(env, offset, reply_type)
+            collect_reply_contract_type_from_expr(env, pointer, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, offset, reply_port_name, reply_type)
         }
         Expr::Index { object, index, .. } => {
-            collect_reply_contract_type_from_expr(env, object, reply_type)?;
-            collect_reply_contract_type_from_expr(env, index, reply_type)
+            collect_reply_contract_type_from_expr(env, object, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, index, reply_port_name, reply_type)
         }
         Expr::Field { object, .. }
         | Expr::AddrOf { value: object, .. }
@@ -4558,48 +4570,56 @@ fn collect_reply_contract_type_from_expr(
         | Expr::VolatileLoad { pointer: object, .. }
         | Expr::AtomicLoad { pointer: object, .. }
         | Expr::CpuCacheFlush { pointer: object, .. }
-        | Expr::Decay { target: object, .. } => collect_reply_contract_type_from_expr(env, object, reply_type),
+        | Expr::Decay { target: object, .. } => {
+            collect_reply_contract_type_from_expr(env, object, reply_port_name, reply_type)
+        }
         Expr::AtomicCompareExchange {
             pointer,
             expected,
             desired,
             ..
         } => {
-            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
-            collect_reply_contract_type_from_expr(env, expected, reply_type)?;
-            collect_reply_contract_type_from_expr(env, desired, reply_type)
+            collect_reply_contract_type_from_expr(env, pointer, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, expected, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, desired, reply_port_name, reply_type)
         }
         Expr::Range { start, end, .. } => {
             if let Some(start) = start {
-                collect_reply_contract_type_from_expr(env, start, reply_type)?;
+                collect_reply_contract_type_from_expr(env, start, reply_port_name, reply_type)?;
             }
             if let Some(end) = end {
-                collect_reply_contract_type_from_expr(env, end, reply_type)?;
+                collect_reply_contract_type_from_expr(env, end, reply_port_name, reply_type)?;
             }
             Ok(())
         }
-        Expr::Lambda { body, .. } => collect_reply_contract_type_from_expr(env, body, reply_type),
+        Expr::Lambda { body, .. } => {
+            collect_reply_contract_type_from_expr(env, body, reply_port_name, reply_type)
+        }
         Expr::Spawn { init, .. } => {
             for (_, value) in init {
-                collect_reply_contract_type_from_expr(env, value, reply_type)?;
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
             }
             Ok(())
         }
         Expr::InlineAsm { operands, .. } => {
             for operand in operands {
-                collect_reply_contract_type_from_expr(env, operand, reply_type)?;
+                collect_reply_contract_type_from_expr(env, operand, reply_port_name, reply_type)?;
             }
             Ok(())
         }
-        Expr::Alloc { size, .. } => collect_reply_contract_type_from_expr(env, size, reply_type),
+        Expr::Alloc { size, .. } => {
+            collect_reply_contract_type_from_expr(env, size, reply_port_name, reply_type)
+        }
         Expr::Realloc { pointer, size, .. } => {
-            collect_reply_contract_type_from_expr(env, pointer, reply_type)?;
-            collect_reply_contract_type_from_expr(env, size, reply_type)
+            collect_reply_contract_type_from_expr(env, pointer, reply_port_name, reply_type)?;
+            collect_reply_contract_type_from_expr(env, size, reply_port_name, reply_type)
         }
         Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
-            collect_reply_contract_type_from_expr(env, inner, reply_type)
+            collect_reply_contract_type_from_expr(env, inner, reply_port_name, reply_type)
         }
-        Expr::Unary { operand, .. } => collect_reply_contract_type_from_expr(env, operand, reply_type),
+        Expr::Unary { operand, .. } => {
+            collect_reply_contract_type_from_expr(env, operand, reply_port_name, reply_type)
+        }
         Expr::AtomicFence { .. }
         | Expr::CpuFence { .. }
         | Expr::JSX(_, _)
@@ -4622,15 +4642,21 @@ fn collect_reply_contract_type_from_expr(
 fn collect_reply_contract_type_from_else_branch(
     env: &mut TypeEnv,
     branch: &ElseBranch,
+    reply_port_name: &str,
     reply_type: &mut Option<ResolvedType>,
 ) -> Result<(), ()> {
     match branch {
-        ElseBranch::Else(block) => collect_reply_contract_type(env, block, reply_type),
+        ElseBranch::Else(block) => collect_reply_contract_type(env, block, reply_port_name, reply_type),
         ElseBranch::ElseIf(condition, block, next) => {
-            collect_reply_contract_type_from_expr(env, condition, reply_type)?;
-            collect_reply_contract_type(env, block, reply_type)?;
+            collect_reply_contract_type_from_expr(env, condition, reply_port_name, reply_type)?;
+            collect_reply_contract_type(env, block, reply_port_name, reply_type)?;
             if let Some(next) = next {
-                collect_reply_contract_type_from_else_branch(env, next, reply_type)?;
+                collect_reply_contract_type_from_else_branch(
+                    env,
+                    next,
+                    reply_port_name,
+                    reply_type,
+                )?;
             }
             Ok(())
         }

@@ -1,0 +1,796 @@
+use std::ascii
+
+pub const SEMVER_ORDER_LT: Int = -1
+pub const SEMVER_ORDER_EQ: Int = 0
+pub const SEMVER_ORDER_GT: Int = 1
+
+pub const SEMVER_OP_EQ: String = "="
+pub const SEMVER_OP_GT: String = ">"
+pub const SEMVER_OP_GTE: String = ">="
+pub const SEMVER_OP_LT: String = "<"
+pub const SEMVER_OP_LTE: String = "<="
+
+pub struct SemVer:
+    major: Int
+    minor: Int
+    patch_value: Int
+    pre_release: Array<String>
+    build_metadata: Array<String>
+
+pub struct SemVerParseResult:
+    ok: Bool
+    version: SemVer
+    error: String
+
+pub struct SemVerComparator:
+    relation: String
+    version: SemVer
+
+pub struct SemVerRangeClause:
+    comparators: Array<SemVerComparator>
+    any_version: Bool
+
+pub struct SemVerRange:
+    clauses: Array<SemVerRangeClause>
+
+pub struct SemVerRangeParseResult:
+    ok: Bool
+    range: SemVerRange
+    error: String
+
+struct SemVerIdentifierParseResult:
+    ok: Bool
+    identifiers: Array<String>
+    error: String
+
+struct SemVerPattern:
+    ok: Bool
+    any_version: Bool
+    complete: Bool
+    wildcard: Bool
+    specificity: Int
+    version: SemVer
+    error: String
+
+struct SemVerClauseParseResult:
+    ok: Bool
+    clause: SemVerRangeClause
+    error: String
+
+struct SemVerTokenExpandResult:
+    ok: Bool
+    comparators: Array<SemVerComparator>
+    any_version: Bool
+    error: String
+
+fn semver_empty_strings() -> Array<String>:
+    let mut items: Array<String> = []
+    return items
+
+fn semver_empty_comparators() -> Array<SemVerComparator>:
+    let mut items: Array<SemVerComparator> = []
+    return items
+
+fn semver_empty_clauses() -> Array<SemVerRangeClause>:
+    let mut items: Array<SemVerRangeClause> = []
+    return items
+
+fn semver_empty_version() -> SemVer:
+    return SemVer {
+        major: 0,
+        minor: 0,
+        patch_value: 0,
+        pre_release: semver_empty_strings(),
+        build_metadata: semver_empty_strings()
+    }
+
+fn semver_empty_range() -> SemVerRange:
+    return SemVerRange { clauses: semver_empty_clauses() }
+
+fn semver_parse_error(message: String) -> SemVerParseResult:
+    return SemVerParseResult {
+        ok: false,
+        version: semver_empty_version(),
+        error: message
+    }
+
+fn semver_range_parse_error(message: String) -> SemVerRangeParseResult:
+    return SemVerRangeParseResult {
+        ok: false,
+        range: semver_empty_range(),
+        error: message
+    }
+
+fn semver_clause_error(message: String) -> SemVerClauseParseResult:
+    return SemVerClauseParseResult {
+        ok: false,
+        clause: SemVerRangeClause {
+            comparators: semver_empty_comparators(),
+            any_version: false
+        },
+        error: message
+    }
+
+fn semver_token_expand_error(message: String) -> SemVerTokenExpandResult:
+    return SemVerTokenExpandResult {
+        ok: false,
+        comparators: semver_empty_comparators(),
+        any_version: false,
+        error: message
+    }
+
+fn semver_trim(text: String) -> String:
+    var start = 0
+    while start < len(text) and ascii_is_whitespace_byte(byte_at(text, start)):
+        start = start + 1
+    var finish = len(text)
+    while finish > start and ascii_is_whitespace_byte(byte_at(text, finish - 1)):
+        finish = finish - 1
+    return substring(text, start, finish)
+
+fn semver_index_of_char(text: String, marker: String, start: Int) -> Int:
+    var index = start
+    while index < len(text):
+        if char_at(text, index) == marker:
+            return index
+        index = index + 1
+    return -1
+
+fn semver_starts_with(text: String, prefix: String) -> Bool:
+    if len(prefix) > len(text):
+        return false
+    var index = 0
+    while index < len(prefix):
+        if char_at(text, index) != char_at(prefix, index):
+            return false
+        index = index + 1
+    return true
+
+fn semver_split_string(source: String, separator: String) -> Array<String>:
+    let mut items: Array<String> = []
+    if len(separator) == 0:
+        push(items, source)
+        return items
+    var cursor = 0
+    while cursor <= len(source):
+        let found = find_substring_from(source, separator, cursor)
+        if found < cursor:
+            push(items, substring(source, cursor, len(source)))
+            return items
+        push(items, substring(source, cursor, found))
+        cursor = found + len(separator)
+    return items
+
+fn semver_join_strings(items: Array<String>, separator: String) -> String:
+    var output = ""
+    var index = 0
+    while index < len(items):
+        if index > 0:
+            output = output + separator
+        output = output + items[index]
+        index = index + 1
+    return output
+
+fn semver_string_array_equal(left: Array<String>, right: Array<String>) -> Bool:
+    if len(left) != len(right):
+        return false
+    var index = 0
+    while index < len(left):
+        if left[index] != right[index]:
+            return false
+        index = index + 1
+    return true
+
+fn semver_is_wildcard_token(text: String) -> Bool:
+    if text == "*":
+        return true
+    return ascii_equals_ignore_case(text, "x")
+
+fn semver_is_operator_only_token(text: String) -> Bool:
+    if text == SEMVER_OP_GT:
+        return true
+    if text == SEMVER_OP_GTE:
+        return true
+    if text == SEMVER_OP_LT:
+        return true
+    if text == SEMVER_OP_LTE:
+        return true
+    if text == SEMVER_OP_EQ:
+        return true
+    if text == "^":
+        return true
+    return text == "~"
+
+fn semver_parse_number_strict(text: String) -> Int:
+    if len(text) == 0:
+        return -1
+    if len(text) > 1 and byte_at(text, 0) == 48:
+        return -1
+    var value = 0
+    var index = 0
+    while index < len(text):
+        let digit = ascii_digit_value_byte(byte_at(text, index))
+        if digit < 0:
+            return -1
+        value = (value * 10) + digit
+        index = index + 1
+    return value
+
+fn semver_identifier_is_valid(text: String, forbid_numeric_leading_zero: Bool) -> Bool:
+    if len(text) == 0:
+        return false
+    var numeric = true
+    var index = 0
+    while index < len(text):
+        let code = byte_at(text, index)
+        if ascii_is_alnum_byte(code) == false and code != 45:
+            return false
+        if ascii_is_digit_byte(code) == false:
+            numeric = false
+        index = index + 1
+    if numeric and forbid_numeric_leading_zero and len(text) > 1 and byte_at(text, 0) == 48:
+        return false
+    return true
+
+fn semver_parse_identifiers(text: String, forbid_numeric_leading_zero: Bool, lane: String) -> SemVerIdentifierParseResult:
+    let trimmed = semver_trim(text)
+    if len(trimmed) == 0:
+        return SemVerIdentifierParseResult {
+            ok: false,
+            identifiers: semver_empty_strings(),
+            error: lane + " must not be empty"
+        }
+    let items = semver_split_string(trimmed, ".")
+    let mut identifiers: Array<String> = []
+    var index = 0
+    while index < len(items):
+        let identifier = items[index]
+        if semver_identifier_is_valid(identifier, forbid_numeric_leading_zero) == false:
+            return SemVerIdentifierParseResult {
+                ok: false,
+                identifiers: semver_empty_strings(),
+                error: lane + " identifier `" + identifier + "` is invalid"
+            }
+        push(identifiers, identifier)
+        index = index + 1
+    return SemVerIdentifierParseResult {
+        ok: true,
+        identifiers: identifiers,
+        error: ""
+    }
+
+fn semver_pattern_error(message: String) -> SemVerPattern:
+    return SemVerPattern {
+        ok: false,
+        any_version: false,
+        complete: false,
+        wildcard: false,
+        specificity: 0,
+        version: semver_empty_version(),
+        error: message
+    }
+
+fn semver_parse_pattern(text: String) -> SemVerPattern:
+    let trimmed = semver_trim(text)
+    if len(trimmed) == 0:
+        return semver_pattern_error("version pattern must not be empty")
+    if semver_is_wildcard_token(trimmed):
+        return SemVerPattern {
+            ok: true,
+            any_version: true,
+            complete: false,
+            wildcard: true,
+            specificity: 0,
+            version: semver_empty_version(),
+            error: ""
+        }
+
+    let plus_index = semver_index_of_char(trimmed, "+", 0)
+    if plus_index >= 0 and semver_index_of_char(trimmed, "+", plus_index + 1) >= 0:
+        return semver_pattern_error("multiple `+` segments are not allowed")
+    var core_and_pre = trimmed
+    let mut build_metadata = semver_empty_strings()
+    if plus_index >= 0:
+        let build_result = semver_parse_identifiers(
+            substring(trimmed, plus_index + 1, len(trimmed)),
+            false,
+            "build metadata"
+        )
+        if build_result.ok == false:
+            return semver_pattern_error(build_result.error)
+        build_metadata = build_result.identifiers
+        core_and_pre = substring(trimmed, 0, plus_index)
+
+    let dash_index = semver_index_of_char(core_and_pre, "-", 0)
+    var core = core_and_pre
+    let mut pre_release = semver_empty_strings()
+    if dash_index >= 0:
+        let pre_result = semver_parse_identifiers(
+            substring(core_and_pre, dash_index + 1, len(core_and_pre)),
+            true,
+            "pre-release"
+        )
+        if pre_result.ok == false:
+            return semver_pattern_error(pre_result.error)
+        pre_release = pre_result.identifiers
+        core = substring(core_and_pre, 0, dash_index)
+
+    let parts = semver_split_string(core, ".")
+    if len(parts) == 0 or len(parts) > 3:
+        return semver_pattern_error("semantic versions require one to three core fields in patterns")
+
+    var major = 0
+    var minor = 0
+    var patch_value = 0
+    var specificity = 0
+    var wildcard = false
+    var index = 0
+    while index < len(parts):
+        let part = parts[index]
+        if len(part) == 0:
+            return semver_pattern_error("empty version field in pattern")
+        if semver_is_wildcard_token(part):
+            wildcard = true
+            if index == 0 and len(parts) > 1:
+                return semver_pattern_error("wildcard major may only appear by itself")
+        else:
+            if wildcard:
+                return semver_pattern_error("numeric field cannot appear after a wildcard")
+            let parsed = semver_parse_number_strict(part)
+            if parsed < 0:
+                return semver_pattern_error("invalid numeric version field `" + part + "`")
+            if index == 0:
+                major = parsed
+            else:
+                if index == 1:
+                    minor = parsed
+                else:
+                    patch_value = parsed
+            specificity = index + 1
+        index = index + 1
+
+    if wildcard and (len(pre_release) > 0 or len(build_metadata) > 0):
+        return semver_pattern_error("wildcard ranges cannot carry pre-release or build metadata")
+    if len(parts) < 3 and wildcard == false and (len(pre_release) > 0 or len(build_metadata) > 0):
+        return semver_pattern_error("partial versions cannot carry pre-release or build metadata")
+
+    let stored_pre_release = if wildcard or len(parts) < 3: semver_empty_strings() else: pre_release
+    let stored_build_metadata = if wildcard or len(parts) < 3: semver_empty_strings() else: build_metadata
+    let version = SemVer {
+        major: major,
+        minor: minor,
+        patch_value: patch_value,
+        pre_release: stored_pre_release,
+        build_metadata: stored_build_metadata
+    }
+
+    return SemVerPattern {
+        ok: true,
+        any_version: false,
+        complete: wildcard == false and len(parts) == 3,
+        wildcard: wildcard,
+        specificity: specificity,
+        version: version,
+        error: ""
+    }
+
+fn semver_compare_text_lexical(left: String, right: String) -> Int:
+    var index = 0
+    while index < len(left) and index < len(right):
+        let left_byte = byte_at(left, index)
+        let right_byte = byte_at(right, index)
+        if left_byte < right_byte:
+            return SEMVER_ORDER_LT
+        if left_byte > right_byte:
+            return SEMVER_ORDER_GT
+        index = index + 1
+    if len(left) < len(right):
+        return SEMVER_ORDER_LT
+    if len(left) > len(right):
+        return SEMVER_ORDER_GT
+    return SEMVER_ORDER_EQ
+
+fn semver_compare_pre_release_identifiers(left: String, right: String) -> Int:
+    let left_numeric = semver_parse_number_strict(left)
+    let right_numeric = semver_parse_number_strict(right)
+    if left_numeric >= 0 and right_numeric < 0:
+        return SEMVER_ORDER_LT
+    if left_numeric < 0 and right_numeric >= 0:
+        return SEMVER_ORDER_GT
+    if left_numeric >= 0 and right_numeric >= 0:
+        if left_numeric < right_numeric:
+            return SEMVER_ORDER_LT
+        if left_numeric > right_numeric:
+            return SEMVER_ORDER_GT
+        return SEMVER_ORDER_EQ
+    return semver_compare_text_lexical(left, right)
+
+fn semver_compare_pre_release(left: Array<String>, right: Array<String>) -> Int:
+    var index = 0
+    while index < len(left) and index < len(right):
+        let order = semver_compare_pre_release_identifiers(left[index], right[index])
+        if order != SEMVER_ORDER_EQ:
+            return order
+        index = index + 1
+    if len(left) < len(right):
+        return SEMVER_ORDER_LT
+    if len(left) > len(right):
+        return SEMVER_ORDER_GT
+    return SEMVER_ORDER_EQ
+
+fn semver_pattern_partial_upper(pattern: SemVerPattern) -> SemVer:
+    if pattern.specificity <= 1:
+        return semver_new(pattern.version.major + 1, 0, 0)
+    return semver_new(pattern.version.major, pattern.version.minor + 1, 0)
+
+fn semver_pattern_caret_upper(pattern: SemVerPattern) -> SemVer:
+    if pattern.version.major > 0:
+        return semver_new(pattern.version.major + 1, 0, 0)
+    if pattern.specificity <= 1:
+        return semver_new(1, 0, 0)
+    if pattern.version.minor > 0:
+        return semver_new(0, pattern.version.minor + 1, 0)
+    if pattern.specificity == 2:
+        return semver_new(0, 1, 0)
+    return semver_new(0, 0, pattern.version.patch_value + 1)
+
+fn semver_pattern_tilde_upper(pattern: SemVerPattern) -> SemVer:
+    if pattern.specificity <= 1:
+        return semver_new(pattern.version.major + 1, 0, 0)
+    return semver_new(pattern.version.major, pattern.version.minor + 1, 0)
+
+fn semver_append_comparator(items: Array<SemVerComparator>, relation: String, version: SemVer) -> Array<SemVerComparator>:
+    push(items, SemVerComparator { relation: relation, version: version })
+    return items
+
+fn semver_expand_plain_pattern(pattern: SemVerPattern) -> Array<SemVerComparator>:
+    let mut comparators: Array<SemVerComparator> = []
+    if pattern.complete and pattern.wildcard == false:
+        return semver_append_comparator(comparators, SEMVER_OP_EQ, pattern.version)
+    comparators = semver_append_comparator(comparators, SEMVER_OP_GTE, pattern.version)
+    comparators = semver_append_comparator(comparators, SEMVER_OP_LT, semver_pattern_partial_upper(pattern))
+    return comparators
+
+fn semver_parse_range_token(token: String) -> SemVerTokenExpandResult:
+    let trimmed = semver_trim(token)
+    if len(trimmed) == 0:
+        return semver_token_expand_error("empty range token")
+
+    var relation = ""
+    var body = trimmed
+    if semver_starts_with(trimmed, ">="):
+        relation = SEMVER_OP_GTE
+        body = substring(trimmed, 2, len(trimmed))
+    else:
+        if semver_starts_with(trimmed, "<="):
+            relation = SEMVER_OP_LTE
+            body = substring(trimmed, 2, len(trimmed))
+        else:
+            if semver_starts_with(trimmed, ">"):
+                relation = SEMVER_OP_GT
+                body = substring(trimmed, 1, len(trimmed))
+            else:
+                if semver_starts_with(trimmed, "<"):
+                    relation = SEMVER_OP_LT
+                    body = substring(trimmed, 1, len(trimmed))
+                else:
+                    if semver_starts_with(trimmed, "="):
+                        relation = SEMVER_OP_EQ
+                        body = substring(trimmed, 1, len(trimmed))
+                    else:
+                        if semver_starts_with(trimmed, "^"):
+                            relation = "^"
+                            body = substring(trimmed, 1, len(trimmed))
+                        else:
+                            if semver_starts_with(trimmed, "~"):
+                                relation = "~"
+                                body = substring(trimmed, 1, len(trimmed))
+
+    body = semver_trim(body)
+    if len(body) == 0:
+        return semver_token_expand_error("range token `" + token + "` is missing a version")
+
+    let pattern = semver_parse_pattern(body)
+    if pattern.ok == false:
+        return semver_token_expand_error(pattern.error)
+
+    if pattern.any_version:
+        if relation == "" or relation == SEMVER_OP_EQ:
+            return SemVerTokenExpandResult {
+                ok: true,
+                comparators: semver_empty_comparators(),
+                any_version: true,
+                error: ""
+            }
+        return semver_token_expand_error("wildcard ranges cannot use operator `" + relation + "`")
+
+    let mut comparators: Array<SemVerComparator> = []
+    if relation == "":
+        return SemVerTokenExpandResult {
+            ok: true,
+            comparators: semver_expand_plain_pattern(pattern),
+            any_version: false,
+            error: ""
+        }
+    if relation == SEMVER_OP_EQ:
+        if pattern.complete and pattern.wildcard == false:
+            comparators = semver_append_comparator(comparators, SEMVER_OP_EQ, pattern.version)
+        else:
+            comparators = semver_expand_plain_pattern(pattern)
+        return SemVerTokenExpandResult {
+            ok: true,
+            comparators: comparators,
+            any_version: false,
+            error: ""
+        }
+    if relation == SEMVER_OP_GT or relation == SEMVER_OP_GTE or relation == SEMVER_OP_LT or relation == SEMVER_OP_LTE:
+        comparators = semver_append_comparator(comparators, relation, pattern.version)
+        return SemVerTokenExpandResult {
+            ok: true,
+            comparators: comparators,
+            any_version: false,
+            error: ""
+        }
+    if relation == "^":
+        comparators = semver_append_comparator(comparators, SEMVER_OP_GTE, pattern.version)
+        comparators = semver_append_comparator(comparators, SEMVER_OP_LT, semver_pattern_caret_upper(pattern))
+        return SemVerTokenExpandResult {
+            ok: true,
+            comparators: comparators,
+            any_version: false,
+            error: ""
+        }
+    if relation == "~":
+        comparators = semver_append_comparator(comparators, SEMVER_OP_GTE, pattern.version)
+        comparators = semver_append_comparator(comparators, SEMVER_OP_LT, semver_pattern_tilde_upper(pattern))
+        return SemVerTokenExpandResult {
+            ok: true,
+            comparators: comparators,
+            any_version: false,
+            error: ""
+        }
+    return semver_token_expand_error("unsupported range operator `" + relation + "`")
+
+fn semver_clause_tokens(text: String) -> Array<String>:
+    let mut tokens: Array<String> = []
+    var current = ""
+    var index = 0
+    while index < len(text):
+        let code = byte_at(text, index)
+        let ch = char_at(text, index)
+        if ascii_is_whitespace_byte(code) or ch == ",":
+            if len(current) > 0:
+                push(tokens, current)
+                current = ""
+        else:
+            current = current + ch
+        index = index + 1
+    if len(current) > 0:
+        push(tokens, current)
+    return tokens
+
+fn semver_parse_hyphen_clause(left_text: String, right_text: String) -> SemVerClauseParseResult:
+    let left_pattern = semver_parse_pattern(left_text)
+    if left_pattern.ok == false or left_pattern.any_version:
+        return semver_clause_error("invalid left side of hyphen range: " + left_pattern.error)
+    let right_pattern = semver_parse_pattern(right_text)
+    if right_pattern.ok == false or right_pattern.any_version:
+        return semver_clause_error("invalid right side of hyphen range: " + right_pattern.error)
+    let mut comparators: Array<SemVerComparator> = []
+    comparators = semver_append_comparator(comparators, SEMVER_OP_GTE, left_pattern.version)
+    if right_pattern.complete and right_pattern.wildcard == false:
+        comparators = semver_append_comparator(comparators, SEMVER_OP_LTE, right_pattern.version)
+    else:
+        comparators = semver_append_comparator(comparators, SEMVER_OP_LT, semver_pattern_partial_upper(right_pattern))
+    return SemVerClauseParseResult {
+        ok: true,
+        clause: SemVerRangeClause { comparators: comparators, any_version: false },
+        error: ""
+    }
+
+fn semver_parse_clause(text: String) -> SemVerClauseParseResult:
+    let trimmed = semver_trim(text)
+    if len(trimmed) == 0:
+        return semver_clause_error("empty range clause")
+
+    let tokens = semver_clause_tokens(trimmed)
+    if len(tokens) == 0:
+        return semver_clause_error("empty range clause")
+    if len(tokens) == 3 and tokens[1] == "-":
+        return semver_parse_hyphen_clause(tokens[0], tokens[2])
+
+    let mut comparators: Array<SemVerComparator> = []
+    var index = 0
+    while index < len(tokens):
+        if tokens[index] == "-":
+            return semver_clause_error("hyphen ranges must use `left - right` as a full clause")
+        let token = if semver_is_operator_only_token(tokens[index]) and index + 1 < len(tokens): tokens[index] + tokens[index + 1] else: tokens[index]
+        if semver_is_operator_only_token(tokens[index]):
+            if index + 1 >= len(tokens):
+                return semver_clause_error("range operator `" + tokens[index] + "` is missing a version")
+            index = index + 1
+        let expanded = semver_parse_range_token(token)
+        if expanded.ok == false:
+            return semver_clause_error(expanded.error)
+        if expanded.any_version:
+            if len(tokens) != 1:
+                return semver_clause_error("wildcard range must stand alone in a clause")
+            return SemVerClauseParseResult {
+                ok: true,
+                clause: SemVerRangeClause {
+                    comparators: semver_empty_comparators(),
+                    any_version: true
+                },
+                error: ""
+            }
+        var comparator_index = 0
+        while comparator_index < len(expanded.comparators):
+            push(comparators, expanded.comparators[comparator_index])
+            comparator_index = comparator_index + 1
+        index = index + 1
+    return SemVerClauseParseResult {
+        ok: true,
+        clause: SemVerRangeClause {
+            comparators: comparators,
+            any_version: false
+        },
+        error: ""
+    }
+
+pub fn semver_new(major: Int, minor: Int, patch_value: Int) -> SemVer:
+    return SemVer {
+        major: major,
+        minor: minor,
+        patch_value: patch_value,
+        pre_release: semver_empty_strings(),
+        build_metadata: semver_empty_strings()
+    }
+
+pub fn semver_with(major: Int, minor: Int, patch_value: Int, pre_release: Array<String>, build_metadata: Array<String>) -> SemVer:
+    return SemVer {
+        major: major,
+        minor: minor,
+        patch_value: patch_value,
+        pre_release: pre_release,
+        build_metadata: build_metadata
+    }
+
+pub fn semver_parse(text: String) -> SemVerParseResult:
+    let pattern = semver_parse_pattern(text)
+    if pattern.ok == false:
+        return semver_parse_error(pattern.error)
+    if pattern.any_version:
+        return semver_parse_error("a wildcard is not a concrete semantic version")
+    if pattern.complete == false or pattern.wildcard:
+        return semver_parse_error("semantic versions require major.minor.patch")
+    return SemVerParseResult {
+        ok: true,
+        version: pattern.version,
+        error: ""
+    }
+
+pub fn semver_try_parse(text: String) -> Option<SemVer>:
+    let parsed = semver_parse(text)
+    if parsed.ok:
+        return Some(parsed.version)
+    return None
+
+pub fn semver_format(version: SemVer) -> String:
+    var output = to_string(version.major) + "." + to_string(version.minor) + "." + to_string(version.patch_value)
+    if len(version.pre_release) > 0:
+        output = output + "-" + semver_join_strings(version.pre_release, ".")
+    if len(version.build_metadata) > 0:
+        output = output + "+" + semver_join_strings(version.build_metadata, ".")
+    return output
+
+pub fn semver_normalize(text: String) -> String:
+    let parsed = semver_parse(text)
+    if parsed.ok == false:
+        return ""
+    return semver_format(parsed.version)
+
+pub fn semver_is_prerelease(version: SemVer) -> Bool:
+    return len(version.pre_release) > 0
+
+pub fn semver_compare(left: SemVer, right: SemVer) -> Int:
+    if left.major < right.major:
+        return SEMVER_ORDER_LT
+    if left.major > right.major:
+        return SEMVER_ORDER_GT
+    if left.minor < right.minor:
+        return SEMVER_ORDER_LT
+    if left.minor > right.minor:
+        return SEMVER_ORDER_GT
+    if left.patch_value < right.patch_value:
+        return SEMVER_ORDER_LT
+    if left.patch_value > right.patch_value:
+        return SEMVER_ORDER_GT
+    if len(left.pre_release) == 0 and len(right.pre_release) == 0:
+        return SEMVER_ORDER_EQ
+    if len(left.pre_release) == 0:
+        return SEMVER_ORDER_GT
+    if len(right.pre_release) == 0:
+        return SEMVER_ORDER_LT
+    return semver_compare_pre_release(left.pre_release, right.pre_release)
+
+pub fn semver_compare_text(left_text: String, right_text: String) -> Int:
+    let left = semver_parse(left_text)
+    let right = semver_parse(right_text)
+    if left.ok == false and right.ok == false:
+        return SEMVER_ORDER_EQ
+    if left.ok == false:
+        return SEMVER_ORDER_LT
+    if right.ok == false:
+        return SEMVER_ORDER_GT
+    return semver_compare(left.version, right.version)
+
+pub fn semver_equal(left: SemVer, right: SemVer) -> Bool:
+    if left.major != right.major or left.minor != right.minor or left.patch_value != right.patch_value:
+        return false
+    if semver_string_array_equal(left.pre_release, right.pre_release) == false:
+        return false
+    return semver_string_array_equal(left.build_metadata, right.build_metadata)
+
+pub fn semver_range_parse(text: String) -> SemVerRangeParseResult:
+    let trimmed = semver_trim(text)
+    if len(trimmed) == 0:
+        return semver_range_parse_error("range text must not be empty")
+
+    let clause_texts = semver_split_string(trimmed, "||")
+    let mut clauses: Array<SemVerRangeClause> = []
+    var index = 0
+    while index < len(clause_texts):
+        let clause_result = semver_parse_clause(clause_texts[index])
+        if clause_result.ok == false:
+            return semver_range_parse_error(clause_result.error)
+        push(clauses, clause_result.clause)
+        index = index + 1
+    return SemVerRangeParseResult {
+        ok: true,
+        range: SemVerRange { clauses: clauses },
+        error: ""
+    }
+
+fn semver_comparator_matches(comparator: SemVerComparator, version: SemVer) -> Bool:
+    let order = semver_compare(version, comparator.version)
+    if comparator.relation == SEMVER_OP_EQ:
+        return order == SEMVER_ORDER_EQ
+    if comparator.relation == SEMVER_OP_GT:
+        return order == SEMVER_ORDER_GT
+    if comparator.relation == SEMVER_OP_GTE:
+        return order == SEMVER_ORDER_GT or order == SEMVER_ORDER_EQ
+    if comparator.relation == SEMVER_OP_LT:
+        return order == SEMVER_ORDER_LT
+    if comparator.relation == SEMVER_OP_LTE:
+        return order == SEMVER_ORDER_LT or order == SEMVER_ORDER_EQ
+    return false
+
+fn semver_clause_matches(clause: SemVerRangeClause, version: SemVer) -> Bool:
+    if clause.any_version:
+        return true
+    var index = 0
+    while index < len(clause.comparators):
+        if semver_comparator_matches(clause.comparators[index], version) == false:
+            return false
+        index = index + 1
+    return true
+
+pub fn semver_range_matches(range: SemVerRange, version: SemVer) -> Bool:
+    var index = 0
+    while index < len(range.clauses):
+        if semver_clause_matches(range.clauses[index], version):
+            return true
+        index = index + 1
+    return false
+
+pub fn semver_satisfies(version: SemVer, range_text: String) -> Bool:
+    let parsed = semver_range_parse(range_text)
+    if parsed.ok == false:
+        return false
+    return semver_range_matches(parsed.range, version)
+
+pub fn semver_satisfies_text(version_text: String, range_text: String) -> Bool:
+    let version = semver_parse(version_text)
+    if version.ok == false:
+        return false
+    return semver_satisfies(version.version, range_text)

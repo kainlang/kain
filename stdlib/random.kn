@@ -226,7 +226,7 @@ pub fn shattered_rng_buffer_destroy(rng: ShatteredRngBuffer) -> Int:
     decay rng.buffer
     return 0
 
-fn shattered_rng_buffer_update_scalar(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int with Unsafe:
+pub fn shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int with Unsafe:
     var i = 0
     while i < lanes:
         let base = i * 4
@@ -254,14 +254,6 @@ fn shattered_rng_buffer_update_scalar(buf: ptr<Int>, output: ptr<Int>, lanes: In
         mem_store(ptr_offset(output, i, "Int"), result, "Int")
         i = i + 1
     return lanes
-
-pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int with Unsafe:
-    spec reference:
-        return shattered_rng_buffer_update_scalar(buf, output, lanes)
-    fast llvm_lane when target("llvm"):
-        return shattered_rng_buffer_update_scalar(buf, output, lanes)
-    fast avx2_lane when capability("cpu.x86.avx2"):
-        return shattered_rng_buffer_update_scalar(buf, output, lanes)
 
 pub fn shattered_rng_buffer_next_block(rng: ShatteredRngBuffer, output: ptr<Int>) -> Int with Unsafe:
     return shattered_rng_buffer_update(rng.buffer, output, rng.lanes)

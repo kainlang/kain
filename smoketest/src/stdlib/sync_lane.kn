@@ -1,0 +1,133 @@
+use std::runtime
+use std::memory
+use std::sync
+
+pub fn smoke_sync_lane() -> Int with Unsafe:
+    # 1. Test McsMutex intrusive enqueuing and locks
+    let lock = mcs_mutex_new()
+    
+    # We allocate two MCS nodes (each is 2 Int words) in local thread memory
+    let node1 = alloc_zeroed(2, "Int")
+    let node2 = alloc_zeroed(2, "Int")
+
+    # Lock 1 should succeed immediately and be uncontended
+    let l1 = mcs_mutex_lock(lock, node1)
+    if l1 != 0:
+        return 101
+
+    # Spin/Unlock 1
+    let u1 = mcs_mutex_unlock(lock, node1)
+    if u1 != 0:
+        return 102
+
+    # Lock 2 should succeed immediately now
+    let l2 = mcs_mutex_lock(lock, node2)
+    if l2 != 0:
+        return 103
+
+    let u2 = mcs_mutex_unlock(lock, node2)
+    if u2 != 0:
+        return 104
+
+    # Cleanup MCS allocations
+    decay node1
+    decay node2
+    mcs_mutex_destroy(lock)
+
+
+    # 2. Test TeleportChannel lockless queue operations
+    let chan = teleport_channel_new(3) # capacity 3 (actually safe_capacity 4)
+    
+    # Allocate dummy elements to "teleport" addresses
+    let item1 = alloc_zeroed(1, "Int")
+    let item2 = alloc_zeroed(1, "Int")
+    let item3 = alloc_zeroed(1, "Int")
+    let item4 = alloc_zeroed(1, "Int")
+
+    let addr1 = ptr_to_int(item1)
+    let addr2 = ptr_to_int(item2)
+    let addr3 = ptr_to_int(item3)
+    let addr4 = ptr_to_int(item4)
+
+    # Test lockless SPSC sends
+    if teleport_channel_send(chan, addr1) == false:
+        return 105
+    if teleport_channel_send(chan, addr2) == false:
+        return 106
+    if teleport_channel_send(chan, addr3) == false:
+        return 107
+    
+    # Channel of capacity 3 is now full, send should reject
+    if teleport_channel_send(chan, addr4) == true:
+        return 108
+
+    # Recv first address
+    let recv1 = teleport_channel_recv(chan)
+    if recv1 != addr1:
+        return 109
+
+    # Send should succeed now that there's room
+    if teleport_channel_send(chan, addr4) == false:
+        return 110
+
+    let recv2 = teleport_channel_recv(chan)
+    if recv2 != addr2:
+        return 111
+
+    let recv3 = teleport_channel_recv(chan)
+    if recv3 != addr3:
+        return 112
+
+    let recv4 = teleport_channel_recv(chan)
+    if recv4 != addr4:
+        return 113
+
+    # Now empty
+    if teleport_channel_recv(chan) != 0:
+        return 114
+
+    # Decay all allocations
+    decay item1
+    decay item2
+    decay item3
+    decay item4
+    teleport_channel_destroy(chan)
+
+
+    # 3. Test Once lazy thread-safe initializations
+    let o = once_new()
+    
+    # First invocation wins
+    let w1 = once_do(o)
+    if w1 != 1:
+        return 115
+    
+    # Complete the once sequence
+    let _comp = once_complete(o)
+
+    # Subsequent invocation fails/skips
+    let w2 = once_do(o)
+    if w2 != 0:
+        return 116
+
+    once_destroy(o)
+
+
+    # 4. Test WaitGroup coordination
+    let wg = wait_group_new()
+    
+    # Add 2 items of work
+    let _add1 = wait_group_add(wg, 2)
+    
+    # Complete 1 work block
+    let _done1 = wait_group_done(wg)
+    
+    # Complete remaining block
+    let _done2 = wait_group_done(wg)
+    
+    # Wait should release immediately because counter is 0
+    let _wait = wait_group_wait(wg)
+
+    wait_group_destroy(wg)
+
+    return 0

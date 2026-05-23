@@ -1,0 +1,292 @@
+use std::memory
+
+# --- RingBuffer (Circular Byte-Word Stream Buffer) ---
+
+pub struct RingBuffer:
+    buffer: ptr<Int>
+    capacity: Int
+    write_pos: Int
+    read_pos: Int
+
+pub fn ring_buffer_new(capacity: Int) -> RingBuffer:
+    let safe_capacity = int_max(capacity, 8)
+    let buffer = alloc_zeroed(safe_capacity, "Int")
+    return RingBuffer {
+        buffer: buffer,
+        capacity: safe_capacity,
+        write_pos: 0,
+        read_pos: 0
+    }
+
+pub fn ring_buffer_destroy(rb: RingBuffer) -> Int:
+    decay rb.buffer
+    return 0
+
+pub fn ring_buffer_available_read(rb: RingBuffer) -> Int:
+    let w = rb.write_pos
+    let r = rb.read_pos
+    if w >= r:
+        return w - r
+    return rb.capacity - r + w
+
+pub fn ring_buffer_available_write(rb: RingBuffer) -> Int:
+    let w = rb.write_pos
+    let r = rb.read_pos
+    if w >= r:
+        return rb.capacity - w + r - 1
+    return r - w - 1
+
+# Writes up to `count` elements from `src` pointer to the circular buffer.
+# Returns the actual number of elements written.
+pub fn ring_buffer_write(rb: ptr<RingBuffer>, src: ptr<Int>, count: Int) -> Int with Unsafe:
+    let cap = mem_load(ptr_offset(rb, 1, "Int"), "Int")
+    var w = mem_load(ptr_offset(rb, 2, "Int"), "Int")
+    let r = mem_load(ptr_offset(rb, 3, "Int"), "Int")
+    let buf = int_to_ptr(mem_load(rb, "Int"), "Int")
+
+    var free_space = 0
+    if w >= r:
+        free_space = cap - w + r - 1
+    else:
+        free_space = r - w - 1
+
+    var to_write = count
+    if to_write > free_space:
+        to_write = free_space
+
+    var i = 0
+    while i < to_write:
+        let val = mem_load(ptr_offset(src, i, "Int"), "Int")
+        mem_store(ptr_offset(buf, w, "Int"), val, "Int")
+        w = (w + 1) % cap
+        i = i + 1
+
+    mem_store(ptr_offset(rb, 2, "Int"), w, "Int")
+    return to_write
+
+# Reads up to `count` elements from the circular buffer into `dest` pointer.
+# Returns the actual number of elements read.
+pub fn ring_buffer_read(rb: ptr<RingBuffer>, dest: ptr<Int>, count: Int) -> Int with Unsafe:
+    let cap = mem_load(ptr_offset(rb, 1, "Int"), "Int")
+    let w = mem_load(ptr_offset(rb, 2, "Int"), "Int")
+    var r = mem_load(ptr_offset(rb, 3, "Int"), "Int")
+    let buf = int_to_ptr(mem_load(rb, "Int"), "Int")
+
+    var available = 0
+    if w >= r:
+        available = w - r
+    else:
+        available = cap - r + w
+
+    var to_read = count
+    if to_read > available:
+        to_read = available
+
+    var i = 0
+    while i < to_read:
+        let val = mem_load(ptr_offset(buf, r, "Int"), "Int")
+        mem_store(ptr_offset(dest, i, "Int"), val, "Int")
+        r = (r + 1) % cap
+        i = i + 1
+
+    mem_store(ptr_offset(rb, 3, "Int"), r, "Int")
+    return to_read
+
+
+# --- StringBuilder (High-Performance Growable String Accumulator) ---
+
+pub struct StringBuilder:
+    buffer: ptr<Int>
+    capacity: Int
+    len: Int
+
+pub fn string_builder_new(initial_capacity: Int) -> StringBuilder:
+    let safe_capacity = int_max(initial_capacity, 8)
+    let buffer = alloc_zeroed(safe_capacity, "Int")
+    return StringBuilder {
+        buffer: buffer,
+        capacity: safe_capacity,
+        len: 0
+    }
+
+pub fn string_builder_destroy(sb: StringBuilder) -> Int:
+    decay sb.buffer
+    return 0
+
+# Appends a single character/codepoint to the builder. Reallocates memory when full.
+pub fn string_builder_append_char(sb: ptr<StringBuilder>, c: Int) -> Int with Unsafe:
+    let cap = mem_load(ptr_offset(sb, 1, "Int"), "Int")
+    var len = mem_load(ptr_offset(sb, 2, "Int"), "Int")
+    var buf = int_to_ptr(mem_load(sb, "Int"), "Int")
+
+    if len >= cap:
+        let new_cap = cap * 2
+        let new_buf = alloc_zeroed(new_cap, "Int")
+        var i = 0
+        while i < len:
+            let val = mem_load(ptr_offset(buf, i, "Int"), "Int")
+            mem_store(ptr_offset(new_buf, i, "Int"), val, "Int")
+            i = i + 1
+        
+        decay buf
+        mem_store(sb, ptr_to_int(new_buf), "Int")
+        mem_store(ptr_offset(sb, 1, "Int"), new_cap, "Int")
+        buf = new_buf
+        cap = new_cap
+
+    mem_store(ptr_offset(buf, len, "Int"), c, "Int")
+    len = len + 1
+    mem_store(ptr_offset(sb, 2, "Int"), len, "Int")
+    return len
+
+# Appends a full String of characters to the builder.
+pub fn string_builder_append_string(sb: ptr<StringBuilder>, str: String) -> Int with Unsafe:
+    let str_len = len(str)
+    var i = 0
+    while i < str_len:
+        let c = ord(char_at(str, i))
+        let _ignored = string_builder_append_char(sb, c)
+        i = i + 1
+    return str_len
+
+# Materializes the accumulated characters into a single allocated String.
+pub fn string_builder_to_string(sb: StringBuilder) -> String with Unsafe:
+    var result = ""
+    var i = 0
+    while i < sb.len:
+        let c = mem_load(ptr_offset(sb.buffer, i, "Int"), "Int")
+        result = result + chr(c)
+        i = i + 1
+    return result
+
+
+# --- BufferedReader & BufferedWriter (Linear Composable Stream Primitives) ---
+
+pub struct BufferedReader:
+    buffer: ptr<Int>
+    capacity: Int
+    pos: Int
+    len: Int
+
+pub fn buffered_reader_new(capacity: Int) -> BufferedReader:
+    let safe_capacity = int_max(capacity, 8)
+    let buffer = alloc_zeroed(safe_capacity, "Int")
+    return BufferedReader {
+        buffer: buffer,
+        capacity: safe_capacity,
+        pos: 0,
+        len: 0
+    }
+
+pub fn buffered_reader_destroy(br: BufferedReader) -> Int:
+    decay br.buffer
+    return 0
+
+# Fills the buffer using a raw input source pointer, simulating direct OS block-read.
+pub fn buffered_reader_fill(br: ptr<BufferedReader>, src: ptr<Int>, src_len: Int) -> Int with Unsafe:
+    let cap = mem_load(ptr_offset(br, 1, "Int"), "Int")
+    let buf = int_to_ptr(mem_load(br, "Int"), "Int")
+
+    # Only fill if the buffer is empty
+    let pos = mem_load(ptr_offset(br, 2, "Int"), "Int")
+    let len = mem_load(ptr_offset(br, 3, "Int"), "Int")
+    if pos < len:
+        return 0
+
+    var to_copy = src_len
+    if to_copy > cap:
+        to_copy = cap
+
+    var i = 0
+    while i < to_copy:
+        let val = mem_load(ptr_offset(src, i, "Int"), "Int")
+        mem_store(ptr_offset(buf, i, "Int"), val, "Int")
+        i = i + 1
+
+    mem_store(ptr_offset(br, 2, "Int"), 0, "Int")     # pos = 0
+    mem_store(ptr_offset(br, 3, "Int"), to_copy, "Int") # len = to_copy
+    return to_copy
+
+# Reads from the buffer into a destination pointer.
+pub fn buffered_reader_read(br: ptr<BufferedReader>, dest: ptr<Int>, count: Int) -> Int with Unsafe:
+    let buf = int_to_ptr(mem_load(br, "Int"), "Int")
+    var pos = mem_load(ptr_offset(br, 2, "Int"), "Int")
+    let len = mem_load(ptr_offset(br, 3, "Int"), "Int")
+
+    let available = len - pos
+    if available <= 0:
+        return 0
+
+    var to_read = count
+    if to_read > available:
+        to_read = available
+
+    var i = 0
+    while i < to_read:
+        let val = mem_load(ptr_offset(buf, pos + i, "Int"), "Int")
+        mem_store(ptr_offset(dest, i, "Int"), val, "Int")
+        i = i + 1
+
+    mem_store(ptr_offset(br, 2, "Int"), pos + to_read, "Int")
+    return to_read
+
+
+pub struct BufferedWriter:
+    buffer: ptr<Int>
+    capacity: Int
+    pos: Int
+
+pub fn buffered_writer_new(capacity: Int) -> BufferedWriter:
+    let safe_capacity = int_max(capacity, 8)
+    let buffer = alloc_zeroed(safe_capacity, "Int")
+    return BufferedWriter {
+        buffer: buffer,
+        capacity: safe_capacity,
+        pos: 0
+    }
+
+pub fn buffered_writer_destroy(bw: BufferedWriter) -> Int:
+    decay bw.buffer
+    return 0
+
+# Writes to the buffered writer. Flushes automatically to a mock target pointer when full.
+pub fn buffered_writer_write(bw: ptr<BufferedWriter>, src: ptr<Int>, count: Int, flush_target: ptr<Int>) -> Int with Unsafe:
+    let cap = mem_load(ptr_offset(bw, 1, "Int"), "Int")
+    var pos = mem_load(ptr_offset(bw, 2, "Int"), "Int")
+    let buf = int_to_ptr(mem_load(bw, "Int"), "Int")
+
+    var i = 0
+    while i < count:
+        if pos >= cap:
+            # Buffer is full, flush to the target
+            var f = 0
+            while f < cap:
+                let val = mem_load(ptr_offset(buf, f, "Int"), "Int")
+                mem_store(ptr_offset(flush_target, f, "Int"), val, "Int")
+                f = f + 1
+            pos = 0
+
+        let val = mem_load(ptr_offset(src, i, "Int"), "Int")
+        mem_store(ptr_offset(buf, pos, "Int"), val, "Int")
+        pos = pos + 1
+        i = i + 1
+
+    mem_store(ptr_offset(bw, 2, "Int"), pos, "Int")
+    return count
+
+# Forces a flush of all remaining buffered bytes to a destination target.
+pub fn buffered_writer_flush(bw: ptr<BufferedWriter>, dest: ptr<Int>) -> Int with Unsafe:
+    var pos = mem_load(ptr_offset(bw, 2, "Int"), "Int")
+    let buf = int_to_ptr(mem_load(bw, "Int"), "Int")
+
+    if pos <= 0:
+        return 0
+
+    var i = 0
+    while i < pos:
+        let val = mem_load(ptr_offset(buf, i, "Int"), "Int")
+        mem_store(ptr_offset(dest, i, "Int"), val, "Int")
+        i = i + 1
+
+    mem_store(ptr_offset(bw, 2, "Int"), 0, "Int")
+    return pos

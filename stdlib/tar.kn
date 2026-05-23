@@ -1,0 +1,122 @@
+use std::memory
+use std::io
+
+# --- TarEntry (Structured Archive Entry Descriptor) ---
+
+pub struct TarEntry:
+    name: String
+    size: Int
+    is_valid: Bool
+
+# --- TarWriter (Block-Oriented Stream Archiver) ---
+
+pub struct TarWriter:
+    dest: ptr<BufferedWriter>
+
+pub fn tar_writer_new(dest: ptr<BufferedWriter>) -> TarWriter:
+    return TarWriter { dest: dest }
+
+# Writes a 512-byte (64-word) TAR sector header to the BufferedWriter.
+# Copies up to 96 characters of the name string into the header, and formats the file size.
+pub fn tar_write_header(w: TarWriter, name: String, size_bytes: Int, flush_target: ptr<Int>) -> Int with Unsafe:
+    # 512 bytes = 64 Int words
+    let header = alloc_zeroed(64, "Int")
+    
+    # Store name characters into the first 12 words (96 bytes)
+    let name_len = len(name)
+    var i = 0
+    while i < name_len and i < 96:
+        let char_val = ord(char_at(name, i))
+        mem_store(ptr_offset(header, i, "Int"), char_val, "Int")
+        i = i + 1
+
+    # Store file size at word offset 16 (128 bytes)
+    mem_store(ptr_offset(header, 16, "Int"), size_bytes, "Int")
+
+    # Store 'ustar' magic identifier at word offset 32 (256 bytes)
+    # 'u' = 117, 's' = 115, 't' = 116, 'a' = 97, 'r' = 114
+    mem_store(ptr_offset(header, 32, "Int"), 117, "Int")
+    mem_store(ptr_offset(header, 33, "Int"), 115, "Int")
+    mem_store(ptr_offset(header, 34, "Int"), 116, "Int")
+    mem_store(ptr_offset(header, 35, "Int"), 97, "Int")
+    mem_store(ptr_offset(header, 36, "Int"), 114, "Int")
+
+    # Write the 64-word header sector to the buffered writer
+    let _written = buffered_writer_write(w.dest, header, 64, flush_target)
+    decay header
+    return 0
+
+# Writes file content blocks and pads the final block to a 512-byte (64-word) sector boundary.
+pub fn tar_write_file_data(w: TarWriter, src: ptr<Int>, count_words: Int, flush_target: ptr<Int>) -> Int with Unsafe:
+    # Write the main data words
+    let _written = buffered_writer_write(w.dest, src, count_words, flush_target)
+
+    # Pad to 64-word sector boundary
+    let remainder = count_words % 64
+    if remainder > 0:
+        let pad_count = 64 - remainder
+        let pad = alloc_zeroed(pad_count, "Int")
+        let _ignored = buffered_writer_write(w.dest, pad, pad_count, flush_target)
+        decay pad
+    
+    return 0
+
+
+# --- TarReader (Block-Oriented Archive Extractor) ---
+
+pub struct TarReader:
+    src: ptr<BufferedReader>
+
+pub fn tar_reader_new(src: ptr<BufferedReader>) -> TarReader:
+    return TarReader { src: src }
+
+# Parses a 512-byte (64-word) sector header from the BufferedReader.
+# Reconstructs the original file name and size metadata.
+pub fn tar_read_entry(r: TarReader) -> TarEntry with Unsafe:
+    let header = alloc_zeroed(64, "Int")
+    let read_count = buffered_reader_read(r.src, header, 64)
+    if read_count < 64:
+        decay header
+        return TarEntry { name: "", size: 0, is_valid: false }
+
+    # Verify if we hit the double-zero block denoting end of archive
+    let check_val = mem_load(header, "Int")
+    if check_val == 0:
+        decay header
+        return TarEntry { name: "", size: 0, is_valid: false }
+
+    # Reconstruct name string from the first 12 words
+    var name = ""
+    var i = 0
+    var done = false
+    while i < 96 and done == false:
+        let c = mem_load(ptr_offset(header, i, "Int"), "Int")
+        if c == 0:
+            done = true
+        else:
+            name = name + chr(c)
+            i = i + 1
+
+    # Extract size from word offset 16
+    let size = mem_load(ptr_offset(header, 16, "Int"), "Int")
+    decay header
+
+    return TarEntry { name: name, size: size, is_valid: true }
+
+# Skips/reads the data sectors of the current entry to advance to the next archive sector.
+pub fn tar_skip_data(r: TarReader, size_words: Int) -> Int with Unsafe:
+    # Compute total padded sectors
+    var sectors = size_words / 64
+    if size_words % 64 > 0:
+        sectors = sectors + 1
+    
+    let total_words = sectors * 64
+    let skip_buf = alloc_zeroed(64, "Int")
+    
+    var s = 0
+    while s < sectors:
+        let _read = buffered_reader_read(r.src, skip_buf, 64)
+        s = s + 1
+    
+    decay skip_buf
+    return total_words

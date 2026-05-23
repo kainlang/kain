@@ -1,0 +1,57 @@
+use std::runtime
+
+pub enum Arch:
+    X86_64
+    Aarch64
+    Wasm32
+    Unknown
+
+pub enum OS:
+    Windows
+    Linux
+    Macos
+    Freestanding
+    Unknown
+
+pub enum Env:
+    Gnu
+    Musl
+    Msvc
+    Unknown
+
+pub struct Target:
+    arch: Arch
+    os: OS
+    env: Env
+    is_64bit: Bool
+
+# Queries the executing environment's target facts, aligning with standard platforms
+pub fn target_current() -> Target:
+    # Query runtime platform facts
+    let plat_avail = platform_current_kind()
+    
+    var os = OS::Unknown
+    var env = Env::Unknown
+    var arch = Arch::X86_64 # Default target of native LLVM compiler
+    
+    if plat_avail == 1: # Windows kind
+        os = OS::Windows
+        env = Env::Msvc
+    elif plat_avail == 2: # Linux kind
+        os = OS::Linux
+        env = Env::Gnu
+    elif plat_avail == 3: # Macos kind
+        os = OS::Macos
+        env = Env::Unknown
+
+    return Target {
+        arch: arch,
+        os: os,
+        env: env,
+        is_64bit: true
+    }
+
+# Verifies if the target environment supports specific hardware instruction features
+pub fn target_has_feature(feature_key: String) -> Bool:
+    let code = runtime_cpu_has_capability(feature_key)
+    return code != 0
