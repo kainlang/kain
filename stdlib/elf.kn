@@ -10,7 +10,7 @@ pub const ELF_MACHINE_X86_64: Int = 62
 pub const ELF_MACHINE_AARCH64: Int = 183
 
 pub struct ElfHeader:
-    class: Int
+    elf_class: Int
     data: Int
     version: Int
     os_abi: Int
@@ -49,14 +49,15 @@ pub struct ElfSectionHeader:
     addralign: Int
     entsize: Int
 
-# Parses a 64-bit ELF Header from a 64-byte buffer (8 words).
+# Parses a compact word-packed ELF header buffer used by the stdlib smoke lane.
+# This layout is intentionally simplified rather than a byte-exact ELF64 parser.
 pub fn elf_read_header(buffer: ptr<Int>) -> ElfHeader with Unsafe:
     let magic = mem_load(ptr_offset(buffer, 0, "Int"), "Int")
-    if magic != ELF_MAGIC:
-        return ElfHeader { class: 0, data: 0, version: 0, os_abi: 0, file_type: 0, machine: 0, entry: 0, phoff: 0, shoff: 0, flags: 0, ehsize: 0, phentsize: 0, phnum: 0, shentsize: 0, shnum: 0, shstrndx: 0 }
+    if magic != 1179403647:
+        return ElfHeader { elf_class: 0, data: 0, version: 0, os_abi: 0, file_type: 0, machine: 0, entry: 0, phoff: 0, shoff: 0, flags: 0, ehsize: 0, phentsize: 0, phnum: 0, shentsize: 0, shnum: 0, shstrndx: 0 }
         
     let ident_words = mem_load(ptr_offset(buffer, 1, "Int"), "Int")
-    let class = ident_words & 255
+    let elf_class = ident_words & 255
     let data = (ident_words >> 8) & 255
     let version = (ident_words >> 16) & 255
     let os_abi = (ident_words >> 24) & 255
@@ -82,7 +83,7 @@ pub fn elf_read_header(buffer: ptr<Int>) -> ElfHeader with Unsafe:
     let shstrndx = mem_load(ptr_offset(buffer, 8, "Int"), "Int")
     
     return ElfHeader {
-        class: class,
+        elf_class: elf_class,
         data: data,
         version: version,
         os_abi: os_abi,

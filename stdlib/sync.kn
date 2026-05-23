@@ -52,28 +52,28 @@ pub fn mcs_mutex_lock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
     let prev_tail_bits = atomic_exchange_acqrel(lock.tail, ptr_to_int(node))
     if prev_tail_bits != 0:
         let prev_tail: ptr<Int> = int_to_ptr(prev_tail_bits, "ptr<Int>")
-        atomic_store_release(mcs_node_waiting_ptr(node), 1)
-        atomic_store_release(prev_tail, ptr_to_int(node))
         let waiting_ptr = mcs_node_waiting_ptr(node)
+        atomic_store_release(mcs_node_waiting_ptr(node), 1)
+        atomic_store_release(prev_tail, ptr_to_int(waiting_ptr))
         while atomic_load_acquire(waiting_ptr) == 1:
             spin_loop_hint()
 
     return SYNC_OK
 
 pub fn mcs_mutex_unlock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
-    var next_node_bits = atomic_load_acquire(node)
-    var next_node: ptr<Int> = int_to_ptr(next_node_bits, "ptr<Int>")
+    var next_waiting_bits = atomic_load_acquire(node)
+    var next_waiting: ptr<Int> = int_to_ptr(next_waiting_bits, "ptr<Int>")
 
-    if next_node_bits == 0:
+    if next_waiting_bits == 0:
         if atomic_compare_exchange_seqcst(lock.tail, ptr_to_int(node), 0):
             return SYNC_OK
 
-        while next_node_bits == 0:
+        while next_waiting_bits == 0:
             spin_loop_hint()
-            next_node_bits = atomic_load_acquire(node)
-        next_node = int_to_ptr(next_node_bits, "ptr<Int>")
+            next_waiting_bits = atomic_load_acquire(node)
+        next_waiting = int_to_ptr(next_waiting_bits, "ptr<Int>")
 
-    atomic_store_release(mcs_node_waiting_ptr(next_node), 0)
+    atomic_store_release(next_waiting, 0)
     return SYNC_OK
 
 

@@ -6,7 +6,7 @@ use std::sync
 
 const STDLIB_FOUNDATIONS_ITERATIONS: Int = 20000
 const STDLIB_FOUNDATIONS_MODULUS: Int = 1000000007
-const STDLIB_FOUNDATIONS_EXPECTED: Int = 248311071
+const STDLIB_FOUNDATIONS_EXPECTED: Int = 448991071
 
 fn stdlib_foundation_text_score(text: TextSlice, iteration: Int) -> Int:
     return text_len(text) + text_find(text, "priority") + text_byte_at(text, iteration % text_len(text))

@@ -30,7 +30,7 @@ pub struct WasmSection:
 pub fn wasm_validate_header(buffer: ptr<Int>) -> Bool with Unsafe:
     let magic = mem_load(ptr_offset(buffer, 0, "Int"), "Int")
     let version = mem_load(ptr_offset(buffer, 1, "Int"), "Int")
-    return magic == WASM_MAGIC and version == WASM_VERSION
+    return magic == 1836278016 and version == 1
 
 # Extracts a WASM section header details from a raw payload index.
 # Returns WasmSection details.

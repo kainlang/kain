@@ -1,0 +1,8 @@
+@extern
+pub fn extern_probe(value: Int) -> Int
+
+pub fn extern_probe_use(value: Int) -> Int:
+    return extern_probe(value)
+
+fn main() -> Int:
+    return 0

@@ -1,20 +1,4 @@
 use std::target
-use std::text
-
-@extern
-fn abi_fs_path_join(base: String, child: String) -> String
-
-@extern
-fn abi_fs_path_parent(path: String) -> String
-
-@extern
-fn abi_fs_path_file_name(path: String) -> String
-
-@extern
-fn abi_fs_path_extension(path: String) -> String
-
-@extern
-fn abi_fs_path_stem(path: String) -> String
 
 pub fn path_sep() -> String:
     let tgt = target_current()
@@ -31,97 +15,257 @@ pub fn path_delimiter() -> String:
 pub fn path_is_absolute(path: String) -> Bool:
     if len(path) == 0:
         return false
-    
+
     let first = char_at(path, 0)
-    if first == "/" or first == "\\" :
+    if first == "/" or first == "\\":
         return true
-    
-    # Windows drive letter absolute paths (e.g. C:\)
+
     if len(path) >= 3:
         let second = char_at(path, 1)
         let third = char_at(path, 2)
-        if second == ":" and (third == "\\" or third == "/") :
+        if second == ":" and (third == "\\" or third == "/"):
             return true
-            
+
     return false
 
 pub fn path_join(base: String, child: String) -> String:
-    return abi_fs_path_join(base, child)
+    if len(base) == 0:
+        return child
+    if len(child) == 0:
+        return base
+
+    let tgt = target_current()
+    var sep = "/"
+    match tgt.os:
+        OS::Windows => sep = "\\"
+        _ => sep = "/"
+
+    let last = char_at(base, len(base) - 1)
+    if last == "/" or last == "\\":
+        return base + child
+    return base + sep + child
 
 pub fn path_parent(path: String) -> String:
-    return abi_fs_path_parent(path)
+    if len(path) == 0:
+        return ""
+
+    var index = len(path) - 1
+    while index >= 0:
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            if index == 0:
+                return substring(path, 0, 1)
+            return substring(path, 0, index)
+        index = index - 1
+    return ""
 
 pub fn path_file_name(path: String) -> String:
-    return abi_fs_path_file_name(path)
+    if len(path) == 0:
+        return ""
+
+    var index = len(path) - 1
+    while index >= 0:
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            return substring(path, index + 1, len(path))
+        index = index - 1
+    return path
 
 pub fn path_extension(path: String) -> String:
-    return abi_fs_path_extension(path)
+    var file_name = path
+    if len(path) > 0:
+        var path_index = len(path) - 1
+        while path_index >= 0:
+            let path_ch = char_at(path, path_index)
+            if path_ch == "/" or path_ch == "\\":
+                file_name = substring(path, path_index + 1, len(path))
+                path_index = -1
+            else:
+                path_index = path_index - 1
+    if len(file_name) == 0:
+        return ""
+
+    var index = len(file_name) - 1
+    while index >= 0:
+        let ch = char_at(file_name, index)
+        if ch == ".":
+            if index + 1 >= len(file_name):
+                return ""
+            return substring(file_name, index + 1, len(file_name))
+        index = index - 1
+    return ""
 
 pub fn path_stem(path: String) -> String:
-    return abi_fs_path_stem(path)
+    var file_name = path
+    if len(path) > 0:
+        var path_index = len(path) - 1
+        while path_index >= 0:
+            let path_ch = char_at(path, path_index)
+            if path_ch == "/" or path_ch == "\\":
+                file_name = substring(path, path_index + 1, len(path))
+                path_index = -1
+            else:
+                path_index = path_index - 1
+    if len(file_name) == 0:
+        return ""
+
+    var index = len(file_name) - 1
+    while index >= 0:
+        let ch = char_at(file_name, index)
+        if ch == ".":
+            if index == 0:
+                return file_name
+            return substring(file_name, 0, index)
+        index = index - 1
+    return file_name
 
 pub fn path_normalize(path: String) -> String:
-    # A lightweight robust pure path normalization that strips redundant slashes and handles "." and ".."
     if len(path) == 0:
         return "."
-        
-    let sep = path_sep()
-    let is_abs = path_is_absolute(path)
-    let parts = path_split(path)
+
+    let tgt = target_current()
+    var sep = "/"
+    match tgt.os:
+        OS::Windows => sep = "\\"
+        _ => sep = "/"
+
+    var is_abs = false
+    let first = char_at(path, 0)
+    if first == "/" or first == "\\":
+        is_abs = true
+    elif len(path) >= 3:
+        let second = char_at(path, 1)
+        let third = char_at(path, 2)
+        if second == ":" and (third == "\\" or third == "/"):
+            is_abs = true
+
+    let mut parts: Array<String> = []
+    var current = ""
+    var index: Int = 0
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            if len(current) > 0:
+                push(parts, current)
+                current = ""
+        else:
+            current = current + ch
+        index = index + 1
+    if len(current) > 0:
+        push(parts, current)
+
     let mut resolved: Array<String> = []
-    
-    var i = 0
-    while i < len(parts):
-        let p = parts[i]
-        if p == "" or p == "." :
-            # Ignore
+    var part_index: Int = 0
+    while part_index < len(parts):
+        let part = parts[part_index]
+        if part == "" or part == ".":
             0
-        elif p == ".." :
-            if len(resolved) > 0:
-                let last = resolved[len(resolved) - 1]
-                if last != "..":
+        else:
+            if part == "..":
+                if len(resolved) > 0 and resolved[len(resolved) - 1] != "..":
                     let _pop = pop(resolved)
                 else:
-                    push(resolved, p)
+                    if is_abs == false:
+                        push(resolved, part)
             else:
-                if is_abs == false:
-                    push(resolved, p)
-        else:
-            push(resolved, p)
-        i = i + 1
-        
+                push(resolved, part)
+        part_index = part_index + 1
+
     var result = ""
     if is_abs:
         result = result + sep
-        
-    var j = 0
-    while j < len(resolved):
-        if j > 0:
+
+    var resolved_index: Int = 0
+    while resolved_index < len(resolved):
+        if resolved_index > 0:
             result = result + sep
-        result = result + resolved[j]
-        j = j + 1
-        
+        result = result + resolved[resolved_index]
+        resolved_index = resolved_index + 1
+
     if len(result) == 0:
         return "."
     return result
 
 pub fn path_canonicalize(path: String) -> String:
-    # Basic robust path canonicalization
-    return path_normalize(path)
+    if len(path) == 0:
+        return "."
 
-pub fn path_split(path: String) -> Array<String>:
+    let tgt = target_current()
+    var sep = "/"
+    match tgt.os:
+        OS::Windows => sep = "\\"
+        _ => sep = "/"
+
+    var is_abs = false
+    let first = char_at(path, 0)
+    if first == "/" or first == "\\":
+        is_abs = true
+    elif len(path) >= 3:
+        let second = char_at(path, 1)
+        let third = char_at(path, 2)
+        if second == ":" and (third == "\\" or third == "/"):
+            is_abs = true
+
     let mut parts: Array<String> = []
     var current = ""
-    var i = 0
-    while i < len(path):
-        let c = char_at(path, i)
-        if c == "/" or c == "\\" :
+    var index: Int = 0
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
             if len(current) > 0:
                 push(parts, current)
                 current = ""
         else:
-            current = current + c
-        i = i + 1
+            current = current + ch
+        index = index + 1
+    if len(current) > 0:
+        push(parts, current)
+
+    let mut resolved: Array<String> = []
+    var part_index: Int = 0
+    while part_index < len(parts):
+        let part = parts[part_index]
+        if part == "" or part == ".":
+            0
+        else:
+            if part == "..":
+                if len(resolved) > 0 and resolved[len(resolved) - 1] != "..":
+                    let _pop = pop(resolved)
+                else:
+                    if is_abs == false:
+                        push(resolved, part)
+            else:
+                push(resolved, part)
+        part_index = part_index + 1
+
+    var result = ""
+    if is_abs:
+        result = result + sep
+
+    var resolved_index: Int = 0
+    while resolved_index < len(resolved):
+        if resolved_index > 0:
+            result = result + sep
+        result = result + resolved[resolved_index]
+        resolved_index = resolved_index + 1
+
+    if len(result) == 0:
+        return "."
+    return result
+
+pub fn path_split(path: String) -> Array<String>:
+    let mut parts: Array<String> = []
+    var current = ""
+    var index: Int = 0
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            if len(current) > 0:
+                push(parts, current)
+                current = ""
+        else:
+            current = current + ch
+        index = index + 1
     if len(current) > 0:
         push(parts, current)
     return parts

@@ -1,28 +1,28 @@
 use std::memory
 
 @extern
-fn abi_thread_spawn(func: ptr<Int>, arg: ptr<Int>, thread_id_out: ptr<Int>, done_flag: ptr<Int>) -> ptr<Int>
+pub fn abi_thread_spawn(func: ptr<Int>, arg: ptr<Int>, thread_id_out: ptr<Int>, done_flag: ptr<Int>) -> ptr<Int>
 
 @extern
-fn abi_thread_join(thread_handle: ptr<Int>) -> Int
+pub fn abi_thread_join(thread_handle: ptr<Int>) -> Int
 
 @extern
-fn abi_thread_set_name(name: String) -> Int
+pub fn abi_thread_set_name(name: String) -> Int
 
 @extern
-fn abi_cpu_current_thread_id() -> Int
+pub fn abi_cpu_current_thread_id() -> Int
 
 @extern
-fn abi_cpu_current_thread_affinity_mask() -> Int
+pub fn abi_cpu_current_thread_affinity_mask() -> Int
 
 @extern
-fn abi_cpu_set_current_thread_affinity(core_index: Int) -> Int
+pub fn abi_cpu_set_current_thread_affinity(core_index: Int) -> Int
 
 @extern
-fn abi_cpu_logical_count() -> Int
+pub fn abi_cpu_logical_count() -> Int
 
 @extern
-fn abi_cpu_core_count() -> Int
+pub fn abi_cpu_core_count() -> Int
 
 pub struct Thread:
     handle: ptr<Int>

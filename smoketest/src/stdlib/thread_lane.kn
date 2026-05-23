@@ -141,7 +141,7 @@ pub fn smoke_thread_lane() -> Int with Unsafe:
     mem_store(ptr_offset(elf_buf, 2, "Int"), (ELF_MACHINE_X86_64 << 16) | ELF_TYPE_EXEC, "Int")
     
     let elf_h = elf_read_header(elf_buf)
-    if elf_h.class != ELF_CLASS_64:
+    if elf_h.elf_class != ELF_CLASS_64:
         return 121
     if elf_h.machine != ELF_MACHINE_X86_64:
         return 122
@@ -182,4 +182,3 @@ pub fn smoke_thread_lane() -> Int with Unsafe:
     decay dummy_mem
 
     return 0
-

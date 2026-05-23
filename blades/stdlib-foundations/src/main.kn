@@ -7,7 +7,6 @@ use std::text
 use std::collections
 use std::crypto
 use std::alloc
-use std::sync
 
 const SHA256_EMPTY: String = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 const HMAC_SHA256_QUICK: String = "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
@@ -251,65 +250,7 @@ fn probe_allocators() -> Int:
     let _pool_destroy = pool_allocator_destroy(pool_c.pool)
     return 0
 
-fn probe_sync() -> Int with Unsafe:
-    if mcs_node_words() != 2:
-        return 80
-
-    let lock = mcs_mutex_new()
-    let node = mcs_node_new()
-    if mcs_mutex_lock(lock, node) != SYNC_OK:
-        return 81
-    if mcs_mutex_unlock(lock, node) != SYNC_OK:
-        return 82
-    let _node_destroy = mcs_node_destroy(node)
-    let _lock_destroy = mcs_mutex_destroy(lock)
-
-    let chan = teleport_channel_new(1)
-    let item = alloc_zeroed(1, "Int")
-    let token = ptr_to_int(item)
-    if teleport_channel_send(chan, token) == false:
-        return 83
-    if teleport_channel_send(chan, token):
-        return 84
-    if teleport_channel_recv(chan) != token:
-        return 85
-    if teleport_channel_recv(chan) != 0:
-        return 86
-    decay item
-    let _chan_destroy = teleport_channel_destroy(chan)
-
-    let gate = once_new()
-    if once_do(gate) != 1:
-        return 87
-    if once_reset(gate) != SYNC_OK:
-        return 88
-    if once_do(gate) != 1:
-        return 89
-    if once_complete(gate) != SYNC_OK:
-        return 90
-    if once_do(gate) != 0:
-        return 91
-    let _gate_destroy = once_destroy(gate)
-
-    let wg = wait_group_new()
-    if wait_group_add(wg, 2) != SYNC_OK:
-        return 92
-    if wait_group_count(wg) != 2:
-        return 93
-    if wait_group_done(wg) != SYNC_OK:
-        return 94
-    if wait_group_count(wg) != 1:
-        return 95
-    if wait_group_done(wg) != SYNC_OK:
-        return 96
-    if wait_group_wait(wg) != SYNC_OK:
-        return 97
-    if wait_group_done(wg) != SYNC_ERR_NEGATIVE_COUNT:
-        return 98
-    let _wg_destroy = wait_group_destroy(wg)
-    return 0
-
-fn main() -> Int with Unsafe:
+fn main() -> Int:
     let boot = runtime_init()
     if boot < 0:
         return 100
@@ -334,12 +275,9 @@ fn main() -> Int with Unsafe:
     let alloc_status = probe_allocators()
     if alloc_status != 0:
         return alloc_status
-    let sync_status = probe_sync()
-    if sync_status != 0:
-        return sync_status
     if runtime_heap_validate() < 0:
-        return 99
+        return 90
     let shutdown = runtime_shutdown()
     if shutdown < 0:
-        return 101
+        return 91
     return 0

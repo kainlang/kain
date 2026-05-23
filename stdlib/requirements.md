@@ -145,7 +145,7 @@ Every row below is a v1-facing gap compared to a serious systems language stdlib
 | `DONE` | `P0` | `std::time` | Grow beyond millis/sleep/deadline. Add `Duration`, monotonic `Instant`, wall-clock time, conversion helpers, deadlines/timeouts, interval helpers, and timing primitives that benchmarks and async code can share. |
 | `DONE` | `P0` | new `std::random` | Add deterministic and nondeterministic RNG families, seeded generators, split/fork helpers, fast non-crypto RNG for benchmarks/simulations, and public binary output APIs. |
 | `DONE` | `P0` | new `std::atomic` | Add public atomics, ordering vocabulary, typed atomic cells, compare/exchange, fetch ops, and memory-order helpers so low-level authored Kain stops reinventing them piecemeal. |
-| `DONE` | `P0` | new `std::sync` | Add mutex/rwlock/semaphore/event/channel/barrier-style primitives or Kain-native equivalents where they belong outside the actor lane. |
+| `DONE` | `P0` | new `std::sync` | Root sync now ships a real Kain-native floor with an intrusive MCS mutex, padded SPSC teleport channel, `Once`, and `WaitGroup`, meshed through smoketest plus benchmark/attrition evidence and backed by Z3 index/counter proofs. |
 | `DONE` | `P0` | new `std::thread` | Add spawn/join, names, affinity, ids, and thread-local or per-thread helpers where appropriate. Today we only have tiny machine-thread fragments. |
 | `DONE` | `P0` | `std::diagnostics` plus likely new `std::debug` or `std::log` | Expand from status helpers into structured error values, trace/log helpers, human and machine renderers, progress emitters, and debug-facing utilities that do not require everyone to wire bespoke logging. |
 

@@ -1,0 +1,40 @@
+version: 1
+id: kain.core.proofs.stdlib_sync_teleport_channel_index_bounds
+kind: check_smt2
+description: std::sync TeleportChannel clamps requested capacity to at least one
+  slot, adds one padding slot, and keeps producer/consumer modulo cursors inside
+  the live ring.
+tags:
+- stdlib
+- sync
+- teleport-channel
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\sync.kn
+  symbol: teleport_channel_send
+  start_line: 95
+  reason: TeleportChannel depends on padded ring-capacity math to avoid modulo-by-zero
+    and out-of-bounds cursor movement.
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const requested_capacity Int)
+    (declare-const write_idx Int)
+    (declare-const read_idx Int)
+    (assert (>= requested_capacity 1))
+    (define-fun capacity () Int (+ requested_capacity 1))
+    (assert (>= write_idx 0))
+    (assert (< write_idx capacity))
+    (assert (>= read_idx 0))
+    (assert (< read_idx capacity))
+    (define-fun next_write () Int (mod (+ write_idx 1) capacity))
+    (define-fun next_read () Int (mod (+ read_idx 1) capacity))
+    (assert (not (and
+      (>= capacity 2)
+      (>= next_write 0)
+      (< next_write capacity)
+      (>= next_read 0)
+      (< next_read capacity))))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -1,0 +1,34 @@
+version: 1
+id: kain.core.proofs.stdlib_sync_wait_group_counter_stays_in_range
+kind: check_smt2
+description: std::sync WaitGroup add/done guard logic rejects underflow and
+  overflow, so every successful counter transition stays inside the signed i64
+  range and never drops below zero.
+tags:
+- stdlib
+- sync
+- wait-group
+- bounds
+source:
+  path: D:\Kain-Lang\stdlib\sync.kn
+  symbol: wait_group_add
+  start_line: 201
+  reason: WaitGroup must reject negative completion and overflow before the CAS
+    update commits the next counter value.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (define-fun max_i64 () Int 9223372036854775807)
+    (declare-const current Int)
+    (declare-const delta Int)
+    (assert (>= current 0))
+    (assert (<= current max_i64))
+    (assert (=> (< delta 0) (>= current (- 0 delta))))
+    (assert (=> (> delta 0) (<= current (- max_i64 delta))))
+    (define-fun next () Int (+ current delta))
+    (assert (not (and
+      (>= next 0)
+      (<= next max_i64))))
+    (check-sat)
+  include_model: false
+  include_stats: false

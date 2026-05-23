@@ -1,6 +1,5 @@
 use std::ascii
 use std::bytes
-use std::collections
 
 pub struct TextSlice:
     source: String
@@ -24,13 +23,20 @@ fn text_unescape_error(message: String) -> TextUnescapeResult:
         error: message
     }
 
+fn text_int_clamp(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
 fn text_escape_hex_byte(value: Int) -> String:
     return ascii_hex_char_lower((value >> 4) & 15) + ascii_hex_char_lower(value & 15)
 
 pub fn text_slice(source: String, start: Int, length: Int) -> TextSlice:
     let source_len = len(source)
-    let safe_start = int_clamp(start, 0, source_len)
-    let safe_length = int_clamp(length, 0, source_len - safe_start)
+    let safe_start = text_int_clamp(start, 0, source_len)
+    let safe_length = text_int_clamp(length, 0, source_len - safe_start)
     return TextSlice { source: source, start: safe_start, length: safe_length }
 
 pub fn text_from(source: String) -> TextSlice:
@@ -66,7 +72,7 @@ pub fn text_char_at(view: TextSlice, index: Int) -> String:
     return char_at(view.source, view.start + index)
 
 pub fn text_find_from(view: TextSlice, needle: String, start: Int) -> Int:
-    let safe_start = int_clamp(start, 0, view.length)
+    let safe_start = text_int_clamp(start, 0, view.length)
     if len(needle) == 0:
         return safe_start
     if len(needle) > view.length - safe_start:
@@ -130,8 +136,8 @@ pub fn text_count(view: TextSlice, needle: String) -> Int:
     return total
 
 pub fn text_subslice(view: TextSlice, start: Int, length: Int) -> TextSlice:
-    let safe_start = int_clamp(start, 0, view.length)
-    let safe_length = int_clamp(length, 0, view.length - safe_start)
+    let safe_start = text_int_clamp(start, 0, view.length)
+    let safe_length = text_int_clamp(length, 0, view.length - safe_start)
     return text_slice(view.source, view.start + safe_start, safe_length)
 
 pub fn text_trim_left(view: TextSlice) -> TextSlice:
@@ -260,8 +266,8 @@ pub fn text_lines(view: TextSlice) -> Array<String>:
 
 pub fn string_view(source: String, start: Int, length: Int) -> StringView:
     let source_len = len(source)
-    let safe_start = int_clamp(start, 0, source_len)
-    let safe_length = int_clamp(length, 0, source_len - safe_start)
+    let safe_start = text_int_clamp(start, 0, source_len)
+    let safe_length = text_int_clamp(length, 0, source_len - safe_start)
     return StringView { source: source, start: safe_start, length: safe_length }
 
 pub fn string_view_from(source: String) -> StringView:
@@ -308,8 +314,8 @@ pub fn text_ends_with_string(source: String, needle: String) -> Bool:
 
 pub fn text_substring_string(source: String, start: Int, length: Int) -> String:
     let source_len = len(source)
-    let safe_start = int_clamp(start, 0, source_len)
-    let safe_length = int_clamp(length, 0, source_len - safe_start)
+    let safe_start = text_int_clamp(start, 0, source_len)
+    let safe_length = text_int_clamp(length, 0, source_len - safe_start)
     return substring(source, safe_start, safe_start + safe_length)
 
 pub fn text_upper(source: String) -> String:

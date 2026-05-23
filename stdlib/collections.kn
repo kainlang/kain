@@ -55,34 +55,56 @@ pub fn native_int_to_bool(value: Int) -> Bool:
 
 # root-domain aliases: generated public std names
 pub fn int_min(left: Int, right: Int) -> Int:
-    return native_int_min(left, right)
+    if left < right:
+        return left
+    return right
 
 pub fn int_max(left: Int, right: Int) -> Int:
-    return native_int_max(left, right)
+    if left > right:
+        return left
+    return right
 
 pub fn int_clamp(value: Int, low: Int, high: Int) -> Int:
-    return native_int_clamp(value, low, high)
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
 
 pub fn int_between(value: Int, low: Int, high: Int) -> Bool:
-    return native_int_between(value, low, high)
+    if value < low:
+        return false
+    return value <= high
 
 pub fn int_saturating_sub(left: Int, right: Int) -> Int:
-    return native_int_saturating_sub(left, right)
+    if right > left:
+        return 0
+    return left - right
 
 pub fn int_sign(value: Int) -> Int:
-    return native_int_sign(value)
+    if value > 0:
+        return 1
+    if value < 0:
+        return -1
+    return 0
 
 pub fn bool_all(left: Bool, right: Bool) -> Bool:
-    return native_bool_all(left, right)
+    if left:
+        return right
+    return false
 
 pub fn bool_any(left: Bool, right: Bool) -> Bool:
-    return native_bool_any(left, right)
+    if left:
+        return true
+    return right
 
 pub fn bool_to_int(value: Bool) -> Int:
-    return native_bool_to_int(value)
+    if value:
+        return 1
+    return 0
 
 pub fn int_to_bool(value: Int) -> Bool:
-    return native_int_to_bool(value)
+    return value != 0
 # end root-domain aliases
 
 pub struct StringIntMap:

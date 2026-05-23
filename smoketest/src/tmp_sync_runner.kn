@@ -1,0 +1,14 @@
+use std::runtime
+use sync_lane::smoke_sync_lane
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 200 + boot
+    let status = smoke_sync_lane()
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        if status != 0:
+            return status
+        return 300 + shutdown
+    return status

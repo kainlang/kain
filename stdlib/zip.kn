@@ -47,7 +47,7 @@ pub struct ZipEocd:
 # Serializes a Local File Header into a 30-byte buffer word block (which is 4 words or 32 bytes with padding).
 # The buffer must have at least 4 words allocated.
 pub fn zip_write_local_header(buffer: ptr<Int>, header: ZipLocalHeader) -> Int with Unsafe:
-    mem_store(ptr_offset(buffer, 0, "Int"), ZIP_LOCAL_HEADER_SIG, "Int")
+    mem_store(ptr_offset(buffer, 0, "Int"), 67324752, "Int")
     mem_store(ptr_offset(buffer, 1, "Int"), (header.flags << 16) | header.version_needed, "Int")
     mem_store(ptr_offset(buffer, 2, "Int"), (header.last_mod_time << 16) | header.compression_method, "Int")
     mem_store(ptr_offset(buffer, 3, "Int"), header.last_mod_date, "Int")
@@ -60,7 +60,7 @@ pub fn zip_write_local_header(buffer: ptr<Int>, header: ZipLocalHeader) -> Int w
 # Parses a Local File Header from a 30-byte buffer word block.
 pub fn zip_read_local_header(buffer: ptr<Int>) -> ZipLocalHeader with Unsafe:
     let sig = mem_load(ptr_offset(buffer, 0, "Int"), "Int")
-    if sig != ZIP_LOCAL_HEADER_SIG:
+    if sig != 67324752:
         return ZipLocalHeader { version_needed: 0, flags: 0, compression_method: 0, last_mod_time: 0, last_mod_date: 0, crc32: 0, compressed_size: 0, uncompressed_size: 0, file_name_len: 0, extra_field_len: 0 }
     
     let word1 = mem_load(ptr_offset(buffer, 1, "Int"), "Int")
@@ -86,7 +86,7 @@ pub fn zip_read_local_header(buffer: ptr<Int>) -> ZipLocalHeader with Unsafe:
 
 # Serializes an EOCD record into a 22-byte buffer block (3 words or 24 bytes).
 pub fn zip_write_eocd(buffer: ptr<Int>, eocd: ZipEocd) -> Int with Unsafe:
-    mem_store(ptr_offset(buffer, 0, "Int"), ZIP_EOCD_SIG, "Int")
+    mem_store(ptr_offset(buffer, 0, "Int"), 101010256, "Int")
     mem_store(ptr_offset(buffer, 1, "Int"), (eocd.disk_with_cd << 16) | eocd.disk_number, "Int")
     mem_store(ptr_offset(buffer, 2, "Int"), (eocd.total_entries << 16) | eocd.disk_entries, "Int")
     mem_store(ptr_offset(buffer, 3, "Int"), eocd.cd_size, "Int")

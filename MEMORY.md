@@ -1,5 +1,44 @@
 # Kain Memory
 
+# 2026-05-23 - `std::sync` hardening pass landed with proof-backed channel/wait-group guards
+
+The root `std::sync` surface was worth keeping, but it needed a serious systems cleanup before we could treat it as honest stdlib instead of a promising first draft.
+
+What changed:
+
+- `stdlib/sync.kn`
+  - repaired the `once_new()` parser blocker by avoiding the reserved `state` local name
+  - hardened `TeleportChannel` so requested capacity is clamped to at least one slot, padded by one internal slot, and never feeds `% 0`
+  - hardened `WaitGroup` so `wait_group_add()` rejects negative underflow and positive overflow, `wait_group_done()` reuses that guard, and `wait_group_wait()` refuses negative states
+  - rewrote `once_do()` / `once_complete()` around explicit `UNINITIALIZED -> INITIALIZING -> DONE` state transitions and added `once_reset()` for failed initialization rollback
+  - kept the MCS lock shape but changed the intrusive link to hand the successor's waiting-cell pointer across the queue instead of rebuilding a whole node pointer from raw bits
+  - left code comments pointing at the durable solver artifacts:
+    - `crates/kain-core/z3/proofs/stdlib-sync-teleport-channel-index-bounds.yaml`
+    - `crates/kain-core/z3/proofs/stdlib-sync-wait-group-counter-stays-in-range.yaml`
+- `smoketest/src/stdlib/sync_lane.kn`
+  - now proves the repaired mutex path, channel clamp/full/empty behavior, `Once` completion plus reset, and `WaitGroup` underflow rejection
+- `benchmark/cases/stdlib_foundations/main.kn`
+  - now consumes `std::sync` directly so the root sync surface is exercised outside the isolated stdlib lane
+- `attrition/cases/kain_stdlib_foundations/main.kn`
+  - now owns sync teardown pressure across mutex/channel/once/wait-group flows
+- `stdlib/requirements.md`
+  - tightened the `std::sync` `DONE` row to reflect the real landed surface and its evidence
+
+Validation and repo truth:
+
+- passed:
+  - `kain check stdlib/sync.kn --target llvm`
+  - `kain check smoketest/src/stdlib/sync_lane.kn --target llvm`
+  - `kain check benchmark/cases/stdlib_foundations/main.kn --target llvm`
+  - `kain check attrition/cases/kain_stdlib_foundations/main.kn --target llvm`
+- proof artifacts were added under `crates/kain-core/z3/proofs/` for the padded ring-buffer cursor bounds and wait-group counter range guards
+- full `smoketest/src/main.kn` is still blocked by unrelated in-flight `std::thread` work in `smoketest/src/stdlib/thread_lane.kn` (`elf_h.class` still collides with the reserved `class` keyword), not by `std::sync`
+
+Durable lessons:
+
+- `std::sync` was a good subsystem choice, but this repo absolutely needs guard rails around unsafe arithmetic and state transitions before we call a low-level public surface done.
+- For Kain sync primitives, a small honest API with proof-backed invariants is better than a wider surface that silently accepts negative counters, zero-capacity rings, or invalid once states.
+
 # 2026-05-23 - authoring floor pack landed with `std::bytes` plus deeper `std::text` and `std::fmt`
 
 The root stdlib authoring floor now has a dedicated `stdlib/bytes.kn` surface and a stronger text/fmt stack on top of it. This was the pure-Kain authoring push, not the runtime-backed `std::io` / file-handle pass.
@@ -8753,4 +8792,3 @@ What changed:
 Validation:
 - Added all 7 new capability families directly into the smoketest track and verified compilation/effects are compile-certified.
 - Marked all completed backlog items as `DONE` in `requirements.md` to guarantee complete fulfillment of the `/goal`.
-
