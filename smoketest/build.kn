@@ -42,6 +42,6 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     let certify = certify_gate("certify").requires("check-llvm").requires("check-telemetry-runner").requires("check-spirv").requires("check-wasm").requires("source-tests").requires("root-executable").requires("telemetry-full").requires("album-benchmark").requires("album-attrition").certifies("smoketest.local")
 
-    let capsule = amalgamate_capsule("smoketest-capsule").path(".").output("$root/.kain/capsules/smoketest.kn").name("smoketest").version("0.1.0").tag("portable").tag("smoketest").note("Editable smoketest album capsule emitted after certify.").meta("album", "smoketest").meta("flow", "full-certify").storage("editable").header("rich").preview_symbols(96).depends_on("certify").telemetry("smoketest.capsule")
+    let capsule = amalgamate_capsule("smoketest-capsule").path(".").output("$root/smoketest.kn").name("smoketest").version("0.1.0").tag("portable").tag("smoketest").note("Editable smoketest album capsule emitted in the blade root after certify.").meta("album", "smoketest").meta("flow", "full-certify").storage("editable").header("rich").preview_symbols(96).depends_on("certify").telemetry("smoketest.capsule")
 
     return build_graph().workspace(ws).package(pkg).blade(blade_spec).defaults(defaults).run(run).task(check_llvm).task(check_runner).task(check_spirv).task(check_wasm).task(gpu_spirv).task(gpu_cuda).task(gpu_hlsl).task(source_tests).task(root_exe).task(telemetry_full).task(bench_album).task(attrition_album).task(certify).task(capsule)

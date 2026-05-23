@@ -81,7 +81,7 @@ use ue5_editor;
 use ue5_shaders;
 
 #[cfg(feature = "web")]
-use web;
+use kain_web;
 
 #[derive(Clone, Copy)]
 struct TargetSpec {
@@ -615,21 +615,21 @@ impl DriverSession {
                     CompileTarget::Cuda => gpu::generate_ptx(&typed_for_codegen),
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Wasm => web::generate_wasm(&typed_for_codegen)
+                    CompileTarget::Wasm => kain_web::generate_wasm(&typed_for_codegen)
                         .map(|bytes| format!("{} bytes", bytes.len())),
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Js => web::generate_js(&typed_for_codegen),
+                    CompileTarget::Js => kain_web::generate_js(&typed_for_codegen),
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Ts => web::generate_ts(&typed_for_codegen),
+                    CompileTarget::Ts => kain_web::generate_ts(&typed_for_codegen),
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Ks => web::generate_ks(&typed_for_codegen),
+                    CompileTarget::Ks => kain_web::generate_ks(&typed_for_codegen),
 
                     #[cfg(feature = "web")]
                     CompileTarget::Hybrid => {
-                        let output = web::generate_hybrid(&typed_for_codegen)?;
+                        let output = kain_web::generate_hybrid(&typed_for_codegen)?;
                         Ok(output.js)
                     }
 
@@ -710,7 +710,7 @@ impl DriverSession {
     #[cfg(feature = "web")]
     pub fn compile_wasm_binary(&self, source: &str) -> Result<Vec<u8>, KainError> {
         let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Wasm)?;
-        web::generate_wasm(&typed_for_codegen)
+        kain_web::generate_wasm(&typed_for_codegen)
     }
 
     #[cfg(not(feature = "web"))]
@@ -724,7 +724,7 @@ impl DriverSession {
         source: &str,
     ) -> Result<HybridArtifactOutput, KainError> {
         let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Hybrid)?;
-        let output = web::generate_hybrid(&typed_for_codegen)?;
+        let output = kain_web::generate_hybrid(&typed_for_codegen)?;
         Ok(HybridArtifactOutput {
             js: output.js,
             ts: output.ts,

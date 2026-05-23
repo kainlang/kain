@@ -95,7 +95,7 @@ Keep those workflows separate when you document or debug them.
 - `crates/kain-sys-codegen/src/codegen_c.rs`
 - `crates/cli/src/native_ui_build.rs`
 - `crates/cli/src/packager/`
-- `crates/web/src/codegen_ks.rs`
+- `crates/kain-script/src/codegen_ks.rs`
 
 ## Practical Rule
 

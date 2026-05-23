@@ -162,6 +162,11 @@ The V1 shape that landed is:
 3. use Kain packages for reusable task helpers and addons
 4. defer a true plugin system until there is clear pressure for one
 
+For first-class operator artifacts such as root executables and primary editable capsules, prefer
+blade-root outputs over burying them under cache-style folders. `.kain/` remains the right home
+for reports, caches, and background evidence, but the thing a human actually wants to run or open
+should usually materialize where the repo root can see it.
+
 ## V1: First-Class Exec Task
 
 ### Why
@@ -292,7 +297,7 @@ use std::build
 
 let capsule = amalgamate_capsule("smoketest-capsule")
     .path("smoketest")
-    .output("$root/capsules/smoketest.kn")
+    .output("$root/smoketest.kn")
     .name("smoketest")
     .tag("portable")
     .header("rich")
@@ -305,7 +310,7 @@ Archive variant:
 ```kn
 let archive = amalgamate_capsule("smoketest-archive")
     .path("smoketest")
-    .output("$root/capsules/smoketest.archive.kn")
+    .output("$root/smoketest.archive.kn")
     .archive(true)
     .compression("zstd")
     .depends_on("certify")

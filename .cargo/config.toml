@@ -1,8 +1,7 @@
-# Cargo build configuration for faster compilation
-
-[build]
-# Use all CPU cores for parallel compilation
-jobs = 16
+# Cargo build configuration for the repo.
+#
+# Keep workstation-specific parallelism in user-level Cargo config or
+# `CARGO_BUILD_JOBS`; the repo should not hard-force full CPU saturation.
 
 # Use faster linker on Windows
 [target.x86_64-pc-windows-msvc]

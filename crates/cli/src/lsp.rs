@@ -26,7 +26,7 @@ use ue5;
 #[cfg(feature = "ue5")]
 use ue5_shaders;
 #[cfg(feature = "web")]
-use web;
+use kain_web;
 
 const TOKEN_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::KEYWORD,
@@ -2562,7 +2562,7 @@ fn target_specific_diagnostics(
 
     if targets.contains("wasm") {
         #[cfg(feature = "web")]
-        if let Err(error) = web::generate_wasm(typed_program) {
+        if let Err(error) = kain_web::generate_wasm(typed_program) {
             diagnostics.extend(diagnostics_from_error(text, &error));
         }
     }

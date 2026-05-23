@@ -49,7 +49,7 @@ unreal_asset_registry = { workspace = true, optional = true }
 unreal_asset_base = { workspace = true, optional = true }
 unreal_asset = { workspace = true, optional = true }
 gpu = { path = "../gpu", optional = true }
-web = { path = "../web", optional = true }
+kain-web = { path = "../kain-web", optional = true }
 kain-sys-codegen = { path = "../kain-sys-codegen", optional = true }
 
 clap = { workspace = true }
@@ -80,7 +80,7 @@ quick-xml = "0.36"
 default = ["ue5", "gpu", "web", "sys"]
 ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders", "dep:ue5-materials", "dep:ue5-blueprints", "dep:ue5-graphs", "dep:ue5-gas", "dep:ue5-asset-utils", "dep:ue5-config", "dep:unreal_asset_registry", "dep:unreal_asset_base", "dep:unreal_asset", "kain-driver/ue5"]
 gpu = ["dep:gpu", "kain-driver/gpu"]
-web = ["dep:web", "kain-driver/web"]
+web = ["dep:kain-web", "kain-driver/web"]
 sys = ["dep:kain-sys-codegen", "kain-driver/sys"]
 tauri = ["kain-driver/tauri", "kain-build/tauri"]
 

@@ -949,6 +949,7 @@ dependencies = [
  "kain-stdlib-map",
  "kain-sys-codegen",
  "kain-test",
+ "kain-web",
  "minijinja",
  "notify",
  "prettyplease",
@@ -974,7 +975,6 @@ dependencies = [
  "unreal_asset",
  "unreal_asset_base",
  "unreal_asset_registry",
- "web",
  "which",
 ]
 
@@ -2876,6 +2876,7 @@ dependencies = [
  "kain-sys-codegen",
  "kain-ui",
  "kain-ui-tauri",
+ "kain-web",
  "serde",
  "serde_json",
  "sha2",
@@ -2884,7 +2885,6 @@ dependencies = [
  "ue5",
  "ue5-editor",
  "ue5-shaders",
- "web",
 ]
 
 [[package]]
@@ -3045,7 +3045,6 @@ dependencies = [
  "ue5",
  "ue5-editor",
  "ue5-shaders",
- "web",
 ]
 
 [[package]]
@@ -3117,6 +3116,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kain-script"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
 ]
 
 [[package]]
@@ -3198,6 +3204,23 @@ dependencies = [
  "kain-ui",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kain-wasm"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "walrus",
+]
+
+[[package]]
+name = "kain-web"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "kain-script",
+ "kain-wasm",
 ]
 
 [[package]]
@@ -6776,16 +6799,6 @@ dependencies = [
  "log",
  "once_cell",
  "pkg-config",
-]
-
-[[package]]
-name = "web"
-version = "0.1.0"
-dependencies = [
- "kain-core",
- "serde",
- "serde_json",
- "walrus",
 ]
 
 [[package]]

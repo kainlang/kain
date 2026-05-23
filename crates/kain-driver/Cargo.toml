@@ -24,14 +24,14 @@ ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }
 ue5-shaders = { path = "../ue5-shaders", optional = true }
 gpu = { path = "../gpu", optional = true }
-web = { path = "../web", optional = true }
+kain-web = { path = "../kain-web", optional = true }
 kain-sys-codegen = { path = "../kain-sys-codegen", optional = true }
 
 [features]
 default = ["ue5", "gpu", "web", "sys"]
 ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders"]
 gpu = ["dep:gpu"]
-web = ["dep:web"]
+web = ["dep:kain-web"]
 sys = ["dep:kain-sys-codegen"]
 tauri = ["sys", "web", "dep:kain-ui-tauri"]
 

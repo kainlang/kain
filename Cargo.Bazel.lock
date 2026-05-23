@@ -1,5 +1,5 @@
 {
-  "checksum": "55157b6721a82a48c567d96297ec13479e3ea9777dcf79ff3f0787a419d85671",
+  "checksum": "90ada883c5aa3487ede7cb8c09cbf95518a8912bd42da3424f84a712e2ffacbe",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -17781,6 +17781,37 @@
       "license_ids": [],
       "license_file": null
     },
+    "kain-script 0.1.0": {
+      "name": "kain-script",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_script",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_script",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
     "kain-sdk 0.1.0": {
       "name": "kain-sdk",
       "version": "0.1.0",
@@ -18136,6 +18167,77 @@
           ],
           "selects": {}
         },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "kain-wasm 0.1.0": {
+      "name": "kain-wasm",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_wasm",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_wasm",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "walrus 0.21.3",
+              "target": "walrus"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "kain-web 0.1.0": {
+      "name": "kain-web",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_web",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_web",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
         "edition": "2021",
         "version": "0.1.0"
       },
@@ -39689,54 +39791,6 @@
       ],
       "license_file": "LICENSE.txt"
     },
-    "web 0.1.0": {
-      "name": "web",
-      "version": "0.1.0",
-      "package_url": null,
-      "repository": null,
-      "targets": [
-        {
-          "Library": {
-            "crate_name": "web",
-            "crate_root": "src/lib.rs",
-            "srcs": {
-              "allow_empty": true,
-              "include": [
-                "**/*.rs"
-              ]
-            }
-          }
-        }
-      ],
-      "library_target_name": "web",
-      "common_attrs": {
-        "compile_data_glob": [
-          "**"
-        ],
-        "deps": {
-          "common": [
-            {
-              "id": "serde 1.0.209",
-              "target": "serde"
-            },
-            {
-              "id": "serde_json 1.0.143",
-              "target": "serde_json"
-            },
-            {
-              "id": "walrus 0.21.3",
-              "target": "walrus"
-            }
-          ],
-          "selects": {}
-        },
-        "edition": "2021",
-        "version": "0.1.0"
-      },
-      "license": null,
-      "license_ids": [],
-      "license_file": null
-    },
     "web-sys 0.3.83": {
       "name": "web-sys",
       "version": "0.3.83",
@@ -48367,6 +48421,7 @@
     "kain-repl 0.1.0": "crates/kain-repl",
     "kain-run 0.1.0": "crates/kain-run",
     "kain-runtime-parallel 0.1.0": "runtime/parallel/rust/kain-runtime-parallel",
+    "kain-script 0.1.0": "crates/kain-script",
     "kain-sdk 0.1.0": "crates/kain-sdk",
     "kain-selfhost 0.1.0": "crates/kain-selfhost",
     "kain-stdlib-map 0.1.0": "crates/kain-stdlib-map",
@@ -48375,6 +48430,8 @@
     "kain-ui 0.1.0": "crates/kain-ui",
     "kain-ui-native 0.1.0": "crates/kain-ui-native",
     "kain-ui-tauri 0.1.0": "crates/kain-ui-tauri",
+    "kain-wasm 0.1.0": "crates/kain-wasm",
+    "kain-web 0.1.0": "crates/kain-web",
     "ue5 0.1.0": "crates/ue5",
     "ue5-asset-utils 0.1.0": "crates/ue5-asset-utils",
     "ue5-blueprints 0.1.0": "crates/ue5-blueprints",
@@ -48391,8 +48448,7 @@
     "unreal_asset_proc_macro 0.1.0": "crates/unreal/unreal_asset_proc_macro",
     "unreal_asset_properties 0.1.0": "crates/unreal/unreal_asset_properties",
     "unreal_asset_registry 0.1.0": "crates/unreal/unreal_asset_registry",
-    "unreal_helpers 0.1.0": "crates/unreal/unreal_helpers",
-    "web 0.1.0": "crates/web"
+    "unreal_helpers 0.1.0": "crates/unreal/unreal_helpers"
   },
   "conditions": {
     "aarch64-linux-android": [],

@@ -609,6 +609,7 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
         .as_ref()
         .and_then(preferred_manifest_entry)
         .map(path_to_capsule_string);
+    let output_rel = output_relative_to_root(&root, &options.output);
     let mut directories = Vec::new();
     let mut files = Vec::new();
     let entries = kfs::walk_dir_entries(
@@ -625,7 +626,10 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
             .path
             .strip_prefix(&root)
             .map_err(|_| CapsuleError::Format("failed to relativize capsule path".to_string()))?;
-        if rel.as_os_str().is_empty() || should_skip_relative(rel) {
+        if rel.as_os_str().is_empty()
+            || should_skip_relative(rel)
+            || output_rel.as_ref().is_some_and(|output| rel == output)
+        {
             continue;
         }
         match entry.file_type {
@@ -1476,6 +1480,32 @@ fn normalize_editable_text(text: &str) -> String {
     text.replace("\r\n", "\n").replace('\r', "\n")
 }
 
+fn output_relative_to_root(root: &Path, output: &Path) -> Option<PathBuf> {
+    let output = if output.is_absolute() {
+        output.to_path_buf()
+    } else {
+        std::env::current_dir().ok()?.join(output)
+    };
+    portable_compare_path(&output)
+        .strip_prefix(portable_compare_path(root))
+        .ok()
+        .map(PathBuf::from)
+}
+
+fn portable_compare_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let rendered = path.as_os_str().to_string_lossy();
+        if let Some(stripped) = rendered.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{stripped}"));
+        }
+        if let Some(stripped) = rendered.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+    path.to_path_buf()
+}
+
 fn should_skip_relative(path: &Path) -> bool {
     path.components().any(|component| {
         if let Component::Normal(name) = component {
@@ -1577,4 +1607,40 @@ fn digest_folder_name(digest: &str) -> CapsuleResult<String> {
         )));
     }
     Ok(value.to_ascii_lowercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("kain-amalgamate-{label}-{unique}"));
+        fs::create_dir_all(&root).expect("create temp dir");
+        root
+    }
+
+    #[test]
+    fn pack_capsule_skips_existing_output_file_inside_input_root() {
+        let root = unique_temp_dir("skip-output");
+        fs::write(
+            root.join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("write main");
+        fs::write(root.join("capsule.kn"), "old capsule").expect("seed old output");
+
+        let report = pack_capsule(&PackOptions::new(&root, root.join("capsule.kn")))
+            .expect("pack capsule");
+        let inspect = inspect_capsule(&report.output_path).expect("inspect capsule");
+
+        assert!(inspect.files.iter().any(|file| file.path == "main.kn"));
+        assert!(!inspect.files.iter().any(|file| file.path == "capsule.kn"));
+
+        let _ = fs::remove_dir_all(root);
+    }
 }

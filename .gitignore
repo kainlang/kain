@@ -155,3 +155,10 @@ zender
 # Bazel local state
 /bazel-*
 /.bazel-cache/
+smoketest/telemetry/attrition/tracks/attrition.iter.6.json
+/smoketest/telemetry
+/smoketest/telemetry/attrition/tracks
+/telemetry
+/smoketest/telemetry
+/smoketest/telemetry/full/tracks
+smoketest/telemetry/attrition/tracks/attrition.iter.16.json

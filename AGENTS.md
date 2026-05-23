@@ -601,10 +601,10 @@ The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/
 
 ## First Read Order
 
-1. Read or search `ARCHITECTURE.md` for the subsystem map, ownership boundaries, common errors, and current architectural bulletin-board notes.
+1. Read `GLOSSARY.MD` to understand the common terminology and lingo of this codebase.
 2. Search `MEMORY.md` for prior task history, unresolved risk, proof names, benchmark cases, blade names, error strings, or subsystem-specific lessons.
 
-`ARCHITECTURE.md` and `MEMORY.md` are part of the operating system of this repo. They are the bulletin board. The rule is not "ignore them"; the rule is "search them intelligently." Use `rg` to pull the relevant sections, read what matters, then update the right durable surface when the work changes what future agents need to know.
+`MEMORY.md` are part of the operating system of this repo. They are the bulletin board. The rule is not "ignore them"; the rule is "search them intelligently." Use `rg` to pull the relevant sections, read what matters, then update the right durable surface when the work changes what future agents need to know.
 
 ## Main Repo Map
 
@@ -625,20 +625,15 @@ The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/
 
 ## Canonical Kain Examples
 
-Read these before writing serious Kain:
+Use these skills before authoring serious kain - 
+$lang-gpu
+$lang-semantics
+$lang-systems
+$lang-projects
+$lang-stdlib
+$lang-projects
 
-- `benchmark/cases/semantic_singularity_crucible/main.kn`: dense native LLVM torture lane for language constructs plus Kain-only semantic systems
-- `benchmark/cases/quantumerlang/main.kn`: actor/message/ownership/converge/teleport/world pressure lane
-- `benchmark/cases/semantic_singularity*/main.kn`: attribution matrix for fused semantic systems
-- `blades/kain-example/src/main.kn`: broad native LLVM proving ground
-- `blades/pong/src/main.kn`: `world`, `entangle`, `collapse`, `observe`, actors, and blade-owned live presentation
-- `blades/kaintana/src/kaintana.kn`: authored UI framework vocabulary
-- `blades/kaintana-test/src/main.kn`: real desktop acceptance shell
-- `blades/vulkain/src/vulkain.kn`: raw Vulkan capability surface
-- `blades/network-domains/src/main.kn`: first-class networking stdlib proof
-- `blades/stdlib-domains/src/main.kn`: canonical `std.*` import shape
-- `blades/actor-ask-roundtrip/src/main.kn`: compact actor request/reply dogfood
-- `\stdlib\STDLIB_MAP.llm.md` : most importantly however is the stdlib map. this is regenerated with every build! 
+
 
 Do not let new Kain files collapse into plain `fn` and `let` soup when the problem calls for stronger language features. Push `world`, `converge`, `collapse`, `observe`, `decay`, `orchestrate`, `entangle`, `teleport`, `shatter`, `pulse`, `axiom`, `actor`, `law`, `patch`, and shader lanes when they fit.
 
@@ -782,11 +777,8 @@ python attrition/run.py --case <case> --sabotage <mode>
 ## Memory And Continuity
 
 - `AGENTS.md` is the hot boot doctrine and command surface.
-- `README.md` is the live broad repo overview.
-- `ARCHITECTURE.md` is the durable architecture bulletin board. Keep it high signal and structural: what Kain is, where systems live, ownership boundaries, key data flows, common commands, recurring errors, and lessons future agents will hit again.
 - `MEMORY.md` is the durable task/risk bulletin board. Keep it useful for handoff: what changed, why, risks, proof/report artifacts, next recommended steps, and weird traps that are not yet captured in a more local doc.
 - Pipeline `README.md` files, `.agents/skills/*/SKILL.md`, and `.agents/skills/TAXONOMY.md` are the preferred homes for detailed subsystem operating knowledge and skill routing.
-- Update `ARCHITECTURE.md` when architecture, important folders, command surfaces, ownership rules, or recurring errors change.
 - Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
 - Do not dump raw session logs into memory. Write the distilled lesson, the proof/benchmark/attrition evidence, and the next useful move.
 - If a pipeline changes significantly, update the owning namespaced repo-local skill before creating a new one. If no namespace lane fits and the pipeline is important, use `$skill-creator` at the end of the turn.
@@ -797,16 +789,6 @@ python attrition/run.py --case <case> --sabotage <mode>
 - Commit and push your work always and try and keep worktree clean, do not care if the worktree is dirty however -- we have 3-5 agents working at once typically in here.
 - For massive feature commits, add tags
 - Never hide uncertainty. If a proof, benchmark, attrition run, or GUI screenshot was not run, say so.
-
-## Authoring
-When writing Kain use these skills to fully understand how the lanuage works 
-.agents\skills\lang-gpu\SKILL.md
-.agents\skills\lang-interop\SKILL.md
-.agents\skills\lang-translation\SKILL.md
-.agents\skills\lang-systems\SKILL.md
-.agents\skills\lang-semantics\SKILL.md
-.agents\skills\lang-stdlib\SKILL.md
-.agents\skills\lang-projects\SKILL.md
 
 ## References
 In reference/langs - if you ever need reference code or a baseline for how the other langs do it or something to compare against ->

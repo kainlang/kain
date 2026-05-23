@@ -44,7 +44,6 @@ rust_library(
         "//crates/ue5-editor:ue5-editor",
         "//crates/ue5-shaders:ue5-shaders",
         "//crates/ue5:ue5",
-        "//crates/web:web",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,

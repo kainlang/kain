@@ -21,7 +21,6 @@ ue5 = { path = "../ue5" }
 ue5-editor = { path = "../ue5-editor" }
 ue5-shaders = { path = "../ue5-shaders" }
 gpu = { path = "../gpu" }
-web = { path = "../web" }
 kain-sys-codegen = { path = "../kain-sys-codegen" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
