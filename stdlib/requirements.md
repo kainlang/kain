@@ -47,6 +47,7 @@ This document tracks capability parity, not donor file-count parity. We do not n
 8. Prefer typed structs, enums, views, iterators, and builders over text blobs and `Any` handles when a capability is meant to be a reusable public API.
 9. Prefer Kain-shaped semantic leverage over donor mimicry. If Zig has three modules and Kain can honestly subsume them into one stronger surface, do that, but update this backlog accordingly.
 10. Keep the public root import obvious. If a capability becomes large enough to deserve its own root module, do not bury it forever inside an unrelated module.
+11. Ensure before writing you are well versed in Kain and read the $lang-skills including $lang-semantics, $lang-systems, $lang-stdlib, and other applicable skills ($lang-gpu, $lang-projects, and $lang-interop etc)
 
 ## Definition Of Done
 

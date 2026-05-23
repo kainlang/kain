@@ -8,6 +8,7 @@ use std::time
 const KG_DEFAULT_MAX_FILE_BYTES: Int = 4194304
 const KG_DEFAULT_WORKERS: Int = 4
 const KG_MAX_WORKERS: Int = 8
+const KG_BATCH_SIZE: Int = 16
 
 struct KgConfig:
     needle: String
@@ -28,6 +29,26 @@ struct KgFileReport:
     matched_lines: Int
     bytes_scanned: Int
     errors: Int
+
+struct KgDispatchState:
+    next_worker: Int
+    batch0_text: String
+    batch1_text: String
+    batch2_text: String
+    batch3_text: String
+    batch4_text: String
+    batch5_text: String
+    batch6_text: String
+    batch7_text: String
+    batch0_count: Int
+    batch1_count: Int
+    batch2_count: Int
+    batch3_count: Int
+    batch4_count: Int
+    batch5_count: Int
+    batch6_count: Int
+    batch7_count: Int
+    dispatched_batches: Int
 
 fn kg_usage() -> String:
     var text = "kg <needle> [root]\n"
@@ -248,39 +269,226 @@ fn kg_line_content_end(text: String, line_start: Int, newline_index: Int) -> Int
         return newline_index - 1
     return newline_index
 
-fn kg_lightest_lane(actual_workers: Int, lane0_load: Int, lane1_load: Int, lane2_load: Int, lane3_load: Int, lane4_load: Int, lane5_load: Int, lane6_load: Int, lane7_load: Int) -> Int:
-    var best_lane = 0
-    var best_load = lane0_load
-    if actual_workers > 1 and lane1_load < best_load:
-        best_lane = 1
-        best_load = lane1_load
-    if actual_workers > 2 and lane2_load < best_load:
-        best_lane = 2
-        best_load = lane2_load
-    if actual_workers > 3 and lane3_load < best_load:
-        best_lane = 3
-        best_load = lane3_load
-    if actual_workers > 4 and lane4_load < best_load:
-        best_lane = 4
-        best_load = lane4_load
-    if actual_workers > 5 and lane5_load < best_load:
-        best_lane = 5
-        best_load = lane5_load
-    if actual_workers > 6 and lane6_load < best_load:
-        best_lane = 6
-        best_load = lane6_load
-    if actual_workers > 7 and lane7_load < best_load:
-        best_lane = 7
-    return best_lane
+fn kg_path_has_child_prefix(path: String, next_path: String) -> Bool:
+    if len(next_path) <= len(path):
+        return false
+    if starts_with(next_path, path) == false:
+        return false
+    return kg_is_path_sep(char_at(next_path, len(path)))
+
+fn kg_batch_text_push(batch_text: String, path: String) -> String:
+    return batch_text + path + "\n"
+
+fn kg_metadata_file_type(metadata: String) -> String:
+    let prefix = "file_type="
+    if starts_with(metadata, prefix) == false:
+        return ""
+    let value_start = len(prefix)
+    let line_end = kg_find_next_newline(metadata, value_start)
+    return substring(metadata, value_start, line_end)
+
+fn kg_metadata_len(metadata: String) -> Int:
+    let direct_prefix = "len="
+    if starts_with(metadata, direct_prefix):
+        let value_start = len(direct_prefix)
+        let line_end = kg_find_next_newline(metadata, value_start)
+        return kg_parse_int_text(substring(metadata, value_start, line_end))
+    let marker = "\nlen="
+    let line_start = find_substring_from(metadata, marker, 0)
+    if line_start < 0:
+        return -1
+    let value_start = line_start + len(marker)
+    let line_end = kg_find_next_newline(metadata, value_start)
+    return kg_parse_int_text(substring(metadata, value_start, line_end))
+
+fn kg_next_worker_slot(worker_slot: Int, actual_workers: Int) -> Int:
+    let next_slot = worker_slot + 1
+    if next_slot >= actual_workers:
+        return 0
+    return next_slot
+
+fn kg_send_batch_to_worker(worker_slot: Int, paths_text: String, actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker) -> Int:
+    if len(paths_text) == 0:
+        return 0
+    if worker_slot == 0:
+        send worker0.ProcessFiles(paths_text = paths_text)
+        return 1
+    if worker_slot == 1 and actual_workers > 1:
+        send worker1.ProcessFiles(paths_text = paths_text)
+        return 1
+    if worker_slot == 2 and actual_workers > 2:
+        send worker2.ProcessFiles(paths_text = paths_text)
+        return 1
+    if worker_slot == 3 and actual_workers > 3:
+        send worker3.ProcessFiles(paths_text = paths_text)
+        return 1
+    if worker_slot == 4 and actual_workers > 4:
+        send worker4.ProcessFiles(paths_text = paths_text)
+        return 1
+    if worker_slot == 5 and actual_workers > 5:
+        send worker5.ProcessFiles(paths_text = paths_text)
+        return 1
+    if worker_slot == 6 and actual_workers > 6:
+        send worker6.ProcessFiles(paths_text = paths_text)
+        return 1
+    if worker_slot == 7 and actual_workers > 7:
+        send worker7.ProcessFiles(paths_text = paths_text)
+        return 1
+    return 0
+
+fn kg_dispatch_file_path(state_in: KgDispatchState, path: String, actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker) -> KgDispatchState:
+    var state = state_in
+    if state.next_worker == 0:
+        state.batch0_text = kg_batch_text_push(state.batch0_text, path)
+        state.batch0_count = state.batch0_count + 1
+        if state.batch0_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(0, state.batch0_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch0_text = ""
+            state.batch0_count = 0
+            state.next_worker = kg_next_worker_slot(0, actual_workers)
+    elif state.next_worker == 1:
+        state.batch1_text = kg_batch_text_push(state.batch1_text, path)
+        state.batch1_count = state.batch1_count + 1
+        if state.batch1_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(1, state.batch1_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch1_text = ""
+            state.batch1_count = 0
+            state.next_worker = kg_next_worker_slot(1, actual_workers)
+    elif state.next_worker == 2:
+        state.batch2_text = kg_batch_text_push(state.batch2_text, path)
+        state.batch2_count = state.batch2_count + 1
+        if state.batch2_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(2, state.batch2_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch2_text = ""
+            state.batch2_count = 0
+            state.next_worker = kg_next_worker_slot(2, actual_workers)
+    elif state.next_worker == 3:
+        state.batch3_text = kg_batch_text_push(state.batch3_text, path)
+        state.batch3_count = state.batch3_count + 1
+        if state.batch3_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(3, state.batch3_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch3_text = ""
+            state.batch3_count = 0
+            state.next_worker = kg_next_worker_slot(3, actual_workers)
+    elif state.next_worker == 4:
+        state.batch4_text = kg_batch_text_push(state.batch4_text, path)
+        state.batch4_count = state.batch4_count + 1
+        if state.batch4_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(4, state.batch4_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch4_text = ""
+            state.batch4_count = 0
+            state.next_worker = kg_next_worker_slot(4, actual_workers)
+    elif state.next_worker == 5:
+        state.batch5_text = kg_batch_text_push(state.batch5_text, path)
+        state.batch5_count = state.batch5_count + 1
+        if state.batch5_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(5, state.batch5_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch5_text = ""
+            state.batch5_count = 0
+            state.next_worker = kg_next_worker_slot(5, actual_workers)
+    elif state.next_worker == 6:
+        state.batch6_text = kg_batch_text_push(state.batch6_text, path)
+        state.batch6_count = state.batch6_count + 1
+        if state.batch6_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(6, state.batch6_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch6_text = ""
+            state.batch6_count = 0
+            state.next_worker = kg_next_worker_slot(6, actual_workers)
+    else:
+        state.batch7_text = kg_batch_text_push(state.batch7_text, path)
+        state.batch7_count = state.batch7_count + 1
+        if state.batch7_count >= KG_BATCH_SIZE:
+            state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(7, state.batch7_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+            state.batch7_text = ""
+            state.batch7_count = 0
+            state.next_worker = kg_next_worker_slot(7, actual_workers)
+    return state
+
+fn kg_flush_dispatch_state(state_in: KgDispatchState, actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker) -> KgDispatchState:
+    var state = state_in
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(0, state.batch0_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(1, state.batch1_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(2, state.batch2_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(3, state.batch3_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(4, state.batch4_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(5, state.batch5_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(6, state.batch6_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.dispatched_batches = state.dispatched_batches + kg_send_batch_to_worker(7, state.batch7_text, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    state.batch0_text = ""
+    state.batch1_text = ""
+    state.batch2_text = ""
+    state.batch3_text = ""
+    state.batch4_text = ""
+    state.batch5_text = ""
+    state.batch6_text = ""
+    state.batch7_text = ""
+    state.batch0_count = 0
+    state.batch1_count = 0
+    state.batch2_count = 0
+    state.batch3_count = 0
+    state.batch4_count = 0
+    state.batch5_count = 0
+    state.batch6_count = 0
+    state.batch7_count = 0
+    return state
+
+fn kg_dispatch_walked_paths_text(walked: String, include_hidden: Bool, actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker, state_in: KgDispatchState) -> KgDispatchState:
+    var state = state_in
+    let entries = kg_split_lines(walked)
+    var entry_index = 0
+    while entry_index < len(entries):
+        let entry = entries[entry_index]
+        if len(entry) == 0:
+            entry_index = entry_index + 1
+            continue
+        if kg_path_is_ignored(entry, include_hidden):
+            entry_index = entry_index + 1
+            continue
+        let next_entry = if entry_index + 1 < len(entries):
+            entries[entry_index + 1]
+        else:
+            ""
+        if kg_path_has_child_prefix(entry, next_entry) == false:
+            state = kg_dispatch_file_path(state, entry, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+        entry_index = entry_index + 1
+    return state
+
+fn kg_walk_and_dispatch_dir(current_path: String, include_hidden: Bool, actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker, state_in: KgDispatchState) -> KgDispatchState:
+    var state = state_in
+    let walked = fs_walk_paths_text(current_path)
+    if len(walked) > 0:
+        return kg_dispatch_walked_paths_text(walked, include_hidden, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7, state)
+    let walked = fs_read_dir_paths_text(current_path)
+    let entries = kg_split_lines(walked)
+    var entry_index = 0
+    while entry_index < len(entries):
+        let entry = entries[entry_index]
+        if len(entry) == 0:
+            entry_index = entry_index + 1
+            continue
+        if kg_path_is_ignored(entry, include_hidden):
+            entry_index = entry_index + 1
+            continue
+        if fs_is_dir(entry):
+            state = kg_walk_and_dispatch_dir(entry, include_hidden, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7, state)
+        else:
+            state = kg_dispatch_file_path(state, entry, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+        entry_index = entry_index + 1
+    return state
 
 fn kg_scan_file(path: String, normalized_needle: String, ignore_case: Bool, files_only: Bool, count_only: Bool, line_numbers: Bool, max_file_bytes: Int) -> KgFileReport:
-    if fs_is_file(path) == false:
+    let metadata = fs_metadata_text(path)
+    if fs_last_status() != 0:
+        return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 1 }
+    if kg_metadata_file_type(metadata) != "file":
         return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
-
+    let metadata_len = kg_metadata_len(metadata)
+    if max_file_bytes > 0 and metadata_len > max_file_bytes:
+        return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
     let contents = fs_read_text(path)
+    if fs_last_status() != 0:
+        return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 1 }
     let bytes_scanned = len(contents)
-    if max_file_bytes > 0 and bytes_scanned > max_file_bytes:
-        return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
     if kg_looks_binaryish(contents):
         return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
 
@@ -361,15 +569,19 @@ actor KgWorker:
     state last_errors: Int = 0
     state done: Bool = true
 
-    on ProcessFiles(paths: Array<String>):
-        self.done = false
+    on ResetRun(reset_port: P, reset_request: Int):
         self.last_jobs = 0
         self.last_output = ""
         self.last_matched_files = 0
         self.last_matched_lines = 0
         self.last_bytes_scanned = 0
         self.last_errors = 0
+        self.done = false
+        send reset_port.Reply(value = 1)
 
+    on ProcessFiles(paths_text: String):
+        var batch_output = ""
+        let paths = kg_split_lines(paths_text)
         var path_index = 0
         while path_index < len(paths):
             let entry = paths[path_index]
@@ -384,23 +596,24 @@ actor KgWorker:
                     self.max_file_bytes
                 )
                 self.last_jobs = self.last_jobs + 1
-                self.last_output = self.last_output + report.output
+                batch_output = batch_output + report.output
                 self.last_matched_files = self.last_matched_files + report.matched_files
                 self.last_matched_lines = self.last_matched_lines + report.matched_lines
                 self.last_bytes_scanned = self.last_bytes_scanned + report.bytes_scanned
                 self.last_errors = self.last_errors + report.errors
             path_index = path_index + 1
+        if len(batch_output) > 0:
+            print(batch_output)
+
+    on FinishRun(finish_port: P, finish_request: Int):
         self.done = true
+        send finish_port.Reply(value = 1)
 
     on Done(done_port: P, done_request: Int):
         send done_port.Reply(value = self.done)
 
     on JobCount(worker_job_port: P, worker_job_request: Int):
         send worker_job_port.Reply(value = self.last_jobs)
-
-    on Flush():
-        if len(self.last_output) > 0:
-            print(self.last_output)
 
     on MatchedFiles(worker_files_port: P, worker_files_request: Int):
         send worker_files_port.Reply(value = self.last_matched_files)
@@ -435,7 +648,7 @@ fn kg_workers_finished(actual_workers: Int, worker0: KgWorker, worker1: KgWorker
 
 fn kg_wait_until_done(actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker) -> Int:
     while kg_workers_finished(actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7) == false:
-        let _sleep = sleep_millis(5)
+        let _sleep = sleep_millis(1)
     return 0
 
 fn kg_validate_config(config: KgConfig) -> Int:
@@ -480,179 +693,130 @@ fn main() -> Int:
         line_numbers = config.line_numbers,
         max_file_bytes = config.max_file_bytes
     )
-    let worker1 = if actual_workers > 1:
-        spawn KgWorker(
-            worker_id = 1,
-            normalized_needle = normalized_needle,
-            ignore_case = config.ignore_case,
-            files_only = config.files_only,
-            count_only = config.count_only,
-            line_numbers = config.line_numbers,
-            max_file_bytes = config.max_file_bytes
-        )
-    else:
-        worker0
-    let worker2 = if actual_workers > 2:
-        spawn KgWorker(
-            worker_id = 2,
-            normalized_needle = normalized_needle,
-            ignore_case = config.ignore_case,
-            files_only = config.files_only,
-            count_only = config.count_only,
-            line_numbers = config.line_numbers,
-            max_file_bytes = config.max_file_bytes
-        )
-    else:
-        worker1
-    let worker3 = if actual_workers > 3:
-        spawn KgWorker(
-            worker_id = 3,
-            normalized_needle = normalized_needle,
-            ignore_case = config.ignore_case,
-            files_only = config.files_only,
-            count_only = config.count_only,
-            line_numbers = config.line_numbers,
-            max_file_bytes = config.max_file_bytes
-        )
-    else:
-        worker2
-    let worker4 = if actual_workers > 4:
-        spawn KgWorker(
-            worker_id = 4,
-            normalized_needle = normalized_needle,
-            ignore_case = config.ignore_case,
-            files_only = config.files_only,
-            count_only = config.count_only,
-            line_numbers = config.line_numbers,
-            max_file_bytes = config.max_file_bytes
-        )
-    else:
-        worker3
-    let worker5 = if actual_workers > 5:
-        spawn KgWorker(
-            worker_id = 5,
-            normalized_needle = normalized_needle,
-            ignore_case = config.ignore_case,
-            files_only = config.files_only,
-            count_only = config.count_only,
-            line_numbers = config.line_numbers,
-            max_file_bytes = config.max_file_bytes
-        )
-    else:
-        worker4
-    let worker6 = if actual_workers > 6:
-        spawn KgWorker(
-            worker_id = 6,
-            normalized_needle = normalized_needle,
-            ignore_case = config.ignore_case,
-            files_only = config.files_only,
-            count_only = config.count_only,
-            line_numbers = config.line_numbers,
-            max_file_bytes = config.max_file_bytes
-        )
-    else:
-        worker5
-    let worker7 = if actual_workers > 7:
-        spawn KgWorker(
-            worker_id = 7,
-            normalized_needle = normalized_needle,
-            ignore_case = config.ignore_case,
-            files_only = config.files_only,
-            count_only = config.count_only,
-            line_numbers = config.line_numbers,
-            max_file_bytes = config.max_file_bytes
-        )
-    else:
-        worker6
+    let worker1 = spawn KgWorker(
+        worker_id = 1,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
+    let worker2 = spawn KgWorker(
+        worker_id = 2,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
+    let worker3 = spawn KgWorker(
+        worker_id = 3,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
+    let worker4 = spawn KgWorker(
+        worker_id = 4,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
+    let worker5 = spawn KgWorker(
+        worker_id = 5,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
+    let worker6 = spawn KgWorker(
+        worker_id = 6,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
+    let worker7 = spawn KgWorker(
+        worker_id = 7,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
 
-    let shard0 = []
-    let shard1 = []
-    let shard2 = []
-    let shard3 = []
-    let shard4 = []
-    let shard5 = []
-    let shard6 = []
-    let shard7 = []
-    var shard0_load = 0
-    var shard1_load = 0
-    var shard2_load = 0
-    var shard3_load = 0
-    var shard4_load = 0
-    var shard5_load = 0
-    var shard6_load = 0
-    var shard7_load = 0
-
-    if fs_is_file(config.root):
-        if kg_path_is_ignored(config.root, config.include_hidden) == false:
-            push(shard0, config.root)
-            shard0_load = 1
-    else:
-        let walked = fs_walk_paths_text(config.root)
-        let entries = kg_split_lines(walked)
-        var entry_index = 0
-        while entry_index < len(entries):
-            let entry = entries[entry_index]
-            if len(entry) == 0:
-                entry_index = entry_index + 1
-                continue
-            if fs_is_file(entry) == false:
-                entry_index = entry_index + 1
-                continue
-            if kg_path_is_ignored(entry, config.include_hidden):
-                entry_index = entry_index + 1
-                continue
-            let target = kg_lightest_lane(
-                actual_workers,
-                shard0_load,
-                shard1_load,
-                shard2_load,
-                shard3_load,
-                shard4_load,
-                shard5_load,
-                shard6_load,
-                shard7_load
-            )
-            if target == 0:
-                push(shard0, entry)
-                shard0_load = shard0_load + 1
-            elif target == 1:
-                push(shard1, entry)
-                shard1_load = shard1_load + 1
-            elif target == 2:
-                push(shard2, entry)
-                shard2_load = shard2_load + 1
-            elif target == 3:
-                push(shard3, entry)
-                shard3_load = shard3_load + 1
-            elif target == 4:
-                push(shard4, entry)
-                shard4_load = shard4_load + 1
-            elif target == 5:
-                push(shard5, entry)
-                shard5_load = shard5_load + 1
-            elif target == 6:
-                push(shard6, entry)
-                shard6_load = shard6_load + 1
-            else:
-                push(shard7, entry)
-                shard7_load = shard7_load + 1
-            entry_index = entry_index + 1
-
-    send worker0.ProcessFiles(paths = shard0)
+    let _reset0 = ask(worker0, "ResetRun", 0)
     if actual_workers > 1:
-        send worker1.ProcessFiles(paths = shard1)
+        let _reset1 = ask(worker1, "ResetRun", 0)
     if actual_workers > 2:
-        send worker2.ProcessFiles(paths = shard2)
+        let _reset2 = ask(worker2, "ResetRun", 0)
     if actual_workers > 3:
-        send worker3.ProcessFiles(paths = shard3)
+        let _reset3 = ask(worker3, "ResetRun", 0)
     if actual_workers > 4:
-        send worker4.ProcessFiles(paths = shard4)
+        let _reset4 = ask(worker4, "ResetRun", 0)
     if actual_workers > 5:
-        send worker5.ProcessFiles(paths = shard5)
+        let _reset5 = ask(worker5, "ResetRun", 0)
     if actual_workers > 6:
-        send worker6.ProcessFiles(paths = shard6)
+        let _reset6 = ask(worker6, "ResetRun", 0)
     if actual_workers > 7:
-        send worker7.ProcessFiles(paths = shard7)
+        let _reset7 = ask(worker7, "ResetRun", 0)
+
+    let initial_dispatch = KgDispatchState {
+        next_worker: 0,
+        batch0_text: "",
+        batch1_text: "",
+        batch2_text: "",
+        batch3_text: "",
+        batch4_text: "",
+        batch5_text: "",
+        batch6_text: "",
+        batch7_text: "",
+        batch0_count: 0,
+        batch1_count: 0,
+        batch2_count: 0,
+        batch3_count: 0,
+        batch4_count: 0,
+        batch5_count: 0,
+        batch6_count: 0,
+        batch7_count: 0,
+        dispatched_batches: 0,
+    }
+    let walked_dispatch = if fs_is_file(config.root):
+        if kg_path_is_ignored(config.root, config.include_hidden):
+            initial_dispatch
+        else:
+            kg_dispatch_file_path(initial_dispatch, config.root, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+    else:
+        kg_walk_and_dispatch_dir(config.root, config.include_hidden, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7, initial_dispatch)
+    let dispatch_state = kg_flush_dispatch_state(walked_dispatch, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+
+    let _finish0 = ask(worker0, "FinishRun", 0)
+    if actual_workers > 1:
+        let _finish1 = ask(worker1, "FinishRun", 0)
+    if actual_workers > 2:
+        let _finish2 = ask(worker2, "FinishRun", 0)
+    if actual_workers > 3:
+        let _finish3 = ask(worker3, "FinishRun", 0)
+    if actual_workers > 4:
+        let _finish4 = ask(worker4, "FinishRun", 0)
+    if actual_workers > 5:
+        let _finish5 = ask(worker5, "FinishRun", 0)
+    if actual_workers > 6:
+        let _finish6 = ask(worker6, "FinishRun", 0)
+    if actual_workers > 7:
+        let _finish7 = ask(worker7, "FinishRun", 0)
 
     let _wait = kg_wait_until_done(actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
 
@@ -666,7 +830,6 @@ fn main() -> Int:
     var bytes_scanned = 0
     var error_count = 0
 
-    send worker0.Flush()
     let jobs0 = ask(worker0, "JobCount", 0)
     let matched_files0 = ask(worker0, "MatchedFiles", 0)
     let matched_lines0 = ask(worker0, "MatchedLines", 0)
@@ -683,7 +846,6 @@ fn main() -> Int:
     error_count = error_count + errors0
 
     if actual_workers > 1:
-        send worker1.Flush()
         let jobs1 = ask(worker1, "JobCount", 0)
         let matched_files1 = ask(worker1, "MatchedFiles", 0)
         let matched_lines1 = ask(worker1, "MatchedLines", 0)
@@ -700,7 +862,6 @@ fn main() -> Int:
         error_count = error_count + errors1
 
     if actual_workers > 2:
-        send worker2.Flush()
         let jobs2 = ask(worker2, "JobCount", 0)
         let matched_files2 = ask(worker2, "MatchedFiles", 0)
         let matched_lines2 = ask(worker2, "MatchedLines", 0)
@@ -717,7 +878,6 @@ fn main() -> Int:
         error_count = error_count + errors2
 
     if actual_workers > 3:
-        send worker3.Flush()
         let jobs3 = ask(worker3, "JobCount", 0)
         let matched_files3 = ask(worker3, "MatchedFiles", 0)
         let matched_lines3 = ask(worker3, "MatchedLines", 0)
@@ -734,7 +894,6 @@ fn main() -> Int:
         error_count = error_count + errors3
 
     if actual_workers > 4:
-        send worker4.Flush()
         let jobs4 = ask(worker4, "JobCount", 0)
         let matched_files4 = ask(worker4, "MatchedFiles", 0)
         let matched_lines4 = ask(worker4, "MatchedLines", 0)
@@ -751,7 +910,6 @@ fn main() -> Int:
         error_count = error_count + errors4
 
     if actual_workers > 5:
-        send worker5.Flush()
         let jobs5 = ask(worker5, "JobCount", 0)
         let matched_files5 = ask(worker5, "MatchedFiles", 0)
         let matched_lines5 = ask(worker5, "MatchedLines", 0)
@@ -768,7 +926,6 @@ fn main() -> Int:
         error_count = error_count + errors5
 
     if actual_workers > 6:
-        send worker6.Flush()
         let jobs6 = ask(worker6, "JobCount", 0)
         let matched_files6 = ask(worker6, "MatchedFiles", 0)
         let matched_lines6 = ask(worker6, "MatchedLines", 0)
@@ -785,7 +942,6 @@ fn main() -> Int:
         error_count = error_count + errors6
 
     if actual_workers > 7:
-        send worker7.Flush()
         let jobs7 = ask(worker7, "JobCount", 0)
         let matched_files7 = ask(worker7, "MatchedFiles", 0)
         let matched_lines7 = ask(worker7, "MatchedLines", 0)
@@ -804,6 +960,7 @@ fn main() -> Int:
     if config.show_stats:
         var summary = "kg stats: queued=" + str(queued_jobs)
         summary = summary + " completed=" + str(completed_jobs)
+        summary = summary + " batches=" + str(dispatch_state.dispatched_batches)
         summary = summary + " matched_files=" + str(matched_files)
         summary = summary + " matched_lines=" + str(matched_lines)
         summary = summary + " bytes=" + str(bytes_scanned)
@@ -811,6 +968,8 @@ fn main() -> Int:
         summary = summary + " busy_workers=" + str(actor_scheduler_busy_workers())
         summary = summary + " queue_depth=" + str(actor_scheduler_queue_depth())
         summary = summary + " max_queue_depth=" + str(actor_scheduler_max_queue_depth())
+        summary = summary + " total_enqueued=" + str(actor_scheduler_total_enqueued())
+        summary = summary + " total_dequeued=" + str(actor_scheduler_total_dequeued())
         summary = summary + " overflow_spawns=" + str(actor_scheduler_overflow_thread_spawns())
         summary = summary + "\n"
         var lane_index = 0

@@ -1,4 +1,4 @@
 interface:
   display_name: "Lang Stdlib"
-  short_description: "Author Kain with root stdlib domains"
-  default_prompt: "Use $lang-stdlib to choose the right Kain stdlib imports, query exact symbols, and write a compact proof example."
+  short_description: "Build and use Kain root stdlib"
+  default_prompt: "Use $lang-stdlib to expand or consume the root Kain stdlib, follow stdlib/requirements.md, and mesh new surfaces into smoketest and evidence lanes."

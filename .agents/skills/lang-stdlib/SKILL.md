@@ -1,57 +1,136 @@
 ---
 name: lang-stdlib
 description: >-
-  Use when authoring, explaining, reviewing, or repairing Kain code that consumes the public root `std::*` surface: actor, alloc, attrition, bench, build, certify, collections, crypto, diagnostics, fs, gen_server, gpu, graphics, graphics::shared, hash, http, http2, input, intent, math, net, platform, process, proof, reload, result, runtime, test, text, time, tls, and ui. Use for choosing imports, finding symbols without loading the whole stdlib map, writing Kain examples over stdlib domains, and routing stdlib bugs to runtime/bootstrap owners without changing stdlib implementation underneath.
+  Use when authoring, explaining, reviewing, repairing, extending, benchmarking, or certifying Kain root `std::*` work: choosing public stdlib imports, querying exact symbols, adding or expanding top-level `stdlib/*.kn` modules, closing capability gaps tracked in `stdlib/requirements.md`, meshing new surfaces into `smoketest/`, and routing stdlib-backed compiler/runtime issues to the owning bootstrap/runtime lanes. Use for both consuming the existing root stdlib and building it toward v1 completeness; do not use this as the primary skill for overlay-only work under `stdlib/python`, `stdlib/javascript`, `stdlib/ue5`, `stdlib/c`, or `stdlib/interop` unless that work is explicitly in service of a root stdlib surface.
 ---
 
 # Lang Stdlib
 
-This is the authored Kain stdlib field manual. Use it when code is writing IN Kain and needs the public root `std::*` domains instead of re-discovering the generated 120KB stdlib atlas by hand.
+This skill is the root Kain stdlib operator manual. Use it to write authored Kain against the public root `std::*` surface and to grow that surface without losing the delivery contract around requirements, smoketest, atlas freshness, and evidence.
 
 ## Prime Directive
 
-- Prefer public root imports: `use std::fs`, `use std::math`, `use std::http`, `use std::graphics`, `use std::ui`.
-- Keep authored examples on public symbols. Private `abi_*` helpers are implementation wiring unless the task is stdlib maintenance.
-- Do not read the entire generated map by default. Query it for the module or symbol family you need.
-- Treat `@extern` stdlib functions as runtime-backed ABI calls. If the behavior is wrong, hand off to `runtime-stdlib`, `runtime-core`, or the owning portable crate.
-- If authored Kain exposes an import/type/lowering bug, preserve the public stdlib design and escalate to `bootstrap-core` or the relevant bootstrap/runtime skill.
-- If you change any top-level `stdlib/*.kn` file, regenerate and check the map. Never edit `stdlib/STDLIB_MAP.llm.md` or `stdlib/stdlib.map.json` by hand.
+- Prefer public root imports such as `use std::fs`, `use std::math`, `use std::http`, and `use std::ui`.
+- Read `stdlib/requirements.md` immediately when the task involves adding, extending, or certifying root stdlib capability.
+- Query the atlas before spelunking. Use `query_stdlib.py` and only open exact source when needed.
+- Treat private `abi_*` symbols as stdlib-internal runtime wiring, not authoring APIs.
+- Treat `@extern` root stdlib functions as runtime-backed ABI surfaces. Escalate to the owning runtime/bootstrap lane if behavior is wrong.
+- Regenerate `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json` whenever top-level `stdlib/*.kn` changes.
+- Mesh real stdlib changes into `smoketest/`, not just a blade-local proof.
+- Build Kain-shaped surfaces, not donor-file cosplay. Translate Zig/Rust/Go capabilities into Kain-native modules and semantics.
 
-## Fast Lookup Loop
+## Fast Operator Loop
 
-Use the bundled query helper before loading giant generated files:
+Use these commands first:
 
 ```powershell
 python query_stdlib.py --summary
 python query_stdlib.py --imports
+python query_stdlib.py --module fs --contains path --limit 40
 python query_stdlib.py --module math --contains vec3 --limit 40
-python query_stdlib.py --module build --contains task --limit 40
-python query_stdlib.py --module proof --limit 40
-python query_stdlib.py --module ui --contains clipboard --limit 40
-python query_stdlib.py --search fs_read --limit 20
-python query_stdlib.py --search GPU_DESCRIPTOR --kind const --limit 40
-```
-
-Then inspect exact source only when needed:
-
-```powershell
+python query_stdlib.py --search json --limit 40
+python query_stdlib.py --search base64 --limit 40
+python query_stdlib.py --search thread --limit 40
 rg -n "^use std::" library_of_kain blades benchmark smoketest
-rg -n "\bfs_read_text\b|\bvec3_normalize_or_zero\b|\bgraphics_session_create\b" stdlib blades benchmark smoketest
+rg -n "\b(fs_|tcp_|process_|graphics_|ui_|hash_|text_|json_)\b" stdlib blades benchmark smoketest runtime
+rg -n "TODO|PARTIAL|BLOCKED|DONE|WAIVED|json|base64|unicode|ArrayList|HashMap|Uri|atomic|thread|compress|tar|zip|elf|dwarf|pdb" stdlib/requirements.md
+rg -n "json|base64|unicode|ArrayList|HashMap|Uri|atomic|Thread|compress|tar|zip|elf|dwarf|pdb" reference\langs\zig\lib\std
 kain check <entry.kn> --target llvm
 kain run <entry.kn-or-blade> --target llvm
 ```
 
+Use these commands for root stdlib maintenance:
+
+```powershell
+cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write
+cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check
+```
+
+## Work Modes
+
+Use this skill in three different modes:
+
+1. Consume the existing root stdlib.
+   - Choose the right import and exact symbol.
+   - Write a compact authored Kain proof against public APIs.
+   - Route failures to the correct bootstrap/runtime owner.
+2. Extend an existing root module.
+   - Tighten a thin surface such as `std::fs`, `std::time`, `std::crypto`, or `std::process`.
+   - Replace stringly or `Any`-shaped gaps with typed public records or builders.
+   - Mesh the new surface into `smoketest/`, blades, and evidence.
+3. Add a missing root family.
+   - Create a new top-level `stdlib/*.kn` module when the family is broad and author-facing, such as `std::json`, `std::fmt`, `std::io`, or `std::random`.
+   - Add the family to the root completion contract in `stdlib/requirements.md`.
+   - Prove it through the same pipeline as any other root stdlib surface.
+
+## Root Completion Contract
+
+Treat `stdlib/requirements.md` as the authoritative backlog and delivery contract for finishing the root `std::*` surface.
+
+Use it to:
+
+- find the relevant `P0`, `P1`, `P2`, or `KX` row before implementing
+- decide whether a task is `TODO`, `PARTIAL`, or `BLOCKED`
+- avoid duplicate or blade-only solutions that do not close a root gap
+- decide whether a capability belongs in an existing module or a new root family
+- update status to `DONE` during the same landing change when the capability is fully completed
+
+If a new missing family is discovered while comparing against donor stdlibs or against real authored Kain pressure, add it to `stdlib/requirements.md` instead of keeping the knowledge in your head or in a transient conversation.
+
+## Completion Pipeline
+
+Follow this pipeline when doing real root stdlib work:
+
+1. Read the relevant row in `stdlib/requirements.md`.
+2. Query the live atlas to confirm what the current public root surface already exposes.
+3. Search `blades/`, `benchmark/`, `attrition/`, `smoketest/`, and `library_of_kain/` for nearby authoring patterns.
+4. Decide whether the capability belongs in an existing root module or a new top-level `stdlib/*.kn` file.
+5. Implement the public Kain-facing API first. Keep `abi_*` helpers private unless the module is explicitly stdlib-maintenance-only.
+6. Land the owning backing work in `crates/*`, `runtime/native`, or other subsystem owners if the surface is runtime-backed.
+7. Mesh the new surface into `smoketest/`, and make at least one non-stdlib consumer call it when practical.
+8. Add deeper evidence in `benchmark/`, `attrition/`, `runtime/conformance/`, and Z3 proof packs when the claim requires it.
+9. Regenerate and check the stdlib atlas.
+10. Update `stdlib/requirements.md` row status and `MEMORY.md` when operator truth changed.
+
+## Compiler To Runtime Flow
+
+Root stdlib work normally flows like this:
+
+```text
+authored Kain
+-> public root import such as std::fs or std::json
+-> top-level stdlib/*.kn module
+-> private abi_* declarations and pure Kain wrappers/helpers
+-> stdlib loader and import truth in crates/kain-core
+-> portable Rust contract crates when present
+-> runtime/native C ABI substrate and service tables
+-> smoketest, blades, benchmark, attrition, runtime conformance, and Z3 evidence
+```
+
+Primary source anchors:
+
+- Root completion backlog: `stdlib/requirements.md`
+- Live root atlas: `stdlib/STDLIB_MAP.llm.md`, `stdlib/stdlib.map.json`
+- Atlas query helper: `query_stdlib.py`
+- Atlas generator: `crates/kain-stdlib-map`
+- Root stdlib source: `stdlib/*.kn`
+- Stdlib loading and target profile ordering: `crates/kain-core/src/stdlib.rs`
+- Parser/typechecker import consumers: `crates/kain-core/src`
+- Portable owners: `crates/kain-fs`, `crates/kain-input`, `crates/kain-net`, `crates/kain-process`, `crates/kain-actor`
+- Native runtime owners: `runtime/native/include`, `runtime/native/src/core`, `runtime/native/src/ui`, `runtime/native/src/graphics`
+- Smoketest album: `smoketest/src/main.kn`, `smoketest/build.kn`, `smoketest/src/stdlib`
+- Proof blades: `blades/stdlib-foundations`, `blades/stdlib-domains`, `blades/network-domains`, `blades/hash-domains`, `blades/math-domains`
+- Donor baseline: `reference/langs/zig/lib/std`
+
 ## Live Root Profile
 
-The generated native root profile currently says:
+The current native root profile reports:
 
-- `modules=32`
-- `public_symbols=1598`
-- `total_symbols=2077`
+- `modules=35`
+- `public_symbols=1655`
+- `total_symbols=2172`
 - `rust_builtins=233`
-- `native_services=36`
-- Scope is top-level `stdlib/*.kn` for LLVM/native root profile.
-- Excluded overlays include `stdlib/ue5`, `stdlib/python`, `stdlib/javascript`, `stdlib/c`, and other target/vendor subtrees.
+- `native_services=42`
 
 Current root imports:
 
@@ -60,6 +139,7 @@ use std::actor
 use std::alloc
 use std::attrition
 use std::bench
+use std::bits
 use std::build
 use std::certify
 use std::collections
@@ -75,7 +155,9 @@ use std::http
 use std::http2
 use std::input
 use std::intent
+use std::machine
 use std::math
+use std::memory
 use std::net
 use std::platform
 use std::process
@@ -90,390 +172,186 @@ use std::tls
 use std::ui
 ```
 
-## Stdlib Flow
-
-Authored stdlib code normally crosses these layers:
-
-```text
-.kn authored source
--> public root import such as std::fs or std::math
--> top-level stdlib/*.kn wrappers and pure Kain helpers
--> private abi_* declarations for runtime-backed services when needed
--> portable Rust contract crates for input/net/fs/process/actor/etc. when present
--> runtime/native C ABI substrate for OS, graphics, UI, network, process, actor, heap
--> blades, smoketest, benchmark, attrition, and Z3 evidence when the claim matters
-```
-
-Source anchors:
-
-- Generated atlas: `stdlib/STDLIB_MAP.llm.md`, `stdlib/stdlib.map.json`.
-- Atlas generator: `crates/kain-stdlib-map`.
-- Stdlib loading/import truth: `crates/kain-core/src/stdlib.rs`, parser/typechecker import paths in `crates/kain-core/src`.
-- Root authored modules: `stdlib/*.kn`.
-- Runtime-backed native surface: `runtime/native/include`, `runtime/native/src/core`, `runtime/native/src/ui`, `runtime/native/src/graphics`.
-- Portable contract crates: `crates/kain-fs`, `crates/kain-input`, `crates/kain-net`, `crates/kain-process`, `crates/kain-actor`.
-- Proof blades: `blades/stdlib-domains`, `blades/math-domains`, `blades/network-domains`, `blades/hash-domains`.
+Remember that a large symbol count does not mean the root stdlib is done. `stdlib/requirements.md` is the completion truth, not the atlas count.
 
 ## Choose By Need
 
+Use this family map before opening large files:
+
 | Need | Use | First Symbols / Patterns | Co-trigger |
 | --- | --- | --- | --- |
-| Start or stop native services | `std::runtime` | `runtime_init`, `runtime_shutdown`, `runtime_heap_validate` | `runtime-core` if broken |
-| Actors and scheduler telemetry | `std::actor` | `actor_spawn`, `actor_send`, `actor_shutdown`, `actor_scheduler_queue_depth` | `lang-actors`, `lang-systems` |
-| Arena/bump/pool memory helpers | `std::alloc` | `arena_create`, `arena_alloc`, `bump_alloc`, `pool_alloc` | `lang-systems` |
-| Attrition evidence DAG tasks | `std::attrition` | `attrition_task`, `attrition_case`, `attrition_case_named` | `lang-projects`, `test-attrition` |
-| Benchmark evidence DAG tasks | `std::bench` | `bench_task`, `bench_case`, `benchmark_task`, `bench_case_named` | `lang-projects`, `test-bench` |
-| Project/build authority DAGs | `std::build` | `build_graph`, `package`, `blade`, `build_defaults`, `run_defaults`, `build_check`, `native_executable` | `lang-projects` |
-| Certification gates | `std::certify` | `certify_task`, `certify_gate`, `release_gate` | `lang-projects`, `tool-release-readiness` |
-| Maps, queues, slot maps, clamps | `std::collections` | `typed_map_*`, `queue_*`, `slot_map_*`, `int_clamp`, `bool_to_int` | `lang-systems` |
-| Digests and random bytes | `std::crypto` | `sha256`, `hmac_sha256`, `blake3`, `random_bytes_hex` | `lang-interop` if external crypto |
-| Status and error composition | `std::diagnostics` | `status_ok`, `status_failed`, `bool_to_status`, `first_error` | `test-harness` |
-| Files, paths, temp, metadata | `std::fs` | `fs_read_text`, `fs_write_text`, `fs_temp_file`, `fs_hash_file` | `runtime-stdlib`, `bootstrap-fs` |
-| OTP-shaped actor service | `std::gen_server` | `gen_server_start`, `gen_server_call`, `gen_server_cast` | `lang-actors` |
-| GPU resource contracts | `std::gpu` | `gpu_resource_policy`, `gpu_shared_buffer_zeroed`, descriptor constants | `lang-gpu` |
-| Native graphics handles | `std::graphics` | `graphics_session_create`, `graphics_shader_spirv_from_hex`, `graphics_draw_mesh` | `lang-gpu`, `runtime-gpu` |
-| Shared GPU/graphics resources | `std::graphics::shared` | `graphics_shared_vertex_policy`, `graphics_shared_sampled_image` | `lang-gpu` |
-| Deterministic hashes | `std::hash` | `hash_u32`, `hash_mix32`, `hash_fnv1a32_update_u32`, `hash_bucket_mod` | `tool-z3-black-magic` for bit tricks |
-| HTTP request/response/server | `std::http` | `request_create`, `server_create_localhost`, `route_actor`, `respond_text` | `lang-interop` |
-| HTTP/2 request wrappers | `std::http2` | `http2_request_create`, `http2_client_state`, `http2_get_text` | `runtime-stdlib` if broken |
-| Input events and action maps | `std::input` | `input_session_create`, `input_bind_action`, `input_push_key_down` | `lang-ui`, `runtime-stdlib` |
-| Semantic runtime counters | `std::intent` | `entangle_reset`, `law_status`, `patch_journal_count`, `converge_mismatch_count` | `lang-semantics` |
-| Engine math, color, noise, layout | `std::math` | `vec3_*`, `quat_*`, `mat4_*`, `ray_vs_aabb`, `fbm2`, `std140_*` | `lang-gpu`, `lang-ui`, `lang-systems` |
-| TCP and network platform state | `std::net` | `net_reset`, `tcp_connect`, `tcp_listen`, `tcp_read_text` | `runtime-stdlib` |
-| OS/platform dynamic libraries | `std::platform` | `platform_current_name`, `platform_library_open`, `platform_library_resolve` | `lang-interop` |
-| Processes and PTYs | `std::process` | `process_spec_create`, `process_spawn`, `process_wait`, `process_stdout_text` | `runtime-stdlib` |
-| Proof evidence DAG tasks | `std::proof` | `proof_task`, `proof_obligation`, `z3_proof`, `proof_smt2` | `lang-projects`, `test-harness` |
-| Hot reload generations | `std::reload` | `reload_begin`, `reload_commit`, `reload_generation`, `reload_snapshot_key` | `lang-ui`, `package-kaintana` |
-| Numeric result status codes | `std::result` | `result_ok`, `result_is_error`, `result_combine` | `test-harness` |
-| Test/proof outcomes | `std::test` | `test_bool`, `test_proved`, `test_outcome_ok` | `test-harness` |
-| Text slices and views | `std::text` | `text_slice`, `text_trim`, `text_find`, `text_materialize` | `lang-systems` for zero-copy |
-| Time and deadlines | `std::time` | `now_millis`, `sleep_millis`, `deadline_millis` | `runtime-stdlib` |
-| TLS HTTPS client wrappers | `std::tls` | `tls_https_request_create`, `tls_client_state`, `tls_https_get_text` | `runtime-stdlib` |
-| Native UI handles | `std::ui` | `ui_session_create`, `ui_node_create`, `ui_node_set_rect`, `ui_draw_command_count` | `lang-ui`, `package-kaintana` |
+| Start or stop native services, heap checks, machine counters | `std::runtime` | `runtime_init`, `runtime_shutdown`, `runtime_heap_validate`, `runtime_converge_*`, `runtime_machine_*` | `runtime-core` |
+| Observe semantic runtime behavior | `std::intent` | `entangle_*`, `patch_journal_count`, `law_status`, `converge_mismatch_count`, `orchestrate_stage_count` | `lang-semantics` |
+| Actors, registry, supervision, scheduler telemetry | `std::actor` | `actor_spawn`, `actor_send`, `actor_monitor`, `actor_scheduler_queue_depth` | `lang-actors`, `runtime-core` |
+| Tiny OTP-shaped services | `std::gen_server` | `gen_server_start`, `gen_server_call`, `gen_server_cast` | `lang-actors` |
+| Build, proof, bench, attrition, certify DAG work | `std::build`, `std::proof`, `std::bench`, `std::attrition`, `std::certify`, `std::test` | `build_graph`, `proof_obligation`, `bench_case`, `attrition_case`, `certify_gate`, `test_bool` | `lang-projects`, `test-harness`, `test-bench`, `test-attrition` |
+| Typed maps, queues, slot maps, clamps | `std::collections` | `typed_map_*`, `queue_*`, `priority_queue_*`, `slot_map_*`, `int_clamp` | `lang-systems` |
+| Arena, bump, and pool allocation | `std::alloc` | `arena_create`, `arena_alloc`, `bump_alloc`, `pool_alloc` | `lang-systems` |
+| String views and zero-copy text slicing | `std::text` | `text_slice`, `text_trim`, `text_find`, `text_materialize`, `string_view_*` | `lang-systems` |
+| Digests and random bytes | `std::crypto` | `sha256`, `hmac_sha256`, `blake3`, `random_bytes_hex` | `runtime-stdlib`, `lang-interop` |
+| Status/result composition | `std::diagnostics`, `std::result` | `status_ok`, `bool_to_status`, `first_error`, `result_ok`, `result_is_error` | `test-harness` |
+| Deterministic bit twiddling and packed integer math | `std::bits` | `u32`, `wrapping_add_u32`, `rotl32`, `popcount32`, `bswap32` | `lang-systems`, `tool-z3-black-magic` |
+| Low-level memory fences and int atomics | `std::memory` | `volatile_*`, `atomic_load_*`, `atomic_store_*`, `atomic_compare_exchange_seqcst`, `atomic_fence_*` | `lang-systems`, `runtime-core` |
+| CPU facts, prefetch, `cpuid`, thread affinity, VM pages | `std::machine` | `pause`, `rdtsc`, `cpuid_*`, `current_thread_id`, `set_current_thread_affinity`, `vm_*` | `lang-systems`, `runtime-core` |
+| Files, temp, metadata, path-ish helpers | `std::fs` | `fs_read_text`, `fs_write_text`, `fs_temp_file`, `fs_hash_file`, `fs_path_join` | `runtime-stdlib`, `bootstrap-fs` |
+| Child processes and PTYs | `std::process` | `process_spec_create`, `process_spawn`, `process_wait`, `process_stdout_capture_text` | `runtime-stdlib` |
+| Platform identity and dynamic libraries | `std::platform` | `platform_current_name`, `platform_library_open`, `platform_library_resolve` | `lang-interop`, `runtime-stdlib` |
+| TCP and network server/client state | `std::net` | `net_reset`, `tcp_connect`, `tcp_listen`, `tcp_read_text`, `tcp_write_text` | `runtime-stdlib` |
+| HTTP request/response/server work | `std::http` | `request_create`, `server_create_localhost`, `respond_text`, `route_actor` | `lang-interop`, `runtime-stdlib` |
+| HTTPS and HTTP/2 wrappers | `std::tls`, `std::http2` | `tls_https_request_create`, `tls_https_get_text`, `http2_request_create`, `http2_get_text` | `runtime-stdlib` |
+| Input sessions and action maps | `std::input` | `input_session_create`, `input_bind_action`, `input_begin_frame`, `input_trace_json` | `lang-ui`, `runtime-stdlib` |
+| Engine math and layout | `std::math` | `vec3_*`, `quat_*`, `mat4_*`, `ray_vs_aabb`, `fbm2`, `std140_*` | `lang-gpu`, `lang-ui`, `lang-systems` |
+| GPU resource contracts and shared buffers/images | `std::gpu` | `gpu_resource_policy`, `gpu_shared_buffer_zeroed`, descriptor constants | `lang-gpu`, `runtime-gpu` |
+| Native graphics sessions and draw calls | `std::graphics`, `std::graphics::shared` | `graphics_session_create`, `graphics_shader_spirv_from_hex`, `graphics_draw_mesh`, `graphics_shared_vertex_buffer` | `lang-gpu`, `runtime-gpu` |
+| Native UI sessions, nodes, styles, events, text, dialogs | `std::ui` | `ui_session_create`, `ui_node_create`, `ui_node_set_rect`, `ui_push_event`, `ui_draw_command_count` | `lang-ui`, `package-kaintana` |
+| Hot-reload generations and migration hints | `std::reload` | `reload_begin`, `reload_commit`, `reload_generation`, `reload_snapshot`, `reload_lane_*` | `lang-ui`, `package-kaintana` |
 
-## Module Atlas
+For exact signatures and full symbol lists, query the atlas instead of reading it all into context.
 
-Use this as the one-scan map. Query exact symbols with repo-root `query_stdlib.py`.
+## Root Gap Index
 
-| Module | Source | Public Shape |
-| --- | --- | --- |
-| `std::actor` | `stdlib/actor.kn` | 74 public actor lifecycle, registry, monitor/link, supervision, scheduler telemetry helpers. Prefer language `actor`/`spawn`/`send`/`ask` for semantic authoring; use `std::actor` when you need runtime service handles or telemetry. |
-| `std::alloc` | `stdlib/alloc.kn` | 27 public bump, arena, and pool allocator structs/functions. Use when authored Kain needs explicit allocation domains beyond raw `alloc_zeroed`; destroy/reset allocators deliberately. |
-| `std::attrition` | `stdlib/attrition.kn` | 3 public build DAG helpers for attrition evidence tasks over runtime abuse, teardown, sabotage, and long-run certification. |
-| `std::bench` | `stdlib/bench.kn` | 4 public build DAG helpers for benchmark evidence tasks and named benchmark cases. |
-| `std::build` | `stdlib/build.kn` | 33 public project authority helpers for `build.kn`: package, blade, defaults, run defaults, platform requirements, task specs, checks, native executables, dependencies, inputs, outputs, axes, telemetry, and certificates. |
-| `std::certify` | `stdlib/certify.kn` | 3 public build DAG helpers for certification and release gates. |
-| `std::collections` | `stdlib/collections.kn` | 87 public helpers for typed string-int maps, queues, deques, priority queues, slot maps, `int_min/max/clamp`, and bool/int conversion. |
-| `std::crypto` | `stdlib/crypto.kn` | 9 public digest/random helpers: SHA-256, HMAC-SHA-256, BLAKE3, random bytes/hex. Use for authored proof/demo crypto, not external provider integration. |
-| `std::diagnostics` | `stdlib/diagnostics.kn` | 18 public status helpers. Use to normalize `0 == ok` style runtime results into Bool/status folds. |
-| `std::fs` | `stdlib/fs.kn` | 30 public filesystem helpers for text/ranges/hex bytes, atomic write, metadata, dirs/walk, temp, hash, join, and last-error queries. |
-| `std::gen_server` | `stdlib/gen_server.kn` | 7 public OTP-ish actor service helpers plus `GenServer`. Use for call/cast/info shape when plain actor examples become service-shaped. |
-| `std::gpu` | `stdlib/gpu.kn` | 121 public GPU policy constants, layout structs, buffer/image resource constructors, descriptor helpers, residency and queue/access flags. This is authored resource contract, not executor internals. |
-| `std::graphics` | `stdlib/graphics.kn` | 84 public native graphics session/backend/frame/buffer/shader/mesh/pipeline/draw/status helpers. Use for low-level graphics proof blades, not full app UI architecture. |
-| `std::graphics::shared` | `stdlib/graphics_shared.kn` | 32 public bridge helpers that turn `std::gpu` shared resources into graphics vertex/index/uniform/storage/image attachments. |
-| `std::hash` | `stdlib/hash.kn` | 42 public 32-bit hash constants, wrappers, rotate/mix/fnv/crc/fingerprint/bucket helpers. Use for deterministic routing and packed lane math. |
-| `std::http` | `stdlib/http.kn` | 36 public HTTP request/response/client/server helpers, route-to-actor, server pump, response builders, and handle destruction. |
-| `std::http2` | `stdlib/http2.kn` | 10 public HTTP/2 state/support/request/client helpers layered over request handles. |
-| `std::input` | `stdlib/input.kn` | 38 public input source/session/action/axis/event/frame/query/replay helpers. It supports keyboard, pointer, CLI, UI runtime, agent, synthetic, and native sources. |
-| `std::intent` | `stdlib/intent.kn` | 50 public helpers for entangle registration, patch journal counters, law/patch status, converge choices, orchestrate telemetry, and semantic runtime counters. |
-| `std::math` | `stdlib/math.kn` | 250 public engine-facing math symbols: scalar helpers, Vec2/3/4, Vec3A, Quat, Mat3/4, affine transforms, geometry, colors, noise, GPU layouts, and SIMD-ish lane packs. |
-| `std::net` | `stdlib/net.kn` | 56 public network platform/capability, TCP client/server, HTTP parsing/server helpers, local status/error helpers. |
-| `std::platform` | `stdlib/platform.kn` | 24 public platform identity and dynamic library open/close/resolve/status helpers. This is Kain's OS contract seam for package/platform work. |
-| `std::process` | `stdlib/process.kn` | 49 public child-process and PTY helpers: specs, args/cwd/env, stdio modes, spawn, poll/wait, stdin/stdout/stderr text/hex, terminate/kill. |
-| `std::proof` | `stdlib/proof.kn` | 4 public build DAG helpers for Z3 proof obligations and SMT2 proof task entries. |
-| `std::reload` | `stdlib/reload.kn` | 31 public hot-reload generation, snapshot, package surface, migration, and lane-class helpers. |
-| `std::result` | `stdlib/result.kn` | 20 public numeric result-code helpers. Use when a runtime service returns status integers and you need stable composition. |
-| `std::runtime` | `stdlib/runtime.kn` | 56 public runtime init/shutdown, heap validation, attrition checkpointing, CPU feature/capability, SIMD lane, converge cache/telemetry, machine teleport/pulse counters. |
-| `std::test` | `stdlib/test.kn` | 19 public test/proof outcome constants, helpers, and build DAG test suite constructors: pass/fail/skip/proved/witness, bool outcome, status combine. |
-| `std::text` | `stdlib/text.kn` | 26 public zero-copy text slice and string view helpers: slice/from/view/len/find/contains/trim/materialize. |
-| `std::time` | `stdlib/time.kn` | 8 public native time helpers: now, sleep, deadline, elapsed. |
-| `std::tls` | `stdlib/tls.kn` | 11 public TLS/HTTPS client state and request helpers. |
-| `std::ui` | `stdlib/ui.kn` | 336 public native UI session/window/frame/node/style/event/resource/font/text/clipboard/IME/drag/drop/menu/dialog/accessibility/draw/canvas helpers. Use `lang-ui` for higher authored UI semantics. |
+Use `stdlib/requirements.md` for the authoritative rows, but remember the missing family clusters:
 
-## Public vs Native vs Private
+- Text/data basics: `json`, `fmt`, `base64`, `ascii`, `unicode`, `uri`, `semver`
+- Container/algo depth: generic vectors/maps/sets, typed `SlotMap<T>`, bitsets, sort/search, richer allocator integration
+- Filesystem/path/I/O depth: typed metadata, typed directory entries, path toolkit, file handles, stream abstractions
+- Time/random/sync: richer time model, real RNG family, atomic/sync/thread modules
+- Systems and OS surface: `os`, `posix`, better target/meta/reflect coverage
+- Network/process/crypto depth: stronger typed config, streaming, bytes-based APIs, richer status objects
+- Archives and binary tooling: `compress`, `tar`, `zip`, `elf`, `dwarf`, `macho`, `coff`, `pdb`, `wasm`
+- Kain-only leverage: typed `std::intent`, stronger `std::actor`, better `std::gen_server`, `std::runtime`, `std::reload`, `std::proof`, and `std::test`
 
-- Prefer root aliases like `runtime_init`, `actor_abi_version`, `graphics_session_create`, `ui_session_create`, and `fs_read_text`.
-- `native_*` symbols are often public compatibility or lower-level wrappers. Use them only when nearby proof blades already do, or when verifying the native ABI directly.
-- Private `abi_*` symbols are stdlib-internal declarations that bind to `@extern`. Do not author normal app code against them.
-- If a root alias is missing for a capability you need, query the map before inventing it. The name may already exist under another domain.
+Note the current nuance:
 
-## Foundation Probe
+- `std::memory` already exposes a thin int-oriented atomic/fence surface, but that does not by itself close the broader `std::atomic` gap tracked in `stdlib/requirements.md`.
+- `std::machine` already exposes `cpuid`, affinity, and VM-page helpers, but that does not by itself close the broader `std::thread`, `std::os`, or `std::target` gaps.
 
-This is the compact "does the root stdlib breathe?" lane. It shows runtime lifecycle, result/status/test helpers, files, text, crypto, time, and cleanup.
+## Smoketest Mesh Contract
 
-```kn
-use std::runtime
-use std::result
-use std::diagnostics
-use std::test
-use std::fs
-use std::text
-use std::crypto
-use std::time
+Treat `smoketest/` as the default mixed-surface proof lane for root stdlib work.
 
-fn stdlib_foundation_probe() -> Int:
-    let boot = runtime_init()
-    if boot < 0:
-        return 100 + boot
+When the public root stdlib changes:
 
-    if result_is_ok(result_ok()) == false:
-        return 1
-    if status_ok(bool_to_status(true)) == false:
-        return 2
+- add or extend `smoketest/src/stdlib/*_lane.kn`
+- import the lane in `smoketest/src/main.kn`
+- call the lane from the album flow in `smoketest/src/main.kn`
+- update `total_tracks` in `smoketest/src/main.kn` when adding a new track; current value is `36`
+- add the new source file to the relevant input lists in `smoketest/build.kn`
+- reuse existing stdlib lanes as style anchors:
+  - `smoketest/src/stdlib/alloc_lane.kn`
+  - `smoketest/src/stdlib/collections_lane.kn`
+  - `smoketest/src/stdlib/crypto_lane.kn`
+  - `smoketest/src/stdlib/diagnostics_lane.kn`
+  - `smoketest/src/stdlib/fs_lane.kn`
+  - `smoketest/src/stdlib/math_lane.kn`
+  - `smoketest/src/stdlib/platform_lane.kn`
+  - `smoketest/src/stdlib/text_lane.kn`
+  - `smoketest/src/stdlib/time_lane.kn`
 
-    let temp = fs_temp_file("stdlib-foundation")
-    fs_write_text(temp, "  kain-stdlib  ")
-    let trimmed = text_trim(fs_read_text(temp))
-    let digest = sha256(trimmed)
-    fs_remove_file(temp)
+Do not stop at an isolated stdlib lane if the new surface is broadly useful. Make another track, blade, or package consume it when practical so the album proves the composition story.
 
-    let outcome = test_bool("stdlib.foundation.digest", len(digest) == 64)
-    let deadline = deadline_millis(0)
-    if test_outcome_ok(outcome) == false or deadline < now_millis():
-        return 3
+## Evidence Ladder
 
-    let shutdown = runtime_shutdown()
-    if shutdown < 0:
-        return 200 + shutdown
-    return len(trimmed) + outcome.status
-```
+Use the shallowest honest proof that matches the claim, then escalate:
 
-## Math Is Engine-Ready
-
-`std::math` is not just `sin` and `cos`; it is the seed crystal for graphics, simulation, UI layout, GPU data layout, procedural generation, and 3D engine work.
-
-Use these families:
-
-- Scalar: `abs`, clamp/min/max-style helpers, radians/degrees constants and helpers.
-- Vectors: `vec2`, `vec3`, `vec4`, length/distance/dot/cross/normalize.
-- Quaternions: identity, axis-angle, rotate-vector, composition helpers.
-- Matrices/affines: `mat4_identity`, `mat4_from_trs`, transform point/vector, affine2/3 transforms.
-- Geometry: `Ray3`, `Aabb`, ray/AABB, ray/triangle, planes, hit helpers.
-- Color: `ColorRgba`, `Hsv`, pack/unpack RGBA, HSV/RGB conversion.
-- Noise/curves: `fbm2`, `worley_noise`, Bezier helpers.
-- GPU layout: `std140_*`, `std430_*`, C-buffer layout wrappers.
-- Lane packs: `Vec3x4`, `Vec4x8`, `Float8` style SIMD-ish authoring surfaces.
-
-```kn
-use std::math
-
-fn engine_math_seed() -> Int:
-    let rotation = quat_from_axis_angle(vec3_up(), half_pi())
-    let forward = quat_rotate_vec3(rotation, vec3_right())
-    let transform = mat4_from_trs(vec3(1.0, 2.0, 3.0), rotation, vec3_one())
-    let point = mat4_transform_point(transform, forward)
-
-    let bounds = Aabb { min: vec3(-1.0, -1.0, -1.0), max: vec3(1.0, 1.0, 1.0) }
-    let ray = ray3(vec3(0.0, 0.0, -4.0), vec3_forward())
-    let hit = ray_vs_aabb(ray, bounds)
-
-    let color = hsv_to_rgb(Hsv { h: 0.0, s: 1.0, v: 1.0 })
-    let packed = pack_rgba_to_u32(color_rgba(color.x, color.y, color.z, 1.0))
-    let layout = std140_mat4(mat4_identity())
-    let noise = fbm2(vec2(0.31, 0.73), 4)
-
-    var score: Int = 0
-    if vec3_dot(point, vec3_up()) >= 2.0:
-        score = score + 1
-    if ray_hit_is_hit(hit):
-        score = score + 1
-    if std140_mat4_alignment_bytes(layout) == 16:
-        score = score + 1
-    if noise >= 0.0:
-        score = score + 1
-    return score + (packed % 97)
-```
-
-## IO, Network, Process, Platform
-
-These domains are Kain's authored OS contract surface. Use them when Kain needs to touch the outside world without becoming a C/Rust app in disguise.
-
-- `std::fs` is for deterministic file/path work. Always clean temp files/dirs in examples.
-- `std::net` owns platform capability state, TCP, and lower-level server pumping.
-- `std::http` owns request/response handles, HTTP client/server convenience, and route-to-actor.
-- `std::tls` and `std::http2` layer secure/protocol-specific clients over request handles.
-- `std::process` owns child processes and PTYs; build a spec, spawn, wait/poll, read output, close handles.
-- `std::platform` owns platform identity and dynamic-library contracts; co-trigger `lang-interop` for DLL/package work.
-
-```kn
-use std::runtime
-use std::net
-use std::http
-use std::tls
-use std::http2
-use std::actor
-
-actor HttpProbe:
-    state hits: Int = 0
-
-    on HttpRequest(payload: String):
-        self.hits = self.hits + len(payload)
-
-fn network_probe() -> Int:
-    let _boot = runtime_init()
-    let _reset = net_reset()
-    if net_platform_available() != 1:
-        let _shutdown_unavailable = runtime_shutdown()
-        return 0
-
-    let server = server_create_localhost(0)
-    if server <= 0 or server_listen(server) != 0:
-        return 1
-
-    let handler = actor_spawn("HttpProbe", "hits=0")
-    let _route = route_actor(server, "POST", "/probe", handler, "HttpRequest")
-    let client = tcp_connect("127.0.0.1", server_local_port(server), 5000)
-    let _write = tcp_write_text(client, "POST /probe HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 4\r\n\r\nkain")
-    let request = server_pump(server, 5000)
-    let _reply = respond_text(request, 200, "ok")
-    let wire = tcp_read_text(client)
-
-    let secure = tls_https_request_create("GET", "https://example.invalid/")
-    let h2 = http2_request_create("GET", "https://example.invalid/")
-    let score = len(wire) + tls_client_state() + http2_client_state()
-
-    let _destroy_secure = request_destroy(secure)
-    let _destroy_h2 = request_destroy(h2)
-    let _close_client = tcp_close(client)
-    let _close_server = server_close(server)
-    let _shutdown = runtime_shutdown()
-    return score
-```
-
-## GPU, Graphics, Shared Resources, UI
-
-Do not confuse these layers:
-
-- `std::gpu` describes resource policy, memory residency, descriptor kind, layout, and buffer/image resources.
-- `std::graphics::shared` adapts shared GPU resources into graphics-facing vertex/index/uniform/storage/image contracts.
-- `std::graphics` owns native graphics sessions, backend selection, buffers, shader modules, meshes, pipelines, frame/draw/present handles.
-- `std::ui` owns low-level native UI sessions, windows, nodes, style/state/event/resource/text/draw handles.
-- Components/JSX/world surfaces belong to `lang-ui` and `lang-semantics`; `std::ui` is the handle-level ABI-backed substrate.
-
-```kn
-use std::gpu
-use std::graphics
-use std::graphics::shared
-use std::ui
-
-fn graphics_ui_probe() -> Int:
-    let policy = gpu_resource_policy(
-        gpu_shared_memory_policy(
-            GPU_ACCESS_READ_WRITE,
-            GPU_QUEUE_COMPUTE | GPU_QUEUE_TRANSFER | GPU_QUEUE_HOST,
-            GPU_LAYOUT_STD430,
-            GPU_DESCRIPTOR_STORAGE_BUFFER
-        ),
-        GPU_BUFFER_USAGE_STORAGE | GPU_BUFFER_USAGE_TRANSFER_SRC | GPU_BUFFER_USAGE_TRANSFER_DST,
-        "probe.storage"
-    )
-    let storage = gpu_shared_buffer_zeroed("f32", [4], "f32", "application/octet-stream", policy)
-    let descriptor = gpu_buffer_descriptor(storage)
-    if json_get_string(descriptor, "descriptor_kind") != GPU_DESCRIPTOR_STORAGE_BUFFER:
-        return 1
-
-    let vertex = gpu_shared_buffer_zeroed("u32", [4], "u32", "application/octet-stream", graphics_shared_vertex_policy("probe.vertex"))
-    let vertex_buffer = graphics_shared_vertex_buffer(vertex, 4)
-    if vertex_buffer.ready == false:
-        return 2
-
-    let _graphics_reset = graphics_reset()
-    let graphics_session = graphics_session_create("probe.graphics", 320, 180)
-    let _ui_reset = ui_reset()
-    let ui_session = ui_session_create("probe.ui", 320, 180)
-    let panel = ui_node_create(ui_session, "panel")
-    let _rect = ui_node_set_rect(ui_session, panel, 8.0, 8.0, 180.0, 48.0)
-    let _text = ui_node_set_text(ui_session, panel, "Kain stdlib")
-    var ready_score: Int = 0
-    if vertex_buffer.ready:
-        ready_score = 1
-    let score = len(ui_node_text(ui_session, panel)) + graphics_session + ready_score
-    let _ui_destroy = ui_session_destroy(ui_session)
-    let _graphics_destroy = graphics_session_destroy(graphics_session)
-    return score
-```
-
-## Collections, Text, Hash, Crypto, Alloc
-
-These modules let Kain examples avoid fake placeholder logic:
-
-- `std::collections`: use typed maps, queues, priority queues, slot maps, and clamps to model real data movement.
-- `std::text`: use slices/views for low-copy string inspection; materialize only when needed.
-- `std::hash`: use deterministic bit/hash helpers for routing, bucketing, fingerprints, branchless table work.
-- `std::crypto`: use digest/random helpers for proof/demo security surfaces.
-- `std::alloc`: use arena/bump/pool helpers when authored code needs allocator shape, not just one-off raw pointers.
-
-Cleanup matters. Destroy queues, maps, slots, allocators, sessions, request handles, process handles, network handles, graphics sessions, and UI sessions when the API offers a destroy/close helper.
-
-## Runtime, Intent, Tests
-
-Use these as proof glue:
-
-- `std::runtime` starts/stops native runtime services, checks heap health, exposes CPU capability and SIMD/converge/machine counters.
-- `std::intent` observes semantic runtime behavior from authored Kain: entangle registrations, patch journal count, law status, converge mismatches, orchestrate stages, teleport/pulse counters.
-- `std::test` returns durable `TestOutcome` values for source-side pass/fail/skip/proved/witness semantics.
-- `std::diagnostics` and `std::result` normalize status-code composition across runtime services.
-
-```kn
-use std::runtime
-use std::intent
-use std::test
-
-fn semantic_runtime_shape_ok() -> Bool:
-    let heap_ok = runtime_heap_validate() >= 0
-    let laws_ok = law_status(true) == 0
-    let converge_ok = converge_mismatch_count() == 0
-    let proof = test_proved("semantic-runtime-shape.smt2", "unsat")
-    return heap_ok and laws_ok and converge_ok and test_outcome_ok(proof)
-```
-
-## Validation Ladder
-
-For authored stdlib usage:
-
-```powershell
-kain check <entry.kn> --target llvm
-kain run <entry.kn-or-blade> --target llvm
-```
-
-For root stdlib changes:
+1. Atlas and root source integrity
 
 ```powershell
 cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write
 cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check
-kain check blades/stdlib-domains/src/main.kn --target llvm
-kain check blades/math-domains/src/main.kn --target llvm
-kain check blades/network-domains/src/main.kn --target llvm
 ```
 
-For performance or safety claims:
+2. Root domain blades
 
-- Put speed claims in `benchmark/` and run `test-bench`.
-- Put lifecycle/teardown claims in `attrition/` and run `test-attrition`.
-- Put pointer/layout/bit/hash/buffer math into Z3 proof packs when the invariant matters.
-- Use `std::test` for authored proof outcomes, but remember solver `unsat` is stronger than a handful of examples.
+```powershell
+kain check blades/stdlib-foundations/src/main.kn --target llvm
+kain check blades/stdlib-domains/src/main.kn --target llvm
+kain check blades/network-domains/src/main.kn --target llvm
+kain check blades/hash-domains/src/main.kn --target llvm
+kain check blades/math-domains/src/main.kn --target llvm
+```
 
-## Hand Off Matrix
+3. Smoketest album
 
-- Use `lang-semantics` when stdlib is part of `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `pulse`, `teleport`, shader, component, or actor fusion.
-- Use `lang-systems` when stdlib is part of raw memory, effects, allocator pressure, actor pressure, branchless lanes, or ownership-sensitive code.
-- Use `lang-gpu` for shader/compute authoring around `std::gpu`, `std::graphics`, or `std::graphics::shared`.
-- Use `lang-ui` for UI component/layout/experience authoring over `std::ui`; use `package-kaintana` for Kaintana package work.
-- Use `lang-interop` for `std::platform`, native dynamic libraries, vendor DLL contracts, host JSON bridges, and OS integration surfaces.
-- Use `runtime-stdlib` when a runtime-backed stdlib function is wrong or missing at the native service layer.
-- Use `runtime-core` when runtime init/shutdown, heap, actor substrate, ABI service tables, or native core telemetry is wrong.
-- Use `runtime-gpu` when graphics/GPU executor behavior is wrong below authored `std::gpu`/`std::graphics` usage.
-- Use `bootstrap-core` when imports, typechecking, stdlib loading, or authored call resolution are wrong.
-- Use `bootstrap-fs`, `bootstrap-actors`, `bootstrap-gpu`, or `bootstrap-ownership` when the compiler/frontend truth for that semantic domain must change.
-- Use `test-harness` for `std::test` directive/report behavior.
+```powershell
+kain check smoketest/src/main.kn --target llvm
+```
+
+4. Benchmark when the claim is performance-sensitive
+
+```powershell
+rg -n "stdlib|json|fs|hash|process|net|alloc|text" benchmark/benchmarks.json benchmark/cases
+python benchmark/run.py --case <case> --languages kain --runs 5 --warmups 1 --timeout 240
+```
+
+5. Attrition when the surface owns resources or teardown-sensitive state
+
+```powershell
+rg -n "stdlib|json|fs|process|net|ui|graphics|reload" attrition/attritions.json attrition/cases
+python attrition/run.py --case <case> --scale small --timeout 120
+```
+
+6. Runtime conformance when the surface is ABI-backed
+
+```powershell
+Get-ChildItem -Name runtime\conformance
+```
+
+7. Z3 when the surface relies on unsafe math, pointer/index bounds, packed layouts, branchless selectors, or queue/index invariants
+
+- Leave a code comment that points to the proof path when the proof backs a dirty fast path.
+- Prefer existing proof-pack homes in `crates/kain-core/z3/proofs`, `crates/gpu/z3/proofs`, or `runtime/native/src/core/z3/proofs`.
+
+## Donor Comparison Discipline
+
+Use donor stdlibs, especially Zig, as capability inventories rather than as folder templates.
+
+Use `reference/langs/zig/lib/std` to ask:
+
+- what family exists there that root Kain stdlib still lacks?
+- what typed surface should Kain expose for authors?
+- can Kain collapse multiple donor modules into one better Kain-native surface?
+- does the missing donor family actually belong in root stdlib, or in a different repo subsystem?
+
+Do not do this:
+
+- mirror Zig's file graph one-for-one
+- create fake parity by hiding a capability in a blade or overlay tree
+- ignore Kain-only leverage just because donor languages do not have it
+
+Use donors for pressure from categories such as:
+
+- text, json, fmt, unicode, base64
+- containers, algorithms, allocators
+- io, files, paths, streams
+- random, hash, crypto
+- os, posix, threads, atomics, memory, target metadata
+- http, tls, process, platform
+- archives, compression, binary and debug formats
+
+## Handoff Boundaries
+
+- Use `lang-semantics` when root stdlib work is really about authored semantic fusion: `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `axiom`, `pulse`, `teleport`, `shatter`, actors, components, or shaders.
+- Use `lang-systems` when root stdlib work is really about ownership, raw memory, pointer math, branchless lanes, atomics, or low-level throughput patterns.
+- Use `lang-gpu` for authored Kain work centered on `std::gpu`, `std::graphics`, or `std::graphics::shared`.
+- Use `lang-ui` for authored UI flows centered on `std::ui`; use `package-kaintana` for Kaintana package work.
+- Use `lang-interop` for `std::platform`, host bridges, DLLs, native packages, and OS/vendor seams.
+- Use `lang-projects` when the stdlib change must be surfaced through `build.kn`, blades, or the evidence DAG authoring experience.
+- Use `bootstrap-core` when stdlib loading, import resolution, parser/typechecker truth, or lowering behavior is wrong.
+- Use `bootstrap-fs`, `bootstrap-actors`, `bootstrap-gpu`, or `bootstrap-ownership` when the compiler/frontend ownership for those domains changes.
+- Use `runtime-stdlib` when the native bridge behavior behind a root stdlib API is wrong or missing.
+- Use `runtime-core` when runtime init/shutdown, actor substrate, ownership, heap, service tables, timers, or machine substrate are wrong.
+- Use `runtime-gpu` when GPU executor or graphics runtime behavior is wrong below the authored stdlib surface.
+- Use `test-bench`, `test-attrition`, and `test-harness` when the task is primarily evidence-lane work.
+- Use `formal-verification` or `tool-z3-black-magic` when the interesting part is proving or solver-driving the implementation.
 
 ## Anti-Patterns
 
-- Do not paste the whole generated stdlib map into context just to find one symbol.
-- Do not author against private `abi_*` functions in examples.
-- Do not invent `std::native::*` or parallel stdlib trees for new user-facing code.
-- Do not silently use `native_*` when a public root alias already exists.
-- Do not skip `runtime_init`/`runtime_shutdown` in native service proof blades unless the nearest working blade intentionally does.
-- Do not leak handles in examples: close/destroy/remove when the public API provides a cleanup call.
-- Do not copy Vulkain/Kaintana/example shapes blindly. Use the stdlib domain, then write a fresh Kain-shaped example for the task.
-- Do not claim a stdlib implementation change is complete until the generated map checks and the relevant proof blade still checks.
+- Do not paste the full generated atlas into context to find one symbol.
+- Do not author examples against private `abi_*` helpers.
+- Do not invent a parallel `std::native.*` tree for user-facing work.
+- Do not count overlay-only work under `stdlib/python`, `stdlib/javascript`, `stdlib/ue5`, `stdlib/c`, or `stdlib/interop` as root completion by itself.
+- Do not ship new root APIs as raw string blobs when a typed public record or enum is clearly warranted.
+- Do not stop at a blade-local proof when the capability belongs in the root stdlib contract.
+- Do not skip `smoketest/` meshing, atlas regeneration, or requirement-row updates after changing top-level `stdlib/*.kn`.
+- Do not claim completion because a symbol exists somewhere. Claim completion only when the public root surface, smoke wiring, and required evidence are all real.

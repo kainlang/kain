@@ -1,5 +1,13 @@
 # Kain Memory
 
+# 2026-05-23 - `lang-stdlib` is now the full root-stdlib operator lane
+
+The repo-local `.agents/skills/lang-stdlib` skill is no longer just a quick import picker for existing `std::*` calls. It now covers the full root-stdlib completion workflow: consuming the current public surface, extending existing top-level `stdlib/*.kn` modules, adding missing root families, following `stdlib/requirements.md`, meshing changes into `smoketest/`, regenerating the atlas, and choosing benchmark/attrition/runtime-conformance/Z3 evidence lanes.
+
+Durable lesson:
+
+- Future agents doing serious root stdlib work should trigger `$lang-stdlib` first, then co-trigger `lang-semantics`, `lang-systems`, `lang-gpu`, `lang-ui`, `lang-interop`, `lang-projects`, `runtime-*`, or `bootstrap-*` only as the work escapes pure root-stdlib ownership.
+
 # 2026-05-23 - root stdlib completion now has a dedicated requirements contract
 
 The repo now has `stdlib/requirements.md` as the authoritative backlog and delivery contract for finishing the root `std::*` surface instead of relying on ad hoc parity conversations.
