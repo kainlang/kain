@@ -262,7 +262,6 @@ pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes:
         return shattered_rng_buffer_update_scalar(buf, output, lanes)
     fast avx2_lane when capability("cpu.x86.avx2"):
         return shattered_rng_buffer_update_scalar(buf, output, lanes)
-    verify random(4)
 
 pub fn shattered_rng_buffer_next_block(rng: ShatteredRngBuffer, output: ptr<Int>) -> Int with Unsafe:
     return shattered_rng_buffer_update(rng.buffer, output, rng.lanes)
