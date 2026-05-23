@@ -2,7 +2,17 @@
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
+
+#ifdef _WIN32
+#include <shellapi.h>
+#elif defined(__APPLE__)
+#include <crt_externs.h>
+#else
+#include <dirent.h>
+#include <sys/stat.h>
+#endif
 
 static RcHeader* get_header(void* ptr) {
     return ((RcHeader*)ptr) - 1;
@@ -16,68 +26,360 @@ static int kain_rc_header_is_freed(const RcHeader* header) {
     return header != NULL && header->magic == KAIN_RC_MAGIC_FREED;
 }
 
-static int kain_rc_header_is_tracked(const RcHeader* header) {
-    return kain_rc_header_is_alive(header) || kain_rc_header_is_freed(header);
-}
-
 static int kain_rc_is_immediate_handle(const void* ptr) {
     return ptr != NULL && ((((uintptr_t)ptr) & 7u) != 0u);
 }
 
-int kain_rc_is_tracked_pointer(const void* ptr) {
-    const RcHeader* header;
-    if (!ptr || kain_rc_is_immediate_handle(ptr)) {
-        return 0;
-    }
-    header = ((const RcHeader*)ptr) - 1;
-    return kain_rc_header_is_tracked(header);
-}
+typedef enum KainRcTrackedState {
+    KAIN_RC_TRACK_NONE = 0,
+    KAIN_RC_TRACK_LIVE = 1,
+    KAIN_RC_TRACK_FREED = 2
+} KainRcTrackedState;
 
 typedef struct {
     const void* payload;
+    RcHeader* header;
     long long type_tag;
     size_t payload_size;
     size_t string_length;
     void (*destructor)(void*);
-} KainRcFreedRecord;
+    uint64_t free_epoch;
+    unsigned char state;
+} KainRcRegistryEntry;
 
-static KainRcFreedRecord g_kain_rc_freed_records[16384];
-static unsigned int g_kain_rc_freed_record_cursor = 0u;
+typedef struct {
+#ifdef _WIN32
+    CRITICAL_SECTION lock;
+    INIT_ONCE init_once;
+#else
+    pthread_mutex_t lock;
+    pthread_once_t init_once;
+#endif
+    KainRcRegistryEntry* entries;
+    size_t capacity;
+    size_t live_count;
+    size_t occupied_count;
+    uint64_t next_free_epoch;
+} KainRcRegistryState;
 
-static int kain_rc_debug_enabled(void) {
-    return getenv("KAIN_RC_DEBUG") != NULL;
+typedef struct {
+    KainRcTrackedState state;
+    RcHeader* header;
+    long long type_tag;
+    size_t payload_size;
+    size_t string_length;
+    void (*destructor)(void*);
+} KainRcTrackedPointer;
+
+#define KAIN_RC_REGISTRY_INITIAL_CAPACITY 1024u
+#define KAIN_RC_REGISTRY_RECENT_FREED_MAX 16384u
+
+static KainRcRegistryState g_kain_rc_registry = {
+#ifdef _WIN32
+    .init_once = INIT_ONCE_STATIC_INIT
+#else
+    .init_once = PTHREAD_ONCE_INIT
+#endif
+};
+
+static size_t kain_rc_registry_hash_payload(const void* payload) {
+    uint64_t bits = (uint64_t)(((uintptr_t)payload) >> 3u);
+    bits ^= bits >> 33u;
+    bits *= UINT64_C(0xff51afd7ed558ccd);
+    bits ^= bits >> 33u;
+    bits *= UINT64_C(0xc4ceb9fe1a85ec53);
+    bits ^= bits >> 33u;
+    return (size_t)bits;
 }
 
-static void kain_rc_record_recent_free(
-    const void* payload,
-    long long type_tag,
-    size_t payload_size,
-    size_t string_length,
-    void (*destructor)(void*)
-) {
-    unsigned int slot;
-    if (!kain_rc_debug_enabled() || payload == NULL) {
-        return;
+/*
+ * Proof:
+ * - runtime/native/src/core/z3/proofs/native-memory-rc-registry-half-load-preserves-empty-slot.yaml
+ *
+ * The registry rebuilds before occupied slots can reach half the table, so
+ * open-addressed probes always hit an empty sentinel before wrapping forever.
+ */
+static size_t kain_rc_registry_capacity_for_occupied(size_t occupied_slots) {
+    size_t capacity = KAIN_RC_REGISTRY_INITIAL_CAPACITY;
+    while (occupied_slots >= (capacity / 2u)) {
+        if (capacity > (SIZE_MAX / 2u)) {
+            return 0u;
+        }
+        capacity <<= 1u;
     }
-    slot = g_kain_rc_freed_record_cursor++ % 16384u;
-    g_kain_rc_freed_records[slot].payload = payload;
-    g_kain_rc_freed_records[slot].type_tag = type_tag;
-    g_kain_rc_freed_records[slot].payload_size = payload_size;
-    g_kain_rc_freed_records[slot].string_length = string_length;
-    g_kain_rc_freed_records[slot].destructor = destructor;
+    return capacity;
 }
 
-static const KainRcFreedRecord* kain_rc_find_recent_free(const void* payload) {
-    unsigned int index;
-    if (!kain_rc_debug_enabled() || payload == NULL) {
+#ifdef _WIN32
+static BOOL CALLBACK kain_rc_registry_init_once(PINIT_ONCE init_once, PVOID parameter, PVOID* context) {
+    (void)init_once;
+    (void)parameter;
+    (void)context;
+    InitializeCriticalSection(&g_kain_rc_registry.lock);
+    return TRUE;
+}
+#else
+static void kain_rc_registry_init_once(void) {
+    pthread_mutex_init(&g_kain_rc_registry.lock, NULL);
+}
+#endif
+
+static void kain_rc_registry_ensure_initialized(void) {
+#ifdef _WIN32
+    InitOnceExecuteOnce(&g_kain_rc_registry.init_once, kain_rc_registry_init_once, NULL, NULL);
+#else
+    pthread_once(&g_kain_rc_registry.init_once, kain_rc_registry_init_once);
+#endif
+}
+
+static void kain_rc_registry_lock(void) {
+    kain_rc_registry_ensure_initialized();
+#ifdef _WIN32
+    EnterCriticalSection(&g_kain_rc_registry.lock);
+#else
+    pthread_mutex_lock(&g_kain_rc_registry.lock);
+#endif
+}
+
+static void kain_rc_registry_unlock(void) {
+#ifdef _WIN32
+    LeaveCriticalSection(&g_kain_rc_registry.lock);
+#else
+    pthread_mutex_unlock(&g_kain_rc_registry.lock);
+#endif
+}
+
+static int kain_rc_registry_keep_freed_entry_locked(const KainRcRegistryEntry* entry) {
+    uint64_t cutoff_epoch;
+    if (entry == NULL || entry->state != KAIN_RC_TRACK_FREED) {
+        return 0;
+    }
+    if (g_kain_rc_registry.next_free_epoch <= KAIN_RC_REGISTRY_RECENT_FREED_MAX) {
+        return 1;
+    }
+    cutoff_epoch = g_kain_rc_registry.next_free_epoch - KAIN_RC_REGISTRY_RECENT_FREED_MAX;
+    return entry->free_epoch >= cutoff_epoch;
+}
+
+static KainRcRegistryEntry* kain_rc_registry_find_entry_locked(const void* payload) {
+    KainRcRegistryEntry* entry;
+    size_t index;
+    size_t probe;
+    size_t mask;
+    if (payload == NULL || g_kain_rc_registry.entries == NULL || g_kain_rc_registry.capacity == 0u) {
         return NULL;
     }
-    for (index = 0u; index < 16384u; ++index) {
-        if (g_kain_rc_freed_records[index].payload == payload) {
-            return &g_kain_rc_freed_records[index];
+    mask = g_kain_rc_registry.capacity - 1u;
+    index = kain_rc_registry_hash_payload(payload) & mask;
+    for (probe = 0u; probe < g_kain_rc_registry.capacity; ++probe) {
+        entry = &g_kain_rc_registry.entries[index];
+        if (entry->state == KAIN_RC_TRACK_NONE) {
+            return NULL;
         }
+        if (entry->payload == payload) {
+            return entry;
+        }
+        index = (index + 1u) & mask;
     }
     return NULL;
+}
+
+static KainRcRegistryEntry* kain_rc_registry_find_insert_slot_locked(const void* payload) {
+    KainRcRegistryEntry* entry;
+    size_t index;
+    size_t probe;
+    size_t mask;
+    if (payload == NULL || g_kain_rc_registry.entries == NULL || g_kain_rc_registry.capacity == 0u) {
+        return NULL;
+    }
+    mask = g_kain_rc_registry.capacity - 1u;
+    index = kain_rc_registry_hash_payload(payload) & mask;
+    for (probe = 0u; probe < g_kain_rc_registry.capacity; ++probe) {
+        entry = &g_kain_rc_registry.entries[index];
+        if (entry->state == KAIN_RC_TRACK_NONE || entry->payload == payload) {
+            return entry;
+        }
+        index = (index + 1u) & mask;
+    }
+    return NULL;
+}
+
+static void kain_rc_registry_insert_rehashed_entry(
+    KainRcRegistryEntry* entries,
+    size_t capacity,
+    const KainRcRegistryEntry* source
+) {
+    KainRcRegistryEntry* entry;
+    size_t index;
+    size_t mask = capacity - 1u;
+    index = kain_rc_registry_hash_payload(source->payload) & mask;
+    while (1) {
+        entry = &entries[index];
+        if (entry->state == KAIN_RC_TRACK_NONE) {
+            *entry = *source;
+            return;
+        }
+        index = (index + 1u) & mask;
+    }
+}
+
+static int kain_rc_registry_rebuild_locked(size_t incoming_slots) {
+    KainRcRegistryEntry* old_entries = g_kain_rc_registry.entries;
+    size_t old_capacity = g_kain_rc_registry.capacity;
+    KainRcRegistryEntry* new_entries;
+    size_t retained_freed = 0u;
+    size_t target_capacity;
+    size_t target_occupied;
+    size_t index;
+
+    if (old_entries != NULL) {
+        for (index = 0u; index < old_capacity; ++index) {
+            if (kain_rc_registry_keep_freed_entry_locked(&old_entries[index])) {
+                retained_freed += 1u;
+            }
+        }
+    }
+
+    if (SIZE_MAX - incoming_slots < g_kain_rc_registry.live_count ||
+        SIZE_MAX - retained_freed < g_kain_rc_registry.live_count + incoming_slots) {
+        return 0;
+    }
+    target_occupied = g_kain_rc_registry.live_count + retained_freed + incoming_slots;
+    target_capacity = kain_rc_registry_capacity_for_occupied(target_occupied);
+    if (target_capacity == 0u) {
+        return 0;
+    }
+
+    new_entries = (KainRcRegistryEntry*)calloc(target_capacity, sizeof(KainRcRegistryEntry));
+    if (new_entries == NULL) {
+        return 0;
+    }
+
+    if (old_entries != NULL) {
+        for (index = 0u; index < old_capacity; ++index) {
+            KainRcRegistryEntry* source = &old_entries[index];
+            if (source->state == KAIN_RC_TRACK_LIVE || kain_rc_registry_keep_freed_entry_locked(source)) {
+                kain_rc_registry_insert_rehashed_entry(new_entries, target_capacity, source);
+            }
+        }
+        free(old_entries);
+    }
+
+    g_kain_rc_registry.entries = new_entries;
+    g_kain_rc_registry.capacity = target_capacity;
+    g_kain_rc_registry.occupied_count = g_kain_rc_registry.live_count + retained_freed;
+    return 1;
+}
+
+static int kain_rc_registry_register_live(const void* payload, RcHeader* header) {
+    KainRcRegistryEntry* entry;
+    kain_rc_registry_lock();
+    entry = kain_rc_registry_find_entry_locked(payload);
+    if (entry == NULL &&
+        (g_kain_rc_registry.entries == NULL ||
+         g_kain_rc_registry.capacity == 0u ||
+         (g_kain_rc_registry.occupied_count + 1u) >= (g_kain_rc_registry.capacity / 2u))) {
+        if (!kain_rc_registry_rebuild_locked(1u)) {
+            kain_rc_registry_unlock();
+            return 0;
+        }
+        entry = NULL;
+    }
+    if (entry == NULL) {
+        entry = kain_rc_registry_find_insert_slot_locked(payload);
+    }
+    if (entry == NULL) {
+        kain_rc_registry_unlock();
+        return 0;
+    }
+    if (entry->state == KAIN_RC_TRACK_NONE) {
+        g_kain_rc_registry.occupied_count += 1u;
+    } else if (entry->state != KAIN_RC_TRACK_LIVE) {
+        entry->free_epoch = 0u;
+    }
+    if (entry->state != KAIN_RC_TRACK_LIVE) {
+        g_kain_rc_registry.live_count += 1u;
+    }
+    entry->payload = payload;
+    entry->header = header;
+    entry->type_tag = header->type_tag;
+    entry->payload_size = header->payload_size;
+    entry->string_length = header->string_length;
+    entry->destructor = header->destructor;
+    entry->free_epoch = 0u;
+    entry->state = KAIN_RC_TRACK_LIVE;
+    kain_rc_registry_unlock();
+    return 1;
+}
+
+static void kain_rc_registry_mark_freed(const void* payload, RcHeader* header, int keep_header_live) {
+    KainRcRegistryEntry* entry;
+    kain_rc_registry_lock();
+    entry = kain_rc_registry_find_entry_locked(payload);
+    if (entry == NULL &&
+        (g_kain_rc_registry.entries == NULL ||
+         g_kain_rc_registry.capacity == 0u ||
+         (g_kain_rc_registry.occupied_count + 1u) >= (g_kain_rc_registry.capacity / 2u))) {
+        if (!kain_rc_registry_rebuild_locked(1u)) {
+            kain_rc_registry_unlock();
+            return;
+        }
+        entry = NULL;
+    }
+    if (entry == NULL) {
+        entry = kain_rc_registry_find_insert_slot_locked(payload);
+    }
+    if (entry != NULL) {
+        if (entry->state == KAIN_RC_TRACK_NONE) {
+            g_kain_rc_registry.occupied_count += 1u;
+        }
+        if (entry->state == KAIN_RC_TRACK_LIVE && g_kain_rc_registry.live_count > 0u) {
+            g_kain_rc_registry.live_count -= 1u;
+        }
+        entry->payload = payload;
+        entry->header = keep_header_live ? header : NULL;
+        entry->type_tag = header->type_tag;
+        entry->payload_size = header->payload_size;
+        entry->string_length = header->string_length;
+        entry->destructor = header->destructor;
+        entry->free_epoch = ++g_kain_rc_registry.next_free_epoch;
+        entry->state = KAIN_RC_TRACK_FREED;
+    }
+    kain_rc_registry_unlock();
+}
+
+static void kain_rc_registry_drop_freed_header(const void* payload) {
+    KainRcRegistryEntry* entry;
+    kain_rc_registry_lock();
+    entry = kain_rc_registry_find_entry_locked(payload);
+    if (entry != NULL && entry->state == KAIN_RC_TRACK_FREED) {
+        entry->header = NULL;
+    }
+    kain_rc_registry_unlock();
+}
+
+static KainRcTrackedPointer kain_rc_registry_lookup(const void* payload) {
+    KainRcTrackedPointer tracked = {0};
+    KainRcRegistryEntry* entry;
+    if (payload == NULL || kain_rc_is_immediate_handle(payload)) {
+        return tracked;
+    }
+    kain_rc_registry_lock();
+    entry = kain_rc_registry_find_entry_locked(payload);
+    if (entry != NULL) {
+        tracked.state = (KainRcTrackedState)entry->state;
+        tracked.header = entry->header;
+        tracked.type_tag = entry->type_tag;
+        tracked.payload_size = entry->payload_size;
+        tracked.string_length = entry->string_length;
+        tracked.destructor = entry->destructor;
+    }
+    kain_rc_registry_unlock();
+    return tracked;
+}
+
+int kain_rc_is_tracked_pointer(const void* ptr) {
+    return kain_rc_registry_lookup(ptr).state != KAIN_RC_TRACK_NONE;
 }
 
 static size_t kain_string_len_rc(const char* value) {
@@ -187,6 +489,7 @@ long long kain_round_i64(double value) {
 void* kain_alloc_rc(size_t size, long long type_tag) {
     size_t total_size = sizeof(RcHeader) + size;
     RcHeader* header = (RcHeader*)kain_attrition_heap_alloc(total_size);
+    void* payload;
     if (!header) {
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
@@ -204,8 +507,22 @@ void* kain_alloc_rc(size_t size, long long type_tag) {
     header->payload_size = size;
     header->string_length = (type_tag == 1 && size > 0u) ? (size - 1u) : 0u;
     header->destructor = NULL;
+    payload = (void*)(header + 1);
+    if (!kain_rc_registry_register_live(payload, header)) {
+        if (!kain_attrition_heap_release(header, total_size)) {
+            free(header);
+        }
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Memory allocation failed",
+            "Failed to register runtime RC provenance for a new allocation."
+        );
+        return NULL;
+    }
     kain_attrition_note_rc_alloc(total_size);
-    return (void*)(header + 1);
+    return payload;
 }
 
 void* kain_alloc(size_t size) {
@@ -217,20 +534,26 @@ void* KAIN_alloc(long long size) {
 }
 
 void rc_retain(void* ptr) {
+    KainRcTrackedPointer tracked;
     RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    header = get_header(ptr);
+    tracked = kain_rc_registry_lookup(ptr);
+    if (tracked.state == KAIN_RC_TRACK_NONE) {
+        return;
+    }
+    if (tracked.state == KAIN_RC_TRACK_FREED) {
+        kain_attrition_note_rc_underflow();
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+            "RC retain after free",
+            "Retaining this object would reuse RC state that has already been torn down."
+        );
+        return;
+    }
+    header = tracked.header;
     if (!kain_rc_header_is_alive(header)) {
-        if (kain_rc_header_is_freed(header)) {
-            kain_attrition_note_rc_underflow();
-            emit_diagnostic(
-                KAIN_DIAG_SUBSYSTEM_MEMORY,
-                KAIN_DIAG_SEVERITY_ERROR,
-                KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
-                "RC retain after free",
-                "Retaining this object would reuse RC state that has already been torn down."
-            );
-        }
         return;
     }
     if (header->ref_count == LLONG_MAX) {
@@ -249,9 +572,14 @@ void rc_retain(void* ptr) {
 }
 
 void rc_weak_retain(void* ptr) {
+    KainRcTrackedPointer tracked;
     RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    header = get_header(ptr);
+    tracked = kain_rc_registry_lookup(ptr);
+    if (tracked.state != KAIN_RC_TRACK_LIVE || tracked.header == NULL) {
+        return;
+    }
+    header = tracked.header;
     if (!kain_rc_header_is_alive(header)) {
         return;
     }
@@ -259,56 +587,30 @@ void rc_weak_retain(void* ptr) {
 }
 
 void rc_release(void* ptr) {
+    KainRcTrackedPointer tracked;
     RcHeader* header;
     size_t total_size;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    header = get_header(ptr);
+    tracked = kain_rc_registry_lookup(ptr);
+    if (tracked.state == KAIN_RC_TRACK_NONE) {
+        return;
+    }
+    if (tracked.state == KAIN_RC_TRACK_FREED) {
+        kain_attrition_note_rc_underflow();
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
+            "RC release after free",
+            "Releasing this object would reuse RC state that has already been torn down."
+        );
+        return;
+    }
+    header = tracked.header;
     if (!kain_rc_header_is_alive(header)) {
-        if (kain_rc_header_is_freed(header)) {
-            kain_attrition_note_rc_underflow();
-            emit_diagnostic(
-                KAIN_DIAG_SUBSYSTEM_MEMORY,
-                KAIN_DIAG_SEVERITY_ERROR,
-                KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
-                "RC release after free",
-                "Releasing this object would reuse RC state that has already been torn down."
-            );
-        }
         return;
     }
     if (header->ref_count <= 0) {
-        if (kain_rc_debug_enabled()) {
-            const KainRcFreedRecord* freed_record = kain_rc_find_recent_free(ptr);
-            fprintf(
-                stderr,
-                "[MEMORY][RC_DEBUG] ptr=%p type_tag=%lld ref_count=%lld weak_count=%lld payload_size=%zu string_length=%zu",
-                ptr,
-                header->type_tag,
-                header->ref_count,
-                header->weak_count,
-                header->payload_size,
-                header->string_length
-            );
-            if (header->type_tag == 1 && header->payload_size > 0u) {
-                size_t preview_length = header->string_length;
-                const char* text = (const char*)ptr;
-                if (preview_length > 48u) {
-                    preview_length = 48u;
-                }
-                fprintf(stderr, " text=\"%.*s\"", (int)preview_length, text);
-            }
-            if (freed_record != NULL) {
-                fprintf(
-                    stderr,
-                    " last_free={type_tag=%lld payload_size=%zu string_length=%zu destructor=%p}",
-                    freed_record->type_tag,
-                    freed_record->payload_size,
-                    freed_record->string_length,
-                    (void*)freed_record->destructor
-                );
-            }
-            fprintf(stderr, "\n");
-        }
         kain_attrition_note_rc_underflow();
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
@@ -333,43 +635,53 @@ void rc_release(void* ptr) {
             header->destructor(ptr);
         }
 
+        header->magic = KAIN_RC_MAGIC_FREED;
         if (header->weak_count == 0) {
             total_size = sizeof(RcHeader) + header->payload_size;
-            header->magic = KAIN_RC_MAGIC_FREED;
-            kain_rc_record_recent_free(
-                ptr,
-                header->type_tag,
-                header->payload_size,
-                header->string_length,
-                header->destructor
-            );
+            kain_rc_registry_mark_freed(ptr, header, 0);
             kain_attrition_note_rc_free(total_size);
             if (!kain_attrition_heap_release(header, total_size)) {
                 free(header);
             }
+        } else {
+            kain_rc_registry_mark_freed(ptr, header, 1);
         }
     }
 }
 
 void rc_weak_release(void* ptr) {
+    KainRcTrackedPointer tracked;
     RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    header = get_header(ptr);
+    tracked = kain_rc_registry_lookup(ptr);
+    if (tracked.state == KAIN_RC_TRACK_NONE || tracked.header == NULL) {
+        return;
+    }
+    header = tracked.header;
     if (!kain_rc_header_is_alive(header) && !kain_rc_header_is_freed(header)) {
+        return;
+    }
+    if (header->weak_count <= 0) {
         return;
     }
     header->weak_count--;
 
     if (header->weak_count == 0 && header->ref_count == 0) {
+        kain_rc_registry_drop_freed_header(ptr);
         free(header);
     }
 }
 
 void* weak_upgrade(void* ptr) {
+    KainRcTrackedPointer tracked;
     RcHeader* header;
     if (!ptr) return NULL;
     if (kain_rc_is_immediate_handle(ptr)) return ptr;
-    header = get_header(ptr);
+    tracked = kain_rc_registry_lookup(ptr);
+    if (tracked.state != KAIN_RC_TRACK_LIVE || tracked.header == NULL) {
+        return NULL;
+    }
+    header = tracked.header;
     if (!kain_rc_header_is_alive(header)) {
         return NULL;
     }
@@ -393,9 +705,14 @@ void* weak_upgrade(void* ptr) {
 }
 
 void kain_set_destructor(void* ptr, void (*dtor)(void*)) {
+    KainRcTrackedPointer tracked;
     RcHeader* header;
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
-    header = get_header(ptr);
+    tracked = kain_rc_registry_lookup(ptr);
+    if (tracked.state != KAIN_RC_TRACK_LIVE || tracked.header == NULL) {
+        return;
+    }
+    header = tracked.header;
     if (!kain_rc_header_is_alive(header)) {
         return;
     }
@@ -761,6 +1078,72 @@ long long pop(void* arr_ptr) {
     return arr->data[arr->len];
 }
 
+static KainArray* kain_cli_empty_array(void) {
+    KainArray* arr = array_new(1);
+    if (!arr) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "CLI array allocation failed",
+            "Failed to allocate command-line array"
+        );
+    }
+    return arr;
+}
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+static KainArray* kain_cli_split_nul_delimited_args(const char* data, size_t length) {
+    KainArray* arr = kain_cli_empty_array();
+    size_t start = 0u;
+    size_t index;
+    if (!arr) {
+        return NULL;
+    }
+    if (!data || length == 0u) {
+        return arr;
+    }
+    for (index = 0u; index < length; ++index) {
+        if (data[index] == '\0') {
+            if (index > start) {
+                array_push(arr, (long long)(intptr_t)kain_string_new_with_len(data + start, index - start));
+            }
+            start = index + 1u;
+        }
+    }
+    if (start < length) {
+        array_push(arr, (long long)(intptr_t)kain_string_new_with_len(data + start, length - start));
+    }
+    return arr;
+}
+#endif
+
+#ifdef _WIN32
+static char* kain_cli_string_from_wide(const wchar_t* wide) {
+    char* utf8 = NULL;
+    int utf8_bytes;
+    char* result;
+    if (!wide || !wide[0]) {
+        return string_new("");
+    }
+    utf8_bytes = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+    if (utf8_bytes <= 0) {
+        return string_new("");
+    }
+    utf8 = (char*)malloc((size_t)utf8_bytes);
+    if (!utf8) {
+        return string_new("");
+    }
+    if (WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, utf8_bytes, NULL, NULL) <= 0) {
+        free(utf8);
+        return string_new("");
+    }
+    result = string_new(utf8);
+    free(utf8);
+    return result;
+}
+#endif
+
 char* file_read(char* path) {
     FILE* f;
     long size;
@@ -876,6 +1259,12 @@ void stdout_write(char* text) {
     fflush(stdout);
 }
 
+void stderr_write(char* text) {
+    if (!text) return;
+    fputs(text, stderr);
+    fflush(stderr);
+}
+
 char* stdin_read_exact(long long length) {
     size_t remaining;
     size_t offset = 0;
@@ -913,6 +1302,50 @@ int file_exists(char* path) {
 #endif
 }
 
+int fs_exists(char* path) {
+    return file_exists(path);
+}
+
+int fs_is_file(char* path) {
+    if (!path || !path[0]) {
+        return 0;
+    }
+#ifdef _WIN32
+    {
+        DWORD attrs = GetFileAttributesA(path);
+        return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    }
+#else
+    {
+        struct stat info;
+        if (stat(path, &info) != 0) {
+            return 0;
+        }
+        return S_ISREG(info.st_mode);
+    }
+#endif
+}
+
+int fs_is_dir(char* path) {
+    if (!path || !path[0]) {
+        return 0;
+    }
+#ifdef _WIN32
+    {
+        DWORD attrs = GetFileAttributesA(path);
+        return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    }
+#else
+    {
+        struct stat info;
+        if (stat(path, &info) != 0) {
+            return 0;
+        }
+        return S_ISDIR(info.st_mode);
+    }
+#endif
+}
+
 char* env(char* name) {
     if (!name || !name[0]) {
         return string_new("");
@@ -944,6 +1377,618 @@ char* env(char* name) {
         return string_new((char*)value);
     }
 #endif
+}
+
+char* cwd(void) {
+#ifdef _WIN32
+    DWORD needed = GetCurrentDirectoryW(0, NULL);
+    wchar_t* buffer = NULL;
+    char* result;
+    if (needed == 0) {
+        return string_new("");
+    }
+    buffer = (wchar_t*)malloc((size_t)needed * sizeof(wchar_t));
+    if (!buffer) {
+        return string_new("");
+    }
+    if (GetCurrentDirectoryW(needed, buffer) == 0) {
+        free(buffer);
+        return string_new("");
+    }
+    result = kain_cli_string_from_wide(buffer);
+    free(buffer);
+    return result;
+#else
+    size_t capacity = 256u;
+    char* buffer = NULL;
+    while (capacity <= (size_t)(1024u * 1024u)) {
+        buffer = (char*)malloc(capacity);
+        if (!buffer) {
+            return string_new("");
+        }
+        if (getcwd(buffer, capacity) != NULL) {
+            char* result = string_new(buffer);
+            free(buffer);
+            return result;
+        }
+        free(buffer);
+        if (errno != ERANGE) {
+            return string_new("");
+        }
+        capacity <<= 1u;
+    }
+    return string_new("");
+#endif
+}
+
+int64_t args(void) {
+#ifdef _WIN32
+    int argc = 0;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    KainArray* arr = kain_cli_empty_array();
+    int index;
+    if (!arr) {
+        if (argv) {
+            LocalFree(argv);
+        }
+        return 0;
+    }
+    if (!argv || argc <= 0) {
+        if (argv) {
+            LocalFree(argv);
+        }
+        return (int64_t)(intptr_t)arr;
+    }
+    for (index = 0; index < argc; ++index) {
+        array_push(arr, (long long)(intptr_t)kain_cli_string_from_wide(argv[index]));
+    }
+    LocalFree(argv);
+    return (int64_t)(intptr_t)arr;
+#elif defined(__APPLE__)
+    char*** argv_ref = _NSGetArgv();
+    int argc = *_NSGetArgc();
+    KainArray* arr = kain_cli_empty_array();
+    int index;
+    if (!arr) {
+        return 0;
+    }
+    if (!argv_ref || !*argv_ref || argc <= 0) {
+        return (int64_t)(intptr_t)arr;
+    }
+    for (index = 0; index < argc; ++index) {
+        const char* value = (*argv_ref)[index];
+        array_push(arr, (long long)(intptr_t)string_new((char*)(value ? value : "")));
+    }
+    return (int64_t)(intptr_t)arr;
+#else
+    FILE* file = fopen("/proc/self/cmdline", "rb");
+    unsigned char chunk[4096];
+    char* buffer = NULL;
+    size_t length = 0u;
+    size_t capacity = 0u;
+    KainArray* arr;
+    if (!file) {
+        return (int64_t)(intptr_t)kain_cli_empty_array();
+    }
+    while (!feof(file)) {
+        size_t read_count = fread(chunk, 1u, sizeof(chunk), file);
+        size_t needed = 0u;
+        char* grown;
+        if (read_count == 0u) {
+            break;
+        }
+        if (!kain_size_add_checked(length, read_count, &needed)) {
+            free(buffer);
+            fclose(file);
+            return (int64_t)(intptr_t)kain_cli_empty_array();
+        }
+        if (needed > capacity) {
+            size_t next_capacity = capacity == 0u ? 4096u : capacity;
+            while (next_capacity < needed) {
+                if (!kain_size_add_checked(next_capacity, next_capacity, &next_capacity)) {
+                    free(buffer);
+                    fclose(file);
+                    return (int64_t)(intptr_t)kain_cli_empty_array();
+                }
+            }
+            grown = (char*)realloc(buffer, next_capacity);
+            if (!grown) {
+                free(buffer);
+                fclose(file);
+                return (int64_t)(intptr_t)kain_cli_empty_array();
+            }
+            buffer = grown;
+            capacity = next_capacity;
+        }
+        memcpy(buffer + length, chunk, read_count);
+        length += read_count;
+    }
+    fclose(file);
+    arr = kain_cli_split_nul_delimited_args(buffer, length);
+    free(buffer);
+    return (int64_t)(intptr_t)arr;
+#endif
+}
+
+static int kain_path_is_separator(char ch) {
+    return ch == '/' || ch == '\\';
+}
+
+static int kain_path_is_ascii_drive_letter(char ch) {
+    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
+}
+
+static int kain_path_is_absolute(const char* path) {
+    if (!path || !path[0]) {
+        return 0;
+    }
+    if (path[0] == '/' || path[0] == '\\') {
+        return 1;
+    }
+    return strlen(path) > 2u && path[1] == ':';
+}
+
+static size_t kain_path_root_span(const char* path) {
+    size_t length = 0u;
+    if (!path || !path[0]) {
+        return 0u;
+    }
+    length = strlen(path);
+#ifdef _WIN32
+    if (kain_path_is_ascii_drive_letter(path[0]) && path[1] == ':') {
+        return kain_path_is_separator(path[2]) ? 3u : 2u;
+    }
+    if (kain_path_is_separator(path[0]) && kain_path_is_separator(path[1])) {
+        size_t index = 2u;
+        if (length > index + 1u &&
+            (path[index] == '?' || path[index] == '.') &&
+            kain_path_is_separator(path[index + 1u])) {
+            index += 2u;
+            if (length > index + 3u &&
+                (path[index] == 'U' || path[index] == 'u') &&
+                (path[index + 1u] == 'N' || path[index + 1u] == 'n') &&
+                (path[index + 2u] == 'C' || path[index + 2u] == 'c') &&
+                kain_path_is_separator(path[index + 3u])) {
+                index += 4u;
+            } else if (length > index + 2u &&
+                       kain_path_is_ascii_drive_letter(path[index]) &&
+                       path[index + 1u] == ':' &&
+                       kain_path_is_separator(path[index + 2u])) {
+                return index + 3u;
+            } else {
+                return length;
+            }
+        }
+        {
+            int segment = 0;
+            while (index < length && kain_path_is_separator(path[index])) {
+                index += 1u;
+            }
+            for (; index < length; ++segment) {
+                while (index < length && !kain_path_is_separator(path[index])) {
+                    index += 1u;
+                }
+                if (segment == 1) {
+                    while (index < length && kain_path_is_separator(path[index])) {
+                        index += 1u;
+                    }
+                    return index;
+                }
+                while (index < length && kain_path_is_separator(path[index])) {
+                    index += 1u;
+                }
+            }
+            return index;
+        }
+    }
+#endif
+    return kain_path_is_separator(path[0]) ? 1u : 0u;
+}
+
+static size_t kain_path_trimmed_end(const char* path, size_t root_span) {
+    size_t end;
+    if (!path) {
+        return 0u;
+    }
+    end = strlen(path);
+    while (end > root_span && kain_path_is_separator(path[end - 1u])) {
+        end -= 1u;
+    }
+    return end;
+}
+
+static int kain_fs_create_one_dir(const char* path) {
+    if (!path || !path[0]) {
+        errno = EINVAL;
+        return -1;
+    }
+#ifdef _WIN32
+    if (CreateDirectoryA(path, NULL) != 0 || GetLastError() == ERROR_ALREADY_EXISTS) {
+        return 0;
+    }
+    errno = EACCES;
+    return -1;
+#else
+    if (mkdir(path, 0777) == 0 || errno == EEXIST) {
+        return 0;
+    }
+    return -1;
+#endif
+}
+
+static int kain_fs_create_parent_dirs(const char* path) {
+    char buffer[4096];
+    size_t length;
+    size_t index;
+    size_t root_span;
+    if (!path || !path[0]) {
+        return 0;
+    }
+    length = strlen(path);
+    if (length >= sizeof(buffer)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    memcpy(buffer, path, length + 1u);
+    root_span = kain_path_root_span(buffer);
+    for (index = root_span; index < length; ++index) {
+        if (kain_path_is_separator(buffer[index])) {
+            char saved = buffer[index];
+            if (index <= root_span || kain_path_is_separator(buffer[index - 1u])) {
+                continue;
+            }
+            buffer[index] = '\0';
+            if (buffer[0] != '\0' && kain_fs_create_one_dir(buffer) != 0) {
+                buffer[index] = saved;
+                return -1;
+            }
+            buffer[index] = saved;
+        }
+    }
+    return 0;
+}
+
+static int kain_fs_open_write_retry_parent_dirs(const char* path, const char* mode, FILE** out_file) {
+    if (!out_file) {
+        errno = EINVAL;
+        return -1;
+    }
+    *out_file = NULL;
+#ifdef _WIN32
+    if (fopen_s(out_file, path, mode) == 0 && *out_file != NULL) {
+        return 0;
+    }
+#else
+    *out_file = fopen(path, mode);
+    if (*out_file != NULL) {
+        return 0;
+    }
+#endif
+    if (kain_fs_create_parent_dirs(path) != 0) {
+        return -1;
+    }
+#ifdef _WIN32
+    if (fopen_s(out_file, path, mode) == 0 && *out_file != NULL) {
+        return 0;
+    }
+#else
+    *out_file = fopen(path, mode);
+    if (*out_file != NULL) {
+        return 0;
+    }
+#endif
+    return -1;
+}
+
+static KainArray* kain_fs_read_dir_entries(const char* path) {
+    KainArray* arr = kain_cli_empty_array();
+    if (!arr || !path || !path[0]) {
+        return arr;
+    }
+#ifdef _WIN32
+    {
+        char pattern[4096];
+        WIN32_FIND_DATAA data;
+        HANDLE handle;
+        if (_snprintf_s(pattern, sizeof(pattern), _TRUNCATE, "%s\\*", path) < 0) {
+            return arr;
+        }
+        handle = FindFirstFileA(pattern, &data);
+        if (handle == INVALID_HANDLE_VALUE) {
+            return arr;
+        }
+        do {
+            char child[4096];
+            if (strcmp(data.cFileName, ".") == 0 || strcmp(data.cFileName, "..") == 0) {
+                continue;
+            }
+            if (_snprintf_s(child, sizeof(child), _TRUNCATE, "%s\\%s", path, data.cFileName) < 0) {
+                continue;
+            }
+            array_push(arr, (long long)(intptr_t)string_new(child));
+        } while (FindNextFileA(handle, &data) != 0);
+        FindClose(handle);
+    }
+#else
+    {
+        DIR* dir = opendir(path);
+        struct dirent* entry;
+        if (!dir) {
+            return arr;
+        }
+        while ((entry = readdir(dir)) != NULL) {
+            char child[4096];
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                continue;
+            }
+            if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) < 0) {
+                continue;
+            }
+            array_push(arr, (long long)(intptr_t)string_new(child));
+        }
+        closedir(dir);
+    }
+#endif
+    return arr;
+}
+
+KainArray* read_dir(char* path) {
+    return kain_fs_read_dir_entries(path);
+}
+
+KainArray* fs_read_dir_paths(char* path) {
+    return read_dir(path);
+}
+
+void create_dir_all(char* path) {
+    char buffer[4096];
+    size_t length;
+    size_t index;
+    size_t root_span;
+    if (!path || !path[0]) {
+        return;
+    }
+    length = strlen(path);
+    if (length >= sizeof(buffer)) {
+        return;
+    }
+    memcpy(buffer, path, length + 1u);
+    root_span = kain_path_root_span(buffer);
+    for (index = root_span; index <= length; ++index) {
+        if (kain_path_is_separator(buffer[index]) || buffer[index] == '\0') {
+            char saved = buffer[index];
+            if (index <= root_span || kain_path_is_separator(buffer[index - 1u])) {
+                continue;
+            }
+            buffer[index] = '\0';
+            if (buffer[0] != '\0' && kain_fs_create_one_dir(buffer) != 0) {
+                buffer[index] = saved;
+                return;
+            }
+            buffer[index] = saved;
+        }
+    }
+}
+
+void fs_create_dir_all(char* path) {
+    create_dir_all(path);
+}
+
+void copy_file(char* src, char* dest) {
+    FILE* input = NULL;
+    FILE* output = NULL;
+    char buffer[65536];
+    size_t read_count;
+    if (!src || !dest) {
+        return;
+    }
+#ifdef _WIN32
+    if (fopen_s(&input, src, "rb") != 0) {
+        input = NULL;
+    }
+#else
+    input = fopen(src, "rb");
+#endif
+    if (!input) {
+        return;
+    }
+    if (kain_fs_open_write_retry_parent_dirs(dest, "wb", &output) != 0 || !output) {
+        fclose(input);
+        return;
+    }
+    while ((read_count = fread(buffer, 1u, sizeof(buffer), input)) > 0u) {
+        if (fwrite(buffer, 1u, read_count, output) != read_count) {
+            fclose(input);
+            fclose(output);
+            return;
+        }
+    }
+    fclose(input);
+    fclose(output);
+}
+
+void fs_copy_file(char* src, char* dest) {
+    copy_file(src, dest);
+}
+
+void remove_file(char* path) {
+    if (!path || !path[0]) {
+        return;
+    }
+#ifdef _WIN32
+    (void)DeleteFileA(path);
+#else
+    (void)remove(path);
+#endif
+}
+
+void fs_remove_file(char* path) {
+    remove_file(path);
+}
+
+char* path_join(char* base, char* child) {
+    char joined[4096];
+    size_t base_len;
+    if (!child) {
+        child = "";
+    }
+    if (!base || !base[0] || kain_path_is_absolute(child)) {
+        return string_new(child);
+    }
+    base_len = strlen(base);
+    if (base_len > 0u && kain_path_is_separator(base[base_len - 1u])) {
+#ifdef _WIN32
+        if (_snprintf_s(joined, sizeof(joined), _TRUNCATE, "%s%s", base, child) < 0) {
+            return string_new("");
+        }
+#else
+        if (snprintf(joined, sizeof(joined), "%s%s", base, child) < 0) {
+            return string_new("");
+        }
+#endif
+    } else {
+#ifdef _WIN32
+        if (_snprintf_s(joined, sizeof(joined), _TRUNCATE, "%s\\%s", base, child) < 0) {
+            return string_new("");
+        }
+#else
+        if (snprintf(joined, sizeof(joined), "%s/%s", base, child) < 0) {
+            return string_new("");
+        }
+#endif
+    }
+    return string_new(joined);
+}
+
+char* fs_path_join(char* base, char* child) {
+    return path_join(base, child);
+}
+
+char* path_parent(char* path) {
+    size_t root_span;
+    size_t end;
+    size_t separator;
+    if (!path || !path[0]) {
+        return string_new("");
+    }
+    root_span = kain_path_root_span(path);
+    end = kain_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    separator = end;
+    while (separator > root_span && !kain_path_is_separator(path[separator - 1u])) {
+        separator -= 1u;
+    }
+    if (separator <= root_span) {
+        if (root_span > 0u) {
+            return kain_string_new_with_len(path, root_span);
+        }
+        return string_new("");
+    }
+    while (separator > root_span && kain_path_is_separator(path[separator - 1u])) {
+        separator -= 1u;
+    }
+    return kain_string_new_with_len(path, separator);
+}
+
+char* fs_path_parent(char* path) {
+    return path_parent(path);
+}
+
+char* path_file_name(char* path) {
+    size_t root_span;
+    size_t end;
+    size_t start;
+    if (!path || !path[0]) {
+        return string_new("");
+    }
+    root_span = kain_path_root_span(path);
+    end = kain_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    start = end;
+    while (start > root_span && !kain_path_is_separator(path[start - 1u])) {
+        start -= 1u;
+    }
+    return kain_string_new_with_len(path + start, end - start);
+}
+
+char* fs_path_file_name(char* path) {
+    return path_file_name(path);
+}
+
+char* path_extension(char* path) {
+    size_t root_span;
+    size_t end;
+    size_t start;
+    size_t index;
+    if (!path || !path[0]) {
+        return string_new("");
+    }
+    root_span = kain_path_root_span(path);
+    end = kain_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    start = end;
+    while (start > root_span && !kain_path_is_separator(path[start - 1u])) {
+        start -= 1u;
+    }
+    for (index = end; index > start; --index) {
+        if (path[index - 1u] == '.') {
+            if ((index - 1u) == start) {
+                return string_new("");
+            }
+            return kain_string_new_with_len(path + index, end - index);
+        }
+    }
+    return string_new("");
+}
+
+char* fs_path_extension(char* path) {
+    return path_extension(path);
+}
+
+char* path_stem(char* path) {
+    size_t root_span;
+    size_t end;
+    size_t start;
+    size_t index;
+    if (!path || !path[0]) {
+        return string_new("");
+    }
+    root_span = kain_path_root_span(path);
+    end = kain_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    start = end;
+    while (start > root_span && !kain_path_is_separator(path[start - 1u])) {
+        start -= 1u;
+    }
+    for (index = end; index > start; --index) {
+        if (path[index - 1u] == '.') {
+            if ((index - 1u) == start) {
+                return kain_string_new_with_len(path + start, end - start);
+            }
+            return kain_string_new_with_len(path + start, (index - 1u) - start);
+        }
+    }
+    return kain_string_new_with_len(path + start, end - start);
+}
+
+char* fs_path_stem(char* path) {
+    return path_stem(path);
+}
+
+int path_is_file(char* path) {
+    return fs_is_file(path);
+}
+
+int path_is_dir(char* path) {
+    return fs_is_dir(path);
 }
 
 char* trim(char* s) {
@@ -1161,9 +2206,14 @@ char* replace(char* s, char* from, char* to) {
 }
 
 long long len(void* value) {
+    KainRcTrackedPointer tracked;
     RcHeader* header;
     if (!value) return 0;
-    header = get_header(value);
+    tracked = kain_rc_registry_lookup(value);
+    if (tracked.state != KAIN_RC_TRACK_LIVE || tracked.header == NULL) {
+        return 0;
+    }
+    header = tracked.header;
     if (header->type_tag == 1) {
         return (long long)header->string_length;
     }
@@ -2138,13 +3188,23 @@ char* socket_recv(long long sock) {
 }
 
 int deep_eq(void* a, void* b) {
+    KainRcTrackedPointer tracked_a;
+    KainRcTrackedPointer tracked_b;
     RcHeader* ha;
     RcHeader* hb;
     if (a == b) return 1;
     if (!a || !b) return 0;
 
-    ha = get_header(a);
-    hb = get_header(b);
+    tracked_a = kain_rc_registry_lookup(a);
+    tracked_b = kain_rc_registry_lookup(b);
+    if (tracked_a.state != KAIN_RC_TRACK_LIVE ||
+        tracked_b.state != KAIN_RC_TRACK_LIVE ||
+        tracked_a.header == NULL ||
+        tracked_b.header == NULL) {
+        return 0;
+    }
+    ha = tracked_a.header;
+    hb = tracked_b.header;
     if (ha->type_tag != hb->type_tag) return 0;
 
     if (ha->type_tag == 1) {

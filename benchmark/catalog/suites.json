@@ -19,6 +19,18 @@
         "minimal_name": "out/snapshots/latest_dev.md"
       }
     },
+    "compiler": {
+      "description": "Dedicated Kain-vs-Rust compiler build-time lane.",
+      "runner": "compiler/run.py",
+      "defaults": {
+        "languages": "kain,rust",
+        "warmups": 0,
+        "runs": 3,
+        "timeout": 900,
+        "latest_stem": "latest_compiler",
+        "minimal_name": "out/snapshots/latest_compiler.md"
+      }
+    },
     "fast": {
       "description": "Reduced-language pass matching legacy run_fast wrapper.",
       "runner": "run.py",

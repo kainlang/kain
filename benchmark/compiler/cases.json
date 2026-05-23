@@ -1,0 +1,73 @@
+{
+  "suite": "kain-compiler-benchmarks",
+  "default_warmups": 0,
+  "default_runs": 1,
+  "default_languages": [
+    "kain",
+    "rust"
+  ],
+  "minimal_name": "out/snapshots/latest_compiler.md",
+  "latest_stem": "latest_compiler",
+  "cases": [
+    {
+      "id": "single_file_small",
+      "title": "Single-File Small",
+      "description": "Single-file helper mesh baseline with one file per language and modest declaration fanout.",
+      "generator": "single_file_mesh",
+      "languages": [
+        "kain",
+        "rust"
+      ],
+      "parameters": {
+        "groups": 18,
+        "helpers_per_group": 6,
+        "dispatch_arms": 5
+      }
+    },
+    {
+      "id": "single_file_large",
+      "title": "Single-File Large",
+      "description": "Single-file heavy declaration wall that scales helper fanout and call depth without adding module IO noise.",
+      "generator": "single_file_mesh",
+      "languages": [
+        "kain",
+        "rust"
+      ],
+      "parameters": {
+        "groups": 72,
+        "helpers_per_group": 8,
+        "dispatch_arms": 7
+      }
+    },
+    {
+      "id": "module_fanout_medium",
+      "title": "Module Fanout Medium",
+      "description": "Cross-file import and resolver pressure with one shared helper module plus a medium fanout of stage modules.",
+      "generator": "module_fanout",
+      "languages": [
+        "kain",
+        "rust"
+      ],
+      "parameters": {
+        "groups": 8,
+        "helpers_per_group": 4,
+        "dispatch_arms": 4
+      }
+    },
+    {
+      "id": "module_fanout_large",
+      "title": "Module Fanout Large",
+      "description": "Large cross-file compile lane for resolver, parsing, and lowering pressure under a wide module graph.",
+      "generator": "module_fanout",
+      "languages": [
+        "kain",
+        "rust"
+      ],
+      "parameters": {
+        "groups": 12,
+        "helpers_per_group": 5,
+        "dispatch_arms": 5
+      }
+    }
+  ]
+}

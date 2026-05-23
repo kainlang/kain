@@ -54,7 +54,25 @@ struct BenchResult:
     success: Bool
     failure_code: Int
     track_path: String
-    samples_csv: String
+
+struct RouterTelemetry:
+    cpu_feature_mask: Int
+    cpu_feature_fingerprint: Int
+    runtime_heap_validate: Int
+    converge_mismatch_count: Int
+    runtime_converge_telemetry_count: Int
+    runtime_converge_cache_probe_count: Int
+    runtime_converge_cache_hit_count: Int
+    patch_journal_count: Int
+    entangle_propagation_count: Int
+    runtime_machine_teleport_count: Int
+    runtime_machine_pulse_total_fire_count: Int
+    actor_scheduler_queue_depth: Int
+    actor_scheduler_total_enqueued: Int
+    actor_scheduler_total_dequeued: Int
+    actor_scheduler_max_queue_depth: Int
+    actor_scheduler_worker_count: Int
+    actor_scheduler_busy_workers: Int
 
 fn env_string_or(key: String, fallback: String) -> String:
     let value = env(key)
@@ -108,7 +126,8 @@ fn router_path_parent(path: String) -> String:
     let last_slash = -1
     let index = 0
     while index < len(path):
-        if char_at(path, index) == "/":
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
             last_slash = index
         index = index + 1
     if last_slash <= 0:
@@ -150,10 +169,43 @@ fn case_selected(filter_text: String, case_id: String, group: String) -> Bool:
         return true
     return false
 
-fn append_csv_int(csv: String, value: Int) -> String:
-    if len(csv) == 0:
-        return str(value)
-    return csv + "," + str(value)
+fn append_json_item(items: String, item: String) -> String:
+    if len(items) == 0:
+        return item
+    return items + ",\n" + item
+
+fn selected_filter_text(filter_text: String) -> String:
+    if len(filter_text) == 0:
+        return "all"
+    return filter_text
+
+fn json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn json_string_value(text: String) -> String:
+    return "\"" + json_escape(text) + "\""
+
+fn json_bool_value(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
 
 fn amplified_expected_checksum(base_checksum: Int, amplify: Int) -> Int:
     let repeat = 0
@@ -440,13 +492,11 @@ fn run_case(case_id: String, group: String, title: String, iterations: Int, expe
     let failure_code = 0
     let success = true
     let pass_index = 0
-    let samples_csv = ""
     while pass_index < config.passes:
         let started_ms = now_millis()
         checksum = run_case_checksum(case_id, iterations, config.amplify)
         let finished_ms = now_millis()
         let elapsed_ms = finished_ms - started_ms
-        samples_csv = append_csv_int(samples_csv, elapsed_ms)
         total_ms = total_ms + elapsed_ms
         if best_ms < 0 or elapsed_ms < best_ms:
             best_ms = elapsed_ms
@@ -480,8 +530,7 @@ fn run_case(case_id: String, group: String, title: String, iterations: Int, expe
         ops_per_sec: ops_per_sec,
         success: success,
         failure_code: failure_code,
-        track_path: fs_path_join(config.track_root, case_id + ".json"),
-        samples_csv: samples_csv
+        track_path: fs_path_join(config.track_root, case_id + ".json")
     }
 
 fn result_status_text(result: BenchResult) -> String:
@@ -489,44 +538,82 @@ fn result_status_text(result: BenchResult) -> String:
         return "ok"
     return "fail:" + str(result.failure_code)
 
-fn result_to_json(result: BenchResult) -> Any:
-    let payload = json_object_new()
-    json_object_set(payload, "id", result.id)
-    json_object_set(payload, "group", result.group)
-    json_object_set(payload, "title", result.title)
-    json_object_set(payload, "iterations", result.iterations)
-    json_object_set(payload, "expected_checksum", result.expected_checksum)
-    json_object_set(payload, "passes", result.passes)
-    json_object_set(payload, "warmups", result.warmups)
-    json_object_set(payload, "amplify", result.amplify)
-    json_object_set(payload, "checksum", result.checksum)
-    json_object_set(payload, "best_ms", result.best_ms)
-    json_object_set(payload, "worst_ms", result.worst_ms)
-    json_object_set(payload, "total_ms", result.total_ms)
-    json_object_set(payload, "average_ms", result.average_ms)
-    json_object_set(payload, "ops_per_sec", result.ops_per_sec)
-    json_object_set(payload, "success", result.success)
-    json_object_set(payload, "failure_code", result.failure_code)
-    json_object_set(payload, "status", result_status_text(result))
-    json_object_set(payload, "track_path", result.track_path)
-    json_object_set(payload, "samples_ms_csv", result.samples_csv)
-    return payload
+fn render_result_json(result: BenchResult) -> String:
+    let content = "{\n"
+    content = content + "  \"schema_version\": " + str(ROUTER_SCHEMA_VERSION) + ",\n"
+    content = content + "  \"suite\": " + json_string_value(ROUTER_SUITE_ID) + ",\n"
+    content = content + "  \"id\": " + json_string_value(result.id) + ",\n"
+    content = content + "  \"group\": " + json_string_value(result.group) + ",\n"
+    content = content + "  \"title\": " + json_string_value(result.title) + ",\n"
+    content = content + "  \"iterations\": " + str(result.iterations) + ",\n"
+    content = content + "  \"expected_checksum\": " + str(result.expected_checksum) + ",\n"
+    content = content + "  \"passes\": " + str(result.passes) + ",\n"
+    content = content + "  \"warmups\": " + str(result.warmups) + ",\n"
+    content = content + "  \"amplify\": " + str(result.amplify) + ",\n"
+    content = content + "  \"checksum\": " + str(result.checksum) + ",\n"
+    content = content + "  \"best_ms\": " + str(result.best_ms) + ",\n"
+    content = content + "  \"worst_ms\": " + str(result.worst_ms) + ",\n"
+    content = content + "  \"total_ms\": " + str(result.total_ms) + ",\n"
+    content = content + "  \"average_ms\": " + str(result.average_ms) + ",\n"
+    content = content + "  \"ops_per_sec\": " + str(result.ops_per_sec) + ",\n"
+    content = content + "  \"success\": " + json_bool_value(result.success) + ",\n"
+    content = content + "  \"failure_code\": " + str(result.failure_code) + ",\n"
+    content = content + "  \"status\": " + json_string_value(result_status_text(result)) + ",\n"
+    content = content + "  \"track_path\": " + json_string_value(result.track_path) + "\n"
+    return content + "}"
+
+fn capture_runtime_telemetry() -> RouterTelemetry:
+    return RouterTelemetry {
+        cpu_feature_mask: runtime_cpu_feature_mask(),
+        cpu_feature_fingerprint: runtime_cpu_feature_fingerprint(),
+        runtime_heap_validate: runtime_heap_validate(),
+        converge_mismatch_count: converge_mismatch_count(),
+        runtime_converge_telemetry_count: runtime_converge_telemetry_count(),
+        runtime_converge_cache_probe_count: runtime_converge_cache_probe_count(),
+        runtime_converge_cache_hit_count: runtime_converge_cache_hit_count(),
+        patch_journal_count: patch_journal_count(),
+        entangle_propagation_count: entangle_propagation_count(),
+        runtime_machine_teleport_count: runtime_machine_teleport_count(),
+        runtime_machine_pulse_total_fire_count: runtime_machine_pulse_total_fire_count(),
+        actor_scheduler_queue_depth: actor_scheduler_queue_depth(),
+        actor_scheduler_total_enqueued: actor_scheduler_total_enqueued(),
+        actor_scheduler_total_dequeued: actor_scheduler_total_dequeued(),
+        actor_scheduler_max_queue_depth: actor_scheduler_max_queue_depth(),
+        actor_scheduler_worker_count: actor_scheduler_worker_count(),
+        actor_scheduler_busy_workers: actor_scheduler_busy_workers()
+    }
+
+fn render_telemetry_json(telemetry: RouterTelemetry) -> String:
+    let content = "{\n"
+    content = content + "    \"cpu_feature_mask\": " + str(telemetry.cpu_feature_mask) + ",\n"
+    content = content + "    \"cpu_feature_fingerprint\": " + str(telemetry.cpu_feature_fingerprint) + ",\n"
+    content = content + "    \"runtime_heap_validate\": " + str(telemetry.runtime_heap_validate) + ",\n"
+    content = content + "    \"converge_mismatch_count\": " + str(telemetry.converge_mismatch_count) + ",\n"
+    content = content + "    \"runtime_converge_telemetry_count\": " + str(telemetry.runtime_converge_telemetry_count) + ",\n"
+    content = content + "    \"runtime_converge_cache_probe_count\": " + str(telemetry.runtime_converge_cache_probe_count) + ",\n"
+    content = content + "    \"runtime_converge_cache_hit_count\": " + str(telemetry.runtime_converge_cache_hit_count) + ",\n"
+    content = content + "    \"patch_journal_count\": " + str(telemetry.patch_journal_count) + ",\n"
+    content = content + "    \"entangle_propagation_count\": " + str(telemetry.entangle_propagation_count) + ",\n"
+    content = content + "    \"runtime_machine_teleport_count\": " + str(telemetry.runtime_machine_teleport_count) + ",\n"
+    content = content + "    \"runtime_machine_pulse_total_fire_count\": " + str(telemetry.runtime_machine_pulse_total_fire_count) + ",\n"
+    content = content + "    \"actor_scheduler_queue_depth\": " + str(telemetry.actor_scheduler_queue_depth) + ",\n"
+    content = content + "    \"actor_scheduler_total_enqueued\": " + str(telemetry.actor_scheduler_total_enqueued) + ",\n"
+    content = content + "    \"actor_scheduler_total_dequeued\": " + str(telemetry.actor_scheduler_total_dequeued) + ",\n"
+    content = content + "    \"actor_scheduler_max_queue_depth\": " + str(telemetry.actor_scheduler_max_queue_depth) + ",\n"
+    content = content + "    \"actor_scheduler_worker_count\": " + str(telemetry.actor_scheduler_worker_count) + ",\n"
+    content = content + "    \"actor_scheduler_busy_workers\": " + str(telemetry.actor_scheduler_busy_workers) + "\n"
+    return content + "  }"
 
 fn write_track_report(result: BenchResult) -> Int:
     ensure_parent_dir(result.track_path)
-    fs_atomic_write_text(result.track_path, json_string(result_to_json(result)))
+    fs_atomic_write_text(result.track_path, render_result_json(result))
     return len(result.track_path)
 
 fn format_result_row(result: BenchResult) -> String:
     return "| `" + result.id + "` | `" + result.group + "` | " + str(result.iterations) + " | " + str(result.best_ms) + " | " + str(result.average_ms) + " | " + str(result.worst_ms) + " | " + str(result.ops_per_sec) + " | " + str(result.checksum) + " | `" + result_status_text(result) + "` |\n"
 
-fn format_sample_line(result: BenchResult) -> String:
-    return "- `" + result.id + "`: `" + result.samples_csv + "`\n"
-
-fn build_markdown_report(case_count: Int, config: RouterConfig, started_ms: Int, finished_ms: Int, success_count: Int, failure_count: Int, table_rows: String, sample_lines: String) -> String:
-    let selected_text = config.filter_text
-    if len(selected_text) == 0:
-        selected_text = "all"
+fn build_markdown_report(case_count: Int, config: RouterConfig, telemetry: RouterTelemetry, started_ms: Int, finished_ms: Int, success_count: Int, failure_count: Int, table_rows: String) -> String:
+    let selected_text = selected_filter_text(config.filter_text)
 
     let content = "# Benchmark V2\n\n"
     content = content + "- suite: `" + ROUTER_SUITE_ID + "`\n"
@@ -539,69 +626,58 @@ fn build_markdown_report(case_count: Int, config: RouterConfig, started_ms: Int,
     content = content + "- elapsed_ms: `" + str(finished_ms - started_ms) + "`\n"
     content = content + "- success_count: `" + str(success_count) + "`\n"
     content = content + "- failure_count: `" + str(failure_count) + "`\n"
-    content = content + "- cpu_feature_mask: `" + str(runtime_cpu_feature_mask()) + "`\n"
-    content = content + "- cpu_feature_fingerprint: `" + str(runtime_cpu_feature_fingerprint()) + "`\n"
-    content = content + "- runtime_heap_validate: `" + str(runtime_heap_validate()) + "`\n"
-    content = content + "- converge_mismatch_count: `" + str(converge_mismatch_count()) + "`\n"
-    content = content + "- runtime_converge_telemetry_count: `" + str(runtime_converge_telemetry_count()) + "`\n"
-    content = content + "- runtime_converge_cache_probe_count: `" + str(runtime_converge_cache_probe_count()) + "`\n"
-    content = content + "- runtime_converge_cache_hit_count: `" + str(runtime_converge_cache_hit_count()) + "`\n"
-    content = content + "- patch_journal_count: `" + str(patch_journal_count()) + "`\n"
-    content = content + "- entangle_propagation_count: `" + str(entangle_propagation_count()) + "`\n"
-    content = content + "- runtime_machine_teleport_count: `" + str(runtime_machine_teleport_count()) + "`\n"
-    content = content + "- runtime_machine_pulse_total_fire_count: `" + str(runtime_machine_pulse_total_fire_count()) + "`\n"
-    content = content + "- actor_scheduler_queue_depth: `" + str(actor_scheduler_queue_depth()) + "`\n"
-    content = content + "- actor_scheduler_total_enqueued: `" + str(actor_scheduler_total_enqueued()) + "`\n"
-    content = content + "- actor_scheduler_total_dequeued: `" + str(actor_scheduler_total_dequeued()) + "`\n"
-    content = content + "- actor_scheduler_max_queue_depth: `" + str(actor_scheduler_max_queue_depth()) + "`\n"
-    content = content + "- actor_scheduler_worker_count: `" + str(actor_scheduler_worker_count()) + "`\n"
-    content = content + "- actor_scheduler_busy_workers: `" + str(actor_scheduler_busy_workers()) + "`\n"
+    content = content + "- cpu_feature_mask: `" + str(telemetry.cpu_feature_mask) + "`\n"
+    content = content + "- cpu_feature_fingerprint: `" + str(telemetry.cpu_feature_fingerprint) + "`\n"
+    content = content + "- runtime_heap_validate: `" + str(telemetry.runtime_heap_validate) + "`\n"
+    content = content + "- converge_mismatch_count: `" + str(telemetry.converge_mismatch_count) + "`\n"
+    content = content + "- runtime_converge_telemetry_count: `" + str(telemetry.runtime_converge_telemetry_count) + "`\n"
+    content = content + "- runtime_converge_cache_probe_count: `" + str(telemetry.runtime_converge_cache_probe_count) + "`\n"
+    content = content + "- runtime_converge_cache_hit_count: `" + str(telemetry.runtime_converge_cache_hit_count) + "`\n"
+    content = content + "- patch_journal_count: `" + str(telemetry.patch_journal_count) + "`\n"
+    content = content + "- entangle_propagation_count: `" + str(telemetry.entangle_propagation_count) + "`\n"
+    content = content + "- runtime_machine_teleport_count: `" + str(telemetry.runtime_machine_teleport_count) + "`\n"
+    content = content + "- runtime_machine_pulse_total_fire_count: `" + str(telemetry.runtime_machine_pulse_total_fire_count) + "`\n"
+    content = content + "- actor_scheduler_queue_depth: `" + str(telemetry.actor_scheduler_queue_depth) + "`\n"
+    content = content + "- actor_scheduler_total_enqueued: `" + str(telemetry.actor_scheduler_total_enqueued) + "`\n"
+    content = content + "- actor_scheduler_total_dequeued: `" + str(telemetry.actor_scheduler_total_dequeued) + "`\n"
+    content = content + "- actor_scheduler_max_queue_depth: `" + str(telemetry.actor_scheduler_max_queue_depth) + "`\n"
+    content = content + "- actor_scheduler_worker_count: `" + str(telemetry.actor_scheduler_worker_count) + "`\n"
+    content = content + "- actor_scheduler_busy_workers: `" + str(telemetry.actor_scheduler_busy_workers) + "`\n"
     content = content + "- track_root: `" + config.track_root + "`\n\n"
     content = content + "| Case | Group | Iterations | Best ms | Avg ms | Worst ms | Ops/s | Checksum | Status |\n"
     content = content + "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n"
     content = content + table_rows
-    content = content + "\n## Pass Samples\n"
-    content = content + sample_lines
     return content
 
-fn write_summary_reports(config: RouterConfig, started_ms: Int, finished_ms: Int, case_count: Int, success_count: Int, failure_count: Int, cases_json: Any, table_rows: String, sample_lines: String) -> Int:
-    let report = json_object_new()
-    json_object_set(report, "schema_version", ROUTER_SCHEMA_VERSION)
-    json_object_set(report, "suite", ROUTER_SUITE_ID)
-    json_object_set(report, "filter", config.filter_text)
-    json_object_set(report, "passes", config.passes)
-    json_object_set(report, "warmups", config.warmups)
-    json_object_set(report, "amplify", config.amplify)
-    json_object_set(report, "started_ms", started_ms)
-    json_object_set(report, "finished_ms", finished_ms)
-    json_object_set(report, "elapsed_ms", finished_ms - started_ms)
-    json_object_set(report, "case_count", case_count)
-    json_object_set(report, "success_count", success_count)
-    json_object_set(report, "failure_count", failure_count)
-    json_object_set(report, "cpu_feature_mask", runtime_cpu_feature_mask())
-    json_object_set(report, "cpu_feature_fingerprint", runtime_cpu_feature_fingerprint())
-    json_object_set(report, "runtime_heap_validate", runtime_heap_validate())
-    json_object_set(report, "converge_mismatch_count", converge_mismatch_count())
-    json_object_set(report, "runtime_converge_telemetry_count", runtime_converge_telemetry_count())
-    json_object_set(report, "runtime_converge_cache_probe_count", runtime_converge_cache_probe_count())
-    json_object_set(report, "runtime_converge_cache_hit_count", runtime_converge_cache_hit_count())
-    json_object_set(report, "patch_journal_count", patch_journal_count())
-    json_object_set(report, "entangle_propagation_count", entangle_propagation_count())
-    json_object_set(report, "runtime_machine_teleport_count", runtime_machine_teleport_count())
-    json_object_set(report, "runtime_machine_pulse_total_fire_count", runtime_machine_pulse_total_fire_count())
-    json_object_set(report, "actor_scheduler_queue_depth", actor_scheduler_queue_depth())
-    json_object_set(report, "actor_scheduler_max_queue_depth", actor_scheduler_max_queue_depth())
-    json_object_set(report, "actor_scheduler_total_enqueued", actor_scheduler_total_enqueued())
-    json_object_set(report, "actor_scheduler_total_dequeued", actor_scheduler_total_dequeued())
-    json_object_set(report, "actor_scheduler_worker_count", actor_scheduler_worker_count())
-    json_object_set(report, "actor_scheduler_busy_workers", actor_scheduler_busy_workers())
-    json_object_set(report, "cases", cases_json)
+fn render_summary_json(config: RouterConfig, telemetry: RouterTelemetry, started_ms: Int, finished_ms: Int, case_count: Int, success_count: Int, failure_count: Int, cases_json_items: String) -> String:
+    let content = "{\n"
+    content = content + "  \"schema_version\": " + str(ROUTER_SCHEMA_VERSION) + ",\n"
+    content = content + "  \"suite\": " + json_string_value(ROUTER_SUITE_ID) + ",\n"
+    content = content + "  \"selected\": " + json_string_value(selected_filter_text(config.filter_text)) + ",\n"
+    content = content + "  \"filter\": " + json_string_value(config.filter_text) + ",\n"
+    content = content + "  \"passes\": " + str(config.passes) + ",\n"
+    content = content + "  \"warmups\": " + str(config.warmups) + ",\n"
+    content = content + "  \"amplify\": " + str(config.amplify) + ",\n"
+    content = content + "  \"started_ms\": " + str(started_ms) + ",\n"
+    content = content + "  \"finished_ms\": " + str(finished_ms) + ",\n"
+    content = content + "  \"elapsed_ms\": " + str(finished_ms - started_ms) + ",\n"
+    content = content + "  \"case_count\": " + str(case_count) + ",\n"
+    content = content + "  \"success_count\": " + str(success_count) + ",\n"
+    content = content + "  \"failure_count\": " + str(failure_count) + ",\n"
+    content = content + "  \"track_root\": " + json_string_value(config.track_root) + ",\n"
+    content = content + "  \"telemetry\": " + render_telemetry_json(telemetry) + ",\n"
+    content = content + "  \"cases\": [\n"
+    content = content + cases_json_items + "\n"
+    content = content + "  ]\n"
+    return content + "}"
 
-    let markdown = build_markdown_report(case_count, config, started_ms, finished_ms, success_count, failure_count, table_rows, sample_lines)
+fn write_summary_reports(config: RouterConfig, telemetry: RouterTelemetry, started_ms: Int, finished_ms: Int, case_count: Int, success_count: Int, failure_count: Int, cases_json_items: String, table_rows: String) -> Int:
+    let markdown = build_markdown_report(case_count, config, telemetry, started_ms, finished_ms, success_count, failure_count, table_rows)
+    let report = render_summary_json(config, telemetry, started_ms, finished_ms, case_count, success_count, failure_count, cases_json_items)
     ensure_parent_dir(config.markdown_path)
     ensure_parent_dir(config.json_path)
     fs_atomic_write_text(config.markdown_path, markdown)
-    fs_atomic_write_text(config.json_path, json_string(report))
+    fs_atomic_write_text(config.json_path, report)
     return failure_count
 
 fn prepare_output_layout(config: RouterConfig) -> Int:
@@ -614,19 +690,17 @@ fn main() -> Int:
     let config = load_config()
     let _layout = prepare_output_layout(config)
     let started_ms = now_millis()
-    let cases_json = json_array_new()
+    let cases_json_items = ""
     let case_count = 0
     let success_count = 0
     let failure_count = 0
     let table_rows = ""
-    let sample_lines = ""
 
     if case_selected(config.filter_text, "scalar_mix", "core"):
         let result = run_case("scalar_mix", "core", "Scalar Mix", 2000000, 42986000, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -637,9 +711,8 @@ fn main() -> Int:
     if case_selected(config.filter_text, "branch_dispatch", "control"):
         let result = run_case("branch_dispatch", "control", "Branch Dispatch", 3000000, 632706747, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -650,9 +723,8 @@ fn main() -> Int:
     if case_selected(config.filter_text, "call_chain", "control"):
         let result = run_case("call_chain", "control", "Call Chain", 1500000, 61920954, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -663,9 +735,8 @@ fn main() -> Int:
     if case_selected(config.filter_text, "array_scan", "core"):
         let result = run_case("array_scan", "core", "Array Scan", 500000, 103499994, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -676,9 +747,8 @@ fn main() -> Int:
     if case_selected(config.filter_text, "option_result", "semantic"):
         let result = run_case("option_result", "semantic", "Option Result", 300000, 143207783, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -689,9 +759,8 @@ fn main() -> Int:
     if case_selected(config.filter_text, "string_ops", "stdlib"):
         let result = run_case("string_ops", "stdlib", "String Ops", 100000, 2050000, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -702,9 +771,8 @@ fn main() -> Int:
     if case_selected(config.filter_text, "alloc_churn", "memory"):
         let result = run_case("alloc_churn", "memory", "Alloc Churn", 50000, 250324993, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -715,9 +783,8 @@ fn main() -> Int:
     if case_selected(config.filter_text, "stdlib_foundations", "stdlib"):
         let result = run_case("stdlib_foundations", "stdlib", "Stdlib Foundations", 20000, 248311071, config)
         let _track = write_track_report(result)
-        json_array_push(cases_json, result_to_json(result))
+        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
-        sample_lines = sample_lines + format_sample_line(result)
         case_count = case_count + 1
         if result.success:
             success_count = success_count + 1
@@ -730,7 +797,8 @@ fn main() -> Int:
         return 3
 
     let finished_ms = now_millis()
-    let failures = write_summary_reports(config, started_ms, finished_ms, case_count, success_count, failure_count, cases_json, table_rows, sample_lines)
+    let telemetry = capture_runtime_telemetry()
+    let failures = write_summary_reports(config, telemetry, started_ms, finished_ms, case_count, success_count, failure_count, cases_json_items, table_rows)
     if failures != 0:
         return 1
     return 0

@@ -1,0 +1,4 @@
+{
+  "description": "Dedicated Kain-vs-Rust compiler build-time lane.",
+  "runner": "run_compiler.py"
+}

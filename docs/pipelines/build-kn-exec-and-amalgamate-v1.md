@@ -33,9 +33,11 @@ Current repo truth:
    evidence and artifact lanes.
 4. `smoketest/build.kn` dogfoods both surfaces:
    - `exec_task(...)` drives the telemetry, benchmark, and attrition album runners
-   - `amalgamate_capsule(...)` emits the editable smoketest capsule after `certify`
+   - `amalgamate_capsule(...)` emits a source capsule plus artifact and evidence companions after
+     `certify`
 5. The full smoketest DAG succeeded with these lanes enabled, and the emitted capsule remained
-   editable with a rich comment-preserving header.
+   editable with a rich comment-preserving header while sibling capsules carried the generated
+   outputs and telemetry.
 
 One important implementation detail: process-bound Windows paths are normalized at child-process
 boundaries. Internal graph/report paths can stay canonical, but `exec` and sibling host-runner
@@ -99,6 +101,8 @@ The stdlib surface already exposes the generic task-builder shape:
 - `.preview_symbols(...)`
 - `.api_index(...)`
 - `.module_index(...)`
+- `.contents(...)`
+- `.capsule_set(...)`
 
 That means `build.kn` is already more than a passive manifest. It is a typed graph declaration
 that can drive real adapters.
@@ -300,8 +304,21 @@ let capsule = amalgamate_capsule("smoketest-capsule")
     .output("$root/smoketest.kn")
     .name("smoketest")
     .tag("portable")
+    .contents("source")
+    .capsule_set("smoketest")
     .header("rich")
     .preview_symbols(32)
+    .depends_on("certify")
+```
+
+Companion artifact variant:
+
+```kn
+let artifacts = amalgamate_capsule("smoketest-capsule-artifacts")
+    .path("smoketest")
+    .output("$root/smoketest.artifacts.kn")
+    .contents("artifacts")
+    .capsule_set("smoketest")
     .depends_on("certify")
 ```
 
@@ -340,15 +357,23 @@ Capsule formatting:
 - `.preview_symbols(Int)`
 - `.api_index(String)`
 - `.module_index(String)`
+- `.contents(String)`
+- `.capsule_set(String)`
 
 The build graph should use the crate implementation directly, not shell out to `kain amalgamate`.
 
 ### V1 Execution Rules
 
 1. The task packages a declared file, blade root, or workspace root into one `.kn` capsule.
-2. The task emits the capsule to the declared output path.
-3. The task report records digest, capsule mode, file count, and source root.
-4. The task is cacheable because the crate already has a real content-driven model.
+2. The default `source` profile follows project authority and emits the editable source closure
+   instead of a blind directory snapshot.
+3. `assets`, `artifacts`, `evidence`, and `snapshot` profiles are available as explicit content
+   lanes.
+4. Capsules that share a `capsule_set` are automatically recomposed by `unpack`, `run`, `build`,
+   and `check` when they are present side by side.
+5. The task emits the capsule to the declared output path.
+6. The task report records digest, capsule mode, file count, and source root.
+7. The task is cacheable because the crate already has a real content-driven model.
 
 ### Why This Should Be First-Class
 

@@ -1,7 +1,7 @@
 {
   "mode": "full",
   "status": 2002,
-  "elapsed_ms": 67,
+  "elapsed_ms": 63,
   "summary_exists": 1,
   "summary_path": "D:/Kain-Lang/smoketest/telemetry/full/summary.json",
   "output_dir": "D:/Kain-Lang/smoketest/telemetry/full",
@@ -19,7 +19,7 @@
   "error_message": "",
   "stdout_len": 0,
   "stderr_len": 0,
-  "runner_checksum": 2227821,
+  "runner_checksum": 2227817,
   "probe": {
   "ok": 1,
   "python": "D:/Kain-Lang/target/debug/kain.exe",

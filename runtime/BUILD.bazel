@@ -173,6 +173,21 @@ cc_test(
     deps = [":native_core_runtime"],
 )
 
+cc_test(
+    name = "native_test_rc_pointer_provenance",
+    srcs = ["native/tests/test_rc_pointer_provenance.c"],
+    copts = platform_select(
+        windows = WINDOWS_COPTS,
+        linux = POSIX_C_COPTS,
+        macos = POSIX_C_COPTS,
+    ),
+    defines = platform_select(
+        linux = RUNTIME_TEST_LINUX_DEFINES,
+        macos = RUNTIME_TEST_LINUX_DEFINES,
+    ),
+    deps = [":native_core_runtime"],
+)
+
 test_suite(
     name = "native_runtime_tests",
     tests = [
@@ -185,5 +200,6 @@ test_suite(
         ":native_test_machine_stones",
         ":native_test_map_lookup",
         ":native_test_platform_library",
+        ":native_test_rc_pointer_provenance",
     ],
 )

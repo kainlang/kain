@@ -22,6 +22,7 @@ Primary orchestration now lives in `benchmark/bench.py`, but wrappers remain use
 ## Current Wrappers
 
 - `fast`: reduced language sweep with `latest_fast` report stem.
+- `compiler`: dedicated Kain-vs-Rust compiler build-time lane.
 - `sim`: simulation suite manifest preset.
 - `gpu`: dedicated GPU lane runner.
 
@@ -29,6 +30,7 @@ Primary orchestration now lives in `benchmark/bench.py`, but wrappers remain use
 
 ```powershell
 python benchmark/run_wrapper.py --list
+python benchmark/run_wrapper.py compiler --case single_file_small --runs 1 --warmups 0
 python benchmark/run_wrapper.py fast
 python benchmark/run_wrapper.py sim --runs 3 --warmups 1
 python benchmark/run_wrapper.py gpu --case semantic_ping_pong --languages kain,cpp

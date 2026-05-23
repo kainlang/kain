@@ -304,5 +304,6 @@ void rc_retain(void* ptr);
 void rc_weak_retain(void* ptr);
 void rc_release(void* ptr);
 void rc_weak_release(void* ptr);
+int kain_rc_is_tracked_pointer(const void* ptr);
 
 #endif

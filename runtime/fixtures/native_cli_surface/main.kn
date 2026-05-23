@@ -1,0 +1,62 @@
+fn cli_entries_contain(entries: Array<String>, target: String) -> Bool:
+    var index = 0
+    while index < len(entries):
+        if entries[index] == target:
+            return true
+        index = index + 1
+    return false
+
+fn main() -> Int:
+    let argv = args()
+    if len(argv) != 4:
+        return 1
+    if argv[1] != "alpha":
+        return 2
+    if argv[2] != "beta":
+        return 3
+    if argv[3] != "gamma":
+        return 4
+
+    let root = cwd()
+    if len(root) == 0:
+        return 5
+
+    let probe_file = path_join(root, "main.kn")
+    if path_parent(probe_file) != root:
+        return 6
+    if path_file_name(probe_file) != "main.kn":
+        return 7
+    if path_extension(probe_file) != "kn":
+        return 8
+    if path_stem(probe_file) != "main":
+        return 9
+    if path_is_file(probe_file) == false:
+        return 10
+    if path_is_dir(root) == false:
+        return 11
+
+    let entries = read_dir(root)
+    if len(entries) < 2:
+        return 12
+    if cli_entries_contain(entries, probe_file) == false:
+        return 13
+    if cli_entries_contain(entries, path_join(root, "README.md")) == false:
+        return 14
+
+    let nested = path_join(path_join(root, "generated"), "cli-surface")
+    create_dir_all(nested)
+    let source = path_join(nested, "alpha.txt")
+    let clone = path_join(nested, "beta.txt")
+    write_file(source, "probe-text")
+    copy_file(source, clone)
+    if path_is_file(clone) == false:
+        return 15
+    if read_file(clone) != "probe-text":
+        return 16
+    remove_file(clone)
+    if path_is_file(clone):
+        return 17
+
+    stdout_write("cli-surface-stdout\n")
+    stderr_write("cli-surface-stderr\n")
+    return 0

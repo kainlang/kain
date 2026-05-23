@@ -7,6 +7,24 @@ fn abi_process_reset() -> Int
 fn abi_process_platform_available() -> Int
 
 @extern
+fn abi_process_arg_count() -> Int
+
+@extern
+fn abi_process_arg(index: Int) -> String
+
+@extern
+fn abi_process_current_working_directory() -> String
+
+@extern
+fn abi_process_environment(key: String) -> String
+
+@extern
+fn abi_process_current_executable_path() -> String
+
+@extern
+fn abi_process_current_id() -> Int
+
+@extern
 fn abi_process_spec_create(executable: String) -> Int
 
 @extern
@@ -149,6 +167,33 @@ pub fn process_reset() -> Int:
 
 pub fn process_platform_available() -> Int:
     return abi_process_platform_available()
+
+pub fn process_args() -> Array<String>:
+    let count = abi_process_arg_count()
+    let values = []
+    var index = 0
+    while index < count:
+        push(values, abi_process_arg(index))
+        index = index + 1
+    return values
+
+pub fn process_arg_count() -> Int:
+    return abi_process_arg_count()
+
+pub fn process_arg(index: Int) -> String:
+    return abi_process_arg(index)
+
+pub fn process_current_working_directory() -> String:
+    return abi_process_current_working_directory()
+
+pub fn process_environment(key: String) -> String:
+    return abi_process_environment(key)
+
+pub fn process_current_executable_path() -> String:
+    return abi_process_current_executable_path()
+
+pub fn process_current_id() -> Int:
+    return abi_process_current_id()
 
 pub fn process_spec_create(executable: String) -> Int:
     return abi_process_spec_create(executable)

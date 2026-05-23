@@ -136,3 +136,29 @@
 - Minimal repro: Author a file with `@thread_local @section(".tls.kain.smoke") const TLS_COUNTER: Int = 7` and a `main()` that returns `TLS_COUNTER + 9`, then run `kain run <file> --target llvm` on Windows; the observed result comes back as zero-bias behavior instead of the expected initialized value.
 - Evidence: `smoketest/.kain/cache/run/abi_control_probe.ll` contained `@__kain_smoke_tls_counter = thread_local global i64 7, section ".tls.kain.smoke"`, but the executable from `./target/debug/kain.exe run smoketest/src/systems/abi_control_probe.kn --target llvm` exited with `16`, implying the TLS read observed `0` while the plain `@thread_local` + separate sectioned const probe exited with `5007023`.
 - Suggested direction: Keep the COFF TLS normalization rule documented and covered by both LLVM IR regression tests and full smoketest runtime coverage so future ABI/section-control work does not regress back into zero-reading custom TLS storage.
+
+---
+
+## 2026-05-23 - native CLI authoring / LLVM executable lane
+### Native LLVM executables do not currently offer a trustworthy argv surface for authored Kain CLIs
+- Categories: correctness, developer-experience, tooling, lowering
+- Status: Patched
+- Surface: lowering
+- Symptom: authoring a grep-like native CLI exposed that the normal `args()` path was not trustworthy in the LLVM executable lane, forcing the blade to fall back to wrapper-written temp files just to try to pass CLI arguments.
+- Workflow impact: This blocked the last mile of `blades/kg`: the blade compiled, built `kg.exe`, and the actor/file-search logic was in place, but the actual command-line UX could not be trusted. That turns a would-be first-class Kain CLI into a launcher hack and makes native tool authoring feel unfinished.
+- Minimal repro: author a small `main() -> Int` entrypoint that reads `args()` and run `kain run <file> --target llvm -- hello`; compare that with interpreter-mode behavior where `args()` is explicitly defined in `crates/kain-core/src/runtime.rs`.
+- Evidence: during `blades/kg` bring-up on 2026-05-23, direct `args()` usage had to be removed after the native path behaved as if argv ingress was missing; a PowerShell wrapper then wrote `kg.args` beside `kg.exe`, and even that workaround became part of the debugging path instead of normal CLI forwarding.
+- Suggested direction: make argv a first-class native-runtime contract for LLVM/direct-C executables, cover it with a tiny authored CLI smoke test, and document whether `args()` is guaranteed across interpreter, `kain run --target llvm`, and `native_executable` blade outputs.
+
+---
+
+## 2026-05-23 - actor ask / LLVM native authoring
+### `ask(...)->String` actor replies can materialize as integer-looking output in LLVM/native runs
+- Categories: correctness, developer-experience, lowering, runtime
+- Status: Bypass-Applied
+- Surface: lowering
+- Symptom: an authored actor reply that should carry a `String` can arrive at the caller as a large integer-looking value instead of the text payload.
+- Workflow impact: `blades/kg` initially searched correctly but printed nonsense like `1459838791848` in place of matching lines when `main()` asked worker actors for their accumulated output strings. The blade had to switch to actor-local `Flush` messages and reserve `ask(...)` for integer telemetry only.
+- Minimal repro: author an actor with `state text: String = "hello"` and an `Output` handler that replies with `self.text`, then `print(ask(worker, "Output", 0))` under `kain run <file> --target llvm`.
+- Evidence: before the `Flush` reroute, `D:\Kain-Lang\kg.exe 'kg_parse_config' 'D:\Kain-Lang\blades\kg\src\main.kn' --line-number` produced a bare integer-like payload instead of the two matching source lines; after removing the `String` ask-reply path, the same command printed the expected lines.
+- Suggested direction: track actor reply payload types for `String` the same way runtime-array/string element typing is now tracked in LLVM lowering, and add a native fixture that asks an actor for exact string output.

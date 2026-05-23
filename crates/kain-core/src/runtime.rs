@@ -2689,6 +2689,27 @@ impl Env {
             Ok(Value::Unit)
         });
 
+        self.define_native("stderr_write", |_env, args| {
+            use std::io::{self, Write};
+            if args.len() != 1 {
+                return Err(KainError::runtime(
+                    "stderr_write: expected 1 argument (string)",
+                ));
+            }
+            let text = match &args[0] {
+                Value::String(text) => text,
+                _ => return Err(KainError::runtime("stderr_write: argument must be string")),
+            };
+            let mut stderr = io::stderr().lock();
+            stderr
+                .write_all(text.as_bytes())
+                .map_err(|err| KainError::runtime(format!("stderr_write failed: {}", err)))?;
+            stderr
+                .flush()
+                .map_err(|err| KainError::runtime(format!("stderr_write flush failed: {}", err)))?;
+            Ok(Value::Unit)
+        });
+
         self.define_native("stdin_read_exact", |_env, args| {
             if args.len() != 1 {
                 return Err(KainError::runtime(

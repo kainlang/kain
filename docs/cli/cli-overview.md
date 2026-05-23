@@ -88,9 +88,10 @@ Use `kain amalgamate` when you want to pack a file, blade, or workspace into a
 portable single-file Kain capsule. `kain amalgamate inspect` and
 `kain amalgamate unpack` are the operator-facing inspection and extraction
 paths, while `kain run`, `kain build`, and `kain check` can auto-detect capsule
-`.kn` inputs and materialize them transparently. The default capsule is
-editable and keeps text files inline; `--archive` switches to the sealed
-compressed transport form.
+`.kn` inputs and materialize them transparently. The default capsule is an
+editable source-first capsule; optional `assets`, `artifacts`, and `evidence`
+companions can travel alongside it through a shared capsule-set. `--archive`
+switches any of those profiles to the sealed compressed transport form.
 
 Use `kain import crates [path]` when you want to import a Rust workspace-scale
 crate tree. It auto-detects `crates/`, `rust/`, or `src/rust/` under the chosen

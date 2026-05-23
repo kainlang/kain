@@ -1780,6 +1780,10 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
     );
     env.define_global(
+        "stderr_write".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+    );
+    env.define_global(
         "stdin_read_exact".into(),
         builtin_function_type(vec![ResolvedType::Int(IntSize::I64)], ResolvedType::String),
     );
@@ -2198,6 +2202,10 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
     env.define_global(
         "cwd".into(),
         builtin_function_type(vec![], ResolvedType::String),
+    );
+    env.define_global(
+        "args".into(),
+        builtin_function_type(vec![], dynamic_array_type(ResolvedType::String)),
     );
     env.define_global(
         "command_run".into(),

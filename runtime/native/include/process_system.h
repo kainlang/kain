@@ -35,6 +35,12 @@ typedef enum KainNativeProcessStatus {
 typedef struct KainNativeProcessFunctionTable {
     int64_t (*reset)(void);
     int64_t (*platform_available)(void);
+    int64_t (*arg_count)(void);
+    const char* (*arg)(int64_t index);
+    const char* (*current_working_directory)(void);
+    const char* (*environment)(const char* key);
+    const char* (*current_executable_path)(void);
+    int64_t (*current_id)(void);
     int64_t (*spec_create)(const char* executable);
     int64_t (*spec_destroy)(int64_t spec_id);
     int64_t (*spec_count)(void);
@@ -90,6 +96,12 @@ extern const KainNativeProcessFunctionTable g_kain_native_process_function_table
 
 int64_t abi_process_reset(void);
 int64_t abi_process_platform_available(void);
+int64_t abi_process_arg_count(void);
+const char* abi_process_arg(int64_t index);
+const char* abi_process_current_working_directory(void);
+const char* abi_process_environment(const char* key);
+const char* abi_process_current_executable_path(void);
+int64_t abi_process_current_id(void);
 
 int64_t abi_process_spec_create(const char* executable);
 int64_t abi_process_spec_destroy(int64_t spec_id);

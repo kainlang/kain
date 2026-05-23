@@ -1,6 +1,28 @@
+use std::process
+
 fn main() -> Int:
     let _runtime = native_runtime_init()
     let _reset = process_reset()
+
+    let self_args = process_args()
+    if len(self_args) < 3:
+        return 9
+    if process_arg_count() != len(self_args):
+        return 10
+    if self_args[1] != "alpha":
+        return 11
+    if self_args[2] != "beta":
+        return 12
+    if process_arg(0) == "":
+        return 13
+    if process_current_id() <= 0:
+        return 14
+    if len(process_current_working_directory()) == 0:
+        return 15
+    if len(process_current_executable_path()) == 0:
+        return 16
+    if process_environment("KAIN_PROCESS_SELF") != "author-self":
+        return 17
 
     if process_platform_available() != 1:
         let _shutdown_unavailable = native_runtime_shutdown()
@@ -50,7 +72,7 @@ fn main() -> Int:
     let _interactive_boot = native_sleep_millis(100)
     let _interactive_resize = process_pty_resize(interactive_pty_child, 120, 40)
     if process_pty_write_text(interactive_pty_child, "exit\r\n") <= 0:
-        return 8
+        return 18
     let _interactive_kill = process_kill(interactive_pty_child)
 
     let _shutdown = native_runtime_shutdown()

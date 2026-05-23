@@ -31,9 +31,9 @@ echo "Running native process runtime tests"
 run_with_timeout "$COMPILE_TIMEOUT_SEC" "process runtime compilation" bash "$SCRIPT_DIR/compile_tests.sh"
 
 if [[ $VERBOSE -eq 1 ]]; then
-    run_with_timeout "$TEST_TIMEOUT_SEC" "native process system kernel" "$SCRIPT_DIR/bin/native_process_system_kernel.exe"
+    run_with_timeout "$TEST_TIMEOUT_SEC" "native process system kernel" env KAIN_PROCESS_SELF=alpha-self "$SCRIPT_DIR/bin/native_process_system_kernel.exe" alpha beta
 else
-    run_with_timeout "$TEST_TIMEOUT_SEC" "native process system kernel" "$SCRIPT_DIR/bin/native_process_system_kernel.exe" > /dev/null 2>&1
+    run_with_timeout "$TEST_TIMEOUT_SEC" "native process system kernel" env KAIN_PROCESS_SELF=alpha-self "$SCRIPT_DIR/bin/native_process_system_kernel.exe" alpha beta > /dev/null 2>&1
 fi
 
 echo "[PASS] native process system kernel"

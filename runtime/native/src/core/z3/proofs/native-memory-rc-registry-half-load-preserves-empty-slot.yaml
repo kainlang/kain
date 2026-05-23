@@ -1,0 +1,28 @@
+version: 1
+id: kain.native.core.proofs.native_memory_rc_registry_half_load_preserves_empty_slot
+kind: check_smt2
+description: When the RC provenance registry rebuilds until occupied slots are below half the table, at least one empty slot remains for open-addressed probe termination.
+tags:
+- native-runtime
+- memory
+- rc
+- registry
+- probing
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\core.c
+  symbol: kain_rc_registry_capacity_for_occupied
+  start_line: 79
+  reason: the growth rule stops only when occupied slots are strictly below capacity/2, which guarantees a sentinel empty slot remains
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const capacity Int)
+    (declare-const occupied Int)
+    (define-fun empty_slots () Int (- capacity occupied))
+    (assert (>= capacity 1024))
+    (assert (>= occupied 0))
+    (assert (< occupied (div capacity 2)))
+    (assert (<= empty_slots 0))
+    (check-sat)
+  include_model: false
+  include_stats: false

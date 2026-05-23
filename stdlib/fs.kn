@@ -80,6 +80,18 @@ fn abi_fs_hash_file(path: String) -> String
 fn abi_fs_path_join(base: String, child: String) -> String
 
 @extern
+fn abi_fs_path_parent(path: String) -> String
+
+@extern
+fn abi_fs_path_file_name(path: String) -> String
+
+@extern
+fn abi_fs_path_extension(path: String) -> String
+
+@extern
+fn abi_fs_path_stem(path: String) -> String
+
+@extern
 fn abi_fs_last_status() -> Int
 
 @extern
@@ -168,6 +180,18 @@ pub fn fs_hash_file(path: String) -> String:
 
 pub fn fs_path_join(base: String, child: String) -> String:
     return abi_fs_path_join(base, child)
+
+pub fn fs_path_parent(path: String) -> String:
+    return abi_fs_path_parent(path)
+
+pub fn fs_path_file_name(path: String) -> String:
+    return abi_fs_path_file_name(path)
+
+pub fn fs_path_extension(path: String) -> String:
+    return abi_fs_path_extension(path)
+
+pub fn fs_path_stem(path: String) -> String:
+    return abi_fs_path_stem(path)
 
 # root-domain aliases: generated public std names
 pub fn fs_last_status() -> Int:

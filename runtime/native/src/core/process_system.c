@@ -12,9 +12,14 @@
 #include <string.h>
 
 #ifdef _WIN32
+#include <shellapi.h>
 #include <wchar.h>
 #else
 #include <strings.h>
+#if defined(__APPLE__)
+#include <crt_externs.h>
+#include <mach-o/dyld.h>
+#endif
 #endif
 
 void* kain_alloc_rc(size_t size, long long type_tag);
@@ -194,6 +199,315 @@ static const char* abi_process_string_from_bytes(const unsigned char* bytes, siz
     output[length] = '\0';
     kain_rc_set_string_length(output, kain_bounded_text_length((const char*)bytes, length));
     return output;
+}
+
+#ifdef _WIN32
+static const char* abi_process_string_from_wide(const wchar_t* text) {
+    char* utf8 = NULL;
+    int utf8_bytes;
+    int converted;
+    const char* result;
+    if (text == NULL || text[0] == L'\0') {
+        return string_new("");
+    }
+    utf8_bytes = WideCharToMultiByte(CP_UTF8, 0, text, -1, NULL, 0, NULL, NULL);
+    if (utf8_bytes <= 1) {
+        return string_new("");
+    }
+    utf8 = (char*)malloc((size_t)utf8_bytes);
+    if (utf8 == NULL) {
+        return string_new("");
+    }
+    converted = WideCharToMultiByte(CP_UTF8, 0, text, -1, utf8, utf8_bytes, NULL, NULL);
+    if (converted <= 0) {
+        free(utf8);
+        return string_new("");
+    }
+    result = abi_process_string(utf8);
+    free(utf8);
+    return result;
+}
+#endif
+
+static const char* abi_process_environment_lookup(const char* key) {
+    if (abi_process_text_empty(key)) {
+        return string_new("");
+    }
+#ifdef _WIN32
+    {
+        char* value = NULL;
+        size_t length = 0u;
+        if (_dupenv_s(&value, &length, key) != 0 || value == NULL) {
+            free(value);
+            return string_new("");
+        }
+        if (value[0] == '\0') {
+            free(value);
+            return string_new("");
+        }
+        {
+            const char* result = abi_process_string(value);
+            free(value);
+            return result;
+        }
+    }
+#else
+    {
+        const char* value = getenv(key);
+        if (value == NULL || value[0] == '\0') {
+            return string_new("");
+        }
+        return abi_process_string(value);
+    }
+#endif
+}
+
+static const char* abi_process_current_working_directory_lookup(void) {
+#ifdef _WIN32
+    DWORD needed = GetCurrentDirectoryW(0u, NULL);
+    wchar_t* buffer = NULL;
+    const char* result;
+    if (needed == 0u) {
+        return string_new("");
+    }
+    buffer = (wchar_t*)malloc((size_t)needed * sizeof(wchar_t));
+    if (buffer == NULL) {
+        return string_new("");
+    }
+    if (GetCurrentDirectoryW(needed, buffer) == 0u) {
+        free(buffer);
+        return string_new("");
+    }
+    result = abi_process_string_from_wide(buffer);
+    free(buffer);
+    return result;
+#else
+    size_t capacity = 256u;
+    char* buffer = NULL;
+    while (capacity <= (size_t)(1024u * 1024u)) {
+        char* grown = (char*)realloc(buffer, capacity);
+        if (grown == NULL) {
+            free(buffer);
+            return string_new("");
+        }
+        buffer = grown;
+        if (getcwd(buffer, capacity) != NULL) {
+            const char* result = abi_process_string(buffer);
+            free(buffer);
+            return result;
+        }
+        if (errno != ERANGE) {
+            free(buffer);
+            return string_new("");
+        }
+        capacity <<= 1u;
+    }
+    free(buffer);
+    return string_new("");
+#endif
+}
+
+static const char* abi_process_current_executable_path_lookup(void) {
+#ifdef _WIN32
+    DWORD capacity = 256u;
+    wchar_t* buffer = NULL;
+    while (capacity <= 32768u) {
+        DWORD length;
+        wchar_t* grown = (wchar_t*)realloc(buffer, (size_t)capacity * sizeof(wchar_t));
+        if (grown == NULL) {
+            free(buffer);
+            return string_new("");
+        }
+        buffer = grown;
+        length = GetModuleFileNameW(NULL, buffer, capacity);
+        if (length == 0u) {
+            free(buffer);
+            return string_new("");
+        }
+        if (length < capacity - 1u) {
+            const char* result = abi_process_string_from_wide(buffer);
+            free(buffer);
+            return result;
+        }
+        capacity <<= 1u;
+    }
+    free(buffer);
+    return string_new("");
+#elif defined(__APPLE__)
+    uint32_t capacity = 0u;
+    char* buffer = NULL;
+    if (_NSGetExecutablePath(NULL, &capacity) != -1 || capacity == 0u) {
+        return string_new("");
+    }
+    buffer = (char*)malloc((size_t)capacity);
+    if (buffer == NULL) {
+        return string_new("");
+    }
+    if (_NSGetExecutablePath(buffer, &capacity) != 0) {
+        free(buffer);
+        return string_new("");
+    }
+    {
+        const char* result = abi_process_string(buffer);
+        free(buffer);
+        return result;
+    }
+#else
+    size_t capacity = 256u;
+    char* buffer = NULL;
+    while (capacity <= (size_t)(1024u * 1024u)) {
+        ssize_t length;
+        char* grown = (char*)realloc(buffer, capacity);
+        if (grown == NULL) {
+            free(buffer);
+            return string_new("");
+        }
+        buffer = grown;
+        length = readlink("/proc/self/exe", buffer, capacity - 1u);
+        if (length < 0) {
+            free(buffer);
+            return string_new("");
+        }
+        if ((size_t)length < capacity - 1u) {
+            buffer[length] = '\0';
+            {
+                const char* result = abi_process_string(buffer);
+                free(buffer);
+                return result;
+            }
+        }
+        capacity <<= 1u;
+    }
+    free(buffer);
+    return string_new("");
+#endif
+}
+
+static int64_t abi_process_current_id_lookup(void) {
+#ifdef _WIN32
+    return (int64_t)GetCurrentProcessId();
+#else
+    return (int64_t)getpid();
+#endif
+}
+
+static int64_t abi_process_arg_count_lookup(void) {
+#ifdef _WIN32
+    int argc = 0;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (argv == NULL) {
+        return 0;
+    }
+    LocalFree(argv);
+    return argc > 0 ? (int64_t)argc : 0;
+#elif defined(__APPLE__)
+    int* argc_ref = _NSGetArgc();
+    if (argc_ref == NULL || *argc_ref <= 0) {
+        return 0;
+    }
+    return (int64_t)(*argc_ref);
+#else
+    FILE* file = fopen("/proc/self/cmdline", "rb");
+    unsigned char chunk[4096];
+    int64_t count = 0;
+    if (file == NULL) {
+        return 0;
+    }
+    while (!feof(file)) {
+        size_t read_count = fread(chunk, 1u, sizeof(chunk), file);
+        size_t index;
+        if (read_count == 0u) {
+            break;
+        }
+        for (index = 0u; index < read_count; ++index) {
+            if (chunk[index] == '\0') {
+                count += 1;
+            }
+        }
+    }
+    fclose(file);
+    return count;
+#endif
+}
+
+static const char* abi_process_arg_lookup(int64_t index) {
+    if (index < 0) {
+        return string_new("");
+    }
+#ifdef _WIN32
+    int argc = 0;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    const char* result;
+    if (argv == NULL) {
+        return string_new("");
+    }
+    if (index >= (int64_t)argc) {
+        LocalFree(argv);
+        return string_new("");
+    }
+    result = abi_process_string_from_wide(argv[index]);
+    LocalFree(argv);
+    return result;
+#elif defined(__APPLE__)
+    int* argc_ref = _NSGetArgc();
+    char*** argv_ref = _NSGetArgv();
+    if (argc_ref == NULL || argv_ref == NULL || *argv_ref == NULL) {
+        return string_new("");
+    }
+    if (index >= (int64_t)(*argc_ref)) {
+        return string_new("");
+    }
+    return abi_process_string((*argv_ref)[index] ? (*argv_ref)[index] : "");
+#else
+    FILE* file = fopen("/proc/self/cmdline", "rb");
+    unsigned char chunk[4096];
+    unsigned char* value = NULL;
+    size_t value_length = 0u;
+    size_t value_capacity = 0u;
+    int64_t current_index = 0;
+    if (file == NULL) {
+        return string_new("");
+    }
+    while (!feof(file)) {
+        size_t read_count = fread(chunk, 1u, sizeof(chunk), file);
+        size_t chunk_index;
+        if (read_count == 0u) {
+            break;
+        }
+        for (chunk_index = 0u; chunk_index < read_count; ++chunk_index) {
+            unsigned char byte = chunk[chunk_index];
+            if (byte == '\0') {
+                if (current_index == index) {
+                    const char* result = abi_process_string_from_bytes(value, value_length);
+                    free(value);
+                    fclose(file);
+                    return result;
+                }
+                current_index += 1;
+                value_length = 0u;
+                continue;
+            }
+            if (current_index == index) {
+                if (value_length >= value_capacity) {
+                    size_t next_capacity = value_capacity == 0u ? 64u : value_capacity << 1u;
+                    unsigned char* grown = (unsigned char*)realloc(value, next_capacity);
+                    if (grown == NULL) {
+                        free(value);
+                        fclose(file);
+                        return string_new("");
+                    }
+                    value = grown;
+                    value_capacity = next_capacity;
+                }
+                value[value_length] = byte;
+                value_length += 1u;
+            }
+        }
+    }
+    free(value);
+    fclose(file);
+    return string_new("");
+#endif
 }
 
 static int64_t abi_process_ok(void) {
@@ -2172,6 +2486,36 @@ int64_t abi_process_platform_available(void) {
 #endif
 }
 
+int64_t abi_process_arg_count(void) {
+    abi_process_ok();
+    return abi_process_arg_count_lookup();
+}
+
+const char* abi_process_arg(int64_t index) {
+    abi_process_ok();
+    return abi_process_arg_lookup(index);
+}
+
+const char* abi_process_current_working_directory(void) {
+    abi_process_ok();
+    return abi_process_current_working_directory_lookup();
+}
+
+const char* abi_process_environment(const char* key) {
+    abi_process_ok();
+    return abi_process_environment_lookup(key);
+}
+
+const char* abi_process_current_executable_path(void) {
+    abi_process_ok();
+    return abi_process_current_executable_path_lookup();
+}
+
+int64_t abi_process_current_id(void) {
+    abi_process_ok();
+    return abi_process_current_id_lookup();
+}
+
 int64_t abi_process_spec_create(const char* executable) {
     KainNativeProcessSpec* spec = 0;
     uint32_t slot;
@@ -3488,6 +3832,12 @@ const char* abi_process_last_error_message(void) {
 const KainNativeProcessFunctionTable g_kain_native_process_function_table = {
     abi_process_reset,
     abi_process_platform_available,
+    abi_process_arg_count,
+    abi_process_arg,
+    abi_process_current_working_directory,
+    abi_process_environment,
+    abi_process_current_executable_path,
+    abi_process_current_id,
     abi_process_spec_create,
     abi_process_spec_destroy,
     abi_process_spec_count,

@@ -32,8 +32,10 @@ kn test smoketest\kain-test
 `kain check` discovers `.kn` and `.ks` files and runs the normal Kain frontend
 for the selected target without emitting backend artifacts. If the input is a
 capsule `.kn` file created by `kain amalgamate`, the CLI materializes it under
-`.kain/cache/amalgamate/<digest>/workspace` first and then checks the extracted
-entry or workspace tree.
+`.kain/cache/amalgamate/<state-hash>/workspace` first and then checks the
+extracted entry or workspace tree. If sibling companion capsules with the same
+capsule-set are present next to the primary capsule, they are merged into that
+materialized workspace automatically before checking.
 
 The check report records:
 

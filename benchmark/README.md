@@ -10,6 +10,7 @@ This folder now uses a strict split between source, catalog, runners, and genera
   - `suites.json`: named suite definitions and defaults.
   - `retention.json`: cleanup policy profiles.
 - `benchmark/cases/`: multi-language main-suite source cases.
+- `benchmark/compiler/`: dedicated Kain-vs-Rust compile-time lane with generated workloads and separate history.
 - `benchmark/runners/`: runner ownership namespace (current and future extracted modules).
 - `benchmark/lanes/gpu/`: dedicated GPU/SPIR-V lane.
 - `benchmark/lanes/wasm/`: dedicated WASM parity lane.
@@ -25,6 +26,7 @@ python benchmark/bench.py run
 python benchmark/bench.py run --tag semantic
 python benchmark/bench.py run --suite smoke
 python benchmark/bench.py suite full
+python benchmark/bench.py suite compiler
 python benchmark/bench.py suite gpu -- --case semantic_ping_pong --languages kain,cpp
 python benchmark/bench.py report --stem latest
 python benchmark/bench.py compare
@@ -49,6 +51,7 @@ These commands still work and forward into the reorganized structure:
 ```powershell
 python benchmark/run.py
 python benchmark/run_fast.py
+python benchmark/run_compiler.py
 python benchmark/run_sim.py
 python benchmark/run_gpu.py
 python benchmark/run_spirv.py

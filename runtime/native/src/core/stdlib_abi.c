@@ -3227,6 +3227,121 @@ const char* abi_fs_path_join(const char* base, const char* child) {
     return string_new(joined);
 }
 
+static size_t abi_fs_path_trimmed_end(const char* path, size_t root_span) {
+    size_t end;
+    if (path == 0) {
+        return 0u;
+    }
+    end = strlen(path);
+    while (end > root_span && abi_fs_is_separator(path[end - 1u])) {
+        end -= 1u;
+    }
+    return end;
+}
+
+const char* abi_fs_path_parent(const char* path) {
+    size_t root_span;
+    size_t end;
+    size_t separator;
+    if (path == 0 || path[0] == '\0') {
+        return string_new("");
+    }
+    root_span = abi_fs_creation_root_span(path);
+    end = abi_fs_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    separator = end;
+    while (separator > root_span && !abi_fs_is_separator(path[separator - 1u])) {
+        separator -= 1u;
+    }
+    if (separator <= root_span) {
+        if (root_span > 0u) {
+            return abi_fs_string_with_len(path, root_span);
+        }
+        return string_new("");
+    }
+    while (separator > root_span && abi_fs_is_separator(path[separator - 1u])) {
+        separator -= 1u;
+    }
+    return abi_fs_string_with_len(path, separator);
+}
+
+const char* abi_fs_path_file_name(const char* path) {
+    size_t root_span;
+    size_t end;
+    size_t start;
+    if (path == 0 || path[0] == '\0') {
+        return string_new("");
+    }
+    root_span = abi_fs_creation_root_span(path);
+    end = abi_fs_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    start = end;
+    while (start > root_span && !abi_fs_is_separator(path[start - 1u])) {
+        start -= 1u;
+    }
+    return abi_fs_string_with_len(path + start, end - start);
+}
+
+const char* abi_fs_path_extension(const char* path) {
+    size_t root_span;
+    size_t end;
+    size_t start;
+    size_t index;
+    if (path == 0 || path[0] == '\0') {
+        return string_new("");
+    }
+    root_span = abi_fs_creation_root_span(path);
+    end = abi_fs_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    start = end;
+    while (start > root_span && !abi_fs_is_separator(path[start - 1u])) {
+        start -= 1u;
+    }
+    for (index = end; index > start; --index) {
+        if (path[index - 1u] == '.') {
+            if ((index - 1u) == start) {
+                return string_new("");
+            }
+            return abi_fs_string_with_len(path + index, end - index);
+        }
+    }
+    return string_new("");
+}
+
+const char* abi_fs_path_stem(const char* path) {
+    size_t root_span;
+    size_t end;
+    size_t start;
+    size_t index;
+    if (path == 0 || path[0] == '\0') {
+        return string_new("");
+    }
+    root_span = abi_fs_creation_root_span(path);
+    end = abi_fs_path_trimmed_end(path, root_span);
+    if (end <= root_span) {
+        return string_new("");
+    }
+    start = end;
+    while (start > root_span && !abi_fs_is_separator(path[start - 1u])) {
+        start -= 1u;
+    }
+    for (index = end; index > start; --index) {
+        if (path[index - 1u] == '.') {
+            if ((index - 1u) == start) {
+                return abi_fs_string_with_len(path + start, end - start);
+            }
+            return abi_fs_string_with_len(path + start, (index - 1u) - start);
+        }
+    }
+    return abi_fs_string_with_len(path + start, end - start);
+}
+
 int64_t abi_fs_last_status(void) {
     return g_kain_native_fs_last_status;
 }

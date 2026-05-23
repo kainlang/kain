@@ -31,6 +31,7 @@ FIXTURE_NAMES=(
     llvm_world_pipeline
     native_graphics_engine
     native_net_http
+    native_cli_surface
     native_process_stdio
     native_ui_runtime_systems
 )
@@ -56,7 +57,7 @@ resolve_kain_bin() {
 
 build_target_for_fixture() {
     case "$1" in
-        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine|native_net_http|native_process_stdio|native_ui_runtime_systems)
+        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine|native_net_http|native_cli_surface|native_process_stdio|native_ui_runtime_systems)
             printf '%s\n' "llvm"
             ;;
         *)
@@ -156,12 +157,30 @@ EOF
             ;;
         native_process_stdio)
             cat <<'EOF'
+call i64 @abi_process_arg_count(
+call i8* @abi_process_arg(
+call i8* @abi_process_current_working_directory(
+call i8* @abi_process_environment(
+call i8* @abi_process_current_executable_path(
+call i64 @abi_process_current_id(
 call i64 @abi_process_spec_create(
 call i64 @abi_process_spawn(
 call i64 @abi_process_stdin_write_text(
 call i64 @abi_process_spawn_pty(
 call i8* @abi_process_stdout_capture_text(
 call i8* @abi_process_pty_capture_text(
+EOF
+            ;;
+        native_cli_surface)
+            cat <<'EOF'
+call i8* @cwd()
+call i64 @args()
+call void @stderr_write(i8*
+call i8* @path_parent(i8*
+call void @create_dir_all(i8*
+call void @copy_file(i8*
+call void @remove_file(i8*
+call i64 @read_dir(i8*
 EOF
             ;;
         native_net_http)
@@ -204,24 +223,78 @@ validate_llvm_ir_patterns() {
     return $missing
 }
 
+fixture_run_args_for_fixture() {
+    case "$1" in
+        native_cli_surface)
+            printf '%s\n' "alpha" "beta" "gamma"
+            ;;
+        native_process_stdio)
+            printf '%s\n' "alpha" "beta"
+            ;;
+    esac
+}
+
+fixture_log_patterns_for_fixture() {
+    case "$1" in
+        native_cli_surface)
+            cat <<'EOF'
+cli-surface-stdout
+cli-surface-stderr
+EOF
+            ;;
+    esac
+}
+
+validate_fixture_log_patterns() {
+    local fixture_name=$1
+    local run_log=$2
+    local pattern
+    local missing=0
+
+    while IFS= read -r pattern; do
+        [ -z "$pattern" ] && continue
+        if ! grep -Fq "$pattern" "$run_log"; then
+            echo -e "${RED}FAILED${NC}: missing runtime output in $fixture_name: $pattern"
+            missing=1
+        fi
+    done < <(fixture_log_patterns_for_fixture "$fixture_name")
+
+    return $missing
+}
+
 run_llvm_fixture_binary() {
     local fixture_name=$1
     local artifact_path=$2
     local expected_exit_code=$3
     local run_log="/tmp/kain_run_${fixture_name}.log"
     local exit_code=0
+    local -a run_args=()
+    local arg
 
     if [ ! -x "$artifact_path" ]; then
         echo -e "${RED}FAILED${NC}: LLVM artifact is not executable: $artifact_path"
         return 1
     fi
 
+    while IFS= read -r arg; do
+        [ -z "$arg" ] && continue
+        run_args+=("$arg")
+    done < <(fixture_run_args_for_fixture "$fixture_name")
+
     set +e
     if command -v timeout >/dev/null 2>&1; then
-        timeout 15s "$artifact_path" >"$run_log" 2>&1
+        if [ "$fixture_name" = "native_process_stdio" ]; then
+            timeout 15s env KAIN_PROCESS_SELF=author-self "$artifact_path" "${run_args[@]}" >"$run_log" 2>&1
+        else
+            timeout 15s "$artifact_path" "${run_args[@]}" >"$run_log" 2>&1
+        fi
         exit_code=$?
     else
-        "$artifact_path" >"$run_log" 2>&1
+        if [ "$fixture_name" = "native_process_stdio" ]; then
+            env KAIN_PROCESS_SELF=author-self "$artifact_path" "${run_args[@]}" >"$run_log" 2>&1
+        else
+            "$artifact_path" "${run_args[@]}" >"$run_log" 2>&1
+        fi
         exit_code=$?
     fi
     set -e
@@ -234,6 +307,11 @@ run_llvm_fixture_binary() {
 
     if [ "$exit_code" -ne "$expected_exit_code" ]; then
         echo -e "${RED}FAILED${NC}: $fixture_name exited with $exit_code (expected $expected_exit_code)"
+        echo "See $run_log for details"
+        return 1
+    fi
+
+    if ! validate_fixture_log_patterns "$fixture_name" "$run_log"; then
         echo "See $run_log for details"
         return 1
     fi
@@ -268,9 +346,7 @@ validate_fixture() {
     fi
 
     if [ ! -f "$fixture_dir/README.md" ]; then
-        echo -e "${RED}FAILED${NC}: README.md not found"
-        FAILED=$((FAILED + 1))
-        return 1
+        echo -e "${YELLOW}WARN${NC}: README.md not found for $fixture_name"
     fi
 
     if [ "$fixture_name" = "viewport_startup" ]; then

@@ -125,8 +125,11 @@ platform lock paths, generated package modules, binding reports, and status
 (`planned` for `run plan` / dry-run, `locked` for real execution).
 
 Capsule `.kn` inputs are auto-detected before target inference. The CLI
-materializes the capsule to `.kain/cache/amalgamate/<digest>/workspace` and
-passes the extracted entry, blade root, or manifest root back into `kain-run`.
+materializes the capsule set to `.kain/cache/amalgamate/<state-hash>/workspace`
+and passes the extracted entry, blade root, or manifest root back into
+`kain-run`. If sibling companion capsules with the same capsule-set are present
+next to the primary capsule, they are merged into the same materialized
+workspace automatically.
 
 Run artifacts are intentionally isolated from build artifacts:
 
@@ -149,6 +152,8 @@ Useful flags:
 - `--tag`
 - `--meta key=value`
 - `--archive`
+- `--contents source|snapshot|assets|artifacts|evidence`
+- `--capsule-set <name>`
 - `--header minimal|rich|off`
 - `--preview-symbols <n>`
 - `--compression zstd|none`
@@ -160,11 +165,26 @@ Related subcommands:
 - `kain amalgamate inspect <artifact>.kn`
 - `kain amalgamate unpack <artifact>.kn [-o <dir>]`
 
-By default, `kain amalgamate` writes an editable capsule: a comment-safe `.kn`
-artifact with a generated header, a structured `//!kain-capsule` metadata
-block, and one `//!kain-file` section per preserved source or asset file. Text
-files stay inline and searchable inside the capsule; binary files are still
-base64-wrapped per file.
+By default, `kain amalgamate` writes an editable source capsule: a comment-safe
+`.kn` artifact with a generated header, a structured `//!kain-capsule`
+metadata block, and one `//!kain-file` section per preserved file in the
+source closure. The default `source` profile follows `build.kn`, blade, and
+manifest authority instead of snapshotting the whole directory. Use
+`--contents snapshot` when you intentionally want the raw folder-dump behavior.
+Text files stay inline and searchable inside the capsule; binary files are
+still base64-wrapped per file.
+
+Companion layers are first-class:
+
+- `--contents assets` for authored binary payloads such as images or fonts
+- `--contents artifacts` for generated build outputs such as `.exe`, `.obj`,
+  `.ll`, runtime contracts, or sidecar binaries
+- `--contents evidence` for telemetry, benchmark, and attrition outputs
+
+Use `--capsule-set <name>` to bind related capsules together. `kain inspect`
+shows the contents profile and capsule-set, while `kain unpack`, `kain run`,
+`kain build`, and `kain check` automatically discover sibling companions with
+the same capsule-set and materialize them into one workspace.
 
 Use `--archive` when you want the sealed transport form instead. Archive
 capsules keep the same header and metadata block but store the workspace as one

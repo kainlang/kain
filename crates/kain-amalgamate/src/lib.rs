@@ -828,7 +828,12 @@ fn build_capsule_selection(
         add_relative_dirs(&mut selection.source_dirs, root, &manifest.workspace.search_roots);
         add_relative_dirs(&mut selection.source_dirs, root, &manifest.blade.source_roots);
         add_relative_dirs(&mut selection.source_dirs, root, &manifest.blade.module_roots);
-        add_relative_dirs(&mut selection.source_dirs, root, &manifest.run.watch);
+        add_relative_paths(
+            &mut selection.source_files,
+            &mut selection.source_dirs,
+            root,
+            &manifest.run.watch,
+        );
         add_relative_dir(&mut selection.artifact_dirs, root, manifest.build.artifact_root.as_deref());
         add_relative_dir(&mut selection.artifact_dirs, root, manifest.build.cache_root.as_deref());
 
@@ -2276,9 +2281,14 @@ fn push_unique(symbols: &mut Vec<String>, symbol: String) {
 }
 
 fn merge_directory_inventory(files: &[SourceFile], metadata_directories: &[String]) -> Vec<String> {
+    let file_paths = files
+        .iter()
+        .map(|file| file.rel_path.as_str())
+        .collect::<BTreeSet<_>>();
     let mut directories = metadata_directories
         .iter()
         .filter(|value| !value.trim().is_empty())
+        .filter(|value| !file_paths.contains(value.as_str()))
         .cloned()
         .collect::<Vec<_>>();
     for file in files {
@@ -2475,6 +2485,16 @@ mod tests {
             "fn main() -> Int:\n    return 0\n",
         )
         .expect("write main");
+        fs::write(
+            root.join("telemetry").join("python_bridge.kn"),
+            "fn bridge() -> Int:\n    return 7\n",
+        )
+        .expect("write watch file");
+        fs::write(
+            root.join("telemetry").join("run_smoketest_mode.kn"),
+            "fn mode() -> Int:\n    return 9\n",
+        )
+        .expect("write second watch file");
         fs::write(root.join("native").join("bridge.c"), "int bridge(void) { return 7; }\n")
             .expect("write bridge");
         fs::write(root.join("README.md"), "# Smoketest\n").expect("write readme");
@@ -2495,6 +2515,30 @@ mod tests {
             "{\"ok\":true}\n",
         )
         .expect("write telemetry");
+        fs::write(
+            root.join("KAIN.toml"),
+            r#"[package]
+name = "contents-split"
+version = "0.1.0"
+
+[blade]
+name = "contents-split"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src", "telemetry", "native"]
+module_roots = ["src", "telemetry"]
+
+[run]
+entry = "src/main.kn"
+watch = ["telemetry", "telemetry/python_bridge.kn", "telemetry/run_smoketest_mode.kn"]
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out/llvm"
+cache_root = ".kain/cache/build"
+"#,
+        )
+        .expect("write manifest");
 
         let mut source_options = PackOptions::new(&root, root.join("source.kn"));
         source_options.contents = CapsuleContents::Source;
@@ -2503,6 +2547,23 @@ mod tests {
         assert!(source.files.iter().any(|file| file.path == "src/main.kn"));
         assert!(source.files.iter().any(|file| file.path == "native/bridge.c"));
         assert!(source.files.iter().any(|file| file.path == "README.md"));
+        assert!(source
+            .files
+            .iter()
+            .any(|file| file.path == "telemetry/python_bridge.kn"));
+        assert!(source
+            .files
+            .iter()
+            .any(|file| file.path == "telemetry/run_smoketest_mode.kn"));
+        assert!(source.directories.iter().any(|dir| dir == "telemetry"));
+        assert!(!source
+            .directories
+            .iter()
+            .any(|dir| dir == "telemetry/python_bridge.kn"));
+        assert!(!source
+            .directories
+            .iter()
+            .any(|dir| dir == "telemetry/run_smoketest_mode.kn"));
         assert!(!source.files.iter().any(|file| file.path == "logo.png"));
         assert!(!source
             .files

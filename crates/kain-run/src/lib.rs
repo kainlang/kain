@@ -8,7 +8,9 @@ use kain_omni::fabric::FabricSessionStatus;
 use kain_process::{ProcessEnvironmentEntry, ProcessSpec, ProcessStdioMode};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::collections::hash_map::DefaultHasher;
 use std::ffi::OsStr;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
@@ -1074,7 +1076,7 @@ fn llvm_unit(workspace_root: &Path, entry: &Path, cache_root: &Path) -> RunResul
         id: "llvm".to_string(),
         target: RunTarget::Llvm,
         label: format!("Compile/cache/run LLVM native {}", entry.display()),
-        cwd: workspace_root.to_path_buf(),
+        cwd: entry.parent().unwrap_or(workspace_root).to_path_buf(),
         args: Vec::new(),
         env: BTreeMap::new(),
         inputs: vec![entry.to_path_buf()],
@@ -1965,7 +1967,7 @@ fn ensure_file(path: &Path, label: &str) -> RunResult<()> {
 }
 
 fn cached_c_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathBuf> {
-    let hash = kfs::hash_file(source)?;
+    let hash = cached_artifact_hash(source)?;
     let name = path_stem_or_name(source);
     let ext = if cfg!(target_os = "windows") {
         "exe"
@@ -1978,7 +1980,7 @@ fn cached_c_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathB
 }
 
 fn cached_llvm_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathBuf> {
-    let hash = kfs::hash_file(source)?;
+    let hash = cached_artifact_hash(source)?;
     let name = path_stem_or_name(source);
     let ext = if cfg!(target_os = "windows") {
         "exe"
@@ -1988,6 +1990,25 @@ fn cached_llvm_executable_path(cache_root: &Path, source: &Path) -> RunResult<Pa
     Ok(cache_root
         .join("llvm")
         .join(format!("{}-{}.{}", sanitize_id(&name), &hash[..16], ext)))
+}
+
+fn cached_artifact_hash(source: &Path) -> RunResult<String> {
+    let source_hash = kfs::hash_file(source)?;
+    let adapter_fingerprint = run_adapter_cache_fingerprint()?;
+    let mut hasher = DefaultHasher::new();
+    source_hash.hash(&mut hasher);
+    adapter_fingerprint.hash(&mut hasher);
+    Ok(format!("{:016x}", hasher.finish()))
+}
+
+fn run_adapter_cache_fingerprint() -> RunResult<String> {
+    let mut fingerprint = RUN_ADAPTER_VERSION.to_string();
+    if let Ok(current_exe) = std::env::current_exe() {
+        let launcher_hash = kfs::hash_file(&current_exe)?;
+        fingerprint.push('-');
+        fingerprint.push_str(&launcher_hash);
+    }
+    Ok(fingerprint)
 }
 
 fn find_kain_launcher() -> PathBuf {
@@ -2231,7 +2252,7 @@ target = "llvm"
         let plan = plan_run(&request).unwrap();
         let unit = &plan.units[0];
         assert_eq!(unit.target, RunTarget::Llvm);
-        assert!(same_declared_path(&unit.cwd, temp.path()));
+        assert!(same_declared_path(&unit.cwd, entry.parent().unwrap()));
         match &unit.adapter {
             RunAdapter::KainNativeLlvm {
                 entry: planned_entry,
@@ -2272,7 +2293,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         let plan = plan_run(&request).unwrap();
         let unit = &plan.units[0];
         assert_eq!(unit.target, RunTarget::Llvm);
-        assert!(same_declared_path(&unit.cwd, temp.path()));
+        assert!(same_declared_path(&unit.cwd, entry.parent().unwrap()));
         assert!(matches!(unit.adapter, RunAdapter::KainNativeLlvm { .. }));
     }
 
@@ -2314,7 +2335,7 @@ target = "llvm"
         let plan = plan_run(&request).unwrap();
         let unit = &plan.units[0];
         assert_eq!(unit.target, RunTarget::Llvm);
-        assert!(same_declared_path(&unit.cwd, &blade_root));
+        assert!(same_declared_path(&unit.cwd, entry.parent().unwrap()));
         assert!(matches!(unit.adapter, RunAdapter::KainNativeLlvm { .. }));
     }
 
@@ -2360,7 +2381,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         let plan = plan_run(&request).unwrap();
         let unit = &plan.units[0];
         assert_eq!(unit.target, RunTarget::Llvm);
-        assert!(same_declared_path(&unit.cwd, &blade_root));
+        assert!(same_declared_path(&unit.cwd, entry.parent().unwrap()));
         assert!(matches!(unit.adapter, RunAdapter::KainNativeLlvm { .. }));
     }
 
@@ -2686,5 +2707,36 @@ fn main() -> String:
         assert!(report.is_success());
         assert_eq!(report.units[0].output.trim(), "42");
         assert!(report.units[0].inputs[0].is_absolute());
+    }
+
+    #[test]
+    fn executes_absolute_llvm_file_with_entry_directory_cwd() {
+        let _guard = process_context_test_lock().lock().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        let entry = src_dir.join("main.kn");
+        kfs::create_dir_all(&src_dir).unwrap();
+        kfs::write_text(
+            &entry,
+            "fn main() -> Int:\n    let probe = path_join(cwd(), \"main.kn\")\n    if path_is_file(probe):\n        return 0\n    return 7\n",
+        )
+        .unwrap();
+
+        let report = execute_run(
+            &RunRequest::new(Some(entry.clone())).with_target(RunTarget::Llvm),
+        )
+        .unwrap();
+
+        assert!(report.is_success());
+        assert_eq!(
+            PathBuf::from(
+                report.units[0]
+                    .process
+                    .as_ref()
+                    .and_then(|process| process.current_working_directory.as_deref())
+                    .unwrap(),
+            ),
+            src_dir
+        );
     }
 }

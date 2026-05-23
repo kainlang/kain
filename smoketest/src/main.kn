@@ -27,6 +27,7 @@ use ownership::smoke_ownership_lane
 use abi_control::smoke_abi_control_lane
 use vm_topology::smoke_vm_topology_lane
 use mmio_interrupt::smoke_mmio_interrupt_lane
+use native_cli::smoke_native_cli_lane
 
 // Stdlib tracks
 use collections_lane::smoke_collections_lane
@@ -112,7 +113,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 35
+    let total_tracks: Int = 36
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -429,6 +430,15 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_flow = smoke_first_error(3500, lane_flow)
     if e_flow != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_flow, "telemetry.novel_flow")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_native_cli = now_millis()
+    let lane_native_cli = smoke_native_cli_lane()
+    let ended_native_cli = now_millis()
+    composition_checksum = smoke_record_track(mode, "systems", "systems.native_cli", "native_cli", 36, 3600, lane_native_cli, started_native_cli, ended_native_cli, composition_checksum)
+    let e_native_cli = smoke_first_error(3600, lane_native_cli)
+    if e_native_cli != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_native_cli, "systems.native_cli")
     succeeded_tracks = succeeded_tracks + 1
 
     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1

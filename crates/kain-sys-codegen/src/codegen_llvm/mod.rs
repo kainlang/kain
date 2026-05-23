@@ -468,6 +468,8 @@ struct LlvmGenerator {
     world_globals: HashMap<String, WorldGlobalInfo>,
     const_globals: HashMap<String, ConstGlobalInfo>,
     string_locals: HashSet<String>,
+    runtime_array_locals: HashMap<String, String>,
+    runtime_array_function_returns: HashMap<String, String>,
     string_length_values: HashMap<String, String>,
     pooled_string_literal_slots: HashMap<String, String>,
     native_entanglements: Vec<NativeEntangleBinding>,
@@ -529,6 +531,7 @@ struct LlvmFunctionState {
     actor_return_label: Option<String>,
     actor_return_slot: Option<String>,
     string_locals: HashSet<String>,
+    runtime_array_locals: HashMap<String, String>,
     string_length_values: HashMap<String, String>,
     pooled_string_literal_slots: HashMap<String, String>,
     shattered_array_locals: HashMap<String, ShatteredArrayLocal>,
@@ -589,6 +592,8 @@ impl LlvmGenerator {
             world_globals: HashMap::new(),
             const_globals: HashMap::new(),
             string_locals: HashSet::new(),
+            runtime_array_locals: HashMap::new(),
+            runtime_array_function_returns: HashMap::new(),
             string_length_values: HashMap::new(),
             pooled_string_literal_slots: HashMap::new(),
             native_entanglements: Vec::new(),
@@ -635,6 +640,7 @@ impl LlvmGenerator {
             actor_return_label: self.actor_return_label.clone(),
             actor_return_slot: self.actor_return_slot.clone(),
             string_locals: self.string_locals.clone(),
+            runtime_array_locals: self.runtime_array_locals.clone(),
             string_length_values: self.string_length_values.clone(),
             pooled_string_literal_slots: self.pooled_string_literal_slots.clone(),
             shattered_array_locals: self.shattered_array_locals.clone(),
@@ -674,6 +680,7 @@ impl LlvmGenerator {
         self.actor_return_label = state.actor_return_label;
         self.actor_return_slot = state.actor_return_slot;
         self.string_locals = state.string_locals;
+        self.runtime_array_locals = state.runtime_array_locals;
         self.string_length_values = state.string_length_values;
         self.pooled_string_literal_slots = state.pooled_string_literal_slots;
         self.shattered_array_locals = state.shattered_array_locals;
@@ -713,6 +720,7 @@ impl LlvmGenerator {
         self.actor_return_label = None;
         self.actor_return_slot = None;
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.shattered_array_locals.clear();
@@ -1710,6 +1718,8 @@ impl LlvmGenerator {
     fn map_type_from_ast(&self, ty: &kain_core::ast::Type) -> String {
         match ty {
             kain_core::ast::Type::Named { name, generics, .. } => match name.as_str() {
+                "Array" if generics.len() == 1 => "i8*".into(),
+                "Slice" if generics.len() == 1 => "i8*".into(),
                 "Option" if generics.len() == 1 => "i8*".into(),
                 "Result" if generics.len() == 2 => "i8*".into(),
                 "Future" if generics.len() == 1 => "i8*".into(),
@@ -1741,6 +1751,21 @@ impl LlvmGenerator {
     }
 
     fn map_type_from_str(&self, name: &str) -> String {
+        if name.starts_with("Array<") && name.ends_with('>') {
+            return "i8*".into();
+        }
+        if name.starts_with("Slice<") && name.ends_with('>') {
+            return "i8*".into();
+        }
+        if name.starts_with("Option<") && name.ends_with('>') {
+            return "i8*".into();
+        }
+        if name.starts_with("Result<") && name.ends_with('>') {
+            return "i8*".into();
+        }
+        if name.starts_with("Future<") && name.ends_with('>') {
+            return "i8*".into();
+        }
         match name {
             "Int" | "I64" | "i64" => "i64".into(),
             "I8" | "i8" | "U8" | "u8" => "i8".into(),
@@ -1804,12 +1829,112 @@ impl LlvmGenerator {
         )
     }
 
+    fn ast_runtime_array_element_llvm_ty(&self, ty: &Type) -> Option<String> {
+        match ty {
+            Type::Array(inner, _, _) | Type::Slice(inner, _) => Some(self.map_type_from_ast(inner)),
+            Type::Named { name, generics, .. }
+                if (name == "Array" || name == "Slice") && generics.len() == 1 =>
+            {
+                Some(self.map_type_from_ast(&generics[0]))
+            }
+            _ => None,
+        }
+    }
+
     fn ast_type_is_int(ty: &Type) -> bool {
         matches!(ty, Type::Named { name, .. } if name == "Int")
     }
 
     fn resolved_type_is_string(ty: &ResolvedType) -> bool {
         matches!(ty, ResolvedType::String)
+    }
+
+    fn resolved_runtime_array_element_llvm_ty(&self, ty: &ResolvedType) -> Option<String> {
+        match ty {
+            ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => Some(self.map_type(inner)),
+            _ => None,
+        }
+    }
+
+    fn single_generic_payload<'a>(name: &'a str, wrapper: &str) -> Option<&'a str> {
+        let prefix = format!("{wrapper}<");
+        name.strip_prefix(&prefix)
+            .and_then(|rest| rest.strip_suffix('>'))
+            .map(str::trim)
+    }
+
+    fn stringified_runtime_array_element_llvm_ty(&self, ty: &str) -> Option<String> {
+        Self::single_generic_payload(ty, "Array")
+            .or_else(|| Self::single_generic_payload(ty, "Slice"))
+            .map(|inner| self.map_type_from_str(inner))
+    }
+
+    fn callable_return_runtime_array_element_llvm_ty(
+        &self,
+        resolved_type: &ResolvedType,
+        explicit_return_type: Option<&Type>,
+    ) -> Option<String> {
+        explicit_return_type
+            .and_then(|ty| self.ast_runtime_array_element_llvm_ty(ty))
+            .or_else(|| match resolved_type {
+                ResolvedType::Function { ret, .. } => self.resolved_runtime_array_element_llvm_ty(ret),
+                _ => None,
+            })
+    }
+
+    fn runtime_array_expr_element_llvm_ty(&self, expr: &Expr) -> Option<String> {
+        match Self::expr_strip_parens(expr) {
+            Expr::Ident(name, _) => self.runtime_array_locals.get(name).cloned(),
+            Expr::Call { callee, .. } => match Self::expr_strip_parens(callee) {
+                Expr::Ident(name, _) => self.runtime_array_function_returns.get(name).cloned(),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn record_runtime_array_local_element_ty(&mut self, name: &str, element_ty: Option<String>) {
+        if let Some(element_ty) = element_ty {
+            self.runtime_array_locals
+                .insert(name.to_string(), element_ty);
+        } else {
+            self.runtime_array_locals.remove(name);
+        }
+    }
+
+    fn materialize_runtime_array_element_value(
+        &mut self,
+        raw_value: &str,
+        element_ty: &str,
+    ) -> (String, String) {
+        match element_ty {
+            "i64" => (raw_value.to_string(), "i64".to_string()),
+            "i1" | "i8" | "i16" | "i32" => {
+                let cast_reg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = trunc i64 {} to {}",
+                    cast_reg, raw_value, element_ty
+                ));
+                (cast_reg, element_ty.to_string())
+            }
+            "double" => {
+                let cast_reg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i64 {} to double",
+                    cast_reg, raw_value
+                ));
+                (cast_reg, "double".to_string())
+            }
+            _ if element_ty.ends_with('*') => {
+                let cast_reg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to {}",
+                    cast_reg, raw_value, element_ty
+                ));
+                (cast_reg, element_ty.to_string())
+            }
+            _ => (raw_value.to_string(), "i64".to_string()),
+        }
     }
 
     fn record_helper_owned_pointer_local(
@@ -6157,8 +6282,8 @@ impl LlvmGenerator {
                 }
             }
             ResolvedType::Enum(name, _) => format!("%{}*", name),
-            ResolvedType::Array(_, _) => "i64".into(), // Arrays are opaque pointers for now
-            ResolvedType::Slice(_) => "i64".into(),
+            ResolvedType::Array(_, _) => "i8*".into(), // Runtime arrays are handle pointers
+            ResolvedType::Slice(_) => "i8*".into(),
             ResolvedType::Option(_) => "i8*".into(),
             ResolvedType::Result(_, _) => "i8*".into(),
             ResolvedType::Future(_) => "i8*".into(),
@@ -11040,6 +11165,13 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         let (params, ret_ty) = self.callable_signature(resolved_type, name, span)?;
         self.functions.insert(name.to_string(), ret_ty);
+        if let Some(element_ty) = self.callable_return_runtime_array_element_llvm_ty(resolved_type, None)
+        {
+            self.runtime_array_function_returns
+                .insert(name.to_string(), element_ty);
+        } else {
+            self.runtime_array_function_returns.remove(name);
+        }
         self.function_params.insert(
             name.to_string(),
             params
@@ -11065,6 +11197,15 @@ impl LlvmGenerator {
                         self.callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?
                     };
                     self.functions.insert(func.ast.name.clone(), ret_ty);
+                    if let Some(element_ty) = self.callable_return_runtime_array_element_llvm_ty(
+                        &func.resolved_type,
+                        func.ast.return_type.as_ref(),
+                    ) {
+                        self.runtime_array_function_returns
+                            .insert(func.ast.name.clone(), element_ty);
+                    } else {
+                        self.runtime_array_function_returns.remove(&func.ast.name);
+                    }
                     self.function_params.insert(func.ast.name.clone(), params);
                     self.string_function_params.insert(
                         func.ast.name.clone(),
@@ -11151,8 +11292,16 @@ impl LlvmGenerator {
                             if ret_ty == "void" {
                                 ret_ty = "i64".to_string();
                             }
-                            self.functions
-                                .insert(format!("{}_{}", name, method.name), ret_ty);
+                            let method_name = format!("{}_{}", name, method.name);
+                            self.functions.insert(method_name.clone(), ret_ty);
+                            if let Some(element_ty) = method
+                                .return_type
+                                .as_ref()
+                                .and_then(|ty| self.ast_runtime_array_element_llvm_ty(ty))
+                            {
+                                self.runtime_array_function_returns
+                                    .insert(method_name, element_ty);
+                            }
                         }
                     }
                 }
@@ -11543,6 +11692,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.scopes.clear();
@@ -11660,6 +11810,11 @@ impl LlvmGenerator {
         let stdlib = kain_core::stdlib::StdLib::new();
         for (name, func) in stdlib.functions {
             let ret_ty = self.map_type_from_str(func.return_type);
+            if let Some(element_ty) = self.stringified_runtime_array_element_llvm_ty(func.return_type)
+            {
+                self.runtime_array_function_returns
+                    .insert(name.clone(), element_ty);
+            }
             self.functions.insert(name, ret_ty);
         }
 
@@ -11721,6 +11876,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.scopes.clear();
@@ -12240,6 +12396,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.scopes.clear();
@@ -12332,6 +12489,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.scopes.clear();
@@ -12433,6 +12591,10 @@ impl LlvmGenerator {
                 .insert(param.name.clone(), (addr_reg.clone(), p_ty));
             let authored_param_ty = self.authored_pointer_param_type(param).cloned();
             self.record_authored_struct_pointer_local(&param.name, authored_param_ty.as_ref());
+            self.record_runtime_array_local_element_ty(
+                &param.name,
+                self.ast_runtime_array_element_llvm_ty(&param.ty),
+            );
             if Self::ast_type_is_string(&param.ty) {
                 self.string_locals.insert(param.name.clone());
                 if Self::block_has_loop_that_mentions_identifier(&method.body, &param.name) {
@@ -12526,6 +12688,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.scopes.clear();
@@ -12661,6 +12824,14 @@ impl LlvmGenerator {
                     }
                 }
             }
+            let runtime_array_element_ty = if !matches!(param.ty, Type::Infer(_)) {
+                self.ast_runtime_array_element_llvm_ty(&param.ty)
+            } else {
+                param_types
+                    .get(index)
+                    .and_then(|ty| self.resolved_runtime_array_element_llvm_ty(ty))
+            };
+            self.record_runtime_array_local_element_ty(&param.name, runtime_array_element_ty);
             if (!matches!(param.ty, Type::Infer(_)) && Self::ast_type_is_string(&param.ty))
                 || (matches!(param.ty, Type::Infer(_))
                     && param_types
@@ -12775,6 +12946,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.scopes.clear();
@@ -12831,6 +13003,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.pooled_string_literal_slots.clear();
         self.scopes.clear();
@@ -12877,6 +13050,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
@@ -13004,6 +13178,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
@@ -13251,6 +13426,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.string_locals.clear();
+        self.runtime_array_locals.clear();
         self.string_length_values.clear();
         self.scopes.clear();
         self.const_init_blocks.clear();
@@ -13668,6 +13844,7 @@ impl LlvmGenerator {
     fn emit_scope_cleanup_for_vars(&mut self, vars: &[String]) {
         for var_name in vars.iter().rev() {
             self.sealed_literal_map_locals.remove(var_name);
+            self.runtime_array_locals.remove(var_name);
             if let Some((addr, ty)) = self.locals.get(var_name).cloned() {
                 if self.borrowed_locals.contains(var_name) {
                     continue;
@@ -13722,7 +13899,6 @@ impl LlvmGenerator {
         }
 
         for var_name in vars_to_release {
-            self.sealed_literal_map_locals.remove(&var_name);
             if let Some((addr, ty)) = self.locals.get(&var_name).cloned() {
                 if self.borrowed_locals.contains(&var_name) {
                     continue;
@@ -13748,7 +13924,6 @@ impl LlvmGenerator {
                 }
                 if ty == "i8*" && self.helper_owned_pointer_locals.contains_key(&var_name) {
                     self.emit_helper_owned_local_decay_cleanup(&addr);
-                    self.json_handle_locals.remove(&var_name);
                     continue;
                 }
                 if ty == "i8*" || ty.starts_with("%") {
@@ -13756,7 +13931,6 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = load {}, {}* {}", tmp, ty, ty, addr));
                     self.emit_release(&tmp, &ty);
                 }
-                self.json_handle_locals.remove(&var_name);
             }
         }
     }
@@ -13887,6 +14061,7 @@ impl LlvmGenerator {
                                 self.ephemeral_owned_pointer_locals.remove(name);
                                 self.json_handle_locals.remove(name);
                                 self.shattered_array_locals.remove(name);
+                                self.runtime_array_locals.remove(name);
                                 self.fixed_array_locals.insert(
                                     name.clone(),
                                     FixedArrayLocal {
@@ -13953,6 +14128,7 @@ impl LlvmGenerator {
                                     self.ephemeral_owned_pointer_locals.remove(name);
                                     self.json_handle_locals.remove(name);
                                     self.fixed_array_locals.remove(name);
+                                    self.runtime_array_locals.remove(name);
                                     self.shattered_array_locals.insert(
                                         name.clone(),
                                         ShatteredArrayLocal {
@@ -14118,6 +14294,11 @@ impl LlvmGenerator {
                             self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
                         self.record_authored_struct_pointer_local_for_let(name, ty.as_ref(), *span);
+                        let runtime_array_element_ty = ty
+                            .as_ref()
+                            .and_then(|declared| self.ast_runtime_array_element_llvm_ty(declared))
+                            .or_else(|| self.runtime_array_expr_element_llvm_ty(val_expr));
+                        self.record_runtime_array_local_element_ty(name, runtime_array_element_ty);
                         if self.expr_returns_json_handle(val_expr) {
                             self.json_handle_locals.insert(name.clone());
                         } else {
@@ -15835,12 +16016,16 @@ impl LlvmGenerator {
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
                 let (idx_val, _) = self.compile_expr(index)?;
                 if obj_ty == "i8*" {
-                    let res = self.next_reg();
+                    let raw_res = self.next_reg();
                     self.emit(&format!(
                         "  {} = call i64 @array_get(i8* {}, i64 {})",
-                        res, obj_val, idx_val
+                        raw_res, obj_val, idx_val
                     ));
-                    Ok((res, "i64".into()))
+                    if let Some(element_ty) = self.runtime_array_expr_element_llvm_ty(object) {
+                        Ok(self.materialize_runtime_array_element_value(&raw_res, &element_ty))
+                    } else {
+                        Ok((raw_res, "i64".into()))
+                    }
                 } else {
                     let (field_ptr, field_ty) = self.compile_index_address_from_compiled(
                         &obj_val,

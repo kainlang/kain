@@ -91,9 +91,62 @@ static int test_create_dir_all_nested(void) {
     return 1;
 }
 
+static int test_path_helper_surface(void) {
+    const char* joined;
+    const char* parent;
+    const char* file_name;
+    const char* extension;
+    const char* stem;
+    printf("\n=== Test 2: path helper surface ===\n");
+
+#ifdef _WIN32
+    joined = abi_fs_path_join("C:\\kain", "lanes\\probe.kn");
+    if (!expect_true("path join builds Windows path", strcmp(joined, "C:\\kain\\lanes\\probe.kn") == 0)) {
+        return 0;
+    }
+    parent = abi_fs_path_parent("C:\\kain\\lanes\\probe.kn");
+    if (!expect_true("path parent trims Windows file name", strcmp(parent, "C:\\kain\\lanes") == 0)) {
+        return 0;
+    }
+#else
+    joined = abi_fs_path_join("/tmp/kain", "lanes/probe.kn");
+    if (!expect_true("path join builds POSIX path", strcmp(joined, "/tmp/kain/lanes/probe.kn") == 0)) {
+        return 0;
+    }
+    parent = abi_fs_path_parent("/tmp/kain/lanes/probe.kn");
+    if (!expect_true("path parent trims POSIX file name", strcmp(parent, "/tmp/kain/lanes") == 0)) {
+        return 0;
+    }
+#endif
+
+    file_name = abi_fs_path_file_name(joined);
+    extension = abi_fs_path_extension(joined);
+    stem = abi_fs_path_stem(joined);
+
+    if (!expect_true("path file name extracts final component", strcmp(file_name, "probe.kn") == 0)) {
+        return 0;
+    }
+    if (!expect_true("path extension extracts suffix", strcmp(extension, "kn") == 0)) {
+        return 0;
+    }
+    if (!expect_true("path stem extracts prefix", strcmp(stem, "probe") == 0)) {
+        return 0;
+    }
+
+    if (!expect_true("dotfile extension stays empty", strcmp(abi_fs_path_extension(".gitignore"), "") == 0)) {
+        return 0;
+    }
+    if (!expect_true("dotfile stem stays intact", strcmp(abi_fs_path_stem(".gitignore"), ".gitignore") == 0)) {
+        return 0;
+    }
+
+    printf("PASS: path helpers produce stable joins, parents, and suffix slices\n");
+    return 1;
+}
+
 #ifdef _WIN32
 static int test_extended_path_parent_creation(void) {
-    printf("\n=== Test 2: extended Windows path parent creation ===\n");
+    printf("\n=== Test 3: extended Windows path parent creation ===\n");
 
     const char* base = abi_fs_temp_dir("abi-fs-extended");
     char extended_base[4096];
@@ -155,9 +208,10 @@ int main(void) {
     printf("Starting stdlib ABI filesystem tests\n");
 
     int passed = 0;
-    int total = 1;
+    int total = 2;
 
     passed += test_create_dir_all_nested();
+    passed += test_path_helper_surface();
 #ifdef _WIN32
     total += 1;
     passed += test_extended_path_parent_creation();

@@ -1,7 +1,7 @@
 {
   "mode": "attrition",
   "status": 0,
-  "elapsed_ms": 87,
+  "elapsed_ms": 249,
   "summary_exists": 1,
   "summary_path": "D:/Kain-Lang/smoketest/telemetry/attrition/summary.json",
   "output_dir": "D:/Kain-Lang/smoketest/telemetry/attrition",
@@ -18,8 +18,8 @@
   "error_type": "",
   "error_message": "",
   "stdout_len": 0,
-  "stderr_len": 2400,
-  "runner_checksum": 677506,
+  "stderr_len": 0,
+  "runner_checksum": 677992,
   "probe": {
   "ok": 1,
   "python": "D:/Kain-Lang/target/debug/kain.exe",

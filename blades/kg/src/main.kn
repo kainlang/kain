@@ -1,0 +1,755 @@
+use std::actor
+use std::fs
+use std::process
+use std::runtime
+use std::time
+
+const KG_DEFAULT_MAX_FILE_BYTES: Int = 4194304
+const KG_DEFAULT_WORKERS: Int = 4
+const KG_MAX_WORKERS: Int = 8
+
+struct KgConfig:
+    needle: String
+    root: String
+    ignore_case: Bool
+    files_only: Bool
+    count_only: Bool
+    line_numbers: Bool
+    include_hidden: Bool
+    show_stats: Bool
+    show_help: Bool
+    workers: Int
+    max_file_bytes: Int
+
+struct KgFileReport:
+    output: String
+    matched_files: Int
+    matched_lines: Int
+    bytes_scanned: Int
+    errors: Int
+
+fn kg_usage() -> String:
+    var text = "kg <needle> [root]\n"
+    text = text + "\n"
+    text = text + "Actor-sharded Kain grep.\n"
+    text = text + "\n"
+    text = text + "Flags:\n"
+    text = text + "  -i, --ignore-case       ASCII case-insensitive search\n"
+    text = text + "  -n, --line-number       Print line numbers\n"
+    text = text + "  -l, --files-with-matches Print only file paths with hits\n"
+    text = text + "  -c, --count             Print one match-count row per file\n"
+    text = text + "      --hidden            Include dot paths and hidden lanes\n"
+    text = text + "      --stats             Print actor and shard telemetry\n"
+    text = text + "  -j, --workers <n>       Worker actor count\n"
+    text = text + "      --max-file-bytes <n> Skip files larger than this after load\n"
+    text = text + "  -h, --help              Show this help\n"
+    return text
+
+fn kg_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn kg_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    var sign = 1
+    var index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    var value = 0
+    while index < len(text):
+        value = value * 10 + kg_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn kg_trim_cr(text: String) -> String:
+    if len(text) == 0:
+        return text
+    if char_at(text, len(text) - 1) == "\r":
+        return substring(text, 0, len(text) - 1)
+    return text
+
+fn kg_split_lines(text: String) -> Array<String>:
+    let lines = []
+    var start = 0
+    var index = 0
+    while index < len(text):
+        if char_at(text, index) == "\n":
+            push(lines, kg_trim_cr(substring(text, start, index)))
+            start = index + 1
+        index = index + 1
+    if start < len(text):
+        push(lines, kg_trim_cr(substring(text, start, len(text))))
+    elif len(text) == 0:
+        push(lines, "")
+    return lines
+
+fn kg_normalize_needle(needle: String, ignore_case: Bool) -> String:
+    if ignore_case:
+        return to_lower(needle)
+    return needle
+
+fn kg_worker_count_or_default(requested: Int) -> Int:
+    var count = requested
+    if count <= 0:
+        count = actor_scheduler_worker_count()
+    if count <= 0:
+        count = KG_DEFAULT_WORKERS
+    if count > KG_MAX_WORKERS:
+        return KG_MAX_WORKERS
+    return count
+
+fn kg_parse_config(argv: Array<String>) -> KgConfig:
+    var needle = ""
+    var root = "."
+    var ignore_case = false
+    var files_only = false
+    var count_only = false
+    var line_numbers = false
+    var include_hidden = false
+    var show_stats = false
+    var show_help = false
+    var workers = 0
+    var max_file_bytes = KG_DEFAULT_MAX_FILE_BYTES
+    let positional = []
+
+    var index = 1
+    while index < len(argv):
+        let arg = argv[index]
+        if arg == "-h" or arg == "--help":
+            show_help = true
+        elif arg == "-i" or arg == "--ignore-case":
+            ignore_case = true
+        elif arg == "-n" or arg == "--line-number":
+            line_numbers = true
+        elif arg == "-l" or arg == "--files-with-matches":
+            files_only = true
+        elif arg == "-c" or arg == "--count":
+            count_only = true
+        elif arg == "--hidden":
+            include_hidden = true
+        elif arg == "--stats":
+            show_stats = true
+        elif arg == "-j" or arg == "--workers":
+            if index + 1 < len(argv):
+                workers = kg_parse_int_text(argv[index + 1])
+                index = index + 1
+        elif arg == "--max-file-bytes":
+            if index + 1 < len(argv):
+                max_file_bytes = kg_parse_int_text(argv[index + 1])
+                index = index + 1
+        else:
+            push(positional, arg)
+        index = index + 1
+
+    if len(positional) > 0:
+        needle = positional[0]
+    if len(positional) > 1:
+        root = positional[1]
+
+    return KgConfig {
+        needle: needle,
+        root: root,
+        ignore_case: ignore_case,
+        files_only: files_only and count_only == false,
+        count_only: count_only,
+        line_numbers: line_numbers,
+        include_hidden: include_hidden,
+        show_stats: show_stats,
+        show_help: show_help,
+        workers: kg_worker_count_or_default(workers),
+        max_file_bytes: max_file_bytes,
+    }
+
+fn kg_file_args() -> Array<String>:
+    return process_args()
+
+fn kg_is_path_sep(ch: String) -> Bool:
+    if ch == "/":
+        return true
+    return ch == "\\"
+
+fn kg_segment_is_ignored(name: String) -> Bool:
+    let folded = to_lower(name)
+    if folded == ".git":
+        return true
+    if folded == ".kain":
+        return true
+    if folded == "node_modules":
+        return true
+    if folded == "target":
+        return true
+    if folded == "bazel-bin":
+        return true
+    if folded == "bazel-out":
+        return true
+    if folded == "bazel-testlogs":
+        return true
+    return false
+
+fn kg_path_is_ignored(path: String, include_hidden: Bool) -> Bool:
+    var start = 0
+    var index = 0
+    while index <= len(path):
+        let at_end = index == len(path)
+        let is_sep = at_end == false and kg_is_path_sep(char_at(path, index))
+        if at_end or is_sep:
+            if index > start:
+                let name = substring(path, start, index)
+                if include_hidden == false and name != "." and name != ".." and starts_with(name, "."):
+                    return true
+                if kg_segment_is_ignored(name):
+                    return true
+            start = index + 1
+        index = index + 1
+    return false
+
+fn kg_looks_binaryish(text: String) -> Bool:
+    var limit = len(text)
+    if limit > 4096:
+        limit = 4096
+    var index = 0
+    while index < limit:
+        let byte = byte_at(text, index)
+        if byte == 0:
+            return true
+        index = index + 1
+    return false
+
+fn kg_line_matches(row_text: String, normalized_needle: String, ignore_case: Bool) -> Bool:
+    var searchable = row_text
+    if ignore_case:
+        searchable = to_lower(searchable)
+    return find_substring_from(searchable, normalized_needle, 0) >= 0
+
+fn kg_scan_file(path: String, normalized_needle: String, ignore_case: Bool, files_only: Bool, count_only: Bool, line_numbers: Bool, max_file_bytes: Int) -> KgFileReport:
+    if fs_is_file(path) == false:
+        return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
+
+    let contents = fs_read_text(path)
+    let bytes_scanned = len(contents)
+    if max_file_bytes > 0 and bytes_scanned > max_file_bytes:
+        return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
+    if kg_looks_binaryish(contents):
+        return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
+
+    let lines = kg_split_lines(contents)
+    var output = ""
+    var matched_lines = 0
+    var matched_files = 0
+    var line_number = 0
+
+    var scan_index = 0
+    while scan_index < len(lines):
+        let row_text = lines[scan_index]
+        line_number = line_number + 1
+        if kg_line_matches(row_text, normalized_needle, ignore_case):
+            matched_lines = matched_lines + 1
+            if matched_files == 0:
+                matched_files = 1
+            if files_only:
+                output = output + path + "\n"
+                return KgFileReport {
+                    output: output,
+                    matched_files: matched_files,
+                    matched_lines: matched_lines,
+                    bytes_scanned: bytes_scanned,
+                    errors: 0,
+                }
+            if count_only == false:
+                if line_numbers:
+                    output = output + path + ":" + str(line_number) + ":" + row_text + "\n"
+                else:
+                    output = output + path + ":" + row_text + "\n"
+        scan_index = scan_index + 1
+
+    if count_only and matched_lines > 0:
+        output = output + path + ":" + str(matched_lines) + "\n"
+
+    return KgFileReport {
+        output: output,
+        matched_files: matched_files,
+        matched_lines: matched_lines,
+        bytes_scanned: bytes_scanned,
+        errors: 0,
+    }
+
+actor KgWorker:
+    state worker_id: Int = 0
+    state normalized_needle: String = ""
+    state ignore_case: Bool = false
+    state files_only: Bool = false
+    state count_only: Bool = false
+    state line_numbers: Bool = false
+    state max_file_bytes: Int = KG_DEFAULT_MAX_FILE_BYTES
+    state last_jobs: Int = 0
+    state last_output: String = ""
+    state last_matched_files: Int = 0
+    state last_matched_lines: Int = 0
+    state last_bytes_scanned: Int = 0
+    state last_errors: Int = 0
+    state done: Bool = true
+
+    on ProcessShard(shard_paths_text: String):
+        self.done = false
+        self.last_jobs = 0
+        self.last_output = ""
+        self.last_matched_files = 0
+        self.last_matched_lines = 0
+        self.last_bytes_scanned = 0
+        self.last_errors = 0
+
+        let entries = kg_split_lines(shard_paths_text)
+        var entry_index = 0
+        while entry_index < len(entries):
+            let entry = entries[entry_index]
+            if len(entry) > 0:
+                let report = kg_scan_file(
+                    entry,
+                    self.normalized_needle,
+                    self.ignore_case,
+                    self.files_only,
+                    self.count_only,
+                    self.line_numbers,
+                    self.max_file_bytes
+                )
+                self.last_jobs = self.last_jobs + 1
+                self.last_output = self.last_output + report.output
+                self.last_matched_files = self.last_matched_files + report.matched_files
+                self.last_matched_lines = self.last_matched_lines + report.matched_lines
+                self.last_bytes_scanned = self.last_bytes_scanned + report.bytes_scanned
+                self.last_errors = self.last_errors + report.errors
+            entry_index = entry_index + 1
+        self.done = true
+
+    on Done(done_port: P, done_request: Int):
+        send done_port.Reply(value = self.done)
+
+    on JobCount(worker_job_port: P, worker_job_request: Int):
+        send worker_job_port.Reply(value = self.last_jobs)
+
+    on Flush():
+        if len(self.last_output) > 0:
+            print(self.last_output)
+
+    on MatchedFiles(worker_files_port: P, worker_files_request: Int):
+        send worker_files_port.Reply(value = self.last_matched_files)
+
+    on MatchedLines(worker_lines_port: P, worker_lines_request: Int):
+        send worker_lines_port.Reply(value = self.last_matched_lines)
+
+    on BytesScanned(worker_bytes_port: P, worker_bytes_request: Int):
+        send worker_bytes_port.Reply(value = self.last_bytes_scanned)
+
+    on ErrorCount(worker_error_port: P, worker_error_request: Int):
+        send worker_error_port.Reply(value = self.last_errors)
+
+fn kg_workers_finished(actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker) -> Bool:
+    if ask(worker0, "Done", 0) == false:
+        return false
+    if actual_workers > 1 and ask(worker1, "Done", 0) == false:
+        return false
+    if actual_workers > 2 and ask(worker2, "Done", 0) == false:
+        return false
+    if actual_workers > 3 and ask(worker3, "Done", 0) == false:
+        return false
+    if actual_workers > 4 and ask(worker4, "Done", 0) == false:
+        return false
+    if actual_workers > 5 and ask(worker5, "Done", 0) == false:
+        return false
+    if actual_workers > 6 and ask(worker6, "Done", 0) == false:
+        return false
+    if actual_workers > 7 and ask(worker7, "Done", 0) == false:
+        return false
+    return true
+
+fn kg_wait_until_done(actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker) -> Int:
+    while kg_workers_finished(actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7) == false:
+        let _sleep = sleep_millis(5)
+    return 0
+
+fn kg_validate_config(config: KgConfig) -> Int:
+    if config.show_help:
+        return 0
+    if len(config.needle) == 0:
+        return 2
+    if fs_exists(config.root) == false:
+        return 2
+    return 0
+
+fn main() -> Int:
+    let argv = kg_file_args()
+    let config = kg_parse_config(argv)
+
+    if config.show_help:
+        print(kg_usage())
+        return 0
+
+    if len(config.needle) == 0:
+        print("kg: missing search needle\n")
+        print("\n")
+        print(kg_usage())
+        return 2
+
+    if fs_exists(config.root) == false:
+        print("kg: root path not found: " + config.root + "\n")
+        return 2
+
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let actual_workers = kg_worker_count_or_default(config.workers)
+    let normalized_needle = kg_normalize_needle(config.needle, config.ignore_case)
+    let worker0 = spawn KgWorker(
+        worker_id = 0,
+        normalized_needle = normalized_needle,
+        ignore_case = config.ignore_case,
+        files_only = config.files_only,
+        count_only = config.count_only,
+        line_numbers = config.line_numbers,
+        max_file_bytes = config.max_file_bytes
+    )
+    let worker1 = if actual_workers > 1:
+        spawn KgWorker(
+            worker_id = 1,
+            normalized_needle = normalized_needle,
+            ignore_case = config.ignore_case,
+            files_only = config.files_only,
+            count_only = config.count_only,
+            line_numbers = config.line_numbers,
+            max_file_bytes = config.max_file_bytes
+        )
+    else:
+        worker0
+    let worker2 = if actual_workers > 2:
+        spawn KgWorker(
+            worker_id = 2,
+            normalized_needle = normalized_needle,
+            ignore_case = config.ignore_case,
+            files_only = config.files_only,
+            count_only = config.count_only,
+            line_numbers = config.line_numbers,
+            max_file_bytes = config.max_file_bytes
+        )
+    else:
+        worker1
+    let worker3 = if actual_workers > 3:
+        spawn KgWorker(
+            worker_id = 3,
+            normalized_needle = normalized_needle,
+            ignore_case = config.ignore_case,
+            files_only = config.files_only,
+            count_only = config.count_only,
+            line_numbers = config.line_numbers,
+            max_file_bytes = config.max_file_bytes
+        )
+    else:
+        worker2
+    let worker4 = if actual_workers > 4:
+        spawn KgWorker(
+            worker_id = 4,
+            normalized_needle = normalized_needle,
+            ignore_case = config.ignore_case,
+            files_only = config.files_only,
+            count_only = config.count_only,
+            line_numbers = config.line_numbers,
+            max_file_bytes = config.max_file_bytes
+        )
+    else:
+        worker3
+    let worker5 = if actual_workers > 5:
+        spawn KgWorker(
+            worker_id = 5,
+            normalized_needle = normalized_needle,
+            ignore_case = config.ignore_case,
+            files_only = config.files_only,
+            count_only = config.count_only,
+            line_numbers = config.line_numbers,
+            max_file_bytes = config.max_file_bytes
+        )
+    else:
+        worker4
+    let worker6 = if actual_workers > 6:
+        spawn KgWorker(
+            worker_id = 6,
+            normalized_needle = normalized_needle,
+            ignore_case = config.ignore_case,
+            files_only = config.files_only,
+            count_only = config.count_only,
+            line_numbers = config.line_numbers,
+            max_file_bytes = config.max_file_bytes
+        )
+    else:
+        worker5
+    let worker7 = if actual_workers > 7:
+        spawn KgWorker(
+            worker_id = 7,
+            normalized_needle = normalized_needle,
+            ignore_case = config.ignore_case,
+            files_only = config.files_only,
+            count_only = config.count_only,
+            line_numbers = config.line_numbers,
+            max_file_bytes = config.max_file_bytes
+        )
+    else:
+        worker6
+
+    var shard0 = ""
+    var shard1 = ""
+    var shard2 = ""
+    var shard3 = ""
+    var shard4 = ""
+    var shard5 = ""
+    var shard6 = ""
+    var shard7 = ""
+
+    if fs_is_file(config.root):
+        if kg_path_is_ignored(config.root, config.include_hidden) == false:
+            shard0 = config.root + "\n"
+    else:
+        let walked = fs_walk_paths_text(config.root)
+        let entries = kg_split_lines(walked)
+        var route = 0
+        var entry_index = 0
+        while entry_index < len(entries):
+            let entry = entries[entry_index]
+            if len(entry) == 0:
+                entry_index = entry_index + 1
+                continue
+            if fs_is_file(entry) == false:
+                entry_index = entry_index + 1
+                continue
+            if kg_path_is_ignored(entry, config.include_hidden):
+                entry_index = entry_index + 1
+                continue
+            let target = route % actual_workers
+            if target == 0:
+                shard0 = shard0 + entry + "\n"
+            elif target == 1:
+                shard1 = shard1 + entry + "\n"
+            elif target == 2:
+                shard2 = shard2 + entry + "\n"
+            elif target == 3:
+                shard3 = shard3 + entry + "\n"
+            elif target == 4:
+                shard4 = shard4 + entry + "\n"
+            elif target == 5:
+                shard5 = shard5 + entry + "\n"
+            elif target == 6:
+                shard6 = shard6 + entry + "\n"
+            else:
+                shard7 = shard7 + entry + "\n"
+            route = route + 1
+            entry_index = entry_index + 1
+
+    send worker0.ProcessShard(shard_paths_text = shard0)
+    if actual_workers > 1:
+        send worker1.ProcessShard(shard_paths_text = shard1)
+    if actual_workers > 2:
+        send worker2.ProcessShard(shard_paths_text = shard2)
+    if actual_workers > 3:
+        send worker3.ProcessShard(shard_paths_text = shard3)
+    if actual_workers > 4:
+        send worker4.ProcessShard(shard_paths_text = shard4)
+    if actual_workers > 5:
+        send worker5.ProcessShard(shard_paths_text = shard5)
+    if actual_workers > 6:
+        send worker6.ProcessShard(shard_paths_text = shard6)
+    if actual_workers > 7:
+        send worker7.ProcessShard(shard_paths_text = shard7)
+
+    let _wait = kg_wait_until_done(actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7)
+
+    let worker_files = []
+    let worker_hits = []
+    let worker_bytes = []
+    var queued_jobs = 0
+    var completed_jobs = 0
+    var matched_files = 0
+    var matched_lines = 0
+    var bytes_scanned = 0
+    var error_count = 0
+
+    send worker0.Flush()
+    let jobs0 = ask(worker0, "JobCount", 0)
+    let matched_files0 = ask(worker0, "MatchedFiles", 0)
+    let matched_lines0 = ask(worker0, "MatchedLines", 0)
+    let bytes0 = ask(worker0, "BytesScanned", 0)
+    let errors0 = ask(worker0, "ErrorCount", 0)
+    push(worker_files, jobs0)
+    push(worker_hits, matched_lines0)
+    push(worker_bytes, bytes0)
+    queued_jobs = queued_jobs + jobs0
+    completed_jobs = completed_jobs + jobs0
+    matched_files = matched_files + matched_files0
+    matched_lines = matched_lines + matched_lines0
+    bytes_scanned = bytes_scanned + bytes0
+    error_count = error_count + errors0
+
+    if actual_workers > 1:
+        send worker1.Flush()
+        let jobs1 = ask(worker1, "JobCount", 0)
+        let matched_files1 = ask(worker1, "MatchedFiles", 0)
+        let matched_lines1 = ask(worker1, "MatchedLines", 0)
+        let bytes1 = ask(worker1, "BytesScanned", 0)
+        let errors1 = ask(worker1, "ErrorCount", 0)
+        push(worker_files, jobs1)
+        push(worker_hits, matched_lines1)
+        push(worker_bytes, bytes1)
+        queued_jobs = queued_jobs + jobs1
+        completed_jobs = completed_jobs + jobs1
+        matched_files = matched_files + matched_files1
+        matched_lines = matched_lines + matched_lines1
+        bytes_scanned = bytes_scanned + bytes1
+        error_count = error_count + errors1
+
+    if actual_workers > 2:
+        send worker2.Flush()
+        let jobs2 = ask(worker2, "JobCount", 0)
+        let matched_files2 = ask(worker2, "MatchedFiles", 0)
+        let matched_lines2 = ask(worker2, "MatchedLines", 0)
+        let bytes2 = ask(worker2, "BytesScanned", 0)
+        let errors2 = ask(worker2, "ErrorCount", 0)
+        push(worker_files, jobs2)
+        push(worker_hits, matched_lines2)
+        push(worker_bytes, bytes2)
+        queued_jobs = queued_jobs + jobs2
+        completed_jobs = completed_jobs + jobs2
+        matched_files = matched_files + matched_files2
+        matched_lines = matched_lines + matched_lines2
+        bytes_scanned = bytes_scanned + bytes2
+        error_count = error_count + errors2
+
+    if actual_workers > 3:
+        send worker3.Flush()
+        let jobs3 = ask(worker3, "JobCount", 0)
+        let matched_files3 = ask(worker3, "MatchedFiles", 0)
+        let matched_lines3 = ask(worker3, "MatchedLines", 0)
+        let bytes3 = ask(worker3, "BytesScanned", 0)
+        let errors3 = ask(worker3, "ErrorCount", 0)
+        push(worker_files, jobs3)
+        push(worker_hits, matched_lines3)
+        push(worker_bytes, bytes3)
+        queued_jobs = queued_jobs + jobs3
+        completed_jobs = completed_jobs + jobs3
+        matched_files = matched_files + matched_files3
+        matched_lines = matched_lines + matched_lines3
+        bytes_scanned = bytes_scanned + bytes3
+        error_count = error_count + errors3
+
+    if actual_workers > 4:
+        send worker4.Flush()
+        let jobs4 = ask(worker4, "JobCount", 0)
+        let matched_files4 = ask(worker4, "MatchedFiles", 0)
+        let matched_lines4 = ask(worker4, "MatchedLines", 0)
+        let bytes4 = ask(worker4, "BytesScanned", 0)
+        let errors4 = ask(worker4, "ErrorCount", 0)
+        push(worker_files, jobs4)
+        push(worker_hits, matched_lines4)
+        push(worker_bytes, bytes4)
+        queued_jobs = queued_jobs + jobs4
+        completed_jobs = completed_jobs + jobs4
+        matched_files = matched_files + matched_files4
+        matched_lines = matched_lines + matched_lines4
+        bytes_scanned = bytes_scanned + bytes4
+        error_count = error_count + errors4
+
+    if actual_workers > 5:
+        send worker5.Flush()
+        let jobs5 = ask(worker5, "JobCount", 0)
+        let matched_files5 = ask(worker5, "MatchedFiles", 0)
+        let matched_lines5 = ask(worker5, "MatchedLines", 0)
+        let bytes5 = ask(worker5, "BytesScanned", 0)
+        let errors5 = ask(worker5, "ErrorCount", 0)
+        push(worker_files, jobs5)
+        push(worker_hits, matched_lines5)
+        push(worker_bytes, bytes5)
+        queued_jobs = queued_jobs + jobs5
+        completed_jobs = completed_jobs + jobs5
+        matched_files = matched_files + matched_files5
+        matched_lines = matched_lines + matched_lines5
+        bytes_scanned = bytes_scanned + bytes5
+        error_count = error_count + errors5
+
+    if actual_workers > 6:
+        send worker6.Flush()
+        let jobs6 = ask(worker6, "JobCount", 0)
+        let matched_files6 = ask(worker6, "MatchedFiles", 0)
+        let matched_lines6 = ask(worker6, "MatchedLines", 0)
+        let bytes6 = ask(worker6, "BytesScanned", 0)
+        let errors6 = ask(worker6, "ErrorCount", 0)
+        push(worker_files, jobs6)
+        push(worker_hits, matched_lines6)
+        push(worker_bytes, bytes6)
+        queued_jobs = queued_jobs + jobs6
+        completed_jobs = completed_jobs + jobs6
+        matched_files = matched_files + matched_files6
+        matched_lines = matched_lines + matched_lines6
+        bytes_scanned = bytes_scanned + bytes6
+        error_count = error_count + errors6
+
+    if actual_workers > 7:
+        send worker7.Flush()
+        let jobs7 = ask(worker7, "JobCount", 0)
+        let matched_files7 = ask(worker7, "MatchedFiles", 0)
+        let matched_lines7 = ask(worker7, "MatchedLines", 0)
+        let bytes7 = ask(worker7, "BytesScanned", 0)
+        let errors7 = ask(worker7, "ErrorCount", 0)
+        push(worker_files, jobs7)
+        push(worker_hits, matched_lines7)
+        push(worker_bytes, bytes7)
+        queued_jobs = queued_jobs + jobs7
+        completed_jobs = completed_jobs + jobs7
+        matched_files = matched_files + matched_files7
+        matched_lines = matched_lines + matched_lines7
+        bytes_scanned = bytes_scanned + bytes7
+        error_count = error_count + errors7
+
+    if config.show_stats:
+        var summary = "kg stats: queued=" + str(queued_jobs)
+        summary = summary + " completed=" + str(completed_jobs)
+        summary = summary + " matched_files=" + str(matched_files)
+        summary = summary + " matched_lines=" + str(matched_lines)
+        summary = summary + " bytes=" + str(bytes_scanned)
+        summary = summary + " active_workers=" + str(actor_scheduler_active_workers())
+        summary = summary + " busy_workers=" + str(actor_scheduler_busy_workers())
+        summary = summary + " queue_depth=" + str(actor_scheduler_queue_depth())
+        summary = summary + " max_queue_depth=" + str(actor_scheduler_max_queue_depth())
+        summary = summary + " overflow_spawns=" + str(actor_scheduler_overflow_thread_spawns())
+        summary = summary + "\n"
+        var lane_index = 0
+        while lane_index < len(worker_files):
+            summary = summary + "  lane[" + str(lane_index) + "] files=" + str(worker_files[lane_index])
+            summary = summary + " hits=" + str(worker_hits[lane_index])
+            summary = summary + " bytes=" + str(worker_bytes[lane_index])
+            summary = summary + "\n"
+            lane_index = lane_index + 1
+        print(summary)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if error_count > 0:
+        return 2
+    if matched_lines > 0:
+        return 0
+    return 1

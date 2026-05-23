@@ -57,6 +57,12 @@ impl StdLib {
             "Unit",
             "Write raw text to stdout without an automatic newline",
         );
+        lib.add_fn(
+            "stderr_write",
+            &[("value", "String")],
+            "Unit",
+            "Write raw text to stderr without an automatic newline",
+        );
         lib.add_fn("read_line", &[], "String", "Read line from stdin");
         lib.add_fn(
             "stdin_read_exact",
@@ -441,6 +447,12 @@ impl StdLib {
             &[("name", "String")],
             "String",
             "Read an environment variable, returning an empty string if missing",
+        );
+        lib.add_fn(
+            "args",
+            &[],
+            "Array<String>",
+            "Return the current process command-line arguments",
         );
         lib.add_fn("cwd", &[], "String", "Return the current working directory");
         lib.add_fn(
@@ -1960,6 +1972,7 @@ mod tests {
         assert!(stdlib.functions.contains_key("push"));
         assert!(stdlib.functions.contains_key("ask"));
         assert!(stdlib.functions.contains_key("ask_timeout"));
+        assert!(stdlib.functions.contains_key("args"));
         assert!(stdlib.functions.contains_key("command_run"));
         assert!(stdlib.functions.contains_key("json_parse"));
     }

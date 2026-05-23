@@ -1,0 +1,1782 @@
+// -- KAIN CAPSULE v2 ----------------------------------------------------------
+// name:       smoketest-evidence
+// version:    0.1.0
+// kind:       kain_executable
+// storage:    editable
+// contents:   evidence
+// digest:     sha256:71e00cdeaee3ac2d403512611e0bd721ee68249ec8c761c2b707dcb6d6ffe2e8
+// capsule:    smoketest
+// entry:      src/main.kn
+// structure:  54 files | 0 modules
+// ---------------------------------------------------------------------------
+//
+//!kain-capsule
+// schema = 2
+// kind = "blade"
+// storage = "editable"
+// contents = "evidence"
+// source_kind = "kain_executable"
+// compression = "none"
+// digest = "sha256:71e00cdeaee3ac2d403512611e0bd721ee68249ec8c761c2b707dcb6d6ffe2e8"
+// created_at = "2026-05-23T05:23:15.967437800+00:00"
+// file_count = 54
+// module_count = 0
+// preview_symbol_limit = 0
+// api_index = "auto"
+// module_index = "auto"
+// directories = ["telemetry", "telemetry/attrition", "telemetry/attrition/notes", "telemetry/attrition/tracks", "telemetry/benchmark", "telemetry/benchmark/notes", "telemetry/benchmark/tracks", "telemetry/full", "telemetry/full/notes", "telemetry/full/tracks"]
+// name = "smoketest-evidence"
+// capsule_set = "smoketest"
+// version = "0.1.0"
+// root_label = "smoketest"
+// entry = "src/main.kn"
+// manifest = "KAIN.toml"
+// notes = ["Telemetry and evidence companion capsule emitted after certify."]
+// tags = ["portable", "smoketest", "evidence"]
+//
+// [meta]
+// album = "smoketest"
+// flow = "full-certify"
+//!end-kain-capsule
+//!kain-file
+// path = "telemetry/attrition/notes/attrition.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 113
+// sha256 = "sha256:b45b4d8a53724a12e967e2b88cf60242ccbb6a71273f882cb5282f892c80f374"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "ops": 20,
+//   "rounds": 96,
+//   "composition_checksum": 823932225,
+//   "failure_code": 0,
+//   "failure_track": ""
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/notes/python_runner.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 895
+// sha256 = "sha256:2d8584d2cf0d80461b607314f56f97da4bba85e61eff4080f9e18d74c82f68f4"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "status": 0,
+//   "elapsed_ms": 249,
+//   "summary_exists": 1,
+//   "summary_path": "D:/Kain-Lang/smoketest/telemetry/attrition/summary.json",
+//   "output_dir": "D:/Kain-Lang/smoketest/telemetry/attrition",
+//   "output_dir_exists": 1,
+//   "output_parent_exists": 1,
+//   "executable": "D:/Kain-Lang/smoketest/smoketest.exe",
+//   "executable_exists": 1,
+//   "executable_parent_exists": 1,
+//   "cwd": "D:/Kain-Lang/smoketest/telemetry",
+//   "cwd_exists": 1,
+//   "python": "D:/Kain-Lang/target/debug/kain.exe",
+//   "python_version": "3.10.11",
+//   "bridge_ok": 1,
+//   "error_type": "",
+//   "error_message": "",
+//   "stdout_len": 0,
+//   "stderr_len": 0,
+//   "runner_checksum": 677992,
+//   "probe": {
+//   "ok": 1,
+//   "python": "D:/Kain-Lang/target/debug/kain.exe",
+//   "version": "3.10.11",
+//   "platform": "win32",
+//   "cwd": "D:/Kain-Lang/smoketest/telemetry",
+//   "subprocess_available": 1
+// }
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/summary.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 915
+// sha256 = "sha256:64fe19329d3248416deefb229bb1917677ac6451d08c0211bd94f33a38b072f0"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "ok": 1,
+//   "failure_code": 0,
+//   "failure_track": "",
+//   "total_tracks": 20,
+//   "succeeded_tracks": 20,
+//   "composition_checksum": 823932225,
+//   "started_ms": 40,
+//   "ended_ms": 180,
+//   "elapsed_ms": 140,
+//   "cpu_feature_mask": 391,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "runtime_heap_validate": 1,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 5979,
+//   "converge_mismatch_count": 0,
+//   "orchestrate_stage_count": 3986,
+//   "runtime_converge_telemetry_count": 20,
+//   "runtime_converge_cache_probe_count": 24,
+//   "runtime_converge_cache_hit_count": 11,
+//   "runtime_machine_teleport_count": 2004,
+//   "runtime_machine_pulse_total_fire_count": 11,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_max_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0,
+//   "actor_scheduler_total_dequeued": 0,
+//   "actor_scheduler_worker_count": 4,
+//   "actor_scheduler_busy_workers": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.0.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 632
+// sha256 = "sha256:9c98025c6404d72a0aec3f9ab9748be25ff5cfd5fd606e7b09bf171ca0b926f5"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.0",
+//   "lane": "telemetry_flow",
+//   "offset": 6000,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 40,
+//   "ended_ms": 47,
+//   "elapsed_ms": 7,
+//   "track_checksum": 576172,
+//   "composition_checksum": 176192450,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 288,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 1,
+//   "runtime_machine_teleport_count": 100,
+//   "runtime_machine_pulse_total_fire_count": 4,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.1.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 632
+// sha256 = "sha256:352341811314b51e0ea034d1c4cccf58b1200880ef672dd7ac9cc26dfd93c030"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.1",
+//   "lane": "telemetry_flow",
+//   "offset": 6001,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 48,
+//   "ended_ms": 52,
+//   "elapsed_ms": 4,
+//   "track_checksum": 576259,
+//   "composition_checksum": 122810139,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 579,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 2,
+//   "runtime_machine_teleport_count": 197,
+//   "runtime_machine_pulse_total_fire_count": 4,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.10.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 638
+// sha256 = "sha256:af3596bca0836f28dc79f3b81f282072c6456798afd8ba22527ba48924647849"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.10",
+//   "lane": "telemetry_flow",
+//   "offset": 6010,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 137,
+//   "ended_ms": 145,
+//   "elapsed_ms": 8,
+//   "track_checksum": 577138,
+//   "composition_checksum": 973366639,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 3279,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 11,
+//   "runtime_machine_teleport_count": 1102,
+//   "runtime_machine_pulse_total_fire_count": 9,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.11.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 638
+// sha256 = "sha256:d65dae4f0e38450f00ed17805af49f46d2a694d5035aa0a3a2fe89117706a71c"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.11",
+//   "lane": "telemetry_flow",
+//   "offset": 6011,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 147,
+//   "ended_ms": 150,
+//   "elapsed_ms": 3,
+//   "track_checksum": 577219,
+//   "composition_checksum": 264737905,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 3573,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 12,
+//   "runtime_machine_teleport_count": 1200,
+//   "runtime_machine_pulse_total_fire_count": 9,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.12.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 638
+// sha256 = "sha256:0d3872e56af21912902ec6e505853a7dce767aa5c65fac91f869333a9cdf4d14"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.12",
+//   "lane": "telemetry_flow",
+//   "offset": 6012,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 150,
+//   "ended_ms": 154,
+//   "elapsed_ms": 4,
+//   "track_checksum": 577318,
+//   "composition_checksum": 571040664,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 3870,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 13,
+//   "runtime_machine_teleport_count": 1299,
+//   "runtime_machine_pulse_total_fire_count": 9,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.13.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 639
+// sha256 = "sha256:9e0dc40de6865cf9b665c55ca1b4251e9448e139e890eb673162a77855c244be"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.13",
+//   "lane": "telemetry_flow",
+//   "offset": 6013,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 155,
+//   "ended_ms": 157,
+//   "elapsed_ms": 2,
+//   "track_checksum": 577408,
+//   "composition_checksum": 540214901,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 4170,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 14,
+//   "runtime_machine_teleport_count": 1400,
+//   "runtime_machine_pulse_total_fire_count": 10,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.14.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 639
+// sha256 = "sha256:8830f0e26f40a8fff31f4b118e74c7ceed4553a62cb350b07e66cc78d7f53c2f"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.14",
+//   "lane": "telemetry_flow",
+//   "offset": 6014,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 157,
+//   "ended_ms": 160,
+//   "elapsed_ms": 3,
+//   "track_checksum": 577507,
+//   "composition_checksum": 439712447,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 4473,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 15,
+//   "runtime_machine_teleport_count": 1501,
+//   "runtime_machine_pulse_total_fire_count": 10,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.15.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 639
+// sha256 = "sha256:ef3a6dd9aa0ad3c21ff7d8b346af5c922f48d3d671f5d7d89118c188da8a2cf3"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.15",
+//   "lane": "telemetry_flow",
+//   "offset": 6015,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 161,
+//   "ended_ms": 163,
+//   "elapsed_ms": 2,
+//   "track_checksum": 577600,
+//   "composition_checksum": 511950613,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 4779,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 16,
+//   "runtime_machine_teleport_count": 1603,
+//   "runtime_machine_pulse_total_fire_count": 10,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.16.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 639
+// sha256 = "sha256:e57067a6dc52704c9b94d9b50a37dd062ef87fbf989bf1a3b41d15e90d34c3a6"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.16",
+//   "lane": "telemetry_flow",
+//   "offset": 6016,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 164,
+//   "ended_ms": 166,
+//   "elapsed_ms": 2,
+//   "track_checksum": 577696,
+//   "composition_checksum": 149369022,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 5088,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 17,
+//   "runtime_machine_teleport_count": 1706,
+//   "runtime_machine_pulse_total_fire_count": 10,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.17.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 639
+// sha256 = "sha256:963add8fc56bcb0d613870010330c9a0dc0180e230857fb802a0e6508d91b21e"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.17",
+//   "lane": "telemetry_flow",
+//   "offset": 6017,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 167,
+//   "ended_ms": 170,
+//   "elapsed_ms": 3,
+//   "track_checksum": 577795,
+//   "composition_checksum": 701118027,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 5400,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 18,
+//   "runtime_machine_teleport_count": 1811,
+//   "runtime_machine_pulse_total_fire_count": 11,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.18.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 639
+// sha256 = "sha256:b237a69bdce078a4609b828c4cfaa5fa0f4f1a51b047a6ff7b59c1c18442464b"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.18",
+//   "lane": "telemetry_flow",
+//   "offset": 6018,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 173,
+//   "ended_ms": 176,
+//   "elapsed_ms": 3,
+//   "track_checksum": 577891,
+//   "composition_checksum": 877312502,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 5688,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 19,
+//   "runtime_machine_teleport_count": 1907,
+//   "runtime_machine_pulse_total_fire_count": 11,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.19.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 639
+// sha256 = "sha256:5ee0b814ae0607946e5926db10cbfa84629d2bdcf71dd0870049b8793863d81b"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.19",
+//   "lane": "telemetry_flow",
+//   "offset": 6019,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 177,
+//   "ended_ms": 180,
+//   "elapsed_ms": 3,
+//   "track_checksum": 577987,
+//   "composition_checksum": 823932225,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 5979,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 20,
+//   "runtime_machine_teleport_count": 2004,
+//   "runtime_machine_pulse_total_fire_count": 11,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.2.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:e0abe7243da670f34d3dfae9b259a9f277507a6f5afa83b0ce7de8be351b239d"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.2",
+//   "lane": "telemetry_flow",
+//   "offset": 6002,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 53,
+//   "ended_ms": 68,
+//   "elapsed_ms": 15,
+//   "track_checksum": 576388,
+//   "composition_checksum": 414180428,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 873,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 3,
+//   "runtime_machine_teleport_count": 296,
+//   "runtime_machine_pulse_total_fire_count": 5,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.3.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 634
+// sha256 = "sha256:0f9158a7d045f0237bb9bfece7ede9fa016c60f8b259878a18fe0669caa23f77"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.3",
+//   "lane": "telemetry_flow",
+//   "offset": 6003,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 69,
+//   "ended_ms": 79,
+//   "elapsed_ms": 10,
+//   "track_checksum": 576469,
+//   "composition_checksum": 720482185,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 1170,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 4,
+//   "runtime_machine_teleport_count": 396,
+//   "runtime_machine_pulse_total_fire_count": 6,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.4.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:fbaee4d81ec4ff4b54c5808345aa04332a185943edbb80f835c1ca1ebc04185c"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.4",
+//   "lane": "telemetry_flow",
+//   "offset": 6004,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 81,
+//   "ended_ms": 83,
+//   "elapsed_ms": 2,
+//   "track_checksum": 576541,
+//   "composition_checksum": 689655402,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 1470,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 5,
+//   "runtime_machine_teleport_count": 496,
+//   "runtime_machine_pulse_total_fire_count": 6,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.5.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:b8b00b7a21c6037a222fc646983616aba281c806a644596786f6656843077ccd"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.5",
+//   "lane": "telemetry_flow",
+//   "offset": 6005,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 84,
+//   "ended_ms": 86,
+//   "elapsed_ms": 2,
+//   "track_checksum": 576637,
+//   "composition_checksum": 589151925,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 1773,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 6,
+//   "runtime_machine_teleport_count": 597,
+//   "runtime_machine_pulse_total_fire_count": 6,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.6.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:8a123a114490f532afa5e4b88051987f614ae600d65e4c174de17b16d6853fc2"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.6",
+//   "lane": "telemetry_flow",
+//   "offset": 6006,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 87,
+//   "ended_ms": 89,
+//   "elapsed_ms": 2,
+//   "track_checksum": 576733,
+//   "composition_checksum": 661389071,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 2079,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 7,
+//   "runtime_machine_teleport_count": 699,
+//   "runtime_machine_pulse_total_fire_count": 6,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.7.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:e405dca708315f7629465df28eeeb05e2239741035986b044a826ef61f174163"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.7",
+//   "lane": "telemetry_flow",
+//   "offset": 6007,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 90,
+//   "ended_ms": 92,
+//   "elapsed_ms": 2,
+//   "track_checksum": 576829,
+//   "composition_checksum": 298806460,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 2388,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 8,
+//   "runtime_machine_teleport_count": 803,
+//   "runtime_machine_pulse_total_fire_count": 7,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.8.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:37b05e702cc4833ac299953b9084d91a85b07409d594a5a2bb3282af4693f38a"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.8",
+//   "lane": "telemetry_flow",
+//   "offset": 6008,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 96,
+//   "ended_ms": 98,
+//   "elapsed_ms": 2,
+//   "track_checksum": 576925,
+//   "composition_checksum": 850554442,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 2700,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 9,
+//   "runtime_machine_teleport_count": 907,
+//   "runtime_machine_pulse_total_fire_count": 7,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/attrition/tracks/attrition.iter.9.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 636
+// sha256 = "sha256:f4d40e9376aacf374acf54e85067bfc79a635847d4ef4b73b6db82bb71b54b43"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "attrition",
+//   "category": "attrition",
+//   "track": "attrition.iter.9",
+//   "lane": "telemetry_flow",
+//   "offset": 6009,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 99,
+//   "ended_ms": 109,
+//   "elapsed_ms": 10,
+//   "track_checksum": 577045,
+//   "composition_checksum": 26747911,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 2988,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 10,
+//   "runtime_machine_teleport_count": 1004,
+//   "runtime_machine_pulse_total_fire_count": 8,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/notes/benchmark.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 123
+// sha256 = "sha256:1eb3bee69876dbc5a12a7875847c2c8b44bc0f32d0aa88bb10505b3ab5f97552"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "rounds": 256,
+//   "passes": 6,
+//   "best_ms": 2,
+//   "worst_ms": 3,
+//   "total_ms": 17,
+//   "composition_checksum": 322820208
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/notes/python_runner.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 894
+// sha256 = "sha256:b4815c432c6df267e9838d8e89cae8371ca668e5bcab6fd24c7d70c1ea002a6f"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "status": 0,
+//   "elapsed_ms": 65,
+//   "summary_exists": 1,
+//   "summary_path": "D:/Kain-Lang/smoketest/telemetry/benchmark/summary.json",
+//   "output_dir": "D:/Kain-Lang/smoketest/telemetry/benchmark",
+//   "output_dir_exists": 1,
+//   "output_parent_exists": 1,
+//   "executable": "D:/Kain-Lang/smoketest/smoketest.exe",
+//   "executable_exists": 1,
+//   "executable_parent_exists": 1,
+//   "cwd": "D:/Kain-Lang/smoketest/telemetry",
+//   "cwd_exists": 1,
+//   "python": "D:/Kain-Lang/target/debug/kain.exe",
+//   "python_version": "3.10.11",
+//   "bridge_ok": 1,
+//   "error_type": "",
+//   "error_message": "",
+//   "stdout_len": 0,
+//   "stderr_len": 0,
+//   "runner_checksum": 677440,
+//   "probe": {
+//   "ok": 1,
+//   "python": "D:/Kain-Lang/target/debug/kain.exe",
+//   "version": "3.10.11",
+//   "platform": "win32",
+//   "cwd": "D:/Kain-Lang/smoketest/telemetry",
+//   "subprocess_available": 1
+// }
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/summary.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 907
+// sha256 = "sha256:27956b83a3140c3b9d0c7941ad47cac98e14de1b54ae310f3f1d8d92adcdc5b4"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "ok": 1,
+//   "failure_code": 0,
+//   "failure_track": "",
+//   "total_tracks": 6,
+//   "succeeded_tracks": 6,
+//   "composition_checksum": 322820208,
+//   "started_ms": 23,
+//   "ended_ms": 40,
+//   "elapsed_ms": 17,
+//   "cpu_feature_mask": 391,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "runtime_heap_validate": 1,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 5193,
+//   "converge_mismatch_count": 0,
+//   "orchestrate_stage_count": 3462,
+//   "runtime_converge_telemetry_count": 6,
+//   "runtime_converge_cache_probe_count": 6,
+//   "runtime_converge_cache_hit_count": 0,
+//   "runtime_machine_teleport_count": 1734,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_max_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0,
+//   "actor_scheduler_total_dequeued": 0,
+//   "actor_scheduler_worker_count": 4,
+//   "actor_scheduler_busy_workers": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/tracks/benchmark.pass.0.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 632
+// sha256 = "sha256:9b8f178a0345280259cfdd349a3d531aad760e66dcca13aada89aabab4ffc589"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "category": "benchmark",
+//   "track": "benchmark.pass.0",
+//   "lane": "telemetry_flow",
+//   "offset": 5000,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 23,
+//   "ended_ms": 25,
+//   "elapsed_ms": 2,
+//   "track_checksum": 480157,
+//   "composition_checksum": 887068102,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 768,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 1,
+//   "runtime_machine_teleport_count": 258,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/tracks/benchmark.pass.1.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:953a5f193cf90f43023922fb5457365f31a42a25288b81226a3ff36283a1e787"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "category": "benchmark",
+//   "track": "benchmark.pass.1",
+//   "lane": "telemetry_flow",
+//   "offset": 5001,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 25,
+//   "ended_ms": 28,
+//   "elapsed_ms": 3,
+//   "track_checksum": 480256,
+//   "composition_checksum": 605031676,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 1575,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 2,
+//   "runtime_machine_teleport_count": 527,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/tracks/benchmark.pass.2.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 633
+// sha256 = "sha256:8a5e29bfbf1a5895f65a09f85b9b0d32e94f735fb74813ec80c60235c1278303"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "category": "benchmark",
+//   "track": "benchmark.pass.2",
+//   "lane": "telemetry_flow",
+//   "offset": 5002,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 28,
+//   "ended_ms": 30,
+//   "elapsed_ms": 2,
+//   "track_checksum": 480349,
+//   "composition_checksum": 695760415,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 2421,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 3,
+//   "runtime_machine_teleport_count": 810,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/tracks/benchmark.pass.3.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 634
+// sha256 = "sha256:bf67bcafeaf873bda4edd80dc8124a024a4d60bb7f8cbdf1ca5de6b6ef4eaf86"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "category": "benchmark",
+//   "track": "benchmark.pass.3",
+//   "lane": "telemetry_flow",
+//   "offset": 5003,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 31,
+//   "ended_ms": 34,
+//   "elapsed_ms": 3,
+//   "track_checksum": 480448,
+//   "composition_checksum": 598880876,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 3306,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 4,
+//   "runtime_machine_teleport_count": 1105,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/tracks/benchmark.pass.4.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 634
+// sha256 = "sha256:77c8c5719a7087738d0c746a56df6e6393da8bb56a342aa92b5e94c784b34f7f"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "category": "benchmark",
+//   "track": "benchmark.pass.4",
+//   "lane": "telemetry_flow",
+//   "offset": 5004,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 34,
+//   "ended_ms": 36,
+//   "elapsed_ms": 2,
+//   "track_checksum": 480541,
+//   "composition_checksum": 838478381,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 4230,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 5,
+//   "runtime_machine_teleport_count": 1413,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/benchmark/tracks/benchmark.pass.5.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 634
+// sha256 = "sha256:2889fbaef2edc920386bb2f507539512a1e7afdbb896cd4937242047b2542082"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "benchmark",
+//   "category": "benchmark",
+//   "track": "benchmark.pass.5",
+//   "lane": "telemetry_flow",
+//   "offset": 5005,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 37,
+//   "ended_ms": 39,
+//   "elapsed_ms": 2,
+//   "track_checksum": 480637,
+//   "composition_checksum": 322820208,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 256,
+//   "entangle_propagation_count": 5193,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 6,
+//   "runtime_machine_teleport_count": 1734,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/notes/python_runner.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 883
+// sha256 = "sha256:ca642bc991a8e50d6f91ee6744a49328149767372eb61880e43caa89ac25fff3"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "status": 2002,
+//   "elapsed_ms": 63,
+//   "summary_exists": 1,
+//   "summary_path": "D:/Kain-Lang/smoketest/telemetry/full/summary.json",
+//   "output_dir": "D:/Kain-Lang/smoketest/telemetry/full",
+//   "output_dir_exists": 1,
+//   "output_parent_exists": 1,
+//   "executable": "D:/Kain-Lang/smoketest/smoketest.exe",
+//   "executable_exists": 1,
+//   "executable_parent_exists": 1,
+//   "cwd": "D:/Kain-Lang/smoketest/telemetry",
+//   "cwd_exists": 1,
+//   "python": "D:/Kain-Lang/target/debug/kain.exe",
+//   "python_version": "3.10.11",
+//   "bridge_ok": 1,
+//   "error_type": "",
+//   "error_message": "",
+//   "stdout_len": 0,
+//   "stderr_len": 0,
+//   "runner_checksum": 2227817,
+//   "probe": {
+//   "ok": 1,
+//   "python": "D:/Kain-Lang/target/debug/kain.exe",
+//   "version": "3.10.11",
+//   "platform": "win32",
+//   "cwd": "D:/Kain-Lang/smoketest/telemetry",
+//   "subprocess_available": 1
+// }
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/summary.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 911
+// sha256 = "sha256:73646ef3ed3dcf1b6ccdea5fde86b985e2cd97d0d37a3d4ee8f80813f502db10"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "ok": 0,
+//   "failure_code": 2002,
+//   "failure_track": "systems.abi_control",
+//   "total_tracks": 35,
+//   "succeeded_tracks": 19,
+//   "composition_checksum": 784727,
+//   "started_ms": 20,
+//   "ended_ms": 29,
+//   "elapsed_ms": 9,
+//   "cpu_feature_mask": 391,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "runtime_heap_validate": 1,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "orchestrate_stage_count": 2,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_converge_cache_probe_count": 0,
+//   "runtime_converge_cache_hit_count": 0,
+//   "runtime_machine_teleport_count": 4,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_max_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0,
+//   "actor_scheduler_total_dequeued": 0,
+//   "actor_scheduler_worker_count": 4,
+//   "actor_scheduler_busy_workers": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.actor.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 607
+// sha256 = "sha256:57c94e5afb6d05aa0c333c42acce19a73c59a0f1f666fcb31bc56f755b7f64eb"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.actor",
+//   "lane": "actor",
+//   "offset": 1000,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 25,
+//   "ended_ms": 25,
+//   "elapsed_ms": 0,
+//   "track_checksum": 30082,
+//   "composition_checksum": 116245,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.async_future.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 618
+// sha256 = "sha256:83af1f0d1250fda492d922f3ce0423da132ca90ba0dbca42f70da272ccbdb75a"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.async_future",
+//   "lane": "async_future",
+//   "offset": 500,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 21,
+//   "ended_ms": 21,
+//   "elapsed_ms": 0,
+//   "track_checksum": 7588,
+//   "composition_checksum": 16862,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.axiom.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 607
+// sha256 = "sha256:f2ee25f3bc66cc9669841b62781cadb979e3e17ccef693a848d44c7ab17d26f5"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.axiom",
+//   "lane": "axiom",
+//   "offset": 1300,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 26,
+//   "ended_ms": 26,
+//   "elapsed_ms": 0,
+//   "track_checksum": 50791,
+//   "composition_checksum": 246736,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.comptime.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 613
+// sha256 = "sha256:0d6c83519c8abd22ecdfe36414a78541fad246a5f651a8ee406ea888423b73ca"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.comptime",
+//   "lane": "comptime",
+//   "offset": 1700,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 27,
+//   "ended_ms": 27,
+//   "elapsed_ms": 0,
+//   "track_checksum": 86812,
+//   "composition_checksum": 536954,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 4,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.control.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 607
+// sha256 = "sha256:3c480c385b06c33b4575a1a06e772fe3f80f0775f6cc4b6a97e4c77ae3c47f8f"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.control",
+//   "lane": "control",
+//   "offset": 200,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 20,
+//   "ended_ms": 20,
+//   "elapsed_ms": 0,
+//   "track_checksum": 1264,
+//   "composition_checksum": 1619,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.converge.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 613
+// sha256 = "sha256:a7a03b461198de90a64ba8a4f1282ab39d63671e6068785be1e82d85731ad72b"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.converge",
+//   "lane": "converge",
+//   "offset": 1100,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 25,
+//   "ended_ms": 25,
+//   "elapsed_ms": 0,
+//   "track_checksum": 36394,
+//   "composition_checksum": 152639,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.effects.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 607
+// sha256 = "sha256:2e204ede798347cf915f01c46cbaac021454cba06b662fb498ecbf283daaec61"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.effects",
+//   "lane": "effects",
+//   "offset": 300,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 21,
+//   "ended_ms": 21,
+//   "elapsed_ms": 0,
+//   "track_checksum": 2767,
+//   "composition_checksum": 4386,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.entangle.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 611
+// sha256 = "sha256:85e2e262f1c1c6bbf180a1c4491ff8c48fea3aebd9f7ab79f90f81dff06f9c41"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.entangle",
+//   "lane": "entangle",
+//   "offset": 700,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 24,
+//   "ended_ms": 24,
+//   "elapsed_ms": 0,
+//   "track_checksum": 14782,
+//   "composition_checksum": 42514,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.law.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 601
+// sha256 = "sha256:fd6f540f14e7b6587d2415ec2fe99f7937759aaf22a0bbbc91e07d0d0ad1367d"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.law",
+//   "lane": "law",
+//   "offset": 800,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 24,
+//   "ended_ms": 24,
+//   "elapsed_ms": 0,
+//   "track_checksum": 19270,
+//   "composition_checksum": 61784,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.option_result.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 619
+// sha256 = "sha256:72b2e71af3e43caadc2011a24552e5097445e32609eaf1c11a4cba992966b8d2"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.option_result",
+//   "lane": "option_result",
+//   "offset": 400,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 21,
+//   "ended_ms": 21,
+//   "elapsed_ms": 0,
+//   "track_checksum": 4888,
+//   "composition_checksum": 9274,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.orchestrate.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 619
+// sha256 = "sha256:2e49808adb961f83e2f7b83584faa87887a2425abcc308a1f42d5128980504be"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.orchestrate",
+//   "lane": "orchestrate",
+//   "offset": 1200,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 25,
+//   "ended_ms": 25,
+//   "elapsed_ms": 0,
+//   "track_checksum": 43306,
+//   "composition_checksum": 195945,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.patch.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 605
+// sha256 = "sha256:3080cf14b9fd89acb9cca17115f4944b8c04f4746831be48780a84fbdc245361"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.patch",
+//   "lane": "patch",
+//   "offset": 900,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 24,
+//   "ended_ms": 24,
+//   "elapsed_ms": 0,
+//   "track_checksum": 24379,
+//   "composition_checksum": 86163,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.pulse.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 607
+// sha256 = "sha256:e54e94b859f40dde2a64bbc33415f37502b532e2443bd141763482414494f47a"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.pulse",
+//   "lane": "pulse",
+//   "offset": 1500,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 26,
+//   "ended_ms": 26,
+//   "elapsed_ms": 0,
+//   "track_checksum": 67597,
+//   "composition_checksum": 373233,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.shatter.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 611
+// sha256 = "sha256:0730a088f94ba90261b3746accca540402852f1affba3af643d2ea124b4497d0"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.shatter",
+//   "lane": "shatter",
+//   "offset": 1400,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 26,
+//   "ended_ms": 26,
+//   "elapsed_ms": 0,
+//   "track_checksum": 58900,
+//   "composition_checksum": 305636,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.teleport.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 613
+// sha256 = "sha256:50f7310d6d551b743340f8961f2d2b032e4d5ec3b9d534122098583d1d7b1936"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.teleport",
+//   "lane": "teleport",
+//   "offset": 1600,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 27,
+//   "ended_ms": 27,
+//   "elapsed_ms": 0,
+//   "track_checksum": 76909,
+//   "composition_checksum": 450142,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.types.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 601
+// sha256 = "sha256:beddaa7627578a2b75e3cea28cd9ca22b157e6606083ee4f335f83c2fe14130d"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.types",
+//   "lane": "types",
+//   "offset": 100,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 20,
+//   "ended_ms": 20,
+//   "elapsed_ms": 0,
+//   "track_checksum": 355,
+//   "composition_checksum": 355,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/semantics.world.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 605
+// sha256 = "sha256:44253d16597041e711d6c81b9e95c39f94c862efe0956c648055d52194f01c8b"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "semantics",
+//   "track": "semantics.world",
+//   "lane": "world",
+//   "offset": 600,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 23,
+//   "ended_ms": 23,
+//   "elapsed_ms": 0,
+//   "track_checksum": 10870,
+//   "composition_checksum": 27732,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 0,
+//   "entangle_propagation_count": 0,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 2,
+//   "runtime_machine_pulse_total_fire_count": 2,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/systems.abi_control.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 615
+// sha256 = "sha256:a7f8d6653a4f477f1418c83354694080aa28fa4a8b4a6c6046b51d97ca170505"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "systems",
+//   "track": "systems.abi_control",
+//   "lane": "abi_control",
+//   "offset": 2000,
+//   "status": 2,
+//   "ok": 0,
+//   "started_ms": 28,
+//   "ended_ms": 28,
+//   "elapsed_ms": 0,
+//   "track_checksum": 42052,
+//   "composition_checksum": 784727,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 4,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/systems.memory.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 605
+// sha256 = "sha256:f04fcc98bcbd0d3d486c100580f7d3b13c0ca0a121ca58389cd58127b32d3984"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "systems",
+//   "track": "systems.memory",
+//   "lane": "memory",
+//   "offset": 1800,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 27,
+//   "ended_ms": 28,
+//   "elapsed_ms": 1,
+//   "track_checksum": 97306,
+//   "composition_checksum": 634260,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 4,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file
+//!kain-file
+// path = "telemetry/full/tracks/systems.ownership.json"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 612
+// sha256 = "sha256:c70c37bdabc9d083f48802106968cabfb216ceb1194eff27caefd320f74900db"
+// trailing_newline = true
+//!kain-file-content
+// {
+//   "mode": "full",
+//   "category": "systems",
+//   "track": "systems.ownership",
+//   "lane": "ownership",
+//   "offset": 1900,
+//   "status": 0,
+//   "ok": 1,
+//   "started_ms": 28,
+//   "ended_ms": 28,
+//   "elapsed_ms": 0,
+//   "track_checksum": 108415,
+//   "composition_checksum": 742675,
+//   "cpu_feature_fingerprint": -7409408978278525106,
+//   "patch_journal_count": 3,
+//   "entangle_propagation_count": 3,
+//   "converge_mismatch_count": 0,
+//   "runtime_converge_telemetry_count": 0,
+//   "runtime_machine_teleport_count": 4,
+//   "runtime_machine_pulse_total_fire_count": 3,
+//   "actor_scheduler_queue_depth": 0,
+//   "actor_scheduler_total_enqueued": 0
+// }
+//!end-kain-file

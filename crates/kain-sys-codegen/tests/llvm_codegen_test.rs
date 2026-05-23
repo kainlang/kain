@@ -158,6 +158,131 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_emits_current_process_builtin_declarations() {
+    let source = r#"
+fn main() -> Int:
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare i8* @args()"));
+    assert!(llvm.contains("declare i8* @cwd()"));
+    assert!(llvm.contains("declare i8* @env(i8*)"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "current-process-builtin-declarations");
+}
+
+#[test]
+fn llvm_lowers_runtime_array_builtins_through_array_handles() {
+    let source = r#"
+fn main() -> Int:
+    let argv = args()
+    let first = argv[0]
+    if len(first) >= 0:
+        return len(argv)
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare i8* @args()"));
+    assert!(llvm.contains("call i8* @args()"));
+    assert!(llvm.contains("call i64 @array_get(i8*"));
+    assert!(
+        llvm.contains(" = inttoptr i64 ")
+            && llvm.contains(" to i8*")
+            && llvm.contains("call i64 @len(i8*"),
+        "runtime string-array indexing must materialize string handles before string ops:\n{}",
+        llvm
+    );
+    assert!(
+        !llvm.contains("getelementptr inbounds i64, i64*"),
+        "runtime array indexing must stay on array handles, not raw i64 pointer arithmetic:\n{}",
+        llvm
+    );
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "runtime-array-builtin-handles");
+}
+
+#[test]
+fn llvm_lowers_authored_array_string_returns_as_runtime_handles() {
+    let source = r#"
+fn collect() -> Array<String>:
+    let values = []
+    push(values, "alpha")
+    return values
+
+fn main() -> Int:
+    let values = collect()
+    if values[0] == "alpha":
+        return 0
+    return 1
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define internal i8* @collect()"));
+    assert!(llvm.contains("call i8* @collect()"));
+    assert!(llvm.contains("call i64 @array_get(i8*"));
+    assert!(
+        llvm.contains(" = inttoptr i64 ") && llvm.contains("call i1 @deep_eq(i8*"),
+        "authored Array<String> returns must keep runtime-array string element typing through equality:\n{}",
+        llvm
+    );
+    assert!(
+        !llvm.contains("call i8* @to_string(i64"),
+        "authored Array<String> returns must not stringify runtime string elements as integers:\n{}",
+        llvm
+    );
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "authored-array-string-return-handles");
+}
+
+#[test]
+fn llvm_preserves_runtime_array_string_typing_across_early_return_cleanup() {
+    let source = r#"
+fn collect() -> Array<String>:
+    let values = []
+    push(values, "alpha")
+    return values
+
+fn main() -> Int:
+    let values = collect()
+    if len(values) < 1:
+        return 9
+    if values[0] == "alpha":
+        return 0
+    return 1
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define internal i8* @collect()"));
+    assert!(llvm.contains("call i8* @collect()"));
+    assert!(llvm.contains("call i64 @len(i8*"));
+    assert!(
+        llvm.contains(" = inttoptr i64 ") && llvm.contains("call i1 @deep_eq(i8*"),
+        "early-return cleanup must not erase runtime-array string element typing:\n{}",
+        llvm
+    );
+    assert!(
+        !llvm.contains("call i8* @to_string(i64"),
+        "early-return cleanup must not degrade runtime-array strings into integer stringify paths:\n{}",
+        llvm
+    );
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "runtime-array-early-return-cleanup");
+}
+
+#[test]
 fn llvm_resolves_top_level_const_values() {
     let source = r#"
 const ANSWER_BASE: Int = 40
@@ -2699,6 +2824,18 @@ fn llvm_lowers_println_to_stdout_write() {
 
     assert!(llvm.contains("call void @stdout_write(i8*"));
     assert!(llvm.contains("call i8* @str_concat(i8*"));
+}
+
+#[test]
+fn llvm_lowers_stderr_write_as_native_runtime_call() {
+    let typed =
+        typed_program_from_source("fn main() -> Int:\n    stderr_write(\"llvm-stderr\")\n    return 0\n");
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare void @stderr_write(i8*)"));
+    assert!(llvm.contains("call void @stderr_write(i8*"));
 }
 
 #[test]

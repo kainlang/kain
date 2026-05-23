@@ -1,5 +1,53 @@
 # Kain Memory
 
+# 2026-05-23 - root stdlib completion now has a dedicated requirements contract
+
+The repo now has `stdlib/requirements.md` as the authoritative backlog and delivery contract for finishing the root `std::*` surface instead of relying on ad hoc parity conversations.
+
+What changed:
+
+- `stdlib/requirements.md`
+  - records the operating rules for root-stdlib completion work
+  - defines `TODO` / `PARTIAL` / `BLOCKED` / `DONE` / `WAIVED` status semantics
+  - requires atlas regeneration, smoketest meshing, benchmark/attrition/proof/runtime-conformance evidence where applicable, and same-change status updates when a requirement finishes
+  - maps the major missing root families against the current Kain surface and local donor baselines, including text/data, containers, fs/path/io, time/random/sync, os/process/net/crypto depth, binary/archive tooling, and Kain-native semantic leverage
+
+Durable lesson:
+
+- Future agents working on root stdlib completion should start from `stdlib/requirements.md`, update row status there as part of the landing change, and treat overlay-only or blade-only helpers as insufficient for closing root-stdlib gaps.
+
+# 2026-05-23 - benchmark `cases_v2` telemetry router now emits real JSON/markdown reports without `Any` handle corruption
+
+The fresh Kain-first benchmark lane under `benchmark/cases_v2/.telemetryrouter` now survives the full `build.kn` flow and writes sane `latest_v2.md`, summary JSON, and per-case track JSON files.
+
+What changed:
+
+- `benchmark/cases_v2/.telemetryrouter/router.kn`
+  - kept the compact monolithic Kain benchmark-file shape for multiple in-file rows (`scalar_mix`, `branch_dispatch`, `call_chain`, `array_scan`, `option_result`, `string_ops`, `alloc_churn`, `stdlib_foundations`)
+  - replaced `json_object_*` / `json_array_*` report assembly with manual string JSON serialization because the native path was persisting `Any` handles as large integers in `latest_v2.json` and `v2_tracks/*.json`
+  - removed the broken pass-sample markdown section rather than shipping corrupted per-pass strings
+  - added a `RouterTelemetry` snapshot so markdown and JSON use the same captured runtime counters instead of calling the telemetry functions separately and drifting
+  - made output parent discovery accept both `/` and `\\` so Windows absolute output paths under `benchmark/out/reports` are treated correctly
+- `benchmark/build.kn`
+  - unchanged contract-wise; the existing `telemetry-v2` task now produces valid artifacts through the fixed router
+
+Validation:
+
+- `D:\\Kain-Lang\\target\\debug\\kain.exe blades build . --json` from `D:\\Kain-Lang\\benchmark`
+  - `benchmark-v2:check-llvm`: succeeded
+  - `benchmark-v2:root-executable`: succeeded
+  - `benchmark-v2:telemetry-v2`: succeeded
+  - `benchmark-v2:certify-v2`: succeeded
+- JSON parse smoke:
+  - `benchmark/out/reports/latest_v2.json` decodes with `cases` as a list of 8 objects
+  - `benchmark/out/reports/v2_tracks/scalar_mix.json` decodes as a normal JSON object with expected keys
+
+Durable lessons:
+
+- In this current native Kain lane, report persistence that relies on `Any` JSON object/array handles is not trustworthy for benchmark artifact emission. Prefer manual string serialization for operator-facing benchmark reports until the underlying runtime/object serialization path is proven stable.
+- `latest_v2.md` is now the clean operator surface for the Kain-first `cases_v2` slice, and `benchmark/out/reports/latest_v2.json` plus `benchmark/out/reports/v2_tracks/*.json` are the machine-readable companions.
+- Very fast rows still collapse to `0ms` on this timer granularity. If a future agent wants more meaningful numbers for micro rows, increase `KAIN_BENCH_V2_AMPLIFY` or migrate to a finer-grained timing primitive instead of treating the serializer fix as a performance measurement fix.
+
 # 2026-05-22 - live `.god` module probing is gone from resolver and blade discovery
 
 The live Kain source-discovery path no longer spends time probing legacy `.god`

@@ -33,6 +33,14 @@ pub struct ProcessSpec {
     pub stderr_mode: ProcessStdioMode,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct CurrentProcessInfo {
+    pub executable_path: String,
+    pub arguments: Vec<String>,
+    pub current_working_directory: String,
+    pub operating_system_process_id: Option<i64>,
+}
+
 impl ProcessSpec {
     pub fn new(executable: impl Into<String>) -> Self {
         Self {
@@ -135,7 +143,7 @@ pub enum ProcessError {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProcessSpec, ProcessStdioMode, PtySize};
+    use super::{CurrentProcessInfo, ProcessSpec, ProcessStdioMode, PtySize};
 
     #[test]
     fn process_spec_defaults_to_inherit_modes_and_environment() {
@@ -177,5 +185,19 @@ mod tests {
         };
         assert_eq!(size.columns, 120);
         assert_eq!(size.rows, 40);
+    }
+
+    #[test]
+    fn current_process_info_is_plain_data() {
+        let info = CurrentProcessInfo {
+            executable_path: "D:/Kain-Lang/kg.exe".to_string(),
+            arguments: vec!["kg.exe".to_string(), "needle".to_string()],
+            current_working_directory: "D:/Kain-Lang".to_string(),
+            operating_system_process_id: Some(77),
+        };
+        assert_eq!(info.arguments.len(), 2);
+        assert_eq!(info.arguments[1], "needle");
+        assert_eq!(info.current_working_directory, "D:/Kain-Lang");
+        assert_eq!(info.operating_system_process_id, Some(77));
     }
 }

@@ -2,7 +2,7 @@
 name = "kain-process"
 version = "0.1.0"
 edition = "2021"
-description = "Portable child-process and PTY contracts for Kain"
+description = "Portable current-process, child-process, and PTY contracts for Kain"
 license = "MIT"
 
 [dependencies]
