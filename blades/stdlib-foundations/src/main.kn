@@ -1,5 +1,6 @@
 use std::runtime
 use std::ascii
+use std::semver
 use std::text
 use std::collections
 use std::crypto
@@ -45,6 +46,26 @@ fn probe_ascii() -> Int:
         return 12
     if ascii_hex_char_upper(15) != "F" or ascii_hex_char_lower(15) != "f":
         return 13
+    return 0
+
+fn probe_semver() -> Int:
+    let parsed = semver_parse("1.4.2-beta.3+build.9")
+    if parsed.ok == false:
+        return 14
+    if semver_format(parsed.version) != "1.4.2-beta.3+build.9":
+        return 15
+    if semver_normalize(" 1.4.2-beta.3+build.9 ") != "1.4.2-beta.3+build.9":
+        return 16
+    if semver_satisfies_text("1.4.2", "^ 1.4.0") == false:
+        return 17
+    if semver_satisfies_text("1.5.0", "1.4.x"):
+        return 18
+    if semver_satisfies_text("2.1.0", "1.4.x || >= 2.0.0 < 3.0.0") == false:
+        return 19
+    if semver_compare_text("2.0.0", "2.0.0-rc.1") != SEMVER_ORDER_GT:
+        return 20
+    if semver_parse("1.02.3").ok:
+        return 21
     return 0
 
 fn probe_collections() -> Int:
@@ -212,6 +233,9 @@ fn main() -> Int:
     let ascii_status = probe_ascii()
     if ascii_status != 0:
         return ascii_status
+    let semver_status = probe_semver()
+    if semver_status != 0:
+        return semver_status
     let collections_status = probe_collections()
     if collections_status != 0:
         return collections_status

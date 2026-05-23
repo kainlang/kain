@@ -44,6 +44,8 @@ use text_lane::smoke_text_lane
 use time_lane::smoke_time_lane
 use unicode_lane::smoke_unicode_lane
 use random_lane::smoke_random_lane
+use uri_lane::smoke_uri_lane
+use semver_lane::smoke_semver_lane
 
 // Interop track
 use c_bridge::smoke_c_bridge_lane
@@ -118,7 +120,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 41
+    let total_tracks: Int = 43
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -489,6 +491,24 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_random = smoke_first_error(4100, lane_random)
     if e_random != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_random, "stdlib.random_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_uri = now_millis()
+    let lane_uri = smoke_uri_lane()
+    let ended_uri = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.uri_lane", "uri", 42, 4200, lane_uri, started_uri, ended_uri, composition_checksum)
+    let e_uri = smoke_first_error(4200, lane_uri)
+    if e_uri != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_uri, "stdlib.uri_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_semver = now_millis()
+    let lane_semver = smoke_semver_lane()
+    let ended_semver = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.semver_lane", "semver", 43, 4300, lane_semver, started_semver, ended_semver, composition_checksum)
+    let e_semver = smoke_first_error(4300, lane_semver)
+    if e_semver != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_semver, "stdlib.semver_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1

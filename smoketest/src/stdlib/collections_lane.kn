@@ -28,4 +28,61 @@ pub fn smoke_collections_lane() -> Int:
         return 5
     let _slots_destroy = slot_map_destroy(slots)
     let _map_destroy = typed_map_destroy(map)
+
+    # 5. Test Intrusive Zero-Allocation Hash Map (uthash Evolution)
+    let item_size = 6
+    let buffer = alloc_zeroed(3 * item_size, "Int")
+    
+    # Initialize item 0: id=100, value=1000
+    let item0 = ptr_offset(buffer, 0 * item_size, "Int")
+    mem_store(ptr_offset(item0, 0, "Int"), 100, "Int") # id
+    mem_store(ptr_offset(item0, 1, "Int"), 1000, "Int") # value
+    
+    # Initialize item 1: id=200, value=2000
+    let item1 = ptr_offset(buffer, 1 * item_size, "Int")
+    mem_store(ptr_offset(item1, 0, "Int"), 200, "Int") # id
+    mem_store(ptr_offset(item1, 1, "Int"), 2000, "Int") # value
+
+    # Initialize item 2: id=300, value=3000
+    let item2 = ptr_offset(buffer, 2 * item_size, "Int")
+    mem_store(ptr_offset(item2, 0, "Int"), 300, "Int") # id
+    mem_store(ptr_offset(item2, 1, "Int"), 3000, "Int") # value
+
+    var ih_map = intrusive_hash_map_create(8)
+    
+    # Node offset is field 2
+    let node_offset = 2
+    
+    # Insert items
+    ih_map = intrusive_hash_map_insert(ih_map, node_offset, item0, 100, 100)
+    ih_map = intrusive_hash_map_insert(ih_map, node_offset, item1, 200, 200)
+    ih_map = intrusive_hash_map_insert(ih_map, node_offset, item2, 300, 300)
+    
+    if ih_map.count != 3:
+        return 6
+        
+    # Search for items
+    let found1 = intrusive_hash_map_find(ih_map, node_offset, 200, 200)
+    if ptr_to_int(found1) == 0:
+        return 7
+    let found1_val = mem_load(ptr_offset(found1, 1, "Int"), "Int")
+    if found1_val != 2000:
+        return 8
+        
+    let found2 = intrusive_hash_map_find(ih_map, node_offset, 400, 400) # not present
+    if ptr_to_int(found2) != 0:
+        return 9
+        
+    # Remove item 1
+    ih_map = intrusive_hash_map_remove(ih_map, node_offset, item1)
+    if ih_map.count != 2:
+        return 10
+        
+    let found1_after = intrusive_hash_map_find(ih_map, node_offset, 200, 200)
+    if ptr_to_int(found1_after) != 0:
+        return 11
+        
+    let _ih_destroy = intrusive_hash_map_destroy(ih_map)
+    decay buffer
+
     return 0

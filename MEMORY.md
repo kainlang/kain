@@ -1,5 +1,31 @@
 # Kain Memory
 
+# 2026-05-23 - root `std::semver` landed as a pure-Kain P0 family
+
+The root stdlib now has `stdlib/semver.kn` with typed semantic versions, strict SemVer-style parsing, precedence comparison, normalized formatting, and range matching for exact, comparator, wildcard, caret, tilde, hyphen, and `||`-joined clauses.
+
+What changed:
+
+- `stdlib/semver.kn`
+  - added `SemVer`, typed parse/range result structs, typed comparator/range clause structs, and pure-Kain helpers for parse, format, compare, normalization, prerelease checks, and range satisfaction
+  - range parsing covers exact versions, `>`, `>=`, `<`, `<=`, `^`, `~`, wildcard and partial ranges such as `1`, `1.2`, `1.x`, hyphen ranges such as `1.2 - 1.4.5`, and `||` disjunction
+  - comparator clauses also accept spaced operator forms such as `>= 2.0.0 < 3.0.0` instead of forcing glued tokens everywhere
+- `smoketest/src/stdlib/semver_lane.kn`
+  - added the proof lane for parse, normalize, prerelease ordering, invalid input rejection, and range satisfaction
+- `smoketest/src/main.kn`
+  - wired the new stdlib track into the album after the already-landed URI lane and bumped `total_tracks` to `43`
+- `smoketest/build.kn`
+  - registered the new lane as a tracked `check-llvm` input
+- `blades/stdlib-foundations/src/main.kn`
+  - added a non-stdlib consumer so semver is exercised outside the root module itself
+- `stdlib/requirements.md`
+  - marked the `std::semver` P0 row `DONE`
+
+Durable lessons:
+
+- `semver_parse(...)` is intentionally strict about concrete versions: it requires `major.minor.patch`, rejects leading-zero numeric core fields, and enforces SemVer-style prerelease/build identifier validity.
+- `semver_compare(...)` follows precedence, so build metadata is preserved for formatting but ignored for ordering; exact identity lives in `semver_equal(...)`, while range checks stay precedence-based.
+
 # 2026-05-23 - root stdlib first-pass text/data expansion landed (`std::base64`, `std::fmt`, `std::json`, richer `std::text`)
 
 The root stdlib now has a real first-pass text/data floor instead of the old thin `text + crypto-random-hex` story. `stdlib/base64.kn`, `stdlib/fmt.kn`, and `stdlib/json.kn` are live root families, and `stdlib/text.kn` grew into a broader utility surface instead of staying just slice/find/trim/materialize.

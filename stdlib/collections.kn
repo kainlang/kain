@@ -486,3 +486,107 @@ pub fn slot_map_destroy(map: SlotMap) -> Int:
     decay map.generations
     decay map.values
     return 0
+
+# --- Intrusive Zero-Allocation Hash Map (The uthash Evolution) ---
+
+pub struct IntrusiveHashNode:
+    next: ptr<Int>
+    prev: ptr<Int>
+    hash_value: Int
+    key: Int
+
+pub struct IntrusiveHashMap:
+    buckets: ptr<Int>
+    bucket_count: Int
+    count: Int
+
+pub fn intrusive_hash_map_create(bucket_count: Int) -> IntrusiveHashMap with Alloc:
+    var safe_buckets = bucket_count
+    if safe_buckets < 1:
+        safe_buckets = 1
+    let buckets: ptr<Int> = alloc_zeroed(safe_buckets, "Int")
+    return IntrusiveHashMap { buckets: buckets, bucket_count: safe_buckets, count: 0 }
+
+pub fn intrusive_hash_map_destroy(map: IntrusiveHashMap) -> Int:
+    decay map.buckets
+    return 0
+
+pub fn intrusive_hash_map_insert(map: IntrusiveHashMap, node_offset: Int, item_ptr: ptr<Int>, key_hash: Int, key: Int) -> IntrusiveHashMap with Unsafe:
+    let bucket_idx = (key_hash & 9223372036854775807) % map.bucket_count
+    let bucket_ptr = ptr_offset(map.buckets, bucket_idx, "Int")
+    let head_ptr = int_to_ptr(mem_load(bucket_ptr, "Int"), "Int")
+
+    # Get address of our IntrusiveHashNode inside item_ptr
+    let node_ptr = ptr_offset(item_ptr, node_offset, "Int")
+
+    # Initialize node fields: next, prev, hash_value, key
+    mem_store(ptr_offset(node_ptr, 0, "Int"), ptr_to_int(head_ptr), "Int")
+    mem_store(ptr_offset(node_ptr, 1, "Int"), 0, "Int")
+    mem_store(ptr_offset(node_ptr, 2, "Int"), key_hash, "Int")
+    mem_store(ptr_offset(node_ptr, 3, "Int"), key, "Int")
+
+    # If head was not NULL, set head.prev = item_ptr
+    if ptr_to_int(head_ptr) != 0:
+        let head_node_ptr = ptr_offset(head_ptr, node_offset, "Int")
+        mem_store(ptr_offset(head_node_ptr, 1, "Int"), ptr_to_int(item_ptr), "Int")
+
+    # Set bucket head = item_ptr
+    mem_store(bucket_ptr, ptr_to_int(item_ptr), "Int")
+
+    return IntrusiveHashMap {
+        buckets: map.buckets,
+        bucket_count: map.bucket_count,
+        count: map.count + 1
+    }
+
+pub fn intrusive_hash_map_find(map: IntrusiveHashMap, node_offset: Int, key_hash: Int, key: Int) -> ptr<Int> with Unsafe:
+    let bucket_idx = (key_hash & 9223372036854775807) % map.bucket_count
+    let bucket_ptr = ptr_offset(map.buckets, bucket_idx, "Int")
+    var current = int_to_ptr(mem_load(bucket_ptr, "Int"), "Int")
+
+    var found = int_to_ptr(0, "Int")
+    var done = false
+    while ptr_to_int(current) != 0 and done == false:
+        let node_ptr = ptr_offset(current, node_offset, "Int")
+        let current_hash = mem_load(ptr_offset(node_ptr, 2, "Int"), "Int")
+        
+        if current_hash == key_hash:
+            let current_key = mem_load(ptr_offset(node_ptr, 3, "Int"), "Int")
+            if current_key == key:
+                found = current
+                done = true
+        
+        if done == false:
+            current = int_to_ptr(mem_load(ptr_offset(node_ptr, 0, "Int"), "Int"), "Int")
+
+    return found
+
+pub fn intrusive_hash_map_remove(map: IntrusiveHashMap, node_offset: Int, item_ptr: ptr<Int>) -> IntrusiveHashMap with Unsafe:
+    let node_ptr = ptr_offset(item_ptr, node_offset, "Int")
+    let next_ptr = int_to_ptr(mem_load(ptr_offset(node_ptr, 0, "Int"), "Int"), "Int")
+    let prev_ptr = int_to_ptr(mem_load(ptr_offset(node_ptr, 1, "Int"), "Int"), "Int")
+    let hash_val = mem_load(ptr_offset(node_ptr, 2, "Int"), "Int")
+
+    let bucket_idx = (hash_val & 9223372036854775807) % map.bucket_count
+    let bucket_ptr = ptr_offset(map.buckets, bucket_idx, "Int")
+
+    # If this is the head of the bucket, update head = next_ptr
+    let head_ptr = int_to_ptr(mem_load(bucket_ptr, "Int"), "Int")
+    if ptr_to_int(head_ptr) == ptr_to_int(item_ptr):
+        mem_store(bucket_ptr, ptr_to_int(next_ptr), "Int")
+
+    # If there is a next node, set next.prev = prev_ptr
+    if ptr_to_int(next_ptr) != 0:
+        let next_node_ptr = ptr_offset(next_ptr, node_offset, "Int")
+        mem_store(ptr_offset(next_node_ptr, 1, "Int"), ptr_to_int(prev_ptr), "Int")
+
+    # If there is a prev node, set prev.next = next_ptr
+    if ptr_to_int(prev_ptr) != 0:
+        let prev_node_ptr = ptr_offset(prev_ptr, node_offset, "Int")
+        mem_store(ptr_offset(prev_node_ptr, 0, "Int"), ptr_to_int(next_ptr), "Int")
+
+    return IntrusiveHashMap {
+        buckets: map.buckets,
+        bucket_count: map.bucket_count,
+        count: map.count - 1
+    }

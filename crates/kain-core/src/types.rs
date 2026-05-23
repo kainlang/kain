@@ -4183,7 +4183,8 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
         }
         check_block_semantics(env, &handler.body, &ctx)?;
         let reply_contract = handler_param_types.first().and_then(|(param_name, param_ty)| {
-            if param_name != "reply_to" || !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
+            let _ = param_name;
+            if !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
                 return None;
             }
             infer_reply_contract_from_handler_body(env, &handler.body)

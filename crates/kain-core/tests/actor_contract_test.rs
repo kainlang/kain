@@ -48,3 +48,30 @@ fn typecheck_rejects_duplicate_actor_handlers_through_actor_model_validator() {
     let error = parse_and_typecheck(source).expect_err("duplicate handlers should fail");
     assert!(error.to_string().contains("duplicate handler"));
 }
+
+#[test]
+fn typecheck_infers_actor_call_reply_contract_from_generic_port_even_without_reply_to_name() {
+    let source = r#"actor Worker:
+    state done: Bool = true
+
+    on Done(done_port: P, request: Int):
+        send done_port.Reply(value = self.done)
+
+fn main() -> Bool:
+    let worker = spawn Worker()
+    return ask(worker, "Done", 0)
+"#;
+
+    let program = parse_and_typecheck(source).expect("actor ask contract should typecheck");
+    let actor = match &program.items[0] {
+        types::TypedItem::Actor(actor) => actor,
+        other => panic!("expected actor item, found {other:?}"),
+    };
+
+    let reply = actor.actor_contract.handlers[0]
+        .message
+        .reply
+        .as_ref()
+        .expect("Done handler should carry a reply contract");
+    assert_eq!(reply.type_name, "Bool");
+}

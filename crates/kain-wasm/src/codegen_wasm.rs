@@ -209,12 +209,95 @@ fn main() -> Int:
         let wasm = generate(&typed).expect("wasm generation");
         assert!(!wasm.is_empty());
     }
+
+    #[test]
+    fn wasm_generate_preserves_layouts_for_function_returned_vectors() {
+        let source = r#"
+struct Axis:
+    x: Float
+    y: Float
+    z: Float
+
+struct Other:
+    x: Float
+    t: Float
+
+fn axis() -> Axis:
+    return Axis { x: 1.0, y: 2.0, z: 3.0 }
+
+fn main() -> Float:
+    let value = axis()
+    return value.x + value.y + value.z
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_function_vector_layout.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+    }
+
+    #[test]
+    fn wasm_generate_preserves_layouts_for_if_expression_results() {
+        let source = r#"
+struct Axis:
+    x: Float
+    y: Float
+
+struct Other:
+    x: Float
+    t: Float
+
+fn choose(flag: Bool) -> Axis:
+    if flag:
+        return Axis { x: 1.0, y: 2.0 }
+    return Axis { x: 3.0, y: 4.0 }
+
+fn main() -> Float:
+    let chosen = if true:
+        choose(true)
+    else:
+        choose(false)
+    return chosen.x + chosen.y
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_if_vector_layout.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+    }
+
+    #[test]
+    fn wasm_generate_preserves_layouts_for_if_expr_with_param_branch() {
+        let source = r#"
+struct Axis:
+    x: Float
+    y: Float
+
+struct Other:
+    x: Float
+    t: Float
+
+fn blend(a: Axis, b: Axis, flag: Bool) -> Float:
+    let chosen = if flag:
+        Axis { x: a.x, y: a.y }
+    else:
+        b
+    return chosen.x + chosen.y
+
+fn main() -> Float:
+    return blend(Axis { x: 1.0, y: 2.0 }, Axis { x: 3.0, y: 4.0 }, true)
+"#;
+
+        let typed = parse_and_typecheck(source, "wasm_if_param_branch_layout.kn");
+        let wasm = generate(&typed).expect("wasm generation");
+        assert!(!wasm.is_empty());
+    }
 }
 
 struct WasmCompiler {
     module: Module,
     /// Map function names to their WASM function IDs for call resolution
     functions: HashMap<String, walrus::FunctionId>,
+    /// Return layouts for callable names so field access on call results can stay typed.
+    callable_layout_names: HashMap<String, String>,
     /// Top-level constants folded into wasm immediates.
     constants: HashMap<String, WasmConstValue>,
     /// Memory ID for linear memory
@@ -420,11 +503,9 @@ impl WasmCompiler {
         builder: &mut InstrSeqBuilder,
         expr: &Expr,
     ) -> KainResult<()> {
-        let already_i32 = self.expr_is_i32_in_context(ctx, expr);
+        let source_ty = self.infer_expr_wasm_type_in_context(ctx, expr);
         self.compile_expr(ctx, builder, expr)?;
-        if !already_i32 {
-            builder.unop(walrus::ir::UnaryOp::I32WrapI64);
-        }
+        self.coerce_stack_to_val_type(builder, source_ty, ValType::I32);
         Ok(())
     }
 
@@ -434,12 +515,158 @@ impl WasmCompiler {
         builder: &mut InstrSeqBuilder,
         expr: &Expr,
     ) -> KainResult<()> {
-        let already_i32 = self.expr_is_i32_in_context(ctx, expr);
+        let source_ty = self.infer_expr_wasm_type_in_context(ctx, expr);
         self.compile_expr(ctx, builder, expr)?;
-        if already_i32 {
-            builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
-        }
+        self.coerce_stack_to_val_type(builder, source_ty, ValType::I64);
         Ok(())
+    }
+
+    fn builtin_math_call_result_type(
+        &self,
+        func_name: &str,
+        arg_types: &[ValType],
+    ) -> Option<ValType> {
+        match func_name {
+            "abs" => Some(if arg_types.first().copied() == Some(ValType::F64) {
+                ValType::F64
+            } else {
+                ValType::I64
+            }),
+            "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" | "pow" => {
+                Some(ValType::F64)
+            }
+            _ => None,
+        }
+    }
+
+    fn primitive_call_result_type(&self, func_name: &str) -> Option<ValType> {
+        match func_name {
+            "Bool" | "bool" | "Char" => Some(ValType::I32),
+            "Float32" | "F32" => Some(ValType::F32),
+            "Float" | "Float64" | "F64" => Some(ValType::F64),
+            "Int" | "I64" | "U64" | "Isize" | "Usize" | "I32" | "U32" | "I16" | "U16"
+            | "I8" | "U8" => Some(ValType::I64),
+            _ => None,
+        }
+    }
+
+    fn compile_primitive_cast_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        func_name: &str,
+        args: &[CallArg],
+    ) -> KainResult<bool> {
+        let Some(target_ty) = self.primitive_call_result_type(func_name) else {
+            return Ok(false);
+        };
+        if args.len() != 1 {
+            return Ok(false);
+        }
+
+        let value = &args[0].value;
+        let source_ty = self.infer_expr_wasm_type_in_context(ctx, value);
+        self.compile_expr(ctx, builder, value)?;
+
+        if func_name.eq_ignore_ascii_case("bool") {
+            match source_ty {
+                ValType::I64 => {
+                    builder.i64_const(0);
+                    builder.binop(walrus::ir::BinaryOp::I64Ne);
+                }
+                ValType::F64 => {
+                    builder.f64_const(0.0);
+                    builder.binop(walrus::ir::BinaryOp::F64Ne);
+                }
+                ValType::F32 => {
+                    builder.f32_const(0.0);
+                    builder.binop(walrus::ir::BinaryOp::F32Ne);
+                }
+                _ => {}
+            }
+        } else {
+            self.coerce_stack_to_val_type(builder, source_ty, target_ty);
+        }
+
+        Ok(true)
+    }
+
+    fn compile_builtin_math_call(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        func_name: &str,
+        args: &[CallArg],
+    ) -> KainResult<bool> {
+        match func_name {
+            "abs" if args.len() == 1 => {
+                let arg_ty = self.infer_expr_wasm_type_in_context(ctx, &args[0].value);
+                if arg_ty == ValType::F64 {
+                    self.compile_expr(ctx, builder, &args[0].value)?;
+                    self.coerce_stack_to_val_type(builder, arg_ty, ValType::F64);
+                    builder.unop(walrus::ir::UnaryOp::F64Abs);
+                } else {
+                    self.compile_expr_as_i64(ctx, builder, &args[0].value)?;
+                    builder.local_set(ctx.tmp_i64);
+                    builder.local_get(ctx.tmp_i64);
+                    builder.i64_const(0);
+                    builder.binop(walrus::ir::BinaryOp::I64LtS);
+                    builder.if_else(
+                        ValType::I64,
+                        |then_builder| {
+                            then_builder.i64_const(0);
+                            then_builder.local_get(ctx.tmp_i64);
+                            then_builder.binop(walrus::ir::BinaryOp::I64Sub);
+                        },
+                        |else_builder| {
+                            else_builder.local_get(ctx.tmp_i64);
+                        },
+                    );
+                }
+                Ok(true)
+            }
+            "sqrt" if args.len() == 1 => {
+                let arg_ty = self.infer_expr_wasm_type_in_context(ctx, &args[0].value);
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                self.coerce_stack_to_val_type(builder, arg_ty, ValType::F64);
+                builder.unop(walrus::ir::UnaryOp::F64Sqrt);
+                Ok(true)
+            }
+            "floor" if args.len() == 1 => {
+                let arg_ty = self.infer_expr_wasm_type_in_context(ctx, &args[0].value);
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                self.coerce_stack_to_val_type(builder, arg_ty, ValType::F64);
+                builder.unop(walrus::ir::UnaryOp::F64Floor);
+                Ok(true)
+            }
+            "ceil" if args.len() == 1 => {
+                let arg_ty = self.infer_expr_wasm_type_in_context(ctx, &args[0].value);
+                self.compile_expr(ctx, builder, &args[0].value)?;
+                self.coerce_stack_to_val_type(builder, arg_ty, ValType::F64);
+                builder.unop(walrus::ir::UnaryOp::F64Ceil);
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn install_builtin_vector_layouts(&mut self) {
+        for (layout_name, fields) in [
+            ("Vec2", &["x", "y"][..]),
+            ("Vec3", &["x", "y", "z"][..]),
+            ("Vec4", &["x", "y", "z", "w"][..]),
+        ] {
+            let mut offsets = HashMap::new();
+            let mut types = HashMap::new();
+            for (index, field_name) in fields.iter().enumerate() {
+                offsets.insert((*field_name).to_string(), (index as u32) * 8);
+                types.insert((*field_name).to_string(), ValType::F64);
+            }
+            self.struct_layouts
+                .insert(layout_name.to_string(), (offsets, (fields.len() as u32) * 8));
+            self.struct_field_types
+                .insert(layout_name.to_string(), types);
+        }
     }
 
     fn compile_c_runtime_call(
@@ -718,6 +945,30 @@ impl WasmCompiler {
         let (time_now_func, _) = module.add_import_func("host", "time_now", time_now_type);
         functions.insert("time_now".to_string(), time_now_func);
 
+        let round_type = module.types.add(&[ValType::F64], &[ValType::F64]);
+        let (round_func, _) = module.add_import_func("host", "round", round_type);
+        functions.insert("round".to_string(), round_func);
+
+        let sin_type = module.types.add(&[ValType::F64], &[ValType::F64]);
+        let (sin_func, _) = module.add_import_func("host", "sin", sin_type);
+        functions.insert("sin".to_string(), sin_func);
+
+        let cos_type = module.types.add(&[ValType::F64], &[ValType::F64]);
+        let (cos_func, _) = module.add_import_func("host", "cos", cos_type);
+        functions.insert("cos".to_string(), cos_func);
+
+        let tan_type = module.types.add(&[ValType::F64], &[ValType::F64]);
+        let (tan_func, _) = module.add_import_func("host", "tan", tan_type);
+        functions.insert("tan".to_string(), tan_func);
+
+        let pow_type = module.types.add(&[ValType::F64, ValType::F64], &[ValType::F64]);
+        let (pow_func, _) = module.add_import_func("host", "pow", pow_type);
+        functions.insert("pow".to_string(), pow_func);
+
+        let fmod_type = module.types.add(&[ValType::F64, ValType::F64], &[ValType::F64]);
+        let (fmod_func, _) = module.add_import_func("host", "fmod", fmod_type);
+        functions.insert("fmod".to_string(), fmod_func);
+
         for shim in crate::c_runtime_shims::WASM_C_RUNTIME_SHIMS {
             let Some(host_symbol) = shim.host_symbol else {
                 continue;
@@ -771,9 +1022,10 @@ impl WasmCompiler {
             .tables
             .add_local(false, 16, Some(256), walrus::RefType::Funcref);
 
-        Self {
+        let mut compiler = Self {
             module,
             functions,
+            callable_layout_names: HashMap::new(),
             constants: HashMap::new(),
             memory_id: Some(memory_id),
             heap_ptr_global,
@@ -790,7 +1042,9 @@ impl WasmCompiler {
             world_globals: HashMap::new(),
             actors: HashMap::new(),
             actor_handlers: HashMap::new(),
-        }
+        };
+        compiler.install_builtin_vector_layouts();
+        compiler
     }
 
     fn compile_program(&mut self, program: &TypedProgram) -> KainResult<()> {
@@ -802,6 +1056,45 @@ impl WasmCompiler {
                 if let Some(value) = self.try_eval_const_expr(&constant.ast.value) {
                     self.constants.insert(constant.ast.name.clone(), value);
                 }
+            }
+        }
+
+        for item in &program.items {
+            match item {
+                TypedItem::Function(f) => {
+                    self.register_resolved_callable_layout(&f.ast.name, &f.resolved_type);
+                }
+                TypedItem::Patch(p) => {
+                    self.register_resolved_callable_layout(&p.ast.name, &p.resolved_type);
+                }
+                TypedItem::Law(l) => {
+                    self.register_resolved_callable_layout(&l.ast.name, &l.resolved_type);
+                }
+                TypedItem::Converge(c) => {
+                    self.register_resolved_callable_layout(&c.ast.name, &c.resolved_type);
+                }
+                TypedItem::Orchestrate(o) => {
+                    self.register_resolved_callable_layout(&o.ast.name, &o.resolved_type);
+                }
+                TypedItem::Impl(i) => {
+                    for method in &i.ast.methods {
+                        let qualified = self.impl_method_name(&i.ast.target_type, &method.name);
+                        self.register_authored_callable_layout(
+                            &qualified,
+                            method.return_type.as_ref(),
+                        );
+                    }
+                }
+                TypedItem::Actor(actor) => {
+                    for method in &actor.ast.methods {
+                        let qualified = format!("{}.{}", actor.ast.name, method.name);
+                        self.register_authored_callable_layout(
+                            &qualified,
+                            method.return_type.as_ref(),
+                        );
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -1166,6 +1459,12 @@ impl WasmCompiler {
     fn layout_name_from_resolved_type(&self, ty: &ResolvedType) -> Option<String> {
         match ty {
             ResolvedType::Struct(name, _) => Some(name.clone()),
+            ResolvedType::Tuple(items) => match items.len() {
+                2 => Some("Vec2".to_string()),
+                3 => Some("Vec3".to_string()),
+                4 => Some("Vec4".to_string()),
+                _ => None,
+            },
             ResolvedType::Ref { inner, .. } | ResolvedType::Ptr { inner, .. } => {
                 self.layout_name_from_resolved_type(inner)
             }
@@ -1185,6 +1484,112 @@ impl WasmCompiler {
                 self.layout_name_from_authored_type(inner)
             }
             _ => None,
+        }
+    }
+
+    fn layout_name_from_callable_resolved_type(&self, resolved_type: &ResolvedType) -> Option<String> {
+        match resolved_type {
+            ResolvedType::Function { ret, .. } => self.layout_name_from_resolved_type(ret),
+            _ => None,
+        }
+    }
+
+    fn register_resolved_callable_layout(&mut self, name: &str, resolved_type: &ResolvedType) {
+        if let Some(layout_name) = self.layout_name_from_callable_resolved_type(resolved_type) {
+            self.callable_layout_names
+                .insert(name.to_string(), layout_name);
+        }
+    }
+
+    fn register_authored_callable_layout(
+        &mut self,
+        name: &str,
+        return_type: Option<&kain_core::ast::Type>,
+    ) {
+        if let Some(layout_name) =
+            return_type.and_then(|ty| self.layout_name_from_authored_type(ty))
+        {
+            self.callable_layout_names
+                .insert(name.to_string(), layout_name);
+        }
+    }
+
+    fn resolve_method_layout_name(
+        &self,
+        receiver_layout: Option<String>,
+        method: &str,
+    ) -> Option<String> {
+        if let Some(receiver_layout) = receiver_layout {
+            let qualified = format!("{receiver_layout}.{method}");
+            if let Some(layout_name) = self.callable_layout_names.get(&qualified) {
+                return Some(layout_name.clone());
+            }
+        }
+        self.callable_layout_names.get(method).cloned()
+    }
+
+    fn resolve_block_layout_name_in_layout_scope(
+        &self,
+        layout_locals: &HashMap<String, String>,
+        block: &Block,
+    ) -> Option<String> {
+        match block.stmts.last()? {
+            Stmt::Expr(expr) => self.resolve_layout_name_in_layout_scope(layout_locals, expr),
+            Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                self.resolve_layout_name_in_layout_scope(layout_locals, expr)
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_else_layout_name_in_layout_scope(
+        &self,
+        layout_locals: &HashMap<String, String>,
+        branch: &kain_core::ast::ElseBranch,
+    ) -> Option<String> {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.resolve_block_layout_name_in_layout_scope(layout_locals, block)
+            }
+            kain_core::ast::ElseBranch::ElseIf(_, then_branch, next) => self
+                .merge_layout_candidates([
+                    self.resolve_block_layout_name_in_layout_scope(layout_locals, then_branch),
+                    next.as_ref().and_then(|next| {
+                        self.resolve_else_layout_name_in_layout_scope(layout_locals, next)
+                    }),
+                ]),
+        }
+    }
+
+    fn resolve_block_layout_name_in_context(
+        &self,
+        ctx: &CompilationContext,
+        block: &Block,
+    ) -> Option<String> {
+        match block.stmts.last()? {
+            Stmt::Expr(expr) => self.resolve_layout_name_in_context(ctx, expr),
+            Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+                self.resolve_layout_name_in_context(ctx, expr)
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_else_layout_name_in_context(
+        &self,
+        ctx: &CompilationContext,
+        branch: &kain_core::ast::ElseBranch,
+    ) -> Option<String> {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.resolve_block_layout_name_in_context(ctx, block)
+            }
+            kain_core::ast::ElseBranch::ElseIf(_, then_branch, next) => self
+                .merge_layout_candidates([
+                    self.resolve_block_layout_name_in_context(ctx, then_branch),
+                    next.as_ref()
+                        .and_then(|next| self.resolve_else_layout_name_in_context(ctx, next)),
+                ]),
         }
     }
 
@@ -1245,12 +1650,11 @@ impl WasmCompiler {
                 self.infer_actor_expr_wasm_type(actor, locals, body)
             }
             Expr::Teleport { value, .. }
-            | Expr::Cast { value, .. }
-            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
             | Expr::Try(value, _) => self.infer_actor_expr_wasm_type(actor, locals, value),
+            Expr::Cast { target, .. } | Expr::Bitcast { target, .. } => self.map_authored_type(target),
             Expr::Ident(name, _) => locals
                 .get(name)
                 .copied()
@@ -1312,8 +1716,18 @@ impl WasmCompiler {
                 kain_core::ast::UnaryOp::Not => ValType::I32,
                 _ => self.infer_actor_expr_wasm_type(actor, locals, operand),
             },
-            Expr::Call { callee, .. } => {
+            Expr::Call { callee, args, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(cast_ty) = self.primitive_call_result_type(name) {
+                        return cast_ty;
+                    }
+                    let arg_types: Vec<_> = args
+                        .iter()
+                        .map(|arg| self.infer_actor_expr_wasm_type(actor, locals, &arg.value))
+                        .collect();
+                    if let Some(builtin_ty) = self.builtin_math_call_result_type(name, &arg_types) {
+                        return builtin_ty;
+                    }
                     if matches!(
                         name.as_str(),
                         "to_string" | "str_concat" | "char_at" | "str_eq"
@@ -1948,6 +2362,34 @@ impl WasmCompiler {
             Expr::Index { object, .. } => {
                 self.resolve_layout_name_in_layout_scope(layout_locals, object)
             }
+            Expr::Call { callee, .. } => match callee.as_ref() {
+                Expr::Ident(name, _) => self.callable_layout_names.get(name).cloned(),
+                _ => None,
+            },
+            Expr::StageCall { function, .. } => self.callable_layout_names.get(function).cloned(),
+            Expr::MethodCall {
+                receiver, method, ..
+            } => self.resolve_method_layout_name(
+                self.resolve_layout_name_in_layout_scope(layout_locals, receiver),
+                method,
+            ),
+            Expr::If {
+                then_branch,
+                else_branch,
+                ..
+            } => self.merge_layout_candidates([
+                self.resolve_block_layout_name_in_layout_scope(layout_locals, then_branch),
+                else_branch.as_ref().and_then(|branch| {
+                    self.resolve_else_layout_name_in_layout_scope(layout_locals, branch)
+                }),
+            ]),
+            Expr::Match { arms, .. } => self.merge_layout_candidates(
+                arms.iter()
+                    .map(|arm| self.resolve_layout_name_in_layout_scope(layout_locals, &arm.body)),
+            ),
+            Expr::Block(block, _) => {
+                self.resolve_block_layout_name_in_layout_scope(layout_locals, block)
+            }
             Expr::Paren(inner, _)
             | Expr::Deref(inner, _)
             | Expr::Ref { value: inner, .. }
@@ -2148,6 +2590,7 @@ impl WasmCompiler {
             ResolvedType::String => 4, // pointer
             ResolvedType::Char => 4,
             ResolvedType::Array(_, len) => 4 + (*len as u32 * 8), // pointer + inline storage
+            ResolvedType::Tuple(_) => 4,
             ResolvedType::Struct(_, _) => 4,                      // pointer
             _ => 8,                                               // default to 8 bytes
         }
@@ -2966,18 +3409,35 @@ impl WasmCompiler {
         Ok(())
     }
 
-    fn coerce_stack_to_val_type(
-        &self,
-        builder: &mut InstrSeqBuilder,
-        from_is_i32: bool,
-        target: ValType,
-    ) {
-        match target {
-            ValType::I32 if !from_is_i32 => {
+    fn coerce_stack_to_val_type(&self, builder: &mut InstrSeqBuilder, source: ValType, target: ValType) {
+        if source == target {
+            return;
+        }
+
+        match (source, target) {
+            (ValType::I64, ValType::I32) => {
                 builder.unop(walrus::ir::UnaryOp::I32WrapI64);
             }
-            ValType::I64 if from_is_i32 => {
+            (ValType::I32, ValType::I64) => {
                 builder.unop(walrus::ir::UnaryOp::I64ExtendSI32);
+            }
+            (ValType::I64, ValType::F64) => {
+                builder.unop(walrus::ir::UnaryOp::F64ConvertSI64);
+            }
+            (ValType::I32, ValType::F64) => {
+                builder.unop(walrus::ir::UnaryOp::F64ConvertSI32);
+            }
+            (ValType::F64, ValType::I64) => {
+                builder.unop(walrus::ir::UnaryOp::I64TruncSF64);
+            }
+            (ValType::F64, ValType::I32) => {
+                builder.unop(walrus::ir::UnaryOp::I32TruncSF64);
+            }
+            (ValType::F32, ValType::F64) => {
+                builder.unop(walrus::ir::UnaryOp::F64PromoteF32);
+            }
+            (ValType::F64, ValType::F32) => {
+                builder.unop(walrus::ir::UnaryOp::F32DemoteF64);
             }
             _ => {}
         }
@@ -2990,7 +3450,7 @@ impl WasmCompiler {
         expr: &Expr,
         target: ValType,
     ) {
-        self.coerce_stack_to_val_type(builder, self.expr_is_i32_in_context(ctx, expr), target);
+        self.coerce_stack_to_val_type(builder, self.infer_expr_wasm_type_in_context(ctx, expr), target);
     }
 
     fn resolve_actor_name_in_context<'a>(
@@ -3069,6 +3529,32 @@ impl WasmCompiler {
                     .map(|item| self.resolve_layout_name_in_context(ctx, item)),
             ),
             Expr::Index { object, .. } => self.resolve_layout_name_in_context(ctx, object),
+            Expr::Call { callee, .. } => match callee.as_ref() {
+                Expr::Ident(name, _) => self.callable_layout_names.get(name).cloned(),
+                _ => None,
+            },
+            Expr::StageCall { function, .. } => self.callable_layout_names.get(function).cloned(),
+            Expr::MethodCall {
+                receiver, method, ..
+            } => self.resolve_method_layout_name(
+                self.resolve_layout_name_in_context(ctx, receiver),
+                method,
+            ),
+            Expr::If {
+                then_branch,
+                else_branch,
+                ..
+            } => self.merge_layout_candidates([
+                self.resolve_block_layout_name_in_context(ctx, then_branch),
+                else_branch
+                    .as_ref()
+                    .and_then(|branch| self.resolve_else_layout_name_in_context(ctx, branch)),
+            ]),
+            Expr::Match { arms, .. } => self.merge_layout_candidates(
+                arms.iter()
+                    .map(|arm| self.resolve_layout_name_in_context(ctx, &arm.body)),
+            ),
+            Expr::Block(block, _) => self.resolve_block_layout_name_in_context(ctx, block),
             Expr::Paren(inner, _)
             | Expr::Deref(inner, _)
             | Expr::Ref { value: inner, .. }
@@ -3161,8 +3647,18 @@ impl WasmCompiler {
             Expr::Field { object, field, .. } => self
                 .infer_field_val_type_in_context(ctx, object, field)
                 .unwrap_or_else(|| self.infer_wasm_type_with_locals(&ctx.locals, expr)),
-            Expr::Call { callee, .. } => {
+            Expr::Call { callee, args, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(cast_ty) = self.primitive_call_result_type(name) {
+                        return cast_ty;
+                    }
+                    let arg_types: Vec<_> = args
+                        .iter()
+                        .map(|arg| self.infer_expr_wasm_type_in_context(ctx, &arg.value))
+                        .collect();
+                    if let Some(builtin_ty) = self.builtin_math_call_result_type(name, &arg_types) {
+                        return builtin_ty;
+                    }
                     if let Some(func_id) = ctx.functions.get(name) {
                         if let Some(result_ty) = self.function_result_type(*func_id) {
                             return result_ty;
@@ -4039,12 +4535,11 @@ impl WasmCompiler {
                 self.infer_wasm_type_with_locals(locals, body)
             }
             Expr::Teleport { value, .. }
-            | Expr::Cast { value, .. }
-            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
             | Expr::Try(value, _) => self.infer_wasm_type_with_locals(locals, value),
+            Expr::Cast { target, .. } | Expr::Bitcast { target, .. } => self.map_authored_type(target),
             Expr::JSX(_, _)
             | Expr::Array(_, _)
             | Expr::Tuple(_, _)
@@ -4077,8 +4572,18 @@ impl WasmCompiler {
                     ValType::I64
                 }
             }
-            Expr::Call { callee, .. } => {
+            Expr::Call { callee, args, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(cast_ty) = self.primitive_call_result_type(name) {
+                        return cast_ty;
+                    }
+                    let arg_types: Vec<_> = args
+                        .iter()
+                        .map(|arg| self.infer_wasm_type_with_locals(locals, &arg.value))
+                        .collect();
+                    if let Some(builtin_ty) = self.builtin_math_call_result_type(name, &arg_types) {
+                        return builtin_ty;
+                    }
                     if name
                         .chars()
                         .next()
@@ -4486,6 +4991,16 @@ impl WasmCompiler {
             ResolvedType::Float(_) => ValType::F64,
             ResolvedType::Bool => ValType::I32,
             ResolvedType::String => ValType::I32, // Strings are pointers (i32 offset)
+            ResolvedType::Array(_, _)
+            | ResolvedType::Slice(_)
+            | ResolvedType::Tuple(_)
+            | ResolvedType::Option(_)
+            | ResolvedType::Result(_, _)
+            | ResolvedType::Ref { .. }
+            | ResolvedType::Ptr { .. }
+            | ResolvedType::Function { .. }
+            | ResolvedType::Struct(_, _)
+            | ResolvedType::Enum(_, _) => ValType::I32,
             _ => ValType::I64,
         }
     }
@@ -4538,14 +5053,21 @@ impl WasmCompiler {
             Expr::Paren(inner, _) => self.infer_wasm_type(inner),
             Expr::Observe { body, .. } | Expr::Collapse { body, .. } => self.infer_wasm_type(body),
             Expr::Teleport { value, .. }
-            | Expr::Cast { value, .. }
-            | Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
             | Expr::Try(value, _) => self.infer_wasm_type(value),
-            Expr::Call { callee, .. } => {
+            Expr::Cast { target, .. } | Expr::Bitcast { target, .. } => self.map_authored_type(target),
+            Expr::Call { callee, args, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(cast_ty) = self.primitive_call_result_type(name) {
+                        return cast_ty;
+                    }
+                    let arg_types: Vec<_> =
+                        args.iter().map(|arg| self.infer_wasm_type(&arg.value)).collect();
+                    if let Some(builtin_ty) = self.builtin_math_call_result_type(name, &arg_types) {
+                        return builtin_ty;
+                    }
                     // Component calls return i32 (DOM node IDs)
                     if name
                         .chars()
@@ -4685,7 +5207,15 @@ impl WasmCompiler {
             .resolve_field_offset_in_context(ctx, object, field)
             .map_err(|reason| match reason {
                 "ambiguous" => KainError::codegen(
-                    format!("Field '{}' layout is ambiguous in WASM codegen", field),
+                    format!(
+                        "Field '{}' layout is ambiguous in WASM codegen for object {:?} with local layout {:?}",
+                        field,
+                        object,
+                        match object {
+                            Expr::Ident(name, _) => ctx.layout_locals.get(name).cloned(),
+                            _ => self.resolve_layout_name_in_context(ctx, object),
+                        }
+                    ),
                     span,
                 ),
                 _ => KainError::codegen(format!("Field '{}' layout not found", field), span),
@@ -5539,6 +6069,9 @@ impl WasmCompiler {
             | Expr::Try(value, _) => self.is_i32_expr(value),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
+                    if let Some(result_ty) = self.primitive_call_result_type(name) {
+                        return result_ty == ValType::I32;
+                    }
                     // Component calls and DOM functions return i32
                     name.chars()
                         .next()
@@ -5971,8 +6504,31 @@ impl WasmCompiler {
             Expr::Paren(inner, _) => {
                 self.compile_expr(ctx, builder, inner)?;
             }
-            Expr::Cast { value, .. }
-            | Expr::Bitcast { value, .. }
+            Expr::Cast { value, target, .. } => {
+                let source_ty = self.infer_expr_wasm_type_in_context(ctx, value);
+                self.compile_expr(ctx, builder, value)?;
+                match target {
+                    kain_core::ast::Type::Named { name, .. }
+                        if matches!(name.as_str(), "Bool" | "bool") =>
+                    {
+                        match source_ty {
+                            ValType::I64 => {
+                                builder.i64_const(0);
+                                builder.binop(walrus::ir::BinaryOp::I64Ne);
+                            }
+                            ValType::F64 => {
+                                builder.f64_const(0.0);
+                                builder.binop(walrus::ir::BinaryOp::F64Ne);
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {
+                        self.coerce_stack_to_val_type(builder, source_ty, self.map_authored_type(target));
+                    }
+                }
+            }
+            Expr::Bitcast { value, .. }
             | Expr::Comptime(value, _)
             | Expr::Await(value, _)
             | Expr::AsyncBlock(value, _)
@@ -6023,9 +6579,18 @@ impl WasmCompiler {
                 let right_ty = self.infer_expr_wasm_type_in_context(ctx, right);
                 let uses_i32 = left_ty == ValType::I32 && right_ty == ValType::I32;
                 let uses_f64 = left_ty == ValType::F64 || right_ty == ValType::F64;
+                let operand_ty = if uses_f64 {
+                    ValType::F64
+                } else if uses_i32 {
+                    ValType::I32
+                } else {
+                    ValType::I64
+                };
 
                 self.compile_expr(ctx, builder, left)?;
+                self.coerce_stack_to_val_type(builder, left_ty, operand_ty);
                 self.compile_expr(ctx, builder, right)?;
+                self.coerce_stack_to_val_type(builder, right_ty, operand_ty);
                 match op {
                     // Arithmetic
                     BinaryOp::Add => {
@@ -6069,7 +6634,16 @@ impl WasmCompiler {
                         }
                     }
                     BinaryOp::Mod => {
-                        if uses_i32 {
+                        if uses_f64 {
+                            if let Some(func_id) = ctx.functions.get("fmod") {
+                                builder.call(*func_id);
+                            } else {
+                                return Err(KainError::codegen(
+                                    "WASM host import 'fmod' not found",
+                                    expr.span(),
+                                ));
+                            }
+                        } else if uses_i32 {
                             builder.binop(walrus::ir::BinaryOp::I32RemS);
                         } else {
                             builder.binop(walrus::ir::BinaryOp::I64RemS);
@@ -6178,23 +6752,49 @@ impl WasmCompiler {
             }
             Expr::Unary { op, operand, .. } => {
                 use kain_core::ast::UnaryOp;
+                let operand_ty = self.infer_expr_wasm_type_in_context(ctx, operand);
                 match op {
                     UnaryOp::Neg => {
-                        // -x = 0 - x: push 0 first, then operand, then sub
-                        builder.i64_const(0);
-                        self.compile_expr(ctx, builder, operand)?;
-                        builder.binop(walrus::ir::BinaryOp::I64Sub);
+                        match operand_ty {
+                            ValType::F64 => {
+                                builder.f64_const(0.0);
+                                self.compile_expr(ctx, builder, operand)?;
+                                self.coerce_stack_to_val_type(builder, operand_ty, ValType::F64);
+                                builder.binop(walrus::ir::BinaryOp::F64Sub);
+                            }
+                            ValType::I32 => {
+                                builder.i32_const(0);
+                                self.compile_expr(ctx, builder, operand)?;
+                                self.coerce_stack_to_val_type(builder, operand_ty, ValType::I32);
+                                builder.binop(walrus::ir::BinaryOp::I32Sub);
+                            }
+                            _ => {
+                                builder.i64_const(0);
+                                self.compile_expr(ctx, builder, operand)?;
+                                self.coerce_stack_to_val_type(builder, operand_ty, ValType::I64);
+                                builder.binop(walrus::ir::BinaryOp::I64Sub);
+                            }
+                        }
                     }
                     UnaryOp::Not => {
                         // !x = x == 0 (logical not)
                         self.compile_expr(ctx, builder, operand)?;
-                        builder.unop(walrus::ir::UnaryOp::I64Eqz);
+                        if operand_ty == ValType::I32 {
+                            builder.unop(walrus::ir::UnaryOp::I32Eqz);
+                        } else {
+                            builder.unop(walrus::ir::UnaryOp::I64Eqz);
+                        }
                     }
                     UnaryOp::BitNot => {
                         // ~x = x xor -1
                         self.compile_expr(ctx, builder, operand)?;
-                        builder.i64_const(-1);
-                        builder.binop(walrus::ir::BinaryOp::I64Xor);
+                        if operand_ty == ValType::I32 {
+                            builder.i32_const(-1);
+                            builder.binop(walrus::ir::BinaryOp::I32Xor);
+                        } else {
+                            builder.i64_const(-1);
+                            builder.binop(walrus::ir::BinaryOp::I64Xor);
+                        }
                     }
                     _ => {
                         // Ref, Deref - just compile operand for now
@@ -6385,6 +6985,12 @@ impl WasmCompiler {
                         return Ok(());
                     }
                     if self.compile_c_runtime_call(ctx, builder, func_name, args)? {
+                        return Ok(());
+                    }
+                    if self.compile_builtin_math_call(ctx, builder, func_name, args)? {
+                        return Ok(());
+                    }
+                    if self.compile_primitive_cast_call(ctx, builder, func_name, args)? {
                         return Ok(());
                     }
                     // Special intrinsic: print

@@ -457,7 +457,7 @@ static char* kain_string_new_with_len(const char* src, size_t len) {
         memcpy(buf, src, len);
     }
     buf[len] = '\0';
-    kain_rc_set_string_length(buf, kain_bounded_text_length(src, len));
+    kain_rc_set_string_length(buf, len);
     return buf;
 }
 
@@ -484,6 +484,101 @@ long long kain_ceil_i64(double value) {
 
 long long kain_round_i64(double value) {
     return (long long)round(value);
+}
+
+long long kain_ord(char* src) {
+    size_t len;
+    if (!src) {
+        return -1;
+    }
+    len = kain_string_len_rc(src);
+    if (len == 0u) {
+        return -1;
+    }
+    return (long long)((unsigned char)src[0]);
+}
+
+char* kain_chr(long long code) {
+    unsigned char byte;
+    if (code < 0 || code > 255) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid chr code",
+            "chr expects a byte-sized integer in the range 0..255"
+        );
+        return string_new("");
+    }
+    byte = (unsigned char)code;
+    return kain_string_new_with_len((const char*)&byte, 1u);
+}
+
+long long kain_parse_i64_string(char* src) {
+    size_t len;
+    char* scratch;
+    char* end = NULL;
+    long long value;
+    if (!src) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_int input",
+            "to_int expects a non-null string"
+        );
+        return 0;
+    }
+    len = kain_string_len_rc(src);
+    if (len == 0u) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_int input",
+            "to_int cannot parse an empty string"
+        );
+        return 0;
+    }
+    scratch = (char*)malloc(len + 1u);
+    if (!scratch) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Memory allocation failed",
+            "Failed to allocate a parse scratch buffer for to_int"
+        );
+        return 0;
+    }
+    memcpy(scratch, src, len);
+    scratch[len] = '\0';
+    if (kain_char_is_space(scratch[0]) || kain_char_is_space(scratch[len - 1u])) {
+        free(scratch);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_int input",
+            "to_int rejects surrounding whitespace"
+        );
+        return 0;
+    }
+    errno = 0;
+    value = strtoll(scratch, &end, 10);
+    if (errno == ERANGE || end == scratch || (size_t)(end - scratch) != len) {
+        free(scratch);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_int input",
+            "to_int could not parse the provided string as a base-10 integer"
+        );
+        return 0;
+    }
+    free(scratch);
+    return value;
 }
 
 void* kain_alloc_rc(size_t size, long long type_tag) {

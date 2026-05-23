@@ -3316,6 +3316,55 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_ord_chr_and_to_int_to_native_owned_builtins() {
+    let source = r#"
+fn parse_byte(text: String) -> Int:
+    return ord(char_at(text, 0))
+
+fn rebuild_byte(value: Int) -> String:
+    return chr(value)
+
+fn parse_int_text(text: String) -> Int:
+    return to_int(text)
+
+fn main() -> Int:
+    let parsed = parse_byte("A")
+    let rebuilt = rebuild_byte(0)
+    let int_text = parse_int_text("123")
+    if parsed == 65 and len(rebuilt) == 1 and byte_at(rebuilt, 0) == 0 and int_text == 123:
+        return 0
+    return 1
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let parse_byte_ir =
+        llvm_function_ir(&llvm, "define internal i64 @parse_byte(i8* %arg0)");
+    let rebuild_byte_ir =
+        llvm_function_ir(&llvm, "define internal i8* @rebuild_byte(i64 %arg0)");
+    let parse_int_ir =
+        llvm_function_ir(&llvm, "define internal i64 @parse_int_text(i8* %arg0)");
+
+    assert!(
+        parse_byte_ir.contains("call i64 @kain_ord(i8*"),
+        "ord should lower to the native byte-aware runtime helper:\n{}",
+        parse_byte_ir
+    );
+    assert!(
+        rebuild_byte_ir.contains("call i8* @kain_chr(i64"),
+        "chr should lower to the native byte-aware runtime helper:\n{}",
+        rebuild_byte_ir
+    );
+    assert!(
+        parse_int_ir.contains("call i64 @kain_parse_i64_string(i8*"),
+        "to_int(String) should lower to the native parse helper:\n{}",
+        parse_int_ir
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "ord-chr-to-int-native-builtins");
+}
+
+#[test]
 fn llvm_match_ir_verifies_with_guarded_string_results() {
     let source = r#"
 enum AssetKind:

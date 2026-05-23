@@ -5163,6 +5163,57 @@ impl LlvmGenerator {
         self.cast_numeric_value(value, &value_ty, "i64")
     }
 
+    fn compile_ord_builtin(
+        &mut self,
+        expr: &Expr,
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        let (value, value_ty) = self.compile_expr(expr)?;
+        if value_ty != "i8*" {
+            return Err(KainError::codegen(
+                format!("ord expects a String-compatible value, found {}", value_ty),
+                span,
+            ));
+        }
+        let result = self.next_reg();
+        self.emit(&format!("  {} = call i64 @kain_ord(i8* {})", result, value));
+        Ok((result, "i64".to_string()))
+    }
+
+    fn compile_chr_builtin(&mut self, expr: &Expr) -> KainResult<(String, String)> {
+        let value = self.compile_expr_as_i64(expr)?;
+        let result = self.next_reg();
+        self.emit(&format!("  {} = call i8* @kain_chr(i64 {})", result, value));
+        Ok((result, "i8*".to_string()))
+    }
+
+    fn compile_to_int_builtin(
+        &mut self,
+        expr: &Expr,
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        let (value, value_ty) = self.compile_expr(expr)?;
+        match value_ty.as_str() {
+            "i64" => Ok((value, "i64".to_string())),
+            "i32" | "i8" | "i1" | "double" => {
+                let cast = self.cast_numeric_value(value, &value_ty, "i64")?;
+                Ok((cast, "i64".to_string()))
+            }
+            "i8*" => {
+                let result = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @kain_parse_i64_string(i8* {})",
+                    result, value
+                ));
+                Ok((result, "i64".to_string()))
+            }
+            _ => Err(KainError::codegen(
+                format!("to_int cannot lower values of type {}", value_ty),
+                span,
+            )),
+        }
+    }
+
     fn decompose_char_at_call<'a>(&self, expr: &'a Expr) -> Option<(&'a Expr, &'a Expr)> {
         match expr {
             Expr::Paren(inner, _) => self.decompose_char_at_call(inner),
@@ -12191,6 +12242,9 @@ impl LlvmGenerator {
         self.emit("declare i64 @find_substring_from_known_lengths(i8*, i64, i8*, i64, i64)");
         self.emit("declare i8* @memchr(i8*, i32, i64)");
         self.emit("declare i32 @memcmp(i8*, i8*, i64)");
+        self.emit("declare i64 @kain_ord(i8*)");
+        self.emit("declare i8* @kain_chr(i64)");
+        self.emit("declare i64 @kain_parse_i64_string(i8*)");
         self.emit("declare i8* @array_new(i64)");
         self.emit("declare void @array_push(i8*, i64)");
         self.emit("declare i64 @array_get(i8*, i64)");
@@ -14976,6 +15030,18 @@ impl LlvmGenerator {
             if let Some(result) = self.compile_byte_at_fast_path(&args[0].value, &args[1].value)? {
                 return Ok((result, "i64".to_string()));
             }
+        }
+
+        if func_name == "ord" && args.len() == 1 {
+            return self.compile_ord_builtin(&args[0].value, args[0].value.span());
+        }
+
+        if func_name == "chr" && args.len() == 1 {
+            return self.compile_chr_builtin(&args[0].value);
+        }
+
+        if func_name == "to_int" && args.len() == 1 {
+            return self.compile_to_int_builtin(&args[0].value, args[0].value.span());
         }
 
         if func_name == "find_substring_from" && args.len() == 3 {

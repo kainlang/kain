@@ -281,6 +281,9 @@ double kain_clampd(double value, double min_value, double max_value);
 long long kain_floor_i64(double value);
 long long kain_ceil_i64(double value);
 long long kain_round_i64(double value);
+long long kain_ord(char* src);
+char* kain_chr(long long code);
+long long kain_parse_i64_string(char* src);
 char* string_new(char* src);
 void map_set_static(KainMap* map, char* key, long long value);
 void map_set_static_prehashed(
