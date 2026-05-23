@@ -2065,6 +2065,8 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .tag("portable")
         .meta("album", "probe")
         .storage("editable")
+        .contents("source")
+        .capsule_set("probe")
         .header("rich")
         .preview_symbols(32)
         .archive(false)
@@ -2113,6 +2115,20 @@ fn build(ctx: BuildContext) -> BuildGraph:
                 .get("storage")
                 .map(String::as_str),
             Some("editable")
+        );
+        assert_eq!(
+            by_id["probe-capsule"]
+                .options
+                .get("contents")
+                .map(String::as_str),
+            Some("source")
+        );
+        assert_eq!(
+            by_id["probe-capsule"]
+                .options
+                .get("capsule_set")
+                .map(String::as_str),
+            Some("probe")
         );
         assert_eq!(
             by_id["probe-capsule"]

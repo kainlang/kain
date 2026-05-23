@@ -5984,6 +5984,14 @@ fn build(ctx: BuildContext) -> BuildGraph:
         assert_eq!(resolved_capsule.kind, BuildTaskKind::Amalgamate);
         assert!(resolved_capsule.cacheable);
         assert!(resolved_capsule.inputs.iter().any(|path| path == &root));
+        assert_eq!(
+            capsule_task.options.get("contents").map(String::as_str),
+            Some("source")
+        );
+        assert_eq!(
+            capsule_task.options.get("capsule_set").map(String::as_str),
+            Some("smoketest")
+        );
         assert!(resolved_capsule.outputs.iter().any(|path| {
             path.file_name().and_then(OsStr::to_str) == Some("smoketest.kn")
         }));
