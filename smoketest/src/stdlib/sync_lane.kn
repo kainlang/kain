@@ -4,41 +4,51 @@ use std::sync
 
 pub fn smoke_sync_lane() -> Int with Unsafe:
     # 1. Test McsMutex intrusive enqueuing and locks
-    let lock = mcs_mutex_new()
-    
-    # We allocate two MCS nodes (each is 2 Int words) in local thread memory
-    let node1 = alloc_zeroed(2, "Int")
-    let node2 = alloc_zeroed(2, "Int")
+    if mcs_node_words() != 2:
+        return 100
 
-    # Lock 1 should succeed immediately and be uncontended
+    let lock = mcs_mutex_new()
+    let node1 = mcs_node_new()
+    let node2 = mcs_node_new()
+
     let l1 = mcs_mutex_lock(lock, node1)
-    if l1 != 0:
+    if l1 != SYNC_OK:
         return 101
 
-    # Spin/Unlock 1
     let u1 = mcs_mutex_unlock(lock, node1)
-    if u1 != 0:
+    if u1 != SYNC_OK:
         return 102
 
-    # Lock 2 should succeed immediately now
     let l2 = mcs_mutex_lock(lock, node2)
-    if l2 != 0:
+    if l2 != SYNC_OK:
         return 103
 
     let u2 = mcs_mutex_unlock(lock, node2)
-    if u2 != 0:
+    if u2 != SYNC_OK:
         return 104
 
-    # Cleanup MCS allocations
-    decay node1
-    decay node2
-    mcs_mutex_destroy(lock)
+    let _node1_destroy = mcs_node_destroy(node1)
+    let _node2_destroy = mcs_node_destroy(node2)
+    let _lock_destroy = mcs_mutex_destroy(lock)
 
 
-    # 2. Test TeleportChannel lockless queue operations
-    let chan = teleport_channel_new(3) # capacity 3 (actually safe_capacity 4)
-    
-    # Allocate dummy elements to "teleport" addresses
+    # 2. Capacity clamp path should still yield a usable one-slot queue.
+    let chan_min = teleport_channel_new(0)
+    let item_min = alloc_zeroed(1, "Int")
+    let item_min_bits = ptr_to_int(item_min)
+    if teleport_channel_send(chan_min, item_min_bits) == false:
+        return 105
+    if teleport_channel_send(chan_min, item_min_bits):
+        return 106
+    if teleport_channel_recv(chan_min) != item_min_bits:
+        return 107
+    if teleport_channel_recv(chan_min) != 0:
+        return 108
+    decay item_min
+    let _chan_min_destroy = teleport_channel_destroy(chan_min)
+
+    # 3. Test TeleportChannel lockless queue operations.
+    let chan = teleport_channel_new(3)
     let item1 = alloc_zeroed(1, "Int")
     let item2 = alloc_zeroed(1, "Int")
     let item3 = alloc_zeroed(1, "Int")
@@ -49,85 +59,89 @@ pub fn smoke_sync_lane() -> Int with Unsafe:
     let addr3 = ptr_to_int(item3)
     let addr4 = ptr_to_int(item4)
 
-    # Test lockless SPSC sends
     if teleport_channel_send(chan, addr1) == false:
-        return 105
+        return 109
     if teleport_channel_send(chan, addr2) == false:
-        return 106
+        return 110
     if teleport_channel_send(chan, addr3) == false:
-        return 107
-    
-    # Channel of capacity 3 is now full, send should reject
-    if teleport_channel_send(chan, addr4) == true:
-        return 108
+        return 111
 
-    # Recv first address
+    if teleport_channel_send(chan, addr4) == true:
+        return 112
+
     let recv1 = teleport_channel_recv(chan)
     if recv1 != addr1:
-        return 109
+        return 113
 
-    # Send should succeed now that there's room
     if teleport_channel_send(chan, addr4) == false:
-        return 110
+        return 114
 
     let recv2 = teleport_channel_recv(chan)
     if recv2 != addr2:
-        return 111
+        return 115
 
     let recv3 = teleport_channel_recv(chan)
     if recv3 != addr3:
-        return 112
+        return 116
 
     let recv4 = teleport_channel_recv(chan)
     if recv4 != addr4:
-        return 113
+        return 117
 
-    # Now empty
     if teleport_channel_recv(chan) != 0:
-        return 114
+        return 118
 
-    # Decay all allocations
     decay item1
     decay item2
     decay item3
     decay item4
-    teleport_channel_destroy(chan)
+    let _chan_destroy = teleport_channel_destroy(chan)
 
 
-    # 3. Test Once lazy thread-safe initializations
+    # 4. Test Once lazy initialization, completion, and reset.
     let o = once_new()
-    
-    # First invocation wins
     let w1 = once_do(o)
     if w1 != 1:
-        return 115
-    
-    # Complete the once sequence
-    let _comp = once_complete(o)
+        return 119
 
-    # Subsequent invocation fails/skips
+    if once_complete(o) != SYNC_OK:
+        return 120
     let w2 = once_do(o)
     if w2 != 0:
-        return 116
+        return 121
 
-    once_destroy(o)
+    let _once_destroy = once_destroy(o)
+
+    let reset_once = once_new()
+    if once_do(reset_once) != 1:
+        return 122
+    if once_reset(reset_once) != SYNC_OK:
+        return 123
+    if once_do(reset_once) != 1:
+        return 124
+    if once_complete(reset_once) != SYNC_OK:
+        return 125
+    let _reset_once_destroy = once_destroy(reset_once)
 
 
-    # 4. Test WaitGroup coordination
+    # 5. Test WaitGroup coordination plus underflow rejection.
     let wg = wait_group_new()
-    
-    # Add 2 items of work
-    let _add1 = wait_group_add(wg, 2)
-    
-    # Complete 1 work block
-    let _done1 = wait_group_done(wg)
-    
-    # Complete remaining block
-    let _done2 = wait_group_done(wg)
-    
-    # Wait should release immediately because counter is 0
-    let _wait = wait_group_wait(wg)
-
-    wait_group_destroy(wg)
+    if wait_group_add(wg, 2) != SYNC_OK:
+        return 126
+    if wait_group_count(wg) != 2:
+        return 127
+    if wait_group_done(wg) != SYNC_OK:
+        return 128
+    if wait_group_count(wg) != 1:
+        return 129
+    if wait_group_done(wg) != SYNC_OK:
+        return 130
+    if wait_group_wait(wg) != SYNC_OK:
+        return 131
+    if wait_group_count(wg) != 0:
+        return 132
+    if wait_group_done(wg) != SYNC_ERR_NEGATIVE_COUNT:
+        return 133
+    let _wg_destroy = wait_group_destroy(wg)
 
     return 0

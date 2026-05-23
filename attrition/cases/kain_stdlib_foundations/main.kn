@@ -3,6 +3,7 @@ use std::text
 use std::collections
 use std::crypto
 use std::alloc
+use std::sync
 
 const STDLIB_FOUNDATIONS_ATTRITION_MODULUS: Int = 1000000007
 const SHA256_EMPTY: String = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -59,7 +60,7 @@ fn attrition_complete(status: Int, checksum: Int, message: String) -> Int:
         return 200 + shutdown_status
     return status
 
-fn exercise_foundations(iteration: Int) -> Int:
+fn exercise_foundations(iteration: Int) -> Int with Unsafe:
     let text = text_trim(text_from("  attrition:foundation priority:hot  "))
     if text_contains(text, "foundation") == false:
         return -1
@@ -130,12 +131,60 @@ fn exercise_foundations(iteration: Int) -> Int:
         if len(random_bytes(8)) != 16:
             return -8
 
+    let lock = mcs_mutex_new()
+    let node = mcs_node_new()
+    if mcs_mutex_lock(lock, node) != SYNC_OK:
+        return -14
+    if mcs_mutex_unlock(lock, node) != SYNC_OK:
+        return -15
+    let _node_destroy = mcs_node_destroy(node)
+    let _lock_destroy = mcs_mutex_destroy(lock)
+
+    let chan = teleport_channel_new(1)
+    let chan_item = alloc_zeroed(1, "Int")
+    mem_store(chan_item, iteration + 31, "Int")
+    let chan_token = ptr_to_int(chan_item)
+    if teleport_channel_send(chan, chan_token) == false:
+        return -16
+    if teleport_channel_recv(chan) != chan_token:
+        return -17
+    let chan_score = mem_load(int_to_ptr(chan_token, "ptr<Int>"), "Int")
+    decay chan_item
+    let _chan_destroy = teleport_channel_destroy(chan)
+
+    let gate = once_new()
+    if once_do(gate) != 1:
+        return -18
+    if iteration % 3 == 0:
+        if once_reset(gate) != SYNC_OK:
+            return -19
+        if once_do(gate) != 1:
+            return -20
+    if once_complete(gate) != SYNC_OK:
+        return -21
+    if once_do(gate) != 0:
+        return -22
+    let _gate_destroy = once_destroy(gate)
+
+    let wg = wait_group_new()
+    if wait_group_add(wg, 2) != SYNC_OK:
+        return -23
+    if wait_group_done(wg) != SYNC_OK:
+        return -24
+    if wait_group_done(wg) != SYNC_OK:
+        return -25
+    if wait_group_wait(wg) != SYNC_OK:
+        return -26
+    if wait_group_done(wg) != SYNC_ERR_NEGATIVE_COUNT:
+        return -27
+    let _wg_destroy = wait_group_destroy(wg)
+
     let map_score = typed_map_get(metrics, "iteration") + typed_map_get(metrics, "text")
     let _metrics_destroy = typed_map_destroy(metrics)
     let text_score = text_byte_at(text, iteration % text_len(text))
-    return (map_score + queue_score + pq_score + slot_score + bump_score + pool_score + text_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
+    return (map_score + queue_score + pq_score + slot_score + bump_score + pool_score + text_score + chan_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
 
-fn main() -> Int:
+fn main() -> Int with Unsafe:
     let boot = runtime_init()
     if boot < 0:
         return 100 + boot

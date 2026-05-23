@@ -52,6 +52,60 @@ pub fn status_or(status: Int, fallback: Int) -> Int:
 pub fn bool_to_status(value: Bool) -> Int:
     return native_bool_to_status(value)
 
+pub fn native_status_ok(status: Int) -> Bool:
+    return status == 0
+
+pub fn native_status_failed(status: Int) -> Bool:
+    return status != 0
+
+pub fn native_status_error(status: Int) -> Bool:
+    return status < 0
+
+pub fn native_status_warning(status: Int) -> Bool:
+    return status > 0
+
+pub fn native_status_or(status: Int, fallback: Int) -> Int:
+    if status == 0:
+        return fallback
+    return status
+
+pub fn native_bool_to_status(value: Bool) -> Int:
+    if value:
+        return 0
+    return -1
+
+pub fn native_status_to_bool(status: Int) -> Bool:
+    return status == 0
+
+pub fn native_first_error(left: Int, right: Int) -> Int:
+    if left != 0:
+        return left
+    return right
+
+pub fn native_count_failure(status: Int, count: Int) -> Int:
+    if status != 0:
+        return count + 1
+    return count
+
+# root-domain aliases: generated public std names
+pub fn status_ok(status: Int) -> Bool:
+    return native_status_ok(status)
+
+pub fn status_failed(status: Int) -> Bool:
+    return native_status_failed(status)
+
+pub fn status_error(status: Int) -> Bool:
+    return native_status_error(status)
+
+pub fn status_warning(status: Int) -> Bool:
+    return native_status_warning(status)
+
+pub fn status_or(status: Int, fallback: Int) -> Int:
+    return native_status_or(status, fallback)
+
+pub fn bool_to_status(value: Bool) -> Int:
+    return native_bool_to_status(value)
+
 pub fn status_to_bool(status: Int) -> Bool:
     return native_status_to_bool(status)
 
@@ -61,3 +115,43 @@ pub fn first_error(left: Int, right: Int) -> Int:
 pub fn count_failure(status: Int, count: Int) -> Int:
     return native_count_failure(status, count)
 # end root-domain aliases
+
+
+# --- Structured Logging & Diagnostics ---
+
+pub enum LogLevel:
+    Debug
+    Info
+    Warning
+    Error
+
+pub struct LogEntry:
+    level: LogLevel
+    subsystem: String
+    message: String
+    code: Int
+
+pub fn log_info(subsystem: String, message: String) -> Unit:
+    # Print formatted output
+    print("INFO [" + subsystem + "] " + message + "\n")
+
+pub fn log_warning(subsystem: String, message: String) -> Unit:
+    print("WARNING [" + subsystem + "] " + message + "\n")
+
+pub fn log_error(subsystem: String, message: String, code: Int) -> Unit:
+    print("ERROR [" + subsystem + " - code: " + to_string(code) + "] " + message + "\n")
+
+# Emit progress updates for compilation, build task, or runtime jobs
+pub fn progress_emit(task_name: String, percentage: Int) -> Unit:
+    let percent = int_clamp(percentage, 0, 100)
+    print("PROGRESS [" + task_name + "] " + to_string(percent) + "%\n")
+
+# Helper to dump raw pointer addresses and values for memory debugging
+pub fn debug_dump_memory(label: String, address: ptr<Int>, count: Int) -> Unit with Unsafe:
+    print("--- MEMORY DUMP: " + label + " (offset: " + to_string(ptr_to_int(address)) + ", count: " + to_string(count) + ") ---\n")
+    var i = 0
+    while i < count:
+        let val = mem_load(ptr_offset(address, i, "Int"), "Int")
+        print("  [" + to_string(i) + "]: " + to_string(val) + "\n")
+        i = i + 1
+    print("--------------------------------------------------\n")

@@ -150,6 +150,28 @@ fn abi_fs_last_error_kind() -> String
 @extern
 fn abi_fs_last_error_message() -> String
 
+@extern
+fn abi_fs_open(path: String, mode: String) -> ptr<Int>
+
+@extern
+fn abi_fs_close(handle: ptr<Int>) -> Int
+
+@extern
+fn abi_fs_read(handle: ptr<Int>, buffer: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_fs_write(handle: ptr<Int>, buffer: ptr<Int>, byte_count: Int) -> Int
+
+@extern
+fn abi_fs_seek(handle: ptr<Int>, offset: Int, origin: Int) -> Int
+
+@extern
+fn abi_fs_tell(handle: ptr<Int>) -> Int
+
+@extern
+fn abi_fs_flush(handle: ptr<Int>) -> Int
+
+
 fn fs_parse_int_or_zero(value: String) -> Int:
     if value == "":
         return 0
@@ -374,3 +396,41 @@ pub fn fs_last_error_kind() -> String:
 pub fn fs_last_error_message() -> String:
     return native_fs_last_error_message()
 # end root-domain aliases
+
+pub struct File:
+    handle: ptr<Int>
+
+pub fn fs_open(path: String, mode: String) -> File:
+    let handle = abi_fs_open(path, mode)
+    return File { handle: handle }
+
+pub fn fs_close(file: File) -> Int:
+    if ptr_to_int(file.handle) == 0:
+        return -1
+    return abi_fs_close(file.handle)
+
+pub fn fs_read(file: File, buffer: ptr<Int>, byte_count: Int) -> Int:
+    if ptr_to_int(file.handle) == 0:
+        return 0
+    return abi_fs_read(file.handle, buffer, byte_count)
+
+pub fn fs_write(file: File, buffer: ptr<Int>, byte_count: Int) -> Int:
+    if ptr_to_int(file.handle) == 0:
+        return 0
+    return abi_fs_write(file.handle, buffer, byte_count)
+
+pub fn fs_seek(file: File, offset: Int, origin: Int) -> Int:
+    if ptr_to_int(file.handle) == 0:
+        return -1
+    return abi_fs_seek(file.handle, offset, origin)
+
+pub fn fs_tell(file: File) -> Int:
+    if ptr_to_int(file.handle) == 0:
+        return -1
+    return abi_fs_tell(file.handle)
+
+pub fn fs_flush(file: File) -> Int:
+    if ptr_to_int(file.handle) == 0:
+        return -1
+    return abi_fs_flush(file.handle)
+

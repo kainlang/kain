@@ -1,0 +1,65 @@
+use std::memory
+
+@extern
+fn abi_thread_spawn(func: ptr<Int>, arg: ptr<Int>, thread_id_out: ptr<Int>, done_flag: ptr<Int>) -> ptr<Int>
+
+@extern
+fn abi_thread_join(thread_handle: ptr<Int>) -> Int
+
+@extern
+fn abi_thread_set_name(name: String) -> Int
+
+@extern
+fn abi_cpu_current_thread_id() -> Int
+
+@extern
+fn abi_cpu_current_thread_affinity_mask() -> Int
+
+@extern
+fn abi_cpu_set_current_thread_affinity(core_index: Int) -> Int
+
+@extern
+fn abi_cpu_logical_count() -> Int
+
+@extern
+fn abi_cpu_core_count() -> Int
+
+pub struct Thread:
+    handle: ptr<Int>
+    thread_id: ptr<Int>
+    done_flag: ptr<Int>
+
+pub fn thread_spawn(func: ptr<Int>, arg: ptr<Int>) -> Thread:
+    let thread_id_out = alloc_zeroed(1, "Int")
+    let done_flag = alloc_zeroed(1, "Int")
+    let handle = abi_thread_spawn(func, arg, thread_id_out, done_flag)
+    return Thread { handle: handle, thread_id: thread_id_out, done_flag: done_flag }
+
+pub fn thread_join(thread: Thread) -> Int:
+    if ptr_to_int(thread.handle) == 0:
+        return -1
+    let res = abi_thread_join(thread.handle)
+    decay thread.thread_id
+    decay thread.done_flag
+    return res
+
+pub fn thread_set_name(name: String) -> Int:
+    return abi_thread_set_name(name)
+
+pub fn thread_current_id() -> Int:
+    return abi_cpu_current_thread_id()
+
+pub fn thread_affinity_mask() -> Int:
+    return abi_cpu_current_thread_affinity_mask()
+
+pub fn thread_set_affinity(core_index: Int) -> Int:
+    return abi_cpu_set_current_thread_affinity(core_index)
+
+pub fn thread_logical_count() -> Int:
+    return abi_cpu_logical_count()
+
+pub fn thread_core_count() -> Int:
+    return abi_cpu_core_count()
+
+pub fn thread_is_done(thread: Thread) -> Bool:
+    return mem_load(thread.done_flag, "Int") != 0

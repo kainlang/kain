@@ -440,9 +440,9 @@
     {
       "id": "stdlib_foundations",
       "title": "Stdlib Foundations",
-      "description": "Integrated Kain-only pressure over std.text zero-copy slices, std.collections queue/priority queue/map/slot-map handles, std.crypto digest calls, and std.alloc bump allocation.",
+      "description": "Integrated Kain-only pressure over std.text zero-copy slices, std.collections queue/priority queue/map/slot-map handles, std.crypto digest calls, std.alloc bump allocation, and std.sync mutex/channel/once/wait-group coordination.",
       "maturity": "kain-stdlib-proof",
-      "fairness_note": "This is a Kain foundation-row, not a cross-language contest. It guards the public stdlib API shape and native LLVM/runtime ABI for the new text, collection, crypto, and allocator surfaces.",
+      "fairness_note": "This is a Kain foundation-row, not a cross-language contest. It guards the public stdlib API shape and native LLVM/runtime ABI for the text, collection, crypto, allocator, and sync surfaces.",
       "kain": "cases/stdlib_foundations/main.kn",
       "tags": [
         "core"

@@ -1,0 +1,71 @@
+use std::memory
+
+# --- WASM Format Spec Constants ---
+pub const WASM_MAGIC: Int = 1836278016               # 0x6d736100 (little-endian \x00asm)
+pub const WASM_VERSION: Int = 1
+
+pub const WASM_SECTION_CUSTOM: Int = 0
+pub const WASM_SECTION_TYPE: Int = 1
+pub const WASM_SECTION_IMPORT: Int = 2
+pub const WASM_SECTION_FUNC: Int = 3
+pub const WASM_SECTION_TABLE: Int = 4
+pub const WASM_SECTION_MEMORY: Int = 5
+pub const WASM_SECTION_GLOBAL: Int = 6
+pub const WASM_SECTION_EXPORT: Int = 7
+pub const WASM_SECTION_START: Int = 8
+pub const WASM_SECTION_ELEMENT: Int = 9
+pub const WASM_SECTION_CODE: Int = 10
+pub const WASM_SECTION_DATA: Int = 11
+
+pub struct WasmHeader:
+    magic: Int
+    version: Int
+
+pub struct WasmSection:
+    id: Int
+    size: Int
+    offset: Int
+
+# Validates WASM binary header. Buffer must have at least 2 words.
+pub fn wasm_validate_header(buffer: ptr<Int>) -> Bool with Unsafe:
+    let magic = mem_load(ptr_offset(buffer, 0, "Int"), "Int")
+    let version = mem_load(ptr_offset(buffer, 1, "Int"), "Int")
+    return magic == WASM_MAGIC and version == WASM_VERSION
+
+# Extracts a WASM section header details from a raw payload index.
+# Returns WasmSection details.
+pub fn wasm_read_section_header(buffer: ptr<Int>, offset: Int) -> WasmSection with Unsafe:
+    # WASM sections encode ID as a byte, followed by U32 LEB128 length.
+    # For a standard word-aligned buffer we can parse the bytes:
+    let byte_offset = offset
+    let raw_val = mem_load(ptr_offset(buffer, byte_offset / 8, "Int"), "Int")
+    let shift = (byte_offset % 8) * 8
+    let id = (raw_val >> shift) & 255
+    
+    # Parse a simplified LEB128 size (supporting 1-4 bytes)
+    # A standard single word read will cover LEB128 easily
+    let size_offset = byte_offset + 1
+    let raw_size_val = mem_load(ptr_offset(buffer, size_offset / 8, "Int"), "Int")
+    let size_shift = (size_offset % 8) * 8
+    let size_byte = (raw_size_val >> size_shift) & 255
+    
+    var size = size_byte & 127
+    var leb_bytes = 1
+    if size_byte >= 128:
+        let size_byte2 = (raw_size_val >> (size_shift + 8)) & 255
+        size = size | ((size_byte2 & 127) << 7)
+        leb_bytes = 2
+        if size_byte2 >= 128:
+            let size_byte3 = (raw_size_val >> (size_shift + 16)) & 255
+            size = size | ((size_byte3 & 127) << 14)
+            leb_bytes = 3
+            if size_byte3 >= 128:
+                let size_byte4 = (raw_size_val >> (size_shift + 24)) & 255
+                size = size | ((size_byte4 & 127) << 21)
+                leb_bytes = 4
+
+    return WasmSection {
+        id: id,
+        size: size,
+        offset: byte_offset + 1 + leb_bytes
+    }

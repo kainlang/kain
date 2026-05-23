@@ -3334,3 +3334,140 @@ int runtime_get_last_diagnostic(KainDiagnostic* out) {
 void runtime_clear_last_diagnostic(void) {
     g_last_diagnostic_valid = 0;
 }
+
+/* Standard library thread wrappers */
+typedef struct {
+    void (*func)(void*);
+    void* arg;
+    int64_t* thread_id_out;
+    int64_t* done_flag;
+} ThreadSpawnCtx;
+
+#ifdef _WIN32
+static DWORD WINAPI win32_thread_entry(LPVOID param) {
+    ThreadSpawnCtx* ctx = (ThreadSpawnCtx*)param;
+    if (ctx->thread_id_out) {
+        *ctx->thread_id_out = (int64_t)GetCurrentThreadId();
+    }
+    ctx->func(ctx->arg);
+    if (ctx->done_flag) {
+        *ctx->done_flag = 1;
+    }
+    free(ctx);
+    return 0;
+}
+#else
+static void* posix_thread_entry(void* param) {
+    ThreadSpawnCtx* ctx = (ThreadSpawnCtx*)param;
+    if (ctx->thread_id_out) {
+        *ctx->thread_id_out = (int64_t)(uintptr_t)pthread_self();
+    }
+    ctx->func(ctx->arg);
+    if (ctx->done_flag) {
+        *ctx->done_flag = 1;
+    }
+    free(ctx);
+    return NULL;
+}
+#endif
+
+void* abi_thread_spawn(void (*func)(void*), void* arg, int64_t* thread_id_out, int64_t* done_flag) {
+    ThreadSpawnCtx* ctx = (ThreadSpawnCtx*)malloc(sizeof(ThreadSpawnCtx));
+    if (!ctx) return NULL;
+    ctx->func = func;
+    ctx->arg = arg;
+    ctx->thread_id_out = thread_id_out;
+    ctx->done_flag = done_flag;
+    
+#ifdef _WIN32
+    HANDLE handle = CreateThread(NULL, 0, win32_thread_entry, ctx, 0, NULL);
+    return (void*)handle;
+#else
+    pthread_t thread;
+    int res = pthread_create(&thread, NULL, posix_thread_entry, ctx);
+    if (res != 0) {
+        free(ctx);
+        return NULL;
+    }
+    pthread_t* th_ptr = (pthread_t*)malloc(sizeof(pthread_t));
+    if (!th_ptr) {
+        pthread_detach(thread);
+        return NULL;
+    }
+    *th_ptr = thread;
+    return (void*)th_ptr;
+#endif
+}
+
+int64_t abi_thread_join(void* thread_handle) {
+    if (!thread_handle) return -1;
+#ifdef _WIN32
+    HANDLE handle = (HANDLE)thread_handle;
+    WaitForSingleObject(handle, INFINITE);
+    CloseHandle(handle);
+    return 0;
+#else
+    pthread_t* th_ptr = (pthread_t*)thread_handle;
+    pthread_join(*th_ptr, NULL);
+    free(th_ptr);
+    return 0;
+#endif
+}
+
+int64_t abi_thread_set_name(const char* name) {
+    if (!name) return -1;
+#ifdef _WIN32
+    return 0;
+#elif defined(__linux__)
+    pthread_setname_np(pthread_self(), name);
+    return 0;
+#elif defined(__APPLE__)
+    pthread_setname_np(name);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+void* abi_fs_open(const char* path, const char* mode) {
+    if (!path || !mode) return NULL;
+    FILE* file = NULL;
+#ifdef _WIN32
+    fopen_s(&file, path, mode);
+#else
+    file = fopen(path, mode);
+#endif
+    return (void*)file;
+}
+
+int64_t abi_fs_close(void* handle) {
+    if (!handle) return -1;
+    return (int64_t)fclose((FILE*)handle);
+}
+
+int64_t abi_fs_read(void* handle, void* buffer, int64_t byte_count) {
+    if (!handle || !buffer || byte_count <= 0) return 0;
+    return (int64_t)fread(buffer, 1, (size_t)byte_count, (FILE*)handle);
+}
+
+int64_t abi_fs_write(void* handle, const void* buffer, int64_t byte_count) {
+    if (!handle || !buffer || byte_count <= 0) return 0;
+    return (int64_t)fwrite(buffer, 1, (size_t)byte_count, (FILE*)handle);
+}
+
+int64_t abi_fs_seek(void* handle, int64_t offset, int64_t origin) {
+    if (!handle) return -1;
+    return (int64_t)fseek((FILE*)handle, (long)offset, (int)origin);
+}
+
+int64_t abi_fs_tell(void* handle) {
+    if (!handle) return -1;
+    return (int64_t)ftell((FILE*)handle);
+}
+
+int64_t abi_fs_flush(void* handle) {
+    if (!handle) return -1;
+    return (int64_t)fflush((FILE*)handle);
+}
+
+

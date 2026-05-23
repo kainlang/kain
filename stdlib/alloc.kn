@@ -142,3 +142,47 @@ pub fn pool_create(block_count: Int, block_cells: Int) -> PoolAllocator:
 
 pub fn pool_alloc(pool: PoolAllocator) -> PoolAllocation:
     return pool_alloc_block(pool)
+
+
+# --- Allocator Traits & Interfaces ---
+
+pub struct AllocSpan:
+    ptr: ptr<Int>
+    cells: Int
+
+pub struct AllocResult:
+    span: AllocSpan
+    ok: Bool
+
+pub struct AllocatorVTable:
+    alloc_fn: ptr<Int>
+    free_fn: ptr<Int>
+    resize_fn: ptr<Int>
+
+pub struct Allocator:
+    instance: ptr<Int>
+    vtable: ptr<AllocatorVTable>
+
+# Grow a generic buffer using standard doubling strategy or dynamic delta.
+# Reallocates the buffer if requested cells exceed current capacity.
+pub fn alloc_grow_buffer(buffer: ptr<Int>, current_cap: Int, needed_cap: Int) -> ptr<Int> with Unsafe:
+    if needed_cap <= current_cap:
+        return buffer
+    var new_cap = current_cap * 2
+    if new_cap < needed_cap:
+        new_cap = needed_cap
+    let new_buf = alloc_zeroed(new_cap, "Int")
+    if current_cap > 0:
+        var i = 0
+        while i < current_cap:
+            let val = mem_load(ptr_offset(buffer, i, "Int"), "Int")
+            mem_store(ptr_offset(new_buf, i, "Int"), val, "Int")
+            i = i + 1
+        decay buffer
+    return new_buf
+
+pub fn alloc_span_slice(span: AllocSpan, start: Int, length: Int) -> AllocSpan:
+    if start < 0 or start + length > span.cells:
+        return AllocSpan { ptr: span.ptr, cells: 0 }
+    return AllocSpan { ptr: ptr_offset(span.ptr, start, "Int"), cells: length }
+

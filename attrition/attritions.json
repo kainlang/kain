@@ -246,7 +246,7 @@
     {
       "id": "kain_stdlib_foundations",
       "title": "Kain Stdlib Foundations",
-      "description": "Real Kain LLVM attrition lane for std.text zero-copy slices, std.collections queues/maps/priority queues/slot maps, std.crypto hashes/CSPRNG shape, and std.alloc bump/pool cleanup.",
+      "description": "Real Kain LLVM attrition lane for std.text zero-copy slices, std.collections queues/maps/priority queues/slot maps, std.crypto hashes/CSPRNG shape, std.alloc bump/pool cleanup, and std.sync mutex/channel/once/wait-group teardown.",
       "lane_kind": "mixed",
       "determinism_tier": 1,
       "source_kind": "kain",

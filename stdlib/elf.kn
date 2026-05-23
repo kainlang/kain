@@ -1,0 +1,101 @@
+use std::memory
+
+# --- ELF Format Spec Constants ---
+pub const ELF_MAGIC: Int = 1179403647                # 0x464c457f (little-endian \x7fELF)
+pub const ELF_CLASS_64: Int = 2
+pub const ELF_DATA_LSB: Int = 1
+pub const ELF_TYPE_EXEC: Int = 2
+pub const ELF_TYPE_DYN: Int = 3
+pub const ELF_MACHINE_X86_64: Int = 62
+pub const ELF_MACHINE_AARCH64: Int = 183
+
+pub struct ElfHeader:
+    class: Int
+    data: Int
+    version: Int
+    os_abi: Int
+    file_type: Int
+    machine: Int
+    entry: Int
+    phoff: Int
+    shoff: Int
+    flags: Int
+    ehsize: Int
+    phentsize: Int
+    phnum: Int
+    shentsize: Int
+    shnum: Int
+    shstrndx: Int
+
+pub struct ElfProgramHeader:
+    ph_type: Int
+    flags: Int
+    offset: Int
+    vaddr: Int
+    paddr: Int
+    filesz: Int
+    memsz: Int
+    align: Int
+
+pub struct ElfSectionHeader:
+    name_offset: Int
+    sh_type: Int
+    flags: Int
+    addr: Int
+    offset: Int
+    size: Int
+    link: Int
+    info: Int
+    addralign: Int
+    entsize: Int
+
+# Parses a 64-bit ELF Header from a 64-byte buffer (8 words).
+pub fn elf_read_header(buffer: ptr<Int>) -> ElfHeader with Unsafe:
+    let magic = mem_load(ptr_offset(buffer, 0, "Int"), "Int")
+    if magic != ELF_MAGIC:
+        return ElfHeader { class: 0, data: 0, version: 0, os_abi: 0, file_type: 0, machine: 0, entry: 0, phoff: 0, shoff: 0, flags: 0, ehsize: 0, phentsize: 0, phnum: 0, shentsize: 0, shnum: 0, shstrndx: 0 }
+        
+    let ident_words = mem_load(ptr_offset(buffer, 1, "Int"), "Int")
+    let class = ident_words & 255
+    let data = (ident_words >> 8) & 255
+    let version = (ident_words >> 16) & 255
+    let os_abi = (ident_words >> 24) & 255
+    
+    let type_machine = mem_load(ptr_offset(buffer, 2, "Int"), "Int")
+    let file_type = type_machine & 65535
+    let machine = (type_machine >> 16) & 65535
+    
+    let entry = mem_load(ptr_offset(buffer, 3, "Int"), "Int")
+    let phoff = mem_load(ptr_offset(buffer, 4, "Int"), "Int")
+    let shoff = mem_load(ptr_offset(buffer, 5, "Int"), "Int")
+    
+    let flags_sizes = mem_load(ptr_offset(buffer, 6, "Int"), "Int")
+    let flags = flags_sizes & 4294967295
+    let ehsize = (flags_sizes >> 32) & 65535
+    
+    let table_counts = mem_load(ptr_offset(buffer, 7, "Int"), "Int")
+    let phentsize = table_counts & 65535
+    let phnum = (table_counts >> 16) & 65535
+    let shentsize = (table_counts >> 32) & 65535
+    let shnum = (table_counts >> 48) & 65535
+    
+    let shstrndx = mem_load(ptr_offset(buffer, 8, "Int"), "Int")
+    
+    return ElfHeader {
+        class: class,
+        data: data,
+        version: version,
+        os_abi: os_abi,
+        file_type: file_type,
+        machine: machine,
+        entry: entry,
+        phoff: phoff,
+        shoff: shoff,
+        flags: flags,
+        ehsize: ehsize,
+        phentsize: phentsize,
+        phnum: phnum,
+        shentsize: shentsize,
+        shnum: shnum,
+        shstrndx: shstrndx
+    }

@@ -126,9 +126,9 @@ Primary source anchors:
 
 The current native root profile reports:
 
-- `modules=45`
-- `public_symbols=2053`
-- `total_symbols=2689`
+- `modules=51`
+- `public_symbols=2124`
+- `total_symbols=2760`
 - `rust_builtins=235`
 - `native_services=42`
 
@@ -144,8 +144,10 @@ use std::bench
 use std::bits
 use std::build
 use std::bytes
+use std::atomic
 use std::certify
 use std::collections
+use std::compress
 use std::crypto
 use std::diagnostics
 use std::fmt
@@ -159,6 +161,7 @@ use std::http
 use std::http2
 use std::input
 use std::intent
+use std::io
 use std::json
 use std::machine
 use std::math
@@ -168,10 +171,13 @@ use std::platform
 use std::process
 use std::proof
 use std::reload
+use std::reflect
 use std::result
 use std::runtime
 use std::semver
 use std::sync
+use std::tar
+use std::target
 use std::test
 use std::text
 use std::time
@@ -223,11 +229,11 @@ Use `stdlib/requirements.md` for the authoritative rows, but remember the missin
 
 - Text/data basics: `unicode`, `uri`, `semver`, and `bytes` now exist; the remaining pressure is deeper second-pass work in `std::fmt`, `std::json`, and richer text/data ergonomics
 - Container/algo depth: generic vectors/maps/sets, typed `SlotMap<T>`, bitsets, sort/search, richer allocator integration
-- Filesystem/path/I/O depth: typed metadata, typed directory entries, path toolkit, file handles, stream abstractions
-- Time/random/sync: time, random, and sync now exist; the remaining root gap is the dedicated `std::atomic` and `std::thread` floor plus any deeper sync/channel evolution
-- Systems and OS surface: `os`, `posix`, better target/meta/reflect coverage
+- Filesystem/path/I/O depth: typed metadata, typed directory entries, path toolkit, file handles, and richer adapter/stream ergonomics across fs/process/net/http bodies
+- Time/random/sync: time, random, sync, and atomic now exist; the remaining root gap is `std::thread` plus any deeper sync/channel evolution
+- Systems and OS surface: `os`, `posix`, and deeper target/meta/reflect coverage
 - Network/process/crypto depth: stronger typed config, streaming, bytes-based APIs, richer status objects
-- Archives and binary tooling: `compress`, `tar`, `zip`, `elf`, `dwarf`, `macho`, `coff`, `pdb`, `wasm`
+- Archives and binary tooling: `compress` and `tar` now exist; the remaining pressure is `zip`, `elf`, `dwarf`, `macho`, `coff`, `pdb`, `wasm`, and deeper archive ergonomics
 - Kain-only leverage: typed `std::intent`, stronger `std::actor`, better `std::gen_server`, `std::runtime`, `std::reload`, `std::proof`, and `std::test`
 
 Note the current nuance:

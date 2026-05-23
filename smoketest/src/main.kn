@@ -50,6 +50,7 @@ use semver_lane::smoke_semver_lane
 use sync_lane::smoke_sync_lane
 use io_lane::smoke_io_lane
 use meta_lane::smoke_meta_lane
+use thread_lane::smoke_thread_lane
 
 // Interop track
 use c_bridge::smoke_c_bridge_lane
@@ -124,7 +125,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 47
+    let total_tracks: Int = 48
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -549,6 +550,15 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_meta = smoke_first_error(4700, lane_meta)
     if e_meta != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_meta, "stdlib.meta_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_thread = now_millis()
+    let lane_thread = smoke_thread_lane()
+    let ended_thread = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.thread_lane", "thread", 48, 4800, lane_thread, started_thread, ended_thread, composition_checksum)
+    let e_thread = smoke_first_error(4800, lane_thread)
+    if e_thread != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_thread, "stdlib.thread_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1

@@ -590,3 +590,191 @@ pub fn intrusive_hash_map_remove(map: IntrusiveHashMap, node_offset: Int, item_p
         bucket_count: map.bucket_count,
         count: map.count - 1
     }
+
+# --- ArrayList (Growable Element Buffer) ---
+
+pub struct ArrayList:
+    buffer: ptr<Int>
+    capacity: Int
+    count: Int
+
+pub fn array_list_create(capacity: Int) -> ArrayList:
+    let safe_capacity = int_max(capacity, 8)
+    let buffer = alloc_zeroed(safe_capacity, "Int")
+    return ArrayList { buffer: buffer, capacity: safe_capacity, count: 0 }
+
+pub fn array_list_len(list: ArrayList) -> Int:
+    return list.count
+
+pub fn array_list_capacity(list: ArrayList) -> Int:
+    return list.capacity
+
+pub fn array_list_get(list: ArrayList, index: Int) -> Int:
+    if index < 0 or index >= list.count:
+        return 0
+    return mem_load(ptr_offset(list.buffer, index, "Int"), "Int")
+
+pub fn array_list_set(list: ArrayList, index: Int, value: Int) -> ArrayList:
+    if index >= 0 and index < list.count:
+        mem_store(ptr_offset(list.buffer, index, "Int"), value, "Int")
+    return list
+
+pub fn array_list_append(list: ptr<ArrayList>, value: Int) -> Int with Unsafe:
+    var cap = mem_load(ptr_offset(list, 1, "Int"), "Int")
+    var len = mem_load(ptr_offset(list, 2, "Int"), "Int")
+    var buf = int_to_ptr(mem_load(list, "Int"), "Int")
+
+    if len >= cap:
+        let new_cap = cap * 2
+        let new_buf = alloc_zeroed(new_cap, "Int")
+        var i = 0
+        while i < len:
+            let val = mem_load(ptr_offset(buf, i, "Int"), "Int")
+            mem_store(ptr_offset(new_buf, i, "Int"), val, "Int")
+            i = i + 1
+        
+        decay buf
+        mem_store(list, ptr_to_int(new_buf), "Int")
+        mem_store(ptr_offset(list, 1, "Int"), new_cap, "Int")
+        buf = new_buf
+        cap = new_cap
+
+    mem_store(ptr_offset(buf, len, "Int"), value, "Int")
+    len = len + 1
+    mem_store(ptr_offset(list, 2, "Int"), len, "Int")
+    return len
+
+pub fn array_list_pop(list: ptr<ArrayList>) -> Int with Unsafe:
+    let len = mem_load(ptr_offset(list, 2, "Int"), "Int")
+    if len <= 0:
+        return 0
+    let buf = int_to_ptr(mem_load(list, "Int"), "Int")
+    let last_idx = len - 1
+    let val = mem_load(ptr_offset(buf, last_idx, "Int"), "Int")
+    mem_store(ptr_offset(list, 2, "Int"), last_idx, "Int")
+    return val
+
+pub fn array_list_destroy(list: ArrayList) -> Int:
+    decay list.buffer
+    return 0
+
+
+# --- HashMap (Open-Addressing Linear-Probed Hash Map) ---
+
+pub struct HashMap:
+    keys: ptr<Int>
+    values: ptr<Int>
+    occupied: ptr<Int>
+    capacity: Int
+    count: Int
+
+pub fn hash_map_create(capacity: Int) -> HashMap:
+    let safe_capacity = int_max(capacity, 8)
+    let keys = alloc_zeroed(safe_capacity, "Int")
+    let values = alloc_zeroed(safe_capacity, "Int")
+    let occupied = alloc_zeroed(safe_capacity, "Int")
+    return HashMap { keys: keys, values: values, occupied: occupied, capacity: safe_capacity, count: 0 }
+
+pub fn hash_map_len(map: HashMap) -> Int:
+    return map.count
+
+pub fn hash_map_capacity(map: HashMap) -> Int:
+    return map.capacity
+
+fn hash_map_mix_key(key: Int) -> Int:
+    # 64-bit integer mix hash
+    var x = key
+    x = (x ^ (x >> 30)) * 1378784534790074129
+    x = (x ^ (x >> 27)) * 1072315178057262071
+    return x ^ (x >> 31)
+
+pub fn hash_map_get_or(map: HashMap, key: Int, fallback: Int) -> Int with Unsafe:
+    let cap = map.capacity
+    let mixed = hash_map_mix_key(key)
+    var idx = (mixed & 9223372036854775807) % cap
+    var i = 0
+    while i < cap:
+        let occ = mem_load(ptr_offset(map.occupied, idx, "Int"), "Int")
+        if occ == 0:
+            return fallback
+        let k = mem_load(ptr_offset(map.keys, idx, "Int"), "Int")
+        if k == key:
+            return mem_load(ptr_offset(map.values, idx, "Int"), "Int")
+        idx = (idx + 1) % cap
+        i = i + 1
+    return fallback
+
+pub fn hash_map_put(map: ptr<HashMap>, key: Int, value: Int) -> Int with Unsafe:
+    var cap = mem_load(ptr_offset(map, 3, "Int"), "Int")
+    var len = mem_load(ptr_offset(map, 4, "Int"), "Int")
+    var keys_ptr = int_to_ptr(mem_load(map, "Int"), "Int")
+    var vals_ptr = int_to_ptr(mem_load(ptr_offset(map, 1, "Int"), "Int"), "Int")
+    var occs_ptr = int_to_ptr(mem_load(ptr_offset(map, 2, "Int"), "Int"), "Int")
+
+    # Probe & Insert
+    let mixed = hash_map_mix_key(key)
+    var idx = (mixed & 9223372036854775807) % cap
+    var done = false
+    while done == false:
+        let occ = mem_load(ptr_offset(occs_ptr, idx, "Int"), "Int")
+        if occ == 0:
+            mem_store(ptr_offset(occs_ptr, idx, "Int"), 1, "Int")
+            mem_store(ptr_offset(keys_ptr, idx, "Int"), key, "Int")
+            mem_store(ptr_offset(vals_ptr, idx, "Int"), value, "Int")
+            len = len + 1
+            mem_store(ptr_offset(map, 4, "Int"), len, "Int")
+            done = true
+        else:
+            let k = mem_load(ptr_offset(keys_ptr, idx, "Int"), "Int")
+            if k == key:
+                mem_store(ptr_offset(vals_ptr, idx, "Int"), value, "Int")
+                done = true
+            else:
+                idx = (idx + 1) % cap
+
+    # Resize & Rehash if load factor > 0.7
+    if len * 10 > cap * 7:
+        let new_cap = cap * 2
+        let new_keys = alloc_zeroed(new_cap, "Int")
+        let new_vals = alloc_zeroed(new_cap, "Int")
+        let new_occs = alloc_zeroed(new_cap, "Int")
+        
+        var i = 0
+        while i < cap:
+            let occ = mem_load(ptr_offset(occs_ptr, i, "Int"), "Int")
+            if occ == 1:
+                let k = mem_load(ptr_offset(keys_ptr, i, "Int"), "Int")
+                let v = mem_load(ptr_offset(vals_ptr, i, "Int"), "Int")
+                
+                # Insert into new arrays
+                let m = hash_map_mix_key(k)
+                var n_idx = (m & 9223372036854775807) % new_cap
+                var placed = false
+                while placed == false:
+                    let n_occ = mem_load(ptr_offset(new_occs, n_idx, "Int"), "Int")
+                    if n_occ == 0:
+                        mem_store(ptr_offset(new_occs, n_idx, "Int"), 1, "Int")
+                        mem_store(ptr_offset(new_keys, n_idx, "Int"), k, "Int")
+                        mem_store(ptr_offset(new_vals, n_idx, "Int"), v, "Int")
+                        placed = true
+                    else:
+                        n_idx = (n_idx + 1) % new_cap
+            i = i + 1
+        
+        decay keys_ptr
+        decay vals_ptr
+        decay occs_ptr
+        
+        mem_store(map, ptr_to_int(new_keys), "Int")
+        mem_store(ptr_offset(map, 1, "Int"), ptr_to_int(new_vals), "Int")
+        mem_store(ptr_offset(map, 2, "Int"), ptr_to_int(new_occs), "Int")
+        mem_store(ptr_offset(map, 3, "Int"), new_cap, "Int")
+        
+    return len
+
+pub fn hash_map_destroy(map: HashMap) -> Int:
+    decay map.keys
+    decay map.values
+    decay map.occupied
+    return 0
+

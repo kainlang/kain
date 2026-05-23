@@ -1,0 +1,127 @@
+use std::target
+use std::text
+
+@extern
+fn abi_fs_path_join(base: String, child: String) -> String
+
+@extern
+fn abi_fs_path_parent(path: String) -> String
+
+@extern
+fn abi_fs_path_file_name(path: String) -> String
+
+@extern
+fn abi_fs_path_extension(path: String) -> String
+
+@extern
+fn abi_fs_path_stem(path: String) -> String
+
+pub fn path_sep() -> String:
+    let tgt = target_current()
+    match tgt.os:
+        OS::Windows => return "\\"
+        _ => return "/"
+
+pub fn path_delimiter() -> String:
+    let tgt = target_current()
+    match tgt.os:
+        OS::Windows => return ";"
+        _ => return ":"
+
+pub fn path_is_absolute(path: String) -> Bool:
+    if len(path) == 0:
+        return false
+    
+    let first = char_at(path, 0)
+    if first == "/" or first == "\\" :
+        return true
+    
+    # Windows drive letter absolute paths (e.g. C:\)
+    if len(path) >= 3:
+        let second = char_at(path, 1)
+        let third = char_at(path, 2)
+        if second == ":" and (third == "\\" or third == "/") :
+            return true
+            
+    return false
+
+pub fn path_join(base: String, child: String) -> String:
+    return abi_fs_path_join(base, child)
+
+pub fn path_parent(path: String) -> String:
+    return abi_fs_path_parent(path)
+
+pub fn path_file_name(path: String) -> String:
+    return abi_fs_path_file_name(path)
+
+pub fn path_extension(path: String) -> String:
+    return abi_fs_path_extension(path)
+
+pub fn path_stem(path: String) -> String:
+    return abi_fs_path_stem(path)
+
+pub fn path_normalize(path: String) -> String:
+    # A lightweight robust pure path normalization that strips redundant slashes and handles "." and ".."
+    if len(path) == 0:
+        return "."
+        
+    let sep = path_sep()
+    let is_abs = path_is_absolute(path)
+    let parts = path_split(path)
+    let mut resolved: Array<String> = []
+    
+    var i = 0
+    while i < len(parts):
+        let p = parts[i]
+        if p == "" or p == "." :
+            # Ignore
+            0
+        elif p == ".." :
+            if len(resolved) > 0:
+                let last = resolved[len(resolved) - 1]
+                if last != "..":
+                    let _pop = pop(resolved)
+                else:
+                    push(resolved, p)
+            else:
+                if is_abs == false:
+                    push(resolved, p)
+        else:
+            push(resolved, p)
+        i = i + 1
+        
+    var result = ""
+    if is_abs:
+        result = result + sep
+        
+    var j = 0
+    while j < len(resolved):
+        if j > 0:
+            result = result + sep
+        result = result + resolved[j]
+        j = j + 1
+        
+    if len(result) == 0:
+        return "."
+    return result
+
+pub fn path_canonicalize(path: String) -> String:
+    # Basic robust path canonicalization
+    return path_normalize(path)
+
+pub fn path_split(path: String) -> Array<String>:
+    let mut parts: Array<String> = []
+    var current = ""
+    var i = 0
+    while i < len(path):
+        let c = char_at(path, i)
+        if c == "/" or c == "\\" :
+            if len(current) > 0:
+                push(parts, current)
+                current = ""
+        else:
+            current = current + c
+        i = i + 1
+    if len(current) > 0:
+        push(parts, current)
+    return parts

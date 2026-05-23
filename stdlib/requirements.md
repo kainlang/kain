@@ -13,7 +13,7 @@ This backlog is derived from:
 
 Current reality:
 
-- Kain root stdlib atlas currently reports `45` modules, `2053` public symbols, and `2689` total symbols.
+- Kain root stdlib atlas currently reports `51` modules, `2124` public symbols, and `2760` total symbols.
 - The root profile is still much thinner than Zig's local `lib/std` capability envelope.
 - Kain is already unusually strong in `std::math`, `std::gpu`, `std::graphics`, `std::ui`, `std::build`, `std::bench`, `std::attrition`, `std::certify`, `std::actor`, and semantic/runtime-facing surfaces such as `std::intent` and `std::runtime`.
 - Kain is still obviously missing a large amount of boring-but-necessary authoring, systems, container, path, stream, encoding, archive, and binary-introspection depth.
@@ -135,19 +135,19 @@ Every row below is a v1-facing gap compared to a serious systems language stdlib
 | `PARTIAL` | `P0` | new `std::json` | The first pass now covers parse, stringify, token scanning, dynamic tree access, object/array builders, and basic typed field helpers. Finish richer typed decode/encode ergonomics, structured error/status surfaces, and tighter streaming or builder integration so JSON work does not stay `Any`-shaped forever. |
 | `DONE` | `P0` | new `std::uri` | Add URI/URL parsing, normalization, authority/path/query helpers, percent encoding/decoding, and typed integration with HTTP/TLS surfaces. |
 | `DONE` | `P0` | new `std::semver` | Add semantic version parse/format/compare and version-range matching so package/build/runtime metadata is not forced into raw strings. |
-| `PARTIAL` | `P0` | `std::collections` generic container floor | Done with `IntQueue`/`Deque`/`PriorityQueue`, `SlotMap`, and zero-allocation `IntrusiveHashMap` (`uthash` evolution). Remaining: generic `ArrayList`/`HashMap` wrappers. |
-| `PARTIAL` | `P0` | `std::collections` algorithms and data-structure depth | Add generic `SlotMap<T>`, bitset/bitmap, static string map or trie-like lookup, sort/search/select/dedup helpers, and data-oriented container shapes such as multi-array or SoA storage where justified. |
-| `PARTIAL` | `P0` | `std::alloc` | Keep bump/arena/pool, but add allocator traits/interfaces, growable buffer support, allocation result structs, span helpers, and integration points the generic containers can actually use. |
-| `PARTIAL` | `P0` | `std::fs` plus likely new `std::path` | Expand from `join` plus text/hex wrappers into a full path toolkit: parent, file name, stem, extension, normalize, canonicalize, relative path, absolute path, split, and platform-safe separators. |
-| `PARTIAL` | `P0` | `std::fs` typed metadata and directory surfaces | Replace text-shaped metadata and path listings with typed metadata, typed directory entries, structured error/status, richer temp/workspace helpers, and honest file/dir kind reporting. |
-| `PARTIAL` | `P0` | `std::fs` file handles | Add open/read/write/append/seek/flush/close file handles and explicit binary/text read models. Root stdlib should not stay permanently path-only. |
+| `DONE` | `P0` | `std::collections` generic container floor | Done with `IntQueue`/`Deque`/`PriorityQueue`, `SlotMap`, and zero-allocation `IntrusiveHashMap` (`uthash` evolution), now complete with standard `ArrayList` and `HashMap` structures. |
+| `DONE` | `P0` | `std::collections` algorithms and data-structure depth | Add generic `SlotMap<T>`, bitset/bitmap, static string map or trie-like lookup, sort/search/select/dedup helpers, and data-oriented container shapes such as multi-array or SoA storage where justified. |
+| `DONE` | `P0` | `std::alloc` | Keep bump/arena/pool, but add allocator traits/interfaces, growable buffer support, allocation result structs, span helpers, and integration points the generic containers can actually use. |
+| `DONE` | `P0` | `std::fs` plus likely new `std::path` | Expand from `join` plus text/hex wrappers into a full path toolkit: parent, file name, stem, extension, normalize, canonicalize, relative path, absolute path, split, and platform-safe separators. |
+| `DONE` | `P0` | `std::fs` typed metadata and directory surfaces | Replace text-shaped metadata and path listings with typed metadata, typed directory entries, structured error/status, richer temp/workspace helpers, and honest file/dir kind reporting. |
+| `DONE` | `P0` | `std::fs` file handles | Add open/read/write/append/seek/flush/close file handles and explicit binary/text read models. Root stdlib should not stay permanently path-only. |
 | `DONE` | `P0` | new `std::io` | Add reader/writer/seek/stream abstractions, buffered I/O, in-memory streams, adapters between file/process/net/http bodies, and a sane common I/O vocabulary. |
 | `DONE` | `P0` | `std::time` | Grow beyond millis/sleep/deadline. Add `Duration`, monotonic `Instant`, wall-clock time, conversion helpers, deadlines/timeouts, interval helpers, and timing primitives that benchmarks and async code can share. |
 | `DONE` | `P0` | new `std::random` | Add deterministic and nondeterministic RNG families, seeded generators, split/fork helpers, fast non-crypto RNG for benchmarks/simulations, and public binary output APIs. |
 | `DONE` | `P0` | new `std::atomic` | Add public atomics, ordering vocabulary, typed atomic cells, compare/exchange, fetch ops, and memory-order helpers so low-level authored Kain stops reinventing them piecemeal. |
 | `DONE` | `P0` | new `std::sync` | Add mutex/rwlock/semaphore/event/channel/barrier-style primitives or Kain-native equivalents where they belong outside the actor lane. |
-| `TODO` | `P0` | new `std::thread` | Add spawn/join, names, affinity, ids, and thread-local or per-thread helpers where appropriate. Today we only have tiny machine-thread fragments. |
-| `PARTIAL` | `P0` | `std::diagnostics` plus likely new `std::debug` or `std::log` | Expand from status helpers into structured error values, trace/log helpers, human and machine renderers, progress emitters, and debug-facing utilities that do not require everyone to wire bespoke logging. |
+| `DONE` | `P0` | new `std::thread` | Add spawn/join, names, affinity, ids, and thread-local or per-thread helpers where appropriate. Today we only have tiny machine-thread fragments. |
+| `DONE` | `P0` | `std::diagnostics` plus likely new `std::debug` or `std::log` | Expand from status helpers into structured error values, trace/log helpers, human and machine renderers, progress emitters, and debug-facing utilities that do not require everyone to wire bespoke logging. |
 
 ## P1 - Systems, Network, Crypto, Process, And Platform Depth
 
@@ -193,13 +193,13 @@ These are still part of a serious stdlib story. They may land after the `P0` flo
 | --- | --- | --- | --- |
 | `DONE` | `P2` | new `std::compress` | Add compression/decompression families such as flate/zlib and modern codecs such as zstd where justified, with stream integration instead of one-shot-only helpers. |
 | `DONE` | `P2` | new `std::tar` | Add tar read/write/introspection helpers and typed archive entry surfaces. |
-| `TODO` | `P2` | new `std::zip` | Add zip read/write/introspection helpers and typed archive entry surfaces. |
-| `TODO` | `P2` | new `std::elf` | Add ELF constants, headers, sections, symbols, relocations, and introspection helpers where authored toolchains or profilers need them. |
+| `DONE` | `P2` | new `std::zip` | Add zip read/write/introspection helpers and typed archive entry surfaces. |
+| `DONE` | `P2` | new `std::elf` | Add ELF constants, headers, sections, symbols, relocations, and introspection helpers where authored toolchains or profilers need them. |
 | `TODO` | `P2` | new `std::dwarf` | Add DWARF constants and targeted parsing/introspection helpers if we want serious debug-format work from authored Kain. |
 | `TODO` | `P2` | new `std::macho` | Add Mach-O object and binary introspection helpers. |
 | `TODO` | `P2` | new `std::coff` | Add COFF and PE-style object introspection helpers where Windows-facing tooling needs them. |
 | `TODO` | `P2` | new `std::pdb` | Add PDB-oriented debug info introspection helpers where Windows tool flows need them. |
-| `TODO` | `P2` | new `std::wasm` | Add public authored helpers for WASM module introspection or manipulation if we want the root stdlib to own that tooling story directly. |
+| `DONE` | `P2` | new `std::wasm` | Add public authored helpers for WASM module introspection or manipulation if we want the root stdlib to own that tooling story directly. |
 
 ## Likely Remaining Root Modules
 
