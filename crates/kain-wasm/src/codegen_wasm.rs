@@ -5197,13 +5197,50 @@ impl WasmCompiler {
         Ok(())
     }
 
-    fn temp_local_for_expr(&self, ctx: &CompilationContext, expr: &Expr) -> LocalId {
-        match self.infer_expr_wasm_type_in_context(ctx, expr) {
+    fn temp_local_for_val_type(&self, ctx: &CompilationContext, val_type: ValType) -> LocalId {
+        match val_type {
             ValType::I32 => ctx.tmp_i32,
             ValType::F64 => ctx.tmp_f64,
             ValType::F32 => ctx.tmp_f64,
             _ => ctx.tmp_i64,
         }
+    }
+
+    fn temp_local_for_expr(&self, ctx: &CompilationContext, expr: &Expr) -> LocalId {
+        self.temp_local_for_val_type(ctx, self.infer_expr_wasm_type_in_context(ctx, expr))
+    }
+
+    fn compile_block_value(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        block: &Block,
+        result_ty: ValType,
+    ) -> KainResult<()> {
+        if block.stmts.is_empty() {
+            self.emit_zero_for_val_type(builder, result_ty);
+            return Ok(());
+        }
+
+        for (i, stmt) in block.stmts.iter().enumerate() {
+            if i < block.stmts.len() - 1 {
+                self.compile_stmt(ctx, builder, stmt)?;
+                continue;
+            }
+
+            match stmt {
+                Stmt::Expr(expr) => {
+                    self.compile_expr(ctx, builder, expr)?;
+                    self.coerce_expr_stack_to_val_type(ctx, builder, expr, result_ty);
+                }
+                _ => {
+                    self.compile_stmt(ctx, builder, stmt)?;
+                    self.emit_zero_for_val_type(builder, result_ty);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn compile_field_address(
@@ -5815,10 +5852,7 @@ impl WasmCompiler {
         match stmt {
             Stmt::Expr(expr) => {
                 self.compile_expr(ctx, builder, expr)?;
-                // Control-flow-only if statements do not leave a stack value.
-                if !matches!(expr, Expr::If { .. }) {
-                    builder.drop();
-                }
+                builder.drop();
             }
             Stmt::Let { value, pattern, .. } => {
                 if let Some(val_expr) = value {
@@ -6942,27 +6976,40 @@ impl WasmCompiler {
                 else_branch,
                 ..
             } => {
+                let result_ty = self.infer_expr_wasm_type_in_context(ctx, expr);
+                let result_local = self.temp_local_for_val_type(ctx, result_ty);
                 self.compile_expr(ctx, builder, condition)?;
 
                 let branch_error = std::cell::RefCell::new(None);
                 builder.if_else(
                     None,
                     |then_builder| {
-                        if let Err(err) = self.compile_block(ctx, then_builder, then_branch) {
+                        if let Err(err) =
+                            self.compile_block_value(ctx, then_builder, then_branch, result_ty)
+                        {
                             *branch_error.borrow_mut() = Some(err);
+                            return;
                         }
+                        then_builder.local_set(result_local);
                     },
                     |else_builder| {
                         if let Some(else_br) = else_branch {
-                            if let Err(err) = self.compile_else_branch(ctx, else_builder, else_br) {
+                            if let Err(err) =
+                                self.compile_else_branch_value(ctx, else_builder, else_br, result_ty)
+                            {
                                 *branch_error.borrow_mut() = Some(err);
+                                return;
                             }
+                        } else {
+                            self.emit_zero_for_val_type(else_builder, result_ty);
                         }
+                        else_builder.local_set(result_local);
                     },
                 );
                 if let Some(err) = branch_error.into_inner() {
                     return Err(err);
                 }
+                builder.local_get(result_local);
             }
             Expr::JSX(node, _) => {
                 self.compile_jsx_node(ctx, builder, node)?;
@@ -7646,23 +7693,8 @@ impl WasmCompiler {
             }
             // Block expression: compile all statements, return last expression value
             Expr::Block(block, _span) => {
-                // Compile all statements except the last
-                for (i, stmt) in block.stmts.iter().enumerate() {
-                    if i < block.stmts.len() - 1 {
-                        self.compile_stmt(ctx, builder, stmt)?;
-                    } else {
-                        // Last statement - if it's an expression, keep its value
-                        if let Stmt::Expr(expr) = stmt {
-                            self.compile_expr(ctx, builder, expr)?;
-                        } else {
-                            self.compile_stmt(ctx, builder, stmt)?;
-                            builder.i64_const(0); // Block returns unit
-                        }
-                    }
-                }
-                if block.stmts.is_empty() {
-                    builder.i64_const(0);
-                }
+                let result_ty = self.infer_expr_wasm_type_in_context(ctx, expr);
+                self.compile_block_value(ctx, builder, block, result_ty)?;
             }
             Expr::Return(value, _) => {
                 if let Some(value) = value {
@@ -7723,6 +7755,59 @@ impl WasmCompiler {
                 if let Some(err) = branch_error.into_inner() {
                     return Err(err);
                 }
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_else_branch_value(
+        &self,
+        ctx: &CompilationContext,
+        builder: &mut InstrSeqBuilder,
+        branch: &kain_core::ast::ElseBranch,
+        result_ty: ValType,
+    ) -> KainResult<()> {
+        match branch {
+            kain_core::ast::ElseBranch::Else(block) => {
+                self.compile_block_value(ctx, builder, block, result_ty)?;
+            }
+            kain_core::ast::ElseBranch::ElseIf(cond, then, next_else) => {
+                let result_local = self.temp_local_for_val_type(ctx, result_ty);
+                self.compile_expr(ctx, builder, cond)?;
+
+                let branch_error = std::cell::RefCell::new(None);
+                builder.if_else(
+                    None,
+                    |then_builder| {
+                        if let Err(err) =
+                            self.compile_block_value(ctx, then_builder, then, result_ty)
+                        {
+                            *branch_error.borrow_mut() = Some(err);
+                            return;
+                        }
+                        then_builder.local_set(result_local);
+                    },
+                    |else_builder| {
+                        if let Some(next) = next_else {
+                            if let Err(err) = self.compile_else_branch_value(
+                                ctx,
+                                else_builder,
+                                next,
+                                result_ty,
+                            ) {
+                                *branch_error.borrow_mut() = Some(err);
+                                return;
+                            }
+                        } else {
+                            self.emit_zero_for_val_type(else_builder, result_ty);
+                        }
+                        else_builder.local_set(result_local);
+                    },
+                );
+                if let Some(err) = branch_error.into_inner() {
+                    return Err(err);
+                }
+                builder.local_get(result_local);
             }
         }
         Ok(())

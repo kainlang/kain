@@ -255,7 +255,7 @@ fn shattered_rng_buffer_update_scalar(buf: ptr<Int>, output: ptr<Int>, lanes: In
         i = i + 1
     return lanes
 
-pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int:
+pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int with Unsafe:
     spec reference:
         return shattered_rng_buffer_update_scalar(buf, output, lanes)
     fast llvm_lane when target("llvm"):
