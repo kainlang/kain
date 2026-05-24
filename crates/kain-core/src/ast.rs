@@ -165,6 +165,9 @@ pub enum Item {
     /// `use path::to::item`
     Use(Use),
 
+    /// `import pkg`, `import pkg as alias`, `from pkg import name as alias`
+    Import(Import),
+
     /// `mod name`
     Mod(Mod),
 
@@ -1332,6 +1335,23 @@ pub struct Use {
     pub path: Vec<String>,
     pub alias: Option<String>,
     pub glob: bool,
+    pub source_file: Option<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Import {
+    pub module_path: Vec<String>,
+    pub alias: Option<String>,
+    pub members: Vec<ImportMember>,
+    pub source_file: Option<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportMember {
+    pub name: String,
+    pub alias: Option<String>,
     pub span: Span,
 }
 
@@ -2913,7 +2933,7 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
                 collect_type_names_from_item(&Item::Function(method.clone()), out);
             }
         }
-        Item::Use(_) | Item::Mod(_) | Item::Entangle(_) => {
+        Item::Use(_) | Item::Import(_) | Item::Mod(_) | Item::Entangle(_) => {
             // Uses and mods don't contain type references we can extract
         }
     }

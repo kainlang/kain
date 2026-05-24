@@ -59,6 +59,11 @@ pub struct TypedUse {
 }
 
 #[derive(Debug, Clone)]
+pub struct TypedImport {
+    pub ast: Import,
+}
+
+#[derive(Debug, Clone)]
 pub struct TypedMod {
     pub ast: Mod,
     pub items: Vec<TypedItem>,
@@ -92,6 +97,7 @@ pub enum TypedItem {
     Const(TypedConst),
     Macro(TypedMacro),
     Use(TypedUse),
+    Import(TypedImport),
     Mod(TypedMod),
     Impl(TypedImpl),
     Test(TypedTest),
@@ -3654,10 +3660,42 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 env.define_global_user(imported_name, ResolvedType::Unknown, u.span, "import")?;
             }
         }
+        Item::Import(import) => {
+            for binding_name in python_import_binding_names(import) {
+                if env.lookup(&binding_name).is_none() {
+                    env.define_global_user(
+                        binding_name,
+                        ResolvedType::Unknown,
+                        import.span,
+                        "python import",
+                    )?;
+                }
+            }
+        }
         _ => {}
     }
 
     Ok(())
+}
+
+fn python_import_binding_names(import: &Import) -> Vec<String> {
+    if import.members.is_empty() {
+        if let Some(alias) = &import.alias {
+            return vec![alias.clone()];
+        }
+        return import
+            .module_path
+            .first()
+            .cloned()
+            .into_iter()
+            .collect::<Vec<_>>();
+    }
+
+    import
+        .members
+        .iter()
+        .map(|member| member.alias.clone().unwrap_or_else(|| member.name.clone()))
+        .collect()
 }
 
 fn register_stdlib_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> {
@@ -4088,6 +4126,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Const(c) => Ok(TypedItem::Const(check_const(env, c)?)),
         Item::Macro(m) => Ok(TypedItem::Macro(TypedMacro { ast: m.clone() })),
         Item::Use(u) => Ok(TypedItem::Use(TypedUse { ast: u.clone() })),
+        Item::Import(import) => Ok(TypedItem::Import(TypedImport { ast: import.clone() })),
         Item::Mod(module) => Ok(TypedItem::Mod(check_mod(env, module)?)),
         Item::Impl(i) => Ok(TypedItem::Impl(check_impl(env, i)?)),
         Item::Test(t) => Ok(TypedItem::Test(check_test(env, t)?)),
@@ -6375,6 +6414,7 @@ fn item_span(item: &Item) -> Span {
         Item::Const(c) => c.span,
         Item::Macro(m) => m.span,
         Item::Use(u) => u.span,
+        Item::Import(import) => import.span,
         Item::Mod(m) => m.span,
         Item::Impl(i) => i.span,
         Item::Test(t) => t.span,

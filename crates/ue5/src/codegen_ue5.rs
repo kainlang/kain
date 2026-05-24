@@ -7214,6 +7214,7 @@ fn item_uses_kain_runtime(item: &TypedItem) -> bool {
         | TypedItem::Enum(_)
         | TypedItem::Macro(_)
         | TypedItem::Use(_)
+        | TypedItem::Import(_)
         | TypedItem::MaterialGraph(_)
         | TypedItem::MaterialFunction(_)
         | TypedItem::GraphEditor(_)

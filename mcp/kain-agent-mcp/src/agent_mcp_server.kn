@@ -145,11 +145,23 @@ fn self_test() -> Int:
 
     return 0
 
+fn boot_mode() -> String:
+    let env_mode = text_lower(text_trim_string(process_environment("KAIN_AGENT_MCP_BOOT_MODE")))
+    if len(env_mode) > 0:
+        return env_mode
+    return "stdio"
+
 // ============================================================================
 //                         runtime-native MCP main loop
 // ============================================================================
 
 pub fn run_agent_mcp() -> Int:
+    let mode = boot_mode()
+    if mode == "self-test":
+        return self_test()
+    if mode == "exit":
+        return 0
+
     let user_args = process_user_args()
     var arg_index = 0
     while arg_index < len(user_args):

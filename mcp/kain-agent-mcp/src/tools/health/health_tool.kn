@@ -1,5 +1,0 @@
-pub fn health_ping_response(port: Int, request_body: String, tls_state: Int, http2_state: Int) -> String:
-    return "{\"ok\":true,\"server\":\"kain-agent-mcp\",\"transport\":\"http-probe\",\"port\":" + str(port) + ",\"body_bytes\":" + str(len(request_body)) + ",\"tls_state\":" + str(tls_state) + ",\"http2_state\":" + str(http2_state) + "}"
-
-pub fn health_response_is_valid(response_text: String) -> Bool:
-    return len(response_text) > 0

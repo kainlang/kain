@@ -611,6 +611,8 @@ impl<'a> Parser<'a> {
                 | "orchestrate"
                 | "pulse"
                 | "shatter"
+                | "import"
+                | "from"
         )
     }
 
@@ -906,6 +908,8 @@ impl<'a> Parser<'a> {
             TokenKind::Test => self.parse_test(),
             TokenKind::Mod => self.parse_mod(vis),
             TokenKind::Use => self.parse_use(),
+            TokenKind::Ident(ref name) if name == "import" => self.parse_import(),
+            TokenKind::Ident(ref name) if name == "from" => self.parse_from_import(),
             TokenKind::Trait => self.parse_trait(vis),
             TokenKind::Impl => self.parse_impl(),
             TokenKind::TypeKw => self.parse_type_alias(vis),
@@ -928,7 +932,7 @@ impl<'a> Parser<'a> {
             }
             _ => Err(self.parser_error(
                 format!(
-                    "Expected item (fn, patch, law, axiom, converge, world, entangle, orchestrate, pulse, shatter struct, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
+                    "Expected item (fn, patch, law, axiom, converge, world, entangle, orchestrate, pulse, shatter struct, struct, enum, actor, component, shader, material, trait, impl, mod, use, import, const, test), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
                 self.current_span()
@@ -1241,6 +1245,7 @@ impl<'a> Parser<'a> {
                     path,
                     alias: None,
                     glob: true,
+                    source_file: self.current_source_file(),
                     span: start.merge(self.current_span()),
                 }));
             }
@@ -1260,8 +1265,75 @@ impl<'a> Parser<'a> {
             path,
             alias,
             glob: false,
+            source_file: self.current_source_file(),
             span: start.merge(self.current_span()),
         }))
+    }
+
+    fn parse_import(&mut self) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("import")?;
+        let module_path = self.parse_python_import_module_path()?;
+        let alias = if self.check(TokenKind::As) {
+            self.advance();
+            Some(self.parse_ident()?)
+        } else {
+            None
+        };
+
+        Ok(Item::Import(Import {
+            module_path,
+            alias,
+            members: Vec::new(),
+            source_file: self.current_source_file(),
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_from_import(&mut self) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("from")?;
+        let module_path = self.parse_python_import_module_path()?;
+        self.expect_contextual_ident("import")?;
+
+        let mut members = Vec::new();
+        loop {
+            let member_start = self.current_span();
+            let name = self.parse_use_path_segment()?;
+            let alias = if self.check(TokenKind::As) {
+                self.advance();
+                Some(self.parse_ident()?)
+            } else {
+                None
+            };
+            members.push(ImportMember {
+                name,
+                alias,
+                span: member_start.merge(self.current_span()),
+            });
+
+            if !self.check(TokenKind::Comma) {
+                break;
+            }
+            self.advance();
+        }
+
+        Ok(Item::Import(Import {
+            module_path,
+            alias: None,
+            members,
+            source_file: self.current_source_file(),
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_python_import_module_path(&mut self) -> KainResult<Vec<String>> {
+        let mut path = vec![self.parse_use_path_segment()?];
+        while self.check(TokenKind::Dot) {
+            self.advance();
+            path.push(self.parse_use_path_segment()?);
+        }
+        Ok(path)
     }
 
     fn parse_test(&mut self) -> KainResult<Item> {
@@ -6757,6 +6829,14 @@ impl<'a> Parser<'a> {
         matches!(self.peek_kind(), TokenKind::Ident(ref value) if value == expected)
     }
 
+    fn current_source_file(&self) -> Option<String> {
+        if self.filename.starts_with('<') && self.filename.ends_with('>') {
+            None
+        } else {
+            Some(self.filename.to_string())
+        }
+    }
+
     fn skip_formatting(&mut self) {
         while matches!(
             self.peek_kind(),
@@ -10120,5 +10200,37 @@ mod tests {
             ],
             "target stdlib parse lost the trailing function: {parsed_names:?}"
         );
+    }
+
+    #[test]
+    fn parses_python_import_items() {
+        let program = parse_program(
+            r#"
+import numpy as np
+from torch.utils import data as torch_data
+"#,
+        )
+        .expect("python import syntax should parse");
+
+        assert_eq!(program.items.len(), 2);
+
+        match &program.items[0] {
+            Item::Import(import) => {
+                assert_eq!(import.module_path, vec!["numpy"]);
+                assert_eq!(import.alias.as_deref(), Some("np"));
+                assert!(import.members.is_empty());
+            }
+            other => panic!("expected first item to be Import, got {other:?}"),
+        }
+
+        match &program.items[1] {
+            Item::Import(import) => {
+                assert_eq!(import.module_path, vec!["torch", "utils"]);
+                assert_eq!(import.members.len(), 1);
+                assert_eq!(import.members[0].name, "data");
+                assert_eq!(import.members[0].alias.as_deref(), Some("torch_data"));
+            }
+            other => panic!("expected second item to be Import, got {other:?}"),
+        }
     }
 }

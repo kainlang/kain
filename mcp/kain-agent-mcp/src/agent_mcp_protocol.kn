@@ -86,7 +86,7 @@ pub fn mcp_build_tools_list_result() -> JsonObject:
     let stdlib_query = json_object()
     let _name_b = json_object_set_string(stdlib_query, "name", "stdlib.query")
     let _title_b = json_object_set_string(stdlib_query, "title", "Stdlib Query")
-    let _description_b = json_object_set_string(stdlib_query, "description", "Query the generated stdlib atlas through query_stdlib.py without shelling out manually.")
+    let _description_b = json_object_set_string(stdlib_query, "description", "Query the generated stdlib atlas directly from stdlib.map.json for module, import, and symbol discovery.")
     let _schema_b = json_object_set_object(stdlib_query, "inputSchema", json_object_with_string("type", "object"))
     let _push_b = json_array_push_object(public_tools, stdlib_query)
 

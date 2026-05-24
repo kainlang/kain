@@ -449,6 +449,60 @@ pub enum KainCommand {
         name: Option<String>,
     },
 
+    /// Record a capsule-backed dependency in the current project and pin it in KAIN.lock
+    Add {
+        /// Installed package name, local package root, or source capsule path
+        package: String,
+
+        /// Override the package version when installing or pinning
+        #[arg(long)]
+        version: Option<String>,
+
+        /// Explicit project root or KAIN.toml path to update
+        #[arg(long)]
+        manifest: Option<PathBuf>,
+    },
+
+    /// Install a capsule-backed package into the global Kain package store
+    Install {
+        /// Installed package name, local package root, or source capsule path
+        package: String,
+
+        /// Override the package version when installing or activating
+        #[arg(long)]
+        version: Option<String>,
+    },
+
+    /// Publish a local Kain package as one or more portable source capsules
+    Publish {
+        /// Package root, blade root, workspace path, or entry file to publish
+        input: PathBuf,
+
+        /// Output source capsule path. Defaults to <input>/.kain/publish/<name>-<version>.kn
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Override the published package name
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Override the published package version
+        #[arg(long)]
+        version: Option<String>,
+
+        /// Also emit an artifacts companion capsule next to the source capsule
+        #[arg(long)]
+        artifacts: bool,
+
+        /// Also emit an evidence companion capsule next to the source capsule
+        #[arg(long)]
+        evidence: bool,
+
+        /// Store the capsules as compressed archives instead of editable file blocks
+        #[arg(long)]
+        archive: bool,
+    },
+
     /// Start the Language Server
     Lsp,
 
@@ -1067,6 +1121,59 @@ mod tests {
                 assert!(skip_conformance);
             }
             other => panic!("expected runtime validate command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_add_command() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "add",
+            "kaintana",
+            "--version",
+            "0.3.0",
+            "--manifest",
+            "demo/KAIN.toml",
+        ]);
+        match cli.command {
+            Some(KainCommand::Add {
+                package,
+                version,
+                manifest,
+            }) => {
+                assert_eq!(package, "kaintana");
+                assert_eq!(version.as_deref(), Some("0.3.0"));
+                assert_eq!(manifest, Some(PathBuf::from("demo/KAIN.toml")));
+            }
+            other => panic!("expected add command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_publish_command() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "publish",
+            "blades/kaintana",
+            "--output",
+            "dist/kaintana.kn",
+            "--artifacts",
+            "--evidence",
+        ]);
+        match cli.command {
+            Some(KainCommand::Publish {
+                input,
+                output,
+                artifacts,
+                evidence,
+                ..
+            }) => {
+                assert_eq!(input, PathBuf::from("blades/kaintana"));
+                assert_eq!(output, Some(PathBuf::from("dist/kaintana.kn")));
+                assert!(artifacts);
+                assert!(evidence);
+            }
+            other => panic!("expected publish command, got {other:?}"),
         }
     }
 

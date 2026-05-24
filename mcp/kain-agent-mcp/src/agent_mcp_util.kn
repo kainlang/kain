@@ -136,3 +136,25 @@ pub fn mcp_contains_any_tag(tags: Array<String>, topic: String) -> Bool:
             return true
         index = index + 1
     return false
+
+pub fn mcp_trim_cr(text: String) -> String:
+    if len(text) == 0:
+        return text
+    if char_at(text, len(text) - 1) == "\r":
+        return text_substring_string(text, 0, len(text) - 1)
+    return text
+
+pub fn mcp_split_lines(text: String) -> Array<String>:
+    let lines = []
+    var start = 0
+    var index = 0
+    while index < len(text):
+        if char_at(text, index) == "\n":
+            push(lines, mcp_trim_cr(text_substring_string(text, start, index - start)))
+            start = index + 1
+        index = index + 1
+    if start < len(text):
+        push(lines, mcp_trim_cr(text_substring_string(text, start, len(text) - start)))
+    elif len(text) == 0:
+        push(lines, "")
+    return lines

@@ -21,12 +21,12 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 #[cfg(feature = "gpu")]
 use gpu;
+#[cfg(feature = "web")]
+use kain_web;
 #[cfg(feature = "ue5")]
 use ue5;
 #[cfg(feature = "ue5")]
 use ue5_shaders;
-#[cfg(feature = "web")]
-use kain_web;
 
 const TOKEN_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::KEYWORD,
@@ -623,7 +623,7 @@ impl<'a> AnalysisBuilder<'a> {
                 SymbolKind::STRUCT,
                 AnalysisCompletionKind::Struct,
             ),
-            Item::Use(_) | Item::Comptime(_) => None,
+            Item::Use(_) | Item::Import(_) | Item::Comptime(_) => None,
         }
     }
 

@@ -13,8 +13,8 @@ pub struct AgentMcpConfig:
     repo_root: String
     config_path: String
     manifest: JsonObject
-    python_bin: String
     rg_bin: String
+    powershell_bin: String
     kain_bin: String
     timeout_ms: Int
     default_limit: Int
@@ -99,8 +99,8 @@ pub fn load_agent_mcp_config() -> AgentMcpConfig:
         repo_root: repo_root,
         config_path: config_path,
         manifest: manifest,
-        python_bin: resolve_runtime_string(runtime, "python_bin", "KAIN_AGENT_PYTHON_BIN", "python"),
         rg_bin: resolve_runtime_string(runtime, "rg_bin", "KAIN_AGENT_RG_BIN", "rg"),
+        powershell_bin: resolve_runtime_string(runtime, "powershell_bin", "KAIN_AGENT_POWERSHELL_BIN", "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"),
         kain_bin: resolve_kain_bin(repo_root, runtime),
         timeout_ms: mcp_int_field_or(runtime, "timeout_ms", 30000),
         default_limit: mcp_int_field_or(runtime, "default_limit", 20),

@@ -1005,6 +1005,24 @@ fn collect_runtime_items(
             TypedItem::Use(use_def) => {
                 output.push(runtime_contract_item("use", &use_def.ast.path.join("::")));
             }
+            TypedItem::Import(import_def) => {
+                let label = if import_def.ast.members.is_empty() {
+                    import_def.ast.module_path.join(".")
+                } else {
+                    format!(
+                        "{}::{}",
+                        import_def.ast.module_path.join("."),
+                        import_def
+                            .ast
+                            .members
+                            .iter()
+                            .map(|member| member.alias.clone().unwrap_or_else(|| member.name.clone()))
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    )
+                };
+                output.push(runtime_contract_item("import", &label));
+            }
             TypedItem::Mod(module) => {
                 output.push(runtime_contract_item("mod", &module.ast.name));
                 collect_runtime_items(&module.items, output, reflection_names);

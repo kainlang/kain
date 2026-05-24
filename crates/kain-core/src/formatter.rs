@@ -242,6 +242,9 @@ impl SourceFormatter {
             Item::Use(value) => {
                 self.push_text(&mut output, &self.format_use(value));
             }
+            Item::Import(value) => {
+                self.push_text(&mut output, &self.format_import(value));
+            }
             Item::Mod(value) => {
                 self.push_text(&mut output, &self.format_mod(value)?);
             }
@@ -775,6 +778,28 @@ impl SourceFormatter {
             output.push_str(alias);
         }
         output
+    }
+
+    fn format_import(&self, value: &Import) -> String {
+        if value.members.is_empty() {
+            let mut output = format!("import {}", value.module_path.join("."));
+            if let Some(alias) = &value.alias {
+                output.push_str(" as ");
+                output.push_str(alias);
+            }
+            return output;
+        }
+
+        let members = value
+            .members
+            .iter()
+            .map(|member| match &member.alias {
+                Some(alias) => format!("{} as {}", member.name, alias),
+                None => member.name.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("from {} import {}", value.module_path.join("."), members)
     }
 
     fn format_mod(&self, value: &Mod) -> KainResult<String> {

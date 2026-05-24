@@ -255,6 +255,10 @@ fn push_unique_module_name(names: &mut Vec<String>, name: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use blade::{
+        package_index_path, package_workspace_root, InstalledPackageIndex, InstalledPackageVersion,
+        KAIN_LOCKFILE_NAME,
+    };
     use std::env;
     use std::fs;
     use tempfile::TempDir;
@@ -351,5 +355,77 @@ mod tests {
         .expect("importer-relative module should resolve");
 
         assert_eq!(resolution.file_path, module_path);
+    }
+
+    #[test]
+    fn installed_package_dependency_resolves_from_kain_home_store() {
+        let temp_dir = TempDir::new().unwrap();
+        let kain_home = temp_dir.path().join("home");
+        let store_root = kain_home.join("packages");
+        let package_root = store_root.join("miniui");
+        let workspace_root = package_workspace_root(&package_root, "0.1.0");
+        let project_root = temp_dir.path().join("demoapp");
+        let importer_path = project_root.join("src").join("main.kn");
+        let installed_module = workspace_root.join("src").join("miniui.kn");
+
+        fs::create_dir_all(installed_module.parent().unwrap()).unwrap();
+        fs::create_dir_all(importer_path.parent().unwrap()).unwrap();
+
+        fs::write(
+            workspace_root.join("KAIN.toml"),
+            "[package]\nname = \"miniui\"\nversion = \"0.1.0\"\n\n[blade]\nkind = \"kain_library\"\nmodule_roots = [\"src\"]\n",
+        )
+        .unwrap();
+        fs::write(&installed_module, "pub fn ready() -> Int:\n    return 1\n").unwrap();
+        fs::write(
+            package_index_path(&package_root),
+            serde_json::to_string_pretty(&InstalledPackageIndex {
+                schema: 1,
+                name: "miniui".to_string(),
+                active_version: Some("0.1.0".to_string()),
+                versions: vec![InstalledPackageVersion {
+                    version: "0.1.0".to_string(),
+                    digest: "sha256:miniui".to_string(),
+                    kind: "blade".to_string(),
+                    contents: vec!["source".to_string()],
+                    capsule_set: Some("miniui".to_string()),
+                }],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        fs::write(
+            project_root.join("KAIN.toml"),
+            "[package]\nname = \"demoapp\"\n\n[blade]\nentry = \"src/main.kn\"\nmodule_roots = [\"src\"]\ndependencies = [{ name = \"miniui\", version = \"0.1.0\" }]\n",
+        )
+        .unwrap();
+        fs::write(
+            project_root.join(KAIN_LOCKFILE_NAME),
+            "schema = 1\n\n[[packages]]\nname = \"miniui\"\nversion = \"0.1.0\"\nsource = \"kain_home\"\ndigest = \"sha256:miniui\"\nkind = \"blade\"\n",
+        )
+        .unwrap();
+        fs::write(&importer_path, "use miniui\n").unwrap();
+
+        let previous_kain_home = env::var_os("KAIN_HOME");
+        env::set_var("KAIN_HOME", &kain_home);
+
+        let resolution = resolve_filesystem_module_file_with_context(
+            &["miniui".to_string()],
+            &FilesystemModuleResolutionContext {
+                importer_file: Some(importer_path),
+            },
+        )
+        .expect("installed package dependency should resolve");
+
+        match previous_kain_home {
+            Some(previous) => env::set_var("KAIN_HOME", previous),
+            None => env::remove_var("KAIN_HOME"),
+        }
+
+        assert_eq!(
+            fs::canonicalize(&resolution.file_path).unwrap(),
+            fs::canonicalize(&installed_module).unwrap()
+        );
     }
 }

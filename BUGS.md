@@ -152,7 +152,7 @@
 ### Double-to-Bool Truthiness Treats NaN As False On LLVM
 - Categories: correctness, soundness, miscompile
 - Severity: High
-- Status: Solver-Proved
+- Status: Fixed in tree (2026-05-24)
 - Surface: lowering
 - Trigger: Any LLVM-lowered `Float -> Bool` coercion or truthiness cast when the float value is `NaN`.
 - Symptom: The compiled LLVM path returns `false` while Kain semantic truth returns `true`.
@@ -161,12 +161,13 @@
 - Evidence: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs:8870`, `crates/kain-core/src/runtime.rs:119`, `crates/kain-sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/kain-sys-codegen/z3/reports/20260524T000203Z-casts-double-to-bool-nan-truthiness-mismatch-pack-local.json`.
 - Z3 angle: A floating-point model proves a concrete witness `x = NaN` where runtime truthiness and LLVM truthiness disagree.
 - Z3 Proof: [casts-double-to-bool-nan-truthiness-mismatch.yaml](file:///D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-bool-nan-truthiness-mismatch.yaml)
-- Suggested follow-up: Replace the ordered non-zero compare with lowering that matches Kain truthiness semantics for `NaN`, then add an LLVM regression that exercises a `NaN`-producing float cast to `Bool`.
+- Fix landed: LLVM float truthiness now lowers through `fcmp une`, and float conditions in `if` / `while` now route through the same `i1` coercion helper instead of trusting the source expression to already be boolean.
+- Regression evidence: [casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
 
 ### Raw `fptosi` Lowering Admits Undefined Double Inputs
 - Categories: correctness, soundness, UB, miscompile
 - Severity: Critical
-- Status: Solver-Proved
+- Status: Fixed in tree (2026-05-24)
 - Surface: lowering
 - Trigger: Any LLVM-lowered `double -> int` path fed `NaN`, `+oo`, `-oo`, or a finite value outside the signed destination range.
 - Symptom: The backend emits LLVM IR whose `fptosi` precondition is violated, so compiled behavior is undefined or poison-prone exactly where Kain semantic casts are still total in the interpreter/runtime.
@@ -175,12 +176,13 @@
 - Evidence: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs:6514`, `:8593`, `:8858-8866`, `:14764`, `:15411`, `:16744`, `crates/kain-core/src/runtime.rs:98`, and `crates/kain-sys-codegen/z3/reports/20260524T000211Z-casts-double-to-int-unguarded-fptosi-precondition-gap-pack-local.json`.
 - Z3 angle: A floating-point domain proof finds `x = +oo` as an immediate witness where the emitted LLVM `fptosi` precondition is false.
 - Z3 Proof: [casts-double-to-int-unguarded-fptosi-precondition-gap.yaml](file:///D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-int-unguarded-fptosi-precondition-gap.yaml)
-- Suggested follow-up: Centralize `double -> int` lowering behind a guarded helper that matches Kain's total cast semantics, then wire regression coverage through every `fptosi`-emitting seam listed in `crates/kain-sys-codegen/z3/generated/float_semantic_audit.md`.
+- Fix landed: LLVM now centralizes `double -> int` lowering through the saturating intrinsic family `llvm.fptosi.sat.*.f64`, covering shared casts, `floor(Float) -> Int`, stringification narrowing, explicit casts, and integer `pow` postprocessing.
+- Regression evidence: [casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_floor_builtin_with_llvm_intrinsic --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
 
 ### Float Equality And Inequality Ignore Kain's Epsilon Semantics
 - Categories: correctness, soundness, miscompile
 - Severity: High
-- Status: Solver-Proved
+- Status: Fixed in tree (2026-05-24)
 - Surface: lowering
 - Trigger: Any LLVM-lowered float `==` or `!=` comparison where the operands differ by less than `f64::EPSILON`.
 - Symptom: The compiled LLVM path reports exact IEEE ordered equality/inequality while the interpreter/runtime reports equality within Kain's epsilon window.
@@ -189,4 +191,5 @@
 - Evidence: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs:8939`, `:16750`, `:16758`, `crates/kain-core/src/runtime.rs:8058-8062`, `crates/kain-sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/kain-sys-codegen/z3/reports/20260524T000218Z-control-float-equality-ignores-epsilon-runtime-semantics-pack-local.json`.
 - Z3 angle: A minimized arithmetic witness uses `a = 0.0` and `b = 1e-16`, which is inside the runtime epsilon window but not exactly equal, so both equality and inequality semantics diverge.
 - Z3 Proof: [control-float-equality-ignores-epsilon-runtime-semantics.yaml](file:///D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/control-float-equality-ignores-epsilon-runtime-semantics.yaml)
-- Suggested follow-up: Decide whether Kain's float comparison truth is epsilon-based or IEEE-exact, make the semantic owner explicit, and then align both `compile_value_eq` and `compile_expr` with that chosen truth plus regressions on near-equal finite values.
+- Fix landed: The runtime semantic owner now uses exact IEEE float `==` / `!=`, and LLVM float inequality uses `fcmp une` so `NaN != x` stays true like the interpreter and the other compiled backends.
+- Regression evidence: [control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml](/D:/Kain-Lang/crates/kain-core/z3/proofs/control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml), `cargo test -p kain-core runtime_float --lib --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`

@@ -57,3 +57,7 @@ path = "codebase.toml"
 [[packs]]
 id = "registry"
 path = "registry.toml"
+
+[[packs]]
+id = "package"
+path = "package.toml"

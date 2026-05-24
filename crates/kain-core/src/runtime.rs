@@ -6,7 +6,8 @@ use crate::language_features::runtime_supports_binary_op;
 use crate::lexer::Lexer;
 use crate::low_level_abi::{default_c_abi_policy, named_scalar_layout};
 use crate::module_resolution::{
-    filesystem_module_candidates, resolve_filesystem_module_file, resolve_stdlib_module_file,
+    filesystem_module_candidates, resolve_filesystem_module_file_with_context,
+    resolve_stdlib_module_file, FilesystemModuleResolutionContext,
 };
 use crate::parser::Parser;
 use crate::span::Span;
@@ -4059,6 +4060,7 @@ impl Env {
     fn register_item(&mut self, item: &Item) -> KainResult<()> {
         match item {
             Item::Use(u) => load_module(self, u)?,
+            Item::Import(import) => load_python_import(self, import)?,
             Item::Mod(module) => self.register_inline_module(module, &[])?,
             Item::Function(f) => {
                 if !is_extern_runtime_declaration(f) {
@@ -4167,6 +4169,7 @@ impl Env {
     fn register_typed_item(&mut self, item: &TypedItem) -> KainResult<()> {
         match item {
             TypedItem::Use(u) => load_module(self, &u.ast)?,
+            TypedItem::Import(import) => load_python_import(self, &import.ast)?,
             TypedItem::Mod(module) => {
                 for child in &module.items {
                     self.register_typed_item(child)?;
@@ -4467,6 +4470,113 @@ pub fn interpret_with_env(env: &mut Env, program: &TypedProgram) -> KainResult<V
     }
 }
 
+fn runtime_importer_file(source_file: Option<&str>) -> Option<PathBuf> {
+    source_file
+        .map(PathBuf::from)
+        .filter(|path| path.exists())
+        .or_else(|| source_file.map(PathBuf::from))
+}
+
+fn python_import_binding_names(import: &Import) -> Vec<String> {
+    if import.members.is_empty() {
+        if let Some(alias) = &import.alias {
+            return vec![alias.clone()];
+        }
+        return import
+            .module_path
+            .first()
+            .cloned()
+            .into_iter()
+            .collect::<Vec<_>>();
+    }
+
+    import
+        .members
+        .iter()
+        .map(|member| member.alias.clone().unwrap_or_else(|| member.name.clone()))
+        .collect()
+}
+
+fn lookup_native_fn(env: &Env, name: &str) -> Option<NativeFn> {
+    match env.lookup(name) {
+        Some(Value::NativeFn(_, func)) => Some(*func),
+        _ => None,
+    }
+}
+
+fn load_python_import(env: &mut Env, import: &Import) -> KainResult<()> {
+    let import_module = lookup_native_fn(env, "py_import_with_context")
+        .or_else(|| lookup_native_fn(env, "py_import"))
+        .ok_or_else(|| {
+            KainError::runtime(
+                "Python bridge is not registered in this runtime; cannot resolve `import ...`",
+            )
+        })?;
+    let import_member = lookup_native_fn(env, "py_import_from_with_context")
+        .or_else(|| lookup_native_fn(env, "py_getattr_raw"));
+
+    let module_name = import.module_path.join(".");
+    let importer_file = import
+        .source_file
+        .as_deref()
+        .map(|path| Value::String(path.to_string()))
+        .unwrap_or(Value::None);
+
+    if import.members.is_empty() {
+        let full_module = import_module(
+            env,
+            vec![Value::String(module_name.clone()), importer_file.clone()],
+        )?;
+        let binding_name = python_import_binding_names(import)
+            .into_iter()
+            .next()
+            .ok_or_else(|| KainError::runtime("Python import did not produce a binding name"))?;
+
+        let bound_value = if import.alias.is_none() && import.module_path.len() > 1 {
+            import_module(
+                env,
+                vec![
+                    Value::String(import.module_path[0].clone()),
+                    importer_file.clone(),
+                ],
+            )?
+        } else {
+            full_module
+        };
+        env.define(binding_name, bound_value);
+        return Ok(());
+    }
+
+    let Some(import_member) = import_member else {
+        return Err(KainError::runtime(
+            "Python bridge is missing `from ... import ...` support",
+        ));
+    };
+
+    for member in &import.members {
+        let binding_name = member.alias.clone().unwrap_or_else(|| member.name.clone());
+        let value = if lookup_native_fn(env, "py_import_from_with_context").is_some() {
+            import_member(
+                env,
+                vec![
+                    Value::String(module_name.clone()),
+                    Value::String(member.name.clone()),
+                    importer_file.clone(),
+                ],
+            )?
+        } else {
+            let module = import_module(
+                env,
+                vec![Value::String(module_name.clone()), importer_file.clone()],
+            )?;
+            import_member(env, vec![module, Value::String(member.name.clone())])?
+        };
+        env.define(binding_name, value);
+    }
+
+    Ok(())
+}
+
 fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     let path = u.path.join("/");
 
@@ -4494,16 +4604,20 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
 
         (file_path, None, Vec::new())
     } else {
-        let resolution = resolve_filesystem_module_file(&u.path).ok_or_else(|| {
-            let tried_paths = filesystem_module_candidates(&u.path)
+        let context = FilesystemModuleResolutionContext {
+            importer_file: runtime_importer_file(u.source_file.as_deref()),
+        };
+        let resolution = resolve_filesystem_module_file_with_context(&u.path, &context)
+            .ok_or_else(|| {
+                let tried_paths = filesystem_module_candidates(&u.path)
                 .iter()
                 .map(|p| p.display().to_string())
                 .collect::<Vec<_>>();
-            KainError::runtime(format!(
-                "Module not found: {} (tried: {:?})",
-                path, tried_paths
-            ))
-        })?;
+                KainError::runtime(format!(
+                    "Module not found: {} (tried: {:?})",
+                    path, tried_paths
+                ))
+            })?;
 
         (
             resolution.file_path,
@@ -4992,6 +5106,36 @@ fn eval_scoped_ownership_expr(
     }
 }
 
+fn try_eval_python_attr(env: &mut Env, target: &Value, field: &str) -> Option<KainResult<Value>> {
+    let py_getattr = lookup_native_fn(env, "py_getattr_raw")?;
+    Some(py_getattr(
+        env,
+        vec![target.clone(), Value::String(field.to_string())],
+    ))
+}
+
+fn try_eval_python_method_call(
+    env: &mut Env,
+    target: &Value,
+    method: &str,
+    args: Vec<Value>,
+) -> Option<KainResult<Value>> {
+    let py_call = lookup_native_fn(env, "py_call_raw")?;
+    Some(py_call(
+        env,
+        vec![
+            target.clone(),
+            Value::String(method.to_string()),
+            Value::Tuple(args),
+        ],
+    ))
+}
+
+fn try_eval_python_callable(env: &mut Env, target: &Value, args: Vec<Value>) -> Option<KainResult<Value>> {
+    let py_call = lookup_native_fn(env, "py_call_raw")?;
+    Some(py_call(env, vec![target.clone(), Value::Tuple(args)]))
+}
+
 pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
     match expr {
         Expr::MethodCall {
@@ -5014,6 +5158,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     return Ok(v);
                 }
                 arg_vals.push(v);
+            }
+
+            if matches!(obj_val, Value::HostObject(_, _)) {
+                if let Some(result) =
+                    try_eval_python_method_call(env, &obj_val, method, arg_vals.clone())
+                {
+                    return result;
+                }
             }
 
             match obj_val {
@@ -5503,6 +5655,23 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         };
                     }
                 }
+
+                if matches!(obj_val, Value::HostObject(_, _)) {
+                    let mut arg_vals = Vec::new();
+                    for arg in args {
+                        let v = eval_expr(env, &arg.value)?;
+                        if let Value::Return(_) = v {
+                            return Ok(v);
+                        }
+                        arg_vals.push(v);
+                    }
+
+                    if let Some(result) =
+                        try_eval_python_method_call(env, &obj_val, field, arg_vals)
+                    {
+                        return result;
+                    }
+                }
             }
 
             // Normal function call
@@ -5522,6 +5691,12 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     return Ok(v);
                 }
                 arg_vals.push(v);
+            }
+
+            if matches!(func_val, Value::HostObject(_, _)) {
+                if let Some(result) = try_eval_python_callable(env, &func_val, arg_vals.clone()) {
+                    return result;
+                }
             }
 
             call_function(env, func_val, arg_vals)
@@ -5959,6 +6134,16 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         return Ok(Value::Int(r.id.as_u64() as i64));
                     }
                     Err(KainError::runtime("Actor fields not accessible"))
+                }
+                Value::HostObject(_, _) => {
+                    if let Some(result) = try_eval_python_attr(env, &obj_val, field) {
+                        result
+                    } else {
+                        Err(KainError::runtime(format!(
+                            "Field access on host object '{}' is not supported without the Python bridge",
+                            obj_val.host_object_label().unwrap_or("host")
+                        )))
+                    }
                 }
                 _ => Err(KainError::runtime(format!(
                     "Field access on non-struct value: {:?}",

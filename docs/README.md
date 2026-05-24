@@ -86,6 +86,7 @@ These files define the truth that the guides are derived from:
 | `native-c-runtime/error-codes.md` | Stable diagnostic families and error ranges |
 | `native-c-runtime/actor-lifecycle.md` | Actor ownership, lifecycle, mailbox, and supervision |
 | `cli/cli-overview.md` | CLI shape, launcher behavior, and command families |
+| `cli/package-capsules.md` | Capsule-backed package install flow, `KAIN.lock`, and module resolver order |
 | `cli/build-run-init.md` | `init`, `build`, `run`, and the build/materialization lanes |
 | `cli/check-and-test.md` | `kain check`, `kain test`, directives, ignored cases, and JSON reports |
 | `cli/targets-and-codegen.md` | Target alias families, KainScript, and codegen output rules |

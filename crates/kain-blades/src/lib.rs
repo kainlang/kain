@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+mod package_store;
+pub use package_store::*;
+
 pub const KAIN_MANIFEST_NAMES: &[&str] = &["KAIN.toml", "kain.toml"];
 pub const KAIN_BUILD_SCRIPT_NAMES: &[&str] = &["build.kn", "platform.kn"];
 pub const CARGO_MANIFEST_NAME: &str = "Cargo.toml";
@@ -390,6 +393,10 @@ pub fn discover_workspace(start: impl AsRef<Path>) -> BladeResult<BladeWorkspace
         }
     }
 
+    for candidate in declared_installed_package_workspace_roots_for(&root)? {
+        candidate_dirs.insert(candidate);
+    }
+
     let mut blades = Vec::new();
     for candidate in candidate_dirs {
         if let Some(blade) = resolve_blade_directory(&candidate)? {
@@ -477,6 +484,11 @@ pub fn discover_blade_module_roots_from(start: impl AsRef<Path>) -> BladeResult<
             break;
         };
         current = parent.to_path_buf();
+    }
+    for root in ambient_installed_package_module_roots()? {
+        if root.exists() {
+            roots.insert(root);
+        }
     }
     Ok(roots.into_iter().collect())
 }
@@ -1421,7 +1433,9 @@ fn extract_build_script_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection
                         }
                     }
                     "archive" => {
-                        let enabled = values.first().map_or(true, |value| parse_bool_string(value));
+                        let enabled = values
+                            .first()
+                            .map_or(true, |value| parse_bool_string(value));
                         task.options.insert(
                             "storage".to_string(),
                             if enabled { "archive" } else { "editable" }.to_string(),

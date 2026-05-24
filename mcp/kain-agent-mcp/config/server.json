@@ -14,8 +14,7 @@
   "instructions": "Use stdlib.query and repo.examples before broad repo spelunking. Treat the command registry tools as the first stop for Kain CLI understanding, then use kain.check and kain.run_plan when you need execution truth.",
   "paths": {
     "repo_root": "../..",
-    "stdlib_query_script": "query_stdlib.py",
-    "command_query_script": "mcp/kain-agent-mcp/scripts/query_command_registry.py",
+    "command_query_script": "mcp/kain-agent-mcp/scripts/query_command_registry.ps1",
     "stdlib_map_path": "stdlib/stdlib.map.json",
     "architecture_doc": "ARCHITECTURE.md",
     "glossary_doc": "GLOSSARY.md",
@@ -74,13 +73,14 @@
     ]
   },
   "runtime": {
-    "python_bin": "python",
     "rg_bin": "rg",
+    "powershell_bin": "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
     "timeout_ms": 30000,
     "default_limit": 20,
     "max_results": 80,
     "kain_bin_candidates": [
-      "target/codex-kain-cli/debug/kain.exe",
+      "D:/Kain-Bazel/bin/kain.exe",
+      "D:/Kain-Lang/target/codex-kain-cli/debug/kain.exe",
       "PATH:kain"
     ]
   },
@@ -99,7 +99,7 @@
     {
       "name": "stdlib.query",
       "title": "Stdlib Query",
-      "description": "Query the generated stdlib atlas through query_stdlib.py without shelling out manually.",
+      "description": "Query the generated stdlib atlas directly from stdlib.map.json for module, import, and symbol discovery.",
       "handler": "stdlib.query",
       "writes": false,
       "inputSchema": {

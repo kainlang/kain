@@ -17,6 +17,9 @@ snippets when the binary help output disagrees.
 - `init`
 - `lsp`
 - `doctor`
+- `add`
+- `install`
+- `publish`
 - `check`
 - `test`
 - `selfhost`
@@ -92,6 +95,15 @@ paths, while `kain run`, `kain build`, and `kain check` can auto-detect capsule
 editable source-first capsule; optional `assets`, `artifacts`, and `evidence`
 companions can travel alongside it through a shared capsule-set. `--archive`
 switches any of those profiles to the sealed compressed transport form.
+
+Use `kain publish`, `kain install`, and `kain add` when you want the same
+capsule format to act as the Kain package transport and install lane.
+`publish` emits a source capsule from a package or project root, `install`
+stages that capsule into the Kain-owned global package store under
+`~/.kain/packages`, and `add` records the dependency into `KAIN.toml` plus
+`KAIN.lock`. Package imports still use `use ...`; the package manager only
+changes how those modules enter the workspace graph. See
+`cli/package-capsules.md` for the install layout and resolver order.
 
 Use `kain import crates [path]` when you want to import a Rust workspace-scale
 crate tree. It auto-detects `crates/`, `rust/`, or `src/rust/` under the chosen

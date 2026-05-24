@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Once, RwLock};
 
 use kain_core::error::{KainError, KainResult};
@@ -486,6 +487,8 @@ fn register_python_env(env: &mut Env) {
     env.register_native_fn("py_eval_raw", py_eval_raw_native);
     env.register_native_fn("py_exec", py_exec_native);
     env.register_native_fn("py_import", py_import_native);
+    env.register_native_fn("py_import_with_context", py_import_with_context_native);
+    env.register_native_fn("py_import_from_with_context", py_import_from_with_context_native);
     env.register_native_fn("py_call", py_call_native);
     env.register_native_fn("py_call_raw", py_call_raw_native);
     env.register_native_fn("py_getattr", py_getattr_native);
@@ -619,27 +622,274 @@ fn py_exec_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     })
 }
 
-fn py_import_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
-    if args.len() != 1 {
-        return Err(KainError::runtime("py_import: expected 1 argument"));
+#[derive(Debug, Clone)]
+struct LocalPythonModuleResolution {
+    sys_path_root: PathBuf,
+    module_name: String,
+    source_path: PathBuf,
+    tried_paths: Vec<PathBuf>,
+}
+
+fn py_import_with_context_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    py_import_with_context(env, args, false)
+}
+
+fn py_import_from_with_context_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    if args.len() != 3 {
+        return Err(KainError::runtime(
+            "py_import_from_with_context: expected (module, member, importer_file)",
+        ));
     }
-    let module_name = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(KainError::runtime("py_import: argument must be string")),
+    let module_name = expect_string_arg(&args[0], "py_import_from_with_context module")?;
+    let member_name = expect_string_arg(&args[1], "py_import_from_with_context member")?;
+    let importer_file = optional_importer_file_arg(&args[2])?;
+
+    let state = python_scope_state(env)?;
+    Python::with_gil(|py| {
+        let scope = state.scope.read().unwrap();
+        let scope_dict = scope_dict_from_guard(py, &scope)?;
+        let module = import_python_module_with_context(
+            py,
+            scope_dict,
+            module_name,
+            importer_file.as_deref(),
+        )?;
+
+        if let Ok(attr) = module.as_ref(py).getattr(member_name) {
+            return py_to_value_or_wrap_raw(attr);
+        }
+
+        let nested_name = format!("{module_name}.{member_name}");
+        let nested = import_python_module_with_context(
+            py,
+            scope_dict,
+            &nested_name,
+            importer_file.as_deref(),
+        )?;
+        py_to_value_or_wrap_raw(nested.as_ref(py))
+    })
+}
+
+fn py_import_with_context(
+    env: &mut Env,
+    args: Vec<Value>,
+    raw_result: bool,
+) -> KainResult<Value> {
+    if !(1..=2).contains(&args.len()) {
+        return Err(KainError::runtime(
+            "py_import: expected (module) or (module, importer_file)",
+        ));
+    }
+    let module_name = expect_string_arg(&args[0], "py_import module")?;
+    let importer_file = if args.len() == 2 {
+        optional_importer_file_arg(&args[1])?
+    } else {
+        None
     };
 
     let state = python_scope_state(env)?;
     Python::with_gil(|py| {
         let scope = state.scope.read().unwrap();
         let scope_dict = scope_dict_from_guard(py, &scope)?;
-        let module = py
-            .import(module_name.as_str())
-            .map_err(|err| KainError::runtime(format!("Python error: {err}")))?;
-        scope_dict
-            .set_item(module_name, module)
-            .map_err(|err| KainError::runtime(format!("Failed to set module: {err}")))?;
-        py_to_value(module)
+        let module = import_python_module_with_context(
+            py,
+            scope_dict,
+            module_name,
+            importer_file.as_deref(),
+        )?;
+        if raw_result {
+            wrap_python_object(module.as_ref(py))
+        } else {
+            py_to_value(module.as_ref(py))
+        }
     })
+}
+
+fn py_import_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    py_import_with_context(env, args, false)
+}
+
+fn expect_string_arg<'a>(value: &'a Value, label: &str) -> KainResult<&'a str> {
+    match value {
+        Value::String(text) => Ok(text.as_str()),
+        _ => Err(KainError::runtime(format!("{label}: expected string"))),
+    }
+}
+
+fn optional_importer_file_arg(value: &Value) -> KainResult<Option<PathBuf>> {
+    match value {
+        Value::None | Value::Unit => Ok(None),
+        Value::String(path) if path.is_empty() => Ok(None),
+        Value::String(path) => Ok(Some(PathBuf::from(path))),
+        _ => Err(KainError::runtime(
+            "Python import context expects importer_file to be String or none",
+        )),
+    }
+}
+
+fn import_python_module_with_context<'py>(
+    py: Python<'py>,
+    scope_dict: &'py PyDict,
+    module_name: &str,
+    importer_file: Option<&Path>,
+) -> KainResult<PyObject> {
+    let local_resolution = resolve_local_python_module(module_name, importer_file);
+    if let Some(local) = &local_resolution {
+        prepare_local_python_import(py, &local)?;
+    }
+
+    let module = py.import(module_name).map_err(|err| {
+        if let Some(local) = &local_resolution {
+            let tried_paths = local
+                .tried_paths
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return KainError::runtime(format!(
+                "Python import error for '{module_name}' after resolving local module root '{}' (source '{}'; tried [{}]): {err}",
+                local.sys_path_root.display(),
+                local.source_path.display(),
+                tried_paths
+            ));
+        }
+        KainError::runtime(format!("Python import error for '{module_name}': {err}"))
+    })?;
+    scope_dict
+        .set_item(module_name, module)
+        .map_err(|err| KainError::runtime(format!("Failed to set module '{module_name}': {err}")))?;
+    Ok(module.into_py(py))
+}
+
+fn resolve_local_python_module(
+    module_name: &str,
+    importer_file: Option<&Path>,
+) -> Option<LocalPythonModuleResolution> {
+    let segments = module_name
+        .split('.')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if segments.is_empty() {
+        return None;
+    }
+
+    let mut roots = Vec::new();
+    append_python_search_roots(&mut roots, importer_file);
+
+    let mut relative = PathBuf::new();
+    for segment in &segments {
+        relative.push(segment);
+    }
+
+    let mut tried_paths = Vec::new();
+    for root in roots {
+        let file_candidate = root.join(&relative).with_extension("py");
+        push_unique_path(&mut tried_paths, file_candidate.clone());
+        if file_candidate.exists() {
+            return Some(LocalPythonModuleResolution {
+                sys_path_root: root,
+                module_name: module_name.to_string(),
+                source_path: file_candidate,
+                tried_paths,
+            });
+        }
+
+        let package_candidate = root.join(&relative).join("__init__.py");
+        push_unique_path(&mut tried_paths, package_candidate.clone());
+        if package_candidate.exists() {
+            return Some(LocalPythonModuleResolution {
+                sys_path_root: root,
+                module_name: module_name.to_string(),
+                source_path: package_candidate,
+                tried_paths,
+            });
+        }
+    }
+
+    None
+}
+
+fn append_python_search_roots(roots: &mut Vec<PathBuf>, importer_file: Option<&Path>) {
+    if let Some(importer_file) = importer_file {
+        if let Some(importer_dir) = importer_file.parent() {
+            let mut current = importer_dir.to_path_buf();
+            loop {
+                push_unique_path(roots, current.clone());
+                push_unique_path(roots, current.join("src"));
+                let Some(parent) = current.parent() else {
+                    break;
+                };
+                current = parent.to_path_buf();
+            }
+        }
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        push_unique_path(roots, cwd.clone());
+        push_unique_path(roots, cwd.join("src"));
+    }
+}
+
+fn prepare_local_python_import(py: Python<'_>, local: &LocalPythonModuleResolution) -> KainResult<()> {
+    let sys = py
+        .import("sys")
+        .map_err(|err| KainError::runtime(format!("Python sys import error: {err}")))?;
+    let sys_path = sys
+        .getattr("path")
+        .and_then(|value| Ok(value.downcast::<PyList>()?))
+        .map_err(|err| KainError::runtime(format!("Python sys.path error: {err}")))?;
+    let sys_modules = sys
+        .getattr("modules")
+        .and_then(|value| Ok(value.downcast::<PyDict>()?))
+        .map_err(|err| KainError::runtime(format!("Python sys.modules error: {err}")))?;
+
+    let root = local.sys_path_root.to_string_lossy().to_string();
+    let root_already_present = sys_path.iter().any(|entry| {
+        entry.extract::<String>()
+            .map(|value| value == root)
+            .unwrap_or(false)
+    });
+    if !root_already_present {
+        sys_path
+            .insert(0, root.as_str())
+            .map_err(|err| KainError::runtime(format!("Failed to prepend sys.path: {err}")))?;
+    }
+
+    let root_name = local
+        .module_name
+        .split('.')
+        .next()
+        .unwrap_or(local.module_name.as_str())
+        .to_string();
+    let candidate_prefix = format!("{root_name}.");
+    let keys = sys_modules
+        .keys()
+        .iter()
+        .filter_map(|key| key.extract::<String>().ok())
+        .filter(|name| name == &root_name || name == &local.module_name || name.starts_with(&candidate_prefix))
+        .collect::<Vec<_>>();
+
+    for key in keys {
+        let Ok(Some(existing)) = sys_modules.get_item(key.as_str()) else {
+            continue;
+        };
+        let keep_loaded = existing
+            .getattr("__file__")
+            .and_then(|value| value.extract::<String>())
+            .map(|file| file.starts_with(root.as_str()))
+            .unwrap_or(false);
+        if !keep_loaded {
+            let _ = sys_modules.del_item(key.as_str());
+        }
+    }
+
+    Ok(())
+}
+
+fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
+    if !paths.iter().any(|existing| existing == &path) {
+        paths.push(path);
+    }
 }
 
 fn py_call_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -676,7 +926,7 @@ fn py_call_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> KainR
             .call(py_args, py_kwargs)
             .map_err(|err| KainError::runtime(format!("Python call error: {err}")))?;
         if raw_result {
-            wrap_python_object(result)
+            py_to_value_or_wrap_raw(result)
         } else {
             py_to_value(result)
         }
@@ -716,7 +966,7 @@ fn py_getattr_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> Ka
             .getattr(attr_name.as_str())
             .map_err(|err| KainError::runtime(format!("Python getattr error: {err}")))?;
         if raw_result {
-            wrap_python_object(attr)
+            py_to_value_or_wrap_raw(attr)
         } else {
             py_to_value(attr)
         }
@@ -4330,6 +4580,25 @@ pub fn value_to_pyobject(py: Python<'_>, value: &Value) -> KainResult<PyObject> 
     }
 }
 
+fn py_to_value_or_wrap_raw(obj: &PyAny) -> KainResult<Value> {
+    if obj.is_none() {
+        return Ok(Value::None);
+    }
+    if let Ok(value) = obj.extract::<bool>() {
+        return Ok(Value::Bool(value));
+    }
+    if let Ok(value) = obj.extract::<i64>() {
+        return Ok(Value::Int(value));
+    }
+    if let Ok(value) = obj.extract::<f64>() {
+        return Ok(Value::Float(value));
+    }
+    if let Ok(value) = obj.extract::<String>() {
+        return Ok(Value::String(value));
+    }
+    wrap_python_object(obj)
+}
+
 pub fn py_to_value(obj: &PyAny) -> KainResult<Value> {
     if obj.is_none() {
         return Ok(Value::None);
@@ -4521,6 +4790,7 @@ fn scope_dict_from_guard<'py>(py: Python<'py>, scope: &'py PyObject) -> KainResu
 #[cfg(test)]
 mod tests {
     use super::register;
+    use kain_core::ast::{Item, Program};
     use kain_core::diagnostics::SpanMapper;
     use kain_core::error::KainResult;
     use kain_core::lexer::Lexer;
@@ -4529,6 +4799,7 @@ mod tests {
     use kain_core::stdlib::StdLib;
     use kain_core::types;
     use pyo3::Python;
+    use std::path::PathBuf;
     use std::sync::{Mutex, OnceLock};
 
     fn python_test_lock() -> &'static Mutex<()> {
@@ -5362,6 +5633,85 @@ fn main():
         }
     }
 
+    #[test]
+    fn python_import_supports_local_sibling_from_imports() {
+        let temp_dir = unique_python_test_dir("sibling");
+        let module_name = format!(
+            "kain_local_{}_sibling",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time")
+                .as_nanos()
+        );
+        let module_file = temp_dir.join(format!("{module_name}.py"));
+        let entry_file = temp_dir.join("entry.kn");
+    let source = format!(
+        r#"
+from {module_name} import double as py_double
+
+fn main() -> Int:
+    return py_double(21)
+"#
+        );
+
+        std::fs::write(&module_file, "def double(value):\n    return value * 2\n")
+            .expect("write sibling python module");
+        std::fs::write(&entry_file, &source).expect("write entry source");
+
+        let result =
+            interpret_source_result_with_filename(&source, entry_file.to_string_lossy().as_ref())
+                .expect("interpret sibling import");
+        match result {
+            Value::Int(value) => assert_eq!(value, 42),
+            other => panic!("expected sibling python import to return Int(42), got {other:?}"),
+        }
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn python_import_supports_local_dotted_module_alias_calls() {
+        let temp_dir = unique_python_test_dir("package");
+        let package_name = format!(
+            "kain_pkg_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time")
+                .as_nanos()
+        );
+        let package_dir = temp_dir.join(&package_name);
+        let module_dir = package_dir.join("tools");
+        let entry_file = temp_dir.join("entry.kn");
+        let source = format!(
+            r#"
+import {package_name}.tools.mathish as mathish
+
+fn main() -> Int:
+    return mathish.bump(41)
+"#
+        );
+
+        std::fs::create_dir_all(&module_dir).expect("create local python package");
+        std::fs::write(package_dir.join("__init__.py"), "").expect("write package init");
+        std::fs::write(module_dir.join("__init__.py"), "").expect("write nested package init");
+        std::fs::write(
+            module_dir.join("mathish.py"),
+            "def bump(value):\n    return value + 1\n",
+        )
+        .expect("write dotted python module");
+        std::fs::write(&entry_file, &source).expect("write entry source");
+
+        let result =
+            interpret_source_result_with_filename(&source, entry_file.to_string_lossy().as_ref())
+                .expect("interpret dotted local import");
+        match result {
+            Value::Int(value) => assert_eq!(value, 42),
+            other => panic!("expected dotted python import to return Int(42), got {other:?}"),
+        }
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
     fn interpret_source_result(source: &str) -> KainResult<Value> {
         let _guard = python_test_lock().lock().unwrap();
         register();
@@ -5376,8 +5726,56 @@ fn main():
         interpret(&typed)
     }
 
+    fn interpret_source_result_with_filename(source: &str, filename: &str) -> KainResult<Value> {
+        let _guard = python_test_lock().lock().unwrap();
+        register();
+
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        let span_mapper = SpanMapper::new(source);
+        let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().unwrap();
+        stamp_python_import_source_file(&mut ast, filename);
+        kain_core::comptime::eval_program(&mut ast).unwrap();
+        let typed = types::check(&ast, &span_mapper, "<test>").unwrap();
+        interpret(&typed)
+    }
+
     fn interpret_source(source: &str) -> Value {
         interpret_source_result(source).unwrap()
+    }
+
+    fn unique_python_test_dir(label: &str) -> PathBuf {
+        let unique = format!(
+            "kain-python-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time")
+                .as_nanos()
+        );
+        let path = std::env::temp_dir().join(unique);
+        std::fs::create_dir_all(&path).expect("create unique python test dir");
+        path
+    }
+
+    fn stamp_python_import_source_file(program: &mut Program, filename: &str) {
+        for item in &mut program.items {
+            stamp_python_import_source_file_item(item, filename);
+        }
+    }
+
+    fn stamp_python_import_source_file_item(item: &mut Item, filename: &str) {
+        match item {
+            Item::Use(use_item) => use_item.source_file = Some(filename.to_string()),
+            Item::Import(import) => import.source_file = Some(filename.to_string()),
+            Item::Mod(module) => {
+                if let Some(items) = &mut module.inline {
+                    for child in items {
+                        stamp_python_import_source_file_item(child, filename);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     fn numpy_available() -> bool {

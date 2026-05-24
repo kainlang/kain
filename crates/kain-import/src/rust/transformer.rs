@@ -704,10 +704,7 @@ impl RustTransformer {
             syn::Expr::If(if_expr) => {
                 let then_ty = self.inferred_block_tail_type_hint(&if_expr.then_branch)?;
                 let else_ty = self.inferred_else_branch_type_hint(
-                    if_expr
-                        .else_branch
-                        .as_ref()
-                        .map(|(_, expr)| expr.as_ref()),
+                    if_expr.else_branch.as_ref().map(|(_, expr)| expr.as_ref()),
                 )?;
                 if then_ty == else_ty {
                     Some(then_ty)
@@ -2405,7 +2402,8 @@ impl RustTransformer {
                 let ty = self.type_from_local_pat(&local.pat);
                 let ty_ann = ty.or_else(|| self.type_from_local_pat(&local.pat));
                 let inferred_binding_ty = if ty_ann.is_none() {
-                    local.init
+                    local
+                        .init
                         .as_ref()
                         .and_then(|init| self.inferred_receiver_type_hint(&init.expr))
                 } else {
@@ -2487,6 +2485,7 @@ impl RustTransformer {
                             alias: None,
                             glob: false,
                             span: S,
+                            source_file: None,
                         }));
                     }
                 } else {
@@ -2500,6 +2499,7 @@ impl RustTransformer {
                             alias: None,
                             glob: false,
                             span: S,
+                            source_file: None,
                         }));
                     }
                 }
@@ -2516,6 +2516,7 @@ impl RustTransformer {
                         alias: Some(rename.rename.to_string()),
                         glob: false,
                         span: S,
+                        source_file: None,
                     }));
                 }
                 Ok(())
@@ -2527,6 +2528,7 @@ impl RustTransformer {
                         alias: None,
                         glob: true,
                         span: S,
+                        source_file: None,
                     }));
                 }
                 Ok(())
@@ -4369,8 +4371,8 @@ impl RustTransformer {
                     name: None,
                     value,
                     span: S,
-            })
-            .collect(),
+                })
+                .collect(),
             span: S,
         }
     }
@@ -4379,7 +4381,8 @@ impl RustTransformer {
         if path.len() < 2 || path.first().map(String::as_str) != Some("std") {
             return;
         }
-        self.synthesized_use_paths.insert(path[..path.len() - 1].to_vec());
+        self.synthesized_use_paths
+            .insert(path[..path.len() - 1].to_vec());
     }
 
     fn prepend_synthesized_uses(&self, items: Vec<Item>) -> Vec<Item> {
@@ -4403,6 +4406,7 @@ impl RustTransformer {
                     alias: None,
                     glob: false,
                     span: S,
+                    source_file: None,
                 })
             })
             .collect::<Vec<_>>();
@@ -4431,7 +4435,10 @@ impl RustTransformer {
     }
 
     fn block_requires_async_effect(&self, block: &Block) -> bool {
-        block.stmts.iter().any(|stmt| self.stmt_requires_async_effect(stmt))
+        block
+            .stmts
+            .iter()
+            .any(|stmt| self.stmt_requires_async_effect(stmt))
     }
 
     fn stmt_requires_async_effect(&self, stmt: &Stmt) -> bool {
@@ -4482,9 +4489,9 @@ impl RustTransformer {
             Expr::Binary { left, right, .. } => {
                 self.expr_requires_async_effect(left) || self.expr_requires_async_effect(right)
             }
-            Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
-                values.iter().any(|value| self.expr_requires_async_effect(value))
-            }
+            Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => values
+                .iter()
+                .any(|value| self.expr_requires_async_effect(value)),
             Expr::Struct { fields, rest, .. } => {
                 fields
                     .iter()
@@ -4498,9 +4505,9 @@ impl RustTransformer {
                 .any(|(_, value)| self.expr_requires_async_effect(value)),
             Expr::EnumVariant { fields, .. } => match fields {
                 EnumVariantFields::Unit => false,
-                EnumVariantFields::Tuple(values) => {
-                    values.iter().any(|value| self.expr_requires_async_effect(value))
-                }
+                EnumVariantFields::Tuple(values) => values
+                    .iter()
+                    .any(|value| self.expr_requires_async_effect(value)),
                 EnumVariantFields::Struct(values) => values
                     .iter()
                     .any(|(_, value)| self.expr_requires_async_effect(value)),
@@ -4553,9 +4560,9 @@ impl RustTransformer {
                         .as_ref()
                         .is_some_and(|value| self.expr_requires_async_effect(value))
             }
-            Expr::MacroCall { args, .. } => args
-                .iter()
-                .any(|arg| self.expr_requires_async_effect(arg)),
+            Expr::MacroCall { args, .. } => {
+                args.iter().any(|arg| self.expr_requires_async_effect(arg))
+            }
             Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
                 self.expr_requires_async_effect(value)
             }
@@ -4569,15 +4576,11 @@ impl RustTransformer {
 
     fn strip_sync_semantic_await_expr(&self, expr: &Expr) -> Option<Expr> {
         match expr {
-            Expr::Call { callee, .. }
-                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "sleep_millis") =>
-            {
+            Expr::Call { callee, .. } if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "sleep_millis") => {
                 Some(expr.clone())
             }
             Expr::AsyncBlock(inner, _) => match inner.as_ref() {
-                Expr::Call { callee, .. }
-                    if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "sleep_millis") =>
-                {
+                Expr::Call { callee, .. } if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "sleep_millis") => {
                     Some((**inner).clone())
                 }
                 _ => None,
@@ -6454,7 +6457,10 @@ mod tests {
             panic!("expected main function");
         };
 
-        let Stmt::Let { value: Some(value), .. } = &function.body.stmts[0] else {
+        let Stmt::Let {
+            value: Some(value), ..
+        } = &function.body.stmts[0]
+        else {
             panic!("expected let binding");
         };
         assert!(matches!(value, Expr::Call { .. }));
@@ -6543,11 +6549,15 @@ mod tests {
                 } => {
                     method == expected
                         || expr_contains_method(receiver, expected)
-                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                        || args
+                            .iter()
+                            .any(|arg| expr_contains_method(&arg.value, expected))
                 }
                 Expr::Call { callee, args, .. } => {
                     expr_contains_method(callee, expected)
-                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                        || args
+                            .iter()
+                            .any(|arg| expr_contains_method(&arg.value, expected))
                 }
                 Expr::Field { object, .. } => expr_contains_method(object, expected),
                 Expr::If {
@@ -6568,9 +6578,9 @@ mod tests {
                                         .stmts
                                         .iter()
                                         .any(|stmt| stmt_contains_method(stmt, expected))
-                                    || else_branch
-                                        .as_ref()
-                                        .is_some_and(|next| else_branch_contains_method(next, expected))
+                                    || else_branch.as_ref().is_some_and(|next| {
+                                        else_branch_contains_method(next, expected)
+                                    })
                             }
                         }
                     }
@@ -6648,11 +6658,15 @@ mod tests {
                 } => {
                     method == expected
                         || expr_contains_method(receiver, expected)
-                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                        || args
+                            .iter()
+                            .any(|arg| expr_contains_method(&arg.value, expected))
                 }
                 Expr::Call { callee, args, .. } => {
                     expr_contains_method(callee, expected)
-                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                        || args
+                            .iter()
+                            .any(|arg| expr_contains_method(&arg.value, expected))
                 }
                 Expr::Field { object, .. } => expr_contains_method(object, expected),
                 Expr::If {
@@ -6662,7 +6676,10 @@ mod tests {
                     ..
                 } => {
                     expr_contains_method(condition, expected)
-                        || then_branch.stmts.iter().any(|stmt| stmt_contains_method(stmt, expected))
+                        || then_branch
+                            .stmts
+                            .iter()
+                            .any(|stmt| stmt_contains_method(stmt, expected))
                         || else_branch
                             .as_deref()
                             .is_some_and(|branch| else_branch_contains_method(branch, expected))
@@ -6688,12 +6705,16 @@ mod tests {
 
         fn else_branch_contains_method(branch: &ElseBranch, expected: &str) -> bool {
             match branch {
-                ElseBranch::Else(block) => {
-                    block.stmts.iter().any(|stmt| stmt_contains_method(stmt, expected))
-                }
+                ElseBranch::Else(block) => block
+                    .stmts
+                    .iter()
+                    .any(|stmt| stmt_contains_method(stmt, expected)),
                 ElseBranch::ElseIf(condition, block, tail) => {
                     expr_contains_method(condition, expected)
-                        || block.stmts.iter().any(|stmt| stmt_contains_method(stmt, expected))
+                        || block
+                            .stmts
+                            .iter()
+                            .any(|stmt| stmt_contains_method(stmt, expected))
                         || tail
                             .as_deref()
                             .is_some_and(|next| else_branch_contains_method(next, expected))

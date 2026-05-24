@@ -15,6 +15,7 @@ use agent_mcp_util::mcp_repo_relative
 use agent_mcp_util::mcp_resolve_path
 use agent_mcp_util::mcp_string_array_field_or
 use agent_mcp_util::mcp_string_field_or
+use agent_mcp_util::mcp_split_lines
 use agent_mcp_util::mcp_tool_result
 use agent_mcp_util::mcp_trim_wrapping
 
@@ -268,51 +269,122 @@ fn handle_repo_overview(config: AgentMcpConfig, _tool_args: JsonObject) -> JsonO
 
 fn handle_stdlib_query(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
     let paths = manifest_paths(config)
-    let query_script = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "stdlib_query_script", "query_stdlib.py"))
-    let args = [query_script]
+    let stdlib_map_path = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "stdlib_map_path", "stdlib/stdlib.map.json"))
+    if fs_exists(stdlib_map_path) == false:
+        return mcp_error_result("stdlib.query could not find stdlib.map.json.", "Expected stdlib atlas at `" + stdlib_map_path + "`.")
+
+    let stdlib_map = json_parse_text(fs_read_text(stdlib_map_path))
 
     let wants_summary = mcp_bool_field_or(tool_args, "summary", false)
     let wants_imports = mcp_bool_field_or(tool_args, "imports", false)
-    let module_name = mcp_string_field_or(tool_args, "module", "")
-    let search = mcp_string_field_or(tool_args, "search", "")
-    let contains = mcp_string_field_or(tool_args, "contains", "")
-    let kind = mcp_string_field_or(tool_args, "kind", "")
+    let module_name = text_lower(mcp_string_field_or(tool_args, "module", ""))
+    let search = text_lower(mcp_string_field_or(tool_args, "search", ""))
+    let contains = text_lower(mcp_string_field_or(tool_args, "contains", ""))
+    let kind = text_lower(mcp_string_field_or(tool_args, "kind", ""))
     let include_private = mcp_bool_field_or(tool_args, "private", false)
-    let wants_json = mcp_bool_field_or(tool_args, "json", false)
     let limit = mcp_limit_or(mcp_int_field_or(tool_args, "limit", 0), config.default_limit, config.max_results)
 
-    if wants_summary or (wants_imports == false and module_name == "" and search == ""):
-        push(args, "--summary")
-    if wants_imports:
-        push(args, "--imports")
-    if module_name != "":
-        push(args, "--module")
-        push(args, module_name)
-    if search != "":
-        push(args, "--search")
-        push(args, search)
-    if contains != "":
-        push(args, "--contains")
-        push(args, contains)
-    if kind != "":
-        push(args, "--kind")
-        push(args, kind)
-    if include_private:
-        push(args, "--private")
-    push(args, "--limit")
-    push(args, str(limit))
-    if wants_json:
-        push(args, "--json")
-
-    let result = run_process_capture(config.python_bin, args, config.repo_root, config.timeout_ms)
-    let structured = process_result_json(result)
-    let _ok = json_object_set_bool(structured, "ok", result.success)
+    let structured = json_object()
+    let _ok = json_object_set_bool(structured, "ok", true)
     let _limit = json_object_set_int(structured, "limit", limit)
-    if wants_json and result.success:
-        let json_text = mcp_extract_json_object(result.stdout)
-        if len(json_text) > 0:
-            let _selection = json_object_set_value(structured, "selection", json_parse_text(json_text))
-    return mcp_tool_result(command_summary("stdlib.query", result), structured, result.success == false)
+
+    let summary_result = json_object_field(stdlib_map, "summary")
+    if summary_result.ok:
+        let _summary = json_object_set_object(structured, "summary", summary_result.value)
+
+    if wants_summary or (wants_imports == false and module_name == "" and search == "" and contains == "" and kind == ""):
+        return mcp_tool_result("Loaded stdlib summary.", structured, false)
+
+    let modules_result = json_array_field(stdlib_map, "modules")
+    if modules_result.ok == false:
+        return mcp_error_result("stdlib.query could not read the stdlib modules array.", "The stdlib atlas was missing `modules`.")
+
+    let matches = json_array()
+    var matches_text = ""
+    var count = 0
+    var module_index = 0
+    while module_index < json_array_length(modules_result.value):
+        if count >= limit:
+            break
+        let module = json_array_value_at(modules_result.value, module_index)
+        let module_label = mcp_string_field_or(module, "name", "")
+        let import_path = mcp_string_field_or(module, "import_path", "")
+        let source_path = mcp_string_field_or(module, "source_path", "")
+        let module_haystack = text_lower(module_label + " " + import_path + " " + source_path)
+        let module_matches = if module_name == "":
+            true
+        else:
+            text_contains_string(module_haystack, module_name)
+
+        if wants_imports:
+            if module_matches and (search == "" or text_contains_string(module_haystack, search)):
+                let match_payload = json_object()
+                let _module = json_object_set_string(match_payload, "module", module_label)
+                let _import = json_object_set_string(match_payload, "import_path", import_path)
+                let _source = json_object_set_string(match_payload, "source_path", source_path)
+                let _push = json_array_push_object(matches, match_payload)
+                if len(matches_text) > 0:
+                    matches_text = matches_text + "\n"
+                matches_text = matches_text + import_path + "  " + source_path
+                count = count + 1
+            module_index = module_index + 1
+            continue
+
+        if module_matches:
+            let symbols_result = json_array_field(module, "symbols")
+            if symbols_result.ok:
+                var symbol_index = 0
+                while symbol_index < json_array_length(symbols_result.value):
+                    if count >= limit:
+                        break
+                    let symbol = json_array_value_at(symbols_result.value, symbol_index)
+                    let visibility = text_lower(mcp_string_field_or(symbol, "visibility", ""))
+                    if include_private == false and visibility != "public":
+                        symbol_index = symbol_index + 1
+                        continue
+                    let symbol_kind = text_lower(mcp_string_field_or(symbol, "kind", ""))
+                    if kind != "" and symbol_kind != kind:
+                        symbol_index = symbol_index + 1
+                        continue
+                    let symbol_name = mcp_string_field_or(symbol, "name", "")
+                    let qualified_name = mcp_string_field_or(symbol, "qualified_name", "")
+                    let signature = mcp_string_field_or(symbol, "signature", "")
+                    let symbol_haystack = text_lower(module_label + " " + import_path + " " + symbol_name + " " + qualified_name + " " + signature + " " + symbol_kind)
+                    if search != "" and text_contains_string(symbol_haystack, search) == false:
+                        symbol_index = symbol_index + 1
+                        continue
+                    if contains != "" and text_contains_string(text_lower(symbol_name + " " + qualified_name + " " + signature), contains) == false:
+                        symbol_index = symbol_index + 1
+                        continue
+
+                    let match_payload = json_object()
+                    let _module = json_object_set_string(match_payload, "module", module_label)
+                    let _import = json_object_set_string(match_payload, "import_path", import_path)
+                    let _name = json_object_set_string(match_payload, "name", symbol_name)
+                    let _qualified = json_object_set_string(match_payload, "qualified_name", qualified_name)
+                    let _kind = json_object_set_string(match_payload, "kind", symbol_kind)
+                    let _signature = json_object_set_string(match_payload, "signature", signature)
+                    let _source = json_object_set_string(match_payload, "source_path", mcp_string_field_or(symbol, "source_path", source_path))
+                    let _line = json_object_set_int(match_payload, "line", mcp_int_field_or(symbol, "line", 0))
+                    let _push = json_array_push_object(matches, match_payload)
+                    if len(matches_text) > 0:
+                        matches_text = matches_text + "\n"
+                    matches_text = matches_text + import_path + " " + symbol_kind + " " + signature
+                    count = count + 1
+                    symbol_index = symbol_index + 1
+            module_index = module_index + 1
+            continue
+
+        module_index = module_index + 1
+
+    let _count = json_object_set_int(structured, "count", count)
+    let _matches = json_object_set_array(structured, "matches", matches)
+    let _text = json_object_set_string(structured, "matches_text", matches_text)
+    if wants_imports:
+        return mcp_tool_result("Loaded stdlib import paths.", structured, false)
+    if count > 0:
+        return mcp_tool_result("Matched " + str(count) + " stdlib symbols.", structured, false)
+    return mcp_tool_result("No stdlib symbols matched.", structured, false)
 
 fn handle_repo_examples(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
     let topic = text_lower(mcp_string_field_or(tool_args, "topic", ""))
@@ -373,7 +445,7 @@ fn handle_repo_search(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObje
     let result = run_process_capture(config.rg_bin, args, config.repo_root, config.timeout_ms)
 
     let matches = json_array()
-    let lines = text_split_string(result.stdout, "\n")
+    let lines = mcp_split_lines(result.stdout)
     var count = 0
     var row_index = 0
     while row_index < len(lines):
@@ -410,26 +482,30 @@ fn handle_kain_commands_list(config: AgentMcpConfig, tool_args: JsonObject) -> J
     let query = mcp_string_field_or(tool_args, "query", "")
     let limit = mcp_limit_or(mcp_int_field_or(tool_args, "limit", 0), config.default_limit, config.max_results)
     let paths = manifest_paths(config)
-    let script_path = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "command_query_script", "mcp/kain-agent-mcp/scripts/query_command_registry.py"))
+    let script_path = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "command_query_script", "mcp/kain-agent-mcp/scripts/query_command_registry.ps1"))
     let args = [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
         script_path,
-        "--kain-bin",
+        "-KainBin",
         config.kain_bin,
-        "--bin",
+        "-BinName",
         bin_name,
-        "--mode",
+        "-Mode",
         "list",
-        "--query",
+        "-Query",
         query,
-        "--pack",
+        "-Pack",
         pack_filter,
-        "--limit",
+        "-Limit",
         str(limit),
     ]
     if include_runtime:
-        push(args, "--runtime")
+        push(args, "-Runtime")
 
-    let result = run_process_capture(config.python_bin, args, config.repo_root, config.timeout_ms)
+    let result = run_process_capture(config.powershell_bin, args, config.repo_root, config.timeout_ms)
     if result.success == false:
         let structured = json_object()
         let _ok = json_object_set_bool(structured, "ok", false)
@@ -464,22 +540,26 @@ fn handle_kain_commands_describe(config: AgentMcpConfig, tool_args: JsonObject) 
     let bin_name = mcp_string_field_or(tool_args, "bin", "kain")
     let include_runtime = mcp_bool_field_or(tool_args, "runtime", false)
     let paths = manifest_paths(config)
-    let script_path = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "command_query_script", "mcp/kain-agent-mcp/scripts/query_command_registry.py"))
+    let script_path = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "command_query_script", "mcp/kain-agent-mcp/scripts/query_command_registry.ps1"))
     let args = [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
         script_path,
-        "--kain-bin",
+        "-KainBin",
         config.kain_bin,
-        "--bin",
+        "-BinName",
         bin_name,
-        "--mode",
+        "-Mode",
         "describe",
-        "--query",
+        "-Query",
         query,
     ]
     if include_runtime:
-        push(args, "--runtime")
+        push(args, "-Runtime")
 
-    let result = run_process_capture(config.python_bin, args, config.repo_root, config.timeout_ms)
+    let result = run_process_capture(config.powershell_bin, args, config.repo_root, config.timeout_ms)
     if result.success == false:
         return mcp_error_result("No Kain command matched `" + query + "`.", "Try `kain.commands.list` with a query filter first.")
 

@@ -17,6 +17,7 @@ use cli::native_ui_build;
 use cli::native_ui_dev;
 use cli::omni;
 use cli::packager;
+use cli::packages;
 use cli::repair;
 use cli::run as run_cli;
 use cli::runtime_tools;
@@ -24,10 +25,10 @@ use cli::rust_build;
 use cli::selfhost;
 use cli::{
     detect_launcher_from_path, format_source, parse_compile_target, render_launcher_menu,
-    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv, target_extension,
-    CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA,
-    BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_TRACKING_MODE,
-    BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
+    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
+    target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
+    BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
+    BUILD_TRACKING_MODE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
 use kain_c_ffi::{
     ArtifactMode as CArtifactMode, ImportCOptions as CImportCOptions,
@@ -2007,6 +2008,70 @@ pub fn main_entry() {
                         eprintln!(" Init failed: {}", e);
                     }
                 }
+                Some(Commands::Add {
+                    package,
+                    version,
+                    manifest,
+                }) => match packages::add(&package, version, manifest.as_deref()) {
+                    Ok(report) => {
+                        println!(
+                            " Added {} v{}",
+                            report.package_name, report.version
+                        );
+                        println!("  manifest: {}", report.manifest_path.display());
+                        println!("  lockfile: {}", report.lockfile_path.display());
+                    }
+                    Err(err) => {
+                        eprintln!(" Add failed: {}", err);
+                        std::process::exit(1);
+                    }
+                },
+                Some(Commands::Install { package, version }) => {
+                    match packages::install(&package, version) {
+                        Ok(report) => {
+                            println!(" Installed {} v{}", report.name, report.version);
+                            println!("  package root: {}", report.package_root.display());
+                            println!("  workspace: {}", report.workspace_root.display());
+                            println!("  source capsule: {}", report.source_capsule.display());
+                        }
+                        Err(err) => {
+                            eprintln!(" Install failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(Commands::Publish {
+                    input,
+                    output,
+                    name,
+                    version,
+                    artifacts,
+                    evidence,
+                    archive,
+                }) => match packages::publish(
+                    &input,
+                    output.as_deref(),
+                    name,
+                    version,
+                    artifacts,
+                    evidence,
+                    archive,
+                ) {
+                    Ok(report) => {
+                        println!(" Published {} v{}", report.name, report.version);
+                        println!("  source capsule: {}", report.source_capsule.display());
+                        if let Some(path) = report.artifact_capsule {
+                            println!("  artifacts capsule: {}", path.display());
+                        }
+                        if let Some(path) = report.evidence_capsule {
+                            println!("  evidence capsule: {}", path.display());
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!(" Publish failed: {}", err);
+                        std::process::exit(1);
+                    }
+                },
                 Some(Commands::Lsp) => {
                     eprintln!(" Starting KAIN Language Server...");
                     // Manual runtime for LSP
@@ -3274,7 +3339,10 @@ fn print_doctor(active_launcher: LauncherKind) {
         println!(" Kain Tooling Dir: {}", layout.tooling_dir.display());
         println!(" Kain Cache Dir: {}", layout.cache_dir.display());
         println!(" Kain Generated Dir: {}", layout.generated_dir.display());
-        println!(" Kain Install Manifest: {}", layout.install_manifest_path.display());
+        println!(
+            " Kain Install Manifest: {}",
+            layout.install_manifest_path.display()
+        );
     } else {
         println!(" Kain Home: <unresolved>");
     }
@@ -4680,11 +4748,10 @@ mod tests {
         default_runtime_cache_root, find_bundled_clang, load_native_runtime_manifest,
         native_runtime_object_cache_is_fresh, parse_native_runtime_depfile,
         parse_native_toolchain_tuning, platform_link_libs, resolve_c_ffi_native_link_inputs,
-        resolve_native_runtime_archive_groups,
-        runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
-        NativeRuntimeArchiveManifest, NativeRuntimeArchiver, NativeRuntimeArchiverFlavor,
-        NativeRuntimeLinkManifest, NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup,
-        ResolvedNativeRuntimeBundle,
+        resolve_native_runtime_archive_groups, runtime_source_uses_cpp, sanitize_runtime_name,
+        unique_link_libs, NativeRuntimeArchiveManifest, NativeRuntimeArchiver,
+        NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest, NativeToolchainProfile,
+        ResolvedNativeRuntimeArchiveGroup, ResolvedNativeRuntimeBundle,
     };
     use kain_core::CompileTarget;
     use kain_driver::DriverSession;
@@ -5078,8 +5145,11 @@ include_paths = ["native"]
         )
         .expect("manifest");
         fs::write(&header_path, "int tiny_add(int value);\n").expect("header");
-        fs::write(&source_path, "int tiny_add(int value) { return value + 1; }\n")
-            .expect("native source");
+        fs::write(
+            &source_path,
+            "int tiny_add(int value) { return value + 1; }\n",
+        )
+        .expect("native source");
         fs::write(
             &main_path,
             r#"
