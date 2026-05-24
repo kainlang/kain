@@ -20,7 +20,8 @@ typedef enum KainJsonKind {
     KAIN_JSON_FLOAT = 3,
     KAIN_JSON_STRING = 4,
     KAIN_JSON_OBJECT = 5,
-    KAIN_JSON_ARRAY = 6
+    KAIN_JSON_ARRAY = 6,
+    KAIN_JSON_OPAQUE = 7
 } KainJsonKind;
 
 typedef struct KainJsonValue KainJsonValue;
@@ -35,6 +36,7 @@ struct KainJsonValue {
     int bool_value;
     int64_t int_value;
     double float_value;
+    int64_t opaque_value;
     char* string_value;
     KainJsonEntry* fields;
     int64_t field_count;
@@ -57,6 +59,8 @@ static KainJsonRegistryNode* g_json_registry;
 
 void* kain_alloc_rc(size_t size, long long type_tag);
 void KAIN_set_destructor(void* ptr, void (*dtor)(void*));
+void rc_retain(void* ptr);
+void rc_release(void* ptr);
 static void json_value_destructor(void* ptr);
 
 static void json_register_value(KainJsonValue* value) {
@@ -160,6 +164,18 @@ static KainJsonValue* json_value_float(double value) {
     return json;
 }
 
+static KainJsonValue* json_value_opaque(int64_t value) {
+    KainJsonValue* json = json_value_new(KAIN_JSON_OPAQUE);
+    if (!json) {
+        return NULL;
+    }
+    json->opaque_value = value;
+    if (value != 0) {
+        rc_retain((void*)(intptr_t)value);
+    }
+    return json;
+}
+
 static KainJsonValue* json_value_string_copy(const char* text) {
     KainJsonValue* json = json_value_new(KAIN_JSON_STRING);
     if (!json) {
@@ -197,7 +213,15 @@ static KainJsonValue* json_value_from_any(int64_t any) {
     int64_t tag = any & KAIN_JSON_ANY_TAG_MASK;
     if (tag == 0) {
         KainJsonValue* existing = json_registered_handle(any);
-        return existing ? json_clone_value(existing) : json_value_new(KAIN_JSON_NULL);
+        if (existing) {
+            return json_clone_value(existing);
+        }
+        if (any == 0) {
+            return json_value_new(KAIN_JSON_NULL);
+        }
+        /* Preserve foreign runtime handles inside Any containers so bridge
+         * argument arrays can round-trip Python/native objects losslessly. */
+        return json_value_opaque(any);
     }
     if (tag == KAIN_JSON_ANY_TAG_INT) {
         int64_t payload = any >> 3;
@@ -227,11 +251,16 @@ static KainJsonValue* json_clone_value(const KainJsonValue* value) {
     out->bool_value = value->bool_value;
     out->int_value = value->int_value;
     out->float_value = value->float_value;
+    out->opaque_value = value->opaque_value;
     if (value->kind == KAIN_JSON_STRING) {
         out->string_value = json_dup_cstr(value->string_value);
         if (!out->string_value) {
             rc_release(out);
             return NULL;
+        }
+    } else if (value->kind == KAIN_JSON_OPAQUE) {
+        if (value->opaque_value != 0) {
+            rc_retain((void*)(intptr_t)value->opaque_value);
         }
     } else if (value->kind == KAIN_JSON_OBJECT && value->field_count > 0) {
         out->fields = (KainJsonEntry*)calloc((size_t)value->field_count, sizeof(KainJsonEntry));
@@ -267,6 +296,10 @@ static void json_value_destructor(void* ptr) {
         return;
     }
     json_unregister_value(value);
+    if (value->kind == KAIN_JSON_OPAQUE && value->opaque_value != 0) {
+        rc_release((void*)(intptr_t)value->opaque_value);
+        value->opaque_value = 0;
+    }
     if (value->kind == KAIN_JSON_STRING) {
         free(value->string_value);
         value->string_value = NULL;
@@ -582,6 +615,7 @@ static void json_write_value(JsonBuffer* buffer, const KainJsonValue* value) {
             }
             json_buffer_append_char(buffer, ']');
             break;
+        case KAIN_JSON_OPAQUE:
         case KAIN_JSON_NULL:
         default:
             json_buffer_append(buffer, "null");
@@ -830,6 +864,122 @@ int64_t json_box_float(double value) {
     return json_handle_from_value(json_value_float(value));
 }
 
+int json_any_kind(int64_t value) {
+    int64_t tag = value & KAIN_JSON_ANY_TAG_MASK;
+    KainJsonValue* json;
+    if (tag == KAIN_JSON_ANY_TAG_INT) {
+        return KAIN_JSON_KIND_INT;
+    }
+    if (tag == KAIN_JSON_ANY_TAG_BOOL) {
+        return KAIN_JSON_KIND_BOOL;
+    }
+    if (tag == KAIN_JSON_ANY_TAG_STRING) {
+        return KAIN_JSON_KIND_STRING;
+    }
+    if (tag == KAIN_JSON_ANY_TAG_NULL) {
+        return KAIN_JSON_KIND_NULL;
+    }
+    if (tag != 0) {
+        return KAIN_JSON_KIND_UNKNOWN;
+    }
+    json = json_registered_handle(value);
+    if (!json) {
+        return KAIN_JSON_KIND_UNKNOWN;
+    }
+    return (int)json->kind;
+}
+
+int64_t json_any_to_int(int64_t value) {
+    int kind = json_any_kind(value);
+    KainJsonValue* json;
+    switch (kind) {
+        case KAIN_JSON_KIND_NULL:
+            return 0;
+        case KAIN_JSON_KIND_BOOL:
+            if ((value & KAIN_JSON_ANY_TAG_MASK) == KAIN_JSON_ANY_TAG_BOOL) {
+                return (value >> 3) != 0;
+            }
+            json = json_registered_handle(value);
+            return json ? (json->bool_value != 0) : 0;
+        case KAIN_JSON_KIND_INT:
+            if ((value & KAIN_JSON_ANY_TAG_MASK) == KAIN_JSON_ANY_TAG_INT) {
+                return value >> 3;
+            }
+            json = json_registered_handle(value);
+            return json ? json->int_value : 0;
+        case KAIN_JSON_KIND_FLOAT:
+            json = json_registered_handle(value);
+            return json ? (int64_t)json->float_value : 0;
+        case KAIN_JSON_KIND_STRING: {
+            const char* text;
+            char* end = NULL;
+            long long parsed;
+            if ((value & KAIN_JSON_ANY_TAG_MASK) == KAIN_JSON_ANY_TAG_STRING) {
+                text = (const char*)(intptr_t)(value & ~KAIN_JSON_ANY_TAG_MASK);
+            } else {
+                json = json_registered_handle(value);
+                text = (json && json->string_value) ? json->string_value : "";
+            }
+            parsed = strtoll(text ? text : "", &end, 10);
+            return (end && end != text) ? (int64_t)parsed : 0;
+        }
+        default:
+            return 0;
+    }
+}
+
+double json_any_to_float(int64_t value) {
+    int kind = json_any_kind(value);
+    KainJsonValue* json;
+    switch (kind) {
+        case KAIN_JSON_KIND_NULL:
+            return 0.0;
+        case KAIN_JSON_KIND_BOOL:
+            if ((value & KAIN_JSON_ANY_TAG_MASK) == KAIN_JSON_ANY_TAG_BOOL) {
+                return ((value >> 3) != 0) ? 1.0 : 0.0;
+            }
+            json = json_registered_handle(value);
+            return (json && json->bool_value != 0) ? 1.0 : 0.0;
+        case KAIN_JSON_KIND_INT:
+            if ((value & KAIN_JSON_ANY_TAG_MASK) == KAIN_JSON_ANY_TAG_INT) {
+                return (double)(value >> 3);
+            }
+            json = json_registered_handle(value);
+            return json ? (double)json->int_value : 0.0;
+        case KAIN_JSON_KIND_FLOAT:
+            json = json_registered_handle(value);
+            return json ? json->float_value : 0.0;
+        case KAIN_JSON_KIND_STRING: {
+            const char* text;
+            char* end = NULL;
+            double parsed;
+            if ((value & KAIN_JSON_ANY_TAG_MASK) == KAIN_JSON_ANY_TAG_STRING) {
+                text = (const char*)(intptr_t)(value & ~KAIN_JSON_ANY_TAG_MASK);
+            } else {
+                json = json_registered_handle(value);
+                text = (json && json->string_value) ? json->string_value : "";
+            }
+            parsed = strtod(text ? text : "", &end);
+            return (end && end != text) ? parsed : 0.0;
+        }
+        default:
+            return 0.0;
+    }
+}
+
+char* json_any_to_string(int64_t value) {
+    int kind = json_any_kind(value);
+    KainJsonValue* json;
+    if (kind == KAIN_JSON_KIND_STRING) {
+        if ((value & KAIN_JSON_ANY_TAG_MASK) == KAIN_JSON_ANY_TAG_STRING) {
+            return string_new((char*)(intptr_t)(value & ~KAIN_JSON_ANY_TAG_MASK));
+        }
+        json = json_registered_handle(value);
+        return string_new((json && json->string_value) ? json->string_value : "");
+    }
+    return json_string(value);
+}
+
 void json_retain(int64_t value) {
     KainJsonValue* json = json_registered_handle(value);
     if (json) {
@@ -856,6 +1006,9 @@ int64_t json_get(int64_t object, const char* key) {
     KainJsonValue* value = json_object_get_value(json_value_from_handle(object), key);
     if (!value) {
         return KAIN_JSON_ANY_TAG_NULL;
+    }
+    if (value->kind == KAIN_JSON_OPAQUE) {
+        return value->opaque_value;
     }
     return json_handle_from_value(json_clone_value(value));
 }
@@ -936,13 +1089,18 @@ int64_t json_array_new(void) {
 
 void json_array_push(int64_t array, int64_t value) {
     KainJsonValue* json_array = json_value_from_handle(array);
+    KainJsonValue* boxed;
     if (!json_array || json_array->kind != KAIN_JSON_ARRAY) {
         return;
     }
     if (!json_array_reserve(json_array, json_array->item_count + 1)) {
         return;
     }
-    json_array->items[json_array->item_count++] = json_value_from_any(value);
+    boxed = json_value_from_any(value);
+    if (!boxed) {
+        return;
+    }
+    json_array->items[json_array->item_count++] = boxed;
 }
 
 int64_t json_array_len(int64_t array) {
@@ -962,6 +1120,9 @@ int64_t json_array_get(int64_t array, int64_t index) {
     value = json_array->items[index];
     if (!value) {
         return KAIN_JSON_ANY_TAG_NULL;
+    }
+    if (value->kind == KAIN_JSON_OPAQUE) {
+        return value->opaque_value;
     }
     return json_handle_from_value(json_clone_value(value));
 }

@@ -8,11 +8,9 @@ startup --output_user_root=D:/Kain-Bazel/output-user-root
 common --repo_env=TMP=D:/Kain-Bazel/tmp
 common --repo_env=TEMP=D:/Kain-Bazel/tmp
 common --repo_env=TMPDIR=D:/Kain-Bazel/tmp
-common --repo_env=PYO3_PYTHON
 common --action_env=TMP=D:/Kain-Bazel/tmp
 common --action_env=TEMP=D:/Kain-Bazel/tmp
 common --action_env=TMPDIR=D:/Kain-Bazel/tmp
-common --action_env=PYO3_PYTHON
 
 build --disk_cache=D:/Kain-Bazel/disk-cache
 build --jobs=HOST_CPUS*.625

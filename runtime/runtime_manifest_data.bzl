@@ -49,6 +49,7 @@ NATIVE_CORE_RUNTIME = {
         'native/src/core/async.c',
         'native/src/core/compatibility.c',
         'native/src/core/host_bridge.c',
+        'native/src/core/python_runtime.c',
         'native/src/core/fanout.c',
         'native/src/core/memory.c',
         'native/src/core/ownership.c',

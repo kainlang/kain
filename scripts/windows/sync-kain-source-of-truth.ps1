@@ -7,6 +7,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$script:PyO3SupportedPythonMinors = @(12, 11, 10)
+$script:PythonPollutionEnvKeys = @(
+    "PYO3_PYTHON",
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "VIRTUAL_ENV",
+    "CONDA_PREFIX",
+    "CONDA_DEFAULT_ENV",
+    "PYTHONEXECUTABLE",
+    "__PYVENV_LAUNCHER__"
+)
+
 function Set-PathPrefix {
     param(
         [Parameter(Mandatory = $true)][string]$PathValue,
@@ -27,6 +39,22 @@ function Set-PathPrefix {
     return ($Prefix + ';' + ($parts -join ';'))
 }
 
+function Remove-PathEntry {
+    param(
+        [Parameter(Mandatory = $true)][string]$PathValue,
+        [Parameter(Mandatory = $true)][string]$Entry
+    )
+
+    $parts = @()
+    foreach ($part in ($PathValue -split ';')) {
+        if (-not [string]::IsNullOrWhiteSpace($part) -and $part -ne $Entry) {
+            $parts += $part
+        }
+    }
+
+    return ($parts -join ';')
+}
+
 function Set-UserPathPrefix {
     param([Parameter(Mandatory = $true)][string]$Prefix)
 
@@ -37,6 +65,54 @@ function Set-UserPathPrefix {
 
     $nextUserPath = Set-PathPrefix -PathValue $currentUserPath -Prefix $Prefix
     [Environment]::SetEnvironmentVariable("Path", $nextUserPath, "User")
+}
+
+function Remove-UserPathEntry {
+    param([Parameter(Mandatory = $true)][string]$Entry)
+
+    $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ([string]::IsNullOrWhiteSpace($currentUserPath)) {
+        return
+    }
+
+    $nextUserPath = Remove-PathEntry -PathValue $currentUserPath -Entry $Entry
+    [Environment]::SetEnvironmentVariable("Path", $nextUserPath, "User")
+}
+
+function Save-EnvironmentSnapshot {
+    param([Parameter(Mandatory = $true)][string[]]$Names)
+
+    $snapshot = [ordered]@{}
+    foreach ($name in $Names) {
+        $snapshot[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+    }
+    return $snapshot
+}
+
+function Restore-EnvironmentSnapshot {
+    param([Parameter(Mandatory = $true)]$Snapshot)
+
+    foreach ($entry in $Snapshot.GetEnumerator()) {
+        if ($null -ne $entry.Value) {
+            Set-Item -Path ("Env:" + $entry.Key) -Value $entry.Value
+        } else {
+            Remove-Item -Path ("Env:" + $entry.Key) -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Invoke-WithSanitizedPythonEnvironment {
+    param([Parameter(Mandatory = $true)][scriptblock]$ScriptBlock)
+
+    $snapshot = Save-EnvironmentSnapshot -Names $script:PythonPollutionEnvKeys
+    try {
+        foreach ($name in $script:PythonPollutionEnvKeys) {
+            Remove-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue
+        }
+        & $ScriptBlock
+    } finally {
+        Restore-EnvironmentSnapshot -Snapshot $snapshot
+    }
 }
 
 function Resolve-CommandPath {
@@ -84,7 +160,9 @@ function Resolve-PythonExecutableFromCommand {
     )
 
     try {
-        $resolved = (& $CommandPath @Arguments -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1).Trim()
+        $resolved = (Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+                & $CommandPath @Arguments -c "import sys; print(sys.executable)" 2>$null
+            } | Select-Object -First 1).Trim()
         return Resolve-ValidatedPythonPath -Candidate $resolved
     } catch {
         return $null
@@ -103,7 +181,9 @@ function Resolve-ValidatedPythonPath {
     }
 
     try {
-        $version = (& $existing -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')" 2>$null | Select-Object -First 1).Trim()
+        $version = (Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+                & $existing -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')" 2>$null
+            } | Select-Object -First 1).Trim()
         if ([string]::IsNullOrWhiteSpace($version)) {
             return $null
         }
@@ -115,11 +195,13 @@ function Resolve-ValidatedPythonPath {
 
         $major = [int]$parts[0]
         $minor = [int]$parts[1]
-        if ($major -ne 3 -or $minor -lt 10) {
+        if ($major -ne 3 -or -not ($script:PyO3SupportedPythonMinors -contains $minor)) {
             return $null
         }
 
-        $resolvedExecutable = (& $existing -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1).Trim()
+        $resolvedExecutable = (Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+                & $existing -c "import sys; print(sys.executable)" 2>$null
+            } | Select-Object -First 1).Trim()
         $resolvedExisting = Resolve-ExistingPath -Candidate $resolvedExecutable
         if ($resolvedExisting) {
             return $resolvedExisting
@@ -157,48 +239,25 @@ function Resolve-ClangPath {
 }
 
 function Resolve-PythonPath {
-    $preferredMinors = @(14, 13, 12, 11, 10)
-    $candidates = @()
+    $preferredMinors = $script:PyO3SupportedPythonMinors
 
-    $envPython = Resolve-ValidatedPythonPath -Candidate $env:PYO3_PYTHON
-    if ($envPython) {
-        return $envPython
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
-        $candidates += (Join-Path $env:VIRTUAL_ENV "Scripts\python.exe")
-        $candidates += (Join-Path $env:VIRTUAL_ENV "bin/python")
-    }
-    if (-not [string]::IsNullOrWhiteSpace($env:CONDA_PREFIX)) {
-        $candidates += (Join-Path $env:CONDA_PREFIX "python.exe")
-        $candidates += (Join-Path $env:CONDA_PREFIX "bin/python")
-    }
-
-    foreach ($candidate in $candidates) {
-        $resolved = Resolve-ValidatedPythonPath -Candidate $candidate
-        if ($resolved) {
-            return $resolved
-        }
+    # Bazel should pick a stable PyO3 interpreter, not inherit whatever shell
+    # virtualenv/conda/PYO3 state happened to be active.
+    $overridePython = Resolve-ValidatedPythonPath -Candidate $env:KAIN_BAZEL_PYTHON
+    if ($overridePython) {
+        return $overridePython
     }
 
     $pyLauncher = Resolve-CommandPath -Name "py"
     if ($pyLauncher) {
-        $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher
-        if ($resolved) {
-            return $resolved
-        }
-
         foreach ($minor in $preferredMinors) {
             $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher -Arguments @("-3.$minor")
             if ($resolved) {
                 return $resolved
             }
         }
-    }
 
-    $pythonFromPath = Resolve-CommandPath -Name "python"
-    if ($pythonFromPath) {
-        $resolved = Resolve-ValidatedPythonPath -Candidate $pythonFromPath
+        $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher
         if ($resolved) {
             return $resolved
         }
@@ -215,6 +274,14 @@ function Resolve-PythonPath {
             if ($resolved) {
                 return $resolved
             }
+        }
+    }
+
+    $pythonFromPath = Resolve-CommandPath -Name "python"
+    if ($pythonFromPath) {
+        $resolved = Resolve-ValidatedPythonPath -Candidate $pythonFromPath
+        if ($resolved) {
+            return $resolved
         }
     }
 
@@ -720,9 +787,6 @@ $launcherShimTemplatePath = Join-Path $stateRoot "artifacts\kain_bazel_cli_launc
 if ($resolvedClangPath) {
     $sessionPathPrefixes += (Split-Path -Parent $resolvedClangPath)
 }
-if ($resolvedPythonPath) {
-    $sessionPathPrefixes += (Split-Path -Parent $resolvedPythonPath)
-}
 
 $resourceMap = [ordered]@{
     "KAIN_REPO_ROOT" = $repoRoot
@@ -738,9 +802,6 @@ $resourceMap = [ordered]@{
 
 if ($resolvedClangPath) {
     $resourceMap["KAIN_CLANG_PATH"] = $resolvedClangPath
-}
-if ($resolvedPythonPath) {
-    $resourceMap["PYO3_PYTHON"] = $resolvedPythonPath
 }
 
 if (-not $ManagedSync) {
@@ -861,6 +922,18 @@ exit /b %ERRORLEVEL%
             if (-not [string]::IsNullOrWhiteSpace([string]$entry.Value)) {
                 [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "User")
             }
+        }
+        [Environment]::SetEnvironmentVariable("PYO3_PYTHON", $null, "User")
+        if ($resolvedPythonPath) {
+            $legacyPythonDir = Split-Path -Parent $resolvedPythonPath
+            Remove-UserPathEntry -Entry $legacyPythonDir
+            $env:PATH = Remove-PathEntry -PathValue $env:PATH -Entry $legacyPythonDir
+            if (-not $ManagedSync) {
+                Write-Host ("  User PATH scrubbed python prefix {0}" -f $legacyPythonDir)
+            }
+        }
+        if (-not $ManagedSync) {
+            Write-Host "  User env cleared stale PYO3_PYTHON"
         }
         foreach ($prefix in $sessionPathPrefixes) {
             if (-not [string]::IsNullOrWhiteSpace($prefix) -and (Test-Path $prefix)) {

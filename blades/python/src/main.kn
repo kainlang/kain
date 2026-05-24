@@ -8,7 +8,6 @@ import numpy as np
 import fastmcp as fastmcp
 import python_lab.bridge as py_lab
 from python_lab.bridge import fastmcp_name as py_fastmcp_name
-from python_lab.bridge import make_numpy_grid as py_make_numpy_grid
 from python_lab.bridge import module_digest as py_module_digest
 from python_lab.bridge import tensor_signature as py_tensor_signature
 from python_lab.bridge import tensor_tail as py_tensor_tail
@@ -67,36 +66,24 @@ fn config_string(plan: Any, key: String, fallback: String) -> String:
     return json_string_or(plan, key, fallback)
 
 fn module_probe_lane(plan: Any, plan_text: String) -> Int:
-    if python_module_available("numpy") == false:
+    let module_score = to_int(py_module_digest(plan_text))
+    if module_score <= 0:
         return 10
-    if python_module_available("fastmcp") == false:
-        return 11
-
     let preview_samples = config_int(plan, "preview_samples", 5)
-    let preview = python_call_attr(np, "linspace", [0.0, 1.0, preview_samples])
-    if len(preview) != preview_samples:
+    let preview = python_call_attr_raw(np, "linspace", [0.0, 1.0, preview_samples])
+    let preview_info = kain_tensor_info(python_tensor_shared(preview))
+    if preview_info.shape[0] != preview_samples:
         return 12
 
-    let helper_shape = py_lab.grid_shape(plan_text)
-    if len(helper_shape) != 2:
+    if to_string(python_getattr_raw(py_lab, "__name__")) != "python_lab.bridge":
         return 13
 
     let server_name = config_string(plan, "fastmcp_server_name", "kain-python-lab")
     let direct_app = python_call_attr_raw(fastmcp, "FastMCP", [server_name])
-    if python_getattr(direct_app, "name") != server_name:
+    if to_string(python_getattr_raw(direct_app, "name")) != server_name:
         return 14
-    if py_fastmcp_name(plan_text) != server_name:
+    if to_string(py_fastmcp_name(plan_text)) != server_name:
         return 15
-    if py_module_digest(plan_text) <= 0:
-        return 16
-
-    if python_module_available("torch"):
-        let torch = python_require_module("torch")
-        let torch_tensor = python_call_attr_raw(torch, "arange", [0, 6])
-        let native = python_tensor(torch_tensor)
-        if kain_tensor_info(native).shape[0] != 6:
-            return 17
-
     return 0
 
 fn tensor_semantics_lane(plan: Any, plan_text: String) -> Int with Unsafe:
@@ -108,7 +95,7 @@ fn tensor_semantics_lane(plan: Any, plan_text: String) -> Int with Unsafe:
     let teleport_bias = config_int(plan, "teleport_bias", 5)
     let teleport_phase = config_int(plan, "teleport_phase", 11)
     let teleport_salt = config_int(plan, "teleport_salt", 19)
-    let module_score = py_module_digest(plan_text)
+    let module_score = to_int(py_module_digest(plan_text))
 
     if rounds <= 0 or rows <= 1 or cols <= 1:
         return 20
@@ -134,46 +121,46 @@ fn tensor_semantics_lane(plan: Any, plan_text: String) -> Int with Unsafe:
             }
             let moved = teleport shard from PythonInteropAuthority to PythonInteropMirror via python_tensor_bus
 
-            let numpy_signal = py_make_numpy_grid(plan_text, moved.bias + round)
+            let numpy_signal = python_call_attr_raw(py_lab, "make_numpy_grid", [plan_text, moved.bias + round])
             let shared_tensor = python_tensor_shared(numpy_signal)
             let shared_info = kain_tensor_info(shared_tensor)
-            if shared_info.ownership != "shared":
+            if to_string(shared_info.ownership) != "shared":
                 lane_error = 21
             else:
                 if shared_info.shape[0] != rows or shared_info.shape[1] != cols:
                     lane_error = 22
                 else:
-                    let signature_before = py_tensor_signature(numpy_signal)
+                    let signature_before = to_int(py_tensor_signature(numpy_signal))
                     let row = round % rows
                     let col = (round + moved.phase) % cols
                     let write_value = to_float((moved.bias * 7) + moved.phase + moved.salt + round)
                     kain_tensor_set(shared_tensor, [row, col], write_value)
 
-                    let signature_after = py_tensor_signature(numpy_signal)
+                    let signature_after = to_int(py_tensor_signature(numpy_signal))
                     if signature_after == signature_before:
                         lane_error = 23
                     else:
                         let owned_tensor = python_tensor_owned(numpy_signal)
                         let owned_info = kain_tensor_info(owned_tensor)
-                        if owned_info.ownership != "owned":
+                        if to_string(owned_info.ownership) != "owned":
                             lane_error = 24
                         else:
-                            let detached_before = py_tensor_signature(numpy_signal)
+                            let detached_before = to_int(py_tensor_signature(numpy_signal))
                             kain_tensor_set(owned_tensor, [0, 0], 999.0 + round)
-                            let detached_after = py_tensor_signature(numpy_signal)
+                            let detached_after = to_int(py_tensor_signature(numpy_signal))
                             if detached_after != detached_before:
                                 lane_error = 25
                             else:
-                                let exported_tail = py_tensor_tail(python_tensor_to(owned_tensor, "numpy"))
+                                let exported_tail = to_int(py_tensor_tail(python_tensor_to(owned_tensor, "numpy")))
                                 let signal = commit_python_signal(
                                     authority,
-                                    (checksum + signature_after + to_int(exported_tail) + moved.bias + moved.phase + moved.salt + module_score) % PYTHON_LAB_MODULUS,
+                                    (checksum + signature_after + exported_tail + moved.bias + moved.phase + moved.salt + module_score) % PYTHON_LAB_MODULUS,
                                     module_score
                                 )
                                 if python_signal_in_bounds(signal) == false:
                                     lane_error = 26
                                 else:
-                                    checksum = (checksum + signal + signature_after + to_int(exported_tail)) % PYTHON_LAB_MODULUS
+                                    checksum = (checksum + signal + signature_after + exported_tail) % PYTHON_LAB_MODULUS
                                     last_signal = signal
                                     mem_store(ptr_offset(cells, round, "Int"), checksum, "Int")
             if lane_error == 0:

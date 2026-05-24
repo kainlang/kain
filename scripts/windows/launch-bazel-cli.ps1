@@ -18,6 +18,54 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$script:PyO3SupportedPythonMinors = @(12, 11, 10)
+$script:PythonPollutionEnvKeys = @(
+    "PYO3_PYTHON",
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "VIRTUAL_ENV",
+    "CONDA_PREFIX",
+    "CONDA_DEFAULT_ENV",
+    "PYTHONEXECUTABLE",
+    "__PYVENV_LAUNCHER__"
+)
+
+function Save-EnvironmentSnapshot {
+    param([Parameter(Mandatory = $true)][string[]]$Names)
+
+    $snapshot = [ordered]@{}
+    foreach ($name in $Names) {
+        $snapshot[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+    }
+    return $snapshot
+}
+
+function Restore-EnvironmentSnapshot {
+    param([Parameter(Mandatory = $true)]$Snapshot)
+
+    foreach ($entry in $Snapshot.GetEnumerator()) {
+        if ($null -ne $entry.Value) {
+            Set-Item -Path ("Env:" + $entry.Key) -Value $entry.Value
+        } else {
+            Remove-Item -Path ("Env:" + $entry.Key) -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Invoke-WithSanitizedPythonEnvironment {
+    param([Parameter(Mandatory = $true)][scriptblock]$ScriptBlock)
+
+    $snapshot = Save-EnvironmentSnapshot -Names $script:PythonPollutionEnvKeys
+    try {
+        foreach ($name in $script:PythonPollutionEnvKeys) {
+            Remove-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue
+        }
+        & $ScriptBlock
+    } finally {
+        Restore-EnvironmentSnapshot -Snapshot $snapshot
+    }
+}
+
 function Resolve-CommandPath {
     param([Parameter(Mandatory = $true)][string]$Name)
 
@@ -63,7 +111,9 @@ function Resolve-PythonExecutableFromCommand {
     )
 
     try {
-        $resolved = (& $CommandPath @Arguments -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1).Trim()
+        $resolved = (Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+                & $CommandPath @Arguments -c "import sys; print(sys.executable)" 2>$null
+            } | Select-Object -First 1).Trim()
         return Resolve-ValidatedPythonPath -Candidate $resolved
     } catch {
         return $null
@@ -82,7 +132,9 @@ function Resolve-ValidatedPythonPath {
     }
 
     try {
-        $version = (& $existing -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')" 2>$null | Select-Object -First 1).Trim()
+        $version = (Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+                & $existing -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')" 2>$null
+            } | Select-Object -First 1).Trim()
         if ([string]::IsNullOrWhiteSpace($version)) {
             return $null
         }
@@ -94,11 +146,13 @@ function Resolve-ValidatedPythonPath {
 
         $major = [int]$parts[0]
         $minor = [int]$parts[1]
-        if ($major -ne 3 -or $minor -lt 10) {
+        if ($major -ne 3 -or -not ($script:PyO3SupportedPythonMinors -contains $minor)) {
             return $null
         }
 
-        $resolvedExecutable = (& $existing -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1).Trim()
+        $resolvedExecutable = (Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+                & $existing -c "import sys; print(sys.executable)" 2>$null
+            } | Select-Object -First 1).Trim()
         $resolvedExisting = Resolve-ExistingPath -Candidate $resolvedExecutable
         if ($resolvedExisting) {
             return $resolvedExisting
@@ -247,48 +301,25 @@ function Resolve-ClangPath {
 }
 
 function Resolve-PythonPath {
-    $preferredMinors = @(14, 13, 12, 11, 10)
-    $candidates = @()
+    $preferredMinors = $script:PyO3SupportedPythonMinors
 
-    $envPython = Resolve-ValidatedPythonPath -Candidate $env:PYO3_PYTHON
-    if ($envPython) {
-        return $envPython
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
-        $candidates += (Join-Path $env:VIRTUAL_ENV "Scripts\python.exe")
-        $candidates += (Join-Path $env:VIRTUAL_ENV "bin/python")
-    }
-    if (-not [string]::IsNullOrWhiteSpace($env:CONDA_PREFIX)) {
-        $candidates += (Join-Path $env:CONDA_PREFIX "python.exe")
-        $candidates += (Join-Path $env:CONDA_PREFIX "bin/python")
-    }
-
-    foreach ($candidate in $candidates) {
-        $resolved = Resolve-ValidatedPythonPath -Candidate $candidate
-        if ($resolved) {
-            return $resolved
-        }
+    # Bazel should pick a stable PyO3 interpreter, not inherit whatever shell
+    # virtualenv/conda/PYO3 state happened to be active.
+    $overridePython = Resolve-ValidatedPythonPath -Candidate $env:KAIN_BAZEL_PYTHON
+    if ($overridePython) {
+        return $overridePython
     }
 
     $pyLauncher = Resolve-CommandPath -Name "py"
     if ($pyLauncher) {
-        $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher
-        if ($resolved) {
-            return $resolved
-        }
-
         foreach ($minor in $preferredMinors) {
             $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher -Arguments @("-3.$minor")
             if ($resolved) {
                 return $resolved
             }
         }
-    }
 
-    $pythonFromPath = Resolve-CommandPath -Name "python"
-    if ($pythonFromPath) {
-        $resolved = Resolve-ValidatedPythonPath -Candidate $pythonFromPath
+        $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher
         if ($resolved) {
             return $resolved
         }
@@ -306,6 +337,14 @@ function Resolve-PythonPath {
             if ($resolved) {
                 return $resolved
             }
+        }
+    }
+
+    $pythonFromPath = Resolve-CommandPath -Name "python"
+    if ($pythonFromPath) {
+        $resolved = Resolve-ValidatedPythonPath -Candidate $pythonFromPath
+        if ($resolved) {
+            return $resolved
         }
     }
 
@@ -683,17 +722,35 @@ function Resolve-BazelConfigValue {
     return [string](Get-HashValue -Table $SyncPolicy -Key "bazel_default_config_windows" -DefaultValue "dev")
 }
 
+function Get-BazelPythonEnvironmentArgs {
+    param([string]$ResolvedPythonPath)
+
+    if ([string]::IsNullOrWhiteSpace($ResolvedPythonPath)) {
+        return @()
+    }
+
+    return @(
+        ("--repo_env=PYO3_PYTHON=" + $ResolvedPythonPath),
+        ("--action_env=PYO3_PYTHON=" + $ResolvedPythonPath)
+    )
+}
+
 function Invoke-BazelAndCaptureLastLine {
-    param([Parameter(Mandatory = $true)][string[]]$Args)
+    param([Parameter(Mandatory = $true)][string[]]$BazelArgs)
 
     $escapedArgs = @()
-    foreach ($arg in $Args) {
+    foreach ($arg in $BazelArgs) {
         $escapedArgs += ('"' + ($arg -replace '"', '\"') + '"')
     }
     $commandText = "bazel " + ($escapedArgs -join " ") + " 2>&1"
-    $output = & cmd.exe /d /c $commandText
-    if ($LASTEXITCODE -ne 0) {
-        throw ("bazel " + ($Args -join " ") + " failed with exit code " + $LASTEXITCODE)
+    $exitCode = 0
+    $output = Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+        & cmd.exe /d /c $commandText
+        $script:LastBazelCaptureExitCode = $LASTEXITCODE
+    }
+    $exitCode = $script:LastBazelCaptureExitCode
+    if ($exitCode -ne 0) {
+        throw ("bazel " + ($BazelArgs -join " ") + " failed with exit code " + $exitCode)
     }
     $lines = @(
         $output |
@@ -701,7 +758,7 @@ function Invoke-BazelAndCaptureLastLine {
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     )
     if ($lines.Count -eq 0) {
-        throw ("bazel " + ($Args -join " ") + " returned no output")
+        throw ("bazel " + ($BazelArgs -join " ") + " returned no output")
     }
     return $lines[$lines.Count - 1].Trim()
 }
@@ -709,10 +766,11 @@ function Invoke-BazelAndCaptureLastLine {
 function Resolve-BazelBinaryPath {
     param(
         [Parameter(Mandatory = $true)][string]$Config,
-        [Parameter(Mandatory = $true)][string]$Name
+        [Parameter(Mandatory = $true)][string]$Name,
+        [string[]]$ExtraBazelArgs = @()
     )
 
-    $bazelBin = Invoke-BazelAndCaptureLastLine -Args @("info", "bazel-bin", "--config=$Config")
+    $bazelBin = Invoke-BazelAndCaptureLastLine -BazelArgs (@("info", "bazel-bin", "--config=$Config") + $ExtraBazelArgs)
     $binaryPath = Join-Path $bazelBin ("crates/cli/" + $Name + ".exe")
     return [System.IO.Path]::GetFullPath($binaryPath)
 }
@@ -736,6 +794,7 @@ $sourceWatchPaths = Resolve-SourceWatchPaths -SyncPolicy $syncPolicy
 
 $resolvedClangPath = Resolve-ClangPath -RepoRoot $repoRoot
 $resolvedPythonPath = Resolve-PythonPath
+$bazelPythonEnvArgs = Get-BazelPythonEnvironmentArgs -ResolvedPythonPath $resolvedPythonPath
 $invocationLocation = Get-Location
 $invocationWorkingDirectory = $null
 if ($invocationLocation.Provider -and $invocationLocation.Provider.Name -eq "FileSystem") {
@@ -760,10 +819,6 @@ if (-not [string]::IsNullOrWhiteSpace($LauncherPath)) {
 if ($resolvedClangPath) {
     $env:KAIN_CLANG_PATH = $resolvedClangPath
     $env:PATH = Set-PathPrefix -PathValue $env:PATH -Prefix (Split-Path -Parent $resolvedClangPath)
-}
-if ($resolvedPythonPath) {
-    $env:PYO3_PYTHON = $resolvedPythonPath
-    $env:PATH = Set-PathPrefix -PathValue $env:PATH -Prefix (Split-Path -Parent $resolvedPythonPath)
 }
 
 Push-Location $repoRoot
@@ -810,16 +865,21 @@ try {
     }
 
     if ($shouldBuild) {
-        & bazel build ("//:" + $BinaryName) ("--config=" + $resolvedConfig)
-        if ($LASTEXITCODE -ne 0) {
-            throw ("bazel build //:" + $BinaryName + " --config=" + $resolvedConfig + " failed with exit code " + $LASTEXITCODE)
+        $buildArgs = @("build", ("//:" + $BinaryName), ("--config=" + $resolvedConfig)) + $bazelPythonEnvArgs
+        $script:LastBazelExitCode = 0
+        Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+            & bazel @buildArgs
+            $script:LastBazelExitCode = $LASTEXITCODE
         }
-        $resolvedBinaryPath = Resolve-BazelBinaryPath -Config $resolvedConfig -Name $BinaryName
+        if ($script:LastBazelExitCode -ne 0) {
+            throw ("bazel build //:" + $BinaryName + " --config=" + $resolvedConfig + " failed with exit code " + $script:LastBazelExitCode)
+        }
+        $resolvedBinaryPath = Resolve-BazelBinaryPath -Config $resolvedConfig -Name $BinaryName -ExtraBazelArgs $bazelPythonEnvArgs
     } elseif ([string]::IsNullOrWhiteSpace($resolvedBinaryPath)) {
         if ($stampedBinaryExists) {
             $resolvedBinaryPath = $stampedBinaryPath
         } else {
-            $resolvedBinaryPath = Resolve-BazelBinaryPath -Config $resolvedConfig -Name $BinaryName
+            $resolvedBinaryPath = Resolve-BazelBinaryPath -Config $resolvedConfig -Name $BinaryName -ExtraBazelArgs $bazelPythonEnvArgs
         }
     }
 

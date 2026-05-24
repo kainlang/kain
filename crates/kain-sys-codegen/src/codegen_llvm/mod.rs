@@ -7,12 +7,14 @@
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
     Attribute, AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, ElseBranch, Expr,
-    InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type, UnaryOp,
+    Import, InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type,
+    UnaryOp,
     VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{
-    ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedItem, TypedProgram,
+    ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedImport, TypedItem,
+    TypedProgram,
 };
 use kain_core::Span;
 use kain_core::{
@@ -60,6 +62,27 @@ struct ConstGlobalInfo {
     is_known_string: bool,
     string_byte_len: Option<usize>,
     string_literal: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+enum PythonImportInitKind {
+    Module {
+        full_module_name: String,
+        bound_module_name: String,
+    },
+    Member {
+        module_name: String,
+        member_name: String,
+    },
+}
+
+#[derive(Clone, Debug)]
+struct PythonImportGlobalInfo {
+    global_symbol: String,
+    init_flag_symbol: String,
+    init_fn_name: String,
+    init_kind: PythonImportInitKind,
+    importer_source_file: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -319,7 +342,53 @@ fn llvm_runtime_declaration_is_preemitted(name: &str) -> bool {
             | "abi_converge_select_lane_for_key"
             | "abi_converge_record_telemetry"
             | "kain_machine_pulse_total_fire_count"
+            | "py_call"
+            | "py_call_raw"
+            | "py_call_args"
+            | "py_call_attr_args"
+            | "py_call_raw_args"
+            | "py_call_raw_attr"
     )
+}
+
+fn python_import_binding_infos(import: &Import) -> Vec<(String, PythonImportInitKind)> {
+    if import.members.is_empty() {
+        let binding_name = import
+            .alias
+            .clone()
+            .or_else(|| import.module_path.first().cloned());
+        let Some(binding_name) = binding_name else {
+            return Vec::new();
+        };
+        let full_module_name = import.module_path.join(".");
+        let bound_module_name = if import.alias.is_none() && import.module_path.len() > 1 {
+            import.module_path[0].clone()
+        } else {
+            full_module_name.clone()
+        };
+        return vec![(
+            binding_name,
+            PythonImportInitKind::Module {
+                full_module_name,
+                bound_module_name,
+            },
+        )];
+    }
+
+    let module_name = import.module_path.join(".");
+    import
+        .members
+        .iter()
+        .map(|member| {
+            (
+                member.alias.clone().unwrap_or_else(|| member.name.clone()),
+                PythonImportInitKind::Member {
+                    module_name: module_name.clone(),
+                    member_name: member.name.clone(),
+                },
+            )
+        })
+        .collect()
 }
 
 fn llvm_orchestrate_trace_enabled() -> bool {
@@ -428,6 +497,9 @@ struct LlvmGenerator {
     /// i64 locals that carry JSON handles/tagged values but only borrow the
     /// ownership from an outer frame or aliasing return path.
     json_passthrough_locals: HashSet<String>,
+    /// i64 locals that already carry native runtime Any / foreign-handle
+    /// values and must not be reboxed as plain integers at the next call site.
+    runtime_any_passthrough_locals: HashSet<String>,
     /// Maps function names to return type
     functions: HashMap<String, String>,
     /// Tracks function parameter LLVM types for call-site lowering.
@@ -438,12 +510,18 @@ struct LlvmGenerator {
     /// Tracks which direct-call parameters expect a JSON value/tagged Any lane
     /// and therefore need JSON-aware boxing at the call site.
     json_value_function_params: HashMap<String, Vec<bool>>,
+    /// Tracks which direct-call parameters expect the generic Any/tagged lane
+    /// used by Python and interop bridges.
+    any_value_function_params: HashMap<String, Vec<bool>>,
     /// Functions whose return lane carries a JSON handle/tagged Any, including
     /// aliasing mutators that forward an existing handle.
     json_carrying_function_returns: HashSet<String>,
     /// Functions whose return lane owns a fresh or cloned JSON handle/tagged
     /// Any and must be released when bound into locals.
     json_owning_function_returns: HashSet<String>,
+    /// Functions whose return lane already carries the runtime Any / foreign
+    /// handle encoding used by Python and native bridge surfaces.
+    runtime_any_function_returns: HashSet<String>,
     /// Authored function names mapped to their emitted LLVM symbol spelling.
     function_symbols: HashMap<String, String>,
     /// Authored function names mapped to their emitted LLVM calling convention.
@@ -481,6 +559,7 @@ struct LlvmGenerator {
     target: &'static LlvmTargetDescriptor,
     world_globals: HashMap<String, WorldGlobalInfo>,
     const_globals: HashMap<String, ConstGlobalInfo>,
+    python_import_globals: HashMap<String, PythonImportGlobalInfo>,
     string_locals: HashSet<String>,
     runtime_array_locals: HashMap<String, String>,
     runtime_array_function_returns: HashMap<String, String>,
@@ -539,6 +618,7 @@ struct LlvmFunctionState {
     borrowed_locals: HashSet<String>,
     json_handle_locals: HashSet<String>,
     json_passthrough_locals: HashSet<String>,
+    runtime_any_passthrough_locals: HashSet<String>,
     loop_stack: Vec<(String, String)>,
     scopes: Vec<Vec<String>>,
     current_block: String,
@@ -583,12 +663,15 @@ impl LlvmGenerator {
             borrowed_locals: HashSet::new(),
             json_handle_locals: HashSet::new(),
             json_passthrough_locals: HashSet::new(),
+            runtime_any_passthrough_locals: HashSet::new(),
             functions: HashMap::new(),
             function_params: HashMap::new(),
             string_function_params: HashMap::new(),
             json_value_function_params: HashMap::new(),
+            any_value_function_params: HashMap::new(),
             json_carrying_function_returns: HashSet::new(),
             json_owning_function_returns: HashSet::new(),
+            runtime_any_function_returns: HashSet::new(),
             function_symbols: HashMap::new(),
             function_calling_conventions: HashMap::new(),
             extern_functions: HashSet::new(),
@@ -612,6 +695,7 @@ impl LlvmGenerator {
             target: resolve_host_llvm_target_descriptor(),
             world_globals: HashMap::new(),
             const_globals: HashMap::new(),
+            python_import_globals: HashMap::new(),
             string_locals: HashSet::new(),
             runtime_array_locals: HashMap::new(),
             runtime_array_function_returns: HashMap::new(),
@@ -655,6 +739,7 @@ impl LlvmGenerator {
             borrowed_locals: self.borrowed_locals.clone(),
             json_handle_locals: self.json_handle_locals.clone(),
             json_passthrough_locals: self.json_passthrough_locals.clone(),
+            runtime_any_passthrough_locals: self.runtime_any_passthrough_locals.clone(),
             loop_stack: self.loop_stack.clone(),
             scopes: self.scopes.clone(),
             current_block: self.current_block.clone(),
@@ -696,6 +781,7 @@ impl LlvmGenerator {
         self.borrowed_locals = state.borrowed_locals;
         self.json_handle_locals = state.json_handle_locals;
         self.json_passthrough_locals = state.json_passthrough_locals;
+        self.runtime_any_passthrough_locals = state.runtime_any_passthrough_locals;
         self.loop_stack = state.loop_stack;
         self.scopes = state.scopes;
         self.current_block = state.current_block;
@@ -736,6 +822,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.loop_stack.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
@@ -1864,6 +1951,10 @@ impl LlvmGenerator {
         matches!(ty, Type::Named { name, .. } if name == "JsonValue")
     }
 
+    fn ast_type_is_runtime_any_value(ty: &Type) -> bool {
+        matches!(ty, Type::Named { name, .. } if name == "Any")
+    }
+
     fn ast_type_is_json_handle_like(ty: &Type) -> bool {
         matches!(
             ty,
@@ -1901,8 +1992,17 @@ impl LlvmGenerator {
         self.json_passthrough_locals.remove(name);
     }
 
+    fn clear_runtime_any_local_tracking(&mut self, name: &str) {
+        self.runtime_any_passthrough_locals.remove(name);
+    }
+
     fn local_carries_json_value(&self, name: &str) -> bool {
         self.json_handle_locals.contains(name) || self.json_passthrough_locals.contains(name)
+    }
+
+    fn local_carries_runtime_any_value(&self, name: &str) -> bool {
+        self.runtime_any_passthrough_locals.contains(name)
+            || self.python_import_globals.contains_key(name)
     }
 
     fn call_carries_json_value(&self, name: &str) -> bool {
@@ -1919,6 +2019,41 @@ impl LlvmGenerator {
         ) || self.json_owning_function_returns.contains(name)
     }
 
+    fn call_carries_runtime_any_value(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "py_import"
+                | "py_import_with_context"
+                | "py_import_from_with_context"
+                | "py_call"
+                | "py_call_raw"
+                | "py_getattr"
+                | "py_getattr_raw"
+                | "kain_tensor_from_py"
+                | "kain_tensor_from_py_shared"
+                | "kain_tensor_from_py_owned"
+                | "kain_tensor_info"
+                | "kain_tensor_get"
+                | "kain_tensor_to_py"
+                | "kain_image_from_py"
+                | "kain_image_from_py_shared"
+                | "kain_image_from_py_owned"
+                | "kain_image_info"
+                | "kain_image_pixel"
+                | "kain_image_to_py"
+                | "kain_geometry_from_py"
+                | "kain_geometry_from_py_shared"
+                | "kain_geometry_from_py_owned"
+                | "kain_geometry_info"
+                | "kain_geometry_vertex"
+                | "kain_geometry_face"
+                | "kain_geometry_to_py"
+                | "kain_shared_buffer_from_py"
+                | "kain_shared_image_from_py"
+        ) || self.runtime_any_function_returns.contains(name)
+            || self.python_import_globals.contains_key(name)
+    }
+
     fn expr_carries_json_value(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Ident(name, _) => self.local_carries_json_value(name),
@@ -1929,6 +2064,22 @@ impl LlvmGenerator {
             Expr::Call { callee, .. } => matches!(
                 callee.as_ref(),
                 Expr::Ident(name, _) if self.call_carries_json_value(name)
+            ),
+            _ => false,
+        }
+    }
+
+    fn expr_carries_runtime_any_value(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Ident(name, _) => self.local_carries_runtime_any_value(name),
+            Expr::Paren(inner, _) => self.expr_carries_runtime_any_value(inner),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.expr_carries_runtime_any_value(value)
+            }
+            Expr::Field { object, .. } => self.expr_carries_runtime_any_value(object),
+            Expr::Call { callee, .. } => matches!(
+                callee.as_ref(),
+                Expr::Ident(name, _) if self.call_carries_runtime_any_value(name)
             ),
             _ => false,
         }
@@ -1958,6 +2109,14 @@ impl LlvmGenerator {
             self.json_passthrough_locals.insert(name.to_string());
         } else {
             self.clear_json_local_tracking(name);
+        }
+    }
+
+    fn record_runtime_any_local_tracking_from_expr(&mut self, name: &str, expr: &Expr) {
+        if self.expr_carries_runtime_any_value(expr) {
+            self.runtime_any_passthrough_locals.insert(name.to_string());
+        } else {
+            self.clear_runtime_any_local_tracking(name);
         }
     }
 
@@ -5297,6 +5456,11 @@ impl LlvmGenerator {
     ) -> KainResult<(String, String)> {
         let (value, value_ty) = self.compile_expr(expr)?;
         match value_ty.as_str() {
+            "i64" if self.expr_carries_json_value(expr) || self.expr_carries_runtime_any_value(expr) => {
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call i64 @to_int(i64 {})", result, value));
+                Ok((result, "i64".to_string()))
+            }
             "i64" => Ok((value, "i64".to_string())),
             "i32" | "i8" | "i1" | "double" => {
                 let cast = self.cast_numeric_value(value, &value_ty, "i64")?;
@@ -5312,6 +5476,39 @@ impl LlvmGenerator {
             }
             _ => Err(KainError::codegen(
                 format!("to_int cannot lower values of type {}", value_ty),
+                span,
+            )),
+        }
+    }
+
+    fn compile_to_float_builtin(
+        &mut self,
+        expr: &Expr,
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        let (value, value_ty) = self.compile_expr(expr)?;
+        match value_ty.as_str() {
+            "double" => Ok((value, "double".to_string())),
+            "i64" if self.expr_carries_json_value(expr) || self.expr_carries_runtime_any_value(expr) => {
+                let result = self.next_reg();
+                self.emit(&format!("  {} = call double @to_float(i64 {})", result, value));
+                Ok((result, "double".to_string()))
+            }
+            "i64" | "i32" | "i8" | "i1" => {
+                let cast = self.cast_numeric_value(value, &value_ty, "double")?;
+                Ok((cast, "double".to_string()))
+            }
+            "i8*" => {
+                let parsed = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @kain_parse_i64_string(i8* {})",
+                    parsed, value
+                ));
+                let cast = self.cast_numeric_value(parsed, "i64", "double")?;
+                Ok((cast, "double".to_string()))
+            }
+            _ => Err(KainError::codegen(
+                format!("to_float cannot lower values of type {}", value_ty),
                 span,
             )),
         }
@@ -8794,6 +8991,157 @@ impl LlvmGenerator {
         Ok(any)
     }
 
+    fn compile_runtime_any_argument(&mut self, expr: &Expr) -> KainResult<JsonAnyArgument> {
+        match expr {
+            Expr::Array(items, _) => {
+                let array_handle = self.next_reg();
+                self.emit(&format!("  {} = call i64 @json_array_new()", array_handle));
+                for item in items {
+                    let value_any = self.compile_runtime_any_argument(item)?;
+                    self.emit(&format!(
+                        "  call void @json_array_push(i64 {}, i64 {})",
+                        array_handle, value_any.value
+                    ));
+                    if value_any.release_after_call {
+                        self.emit(&format!("  call void @json_release(i64 {})", value_any.value));
+                    }
+                }
+                return Ok(JsonAnyArgument {
+                    value: array_handle,
+                    release_after_call: true,
+                });
+            }
+            Expr::Tuple(items, _) => {
+                let array_handle = self.next_reg();
+                self.emit(&format!("  {} = call i64 @json_array_new()", array_handle));
+                for item in items {
+                    let value_any = self.compile_runtime_any_argument(item)?;
+                    self.emit(&format!(
+                        "  call void @json_array_push(i64 {}, i64 {})",
+                        array_handle, value_any.value
+                    ));
+                    if value_any.release_after_call {
+                        self.emit(&format!("  call void @json_release(i64 {})", value_any.value));
+                    }
+                }
+                return Ok(JsonAnyArgument {
+                    value: array_handle,
+                    release_after_call: true,
+                });
+            }
+            Expr::Paren(inner, _) => return self.compile_runtime_any_argument(inner),
+            _ => {}
+        }
+
+        if self.expr_carries_json_value(expr) || self.expr_carries_runtime_any_value(expr) {
+            let (value, ty) = self.compile_expr(expr)?;
+            return Ok(JsonAnyArgument {
+                value: self.coerce_to_i64_storage(&value, &ty),
+                release_after_call: false,
+            });
+        }
+        self.compile_json_any_argument(expr)
+    }
+
+    fn compile_python_bridge_vararg_call(
+        &mut self,
+        func_name: &str,
+        args: &[kain_core::ast::CallArg],
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        if args.len() < 2 || args.len() > 4 {
+            return Err(KainError::codegen(
+                format!("{func_name} expects 2 to 4 arguments"),
+                span,
+            ));
+        }
+
+        let mut compiled_args = Vec::with_capacity(args.len());
+        let mut release_after_call = Vec::new();
+        for arg in args {
+            let any = self.compile_runtime_any_argument(&arg.value)?;
+            if any.release_after_call {
+                release_after_call.push(any.value.clone());
+            }
+            compiled_args.push(any.value);
+        }
+
+        let null_any = JSON_ANY_TAG_NULL_LLVM.to_string();
+        let (helper_name, helper_args): (&str, Vec<String>) = match func_name {
+            "py_call_raw" => match compiled_args.as_slice() {
+                [target, positional] => (
+                    "py_call_raw_args",
+                    vec![target.clone(), positional.clone()],
+                ),
+                [target, attr, positional] => (
+                    "py_call_raw_attr",
+                    vec![target.clone(), attr.clone(), positional.clone()],
+                ),
+                _ => {
+                    return Err(KainError::codegen(
+                        "py_call_raw expects (target, args) or (target, attr, args)",
+                        span,
+                    ))
+                }
+            },
+            "py_call" => match compiled_args.as_slice() {
+                [target, positional] => (
+                    "py_call_args",
+                    vec![target.clone(), positional.clone(), null_any.clone()],
+                ),
+                [target, second, third] => {
+                    if self.expr_is_known_string(&args[1].value) {
+                        (
+                            "py_call_attr_args",
+                            vec![
+                                target.clone(),
+                                second.clone(),
+                                third.clone(),
+                                null_any.clone(),
+                            ],
+                        )
+                    } else {
+                        (
+                            "py_call_args",
+                            vec![target.clone(), second.clone(), third.clone()],
+                        )
+                    }
+                }
+                [target, attr, positional, kwargs] => (
+                    "py_call_attr_args",
+                    vec![
+                        target.clone(),
+                        attr.clone(),
+                        positional.clone(),
+                        kwargs.clone(),
+                    ],
+                ),
+                _ => {
+                    return Err(KainError::codegen(
+                        "py_call expects (target, args), (target, args, kwargs), (target, attr, args), or (target, attr, args, kwargs)",
+                        span,
+                    ))
+                }
+            },
+            _ => unreachable!("python bridge vararg helper only handles py_call lanes"),
+        };
+
+        let result = self.next_reg();
+        let arg_str = helper_args
+            .iter()
+            .map(|value| format!("i64 {}", value))
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.emit(&format!(
+            "  {} = call i64 @{}({})",
+            result, helper_name, arg_str
+        ));
+        for value in release_after_call {
+            self.emit(&format!("  call void @json_release(i64 {})", value));
+        }
+        Ok((result, "i64".to_string()))
+    }
+
     fn compile_json_builtin_call(
         &mut self,
         func_name: &str,
@@ -10137,6 +10485,9 @@ impl LlvmGenerator {
                 } else if let Some(info) = self.const_globals.get(name).cloned() {
                     self.emit_const_init_call_if_needed(&info);
                     Ok((info.global_symbol, info.ty))
+                } else if let Some(info) = self.python_import_globals.get(name).cloned() {
+                    self.emit_python_import_init_call_if_needed(&info);
+                    Ok((info.global_symbol, "i64".to_string()))
                 } else {
                     Err(KainError::codegen(
                         format!("Undefined variable: {}", name),
@@ -11353,8 +11704,15 @@ impl LlvmGenerator {
         self.function_params.insert(
             name.to_string(),
             params
-                .into_iter()
-                .map(|param| self.map_type(&param))
+                .iter()
+                .map(|param| self.map_type(param))
+                .collect(),
+        );
+        self.any_value_function_params.insert(
+            name.to_string(),
+            params
+                .iter()
+                .map(|param| matches!(param, ResolvedType::Unknown))
                 .collect(),
         );
         Ok(())
@@ -11410,6 +11768,13 @@ impl LlvmGenerator {
                             .map(|param| Self::ast_type_is_json_value(&param.ty))
                             .collect(),
                     );
+                    self.any_value_function_params.insert(
+                        func.ast.name.clone(),
+                        resolved_params
+                            .iter()
+                            .map(|param| matches!(param, ResolvedType::Unknown))
+                            .collect(),
+                    );
                     if func
                         .ast
                         .return_type
@@ -11427,6 +11792,17 @@ impl LlvmGenerator {
                     } else {
                         self.json_carrying_function_returns.remove(&func.ast.name);
                         self.json_owning_function_returns.remove(&func.ast.name);
+                    }
+                    if func
+                        .ast
+                        .return_type
+                        .as_ref()
+                        .is_some_and(Self::ast_type_is_runtime_any_value)
+                    {
+                        self.runtime_any_function_returns
+                            .insert(func.ast.name.clone());
+                    } else {
+                        self.runtime_any_function_returns.remove(&func.ast.name);
                     }
                     self.function_symbols.insert(
                         func.ast.name.clone(),
@@ -11679,6 +12055,7 @@ impl LlvmGenerator {
                 TypedItem::Impl(imp) => self.compile_impl(imp)?,
                 TypedItem::Actor(actor) => self.compile_actor(actor)?,
                 TypedItem::Const(constant) => self.compile_const_initializer(constant)?,
+                TypedItem::Import(import) => self.compile_python_import_initializer(import)?,
                 TypedItem::Mod(module) => self.compile_typed_items(&module.items)?,
                 _ => {}
             }
@@ -11870,6 +12247,55 @@ impl LlvmGenerator {
         self.const_globals.insert(name.clone(), info);
     }
 
+    fn register_python_import_global(
+        &mut self,
+        binding_name: &str,
+        init_kind: PythonImportInitKind,
+        importer_source_file: Option<String>,
+    ) {
+        let symbol_fragment = Self::sanitize_symbol_fragment(binding_name);
+        let info = PythonImportGlobalInfo {
+            global_symbol: format!("@__kain_py_import_{}", symbol_fragment),
+            init_flag_symbol: format!("@__kain_py_import_init_flag_{}", symbol_fragment),
+            init_fn_name: format!("__kain_init_py_import_{}", symbol_fragment),
+            init_kind,
+            importer_source_file,
+        };
+        self.emit(&format!("{} = internal global i64 0", info.global_symbol));
+        self.emit(&format!("{} = internal global i1 0", info.init_flag_symbol));
+        self.python_import_globals
+            .insert(binding_name.to_string(), info);
+    }
+
+    fn register_python_import_globals(&mut self, items: &[TypedItem]) {
+        if self.register_python_import_globals_recursive(items) {
+            self.emit("");
+        }
+    }
+
+    fn register_python_import_globals_recursive(&mut self, items: &[TypedItem]) -> bool {
+        let mut saw_import = false;
+        for item in items {
+            match item {
+                TypedItem::Import(import) => {
+                    for (binding_name, init_kind) in python_import_binding_infos(&import.ast) {
+                        self.register_python_import_global(
+                            &binding_name,
+                            init_kind,
+                            import.ast.source_file.clone(),
+                        );
+                        saw_import = true;
+                    }
+                }
+                TypedItem::Mod(module) => {
+                    saw_import |= self.register_python_import_globals_recursive(&module.items);
+                }
+                _ => {}
+            }
+        }
+        saw_import
+    }
+
     fn register_const_globals(&mut self, items: &[TypedItem]) {
         if self.register_const_globals_recursive(items) {
             self.emit("");
@@ -11915,6 +12341,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12001,6 +12428,160 @@ impl LlvmGenerator {
         (loaded, info.ty.clone())
     }
 
+    fn compile_python_import_context_ptr(&mut self, importer_source_file: Option<&str>) -> String {
+        importer_source_file
+            .map(|path| self.compile_static_c_string_literal(path))
+            .unwrap_or_else(|| "null".to_string())
+    }
+
+    fn compile_python_import_runtime_call(
+        &mut self,
+        init_kind: &PythonImportInitKind,
+        importer_source_file: Option<&str>,
+    ) -> String {
+        let importer_file = self.compile_python_import_context_ptr(importer_source_file);
+        match init_kind {
+            PythonImportInitKind::Module {
+                full_module_name,
+                bound_module_name,
+            } => {
+                if full_module_name != bound_module_name {
+                    let full_module = self.compile_static_c_string_literal(full_module_name);
+                    let warm_reg = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = call i64 @py_import_with_context(i8* {}, i8* {})",
+                        warm_reg, full_module, importer_file
+                    ));
+                }
+                let module_name = self.compile_static_c_string_literal(bound_module_name);
+                let loaded = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @py_import_with_context(i8* {}, i8* {})",
+                    loaded, module_name, importer_file
+                ));
+                loaded
+            }
+            PythonImportInitKind::Member {
+                module_name,
+                member_name,
+            } => {
+                let module_name = self.compile_static_c_string_literal(module_name);
+                let member_name = self.compile_static_c_string_literal(member_name);
+                let loaded = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @py_import_from_with_context(i8* {}, i8* {}, i8* {})",
+                    loaded, module_name, member_name, importer_file
+                ));
+                loaded
+            }
+        }
+    }
+
+    fn compile_python_import_initializer(&mut self, import: &TypedImport) -> KainResult<()> {
+        for (binding_name, _) in python_import_binding_infos(&import.ast) {
+            let Some(info) = self.python_import_globals.get(&binding_name).cloned() else {
+                return Err(KainError::codegen(
+                    format!("Missing LLVM python import registration for {}", binding_name),
+                    import.ast.span,
+                ));
+            };
+
+            self.reg_count = 0;
+            self.locals.clear();
+            self.authored_pointer_locals.clear();
+            self.helper_owned_pointer_locals.clear();
+            self.shattered_array_locals.clear();
+            self.fixed_array_locals.clear();
+            self.sealed_literal_map_locals.clear();
+            self.borrowed_locals.clear();
+            self.json_handle_locals.clear();
+            self.json_passthrough_locals.clear();
+            self.runtime_any_passthrough_locals.clear();
+            self.string_locals.clear();
+            self.runtime_array_locals.clear();
+            self.string_length_values.clear();
+            self.pooled_string_literal_slots.clear();
+            self.scopes.clear();
+            self.const_init_blocks.clear();
+            self.entry_alloca_insert_offset = None;
+            self.entry_preamble_insert_offset = None;
+            self.entry_hoisted_const_inits.clear();
+            self.current_return_type = Some("void".to_string());
+
+            self.emit(&format!("define void @{}() {{", info.init_fn_name));
+            self.emit_label("entry");
+
+            let initialized = self.next_reg();
+            self.emit(&format!(
+                "  {} = load i1, i1* {}",
+                initialized, info.init_flag_symbol
+            ));
+
+            let init_block = self.next_label();
+            let already_init_block = self.next_label();
+            self.emit(&format!(
+                "  br i1 {}, label %{}, label %{}",
+                initialized, already_init_block, init_block
+            ));
+
+            self.emit_label(&init_block);
+            let loaded = self.compile_python_import_runtime_call(
+                &info.init_kind,
+                info.importer_source_file.as_deref(),
+            );
+            self.emit(&format!(
+                "  store i64 {}, i64* {}",
+                loaded, info.global_symbol
+            ));
+            self.emit(&format!("  store i1 1, i1* {}", info.init_flag_symbol));
+            self.emit(&format!("  br label %{}", already_init_block));
+
+            self.emit_label(&already_init_block);
+            self.emit("  ret void");
+            self.emit("}");
+            self.emit("");
+            self.current_return_type = None;
+            self.entry_alloca_insert_offset = None;
+        }
+
+        Ok(())
+    }
+
+    fn emit_python_import_init_call_if_needed(&mut self, info: &PythonImportGlobalInfo) {
+        if self.entry_preamble_insert_offset.is_some() {
+            if self
+                .entry_hoisted_const_inits
+                .insert(info.global_symbol.clone())
+            {
+                self.emit_entry_preamble_line(&format!("call void @{}()", info.init_fn_name));
+            }
+            self.const_init_blocks
+                .insert(info.global_symbol.clone(), "__entry_preamble".to_string());
+            return;
+        }
+        if self
+            .const_init_blocks
+            .get(&info.global_symbol)
+            .map(|block| block == &self.current_block)
+            .unwrap_or(false)
+        {
+            return;
+        }
+        self.emit(&format!("  call void @{}()", info.init_fn_name));
+        self.const_init_blocks
+            .insert(info.global_symbol.clone(), self.current_block.clone());
+    }
+
+    fn compile_python_import_load(&mut self, info: &PythonImportGlobalInfo) -> (String, String) {
+        self.emit_python_import_init_call_if_needed(info);
+        let loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load i64, i64* {}",
+            loaded, info.global_symbol
+        ));
+        (loaded, "i64".to_string())
+    }
+
     fn compile_module(&mut self, program: &TypedProgram) -> KainResult<()> {
         // 1. Emit Header
         self.emit("; ModuleID = 'KAIN'");
@@ -12025,6 +12606,7 @@ impl LlvmGenerator {
         // 2a. Pre-scan Structs and other type definitions, including nested modules.
         self.register_type_definitions_recursive(&program.items)?;
 
+        self.register_python_import_globals(&program.items);
         self.register_const_globals(&program.items);
 
         // 2b. Pre-scan functions to register return types.
@@ -12039,6 +12621,27 @@ impl LlvmGenerator {
                 self.runtime_array_function_returns
                     .insert(name.clone(), element_ty);
             }
+            self.function_params.insert(
+                name.clone(),
+                func.params
+                    .iter()
+                    .map(|(_, param_ty)| self.map_type_from_str(param_ty))
+                    .collect(),
+            );
+            self.string_function_params.insert(
+                name.clone(),
+                func.params
+                    .iter()
+                    .map(|(_, param_ty)| matches!(*param_ty, "String" | "str"))
+                    .collect(),
+            );
+            self.any_value_function_params.insert(
+                name.clone(),
+                func.params
+                    .iter()
+                    .map(|(_, param_ty)| *param_ty == "Any")
+                    .collect(),
+            );
             self.functions.insert(name, ret_ty);
         }
 
@@ -12100,6 +12703,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12375,6 +12979,7 @@ impl LlvmGenerator {
         self.emit("declare void @print_bool(i1)");
         self.emit("declare void @print_str(i8*, i64)");
         self.emit("declare i8* @to_string(i64)");
+        self.emit("declare i8* @to_string_any(i64)");
         self.emit("declare i8* @str_concat(i8*, i8*)");
         self.emit("declare i8* @str_concat3(i8*, i8*, i8*)");
         self.emit("declare i8* @str_concat4(i8*, i8*, i8*, i8*)");
@@ -12393,6 +12998,12 @@ impl LlvmGenerator {
         self.emit("declare i64 @json_box_float(double)");
         self.emit("declare void @json_retain(i64)");
         self.emit("declare void @json_release(i64)");
+        self.emit("declare i64 @py_import_with_context(i8*, i8*)");
+        self.emit("declare i64 @py_import_from_with_context(i8*, i8*, i8*)");
+        self.emit("declare i64 @py_call_args(i64, i64, i64)");
+        self.emit("declare i64 @py_call_attr_args(i64, i64, i64, i64)");
+        self.emit("declare i64 @py_call_raw_args(i64, i64)");
+        self.emit("declare i64 @py_call_raw_attr(i64, i64, i64)");
         self.emit("declare void @map_set_static_prehashed(i64, i8*, i64, i64, i64, i64)");
         self.emit("declare i64 @map_get_prehashed(i64, i8*, i64, i64, i64)");
         self.emit("declare i64 @find_substring_from_known_lengths(i8*, i64, i8*, i64, i64)");
@@ -12628,6 +13239,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12722,6 +13334,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12922,6 +13535,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13085,6 +13699,10 @@ impl LlvmGenerator {
             if Self::ast_type_is_json_handle_like(&param.ty) {
                 self.json_passthrough_locals.insert(param.name.clone());
             }
+            if Self::ast_type_is_runtime_any_value(&param.ty) {
+                self.runtime_any_passthrough_locals
+                    .insert(param.name.clone());
+            }
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
             }
@@ -13184,6 +13802,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13242,6 +13861,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13290,6 +13910,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13419,6 +14040,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13668,6 +14290,7 @@ impl LlvmGenerator {
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
         self.json_passthrough_locals.clear();
+        self.runtime_any_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -14547,6 +15170,7 @@ impl LlvmGenerator {
                             .or_else(|| self.runtime_array_expr_element_llvm_ty(val_expr));
                         self.record_runtime_array_local_element_ty(name, runtime_array_element_ty);
                         self.record_json_local_tracking_from_expr(name, val_expr);
+                        self.record_runtime_any_local_tracking_from_expr(name, val_expr);
                         self.record_helper_owned_pointer_local(name, local_pointer_provenance);
                         self.fixed_array_locals.remove(name);
                         if let Some(struct_name) = self.shattered_array_expr_struct_name(val_expr) {
@@ -15095,6 +15719,14 @@ impl LlvmGenerator {
         func_name: &str,
         args: &[kain_core::ast::CallArg],
     ) -> KainResult<(String, String)> {
+        if matches!(func_name, "py_call" | "py_call_raw") {
+            let span = args
+                .first()
+                .map(|arg| arg.value.span())
+                .unwrap_or_else(Span::default);
+            return self.compile_python_bridge_vararg_call(func_name, args, span);
+        }
+
         if args.len() == 1 {
             let constructor_target_ty = match func_name {
                 "Int" | "i64" => Some("i64"),
@@ -15214,6 +15846,10 @@ impl LlvmGenerator {
             return self.compile_to_int_builtin(&args[0].value, args[0].value.span());
         }
 
+        if func_name == "to_float" && args.len() == 1 {
+            return self.compile_to_float_builtin(&args[0].value, args[0].value.span());
+        }
+
         if func_name == "find_substring_from" && args.len() == 3 {
             if let Some(result) = self.compile_find_substring_from_fast_path(
                 &args[0].value,
@@ -15258,6 +15894,7 @@ impl LlvmGenerator {
         let param_types = self.function_params.get(func_name).cloned();
         let borrowed_string_params = self.string_function_params.get(func_name).cloned();
         let json_value_params = self.json_value_function_params.get(func_name).cloned();
+        let any_value_params = self.any_value_function_params.get(func_name).cloned();
         let mut json_release_after_call = Vec::new();
 
         for (index, arg) in args.iter().enumerate() {
@@ -15281,6 +15918,11 @@ impl LlvmGenerator {
                 .and_then(|flags| flags.get(index))
                 .copied()
                 .unwrap_or(false);
+            let expects_any_value = any_value_params
+                .as_ref()
+                .and_then(|flags| flags.get(index))
+                .copied()
+                .unwrap_or(false);
 
             if is_extern && param_ty == "void" {
                 continue;
@@ -15289,6 +15931,16 @@ impl LlvmGenerator {
             if expects_json_value {
                 // Proof: crates/kain-sys-codegen/z3/proofs/json_any_tag_partition.smt2
                 let value_any = self.compile_json_any_argument(&arg.value)?;
+                compiled_args.push(value_any.value.clone());
+                arg_types.push("i64".to_string());
+                if value_any.release_after_call {
+                    json_release_after_call.push(value_any.value);
+                }
+                continue;
+            }
+
+            if expects_any_value {
+                let value_any = self.compile_runtime_any_argument(&arg.value)?;
                 compiled_args.push(value_any.value.clone());
                 arg_types.push("i64".to_string());
                 if value_any.release_after_call {
@@ -15983,6 +16635,16 @@ impl LlvmGenerator {
                 field,
                 span,
             } => {
+                let (object_value, object_ty) = self.compile_expr(object)?;
+                if object_ty == "i64" {
+                    let field_name = self.compile_expr(&Expr::String(field.clone(), *span))?;
+                    let loaded = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = call i64 @py_getattr_raw(i64 {}, i8* {})",
+                        loaded, object_value, field_name.0
+                    ));
+                    return Ok((loaded, "i64".to_string()));
+                }
                 let (field_ptr, field_ty, _, is_mmio_volatile) =
                     self.compile_field_addressable_ptr(object, field, *span)?;
                 let loaded = self.next_reg();
@@ -16008,6 +16670,7 @@ impl LlvmGenerator {
                         let was_borrowed_local = self.borrowed_locals.remove(name);
                         let was_owned_json_local = self.json_handle_locals.remove(name);
                         self.json_passthrough_locals.remove(name);
+                        self.runtime_any_passthrough_locals.remove(name);
                         if ty == "i8*" {
                             if self.expr_needs_rc_retain(value) {
                                 self.emit_rc_retain_if_heap_i8(&rhs);
@@ -16032,6 +16695,7 @@ impl LlvmGenerator {
                             self.ownership_pointer_provenance_for_expr(value),
                         );
                         self.record_json_local_tracking_from_expr(name, value);
+                        self.record_runtime_any_local_tracking_from_expr(name, value);
                         Ok((rhs, rhs_ty))
                     } else {
                         Err(KainError::codegen(
@@ -16817,6 +17481,8 @@ impl LlvmGenerator {
                     Ok((reg, ty))
                 } else if let Some(info) = self.const_globals.get(name).cloned() {
                     Ok(self.compile_const_load(&info))
+                } else if let Some(info) = self.python_import_globals.get(name).cloned() {
+                    Ok(self.compile_python_import_load(&info))
                 } else if let Some(world_info) = self.world_globals.get(name).cloned() {
                     self.emit(&format!("  call void @{}()", world_info.init_fn_name));
                     Ok((world_info.global_symbol.clone(), format!("%{}*", name)))
@@ -17075,6 +17741,30 @@ impl LlvmGenerator {
 
                 let (obj_val, obj_ty) = self.compile_expr(receiver)?;
 
+                if obj_ty == "i64" {
+                    let attr_any = self.compile_runtime_any_argument(&Expr::String(
+                        method.clone(),
+                        *span,
+                    ))?;
+                    let arg_values = Expr::Array(
+                        args.iter().map(|arg| arg.value.clone()).collect(),
+                        *span,
+                    );
+                    let args_any = self.compile_runtime_any_argument(&arg_values)?;
+                    let result = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = call i64 @py_call_raw_attr(i64 {}, i64 {}, i64 {})",
+                        result, obj_val, attr_any.value, args_any.value
+                    ));
+                    if attr_any.release_after_call {
+                        self.emit(&format!("  call void @json_release(i64 {})", attr_any.value));
+                    }
+                    if args_any.release_after_call {
+                        self.emit(&format!("  call void @json_release(i64 {})", args_any.value));
+                    }
+                    return Ok((result, "i64".to_string()));
+                }
+
                 // 1. Struct Methods: Call Struct_method(obj, args...)
                 if obj_ty == "i8*" {
                     match method.as_str() {
@@ -17271,6 +17961,18 @@ impl LlvmGenerator {
                 // Handle print intrinsic
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if (name == "to_string" || name == "str") && args.len() == 1 {
+                        if self.expr_carries_json_value(&args[0].value)
+                            || self.expr_carries_runtime_any_value(&args[0].value)
+                        {
+                            let (value, value_ty) = self.compile_expr(&args[0].value)?;
+                            let value_i64 = self.coerce_to_i64_storage(&value, &value_ty);
+                            let result = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = call i8* @to_string_any(i64 {})",
+                                result, value_i64
+                            ));
+                            return Ok((result, "i8*".to_string()));
+                        }
                         let (val, ty) = self.compile_expr(&args[0].value)?;
                         return self.stringify_value(&val, &ty);
                     }
@@ -17287,6 +17989,33 @@ impl LlvmGenerator {
 
                     if name == "print" || name == "println" {
                         return self.compile_stdout_write_call(name, args, *span);
+                    }
+                }
+
+                let imported_python_callable = matches!(
+                    callee.as_ref(),
+                    Expr::Ident(name, _) if self.python_import_globals.contains_key(name)
+                );
+                if imported_python_callable {
+                    let (callable, callable_ty) = self.compile_expr(callee)?;
+                    if callable_ty == "i64" {
+                        let arg_values = Expr::Array(
+                            args.iter().map(|arg| arg.value.clone()).collect(),
+                            *span,
+                        );
+                        let args_any = self.compile_runtime_any_argument(&arg_values)?;
+                        let result = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i64 @py_call_raw_args(i64 {}, i64 {})",
+                            result, callable, args_any.value
+                        ));
+                        if args_any.release_after_call {
+                            self.emit(&format!(
+                                "  call void @json_release(i64 {})",
+                                args_any.value
+                            ));
+                        }
+                        return Ok((result, "i64".to_string()));
                     }
                 }
 
