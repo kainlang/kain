@@ -1,5 +1,31 @@
 # Kain Memory
 
+# 2026-05-24 - Unified Interactive Keyword Encyclopedia Pack Upgrade
+
+Delivered a complete, zero-gap reference guide covering 100% of the active Kain-Lang keywords (94 in total, excluding the `ue5` compatibility blacklist) listed in `CATALOG.md`. The expansion consists of 4 highly structured, unified interactive "Mega Guides" containing dynamic keyword drawers, ELI5 analogies, senior-level systems specification summaries, and dedicated compilation or lattice simulation viewports.
+
+What changed:
+
+- `website/public/docs/manifest.json`
+  - Registered 4 comprehensive lexicon guides under the `core-semantics` category: `core_grammar.html`, `concurrency_effects.html`, `silicon_gpu.html`, and `entangled_lattices.html`.
+- `website/public/docs/core_grammar.html`
+  - Created a core syntax lexicon covering variables, bindings, loops, and types (`let`, `mut`, `const`, `fn`, `if`, `elif`, `else`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `await`, `in`, `with`, `as`, `and`, `or`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`).
+  - Embedded an interactive **Lexer Token Flow** simulator streaming code snippets through active `TokenKind` states.
+- `website/public/docs/concurrency_effects.html`
+  - Created a concurrent runtime lexicon covering mailboxes and Koka-style algebraic effect lattices (`actor`, `spawn`, `send`, `receive`, `emit`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `on`, `weak`, `single_writer`).
+  - Embedded an interactive **Effect Lattice Flow** simulator demonstrating pipeline data streams passing through static safety locks under target annotations.
+- `website/public/docs/silicon_gpu.html`
+  - Created a shader compile manual covering GPU compute lanes and compile-time evaluations (`shader`, `comptime`, `macro`, `vertex`, `fragment`, `compute`, `uniform`, `render`).
+  - Embedded an interactive **Comptime Shader Compiler** rendering procedural raster arrays under sliding workgroup inputs.
+- `website/public/docs/entangled_lattices.html`
+  - Created a global partition manual covering single-writer entanglements and pulse replication routes (`patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `from`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`).
+  - Embedded an interactive **Lattice Replication Grid** charting network synchronize pulses across Authority and Mirror boundaries.
+
+Durable lessons:
+
+- Grouping extensive lexicons into category-based "drawer encyclopedias" provides 100% complete syntax coverage while maintaining an extremely compact, readable, and premium explorer layout.
+- Designing dynamic browser-side selectors utilizing JSON records bound to IIFE closures ensures high-fidelity educational content that scales with language additions.
+
 # 2026-05-24 - Core Semantics Pack & Beginner Keyword Guides Upgrade
 
 Expanded the interactive documentation suite with a comprehensive pack of 6 beginner-friendly, highly interactive developer guides targeted at teaching Kain's foundational keyword grammar (`world`, `entangle`, `converge`, `component`, `orchestrate`, and `systems`). Each guide combines simple analogies (Explain-Like-I'm-5) with high-fidelity, senior-level systems specifications, backed by fully responsive canvas-based simulators.
