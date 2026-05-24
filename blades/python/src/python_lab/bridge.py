@@ -85,6 +85,13 @@ def make_torch_grid(plan_text: str, salt: int) -> torch.Tensor:
     return (base * scale) + float(salt)
 
 
+def make_numpy_byte_grid(plan_text: str, salt: int) -> np.ndarray:
+    rows, cols = grid_shape(plan_text)
+    total = rows * cols
+    base = np.arange(total, dtype=np.uint8).reshape(rows, cols)
+    return np.ascontiguousarray(base + np.uint8(int(salt) % 251))
+
+
 def tensor_signature(values: Any) -> int:
     if isinstance(values, torch.Tensor):
         return int(round(float(values.detach().cpu().sum().item())))
@@ -207,6 +214,17 @@ def make_pygame_pixel_view(plan_text: str, bias: int) -> np.ndarray:
 def make_pygame_pixel_view_default(plan_text: str) -> np.ndarray:
     plan = _plan(plan_text)
     return make_pygame_pixel_view(plan_text, _pygame_bias(plan))
+
+
+def make_pygame_raster(plan_text: str, bias: int) -> np.ndarray:
+    surface = _surface(plan_text, bias)
+    width_major = pygame.surfarray.array3d(surface)
+    return np.ascontiguousarray(np.transpose(width_major, (1, 0, 2)), dtype=np.uint8)
+
+
+def make_pygame_raster_default(plan_text: str) -> np.ndarray:
+    plan = _plan(plan_text)
+    return make_pygame_raster(plan_text, _pygame_bias(plan))
 
 
 def pygame_surface_signature(plan_text: str, bias: int) -> int:

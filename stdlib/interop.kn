@@ -3,6 +3,8 @@
 // These wrappers keep authored code talking in `interop_*` vocabulary while the
 // runtime continues to own the lower `kain_shared_*` builtins.
 
+use std::json
+
 pub struct KainSharedBufferInfo:
     contract: String
     contract_version: Int
@@ -39,7 +41,23 @@ pub struct KainSharedImageInfo:
     byte_length: Int
 
 pub fn interop_shared_buffer_info(target: Any) -> KainSharedBufferInfo:
-    return kain_shared_buffer_info(target)
+    let payload = kain_shared_buffer_info(target)
+    return KainSharedBufferInfo {
+        contract: json_get_string(payload, "contract"),
+        contract_version: json_get_int(payload, "contract_version"),
+        element_type: json_get_string(payload, "element_type"),
+        element_size: json_get_int(payload, "element_size"),
+        shape: json_get(payload, "shape"),
+        strides: json_get(payload, "strides"),
+        format: json_get(payload, "format"),
+        mime_type: json_get(payload, "mime_type"),
+        source_runtime: json_get_string(payload, "source_runtime"),
+        source_backend: json_get(payload, "source_backend"),
+        ownership: json_get_string(payload, "ownership"),
+        labels: json_get(payload, "labels"),
+        byte_length: json_get_int(payload, "byte_length"),
+        element_count: json_get_int(payload, "element_count")
+    }
 
 pub fn interop_shared_buffer_bytes(target: Any) -> Array<Int>:
     return kain_shared_buffer_bytes(target)
@@ -51,7 +69,26 @@ pub fn interop_shared_buffer_replace_bytes(target: Any, bytes: Any):
     kain_shared_buffer_replace_bytes(target, bytes)
 
 pub fn interop_shared_image_info(target: Any) -> KainSharedImageInfo:
-    return kain_shared_image_info(target)
+    let payload = kain_shared_image_info(target)
+    return KainSharedImageInfo {
+        contract: json_get_string(payload, "contract"),
+        contract_version: json_get_int(payload, "contract_version"),
+        representation: json_get_string(payload, "representation"),
+        width: json_get_int(payload, "width"),
+        height: json_get_int(payload, "height"),
+        channels: json_get_int(payload, "channels"),
+        layout: json_get_string(payload, "layout"),
+        pixel_format: json_get_string(payload, "pixel_format"),
+        mime_type: json_get_string(payload, "mime_type"),
+        row_stride: json_get_int(payload, "row_stride"),
+        color_space: json_get_string(payload, "color_space"),
+        alpha_mode: json_get_string(payload, "alpha_mode"),
+        source_runtime: json_get_string(payload, "source_runtime"),
+        source_backend: json_get(payload, "source_backend"),
+        ownership: json_get_string(payload, "ownership"),
+        labels: json_get(payload, "labels"),
+        byte_length: json_get_int(payload, "byte_length")
+    }
 
 pub fn interop_shared_image_bytes(target: Any) -> Array<Int>:
     return kain_shared_image_bytes(target)

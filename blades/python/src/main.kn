@@ -2,6 +2,7 @@ use std::actor
 use std::fs
 use std::intent
 use std::json
+use std::interop
 use std::python
 use std::runtime
 use c::python_lab_bridge
@@ -97,6 +98,22 @@ fn config_int(plan: Any, key: String, fallback: Int) -> Int:
 fn config_string(plan: Any, key: String, fallback: String) -> String:
     return json_string_or(plan, key, fallback)
 
+fn patterned_bytes(byte_length: Int, seed: Int) -> Array<Int>:
+    let mut bytes = []
+    var index: Int = 0
+    while index < byte_length:
+        push(bytes, (seed + (index * 13)) % 256)
+        index = index + 1
+    return bytes
+
+fn byte_signature(bytes: Array<Int>) -> Int:
+    var index: Int = 0
+    var total: Int = 0
+    while index < len(bytes):
+        total = (total + bytes[index]) % PYTHON_LAB_MODULUS
+        index = index + 1
+    return total
+
 fn module_probe_lane(plan: Any, plan_text: String) -> Int:
     let module_score = to_int(py_module_digest(plan_text))
     if module_score <= 0:
@@ -156,6 +173,67 @@ fn module_probe_lane(plan: Any, plan_text: String) -> Int:
     let driver_name = to_string(py_pygame_driver_name(plan_text))
     if json_bool_or(plan, "pygame_use_display", true) and driver_name == "":
         return 25
+    return 0
+
+fn shared_contract_lane(plan: Any, plan_text: String) -> Int:
+    let rows = config_int(plan, "tensor_rows", 3)
+    let cols = config_int(plan, "tensor_cols", 4)
+    let authority_seed = config_int(plan, "authority_seed", 17)
+    let pygame_width = config_int(plan, "pygame_width", 96)
+    let pygame_height = config_int(plan, "pygame_height", 72)
+
+    let buffer_source = python_call_attr_raw(py_lab, "make_numpy_byte_grid", [plan_text, authority_seed])
+    let shared_buffer = python_shared_buffer(buffer_source)
+    let buffer_info = interop_shared_buffer_info(shared_buffer)
+    if buffer_info.contract != "kain.shared.buffer":
+        return 40
+    if buffer_info.source_runtime != "python" or buffer_info.ownership != "owned":
+        return 41
+    if buffer_info.element_type != "u8" or buffer_info.element_size != 1:
+        return 42
+    if to_string(buffer_info.source_backend) != "numpy":
+        return 43
+    if len(buffer_info.shape) != 2 or buffer_info.shape[0] != rows or buffer_info.shape[1] != cols:
+        return 44
+    if len(buffer_info.strides) != 2 or buffer_info.strides[0] != cols or buffer_info.strides[1] != 1:
+        return 45
+    if buffer_info.element_count != rows * cols:
+        return 46
+
+    let buffer_bytes = interop_shared_buffer_bytes(shared_buffer)
+    if len(buffer_bytes) != buffer_info.byte_length or len(buffer_bytes) != (rows * cols):
+        return 47
+    let replaced_buffer_bytes = patterned_bytes(len(buffer_bytes), authority_seed + 19)
+    interop_shared_buffer_replace_bytes(shared_buffer, replaced_buffer_bytes)
+    let replaced_buffer = interop_shared_buffer_bytes(shared_buffer)
+    if byte_signature(replaced_buffer) != byte_signature(replaced_buffer_bytes):
+        return 48
+
+    let image_source = python_call_attr_raw(py_lab, "make_pygame_raster_default", [plan_text])
+    let shared_image = python_shared_image(image_source)
+    let image_info = interop_shared_image_info(shared_image)
+    if image_info.contract != "kain.shared.image":
+        return 49
+    if image_info.source_runtime != "python" or image_info.ownership != "owned":
+        return 50
+    if to_string(image_info.source_backend) != "numpy":
+        return 51
+    if image_info.width != pygame_width or image_info.height != pygame_height or image_info.channels != PYTHON_LAB_PYGAME_CHANNELS:
+        return 52
+    if image_info.layout != "HWC":
+        return 53
+    if image_info.row_stride != (pygame_width * PYTHON_LAB_PYGAME_CHANNELS):
+        return 54
+
+    let image_bytes = interop_shared_image_bytes(shared_image)
+    let expected_image_bytes = pygame_width * pygame_height * PYTHON_LAB_PYGAME_CHANNELS
+    if len(image_bytes) != image_info.byte_length or image_info.byte_length != expected_image_bytes:
+        return 55
+    let replaced_image_bytes = patterned_bytes(len(image_bytes), authority_seed + 37)
+    interop_shared_image_replace_bytes(shared_image, replaced_image_bytes)
+    let replaced_image = interop_shared_image_bytes(shared_image)
+    if byte_signature(replaced_image) != byte_signature(replaced_image_bytes):
+        return 56
     return 0
 
 fn tensor_semantics_lane(plan: Any, plan_text: String) -> Int with Unsafe:
@@ -308,6 +386,13 @@ fn main() -> Int with Unsafe:
         if shutdown_early != 0:
             return 200 + shutdown_early
         return module_status
+
+    let shared_status = shared_contract_lane(plan, plan_text)
+    if shared_status != 0:
+        let shutdown_shared = runtime_shutdown()
+        if shutdown_shared != 0:
+            return 250 + shutdown_shared
+        return shared_status
 
     let tensor_status = tensor_semantics_lane(plan, plan_text)
     if tensor_status != 0:

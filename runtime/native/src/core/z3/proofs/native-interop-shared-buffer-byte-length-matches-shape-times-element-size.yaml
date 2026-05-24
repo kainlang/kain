@@ -1,0 +1,54 @@
+version: 1
+id: kain.native.core.proofs.native_interop_shared_buffer_byte_length_matches_shape_times_element_size
+kind: size_mul_ok
+description: Shared buffer validation only accepts byte lengths whose element-count
+  times element-size product stays within signed 64-bit range before the exact mismatch
+  comparison runs.
+tags:
+- native-runtime
+- interop
+- shared-buffer
+- byte-length
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\interop_contracts.c
+  symbol: kain_shared_validate_buffer_length
+  start_line: 363
+  reason: the shared-buffer validator computes expected bytes from element count and
+    element size using checked signed-64 multiplication before enforcing exact equality
+case:
+  declarations:
+  - name: element_count
+    sort:
+      kind: int
+  - name: element_size
+    sort:
+      kind: int
+  - name: int64_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - int64_max
+    - 9223372036854775807
+  - op: ge
+    args:
+    - element_count
+    - 0
+  - op: ge
+    args:
+    - element_size
+    - 1
+  - op: le
+    args:
+    - element_count
+    - op: div
+      args:
+      - int64_max
+      - element_size
+  factors:
+  - element_count
+  - element_size
+  size_bits: 64
+  limit: int64_max

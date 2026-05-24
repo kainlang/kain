@@ -1,0 +1,138 @@
+use std::z3
+use std::proof
+use std::test
+
+use runtime_profile::RUNTIME_CORE_Z3_DOGFOOD_SUITE
+use runtime_profile::RUNTIME_PATCH_JOURNAL_CAPACITY
+use runtime_profile::RUNTIME_PATCH_JOURNAL_SOURCE
+use runtime_profile::RUNTIME_PATCH_JOURNAL_RACE_PROOF
+use runtime_profile::runtime_patch_journal_two_writer_start_limit
+use runtime_profile::runtime_patch_journal_last_slot_start
+
+fn runtime_patch_journal_capacity_solver() -> Any:
+    let solver = z3_solver()
+    let journal_count = z3_int("journal_count")
+    let capacity = z3_int_val(RUNTIME_PATCH_JOURNAL_CAPACITY)
+
+    z3_solver_add(solver, [
+        z3_expr_ge(journal_count, z3_int_val(0)),
+        z3_expr_lt(journal_count, capacity),
+        z3_expr_gt(z3_expr_add(journal_count, z3_int_val(1)), capacity)
+    ])
+    return solver
+
+fn runtime_patch_journal_race_solver() -> Any:
+    let solver = z3_solver()
+    let initial_count = z3_int("initial_count")
+    let read_a = z3_int("read_a")
+    let read_b = z3_int("read_b")
+    let slot_a = z3_int("slot_a")
+    let slot_b = z3_int("slot_b")
+    let final_count = z3_int("final_count")
+
+    z3_solver_add(solver, [
+        z3_expr_ge(initial_count, z3_int_val(0)),
+        z3_expr_lt(initial_count, z3_int_val(runtime_patch_journal_two_writer_start_limit())),
+        z3_expr_eq(read_a, initial_count),
+        z3_expr_eq(read_b, initial_count),
+        z3_expr_eq(slot_a, read_a),
+        z3_expr_eq(slot_b, read_b),
+        z3_expr_eq(final_count, z3_expr_add(read_a, z3_int_val(1))),
+        z3_or([
+            z3_expr_ne(final_count, z3_expr_add(initial_count, z3_int_val(2))),
+            z3_expr_eq(slot_a, slot_b)
+        ])
+    ])
+    return solver
+
+fn runtime_patch_journal_last_slot_solver() -> Any:
+    let solver = z3_solver()
+    let initial_count = z3_int("initial_count")
+    let read_a = z3_int("read_a")
+    let read_b = z3_int("read_b")
+    let slot_a = z3_int("slot_a")
+    let slot_b = z3_int("slot_b")
+    let final_count = z3_int("final_count")
+    let capacity = z3_int_val(RUNTIME_PATCH_JOURNAL_CAPACITY)
+
+    z3_solver_add(solver, [
+        z3_expr_eq(initial_count, z3_int_val(runtime_patch_journal_last_slot_start())),
+        z3_expr_lt(initial_count, capacity),
+        z3_expr_eq(read_a, initial_count),
+        z3_expr_eq(read_b, initial_count),
+        z3_expr_eq(slot_a, read_a),
+        z3_expr_eq(slot_b, read_b),
+        z3_expr_eq(slot_a, slot_b),
+        z3_expr_eq(final_count, z3_expr_add(initial_count, z3_int_val(1))),
+        z3_expr_eq(final_count, capacity)
+    ])
+    return solver
+
+fn runtime_patch_journal_capacity_case() -> ProofCase:
+    let base = proof_case("runtime.native.patch.capacity_guard")
+    let with_suite = base.suite(RUNTIME_CORE_Z3_DOGFOOD_SUITE)
+    let with_description = with_suite.description("a single successful patch append cannot push journal_count beyond ABI_PATCH_JOURNAL_MAX")
+    let with_evidence = with_description.evidence(RUNTIME_PATCH_JOURNAL_SOURCE)
+    let with_runtime = with_evidence.tag("runtime")
+    let with_stdlib = with_runtime.tag("stdlib")
+    let with_patch = with_stdlib.tag("patch")
+    return with_patch.tag("capacity").expect_proved()
+
+fn runtime_patch_journal_race_case() -> ProofCase:
+    let base = proof_case("runtime.native.patch.concurrent_slot_overwrite")
+    let with_suite = base.suite(RUNTIME_CORE_Z3_DOGFOOD_SUITE)
+    let with_description = with_suite.description("two unsynchronized patch records can collapse two logical appends into one shared journal slot")
+    let with_evidence = with_description.evidence(RUNTIME_PATCH_JOURNAL_RACE_PROOF)
+    let with_runtime = with_evidence.tag("runtime")
+    let with_stdlib = with_runtime.tag("stdlib")
+    let with_patch = with_stdlib.tag("patch")
+    return with_patch.tag("race").expect_witness()
+
+fn runtime_patch_journal_last_slot_case() -> ProofCase:
+    let base = proof_case("runtime.native.patch.last_slot_double_success")
+    let with_suite = base.suite(RUNTIME_CORE_Z3_DOGFOOD_SUITE)
+    let with_description = with_suite.description("when one slot remains, both callers can still individually pass the capacity guard and report success on the same slot")
+    let with_evidence = with_description.evidence(RUNTIME_PATCH_JOURNAL_RACE_PROOF)
+    let with_runtime = with_evidence.tag("runtime")
+    let with_stdlib = with_runtime.tag("stdlib")
+    let with_patch = with_stdlib.tag("patch")
+    return with_patch.tag("capacity-edge").expect_witness()
+
+// ============================================================================
+//                     runtime/native patch-journal dogfood
+// ============================================================================
+// This lane keeps one foot in the C runtime model and one foot in authored
+// Kain. The YAML proof is the durable runtime bug receipt; this file proves
+// we can describe the same substrate contracts directly through std::z3.
+pub fn runtime_native_core_z3_dogfood() -> Int:
+    if z3_available() == false:
+        return 0
+
+    let capacity_assessment = proof_case_check(runtime_patch_journal_capacity_case(), runtime_patch_journal_capacity_solver())
+    let capacity_test = test_expect_proof_assessment(capacity_assessment)
+    if test_outcome_ok(capacity_test) == false:
+        return 1
+
+    let race_assessment = proof_case_check(runtime_patch_journal_race_case(), runtime_patch_journal_race_solver())
+    let race_test = test_expect_proof_assessment(race_assessment)
+    if test_outcome_ok(race_test) == false:
+        return 2
+
+    let last_slot_assessment = proof_case_check(runtime_patch_journal_last_slot_case(), runtime_patch_journal_last_slot_solver())
+    let last_slot_test = test_expect_proof_assessment(last_slot_assessment)
+    if test_outcome_ok(last_slot_test) == false:
+        return 3
+
+    let suite = proof_suite_summary(RUNTIME_CORE_Z3_DOGFOOD_SUITE, [
+        capacity_assessment,
+        race_assessment,
+        last_slot_assessment
+    ])
+    let suite_test = test_expect_proof_suite(suite)
+    if test_outcome_ok(suite_test) == false:
+        return 4
+
+    return 0
+
+fn main() -> Int:
+    return runtime_native_core_z3_dogfood()

@@ -1,0 +1,18 @@
+use std::fs
+use std::interop
+use std::python
+
+import python_lab.bridge as py_lab
+
+fn main() -> Int:
+    let plan_text = fs_read_text("data/lab_config.json")
+    let source = python_call_attr_raw(py_lab, "make_numpy_byte_grid", [plan_text, 17])
+    let handle = python_shared_buffer(source)
+    let info = interop_shared_buffer_info(handle)
+    print("contract=" + info.contract)
+    print("element_type=" + info.element_type)
+    print("byte_length=" + to_string(info.byte_length))
+    print("shape_len=" + to_string(len(info.shape)))
+    print("stride_len=" + to_string(len(info.strides)))
+    print("backend=" + to_string(info.source_backend))
+    return 0

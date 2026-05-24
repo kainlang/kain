@@ -2019,14 +2019,26 @@ impl LlvmGenerator {
     fn call_carries_json_value(&self, name: &str) -> bool {
         matches!(
             name,
-            "json_object_new" | "json_array_new" | "json_parse" | "json_get" | "json_array_get"
+            "json_object_new"
+                | "json_array_new"
+                | "json_parse"
+                | "json_get"
+                | "json_array_get"
+                | "kain_shared_buffer_info"
+                | "kain_shared_image_info"
         ) || self.json_carrying_function_returns.contains(name)
     }
 
     fn call_returns_owned_json_value(&self, name: &str) -> bool {
         matches!(
             name,
-            "json_object_new" | "json_array_new" | "json_parse" | "json_get" | "json_array_get"
+            "json_object_new"
+                | "json_array_new"
+                | "json_parse"
+                | "json_get"
+                | "json_array_get"
+                | "kain_shared_buffer_info"
+                | "kain_shared_image_info"
         ) || self.json_owning_function_returns.contains(name)
     }
 

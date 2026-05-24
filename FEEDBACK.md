@@ -1,5 +1,17 @@
 # Kain Feedback Log
 
+## 2026-05-24 - std::z3 / std::proof runtime dogfood
+
+### Running a proof-heavy Kain lane trips RC release-after-free in the LLVM runtime
+- Categories: correctness, regression, runtime, interop
+- Status: Active
+- Surface: runtime
+- Symptom: `kain run runtime/native/src/core/z3/kain/main.kn --target llvm` exits with multiple `[MEMORY] ERROR: RC release after free` diagnostics and status code `9002`.
+- Workflow impact: The new Kain-authored proof dogfood lane compiles cleanly, but end-to-end execution of `std::z3 -> std::proof -> std::test` on the LLVM/runtime path is blocked by a runtime lifetime bug instead of proof logic.
+- Minimal repro: `.\target\debug\kain.exe run runtime\native\src\core\z3\kain\main.kn --target llvm`
+- Evidence: `D:\Kain-Lang\.kain\reports\run\session-1779662265878-35024.json` and stderr containing repeated `RC release after free` diagnostics for string payloads while executing the Python-backed proof lane.
+- Suggested direction: Audit refcount ownership across `std::python`, `std::z3`, and `std::proof` result/model/evidence strings; the failure shape suggests a host-backed object or bridged string is being released twice on the LLVM runtime path.
+
 ## 2026-05-22 - stdlib module loading / typechecker
 
 ### StringIntMap Shadow: stdlib/collections.kn loaded twice under multi-import workspace

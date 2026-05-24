@@ -1,0 +1,55 @@
+version: 1
+id: kain.native.core.proofs.native_interop_shared_image_raster_byte_length_matches_height_times_row_stride
+kind: size_mul_ok
+description: Raster shared-image validation only accepts byte lengths whose height
+  times row-stride product stays within signed 64-bit range before the exact mismatch
+  comparison runs.
+tags:
+- native-runtime
+- interop
+- shared-image
+- raster
+- row-stride
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\interop_contracts.c
+  symbol: kain_shared_validate_image_length
+  start_line: 400
+  reason: the raster shared-image validator computes expected bytes from height and
+    row stride using checked signed-64 multiplication before enforcing exact equality
+case:
+  declarations:
+  - name: height
+    sort:
+      kind: int
+  - name: row_stride
+    sort:
+      kind: int
+  - name: int64_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - int64_max
+    - 9223372036854775807
+  - op: ge
+    args:
+    - height
+    - 0
+  - op: ge
+    args:
+    - row_stride
+    - 1
+  - op: le
+    args:
+    - height
+    - op: div
+      args:
+      - int64_max
+      - row_stride
+  factors:
+  - height
+  - row_stride
+  size_bits: 64
+  limit: int64_max

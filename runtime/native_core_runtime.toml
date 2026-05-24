@@ -35,6 +35,7 @@ sources = [
     "native/src/core/async.c",
     "native/src/core/compatibility.c",
     "native/src/core/host_bridge.c",
+    "native/src/core/interop_contracts.c",
     "native/src/core/python_runtime.c",
     "native/src/core/fanout.c",
     "native/src/core/memory.c",
@@ -203,6 +204,14 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "Native JSON parse/render/object/array helpers for LLVM builtin calls over string, integer, boolean, null, object, and array values"
+
+[[services]]
+key = "interop.shared-contracts"
+name = "Neutral Shared Buffer And Image Contracts"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-owned shared buffer/image handles plus neutral info and byte snapshot lanes for Python, JS, GPU, and foreign host bridges"
 
 [[services]]
 key = "contract"

@@ -1,4 +1,22 @@
 # Kain Bug Log
+## 2026-05-24 - runtime/stdlib_abi — patch journal audit (tool-z3-bug-hunter)
+
+### Concurrent Slot Overwrite and Lost Update in Native Patch Journal
+
+- Categories: correctness, race, runtime, stdlib
+- Severity: High
+- Status: Open in tree (2026-05-24)
+- Surface: runtime
+- Trigger: Concurrent patch recording calls that reach `abi_patch_record_i64` against the shared native patch journal.
+- Symptom: Two writers can claim the same journal slot and publish only one count increment even when there is room for two sequential appends. When only one slot remains, both callers can still individually pass the capacity guard and report success on the same final slot.
+- Why this is a bug: `abi_patch_record_i64` selects `g_kain_native_patch_journal[g_kain_native_patch_journal_count]` and increments `g_kain_native_patch_journal_count` without any writer serialization, so the slot claim and count publish are not atomic as a unit.
+- Minimal repro: Two host threads concurrently call any patch-recording surface that reaches `abi_patch_record_i64`; the same risk applies to future Kain-side patch/test/proof flows that dogfood the patch journal concurrently.
+- Evidence: The Z3 witness admits `initial_count = 0`, `read_a = 0`, `read_b = 0`, shared `slot_a = slot_b = 0`, and `final_count = 1`, which violates the expected two-success contract of distinct slots plus `initial_count + 2`.
+- Z3 Proof: [native-stdlib-patch-journal-concurrent-slot-overwrite.yaml](file:///D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-concurrent-slot-overwrite.yaml)
+- Suggested direction: Reuse the service-registry commit gate pattern or add a dedicated patch-journal mutation lock so slot selection, entry population, and count publication happen in one serialized commit step.
+
+---
+
 ## 2026-05-22 - runtime/memory — atomic ordering audit (tool-z3-bug-hunter)
 
 ### CAS Failure-Order Stronger Than Success-Order Produces C11 UB

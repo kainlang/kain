@@ -1,0 +1,10 @@
+pub const RUNTIME_CORE_Z3_DOGFOOD_SUITE: String = "runtime.native.core.z3.dogfood"
+pub const RUNTIME_PATCH_JOURNAL_CAPACITY: Int = 256
+pub const RUNTIME_PATCH_JOURNAL_SOURCE: String = "runtime/native/src/core/stdlib_abi.c::abi_patch_record_i64"
+pub const RUNTIME_PATCH_JOURNAL_RACE_PROOF: String = "runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-concurrent-slot-overwrite.yaml"
+
+pub fn runtime_patch_journal_two_writer_start_limit() -> Int:
+    return RUNTIME_PATCH_JOURNAL_CAPACITY - 1
+
+pub fn runtime_patch_journal_last_slot_start() -> Int:
+    return RUNTIME_PATCH_JOURNAL_CAPACITY - 1
