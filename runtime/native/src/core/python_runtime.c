@@ -109,6 +109,7 @@ static KainPythonApi g_kain_python_api;
 static int g_kain_python_load_attempted = 0;
 
 void* kain_alloc_rc(size_t size, long long type_tag);
+void rc_retain(void* ptr);
 void KAIN_set_destructor(void* ptr, void (*dtor)(void*));
 void rc_release(void* ptr);
 long long py_getattr_raw(long long target, char* name);
@@ -1776,6 +1777,11 @@ long long kain_tensor_from_py_owned(long long target) {
 }
 
 long long kain_tensor_info(long long tensor) {
+    KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(tensor);
+    if (!tensor_handle) {
+        return 0;
+    }
+    rc_retain(tensor_handle);
     return tensor;
 }
 
@@ -2064,6 +2070,11 @@ long long kain_image_from_py_owned(long long target) {
 }
 
 long long kain_image_info(long long image) {
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(image);
+    if (!image_handle) {
+        return 0;
+    }
+    rc_retain(image_handle);
     return image;
 }
 

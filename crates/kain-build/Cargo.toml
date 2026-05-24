@@ -14,7 +14,7 @@ kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver" }
 kain-fs = { path = "../kain-fs" }
 kain-host = { path = "../kain-host", default-features = false }
-kain-omni = { path = "../kain-omni" }
+kain-omni = { path = "../kain-omni", default-features = false }
 kain-sys-codegen = { path = "../kain-sys-codegen" }
 kain-test = { path = "../kain-test" }
 serde = { workspace = true }

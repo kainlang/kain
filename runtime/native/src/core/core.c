@@ -631,6 +631,7 @@ void* KAIN_alloc(long long size) {
 void rc_retain(void* ptr) {
     KainRcTrackedPointer tracked;
     RcHeader* header;
+    char detail[256];
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     tracked = kain_rc_registry_lookup(ptr);
     if (tracked.state == KAIN_RC_TRACK_NONE) {
@@ -638,12 +639,22 @@ void rc_retain(void* ptr) {
     }
     if (tracked.state == KAIN_RC_TRACK_FREED) {
         kain_attrition_note_rc_underflow();
+        snprintf(
+            detail,
+            sizeof(detail),
+            "payload=%p type_tag=0x%llx payload_size=%zu string_length=%zu destructor=%p",
+            ptr,
+            (unsigned long long)tracked.type_tag,
+            tracked.payload_size,
+            tracked.string_length,
+            (void*)tracked.destructor
+        );
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
             KAIN_DIAG_SEVERITY_ERROR,
             KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
             "RC retain after free",
-            "Retaining this object would reuse RC state that has already been torn down."
+            detail
         );
         return;
     }
@@ -685,6 +696,7 @@ void rc_release(void* ptr) {
     KainRcTrackedPointer tracked;
     RcHeader* header;
     size_t total_size;
+    char detail[256];
     if (!ptr || kain_rc_is_immediate_handle(ptr)) return;
     tracked = kain_rc_registry_lookup(ptr);
     if (tracked.state == KAIN_RC_TRACK_NONE) {
@@ -692,12 +704,22 @@ void rc_release(void* ptr) {
     }
     if (tracked.state == KAIN_RC_TRACK_FREED) {
         kain_attrition_note_rc_underflow();
+        snprintf(
+            detail,
+            sizeof(detail),
+            "payload=%p type_tag=0x%llx payload_size=%zu string_length=%zu destructor=%p",
+            ptr,
+            (unsigned long long)tracked.type_tag,
+            tracked.payload_size,
+            tracked.string_length,
+            (void*)tracked.destructor
+        );
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
             KAIN_DIAG_SEVERITY_ERROR,
             KAIN_DIAG_CODE_MEMORY_INVALID_POINTER,
             "RC release after free",
-            "Releasing this object would reuse RC state that has already been torn down."
+            detail
         );
         return;
     }
@@ -3469,5 +3491,4 @@ int64_t abi_fs_flush(void* handle) {
     if (!handle) return -1;
     return (int64_t)fflush((FILE*)handle);
 }
-
 

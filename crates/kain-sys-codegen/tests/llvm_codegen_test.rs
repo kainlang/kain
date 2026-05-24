@@ -1917,6 +1917,45 @@ fn llvm_does_not_rc_retain_helper_owned_observe_arguments() {
 }
 
 #[test]
+fn llvm_retains_dynamic_runtime_arrays_when_they_escape_local_cleanup() {
+    let typed = typed_program_from_source(
+        "struct Packet:\n    values: Array<Int>\n\nfn collect() -> Array<Int>:\n    let mut items: Array<Int> = []\n    push(items, 1)\n    push(items, 2)\n    return items\n\nfn wrap() -> Packet:\n    let mut items: Array<Int> = []\n    push(items, 7)\n    return Packet { values: items }\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    let collect_start = llvm
+        .find("define internal i8* @collect()")
+        .expect("collect should lower to an i8* return");
+    let collect_end = llvm[collect_start..]
+        .find("ret i8*")
+        .expect("collect should return an array handle");
+    let collect_ir = &llvm[collect_start..collect_start + collect_end];
+    assert!(
+        collect_ir.contains("call void @rc_retain(i8*"),
+        "returning a dynamic runtime array local must retain before scope cleanup\n{collect_ir}"
+    );
+
+    let wrap_start = llvm
+        .find("define internal %Packet* @wrap()")
+        .expect("wrap should lower to a heap Packet pointer");
+    let wrap_end = llvm[wrap_start..]
+        .find("ret %Packet*")
+        .expect("wrap should return a Packet pointer");
+    let wrap_ir = &llvm[wrap_start..wrap_start + wrap_end];
+    let field_store_window = &wrap_ir[..wrap_ir
+        .rfind("store i8*")
+        .expect("wrap should store the array handle into the Packet field")];
+    assert!(
+        field_store_window.contains("call void @rc_retain(i8*"),
+        "storing a dynamic runtime array local into a returned heap aggregate must retain first\n{wrap_ir}"
+    );
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "runtime-array-escape-retain");
+}
+
+#[test]
 fn llvm_erases_ephemeral_single_cell_ownership_to_local_storage() {
     let typed = typed_program_from_source(
         "fn own_local() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(1, \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
@@ -2609,6 +2648,84 @@ fn forward(result: JsonArrayResult) -> Int:
     assert!(forward_body.contains("call i64 @take(i64 "));
     assert!(!forward_body.contains("shl i64"));
     assert!(!forward_body.contains(" or i64 "));
+}
+
+#[test]
+fn llvm_specializes_push_for_typed_int_arrays() {
+    let source = r#"
+fn main() -> Int:
+    let items: Array<Int> = []
+    push(items, 10)
+    return items[0]
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let main_ir = llvm_function_ir(&llvm, "define i64 @main()");
+
+    assert!(main_ir.contains("call void @array_push(i8*"));
+    assert!(!main_ir.contains("call void @push("));
+    assert!(!main_ir.contains("shl i64 10, 3"));
+}
+
+#[test]
+fn llvm_specializes_push_for_typed_float_arrays() {
+    let source = r#"
+fn main() -> Float:
+    let items: Array<Float> = []
+    push(items, 1.5)
+    return items[0]
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let main_ir = llvm_function_ir(&llvm, "define double @main()");
+
+    assert!(main_ir.contains("call void @array_push(i8*"));
+    assert!(main_ir.contains("bitcast double "));
+    assert!(main_ir.contains(" to i64"));
+    assert!(main_ir.contains("call i64 @array_get(i8*"));
+    assert!(main_ir.contains("bitcast i64"));
+    assert!(!main_ir.contains("call void @push("));
+}
+
+#[test]
+fn llvm_preserves_typed_int_arrays_across_struct_fields_and_runtime_len() {
+    let source = r#"
+struct IntArrayResult:
+    ok: Bool
+    value: Array<Int>
+
+fn collect() -> IntArrayResult:
+    let items: Array<Int> = []
+    push(items, 10)
+    push(items, 13)
+    return IntArrayResult { ok: true, value: items }
+
+fn main() -> Int:
+    let result = collect()
+    let values = result.value
+    if len(values) != 2:
+        return 91
+    return values[0] + values[1]
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let collect_ir = llvm_function_ir(&llvm, "define internal %IntArrayResult* @collect()");
+    let main_ir = llvm_function_ir(&llvm, "define i64 @main()");
+
+    assert!(collect_ir.contains("call void @array_push(i8*"));
+    assert!(!collect_ir.contains("call void @push("));
+    assert!(!collect_ir.contains("shl i64 10, 3"));
+    assert!(!collect_ir.contains("shl i64 13, 3"));
+    assert!(main_ir.contains("call i64 @array_len(i8*"));
+    assert!(main_ir.contains("call i64 @array_get(i8*"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "typed-int-array-struct-field-len");
 }
 
 #[test]

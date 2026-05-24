@@ -1,4 +1,68 @@
 use std::build
+use std::z3
+
+pub const PROOF_STATUS_SKIP: Int = 1
+pub const PROOF_STATUS_PROVED: Int = 2
+pub const PROOF_STATUS_WITNESS: Int = 3
+pub const PROOF_STATUS_UNKNOWN: Int = 4
+
+pub struct ProofOutcome:
+    status: Int
+    label: String
+    detail: String
+    evidence: String
+    model: String
+
+pub fn proof_outcome(status: Int, label: String, detail: String, evidence: String, model: String) -> ProofOutcome:
+    return ProofOutcome {
+        status: status,
+        label: label,
+        detail: detail,
+        evidence: evidence,
+        model: model
+    }
+
+pub fn proof_skip(label: String, reason: String) -> ProofOutcome:
+    return proof_outcome(PROOF_STATUS_SKIP, label, reason, "", "")
+
+pub fn proof_proved(label: String, evidence: String) -> ProofOutcome:
+    return proof_outcome(PROOF_STATUS_PROVED, label, "solver returned unsat", evidence, "")
+
+pub fn proof_witness(label: String, evidence: String, model: String) -> ProofOutcome:
+    return proof_outcome(PROOF_STATUS_WITNESS, label, "solver returned sat", evidence, model)
+
+pub fn proof_unknown(label: String, detail: String, evidence: String) -> ProofOutcome:
+    return proof_outcome(PROOF_STATUS_UNKNOWN, label, detail, evidence, "")
+
+pub fn proof_outcome_is_skip(outcome: ProofOutcome) -> Bool:
+    return outcome.status == PROOF_STATUS_SKIP
+
+pub fn proof_outcome_is_proved(outcome: ProofOutcome) -> Bool:
+    return outcome.status == PROOF_STATUS_PROVED
+
+pub fn proof_outcome_is_witness(outcome: ProofOutcome) -> Bool:
+    return outcome.status == PROOF_STATUS_WITNESS
+
+pub fn proof_outcome_is_unknown(outcome: ProofOutcome) -> Bool:
+    return outcome.status == PROOF_STATUS_UNKNOWN
+
+pub fn proof_outcome_summary(outcome: ProofOutcome) -> String:
+    if outcome.model != "":
+        return outcome.detail + " // " + outcome.model
+    if outcome.evidence != "":
+        return outcome.detail + " // " + outcome.evidence
+    return outcome.detail
+
+pub fn proof_check_result(label: String, solver: Any, result: Any) -> ProofOutcome:
+    let result_name = z3_result_name(result)
+    if z3_is_unsat(result):
+        return proof_proved(label, result_name)
+    if z3_is_sat(result):
+        return proof_witness(label, result_name, z3_repr(z3_solver_model(solver)))
+    return proof_unknown(label, "solver returned " + result_name, result_name)
+
+pub fn proof_check(label: String, solver: Any) -> ProofOutcome:
+    return proof_check_result(label, solver, z3_solver_check(solver))
 
 pub fn proof_task(id: String) -> BuildTaskSpec:
     return build_task_of_kind(id, BUILD_KIND_PROOF)
@@ -11,4 +75,3 @@ pub fn z3_proof(id: String) -> BuildTaskSpec:
 
 pub fn proof_smt2(id: String, entry: String) -> BuildTaskSpec:
     return proof_obligation(id).entry(entry)
-

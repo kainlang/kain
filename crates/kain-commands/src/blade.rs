@@ -288,6 +288,24 @@ mod tests {
     use clap::Parser;
 
     #[test]
+    fn parses_standalone_blade_global_ui_flags() {
+        let cli = BladeCli::parse_from([
+            "blade",
+            "--config",
+            "team.toml",
+            "--color",
+            "never",
+            "--theme",
+            "glacier",
+            "build",
+            ".",
+        ]);
+        assert_eq!(cli.config, Some(PathBuf::from("team.toml")));
+        assert_eq!(cli.color, Some(CliColorArg::Never));
+        assert_eq!(cli.theme.as_deref(), Some("glacier"));
+    }
+
+    #[test]
     fn parses_standalone_blade_build() {
         let cli = BladeCli::parse_from(["blade", "build", ".", "--json", "--clean"]);
         match cli.command {

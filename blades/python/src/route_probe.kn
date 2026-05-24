@@ -79,5 +79,18 @@ fn main() -> Int:
         )
         return 90
 
-    fs_write_text("route_probe_status.txt", "ok")
-    return imported_route_result.value[0]
+    let imported_route = imported_route_result.value
+    fs_write_text(
+        "route_probe_status.txt",
+        "ok|" +
+        to_string(len(imported_route)) +
+        "|" +
+        to_string(imported_route[0]) +
+        "|" +
+        to_string(imported_route[1]) +
+        "|" +
+        to_string(imported_route[2]) +
+        "|" +
+        to_string(imported_route[3])
+    )
+    return len(imported_route)

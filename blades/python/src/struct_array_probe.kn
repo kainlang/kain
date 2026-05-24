@@ -1,0 +1,29 @@
+use std::fs
+
+struct IntArrayWrap:
+    ok: Bool
+    value: Array<Int>
+
+fn build_wrap() -> IntArrayWrap:
+    let items: Array<Int> = [10, 13, 17, 20]
+    return IntArrayWrap {
+        ok: true,
+        value: items
+    }
+
+fn forward_wrap() -> IntArrayWrap:
+    let wrap = build_wrap()
+    if wrap.ok == false:
+        return IntArrayWrap {
+            ok: false,
+            value: []
+        }
+    return IntArrayWrap {
+        ok: true,
+        value: wrap.value
+    }
+
+fn main() -> Int:
+    let wrap = forward_wrap()
+    fs_write_text("struct_array_probe_status.txt", to_string(len(wrap.value)) + "|" + to_string(wrap.value[0]))
+    return len(wrap.value)

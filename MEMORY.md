@@ -9169,8 +9169,12 @@ Current runtime blocker is pre-existing and not caused by the visual lane:
 - Added the root module and smoketest pressure:
   - `stdlib/z3.kn`
     - exposes availability/version checks, solver/model helpers, scalar constructors, and common expression combinators over Python `z3` plus the `operator` module
+  - `stdlib/proof.kn`
+    - now carries a real `ProofOutcome` lane plus raw solver-to-proof helpers like `proof_check`, `proof_proved`, `proof_witness`, and expectation-neutral proof status inspection
+  - `stdlib/test.kn`
+    - now layers expectation sugar like `test_assert_unsat`, `test_assert_sat`, `test_expect_proved`, and `test_expect_witness` on top of `std::proof`
   - `smoketest/src/stdlib/z3_lane.kn`
-    - skips cleanly when `z3` is unavailable, otherwise exercises integer and bitvector solving, sat/unsat checks, push/pop, and model evaluation
+    - skips cleanly when `z3` is unavailable, otherwise exercises integer and bitvector solving, sat/unsat checks, push/pop, model evaluation, and the full `std::z3 -> std::proof -> std::test` chain
   - `smoketest/src/main.kn`
     - total track count is now `57`
     - added the `stdlib.z3_lane` album slot
@@ -9181,15 +9185,21 @@ Current runtime blocker is pre-existing and not caused by the visual lane:
     - added a `KX` row for the new optional `std::z3` family
   - atlas
     - refreshed `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json`
-    - current summary after this pass: `61` modules, `2619` public symbols, `3307` total symbols
+    - current summary after this pass: `61` modules, `2649` public symbols, `3337` total symbols
 
 Validation:
 
 - `python -c "import z3; print(z3.get_version_string())"`
 - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
 - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+- `.\target\debug\kain.exe stdlib-map --write`
+- `.\target\debug\kain.exe stdlib-map --check`
 - `python query_stdlib.py --module z3 --limit 80`
+- `python query_stdlib.py --module proof --limit 80`
+- `python query_stdlib.py --module test --limit 80`
 - `.\target\debug\kain.exe check stdlib\z3.kn --target llvm`
+- `.\target\debug\kain.exe check stdlib\proof.kn --target llvm`
+- `.\target\debug\kain.exe check stdlib\test.kn --target llvm`
 - `.\target\debug\kain.exe check smoketest\src\stdlib\z3_lane.kn --target llvm`
 - `.\target\debug\kain.exe check smoketest\src\main.kn --target llvm`
 

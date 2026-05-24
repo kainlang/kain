@@ -12,6 +12,7 @@ use kain_core::ast::{
     Pattern, Program, Stmt, Type, Use, VariantPatternFields, Visibility,
 };
 use kain_core::parser::RESERVED_KEYWORDS;
+use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_import::rust::{RustSelfHostModuleProgram, RustSelfHostOptions};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -2315,9 +2316,12 @@ fn render_toml_inline_value(value: &Value) -> KainResult<String> {
 
 fn build_stage2_workspace(workspace_dir: &Path) -> KainResult<Stage2BuildResult> {
     let build_log = workspace_dir.join("stage2_build.log");
-    let output = Command::new("cargo")
+    let mut command = Command::new("cargo");
+    command
         .args(["build", "-p", "cli", "--bin", "kain"])
-        .current_dir(workspace_dir)
+        .current_dir(workspace_dir);
+    apply_cargo_command_defaults(&mut command);
+    let output = command
         .output()
         .map_err(|err| {
             KainError::runtime(format!(

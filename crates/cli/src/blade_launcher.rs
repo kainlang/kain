@@ -1,4 +1,4 @@
-use kain_commands::blade::{BladeCli, BladeCommand, BladesCommand};
+use kain_commands::blade::{BladeCommand, BladesCommand};
 
 pub fn main_entry() {
     let (cli, _) = cli::cli_boot::parse_blade_cli().unwrap_or_else(|error| {

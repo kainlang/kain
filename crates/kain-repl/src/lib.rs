@@ -4,8 +4,10 @@
 //! evaluation loop used by the `kain` and `kn` launchers. The CLI should stay
 //! a thin host that supplies build metadata and process IO.
 
+mod app;
 pub mod command;
 pub mod evaluation;
+mod highlight;
 pub mod metadata;
 pub mod session;
 pub mod source;

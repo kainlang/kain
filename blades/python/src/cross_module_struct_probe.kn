@@ -1,0 +1,8 @@
+use std::fs
+
+use struct_probe_support::build_cross_module_wrap
+
+fn main() -> Int:
+    let wrap = build_cross_module_wrap()
+    fs_write_text("cross_module_struct_probe_status.txt", to_string(len(wrap.value)) + "|" + to_string(wrap.value[0]))
+    return len(wrap.value)

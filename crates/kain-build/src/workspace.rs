@@ -12,6 +12,7 @@ use kain_core::diagnostics::SpanMapper;
 use kain_core::format_program;
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
+use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::CompileTarget;
 use kain_fs as kfs;
 use kain_omni::fabric::{FabricRuntimeKind, FabricSessionStatus};
@@ -3597,6 +3598,7 @@ fn run_cargo_build(manifest_path: &Path, target_dir: &Path, release: bool) -> Bu
         .env("CARGO_TARGET_DIR", target_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    apply_cargo_command_defaults(&mut command);
     if release {
         command.arg("--release");
     }

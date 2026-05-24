@@ -123,6 +123,14 @@ struct NativeRuntimeObjectCachePaths {
     fingerprint_path: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+struct NativeRuntimeObjectBuildRecord {
+    source: PathBuf,
+    object_path: PathBuf,
+    fingerprint: String,
+    was_reused: bool,
+}
+
 #[derive(Debug)]
 struct NativeRuntimeStaticArchivePaths {
     archive_path: PathBuf,
@@ -1484,11 +1492,28 @@ fn parse_native_toolchain_tuning(
 }
 
 fn resolve_native_toolchain_tuning() -> Result<NativeToolchainTuning, String> {
+    let tooling_config = kain_core::tooling_config::active_kain_tooling_config();
+    let config_debug_info = tooling_config
+        .build
+        .native_debug_info
+        .map(|value| if value { "true" } else { "false" }.to_string());
     parse_native_toolchain_tuning(
-        std::env::var("KAIN_NATIVE_PROFILE").ok().as_deref(),
-        std::env::var("KAIN_NATIVE_OPT_LEVEL").ok().as_deref(),
-        std::env::var("KAIN_NATIVE_TARGET_CPU").ok().as_deref(),
-        std::env::var("KAIN_NATIVE_DEBUG_INFO").ok().as_deref(),
+        std::env::var("KAIN_NATIVE_PROFILE")
+            .ok()
+            .as_deref()
+            .or(tooling_config.build.native_profile.as_deref()),
+        std::env::var("KAIN_NATIVE_OPT_LEVEL")
+            .ok()
+            .as_deref()
+            .or(tooling_config.build.native_opt_level.as_deref()),
+        std::env::var("KAIN_NATIVE_TARGET_CPU")
+            .ok()
+            .as_deref()
+            .or(tooling_config.build.native_target_cpu.as_deref()),
+        std::env::var("KAIN_NATIVE_DEBUG_INFO")
+            .ok()
+            .as_deref()
+            .or(config_debug_info.as_deref()),
     )
 }
 
@@ -2150,6 +2175,26 @@ pub fn main_entry() {
                     }
                     print_doctor(launcher);
                 }
+                Some(Commands::Config { command }) => match command {
+                    kain_commands::kain::ConfigCommand::Show { json } => {
+                        if let Err(err) = run_config_show(json) {
+                            eprintln!(" Config show failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                    kain_commands::kain::ConfigCommand::Set { key, value } => {
+                        if let Err(err) = run_config_set(&key, &value) {
+                            eprintln!(" Config set failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                    kain_commands::kain::ConfigCommand::Init { path, force } => {
+                        if let Err(err) = run_config_init(path.as_deref(), force) {
+                            eprintln!(" Config init failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                },
                 Some(Commands::Format {
                     input,
                     check,
@@ -3344,6 +3389,8 @@ fn print_doctor(active_launcher: LauncherKind) {
     } else {
         None
     };
+    let tooling_config = kain_core::tooling_config::active_kain_tooling_config();
+    let resolved_native_tuning = resolve_native_toolchain_tuning().ok();
     let managed_sync_stamp = load_managed_sync_stamp();
 
     let current_dir = std::env::current_dir().ok();
@@ -3375,6 +3422,7 @@ fn print_doctor(active_launcher: LauncherKind) {
     if let Some(layout) = &install_layout {
         println!(" Kain Home: {}", layout.home_dir.display());
         println!(" Kain User Bin: {}", layout.bin_dir.display());
+        println!(" Kain Config Path: {}", layout.config_path.display());
         println!(" Kain Packages Dir: {}", layout.packages_dir.display());
         println!(" Kain Tooling Dir: {}", layout.tooling_dir.display());
         println!(" Kain Cache Dir: {}", layout.cache_dir.display());
@@ -3385,6 +3433,37 @@ fn print_doctor(active_launcher: LauncherKind) {
         );
     } else {
         println!(" Kain Home: <unresolved>");
+    }
+    if let Some(source_path) = &tooling_config.source_path {
+        println!(" Active Config Source: {}", source_path.display());
+    } else {
+        println!(" Active Config Source: <unresolved>");
+    }
+    println!(
+        " Active Config Loaded: {}",
+        if tooling_config.loaded_from_disk {
+            "yes"
+        } else {
+            "no (using defaults)"
+        }
+    );
+    println!(
+        " CLI Theme: {} / color {} / experimental-help {}",
+        tooling_config.ui.theme,
+        describe_color_preference(tooling_config.ui.color),
+        tooling_config.ui.experimental_help
+    );
+    println!(
+        " Build Parallelism: cargo={} native={} (host cores {})",
+        tooling_config.build.cargo_jobs,
+        tooling_config.build.native_jobs,
+        tooling_config.build.available_parallelism
+    );
+    if let Some(tuning) = &resolved_native_tuning {
+        println!(
+            " Native Toolchain Defaults: {}",
+            describe_native_toolchain_tuning(tuning)
+        );
     }
     println!(" Active Launcher: {}", active_launcher.display_name());
 
@@ -3595,6 +3674,323 @@ fn is_bazel_output_binary(path: &Path) -> bool {
         .replace('/', "\\")
         .to_ascii_lowercase()
         .contains("\\bazel-out\\")
+}
+
+fn describe_color_preference(
+    preference: kain_core::tooling_config::KainColorPreference,
+) -> &'static str {
+    match preference {
+        kain_core::tooling_config::KainColorPreference::Auto => "auto",
+        kain_core::tooling_config::KainColorPreference::Always => "always",
+        kain_core::tooling_config::KainColorPreference::Never => "never",
+    }
+}
+
+fn describe_native_toolchain_tuning(tuning: &NativeToolchainTuning) -> String {
+    format!(
+        "profile={} opt=O{} target-cpu={} debug-info={}",
+        tuning.profile.as_str(),
+        tuning.opt_level,
+        tuning.target_cpu.as_deref().unwrap_or("default"),
+        tuning.debug_info
+    )
+}
+
+fn render_default_kain_config_toml() -> String {
+    let active = kain_core::tooling_config::active_kain_tooling_config();
+    format!(
+        concat!(
+            "# Kain control plane\n",
+            "# One install, one config, full send.\n\n",
+            "schema = 1\n\n",
+            "[build]\n",
+            "# jobs presets: smart, all, half, efficiency\n",
+            "jobs = \"smart\"\n",
+            "# cargo_jobs = {cargo_jobs}\n",
+            "# native_jobs = {native_jobs}\n",
+            "# native_profile = \"{native_profile}\"\n",
+            "# native_opt_level = \"{native_opt_level}\"\n",
+            "# native_target_cpu = \"{native_target_cpu}\"\n",
+            "# native_debug_info = {native_debug_info}\n\n",
+            "[ui]\n",
+            "color = \"{color}\"\n",
+            "theme = \"{theme}\"\n",
+            "experimental_help = {experimental_help}\n"
+        ),
+        cargo_jobs = active.build.cargo_jobs,
+        native_jobs = active.build.native_jobs,
+        native_profile = active.build.native_profile.as_deref().unwrap_or("release"),
+        native_opt_level = active.build.native_opt_level.as_deref().unwrap_or("2"),
+        native_target_cpu = active
+            .build
+            .native_target_cpu
+            .as_deref()
+            .unwrap_or("native"),
+        native_debug_info = active.build.native_debug_info.unwrap_or(false),
+        color = describe_color_preference(active.ui.color),
+        theme = active.ui.theme,
+        experimental_help = active.ui.experimental_help,
+    )
+}
+
+fn supported_config_keys() -> &'static [&'static str] {
+    &[
+        "build.jobs",
+        "build.cargo-jobs",
+        "build.native-jobs",
+        "build.native-profile",
+        "build.native-opt-level",
+        "build.native-target-cpu",
+        "build.native-debug-info",
+        "ui.color",
+        "ui.theme",
+        "ui.experimental-help",
+    ]
+}
+
+fn normalize_config_key(key: &str) -> String {
+    key.trim().replace('_', "-").to_ascii_lowercase()
+}
+
+fn load_editable_kain_config(
+    path: &Path,
+) -> Result<kain_core::tooling_config::KainToolingConfigFile, String> {
+    if !path.exists() {
+        return Ok(kain_core::tooling_config::KainToolingConfigFile::default());
+    }
+    let source = fs::read_to_string(path)
+        .map_err(|err| format!("failed to read config file {}: {}", path.display(), err))?;
+    toml::from_str::<kain_core::tooling_config::KainToolingConfigFile>(&source)
+        .map_err(|err| format!("failed to parse config file {}: {}", path.display(), err))
+}
+
+fn write_kain_config_file(
+    path: &Path,
+    config: &kain_core::tooling_config::KainToolingConfigFile,
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "failed to create config parent directory {}: {}",
+                parent.display(),
+                err
+            )
+        })?;
+    }
+    let encoded = toml::to_string_pretty(config).map_err(|err| {
+        format!(
+            "failed to serialize config file {}: {}",
+            path.display(),
+            err
+        )
+    })?;
+    fs::write(path, encoded)
+        .map_err(|err| format!("failed to write config file {}: {}", path.display(), err))
+}
+
+fn parse_parallelism_setting_value(
+    value: &str,
+) -> Result<kain_core::tooling_config::KainParallelismSetting, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err("parallelism value cannot be empty".to_string());
+    }
+    if let Ok(count) = trimmed.parse::<usize>() {
+        if count == 0 {
+            return Err("parallelism value must be >= 1".to_string());
+        }
+        return Ok(kain_core::tooling_config::KainParallelismSetting::Count(
+            count,
+        ));
+    }
+    Ok(kain_core::tooling_config::KainParallelismSetting::Preset(
+        trimmed.to_ascii_lowercase(),
+    ))
+}
+
+fn parse_config_bool(value: &str) -> Result<bool, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        other => Err(format!(
+            "invalid boolean value `{other}`; expected true/false, yes/no, on/off, or 1/0"
+        )),
+    }
+}
+
+fn normalize_optional_config_string(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("default")
+        || trimmed.eq_ignore_ascii_case("none")
+    {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn normalize_theme_config_value(value: &str) -> Result<String, String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return Err("theme value cannot be empty".to_string());
+    }
+    if kain_core::tooling_config::supported_theme_names().contains(&normalized.as_str()) {
+        Ok(normalized)
+    } else {
+        Err(format!(
+            "unknown Kain theme `{}`; expected one of {}",
+            value.trim(),
+            kain_core::tooling_config::supported_theme_names().join(", ")
+        ))
+    }
+}
+
+fn apply_config_key_value(
+    config: &mut kain_core::tooling_config::KainToolingConfigFile,
+    key: &str,
+    value: &str,
+) -> Result<(), String> {
+    match normalize_config_key(key).as_str() {
+        "build.jobs" => {
+            config.build.jobs = Some(parse_parallelism_setting_value(value)?);
+            config.build.cargo_jobs = None;
+            config.build.native_jobs = None;
+        }
+        "build.cargo-jobs" => {
+            config.build.cargo_jobs = Some(parse_parallelism_setting_value(value)?);
+        }
+        "build.native-jobs" => {
+            config.build.native_jobs = Some(parse_parallelism_setting_value(value)?);
+        }
+        "build.native-profile" => {
+            config.build.native_profile = normalize_optional_config_string(value);
+        }
+        "build.native-opt-level" => {
+            config.build.native_opt_level = normalize_optional_config_string(value);
+        }
+        "build.native-target-cpu" => {
+            config.build.native_target_cpu = normalize_optional_config_string(value);
+        }
+        "build.native-debug-info" => {
+            config.build.native_debug_info = Some(parse_config_bool(value)?);
+        }
+        "ui.color" => {
+            config.ui.color = Some(kain_core::tooling_config::KainColorPreference::parse_str(
+                value,
+            )?);
+        }
+        "ui.theme" => {
+            config.ui.theme = Some(normalize_theme_config_value(value)?);
+        }
+        "ui.experimental-help" => {
+            config.ui.experimental_help = Some(parse_config_bool(value)?);
+        }
+        _ => {
+            return Err(format!(
+                "unknown Kain config key `{}`; expected one of {}",
+                key.trim(),
+                supported_config_keys().join(", ")
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn run_config_show(json: bool) -> Result<(), String> {
+    let active = kain_core::tooling_config::active_kain_tooling_config();
+    if json {
+        let encoded = serde_json::to_string_pretty(&active)
+            .map_err(|err| format!("failed to serialize active config: {err}"))?;
+        println!("{encoded}");
+        return Ok(());
+    }
+
+    println!(" Kain Config");
+    if let Some(path) = &active.source_path {
+        println!(" Path: {}", path.display());
+    } else {
+        println!(" Path: <unresolved>");
+    }
+    println!(
+        " Loaded: {}",
+        if active.loaded_from_disk {
+            "yes"
+        } else {
+            "no (defaults)"
+        }
+    );
+    println!(
+        " UI: theme={} color={} experimental-help={}",
+        active.ui.theme,
+        describe_color_preference(active.ui.color),
+        active.ui.experimental_help
+    );
+    println!(
+        " Build: cargo-jobs={} native-jobs={} host-cores={}",
+        active.build.cargo_jobs, active.build.native_jobs, active.build.available_parallelism
+    );
+    println!(
+        " Native defaults: profile={} opt={} target-cpu={} debug-info={}",
+        active.build.native_profile.as_deref().unwrap_or("debug"),
+        active.build.native_opt_level.as_deref().unwrap_or("0"),
+        active
+            .build
+            .native_target_cpu
+            .as_deref()
+            .unwrap_or("default"),
+        active.build.native_debug_info.unwrap_or(true)
+    );
+    Ok(())
+}
+
+fn run_config_set(key: &str, value: &str) -> Result<(), String> {
+    let active = kain_core::tooling_config::active_kain_tooling_config();
+    let target_path = active
+        .source_path
+        .clone()
+        .ok_or_else(|| "unable to resolve a Kain config path".to_string())?;
+    let mut config = load_editable_kain_config(&target_path)?;
+    apply_config_key_value(&mut config, key, value)?;
+    write_kain_config_file(&target_path, &config)?;
+    let reloaded = kain_core::tooling_config::load_kain_tooling_config(Some(&target_path))?;
+    kain_core::tooling_config::install_active_kain_tooling_config(reloaded);
+    println!(" Updated Kain config: {}", target_path.display());
+    println!(" Set {} = {}", normalize_config_key(key), value.trim());
+    Ok(())
+}
+
+fn run_config_init(path_override: Option<&Path>, force: bool) -> Result<(), String> {
+    let active = kain_core::tooling_config::active_kain_tooling_config();
+    let target_path = path_override
+        .map(Path::to_path_buf)
+        .or(active.source_path.clone())
+        .ok_or_else(|| "unable to resolve a Kain config path".to_string())?;
+
+    if target_path.exists() && !force {
+        return Err(format!(
+            "config file already exists at {}; rerun with --force to overwrite it",
+            target_path.display()
+        ));
+    }
+    if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "failed to create config parent directory {}: {}",
+                parent.display(),
+                err
+            )
+        })?;
+    }
+    fs::write(&target_path, render_default_kain_config_toml()).map_err(|err| {
+        format!(
+            "failed to write config file {}: {}",
+            target_path.display(),
+            err
+        )
+    })?;
+    println!(" Wrote Kain config: {}", target_path.display());
+    Ok(())
 }
 
 fn is_cargo_bin_binary(path: &Path) -> bool {
@@ -3983,6 +4379,8 @@ fn compile_native_runtime_bundle(
     clang_cmd: &str,
     toolchain_tuning: &NativeToolchainTuning,
 ) -> Result<NativeRuntimeCompiledArtifacts, String> {
+    use rayon::prelude::*;
+
     let runtime_cache_dir = bundle.cache_root.join(sanitize_runtime_name(&bundle.name));
     let runtime_obj_dir = runtime_cache_dir.join("objects");
     let runtime_archive_dir = runtime_cache_dir.join("archives");
@@ -4003,31 +4401,82 @@ fn compile_native_runtime_bundle(
 
     let object_ext = if cfg!(windows) { "obj" } else { "o" };
     let mut object_paths_by_source = BTreeMap::<PathBuf, PathBuf>::new();
+    let mut object_fingerprints_by_source = BTreeMap::<PathBuf, String>::new();
     let mut reused_object_count = 0usize;
     let mut compiled_object_count = 0usize;
 
-    for (index, source) in bundle.sources.iter().enumerate() {
-        let cache_paths =
-            build_native_runtime_object_cache_paths(&runtime_obj_dir, index, source, object_ext);
-        let compile_fingerprint =
-            build_native_runtime_compile_fingerprint(bundle, clang_cmd, source, toolchain_tuning)?;
+    let native_jobs = kain_core::tooling_config::active_native_parallelism();
+    let compile_objects = || -> Result<Vec<NativeRuntimeObjectBuildRecord>, String> {
+        bundle
+            .sources
+            .par_iter()
+            .enumerate()
+            .map(|(index, source)| {
+                let cache_paths = build_native_runtime_object_cache_paths(
+                    &runtime_obj_dir,
+                    index,
+                    source,
+                    object_ext,
+                );
+                let compile_fingerprint = build_native_runtime_compile_fingerprint(
+                    bundle,
+                    clang_cmd,
+                    source,
+                    toolchain_tuning,
+                )?;
 
-        if native_runtime_object_cache_is_fresh(&cache_paths, &compile_fingerprint) {
+                if native_runtime_object_cache_is_fresh(&cache_paths, &compile_fingerprint) {
+                    return Ok(NativeRuntimeObjectBuildRecord {
+                        source: source.clone(),
+                        object_path: cache_paths.object_path,
+                        fingerprint: compile_fingerprint,
+                        was_reused: true,
+                    });
+                }
+
+                compile_native_runtime_object(
+                    bundle,
+                    clang_cmd,
+                    toolchain_tuning,
+                    source,
+                    &cache_paths,
+                )?;
+                fs::write(&cache_paths.fingerprint_path, &compile_fingerprint).map_err(|err| {
+                    format!(
+                        "unable to write runtime build fingerprint {}: {}",
+                        cache_paths.fingerprint_path.display(),
+                        err
+                    )
+                })?;
+
+                Ok(NativeRuntimeObjectBuildRecord {
+                    source: source.clone(),
+                    object_path: cache_paths.object_path,
+                    fingerprint: compile_fingerprint,
+                    was_reused: false,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+    };
+
+    let object_build_records = if native_jobs > 1 && bundle.sources.len() > 1 {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(native_jobs)
+            .build()
+            .map_err(|err| format!("unable to build native runtime worker pool: {err}"))?
+            .install(compile_objects)?
+    } else {
+        compile_objects()?
+    };
+
+    for record in object_build_records {
+        if record.was_reused {
             reused_object_count += 1;
-            object_paths_by_source.insert(source.clone(), cache_paths.object_path.clone());
-            continue;
+        } else {
+            compiled_object_count += 1;
         }
-
-        compile_native_runtime_object(bundle, clang_cmd, toolchain_tuning, source, &cache_paths)?;
-        fs::write(&cache_paths.fingerprint_path, &compile_fingerprint).map_err(|err| {
-            format!(
-                "unable to write runtime build fingerprint {}: {}",
-                cache_paths.fingerprint_path.display(),
-                err
-            )
-        })?;
-        compiled_object_count += 1;
-        object_paths_by_source.insert(source.clone(), cache_paths.object_path.clone());
+        object_fingerprints_by_source.insert(record.source.clone(), record.fingerprint.clone());
+        object_paths_by_source.insert(record.source, record.object_path);
     }
 
     let archived_sources = bundle
@@ -4074,8 +4523,12 @@ fn compile_native_runtime_bundle(
                 &archive_group.name,
                 archiver.archive_ext,
             );
-            let archive_fingerprint =
-                build_native_runtime_archive_fingerprint(bundle, &archiver, archive_group);
+            let archive_fingerprint = build_native_runtime_archive_fingerprint(
+                bundle,
+                &archiver,
+                archive_group,
+                &object_fingerprints_by_source,
+            );
 
             if native_runtime_archive_cache_is_fresh(
                 &archive_paths,
@@ -4356,6 +4809,7 @@ fn build_native_runtime_archive_fingerprint(
     bundle: &ResolvedNativeRuntimeBundle,
     archiver: &NativeRuntimeArchiver,
     archive_group: &ResolvedNativeRuntimeArchiveGroup,
+    object_fingerprints_by_source: &BTreeMap<PathBuf, String>,
 ) -> String {
     let mut fingerprint_lines = vec![
         "kain-native-runtime-archive-cache-v1".to_string(),
@@ -4367,6 +4821,9 @@ fn build_native_runtime_archive_fingerprint(
     ];
     for source_path in &archive_group.source_paths {
         fingerprint_lines.push(format!("source={}", source_path.display()));
+        if let Some(object_fingerprint) = object_fingerprints_by_source.get(source_path) {
+            fingerprint_lines.push(format!("object_fingerprint={}", object_fingerprint));
+        }
     }
     fingerprint_lines.join("\n")
 }
@@ -4783,9 +5240,10 @@ fn native_runtime_manifest_candidate_suffixes() -> [PathBuf; 3] {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_native_runtime_archive_fingerprint, build_native_runtime_compile_fingerprint,
-        build_native_runtime_object_cache_paths, default_native_runtime_link_libs,
-        default_runtime_cache_root, find_bundled_clang, load_native_runtime_manifest,
+        apply_config_key_value, build_native_runtime_archive_fingerprint,
+        build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
+        default_native_runtime_link_libs, default_runtime_cache_root, find_bundled_clang,
+        load_editable_kain_config, load_native_runtime_manifest,
         native_runtime_object_cache_is_fresh, parse_native_runtime_depfile,
         parse_native_toolchain_tuning, platform_link_libs, resolve_c_ffi_native_link_inputs,
         resolve_native_runtime_archive_groups, runtime_source_uses_cpp, sanitize_runtime_name,
@@ -4793,6 +5251,7 @@ mod tests {
         NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest, NativeToolchainProfile,
         ResolvedNativeRuntimeArchiveGroup, ResolvedNativeRuntimeBundle,
     };
+    use kain_core::tooling_config::{KainColorPreference, KainParallelismSetting};
     use kain_core::CompileTarget;
     use kain_driver::DriverSession;
     use std::{fs, path::Path, path::PathBuf, thread::sleep, time::Duration};
@@ -4801,6 +5260,40 @@ mod tests {
     fn sanitize_runtime_name_keeps_object_filenames_stable() {
         assert_eq!(sanitize_runtime_name("Kain Runtime"), "kain_runtime");
         assert_eq!(sanitize_runtime_name("###"), "runtime");
+    }
+
+    #[test]
+    fn config_set_updates_parallelism_and_theme_keys() {
+        let mut config = kain_core::tooling_config::KainToolingConfigFile::default();
+        config.build.cargo_jobs = Some(KainParallelismSetting::Count(15));
+        config.build.native_jobs = Some(KainParallelismSetting::Count(15));
+
+        apply_config_key_value(&mut config, "build.jobs", "all").expect("jobs");
+        apply_config_key_value(&mut config, "ui.theme", "ember").expect("theme");
+        apply_config_key_value(&mut config, "ui.color", "never").expect("color");
+        apply_config_key_value(&mut config, "ui.experimental-help", "false")
+            .expect("experimental help");
+
+        assert_eq!(
+            config.build.jobs,
+            Some(KainParallelismSetting::Preset("all".to_string()))
+        );
+        assert!(config.build.cargo_jobs.is_none());
+        assert!(config.build.native_jobs.is_none());
+        assert_eq!(config.ui.theme.as_deref(), Some("ember"));
+        assert_eq!(config.ui.color, Some(KainColorPreference::Never));
+        assert_eq!(config.ui.experimental_help, Some(false));
+    }
+
+    #[test]
+    fn editable_config_loader_defaults_missing_files() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let missing_path = temp_dir.path().join("config.toml");
+
+        let config = load_editable_kain_config(&missing_path).expect("default config");
+        assert_eq!(config.schema, 1);
+        assert!(config.build.jobs.is_none());
+        assert!(config.ui.theme.is_none());
     }
 
     #[test]
@@ -4961,10 +5454,19 @@ macos = ["Cocoa"]
             uses_cpp_runtime: true,
         };
 
-        let vendor_fingerprint =
-            build_native_runtime_archive_fingerprint(&bundle, &archiver, &vendor_group);
-        let ui_fingerprint =
-            build_native_runtime_archive_fingerprint(&bundle, &archiver, &ui_group);
+        let empty_object_fingerprints = std::collections::BTreeMap::new();
+        let vendor_fingerprint = build_native_runtime_archive_fingerprint(
+            &bundle,
+            &archiver,
+            &vendor_group,
+            &empty_object_fingerprints,
+        );
+        let ui_fingerprint = build_native_runtime_archive_fingerprint(
+            &bundle,
+            &archiver,
+            &ui_group,
+            &empty_object_fingerprints,
+        );
 
         assert_ne!(vendor_fingerprint, ui_fingerprint);
     }

@@ -12,6 +12,7 @@ use crate::{
     RustBundleOutput, ShaderArtifactBundleOutput,
 };
 use kain_core::error::KainError;
+use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::{
     build_ui_output_from_source, realtime_app_bundle_to_json, runtime_contract_bundle_to_json,
     CompileTarget, RealtimeAppBundle, RealtimeAssetBinding, RuntimeCapability,
@@ -2110,6 +2111,7 @@ fn materialize_gpu_runtime_library(
 
     let mut command = Command::new("cargo");
     command.arg("build").arg("-p").arg("kain-gpu-runtime");
+    apply_cargo_command_defaults(&mut command);
     if release {
         command.arg("--release");
     }
@@ -2198,6 +2200,7 @@ fn build_native_app_executable(
 ) -> Result<PathBuf, KainError> {
     let mut command = Command::new("cargo");
     command.arg("build");
+    apply_cargo_command_defaults(&mut command);
     if release {
         command.arg("--release");
     }

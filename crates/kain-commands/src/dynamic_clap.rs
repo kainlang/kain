@@ -250,6 +250,22 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_help_includes_theme_footer_when_ui_is_applied() {
+        let help = dynamic_help_for_bin_with_ui(
+            &builtin_registry(),
+            crate::ui::CommandUiPreferences {
+                bin: "kain",
+                theme: crate::ui::CommandUiTheme::Ember,
+                color_choice: clap::ColorChoice::Never,
+                experimental_help: true,
+            },
+        )
+        .unwrap();
+        assert!(help.contains("Theme: ember"));
+        assert!(help.contains("Config: ~/.kain/config.toml"));
+    }
+
+    #[test]
     fn dynamic_invocation_resolves_longest_builtin_path() {
         let argv = ["run".to_string(), "plan".to_string(), "main.kn".to_string()];
         let invocation = resolve_dynamic_invocation(&builtin_registry(), "kain", &argv).unwrap();

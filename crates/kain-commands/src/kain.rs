@@ -460,6 +460,36 @@ pub enum RegistryCommand {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum ConfigCommand {
+    /// Print the active config path plus the resolved CLI/build settings
+    Show {
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Update a single config key in the active Kain control plane
+    Set {
+        /// Dotted config key such as build.jobs or ui.theme
+        key: String,
+
+        /// New value for the selected key
+        value: String,
+    },
+
+    /// Write a starter Kain config file for the current machine
+    Init {
+        /// Override the config file destination
+        #[arg(long)]
+        path: Option<PathBuf>,
+
+        /// Overwrite an existing config file
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 pub enum KainCommand {
     /// Initialize a new KAIN project
     Init {
@@ -528,6 +558,12 @@ pub enum KainCommand {
 
     /// Start the Language Server
     Lsp,
+
+    /// Show or initialize the Kain config control plane
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
 
     /// Show binary/build diagnostics and resolved compiler capabilities
     Doctor {
@@ -1109,6 +1145,69 @@ pub enum KainCommand {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn parses_global_config_overrides() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "--config",
+            "custom.toml",
+            "--color",
+            "always",
+            "--theme",
+            "ember",
+            "check",
+            "main.kn",
+        ]);
+        assert_eq!(cli.config, Some(PathBuf::from("custom.toml")));
+        assert_eq!(cli.color, Some(CliColorArg::Always));
+        assert_eq!(cli.theme.as_deref(), Some("ember"));
+        match cli.command {
+            Some(KainCommand::Check { input, .. }) => {
+                assert_eq!(input, PathBuf::from("main.kn"));
+            }
+            other => panic!("expected check command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_config_init_command() {
+        let cli = KainCli::parse_from(["kain", "config", "init", "--path", "alt.toml", "--force"]);
+        match cli.command {
+            Some(KainCommand::Config {
+                command: ConfigCommand::Init { path, force },
+            }) => {
+                assert_eq!(path, Some(PathBuf::from("alt.toml")));
+                assert!(force);
+            }
+            other => panic!("expected config init command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_config_show_command() {
+        let cli = KainCli::parse_from(["kain", "config", "show", "--json"]);
+        match cli.command {
+            Some(KainCommand::Config {
+                command: ConfigCommand::Show { json },
+            }) => assert!(json),
+            other => panic!("expected config show command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_config_set_command() {
+        let cli = KainCli::parse_from(["kain", "config", "set", "build.jobs", "all"]);
+        match cli.command {
+            Some(KainCommand::Config {
+                command: ConfigCommand::Set { key, value },
+            }) => {
+                assert_eq!(key, "build.jobs");
+                assert_eq!(value, "all");
+            }
+            other => panic!("expected config set command, got {other:?}"),
+        }
+    }
 
     #[test]
     fn parses_build_native_ui_command() {

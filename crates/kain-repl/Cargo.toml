@@ -8,3 +8,7 @@ license = "MIT"
 [dependencies]
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
+logos = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+unicode-width = { workspace = true }

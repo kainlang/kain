@@ -1,0 +1,13 @@
+diff --git a/build.rs b/build.rs
+--- a/build.rs
++++ b/build.rs
+@@ -8,7 +8,9 @@ const PRIVATE: &str = "\
+ #[doc(hidden)]
+ pub mod __private$$ {
+     #[doc(hidden)]
+     pub use crate::private::*;
+ }
++#[doc(hidden)]
++pub use self::__private$$ as __private;
+ use serde_core::__private$$ as serde_core_private;
+ ";

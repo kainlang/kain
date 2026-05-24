@@ -13,7 +13,7 @@ This backlog is derived from:
 
 Current reality:
 
-- Kain root stdlib atlas currently reports `61` modules, `2619` public symbols, and `3307` total symbols.
+- Kain root stdlib atlas currently reports `61` modules, `2649` public symbols, and `3337` total symbols.
 - The root profile is still much thinner than Zig's local `lib/std` capability envelope.
 - Kain is already unusually strong in `std::math`, `std::gpu`, `std::graphics`, `std::ui`, `std::build`, `std::bench`, `std::attrition`, `std::certify`, `std::actor`, and semantic/runtime-facing surfaces such as `std::intent` and `std::runtime`.
 - Kain is still obviously missing a large amount of boring-but-necessary authoring, systems, container, path, stream, encoding, archive, and binary-introspection depth.
@@ -184,7 +184,7 @@ This is where Kain should stop merely catching up and start having surfaces othe
 | `TODO` | `KX` | message/channel/mailbox helpers | Decide whether parts of non-actor coordination belong in `std::sync`, `std::actor`, or a new message/mailbox module, then give Kain an honest public surface for them. |
 | `PARTIAL` | `KX` | `std::gpu`, `std::graphics`, `std::graphics::shared`, `std::ui` | Keep the strong rendering/resource surface, but add more typed bridges between semantic state, resource graphs, UI data, and runtime ownership rules where that lowers repeated boilerplate. |
 | `PARTIAL` | `KX` | new `std::z3` | Add an optional host-solver lane over Python `z3-solver` so authored Kain can build SMT constraints, inspect models, and pressure proof/test workflows without pretending the runtime bundles Z3. Keep the surface Kain-shaped, gateable, and honest about the external Python dependency. |
-| `PARTIAL` | `KX` | `std::test` and `std::proof` | Expand from task constructors and basic outcomes into richer authored assertions, property-style helpers, structured witness/proof result records, and solver-friendly harness helpers. |
+| `PARTIAL` | `KX` | `std::test` and `std::proof` | Expand from task constructors and basic outcomes into richer authored assertions, property-style helpers, structured witness/proof result records, and solver-friendly harness helpers. Basic `ProofOutcome` status records plus `test_assert_sat` and `test_assert_unsat` now exist over `std::z3`, but the larger proof DSL and harness story is still incomplete. |
 
 ## P2 - Archives, Compression, Binary Formats, And Deep Systems Tooling
 

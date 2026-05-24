@@ -1,4 +1,6 @@
 use std::z3
+use std::proof
+use std::test
 
 pub fn smoke_z3_lane() -> Int:
     if z3_available() == false:
@@ -18,8 +20,8 @@ pub fn smoke_z3_lane() -> Int:
         z3_distinct([x, y])
     ])
 
-    let sat_result = z3_solver_check(ints)
-    if z3_is_sat(sat_result) == false:
+    let sat_test = test_assert_sat("smoke.z3.integer_route", ints)
+    if test_outcome_ok(sat_test) == false:
         return 2
 
     let model = z3_solver_model(ints)
@@ -37,12 +39,13 @@ pub fn smoke_z3_lane() -> Int:
         z3_expr_eq(x, z3_int_val(1)),
         z3_expr_eq(y, z3_int_val(1))
     ])
-    let unsat_result = z3_solver_check(ints)
-    if z3_is_unsat(unsat_result) == false:
+    let unsat_test = test_assert_unsat("smoke.z3.integer_conflict", ints)
+    if test_outcome_ok(unsat_test) == false:
         return 6
     z3_solver_pop(ints, 1)
 
-    if z3_solver_check_name(ints) != "sat":
+    let stable = proof_check("smoke.z3.integer_resume", ints)
+    if proof_outcome_is_witness(stable) == false:
         return 7
 
     let bits = z3_solver()
@@ -50,8 +53,8 @@ pub fn smoke_z3_lane() -> Int:
     z3_solver_add(bits, [
         z3_expr_eq(z3_expr_add(lane, z3_bitvec_val(1, 8)), z3_bitvec_val(5, 8))
     ])
-    let bit_result = z3_solver_check(bits)
-    if z3_is_sat(bit_result) == false:
+    let bit_test = test_assert_sat("smoke.z3.bitvec_lane", bits)
+    if test_outcome_ok(bit_test) == false:
         return 8
 
     let bit_model = z3_solver_model(bits)

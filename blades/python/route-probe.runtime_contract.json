@@ -5149,6 +5149,340 @@
       },
       {
         "type_id": 14,
+        "name": "ByteSlice",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "source",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "start",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "length",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 15,
+        "name": "BytesBuilder",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "buffer",
+            "type_name": "String",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 16,
+        "name": "BytesDecodeResult",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "ok",
+            "type_name": "Bool",
+            "offset_hint": null
+          },
+          {
+            "name": "value",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "error",
+            "type_name": "String",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 17,
+        "name": "TextSlice",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "source",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "start",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "length",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 18,
+        "name": "StringView",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "source",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "start",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "length",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 19,
+        "name": "TextUnescapeResult",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "ok",
+            "type_name": "Bool",
+            "offset_hint": null
+          },
+          {
+            "name": "value",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "error",
+            "type_name": "String",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 20,
+        "name": "FsError",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "kind",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "operation",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "path",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "other_path",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "message",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "raw_code",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 21,
+        "name": "FsMetadata",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "file_type",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "len",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "readonly",
+            "type_name": "Bool",
+            "offset_hint": null
+          },
+          {
+            "name": "created_millis",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "modified_millis",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "accessed_millis",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 22,
+        "name": "FsDirEntry",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "path",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "file_name",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "file_type",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "metadata",
+            "type_name": "FsMetadata",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 23,
+        "name": "FsChunk",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "index",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "offset",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "len",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "bytes",
+            "type_name": "Array",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 24,
+        "name": "FsWatchEvent",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "kind",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "path",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "before_len",
+            "type_name": "Int",
+            "offset_hint": null
+          },
+          {
+            "name": "after_len",
+            "type_name": "Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 25,
+        "name": "FsJournalEntry",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "operation",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "path",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "other_path",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "status",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "message",
+            "type_name": "String",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 26,
+        "name": "File",
+        "kind": "struct",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "handle",
+            "type_name": "*Int",
+            "offset_hint": null
+          }
+        ]
+      },
+      {
+        "type_id": 27,
         "name": "RingBuffer",
         "kind": "struct",
         "size_hint": null,
@@ -5176,7 +5510,7 @@
         ]
       },
       {
-        "type_id": 15,
+        "type_id": 28,
         "name": "StringBuilder",
         "kind": "struct",
         "size_hint": null,
@@ -5199,7 +5533,7 @@
         ]
       },
       {
-        "type_id": 16,
+        "type_id": 29,
         "name": "BufferedReader",
         "kind": "struct",
         "size_hint": null,
@@ -5227,7 +5561,7 @@
         ]
       },
       {
-        "type_id": 17,
+        "type_id": 30,
         "name": "BufferedWriter",
         "kind": "struct",
         "size_hint": null,
@@ -5250,66 +5584,7 @@
         ]
       },
       {
-        "type_id": 18,
-        "name": "ByteSlice",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "source",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "start",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "length",
-            "type_name": "Int",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 19,
-        "name": "BytesBuilder",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "buffer",
-            "type_name": "String",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 20,
-        "name": "BytesDecodeResult",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "ok",
-            "type_name": "Bool",
-            "offset_hint": null
-          },
-          {
-            "name": "value",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "error",
-            "type_name": "String",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 21,
+        "type_id": 31,
         "name": "FmtWriter",
         "kind": "struct",
         "size_hint": null,
@@ -5322,7 +5597,7 @@
         ]
       },
       {
-        "type_id": 22,
+        "type_id": 32,
         "name": "FmtSpec",
         "kind": "struct",
         "size_hint": null,
@@ -5370,76 +5645,7 @@
         ]
       },
       {
-        "type_id": 23,
-        "name": "TextSlice",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "source",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "start",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "length",
-            "type_name": "Int",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 24,
-        "name": "StringView",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "source",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "start",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "length",
-            "type_name": "Int",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 25,
-        "name": "TextUnescapeResult",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "ok",
-            "type_name": "Bool",
-            "offset_hint": null
-          },
-          {
-            "name": "value",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "error",
-            "type_name": "String",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 26,
+        "type_id": 33,
         "name": "JsonToken",
         "kind": "struct",
         "size_hint": null,
@@ -5467,7 +5673,7 @@
         ]
       },
       {
-        "type_id": 27,
+        "type_id": 34,
         "name": "JsonStatus",
         "kind": "struct",
         "size_hint": null,
@@ -5510,7 +5716,7 @@
         ]
       },
       {
-        "type_id": 28,
+        "type_id": 35,
         "name": "JsonStringResult",
         "kind": "struct",
         "size_hint": null,
@@ -5533,7 +5739,7 @@
         ]
       },
       {
-        "type_id": 29,
+        "type_id": 36,
         "name": "JsonIntResult",
         "kind": "struct",
         "size_hint": null,
@@ -5556,7 +5762,7 @@
         ]
       },
       {
-        "type_id": 30,
+        "type_id": 37,
         "name": "JsonFloatResult",
         "kind": "struct",
         "size_hint": null,
@@ -5579,7 +5785,7 @@
         ]
       },
       {
-        "type_id": 31,
+        "type_id": 38,
         "name": "JsonBoolResult",
         "kind": "struct",
         "size_hint": null,
@@ -5602,7 +5808,7 @@
         ]
       },
       {
-        "type_id": 32,
+        "type_id": 39,
         "name": "JsonObjectResult",
         "kind": "struct",
         "size_hint": null,
@@ -5625,7 +5831,7 @@
         ]
       },
       {
-        "type_id": 33,
+        "type_id": 40,
         "name": "JsonArrayResult",
         "kind": "struct",
         "size_hint": null,
@@ -5648,7 +5854,7 @@
         ]
       },
       {
-        "type_id": 34,
+        "type_id": 41,
         "name": "JsonStringArrayResult",
         "kind": "struct",
         "size_hint": null,
@@ -5671,7 +5877,7 @@
         ]
       },
       {
-        "type_id": 35,
+        "type_id": 42,
         "name": "JsonIntArrayResult",
         "kind": "struct",
         "size_hint": null,
@@ -5694,7 +5900,7 @@
         ]
       },
       {
-        "type_id": 36,
+        "type_id": 43,
         "name": "JsonFloatArrayResult",
         "kind": "struct",
         "size_hint": null,
@@ -5717,7 +5923,7 @@
         ]
       },
       {
-        "type_id": 37,
+        "type_id": 44,
         "name": "JsonBoolArrayResult",
         "kind": "struct",
         "size_hint": null,
@@ -5740,7 +5946,7 @@
         ]
       },
       {
-        "type_id": 38,
+        "type_id": 45,
         "name": "JsonScanReport",
         "kind": "struct",
         "size_hint": null,
@@ -5773,212 +5979,6 @@
           {
             "name": "message",
             "type_name": "String",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 39,
-        "name": "FsError",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "kind",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "operation",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "path",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "other_path",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "message",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "raw_code",
-            "type_name": "Int",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 40,
-        "name": "FsMetadata",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "file_type",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "len",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "readonly",
-            "type_name": "Bool",
-            "offset_hint": null
-          },
-          {
-            "name": "created_millis",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "modified_millis",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "accessed_millis",
-            "type_name": "Int",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 41,
-        "name": "FsDirEntry",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "path",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "file_name",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "file_type",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "metadata",
-            "type_name": "FsMetadata",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 42,
-        "name": "FsChunk",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "index",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "offset",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "len",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "bytes",
-            "type_name": "Array",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 43,
-        "name": "FsWatchEvent",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "kind",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "path",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "before_len",
-            "type_name": "Int",
-            "offset_hint": null
-          },
-          {
-            "name": "after_len",
-            "type_name": "Int",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 44,
-        "name": "FsJournalEntry",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "operation",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "path",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "other_path",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "status",
-            "type_name": "String",
-            "offset_hint": null
-          },
-          {
-            "name": "message",
-            "type_name": "String",
-            "offset_hint": null
-          }
-        ]
-      },
-      {
-        "type_id": 45,
-        "name": "File",
-        "kind": "struct",
-        "size_hint": null,
-        "fields": [
-          {
-            "name": "handle",
-            "type_name": "*Int",
             "offset_hint": null
           }
         ]
@@ -7597,4018 +7597,4018 @@
       },
       {
         "item_id": 231,
-        "name": "abi_map_release",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 232,
-        "name": "native_int_min",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 233,
-        "name": "native_int_max",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 234,
-        "name": "native_int_clamp",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 235,
-        "name": "native_int_between",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 236,
-        "name": "native_int_saturating_sub",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 237,
-        "name": "native_int_sign",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 238,
-        "name": "native_bool_all",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 239,
-        "name": "native_bool_any",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 240,
-        "name": "native_bool_to_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 241,
-        "name": "native_int_to_bool",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 242,
-        "name": "int_min",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 243,
-        "name": "int_max",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 244,
-        "name": "int_clamp",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 245,
-        "name": "int_between",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 246,
-        "name": "int_saturating_sub",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 247,
-        "name": "int_sign",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 248,
-        "name": "bool_all",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 249,
-        "name": "bool_any",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 250,
-        "name": "bool_to_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 251,
-        "name": "int_to_bool",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 252,
-        "name": "StringIntMap",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 1
-      },
-      {
-        "item_id": 253,
-        "name": "IntQueue",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 2
-      },
-      {
-        "item_id": 254,
-        "name": "IntDeque",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 3
-      },
-      {
-        "item_id": 255,
-        "name": "IntPriorityQueue",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 4
-      },
-      {
-        "item_id": 256,
-        "name": "PriorityEntry",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 5
-      },
-      {
-        "item_id": 257,
-        "name": "SlotMapKey",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 6
-      },
-      {
-        "item_id": 258,
-        "name": "SlotMap",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 7
-      },
-      {
-        "item_id": 259,
-        "name": "SlotMapInsert",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 8
-      },
-      {
-        "item_id": 260,
-        "name": "SlotMapRemove",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 9
-      },
-      {
-        "item_id": 261,
-        "name": "string_int_map_new",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 262,
-        "name": "string_int_map_set",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 263,
-        "name": "string_int_map_get",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 264,
-        "name": "string_int_map_get_or",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 265,
-        "name": "string_int_map_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 266,
-        "name": "typed_map_new",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 267,
-        "name": "typed_map_set",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 268,
-        "name": "typed_map_get",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 269,
-        "name": "typed_map_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 270,
-        "name": "queue_create",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 271,
-        "name": "queue_len",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 272,
-        "name": "queue_capacity",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 273,
-        "name": "queue_is_empty",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 274,
-        "name": "queue_is_full",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 275,
-        "name": "queue_push",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 276,
-        "name": "queue_peek",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 277,
-        "name": "queue_pop",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 278,
-        "name": "queue_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 279,
-        "name": "deque_create",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 280,
-        "name": "deque_len",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 281,
-        "name": "deque_is_empty",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 282,
-        "name": "deque_is_full",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 283,
-        "name": "deque_push_back",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 284,
-        "name": "deque_push_front",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 285,
-        "name": "deque_peek_front",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 286,
-        "name": "deque_peek_back",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 287,
-        "name": "deque_pop_front",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 288,
-        "name": "deque_pop_back",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 289,
-        "name": "deque_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 290,
-        "name": "priority_entry_pack",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 291,
-        "name": "priority_entry_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 292,
-        "name": "priority_entry_priority",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 293,
-        "name": "priority_queue_create",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 294,
-        "name": "priority_queue_len",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 295,
-        "name": "priority_queue_is_empty",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 296,
-        "name": "priority_queue_is_full",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 297,
-        "name": "priority_queue_swap",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 298,
-        "name": "priority_queue_push",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 299,
-        "name": "priority_queue_peek_entry",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 300,
-        "name": "priority_queue_peek_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 301,
-        "name": "priority_queue_peek_priority",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 302,
-        "name": "priority_queue_pop",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 303,
-        "name": "priority_queue_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 304,
-        "name": "slot_map_key",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 305,
-        "name": "slot_map_invalid_key",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 306,
-        "name": "slot_map_key_index",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 307,
-        "name": "slot_map_key_generation",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 308,
-        "name": "slot_map_key_is_valid",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 309,
-        "name": "slot_map_create",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 310,
-        "name": "slot_map_len",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 311,
-        "name": "slot_map_capacity",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 312,
-        "name": "slot_map_is_full",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 313,
-        "name": "slot_map_contains",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 314,
-        "name": "slot_map_get_or",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 315,
-        "name": "slot_map_insert",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 316,
-        "name": "slot_map_set",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 317,
-        "name": "slot_map_remove",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 318,
-        "name": "slot_map_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 319,
-        "name": "IntrusiveHashNode",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 10
-      },
-      {
-        "item_id": 320,
-        "name": "IntrusiveHashMap",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 11
-      },
-      {
-        "item_id": 321,
-        "name": "intrusive_hash_map_create",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 322,
-        "name": "intrusive_hash_map_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 323,
-        "name": "intrusive_hash_map_insert",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 324,
-        "name": "intrusive_hash_map_find",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 325,
-        "name": "intrusive_hash_map_remove",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 326,
-        "name": "ArrayList",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 12
-      },
-      {
-        "item_id": 327,
-        "name": "array_list_create",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 328,
-        "name": "array_list_len",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 329,
-        "name": "array_list_capacity",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 330,
-        "name": "array_list_get",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 331,
-        "name": "array_list_set",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 332,
-        "name": "array_list_append",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 333,
-        "name": "array_list_pop",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 334,
-        "name": "array_list_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 335,
-        "name": "HashMap",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 13
-      },
-      {
-        "item_id": 336,
-        "name": "hash_map_create",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 337,
-        "name": "hash_map_len",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 338,
-        "name": "hash_map_capacity",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 339,
-        "name": "hash_map_mix_key",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 340,
-        "name": "hash_map_get_or",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 341,
-        "name": "hash_map_put",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 342,
-        "name": "hash_map_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 343,
-        "name": "volatile_load_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 344,
-        "name": "volatile_store_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 345,
-        "name": "atomic_load_relaxed",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 346,
-        "name": "atomic_load_acquire",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 347,
-        "name": "atomic_load_seqcst",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 348,
-        "name": "atomic_store_relaxed",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 349,
-        "name": "atomic_store_release",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 350,
-        "name": "atomic_store_seqcst",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 351,
-        "name": "atomic_add_acqrel",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 352,
-        "name": "atomic_sub_acqrel",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 353,
-        "name": "atomic_and_acqrel",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 354,
-        "name": "atomic_or_acqrel",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 355,
-        "name": "atomic_xor_acqrel",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 356,
-        "name": "atomic_exchange_acqrel",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 357,
-        "name": "atomic_compare_exchange_seqcst",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 358,
-        "name": "atomic_fence_acquire",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 359,
-        "name": "atomic_fence_release",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 360,
-        "name": "atomic_fence_acqrel",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 361,
-        "name": "atomic_fence_seqcst",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 362,
-        "name": "RingBuffer",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 14
-      },
-      {
-        "item_id": 363,
-        "name": "ring_buffer_new",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 364,
-        "name": "ring_buffer_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 365,
-        "name": "ring_buffer_available_read",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 366,
-        "name": "ring_buffer_available_write",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 367,
-        "name": "ring_buffer_write",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 368,
-        "name": "ring_buffer_read",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 369,
-        "name": "StringBuilder",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 15
-      },
-      {
-        "item_id": 370,
-        "name": "string_builder_new",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 371,
-        "name": "string_builder_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 372,
-        "name": "string_builder_append_char",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 373,
-        "name": "string_builder_append_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 374,
-        "name": "string_builder_to_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 375,
-        "name": "BufferedReader",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 16
-      },
-      {
-        "item_id": 376,
-        "name": "buffered_reader_new",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 377,
-        "name": "buffered_reader_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 378,
-        "name": "buffered_reader_fill",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 379,
-        "name": "buffered_reader_read",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 380,
-        "name": "BufferedWriter",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 17
-      },
-      {
-        "item_id": 381,
-        "name": "buffered_writer_new",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 382,
-        "name": "buffered_writer_destroy",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 383,
-        "name": "buffered_writer_write",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 384,
-        "name": "buffered_writer_flush",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 385,
         "name": "base64_alphabet_char",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 386,
+        "item_id": 232,
         "name": "base64_value_from_code",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 387,
+        "item_id": 233,
         "name": "base64_encode_with_alphabet",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 388,
+        "item_id": 234,
         "name": "base64_normalize_input",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 389,
+        "item_id": 235,
         "name": "base64_decode_normalized",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 390,
+        "item_id": 236,
         "name": "base64_encode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 391,
+        "item_id": 237,
         "name": "base64_encode_nopad",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 392,
+        "item_id": 238,
         "name": "base64_encode_url",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 393,
+        "item_id": 239,
         "name": "base64_encode_url_padded",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 394,
+        "item_id": 240,
         "name": "base64_decode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 395,
+        "item_id": 241,
         "name": "base64_decode_url",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 396,
+        "item_id": 242,
         "name": "base16_encode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 397,
+        "item_id": 243,
         "name": "base16_encode_upper",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 398,
+        "item_id": 244,
         "name": "base16_decode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 399,
+        "item_id": 245,
         "name": "hex_encode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 400,
+        "item_id": 246,
         "name": "hex_encode_upper",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 401,
+        "item_id": 247,
         "name": "hex_decode",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 402,
+        "item_id": 248,
+        "name": "abi_map_release",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 249,
+        "name": "native_int_min",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 250,
+        "name": "native_int_max",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 251,
+        "name": "native_int_clamp",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 252,
+        "name": "native_int_between",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 253,
+        "name": "native_int_saturating_sub",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 254,
+        "name": "native_int_sign",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 255,
+        "name": "native_bool_all",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 256,
+        "name": "native_bool_any",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 257,
+        "name": "native_bool_to_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 258,
+        "name": "native_int_to_bool",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 259,
+        "name": "int_min",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 260,
+        "name": "int_max",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 261,
+        "name": "int_clamp",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 262,
+        "name": "int_between",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 263,
+        "name": "int_saturating_sub",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 264,
+        "name": "int_sign",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 265,
+        "name": "bool_all",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 266,
+        "name": "bool_any",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 267,
+        "name": "bool_to_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 268,
+        "name": "int_to_bool",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 269,
+        "name": "StringIntMap",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 1
+      },
+      {
+        "item_id": 270,
+        "name": "IntQueue",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 2
+      },
+      {
+        "item_id": 271,
+        "name": "IntDeque",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 3
+      },
+      {
+        "item_id": 272,
+        "name": "IntPriorityQueue",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 4
+      },
+      {
+        "item_id": 273,
+        "name": "PriorityEntry",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 5
+      },
+      {
+        "item_id": 274,
+        "name": "SlotMapKey",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 6
+      },
+      {
+        "item_id": 275,
+        "name": "SlotMap",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 7
+      },
+      {
+        "item_id": 276,
+        "name": "SlotMapInsert",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 8
+      },
+      {
+        "item_id": 277,
+        "name": "SlotMapRemove",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 9
+      },
+      {
+        "item_id": 278,
+        "name": "string_int_map_new",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 279,
+        "name": "string_int_map_set",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 280,
+        "name": "string_int_map_get",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 281,
+        "name": "string_int_map_get_or",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 282,
+        "name": "string_int_map_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 283,
+        "name": "typed_map_new",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 284,
+        "name": "typed_map_set",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 285,
+        "name": "typed_map_get",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 286,
+        "name": "typed_map_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 287,
+        "name": "queue_create",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 288,
+        "name": "queue_len",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 289,
+        "name": "queue_capacity",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 290,
+        "name": "queue_is_empty",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 291,
+        "name": "queue_is_full",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 292,
+        "name": "queue_push",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 293,
+        "name": "queue_peek",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 294,
+        "name": "queue_pop",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 295,
+        "name": "queue_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 296,
+        "name": "deque_create",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 297,
+        "name": "deque_len",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 298,
+        "name": "deque_is_empty",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 299,
+        "name": "deque_is_full",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 300,
+        "name": "deque_push_back",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 301,
+        "name": "deque_push_front",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 302,
+        "name": "deque_peek_front",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 303,
+        "name": "deque_peek_back",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 304,
+        "name": "deque_pop_front",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 305,
+        "name": "deque_pop_back",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 306,
+        "name": "deque_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 307,
+        "name": "priority_entry_pack",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 308,
+        "name": "priority_entry_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 309,
+        "name": "priority_entry_priority",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 310,
+        "name": "priority_queue_create",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 311,
+        "name": "priority_queue_len",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 312,
+        "name": "priority_queue_is_empty",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 313,
+        "name": "priority_queue_is_full",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 314,
+        "name": "priority_queue_swap",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 315,
+        "name": "priority_queue_push",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 316,
+        "name": "priority_queue_peek_entry",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 317,
+        "name": "priority_queue_peek_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 318,
+        "name": "priority_queue_peek_priority",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 319,
+        "name": "priority_queue_pop",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 320,
+        "name": "priority_queue_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 321,
+        "name": "slot_map_key",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 322,
+        "name": "slot_map_invalid_key",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 323,
+        "name": "slot_map_key_index",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 324,
+        "name": "slot_map_key_generation",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 325,
+        "name": "slot_map_key_is_valid",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 326,
+        "name": "slot_map_create",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 327,
+        "name": "slot_map_len",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 328,
+        "name": "slot_map_capacity",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 329,
+        "name": "slot_map_is_full",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 330,
+        "name": "slot_map_contains",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 331,
+        "name": "slot_map_get_or",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 332,
+        "name": "slot_map_insert",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 333,
+        "name": "slot_map_set",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 334,
+        "name": "slot_map_remove",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 335,
+        "name": "slot_map_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 336,
+        "name": "IntrusiveHashNode",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 10
+      },
+      {
+        "item_id": 337,
+        "name": "IntrusiveHashMap",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 11
+      },
+      {
+        "item_id": 338,
+        "name": "intrusive_hash_map_create",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 339,
+        "name": "intrusive_hash_map_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 340,
+        "name": "intrusive_hash_map_insert",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 341,
+        "name": "intrusive_hash_map_find",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 342,
+        "name": "intrusive_hash_map_remove",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 343,
+        "name": "ArrayList",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 12
+      },
+      {
+        "item_id": 344,
+        "name": "array_list_create",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 345,
+        "name": "array_list_len",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 346,
+        "name": "array_list_capacity",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 347,
+        "name": "array_list_get",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 348,
+        "name": "array_list_set",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 349,
+        "name": "array_list_append",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 350,
+        "name": "array_list_pop",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 351,
+        "name": "array_list_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 352,
+        "name": "HashMap",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 13
+      },
+      {
+        "item_id": 353,
+        "name": "hash_map_create",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 354,
+        "name": "hash_map_len",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 355,
+        "name": "hash_map_capacity",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 356,
+        "name": "hash_map_mix_key",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 357,
+        "name": "hash_map_get_or",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 358,
+        "name": "hash_map_put",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 359,
+        "name": "hash_map_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 360,
         "name": "ByteSlice",
         "kind": "struct",
         "module_path": "",
-        "type_id": 18
+        "type_id": 14
       },
       {
-        "item_id": 403,
+        "item_id": 361,
         "name": "BytesBuilder",
         "kind": "struct",
         "module_path": "",
-        "type_id": 19
+        "type_id": 15
       },
       {
-        "item_id": 404,
+        "item_id": 362,
         "name": "BytesDecodeResult",
         "kind": "struct",
         "module_path": "",
-        "type_id": 20
+        "type_id": 16
       },
       {
-        "item_id": 405,
+        "item_id": 363,
         "name": "bytes_decode_error",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 406,
+        "item_id": 364,
         "name": "bytes_hex_text_is_valid",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 407,
+        "item_id": 365,
         "name": "bytes_slice",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 408,
+        "item_id": 366,
         "name": "bytes_from",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 409,
+        "item_id": 367,
         "name": "bytes_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 410,
+        "item_id": 368,
         "name": "bytes_is_empty",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 411,
+        "item_id": 369,
         "name": "bytes_byte_at",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 412,
+        "item_id": 370,
         "name": "bytes_char_at",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 413,
+        "item_id": 371,
         "name": "bytes_find_from",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 414,
+        "item_id": 372,
         "name": "bytes_find",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 415,
+        "item_id": 373,
         "name": "bytes_contains",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 416,
+        "item_id": 374,
         "name": "bytes_starts_with",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 417,
+        "item_id": 375,
         "name": "bytes_ends_with",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 418,
+        "item_id": 376,
         "name": "bytes_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 419,
+        "item_id": 377,
         "name": "bytes_subslice",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 420,
+        "item_id": 378,
         "name": "bytes_materialize",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 421,
+        "item_id": 379,
         "name": "bytes_equals_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 422,
+        "item_id": 380,
         "name": "bytes_equals",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 423,
+        "item_id": 381,
         "name": "bytes_array",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 424,
+        "item_id": 382,
         "name": "bytes_from_array",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 425,
+        "item_id": 383,
         "name": "bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 426,
+        "item_id": 384,
         "name": "bytes_hex_upper",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 427,
+        "item_id": 385,
         "name": "bytes_from_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 428,
+        "item_id": 386,
         "name": "bytes_builder_new",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 429,
+        "item_id": 387,
         "name": "bytes_builder_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 430,
+        "item_id": 388,
         "name": "bytes_builder_push_byte",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 431,
+        "item_id": 389,
         "name": "bytes_builder_push_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 432,
+        "item_id": 390,
         "name": "bytes_builder_push_slice",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 433,
+        "item_id": 391,
         "name": "bytes_builder_push_array",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 434,
+        "item_id": 392,
         "name": "bytes_builder_clear",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 435,
+        "item_id": 393,
         "name": "bytes_builder_build",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 436,
+        "item_id": 394,
         "name": "bytes_builder_view",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 437,
-        "name": "FmtWriter",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 21
-      },
-      {
-        "item_id": 438,
-        "name": "FmtSpec",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 22
-      },
-      {
-        "item_id": 439,
-        "name": "fmt_pad_token",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 440,
-        "name": "fmt_supported_align",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 441,
-        "name": "fmt_supported_base",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 442,
-        "name": "fmt_supported_bool_style",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 443,
-        "name": "fmt_apply_uppercase",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 444,
-        "name": "fmt_apply_prefix",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 445,
-        "name": "fmt_apply_plus",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 446,
-        "name": "fmt_apply_width",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 447,
-        "name": "fmt_render_number_body",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 448,
-        "name": "fmt_render_float_body",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 449,
-        "name": "fmt_render_bool_body",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 450,
-        "name": "fmt_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 451,
-        "name": "fmt_writer_new",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 452,
-        "name": "fmt_spec_default",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 453,
-        "name": "fmt_spec_width",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 454,
-        "name": "fmt_spec_pad",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 455,
-        "name": "fmt_spec_align",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 456,
-        "name": "fmt_spec_prefix",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 457,
-        "name": "fmt_spec_plus",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 458,
-        "name": "fmt_spec_uppercase",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 459,
-        "name": "fmt_spec_base",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 460,
-        "name": "fmt_spec_bool_style",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 461,
-        "name": "fmt_writer_len",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 462,
-        "name": "fmt_writer_push_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 463,
-        "name": "fmt_writer_push_string_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 464,
-        "name": "fmt_writer_push_any",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 465,
-        "name": "fmt_writer_push_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 466,
-        "name": "fmt_writer_push_int_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 467,
-        "name": "fmt_writer_push_float",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 468,
-        "name": "fmt_writer_push_float_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 469,
-        "name": "fmt_writer_push_bool_word",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 470,
-        "name": "fmt_writer_push_bool_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 471,
-        "name": "fmt_writer_push_hex_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 472,
-        "name": "fmt_writer_push_binary_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 473,
-        "name": "fmt_writer_push_json_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 474,
-        "name": "fmt_writer_push_key_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 475,
-        "name": "fmt_writer_push_line",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 476,
-        "name": "fmt_writer_push_prefixed_lines",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 477,
-        "name": "fmt_writer_build",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 478,
-        "name": "fmt_string_builder_push_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 479,
-        "name": "fmt_string_builder_push_string_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 480,
-        "name": "fmt_string_builder_push_any",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 481,
-        "name": "fmt_string_builder_push_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 482,
-        "name": "fmt_string_builder_push_int_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 483,
-        "name": "fmt_string_builder_push_float",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 484,
-        "name": "fmt_string_builder_push_float_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 485,
-        "name": "fmt_string_builder_push_bool_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 486,
-        "name": "fmt_string_builder_push_json_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 487,
-        "name": "fmt_string_builder_push_key_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 488,
-        "name": "fmt_string_builder_push_line",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 489,
-        "name": "fmt_any",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 490,
-        "name": "fmt_string_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 491,
-        "name": "fmt_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 492,
-        "name": "fmt_int_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 493,
-        "name": "fmt_float",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 494,
-        "name": "fmt_float_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 495,
-        "name": "fmt_bool_word",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 496,
-        "name": "fmt_bool_spec",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 497,
-        "name": "fmt_bool_json",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 498,
-        "name": "fmt_join_strings",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 499,
-        "name": "fmt_non_empty",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 500,
-        "name": "fmt_key_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 501,
-        "name": "fmt_bracketed",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 502,
-        "name": "fmt_repeat",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 503,
-        "name": "fmt_pad_left",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 504,
-        "name": "fmt_pad_right",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 505,
-        "name": "fmt_pad_center",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 506,
-        "name": "fmt_status_line",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 507,
-        "name": "fmt_prefixed_lines",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 508,
-        "name": "fmt_hex_u32",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 509,
-        "name": "fmt_hex_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 510,
-        "name": "fmt_binary_u32",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 511,
-        "name": "fmt_binary_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 512,
-        "name": "fmt_json_escape",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 513,
-        "name": "fmt_json_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 514,
-        "name": "fmt_debug_string_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 515,
+        "item_id": 395,
         "name": "TextSlice",
         "kind": "struct",
         "module_path": "",
-        "type_id": 23
+        "type_id": 17
       },
       {
-        "item_id": 516,
+        "item_id": 396,
         "name": "StringView",
         "kind": "struct",
         "module_path": "",
-        "type_id": 24
+        "type_id": 18
       },
       {
-        "item_id": 517,
+        "item_id": 397,
         "name": "TextUnescapeResult",
         "kind": "struct",
         "module_path": "",
-        "type_id": 25
+        "type_id": 19
       },
       {
-        "item_id": 518,
+        "item_id": 398,
         "name": "text_unescape_error",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 519,
+        "item_id": 399,
         "name": "text_int_clamp",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 520,
+        "item_id": 400,
         "name": "text_escape_hex_byte",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 521,
+        "item_id": 401,
         "name": "text_slice",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 522,
+        "item_id": 402,
         "name": "text_from",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 523,
+        "item_id": 403,
         "name": "text_view",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 524,
+        "item_id": 404,
         "name": "text_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 525,
+        "item_id": 405,
         "name": "text_start",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 526,
+        "item_id": 406,
         "name": "text_end",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 527,
+        "item_id": 407,
         "name": "text_is_empty",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 528,
+        "item_id": 408,
         "name": "text_byte_at",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 529,
+        "item_id": 409,
         "name": "text_char_at",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 530,
+        "item_id": 410,
         "name": "text_find_from",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 531,
+        "item_id": 411,
         "name": "text_find",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 532,
+        "item_id": 412,
         "name": "text_contains",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 533,
+        "item_id": 413,
         "name": "text_starts_with",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 534,
+        "item_id": 414,
         "name": "text_ends_with",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 535,
+        "item_id": 415,
         "name": "text_equals_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 536,
+        "item_id": 416,
         "name": "text_equals",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 537,
+        "item_id": 417,
         "name": "text_count",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 538,
+        "item_id": 418,
         "name": "text_subslice",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 539,
+        "item_id": 419,
         "name": "text_trim_left",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 540,
+        "item_id": 420,
         "name": "text_trim_right",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 541,
+        "item_id": 421,
         "name": "text_trim",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 542,
+        "item_id": 422,
         "name": "text_materialize",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 543,
+        "item_id": 423,
         "name": "text_as_bytes",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 544,
+        "item_id": 424,
         "name": "text_from_bytes",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 545,
+        "item_id": 425,
         "name": "text_bytes_array",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 546,
+        "item_id": 426,
         "name": "text_from_byte_array",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 547,
+        "item_id": 427,
         "name": "text_escape_basic",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 548,
+        "item_id": 428,
         "name": "text_unescape_basic",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 549,
+        "item_id": 429,
         "name": "text_lines",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 550,
+        "item_id": 430,
         "name": "string_view",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 551,
+        "item_id": 431,
         "name": "string_view_from",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 552,
+        "item_id": 432,
         "name": "string_view_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 553,
+        "item_id": 433,
         "name": "string_view_to_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 554,
+        "item_id": 434,
         "name": "string_view_materialize",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 555,
+        "item_id": 435,
         "name": "text_builder_new",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 556,
+        "item_id": 436,
         "name": "text_builder_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 557,
+        "item_id": 437,
         "name": "text_builder_push",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 558,
+        "item_id": 438,
         "name": "text_builder_push_view",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 559,
+        "item_id": 439,
         "name": "text_builder_push_char_code",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 560,
+        "item_id": 440,
         "name": "text_builder_build",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 561,
+        "item_id": 441,
         "name": "text_trim_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 562,
+        "item_id": 442,
         "name": "text_contains_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 563,
+        "item_id": 443,
         "name": "text_starts_with_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 564,
+        "item_id": 444,
         "name": "text_ends_with_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 565,
+        "item_id": 445,
         "name": "text_substring_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 566,
+        "item_id": 446,
         "name": "text_upper",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 567,
+        "item_id": 447,
         "name": "text_lower",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 568,
+        "item_id": 448,
         "name": "text_replace_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 569,
+        "item_id": 449,
         "name": "text_repeat",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 570,
+        "item_id": 450,
         "name": "text_split_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 571,
+        "item_id": 451,
         "name": "text_join_strings",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 572,
+        "item_id": 452,
         "name": "text_split_lines",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 573,
+        "item_id": 453,
         "name": "text_tokenize_whitespace",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 574,
+        "item_id": 454,
         "name": "text_ord",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 575,
+        "item_id": 455,
         "name": "text_chr",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 576,
+        "item_id": 456,
         "name": "text_to_string",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 577,
-        "name": "JsonToken",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 26
-      },
-      {
-        "item_id": 578,
-        "name": "JsonStatus",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 27
-      },
-      {
-        "item_id": 579,
-        "name": "JsonStringResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 28
-      },
-      {
-        "item_id": 580,
-        "name": "JsonIntResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 29
-      },
-      {
-        "item_id": 581,
-        "name": "JsonFloatResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 30
-      },
-      {
-        "item_id": 582,
-        "name": "JsonBoolResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 31
-      },
-      {
-        "item_id": 583,
-        "name": "JsonObjectResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 32
-      },
-      {
-        "item_id": 584,
-        "name": "JsonArrayResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 33
-      },
-      {
-        "item_id": 585,
-        "name": "JsonStringArrayResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 34
-      },
-      {
-        "item_id": 586,
-        "name": "JsonIntArrayResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 35
-      },
-      {
-        "item_id": 587,
-        "name": "JsonFloatArrayResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 36
-      },
-      {
-        "item_id": 588,
-        "name": "JsonBoolArrayResult",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 37
-      },
-      {
-        "item_id": 589,
-        "name": "JsonScanReport",
-        "kind": "struct",
-        "module_path": "",
-        "type_id": 38
-      },
-      {
-        "item_id": 590,
-        "name": "json_token",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 591,
-        "name": "json_status_ok",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 592,
-        "name": "json_status_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 593,
-        "name": "json_missing_key_status",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 594,
-        "name": "json_wrong_kind_status",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 595,
-        "name": "json_index_status",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 596,
-        "name": "json_wrap_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 597,
-        "name": "json_native_kind_name",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 598,
-        "name": "json_string_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 599,
-        "name": "json_int_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 600,
-        "name": "json_float_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 601,
-        "name": "json_bool_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 602,
-        "name": "json_string_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 603,
-        "name": "json_int_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 604,
-        "name": "json_float_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 605,
-        "name": "json_bool_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 606,
-        "name": "json_object_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 607,
-        "name": "json_array_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 608,
-        "name": "json_string_array_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 609,
-        "name": "json_int_array_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 610,
-        "name": "json_float_array_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 611,
-        "name": "json_bool_array_result_error",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 612,
-        "name": "json_match_literal",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 613,
-        "name": "json_scan_string_end",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 614,
-        "name": "json_scan_number_end",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 615,
-        "name": "json_kind_from_rendered",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 616,
-        "name": "json_kind_from_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 617,
-        "name": "json_rendered_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 618,
-        "name": "json_value_end_token_index",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 619,
-        "name": "json_field_rendered",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 620,
-        "name": "json_parse_text",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 621,
-        "name": "json_stringify",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 622,
-        "name": "json_has_key",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 623,
-        "name": "json_get_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 624,
-        "name": "json_value_kind",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 625,
-        "name": "json_value_kind_code",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 626,
-        "name": "json_is_null",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 627,
-        "name": "json_is_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 628,
-        "name": "json_is_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 629,
-        "name": "json_is_float",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 630,
-        "name": "json_is_bool",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 631,
-        "name": "json_is_object",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 632,
-        "name": "json_is_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 633,
-        "name": "json_string_required",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 634,
-        "name": "json_int_required",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 635,
-        "name": "json_float_required",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 636,
-        "name": "json_bool_required",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 637,
-        "name": "json_string_or",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 638,
-        "name": "json_int_or",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 639,
-        "name": "json_float_or",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 640,
-        "name": "json_bool_or",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 641,
-        "name": "json_string_field",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 642,
-        "name": "json_int_field",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 643,
-        "name": "json_float_field",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 644,
-        "name": "json_bool_field",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 645,
-        "name": "json_object_field",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 646,
-        "name": "json_array_field",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 647,
-        "name": "json_object",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 648,
-        "name": "json_object_set_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 649,
-        "name": "json_object_set_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 650,
-        "name": "json_object_set_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 651,
-        "name": "json_object_set_float",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 652,
-        "name": "json_object_set_bool",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 653,
-        "name": "json_object_set_object",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 654,
-        "name": "json_object_set_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 655,
-        "name": "json_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 656,
-        "name": "json_array_push_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 657,
-        "name": "json_array_push_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 658,
-        "name": "json_array_push_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 659,
-        "name": "json_array_push_float",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 660,
-        "name": "json_array_push_bool",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 661,
-        "name": "json_array_push_object",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 662,
-        "name": "json_array_push_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 663,
-        "name": "json_array_length",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 664,
-        "name": "json_array_value_at",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 665,
-        "name": "json_string_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 666,
-        "name": "json_int_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 667,
-        "name": "json_float_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 668,
-        "name": "json_bool_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 669,
-        "name": "json_string_array_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 670,
-        "name": "json_int_array_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 671,
-        "name": "json_float_array_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 672,
-        "name": "json_bool_array_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 673,
-        "name": "json_string_array_field",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 674,
-        "name": "json_string_array_field_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 675,
-        "name": "json_int_array_field_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 676,
-        "name": "json_float_array_field_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 677,
-        "name": "json_bool_array_field_result",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 678,
-        "name": "json_array_from_strings",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 679,
-        "name": "json_array_from_ints",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 680,
-        "name": "json_array_from_floats",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 681,
-        "name": "json_array_from_bools",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 682,
-        "name": "json_object_set_string_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 683,
-        "name": "json_object_set_int_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 684,
-        "name": "json_object_set_float_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 685,
-        "name": "json_object_set_bool_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 686,
-        "name": "json_object_with_string",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 687,
-        "name": "json_object_with_int",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 688,
-        "name": "json_object_with_float",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 689,
-        "name": "json_object_with_bool",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 690,
-        "name": "json_object_with_array",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 691,
-        "name": "json_object_with_object",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 692,
-        "name": "json_fmt_writer_push_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 693,
-        "name": "json_string_builder_push_value",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 694,
-        "name": "json_scan",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 695,
-        "name": "json_scan_significant",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 696,
-        "name": "json_scan_report",
-        "kind": "function",
-        "module_path": "",
-        "type_id": null
-      },
-      {
-        "item_id": 697,
+        "item_id": 457,
         "name": "FsError",
         "kind": "struct",
         "module_path": "",
-        "type_id": 39
+        "type_id": 20
       },
       {
-        "item_id": 698,
+        "item_id": 458,
         "name": "FsMetadata",
         "kind": "struct",
         "module_path": "",
-        "type_id": 40
+        "type_id": 21
       },
       {
-        "item_id": 699,
+        "item_id": 459,
         "name": "FsDirEntry",
         "kind": "struct",
         "module_path": "",
-        "type_id": 41
+        "type_id": 22
       },
       {
-        "item_id": 700,
+        "item_id": 460,
         "name": "FsChunk",
         "kind": "struct",
         "module_path": "",
-        "type_id": 42
+        "type_id": 23
       },
       {
-        "item_id": 701,
+        "item_id": 461,
         "name": "FsWatchEvent",
         "kind": "struct",
         "module_path": "",
-        "type_id": 43
+        "type_id": 24
       },
       {
-        "item_id": 702,
+        "item_id": 462,
         "name": "FsJournalEntry",
         "kind": "struct",
         "module_path": "",
-        "type_id": 44
+        "type_id": 25
       },
       {
-        "item_id": 703,
+        "item_id": 463,
         "name": "abi_fs_read_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 704,
+        "item_id": 464,
         "name": "abi_fs_read_text_range",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 705,
+        "item_id": 465,
         "name": "abi_fs_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 706,
+        "item_id": 466,
         "name": "abi_fs_write_text_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 707,
+        "item_id": 467,
         "name": "abi_fs_append_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 708,
+        "item_id": 468,
         "name": "abi_fs_append_text_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 709,
+        "item_id": 469,
         "name": "abi_fs_atomic_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 710,
+        "item_id": 470,
         "name": "abi_fs_atomic_write_text_len",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 711,
+        "item_id": 471,
         "name": "abi_fs_read_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 712,
+        "item_id": 472,
         "name": "abi_fs_read_byte_range_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 713,
+        "item_id": 473,
         "name": "abi_fs_write_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 714,
+        "item_id": 474,
         "name": "abi_fs_append_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 715,
+        "item_id": 475,
         "name": "abi_fs_atomic_write_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 716,
+        "item_id": 476,
         "name": "abi_fs_exists",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 717,
+        "item_id": 477,
         "name": "abi_fs_is_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 718,
+        "item_id": 478,
         "name": "abi_fs_is_dir",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 719,
+        "item_id": 479,
         "name": "abi_fs_metadata_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 720,
+        "item_id": 480,
         "name": "abi_fs_read_dir_paths_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 721,
+        "item_id": 481,
         "name": "abi_fs_walk_paths_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 722,
+        "item_id": 482,
         "name": "abi_fs_create_dir_all",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 723,
+        "item_id": 483,
         "name": "abi_fs_copy_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 724,
+        "item_id": 484,
         "name": "abi_fs_copy_file_streaming",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 725,
+        "item_id": 485,
         "name": "abi_fs_move_path",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 726,
+        "item_id": 486,
         "name": "abi_fs_remove_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 727,
+        "item_id": 487,
         "name": "abi_fs_remove_dir_all",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 728,
+        "item_id": 488,
         "name": "abi_fs_temp_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 729,
+        "item_id": 489,
         "name": "abi_fs_temp_dir",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 730,
+        "item_id": 490,
         "name": "abi_fs_hash_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 731,
+        "item_id": 491,
         "name": "abi_fs_path_join",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 732,
+        "item_id": 492,
         "name": "abi_fs_path_parent",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 733,
+        "item_id": 493,
         "name": "abi_fs_path_file_name",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 734,
+        "item_id": 494,
         "name": "abi_fs_path_extension",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 735,
+        "item_id": 495,
         "name": "abi_fs_path_stem",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 736,
+        "item_id": 496,
         "name": "abi_fs_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 737,
+        "item_id": 497,
         "name": "abi_fs_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 738,
+        "item_id": 498,
         "name": "abi_fs_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 739,
+        "item_id": 499,
         "name": "abi_fs_open",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 740,
+        "item_id": 500,
         "name": "abi_fs_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 741,
+        "item_id": 501,
         "name": "abi_fs_read",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 742,
+        "item_id": 502,
         "name": "abi_fs_write",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 743,
+        "item_id": 503,
         "name": "abi_fs_seek",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 744,
+        "item_id": 504,
         "name": "abi_fs_tell",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 745,
+        "item_id": 505,
         "name": "abi_fs_flush",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 746,
+        "item_id": 506,
         "name": "fs_parse_int_or_zero",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 747,
+        "item_id": 507,
         "name": "fs_hex_to_bytes",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 748,
+        "item_id": 508,
         "name": "fs_bytes_to_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 749,
+        "item_id": 509,
         "name": "fs_nonempty_lines",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 750,
+        "item_id": 510,
         "name": "fs_metadata_line_value",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 751,
+        "item_id": 511,
         "name": "fs_parse_metadata_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 752,
+        "item_id": 512,
         "name": "fs_dir_entry_for_path",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 753,
+        "item_id": 513,
         "name": "native_fs_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 754,
+        "item_id": 514,
         "name": "native_fs_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 755,
+        "item_id": 515,
         "name": "native_fs_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 756,
+        "item_id": 516,
         "name": "fs_read_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 757,
+        "item_id": 517,
         "name": "fs_read_text_range",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 758,
+        "item_id": 518,
         "name": "fs_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 759,
+        "item_id": 519,
         "name": "fs_append_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 760,
+        "item_id": 520,
         "name": "fs_atomic_write_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 761,
+        "item_id": 521,
         "name": "fs_read_bytes",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 762,
+        "item_id": 522,
         "name": "fs_read_bytes_range",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 763,
+        "item_id": 523,
         "name": "fs_read_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 764,
+        "item_id": 524,
         "name": "fs_read_byte_range_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 765,
+        "item_id": 525,
         "name": "fs_write_bytes_hex",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 766,
+        "item_id": 526,
         "name": "fs_write_bytes",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 767,
+        "item_id": 527,
         "name": "fs_append_bytes",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 768,
+        "item_id": 528,
         "name": "fs_atomic_write_bytes",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 769,
+        "item_id": 529,
         "name": "fs_exists",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 770,
+        "item_id": 530,
         "name": "fs_is_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 771,
+        "item_id": 531,
         "name": "fs_is_dir",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 772,
+        "item_id": 532,
         "name": "fs_metadata_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 773,
+        "item_id": 533,
         "name": "fs_metadata",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 774,
+        "item_id": 534,
         "name": "fs_read_dir_paths_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 775,
+        "item_id": 535,
         "name": "fs_read_dir_paths",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 776,
+        "item_id": 536,
         "name": "fs_read_dir",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 777,
+        "item_id": 537,
         "name": "fs_walk_paths_text",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 778,
+        "item_id": 538,
         "name": "fs_walk",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 779,
+        "item_id": 539,
         "name": "fs_create_dir_all",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 780,
+        "item_id": 540,
         "name": "fs_copy_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 781,
+        "item_id": 541,
         "name": "fs_copy_file_streaming",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 782,
+        "item_id": 542,
         "name": "fs_stream_chunks",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 783,
+        "item_id": 543,
         "name": "fs_move_path",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 784,
+        "item_id": 544,
         "name": "fs_remove_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 785,
+        "item_id": 545,
         "name": "fs_remove_dir_all",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 786,
+        "item_id": 546,
         "name": "fs_temp_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 787,
+        "item_id": 547,
         "name": "fs_temp_dir",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 788,
+        "item_id": 548,
         "name": "fs_hash_file",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 789,
+        "item_id": 549,
         "name": "fs_path_join",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 790,
+        "item_id": 550,
         "name": "fs_path_parent",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 791,
+        "item_id": 551,
         "name": "fs_path_file_name",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 792,
+        "item_id": 552,
         "name": "fs_path_extension",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 793,
+        "item_id": 553,
         "name": "fs_path_stem",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 794,
+        "item_id": 554,
         "name": "fs_last_status",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 795,
+        "item_id": 555,
         "name": "fs_last_error_kind",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 796,
+        "item_id": 556,
         "name": "fs_last_error_message",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 797,
+        "item_id": 557,
         "name": "File",
         "kind": "struct",
         "module_path": "",
-        "type_id": 45
+        "type_id": 26
       },
       {
-        "item_id": 798,
+        "item_id": 558,
         "name": "fs_open",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 799,
+        "item_id": 559,
         "name": "fs_close",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 800,
+        "item_id": 560,
         "name": "fs_read",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 801,
+        "item_id": 561,
         "name": "fs_write",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 802,
+        "item_id": 562,
         "name": "fs_seek",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 803,
+        "item_id": 563,
         "name": "fs_tell",
         "kind": "function",
         "module_path": "",
         "type_id": null
       },
       {
-        "item_id": 804,
+        "item_id": 564,
         "name": "fs_flush",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 565,
+        "name": "volatile_load_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 566,
+        "name": "volatile_store_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 567,
+        "name": "atomic_load_relaxed",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 568,
+        "name": "atomic_load_acquire",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 569,
+        "name": "atomic_load_seqcst",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 570,
+        "name": "atomic_store_relaxed",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 571,
+        "name": "atomic_store_release",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 572,
+        "name": "atomic_store_seqcst",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 573,
+        "name": "atomic_add_acqrel",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 574,
+        "name": "atomic_sub_acqrel",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 575,
+        "name": "atomic_and_acqrel",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 576,
+        "name": "atomic_or_acqrel",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 577,
+        "name": "atomic_xor_acqrel",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 578,
+        "name": "atomic_exchange_acqrel",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 579,
+        "name": "atomic_compare_exchange_seqcst",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 580,
+        "name": "atomic_fence_acquire",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 581,
+        "name": "atomic_fence_release",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 582,
+        "name": "atomic_fence_acqrel",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 583,
+        "name": "atomic_fence_seqcst",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 584,
+        "name": "RingBuffer",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 27
+      },
+      {
+        "item_id": 585,
+        "name": "ring_buffer_new",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 586,
+        "name": "ring_buffer_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 587,
+        "name": "ring_buffer_available_read",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 588,
+        "name": "ring_buffer_available_write",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 589,
+        "name": "ring_buffer_write",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 590,
+        "name": "ring_buffer_read",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 591,
+        "name": "StringBuilder",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 28
+      },
+      {
+        "item_id": 592,
+        "name": "string_builder_new",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 593,
+        "name": "string_builder_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 594,
+        "name": "string_builder_append_char",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 595,
+        "name": "string_builder_append_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 596,
+        "name": "string_builder_to_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 597,
+        "name": "BufferedReader",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 29
+      },
+      {
+        "item_id": 598,
+        "name": "buffered_reader_new",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 599,
+        "name": "buffered_reader_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 600,
+        "name": "buffered_reader_fill",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 601,
+        "name": "buffered_reader_read",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 602,
+        "name": "BufferedWriter",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 30
+      },
+      {
+        "item_id": 603,
+        "name": "buffered_writer_new",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 604,
+        "name": "buffered_writer_destroy",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 605,
+        "name": "buffered_writer_write",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 606,
+        "name": "buffered_writer_flush",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 607,
+        "name": "FmtWriter",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 31
+      },
+      {
+        "item_id": 608,
+        "name": "FmtSpec",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 32
+      },
+      {
+        "item_id": 609,
+        "name": "fmt_pad_token",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 610,
+        "name": "fmt_supported_align",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 611,
+        "name": "fmt_supported_base",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 612,
+        "name": "fmt_supported_bool_style",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 613,
+        "name": "fmt_apply_uppercase",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 614,
+        "name": "fmt_apply_prefix",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 615,
+        "name": "fmt_apply_plus",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 616,
+        "name": "fmt_apply_width",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 617,
+        "name": "fmt_render_number_body",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 618,
+        "name": "fmt_render_float_body",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 619,
+        "name": "fmt_render_bool_body",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 620,
+        "name": "fmt_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 621,
+        "name": "fmt_writer_new",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 622,
+        "name": "fmt_spec_default",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 623,
+        "name": "fmt_spec_width",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 624,
+        "name": "fmt_spec_pad",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 625,
+        "name": "fmt_spec_align",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 626,
+        "name": "fmt_spec_prefix",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 627,
+        "name": "fmt_spec_plus",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 628,
+        "name": "fmt_spec_uppercase",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 629,
+        "name": "fmt_spec_base",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 630,
+        "name": "fmt_spec_bool_style",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 631,
+        "name": "fmt_writer_len",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 632,
+        "name": "fmt_writer_push_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 633,
+        "name": "fmt_writer_push_string_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 634,
+        "name": "fmt_writer_push_any",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 635,
+        "name": "fmt_writer_push_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 636,
+        "name": "fmt_writer_push_int_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 637,
+        "name": "fmt_writer_push_float",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 638,
+        "name": "fmt_writer_push_float_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 639,
+        "name": "fmt_writer_push_bool_word",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 640,
+        "name": "fmt_writer_push_bool_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 641,
+        "name": "fmt_writer_push_hex_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 642,
+        "name": "fmt_writer_push_binary_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 643,
+        "name": "fmt_writer_push_json_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 644,
+        "name": "fmt_writer_push_key_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 645,
+        "name": "fmt_writer_push_line",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 646,
+        "name": "fmt_writer_push_prefixed_lines",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 647,
+        "name": "fmt_writer_build",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 648,
+        "name": "fmt_string_builder_push_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 649,
+        "name": "fmt_string_builder_push_string_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 650,
+        "name": "fmt_string_builder_push_any",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 651,
+        "name": "fmt_string_builder_push_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 652,
+        "name": "fmt_string_builder_push_int_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 653,
+        "name": "fmt_string_builder_push_float",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 654,
+        "name": "fmt_string_builder_push_float_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 655,
+        "name": "fmt_string_builder_push_bool_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 656,
+        "name": "fmt_string_builder_push_json_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 657,
+        "name": "fmt_string_builder_push_key_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 658,
+        "name": "fmt_string_builder_push_line",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 659,
+        "name": "fmt_any",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 660,
+        "name": "fmt_string_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 661,
+        "name": "fmt_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 662,
+        "name": "fmt_int_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 663,
+        "name": "fmt_float",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 664,
+        "name": "fmt_float_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 665,
+        "name": "fmt_bool_word",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 666,
+        "name": "fmt_bool_spec",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 667,
+        "name": "fmt_bool_json",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 668,
+        "name": "fmt_join_strings",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 669,
+        "name": "fmt_non_empty",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 670,
+        "name": "fmt_key_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 671,
+        "name": "fmt_bracketed",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 672,
+        "name": "fmt_repeat",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 673,
+        "name": "fmt_pad_left",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 674,
+        "name": "fmt_pad_right",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 675,
+        "name": "fmt_pad_center",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 676,
+        "name": "fmt_status_line",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 677,
+        "name": "fmt_prefixed_lines",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 678,
+        "name": "fmt_hex_u32",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 679,
+        "name": "fmt_hex_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 680,
+        "name": "fmt_binary_u32",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 681,
+        "name": "fmt_binary_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 682,
+        "name": "fmt_json_escape",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 683,
+        "name": "fmt_json_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 684,
+        "name": "fmt_debug_string_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 685,
+        "name": "JsonToken",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 33
+      },
+      {
+        "item_id": 686,
+        "name": "JsonStatus",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 34
+      },
+      {
+        "item_id": 687,
+        "name": "JsonStringResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 35
+      },
+      {
+        "item_id": 688,
+        "name": "JsonIntResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 36
+      },
+      {
+        "item_id": 689,
+        "name": "JsonFloatResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 37
+      },
+      {
+        "item_id": 690,
+        "name": "JsonBoolResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 38
+      },
+      {
+        "item_id": 691,
+        "name": "JsonObjectResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 39
+      },
+      {
+        "item_id": 692,
+        "name": "JsonArrayResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 40
+      },
+      {
+        "item_id": 693,
+        "name": "JsonStringArrayResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 41
+      },
+      {
+        "item_id": 694,
+        "name": "JsonIntArrayResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 42
+      },
+      {
+        "item_id": 695,
+        "name": "JsonFloatArrayResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 43
+      },
+      {
+        "item_id": 696,
+        "name": "JsonBoolArrayResult",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 44
+      },
+      {
+        "item_id": 697,
+        "name": "JsonScanReport",
+        "kind": "struct",
+        "module_path": "",
+        "type_id": 45
+      },
+      {
+        "item_id": 698,
+        "name": "json_token",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 699,
+        "name": "json_status_ok",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 700,
+        "name": "json_status_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 701,
+        "name": "json_missing_key_status",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 702,
+        "name": "json_wrong_kind_status",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 703,
+        "name": "json_index_status",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 704,
+        "name": "json_wrap_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 705,
+        "name": "json_native_kind_name",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 706,
+        "name": "json_string_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 707,
+        "name": "json_int_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 708,
+        "name": "json_float_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 709,
+        "name": "json_bool_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 710,
+        "name": "json_string_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 711,
+        "name": "json_int_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 712,
+        "name": "json_float_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 713,
+        "name": "json_bool_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 714,
+        "name": "json_object_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 715,
+        "name": "json_array_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 716,
+        "name": "json_string_array_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 717,
+        "name": "json_int_array_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 718,
+        "name": "json_float_array_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 719,
+        "name": "json_bool_array_result_error",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 720,
+        "name": "json_match_literal",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 721,
+        "name": "json_scan_string_end",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 722,
+        "name": "json_scan_number_end",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 723,
+        "name": "json_kind_from_rendered",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 724,
+        "name": "json_kind_from_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 725,
+        "name": "json_rendered_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 726,
+        "name": "json_value_end_token_index",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 727,
+        "name": "json_field_rendered",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 728,
+        "name": "json_parse_text",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 729,
+        "name": "json_stringify",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 730,
+        "name": "json_has_key",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 731,
+        "name": "json_get_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 732,
+        "name": "json_value_kind",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 733,
+        "name": "json_value_kind_code",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 734,
+        "name": "json_is_null",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 735,
+        "name": "json_is_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 736,
+        "name": "json_is_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 737,
+        "name": "json_is_float",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 738,
+        "name": "json_is_bool",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 739,
+        "name": "json_is_object",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 740,
+        "name": "json_is_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 741,
+        "name": "json_string_required",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 742,
+        "name": "json_int_required",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 743,
+        "name": "json_float_required",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 744,
+        "name": "json_bool_required",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 745,
+        "name": "json_string_or",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 746,
+        "name": "json_int_or",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 747,
+        "name": "json_float_or",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 748,
+        "name": "json_bool_or",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 749,
+        "name": "json_string_field",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 750,
+        "name": "json_int_field",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 751,
+        "name": "json_float_field",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 752,
+        "name": "json_bool_field",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 753,
+        "name": "json_object_field",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 754,
+        "name": "json_array_field",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 755,
+        "name": "json_object",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 756,
+        "name": "json_object_set_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 757,
+        "name": "json_object_set_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 758,
+        "name": "json_object_set_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 759,
+        "name": "json_object_set_float",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 760,
+        "name": "json_object_set_bool",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 761,
+        "name": "json_object_set_object",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 762,
+        "name": "json_object_set_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 763,
+        "name": "json_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 764,
+        "name": "json_array_push_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 765,
+        "name": "json_array_push_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 766,
+        "name": "json_array_push_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 767,
+        "name": "json_array_push_float",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 768,
+        "name": "json_array_push_bool",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 769,
+        "name": "json_array_push_object",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 770,
+        "name": "json_array_push_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 771,
+        "name": "json_array_length",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 772,
+        "name": "json_array_value_at",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 773,
+        "name": "json_string_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 774,
+        "name": "json_int_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 775,
+        "name": "json_float_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 776,
+        "name": "json_bool_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 777,
+        "name": "json_string_array_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 778,
+        "name": "json_int_array_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 779,
+        "name": "json_float_array_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 780,
+        "name": "json_bool_array_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 781,
+        "name": "json_string_array_field",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 782,
+        "name": "json_string_array_field_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 783,
+        "name": "json_int_array_field_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 784,
+        "name": "json_float_array_field_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 785,
+        "name": "json_bool_array_field_result",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 786,
+        "name": "json_array_from_strings",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 787,
+        "name": "json_array_from_ints",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 788,
+        "name": "json_array_from_floats",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 789,
+        "name": "json_array_from_bools",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 790,
+        "name": "json_object_set_string_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 791,
+        "name": "json_object_set_int_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 792,
+        "name": "json_object_set_float_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 793,
+        "name": "json_object_set_bool_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 794,
+        "name": "json_object_with_string",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 795,
+        "name": "json_object_with_int",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 796,
+        "name": "json_object_with_float",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 797,
+        "name": "json_object_with_bool",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 798,
+        "name": "json_object_with_array",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 799,
+        "name": "json_object_with_object",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 800,
+        "name": "json_fmt_writer_push_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 801,
+        "name": "json_string_builder_push_value",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 802,
+        "name": "json_scan",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 803,
+        "name": "json_scan_significant",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 804,
+        "name": "json_scan_report",
         "kind": "function",
         "module_path": "",
         "type_id": null

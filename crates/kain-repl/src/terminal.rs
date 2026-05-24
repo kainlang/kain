@@ -1,5 +1,6 @@
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, IsTerminal, Write};
 
+use crate::app::run_tui_repl;
 use crate::command::REPL_HELP_TEXT;
 use crate::evaluation::{ReplEvaluation, ReplEvaluator};
 use crate::metadata::ReplBuildMetadata;
@@ -27,6 +28,16 @@ impl Default for ReplTerminalConfig {
 }
 
 pub fn run_terminal_repl(config: ReplTerminalConfig) -> bool {
+    if io::stdin().is_terminal() && io::stdout().is_terminal() {
+        return match run_tui_repl(config) {
+            Ok(()) => true,
+            Err(err) => {
+                eprintln!(" REPL TUI failed: {err}");
+                false
+            }
+        };
+    }
+
     let stdin = io::stdin();
     let stdin = stdin.lock();
     let stdout = io::stdout();
@@ -87,7 +98,9 @@ where
                 }
             }
             ReplLineAction::Evaluate(source) => {
-                if !evaluate_and_write(&evaluator, &config, &source, &mut output, &mut error) {
+                if evaluate_and_write(&evaluator, &config, &source, &mut output, &mut error)
+                    .is_err()
+                {
                     return false;
                 }
             }
@@ -111,9 +124,9 @@ where
         return true;
     };
 
-    if !evaluate_and_write(evaluator, config, &source, output, error) {
+    if evaluate_and_write(evaluator, config, &source, output, error).is_err() {
         return false;
-    }
+    };
     let _ = writeln!(output);
     true
 }
@@ -124,17 +137,14 @@ fn evaluate_and_write<W, E>(
     source: &str,
     output: &mut W,
     error: &mut E,
-) -> bool
+) -> io::Result<()>
 where
     W: Write,
     E: Write,
 {
     match evaluator.evaluate_interpret_source(&config.source_name, source) {
-        Ok(evaluation) => write_evaluation(output, &evaluation).is_ok(),
-        Err(failure) => {
-            let _ = write!(error, "{}", failure.formatted_error);
-            false
-        }
+        Ok(evaluation) => write_evaluation(output, &evaluation),
+        Err(failure) => write!(error, "{}", failure.formatted_error),
     }
 }
 
@@ -192,5 +202,27 @@ mod tests {
         assert!(output.contains("42"));
         assert!(output.contains("Execution complete"));
         assert!(error.is_empty());
+    }
+
+    #[test]
+    fn compile_errors_do_not_eject_plain_repl_sessions() {
+        let input = Cursor::new(
+            "fn main() -> Int:\n    return missing_name\n\nfn main() -> Int:\n    return 7\n\n.exit\n",
+        );
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+
+        assert!(run_terminal_repl_with_io(
+            input,
+            &mut output,
+            &mut error,
+            ReplTerminalConfig::default()
+        ));
+
+        let output = String::from_utf8(output).expect("output should be utf-8");
+        let error = String::from_utf8(error).expect("error should be utf-8");
+        assert!(output.contains("7"));
+        assert!(output.contains("Execution complete"));
+        assert!(error.contains("error"));
     }
 }

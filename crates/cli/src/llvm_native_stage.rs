@@ -4,6 +4,7 @@ use kain_core::diagnostics::SpanMapper;
 use kain_core::format_program;
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
+use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_driver::{write_compute_residency_sidecars, COMPUTE_RESIDENCY_FILE_NAME};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -227,12 +228,15 @@ pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, 
         )
     })?;
 
-    let status = std::process::Command::new("cargo")
+    let mut command = std::process::Command::new("cargo");
+    command
         .arg("build")
         .arg("-p")
         .arg("kain-gpu-runtime")
         .env("CARGO_TARGET_DIR", &cargo_target_dir)
-        .current_dir(&workspace_root)
+        .current_dir(&workspace_root);
+    apply_cargo_command_defaults(&mut command);
+    let status = command
         .status()
         .map_err(|err| format!("unable to invoke cargo for kain-gpu-runtime: {err}"))?;
     if !status.success() {

@@ -136,7 +136,7 @@ impl Default for KainToolingConfigFile {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedKainBuildConfig {
     pub available_parallelism: usize,
     pub cargo_jobs: usize,
@@ -147,14 +147,14 @@ pub struct ResolvedKainBuildConfig {
     pub native_debug_info: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedKainUiConfig {
     pub color: KainColorPreference,
     pub theme: String,
     pub experimental_help: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedKainToolingConfig {
     pub source_path: Option<PathBuf>,
     pub loaded_from_disk: bool,

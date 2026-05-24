@@ -25,7 +25,50 @@ pub mod import_c;
 pub mod import_crate;
 pub mod import_platform;
 pub mod import_rust;
+#[cfg(feature = "typescript-import")]
 pub mod import_typescript;
+#[cfg(not(feature = "typescript-import"))]
+pub mod import_typescript {
+    use std::path::{Path, PathBuf};
+
+    use crate::error::{KainError, KainResult};
+
+    #[derive(Debug, Clone)]
+    pub struct ImportTypeScriptBatchOptions {
+        pub recursive: bool,
+        pub flat: bool,
+        pub include_filters: Vec<String>,
+        pub exclude_filters: Vec<String>,
+        pub fail_fast: bool,
+        pub strict_generated_output: bool,
+        pub report_json: Option<PathBuf>,
+    }
+
+    impl Default for ImportTypeScriptBatchOptions {
+        fn default() -> Self {
+            Self {
+                recursive: true,
+                flat: false,
+                include_filters: Vec::new(),
+                exclude_filters: Vec::new(),
+                fail_fast: false,
+                strict_generated_output: false,
+                report_json: None,
+            }
+        }
+    }
+
+    pub fn import_typescript_with_batch(
+        _input: &Path,
+        _output: Option<&Path>,
+        _target: Option<&str>,
+        _batch: &ImportTypeScriptBatchOptions,
+    ) -> KainResult<()> {
+        Err(KainError::runtime(
+            "TypeScript import support is disabled in this Kain build. Rebuild cli with the `typescript-import` feature to enable `kain import-ts`.".to_string(),
+        ))
+    }
+}
 pub mod kain_launcher;
 pub mod llvm_native_stage;
 pub mod lsp;

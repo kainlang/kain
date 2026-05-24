@@ -2,6 +2,7 @@ use blade::{
     discover_workspace, load_effective_kain_manifest, load_kain_manifest, BladeWorkspace,
     KainRunSection, ResolvedBlade,
 };
+use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::CompileTarget;
 use kain_fs as kfs;
 use kain_omni::fabric::FabricSessionStatus;
@@ -1338,6 +1339,7 @@ fn run_cargo(
         .arg(manifest_path)
         .env("CARGO_TARGET_DIR", target_dir)
         .current_dir(unit.cwd.clone());
+    apply_cargo_command_defaults(&mut command);
     apply_unit_environment(&mut command, unit);
     if let Some(package) = package {
         command.arg("--package").arg(package);

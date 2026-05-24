@@ -1,4 +1,5 @@
 use std::build
+use std::proof
 
 pub const TEST_STATUS_PASS: Int = 0
 pub const TEST_STATUS_FAIL: Int = -1
@@ -52,6 +53,28 @@ pub fn test_count_failure(outcome: TestOutcome, count: Int) -> Int:
     if test_outcome_ok(outcome):
         return count
     return count + 1
+
+pub fn test_expect_proved(outcome: ProofOutcome) -> TestOutcome:
+    if proof_outcome_is_proved(outcome):
+        return test_proved(outcome.label, outcome.evidence)
+    if proof_outcome_is_skip(outcome):
+        return test_skip(outcome.label, outcome.detail)
+    return test_fail(outcome.label, "expected unsat // " + proof_outcome_summary(outcome))
+
+pub fn test_expect_witness(outcome: ProofOutcome) -> TestOutcome:
+    if proof_outcome_is_witness(outcome):
+        if outcome.model != "":
+            return test_witness(outcome.label, outcome.model)
+        return test_witness(outcome.label, outcome.evidence)
+    if proof_outcome_is_skip(outcome):
+        return test_skip(outcome.label, outcome.detail)
+    return test_fail(outcome.label, "expected sat // " + proof_outcome_summary(outcome))
+
+pub fn test_assert_unsat(label: String, solver: Any) -> TestOutcome:
+    return test_expect_proved(proof_check(label, solver))
+
+pub fn test_assert_sat(label: String, solver: Any) -> TestOutcome:
+    return test_expect_witness(proof_check(label, solver))
 
 pub fn test_task(id: String) -> BuildTaskSpec:
     return build_task_of_kind(id, BUILD_KIND_TEST)

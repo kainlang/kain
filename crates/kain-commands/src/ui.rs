@@ -98,7 +98,7 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
         );
     }
 
-    let (lead, accent, tail) = match preferences.theme {
+    let (lead, accent, _tail) = match preferences.theme {
         CommandUiTheme::Hyperpop => ("\x1b[38;2;92;225;230m", "\x1b[38;2;255;89;168m", "\x1b[38;2;255;206;86m"),
         CommandUiTheme::Ember => ("\x1b[38;2;255;119;51m", "\x1b[38;2;255;184;77m", "\x1b[38;2;255;84;112m"),
         CommandUiTheme::Glacier => ("\x1b[38;2;113;205;255m", "\x1b[38;2;171;244;255m", "\x1b[38;2;214;230;255m"),

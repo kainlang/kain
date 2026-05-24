@@ -8,7 +8,7 @@ use kain_core::tooling_config::{
     install_active_kain_tooling_config, load_kain_tooling_config, supported_theme_names,
     KainColorPreference, ResolvedKainToolingConfig,
 };
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Default)]
 struct CliBootOverrides {
@@ -35,7 +35,8 @@ pub fn parse_kain_cli(
 pub fn parse_blade_cli() -> Result<(BladeCli, ResolvedKainToolingConfig), String> {
     let config = load_and_install_boot_config()?;
     let preferences = command_ui_preferences("blade", &config);
-    let matches = apply_command_ui(BladeCli::command(), preferences).get_matches();
+    let matches =
+        apply_command_ui(BladeCli::command().bin_name("blade"), preferences).get_matches();
     let args = BladeCli::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
     Ok((args, config))
 }

@@ -10,6 +10,7 @@ use crate::native_app::{
 };
 use crate::{DriverSession, HybridArtifactOutput};
 use kain_core::error::KainError;
+use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::{
     realtime_app_bundle_to_json, runtime_contract_bundle_to_json, RealtimeAppBundle,
     RealtimeAssetBinding,
@@ -1177,6 +1178,7 @@ fn build_tauri_app_executable(
         .arg("build")
         .arg("--manifest-path")
         .arg(manifest_path);
+    apply_cargo_command_defaults(&mut command);
     if release {
         command.arg("--release");
     }

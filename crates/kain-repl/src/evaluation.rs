@@ -28,6 +28,12 @@ pub struct ReplEvaluationError {
     pub formatted_error: String,
 }
 
+impl ReplEvaluationError {
+    pub fn plain_text(&self) -> String {
+        strip_ansi_sequences(&self.formatted_error)
+    }
+}
+
 pub type ReplEvaluationResult = Result<ReplEvaluation, ReplEvaluationError>;
 
 #[derive(Debug, Clone, Default)]
@@ -57,6 +63,31 @@ impl ReplEvaluator {
     }
 }
 
+fn strip_ansi_sequences(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch != '\u{1b}' {
+            output.push(ch);
+            continue;
+        }
+
+        if !matches!(chars.peek(), Some('[')) {
+            continue;
+        }
+
+        chars.next();
+        while let Some(next) = chars.next() {
+            if ('@'..='~').contains(&next) {
+                break;
+            }
+        }
+    }
+
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,5 +113,14 @@ mod tests {
             ReplEvaluation::from_interpret_output("42".to_string()).visible_value,
             Some("42".to_string())
         );
+    }
+
+    #[test]
+    fn strips_ansi_sequences_for_plain_text_errors() {
+        let error = ReplEvaluationError {
+            formatted_error: "\u{1b}[31merror\u{1b}[0m: bad news".to_string(),
+        };
+
+        assert_eq!(error.plain_text(), "error: bad news");
     }
 }

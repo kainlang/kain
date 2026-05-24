@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use kain_core::error::KainError;
+use kain_core::tooling_config::apply_cargo_command_defaults;
 use notify::{Event, RecursiveMode, Watcher};
 use serde::Deserialize;
 
@@ -362,6 +363,7 @@ impl NativeUiDevSession {
             NativeUiLaunchTarget::CargoManifest(manifest_path) => {
                 let mut command = Command::new("cargo");
                 command.arg("run").arg("--manifest-path").arg(manifest_path);
+                apply_cargo_command_defaults(&mut command);
                 if self.config.build.release {
                     command.arg("--release");
                 }

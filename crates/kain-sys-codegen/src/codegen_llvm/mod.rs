@@ -2125,11 +2125,17 @@ impl LlvmGenerator {
         &mut self,
         struct_name: &str,
         field_name: &str,
-        ty: &ResolvedType,
+        ast_ty: &Type,
+        resolved_ty: Option<&ResolvedType>,
     ) {
-        if let Some(element_ty) = self.resolved_runtime_array_element_llvm_ty(ty) {
-            self.struct_runtime_array_field_elements
-                .insert((struct_name.to_string(), field_name.to_string()), element_ty);
+        if let Some(element_ty) = resolved_ty
+            .and_then(|ty| self.resolved_runtime_array_element_llvm_ty(ty))
+            .or_else(|| self.ast_runtime_array_element_llvm_ty(ast_ty))
+        {
+            self.struct_runtime_array_field_elements.insert(
+                (struct_name.to_string(), field_name.to_string()),
+                element_ty,
+            );
         }
     }
 
@@ -2244,13 +2250,14 @@ impl LlvmGenerator {
                 Expr::Ident(name, _) => self.runtime_array_function_returns.get(name).cloned(),
                 _ => None,
             },
-            Expr::Field { object, field, .. } => self
-                .field_parent_struct_name(object)
-                .and_then(|struct_name| {
-                    self.struct_runtime_array_field_elements
-                        .get(&(struct_name, field.clone()))
-                        .cloned()
-                }),
+            Expr::Field { object, field, .. } => {
+                self.field_parent_struct_name(object)
+                    .and_then(|struct_name| {
+                        self.struct_runtime_array_field_elements
+                            .get(&(struct_name, field.clone()))
+                            .cloned()
+                    })
+            }
             _ => None,
         }
     }
@@ -2359,6 +2366,62 @@ impl LlvmGenerator {
         !self.is_new_object(expr)
             && self.ownership_pointer_provenance_for_expr(expr)
                 == OwnershipPointerProvenance::ImportedOrUnknown
+    }
+
+    fn expr_is_raw_pointer_value(&self, expr: &Expr, llvm_ty: &str) -> bool {
+        match Self::expr_strip_parens(expr) {
+            Expr::Ident(name, _) => {
+                if llvm_ty == "i8*" {
+                    self.authored_pointer_locals.contains_key(name)
+                        || self.helper_owned_pointer_locals.contains_key(name)
+                        || self.ephemeral_owned_pointer_locals.contains_key(name)
+                } else if llvm_ty.starts_with('%') && llvm_ty.ends_with('*') {
+                    self.authored_pointer_locals
+                        .get(name)
+                        .map(|ptr_ty| ptr_ty == llvm_ty)
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
+            }
+            Expr::PtrOffset { .. } => true,
+            Expr::Call { callee, .. } => matches!(
+                Self::expr_strip_parens(callee),
+                Expr::Ident(name, _) if name == "__kain_ptr_offset" || name == "__kain_index_ptr"
+            ),
+            _ => false,
+        }
+    }
+
+    fn expr_needs_shared_value_retain(&self, expr: &Expr, llvm_ty: &str) -> bool {
+        if self.is_new_object(expr) || self.expr_is_raw_pointer_value(expr, llvm_ty) {
+            return false;
+        }
+
+        if self.expr_needs_rc_retain(expr) {
+            return true;
+        }
+
+        match Self::expr_strip_parens(expr) {
+            // Proof: crates/kain-sys-codegen/z3/proofs/memory-rc-escape-transfer-balance.yaml
+            Expr::Ident(name, _) if llvm_ty == "i8*" => {
+                self.runtime_array_locals.contains_key(name)
+                    || self.locals.get(name).is_some_and(|(_, local_ty)| {
+                        local_ty == "i8*"
+                            && !self.authored_pointer_locals.contains_key(name)
+                            && !self.helper_owned_pointer_locals.contains_key(name)
+                            && !self.ephemeral_owned_pointer_locals.contains_key(name)
+                    })
+            }
+            Expr::Ident(name, _) if llvm_ty.starts_with('%') && llvm_ty.ends_with('*') => {
+                self.locals.contains_key(name)
+                    && !self
+                        .authored_pointer_locals
+                        .get(name)
+                        .is_some_and(|ptr_ty| ptr_ty == llvm_ty)
+            }
+            _ => false,
+        }
     }
 
     fn obvious_ast_type_byte_width(&self, ty: &Type) -> i64 {
@@ -8997,6 +9060,18 @@ impl LlvmGenerator {
         }
     }
 
+    fn coerce_runtime_array_storage_from_compiled(&mut self, val: &str, ty: &str) -> String {
+        match ty {
+            // Proof: crates/kain-sys-codegen/z3/proofs/casts-double-bitcast-roundtrip-preserves-array-float-storage.yaml
+            "double" => {
+                let bits = self.next_reg();
+                self.emit(&format!("  {} = bitcast double {} to i64", bits, val));
+                bits
+            }
+            _ => self.coerce_to_i64_storage(val, ty),
+        }
+    }
+
     fn expr_returns_json_handle(&self, expr: &Expr) -> bool {
         self.expr_carries_json_value(expr)
     }
@@ -12016,7 +12091,8 @@ impl LlvmGenerator {
                             self.record_struct_runtime_array_field(
                                 &s.ast.name,
                                 &field.name,
-                                res_ty,
+                                &field.ty,
+                                Some(res_ty),
                             );
                             fields.push((field.name.clone(), self.map_type(res_ty)));
                         } else {
@@ -12082,7 +12158,8 @@ impl LlvmGenerator {
                             self.record_struct_runtime_array_field(
                                 &a.ast.name,
                                 &state.name,
-                                res_ty,
+                                &state.ty,
+                                Some(res_ty),
                             );
                             fields.push((state.name.clone(), self.map_type(res_ty)));
                         } else {
@@ -12495,7 +12572,7 @@ impl LlvmGenerator {
         self.emit_label(&init_block);
         let (initial_value, initial_ty) =
             self.compile_expr_for_target_type(&constant.ast.value, &info.ty)?;
-        if initial_ty == "i8*" && self.expr_needs_rc_retain(&constant.ast.value) {
+        if initial_ty == "i8*" && self.expr_needs_shared_value_retain(&constant.ast.value, "i8*") {
             self.emit_rc_retain_if_heap_i8(&initial_value);
         }
         self.emit(&format!(
@@ -14811,6 +14888,29 @@ impl LlvmGenerator {
         self.emit_label(&merge_label);
     }
 
+    fn emit_heap_owned_retain_for_transfer(&mut self, expr: &Expr, val: &str, ty: &str) {
+        if ty == "i8*" {
+            if self.expr_needs_shared_value_retain(expr, ty) {
+                self.emit_rc_retain_if_heap_i8(val);
+            }
+            return;
+        }
+
+        if ty == "i64" {
+            if self.expr_owns_json_value(expr) && !self.is_new_object(expr) {
+                self.emit(&format!("  call void @json_retain(i64 {})", val));
+            }
+            return;
+        }
+
+        if ty.starts_with('%') && ty.ends_with('*') && self.expr_needs_shared_value_retain(expr, ty)
+        {
+            let raw_ptr = self.next_reg();
+            self.emit(&format!("  {} = bitcast {} {} to i8*", raw_ptr, ty, val));
+            self.emit_rc_retain_if_heap_i8(&raw_ptr);
+        }
+    }
+
     fn emit_release(&mut self, val: &str, ty: &str) {
         if ty == "i8*" {
             self.emit_rc_release_if_heap_i8(val);
@@ -15281,7 +15381,7 @@ impl LlvmGenerator {
 
                         // Retain if RC type AND it's not a new object (which already has RC=1)
                         if val_ty == "i8*" {
-                            if self.expr_needs_rc_retain(val_expr) {
+                            if self.expr_needs_shared_value_retain(val_expr, "i8*") {
                                 self.emit_rc_retain_if_heap_i8(&val_reg);
                             }
                         }
@@ -15361,8 +15461,16 @@ impl LlvmGenerator {
                         self.compile_expr(e)?
                     };
 
-                    if ty == "i8*" && self.expr_needs_rc_retain(e) {
+                    if ty == "i8*" && self.expr_needs_shared_value_retain(e, "i8*") {
                         self.emit_rc_retain_if_heap_i8(&val);
+                    }
+                    if ty.starts_with('%')
+                        && ty.ends_with('*')
+                        && self.expr_needs_shared_value_retain(e, &ty)
+                    {
+                        let raw_ptr = self.next_reg();
+                        self.emit(&format!("  {} = bitcast {} {} to i8*", raw_ptr, ty, val));
+                        self.emit_rc_retain_if_heap_i8(&raw_ptr);
                     }
                     if ty == "i64" && self.expr_owns_json_value(e) && !self.is_new_object(e) {
                         // Proof: crates/kain-sys-codegen/z3/proofs/json_owned_return_transfer.smt2
@@ -15885,6 +15993,15 @@ impl LlvmGenerator {
             if let Some(length_value) = self.compile_string_length_value(&args[0].value)? {
                 return Ok((length_value, "i64".to_string()));
             }
+            let (value, value_ty) = self.compile_expr(&args[0].value)?;
+            if value_ty == "i8*" {
+                let len_reg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @array_len(i8* {})",
+                    len_reg, value
+                ));
+                return Ok((len_reg, "i64".to_string()));
+            }
         }
 
         if func_name == "map_get" && args.len() == 2 {
@@ -15926,7 +16043,7 @@ impl LlvmGenerator {
                     value = self.cast_numeric_value(value, &value_ty, "i64")?;
                     value_ty = "i64".to_string();
                 }
-                if value_ty == "i8*" && self.expr_needs_rc_retain(&args[2].value) {
+                if value_ty == "i8*" && self.expr_needs_shared_value_retain(&args[2].value, "i8*") {
                     self.emit_rc_retain_if_heap_i8(&value);
                 }
                 if value_ty == "i8*" || value_ty.starts_with('%') {
@@ -16015,6 +16132,25 @@ impl LlvmGenerator {
             return Ok(result);
         }
 
+        if func_name == "push" && args.len() == 2 {
+            let (array, array_ty) = self.compile_expr(&args[0].value)?;
+            if array_ty == "i8*" {
+                let (value, value_ty) = if let Some(element_ty) =
+                    self.runtime_array_expr_element_llvm_ty(&args[0].value)
+                {
+                    self.compile_expr_for_target_type(&args[1].value, &element_ty)?
+                } else {
+                    self.compile_expr(&args[1].value)?
+                };
+                let stored = self.coerce_runtime_array_storage_from_compiled(&value, &value_ty);
+                self.emit(&format!(
+                    "  call void @array_push(i8* {}, i64 {})",
+                    array, stored
+                ));
+                return Ok(("0".into(), "i64".into()));
+            }
+        }
+
         let mut compiled_args = Vec::new();
         let mut arg_types = Vec::new();
         let is_extern = self.extern_functions.contains(func_name);
@@ -16099,7 +16235,7 @@ impl LlvmGenerator {
 
             if !is_extern
                 && ty == "i8*"
-                && self.expr_needs_rc_retain(&arg.value)
+                && self.expr_needs_shared_value_retain(&arg.value, "i8*")
                 && !passes_borrowed_string
             {
                 self.emit_rc_retain_if_heap_i8(&val);
@@ -16296,7 +16432,7 @@ impl LlvmGenerator {
                 ));
                 for item in args {
                     let (val, ty) = self.compile_expr(item)?;
-                    let stored = self.coerce_to_i64_storage(&val, &ty);
+                    let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty);
                     self.emit(&format!(
                         "  call void @array_push(i8* {}, i64 {})",
                         arr, stored
@@ -16799,7 +16935,7 @@ impl LlvmGenerator {
                         self.json_passthrough_locals.remove(name);
                         self.runtime_any_passthrough_locals.remove(name);
                         if ty == "i8*" {
-                            if self.expr_needs_rc_retain(value) {
+                            if self.expr_needs_shared_value_retain(value, "i8*") {
                                 self.emit_rc_retain_if_heap_i8(&rhs);
                             }
                             if !was_borrowed_local {
@@ -16886,8 +17022,15 @@ impl LlvmGenerator {
                     let (obj_val, obj_ty) = self.compile_expr(object)?;
                     let (idx_val, _) = self.compile_expr(index)?;
                     if obj_ty == "i8*" {
-                        let (rhs, rhs_ty) = self.compile_expr(value)?;
-                        let stored = self.coerce_to_i64_storage(&rhs, &rhs_ty);
+                        let (rhs, rhs_ty) =
+                            if let Some(element_ty) = self.runtime_array_expr_element_llvm_ty(object)
+                            {
+                                self.compile_expr_for_target_type(value, &element_ty)?
+                            } else {
+                                self.compile_expr(value)?
+                            };
+                        let stored =
+                            self.coerce_runtime_array_storage_from_compiled(&rhs, &rhs_ty);
                         self.emit(&format!(
                             "  call void @array_set(i8* {}, i64 {}, i64 {})",
                             obj_val, idx_val, stored
@@ -16980,8 +17123,9 @@ impl LlvmGenerator {
                 }
                 let mut provided: HashMap<String, Expr> = fields.iter().cloned().collect();
                 for (i, (field_name, field_ty)) in def.iter().enumerate() {
-                    let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
-                        self.compile_expr(&expr)?
+                    let source_expr = provided.remove(field_name);
+                    let (val, val_ty) = if let Some(expr) = source_expr.as_ref() {
+                        self.compile_expr(expr)?
                     } else {
                         (self.zero_value_for_ty(field_ty), field_ty.clone())
                     };
@@ -16990,6 +17134,9 @@ impl LlvmGenerator {
                         "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 {}",
                         field_ptr, struct_ty, ptr_ty, struct_ptr, i
                     ));
+                    if let Some(expr) = source_expr.as_ref() {
+                        self.emit_heap_owned_retain_for_transfer(expr, &val, &val_ty);
+                    }
                     self.emit(&format!(
                         "  store {} {}, {}* {}",
                         val_ty, val, val_ty, field_ptr
@@ -17031,7 +17178,7 @@ impl LlvmGenerator {
                 ));
                 for item in items {
                     let (val, ty) = self.compile_expr(item)?;
-                    let stored = self.coerce_to_i64_storage(&val, &ty);
+                    let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty);
                     self.emit(&format!(
                         "  call void @array_push(i8* {}, i64 {})",
                         arr, stored
@@ -17047,7 +17194,7 @@ impl LlvmGenerator {
                 let mut field_tys = Vec::new();
                 for item in items {
                     let (val, ty) = self.compile_expr(item)?;
-                    compiled_fields.push((val, ty.clone()));
+                    compiled_fields.push((item.clone(), val, ty.clone()));
                     field_tys.push(ty);
                 }
 
@@ -17066,7 +17213,7 @@ impl LlvmGenerator {
 
                 if self.value_aggregate_structs.contains(&tuple_name) {
                     let mut aggregate_value = "zeroinitializer".to_string();
-                    for (index, (field_val, field_ty)) in compiled_fields.iter().enumerate() {
+                    for (index, (_, field_val, field_ty)) in compiled_fields.iter().enumerate() {
                         let next_aggregate = self.next_reg();
                         self.emit(&format!(
                             "  {} = insertvalue {} {}, {} {}, {}",
@@ -17104,12 +17251,13 @@ impl LlvmGenerator {
                     tuple_ptr, mem_reg, tuple_ptr_ty
                 ));
 
-                for (index, (field_val, field_ty)) in compiled_fields.iter().enumerate() {
+                for (index, (field_expr, field_val, field_ty)) in compiled_fields.iter().enumerate() {
                     let field_ptr = self.next_reg();
                     self.emit(&format!(
                         "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
                         field_ptr, tuple_name, tuple_ptr_ty, tuple_ptr, index
                     ));
+                    self.emit_heap_owned_retain_for_transfer(field_expr, field_val, field_ty);
                     self.emit(&format!(
                         "  store {} {}, {}* {}",
                         field_ty, field_val, field_ty, field_ptr
@@ -17258,15 +17406,18 @@ impl LlvmGenerator {
                         continue;
                     }
 
-                    let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
-                        self.compile_expr_for_target_type(&expr, field_ty)?
-                    } else if let Some(initial_expr) = self
+                    let source_expr = if let Some(expr) = provided.remove(field_name) {
+                        Some(expr)
+                    } else {
+                        self
                         .actor_state_initializers
                         .get(actor)
                         .and_then(|defaults| defaults.get(field_name))
                         .cloned()
-                    {
-                        self.compile_expr_for_target_type(&initial_expr, field_ty)?
+                    };
+
+                    let (val, val_ty) = if let Some(expr) = source_expr.as_ref() {
+                        self.compile_expr_for_target_type(expr, field_ty)?
                     } else {
                         (self.zero_value_for_ty(field_ty), field_ty.clone())
                     };
@@ -17276,6 +17427,9 @@ impl LlvmGenerator {
                         "  {} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
                         field_ptr, struct_ty, struct_ty, struct_ptr, i
                     ));
+                    if let Some(expr) = source_expr.as_ref() {
+                        self.emit_heap_owned_retain_for_transfer(expr, &val, &val_ty);
+                    }
                     self.emit(&format!(
                         "  store {} {}, {}* {}",
                         val_ty, val, val_ty, field_ptr

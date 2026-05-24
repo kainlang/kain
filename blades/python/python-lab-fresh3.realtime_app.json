@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "render": {
+    "scenes": [],
+    "materials": []
+  },
+  "patches": [
+    {
+      "name": "commit_python_signal",
+      "mutation_paths": [
+        "authority.epoch",
+        "authority.health",
+        "authority.module_score",
+        "authority.native_score",
+        "authority.route_score",
+        "authority.signal",
+        "authority.surface_score"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_python_signal"
+    }
+  ],
+  "laws": [
+    {
+      "name": "python_signal_in_bounds",
+      "symbol": "python_signal_in_bounds",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    }
+  ],
+  "worlds": [
+    {
+      "name": "PythonInteropAuthority",
+      "state_slots": [
+        {
+          "name": "signal",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health",
+          "type_name": "Int",
+          "initial_expr": "100"
+        },
+        {
+          "name": "module_score",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "route_score",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "surface_score",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "native_score",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "PythonInteropPanel",
+          "surface_key": "world.PythonInteropAuthority.native_ui"
+        }
+      ]
+    },
+    {
+      "name": "PythonInteropMirror",
+      "state_slots": [
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "1"
+        },
+        {
+          "name": "epoch_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "health_copy",
+          "type_name": "Int",
+          "initial_expr": "100"
+        },
+        {
+          "name": "module_score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "route_score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "surface_score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "native_score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "PythonInteropPanel",
+          "surface_key": "world.PythonInteropMirror.web"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "PythonInteropAuthority",
+    "state_slots": [
+      {
+        "name": "signal",
+        "type_name": "Int",
+        "initial_expr": "1"
+      },
+      {
+        "name": "epoch",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "health",
+        "type_name": "Int",
+        "initial_expr": "100"
+      },
+      {
+        "name": "module_score",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "route_score",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "surface_score",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "native_score",
+        "type_name": "Int",
+        "initial_expr": "0"
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "PythonInteropPanel",
+        "surface_key": "world.PythonInteropAuthority.native_ui"
+      }
+    ]
+  },
+  "entanglements": [
+    {
+      "authority": "PythonInteropAuthority.epoch",
+      "mirror": "PythonInteropMirror.epoch_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.health",
+      "mirror": "PythonInteropMirror.health_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.module_score",
+      "mirror": "PythonInteropMirror.module_score_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.native_score",
+      "mirror": "PythonInteropMirror.native_score_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.route_score",
+      "mirror": "PythonInteropMirror.route_score_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.signal",
+      "mirror": "PythonInteropMirror.signal_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.surface_score",
+      "mirror": "PythonInteropMirror.surface_score_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    }
+  ],
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "law.invariants",
+    "patch.transactions",
+    "scene.actors",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "requirements": [
+    "host.raw-native",
+    "law.invariants",
+    "patch.transactions",
+    "runtime.contract.bundle",
+    "shader.bundle.metadata",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 2,
+        "identity_key": "2",
+        "kind": "component:PythonInteropPanel",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}
