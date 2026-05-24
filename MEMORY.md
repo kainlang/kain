@@ -1,5 +1,26 @@
 # Kain Memory
 
+# 2026-05-24 - Rust Docs Categorized Lexicon and Interactive Simulator Generator Upgrade
+
+Delivered a complete, high-density, minimal "Rust Docs" style keyword manual next to "Guides" and "API" tabs, mapping all 93 active Kain-Lang keywords from `CATALOG.md` (excluding the `ue5` compatibility blacklist) with formal breadcrumbs, section anchors `§`, and dynamic simulator injection. Also engineered an "insane" Python-based interactive sandbox template generator (`generate_sim.py`) in the repository root with pre-baked visualizers to eliminate boilerplate writing.
+
+What changed:
+
+- `website/src-frontend/features/docs/data/keywords.ts`
+  - Re-authored the entire lexicon database, expanding it from 20 to 93 active Kain-Lang keywords across five categories: `core-grammar`, `types-modules`, `concurrency-ownership`, `silicon-gpu`, and `lattices-declarations`.
+  - Added dedicated type signatures, ELI5 toy analogies, Senior Architect definitions, and usage blueprints for every single keyword.
+- `website/src-frontend/features/docs/Docs.tsx`
+  - Integrated the `'keywords'` tab as a high-density, minimal categorized vertical list with sub-indents, dynamic hover effects, and left-accent glowing borders matching the Rust macro and keyword sidebar.
+  - Formatted the Selected Keyword main viewport to look exactly like the Rust macro detail page, featuring breadcrumbs, compiler declaration signature blocks, and `§` section anchors.
+- `generate_sim.py`
+  - Created a robust, parameter-driven Python interactive simulator and documentation generator in the repository root.
+  - Packed it with three pre-baked, leak-proof visualizer templates: `particles` (neon particle flow fields), `nodes` (glowing network data packet topology), and `lattice` (cellular matrix state tickers), all bound to `ResizeObserver` lifecycle observers and canvas `isConnected` cleanup triggers.
+
+Durable lessons:
+
+- Structuring UI lists as flat, categorized vertical links instead of grid buttons drastically improves visual scanning speed and increases content density, mirroring the developer-friendly layout of high-quality standard doc sites like doc.rust-lang.org.
+- Providing standardized automation CLI utilities like python-based script generators accelerates developer workflow, ensures architectural consistency, and drastically reduces token overhead when adding interactive visual specimens.
+
 # 2026-05-24 - Unified Interactive Keyword Encyclopedia Pack Upgrade
 
 Delivered a complete, zero-gap reference guide covering 100% of the active Kain-Lang keywords (94 in total, excluding the `ue5` compatibility blacklist) listed in `CATALOG.md`. The expansion consists of 4 highly structured, unified interactive "Mega Guides" containing dynamic keyword drawers, ELI5 analogies, senior-level systems specification summaries, and dedicated compilation or lattice simulation viewports.
