@@ -1,6 +1,7 @@
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
+    "rules_rust_windows_force_all_deps_direct.patch",
     "rules_swift_windows_sdkroot_guard.patch",
     "rules_swift_windows_toolchain_target_compat.patch",
     "serde_private_alias_compat.patch",

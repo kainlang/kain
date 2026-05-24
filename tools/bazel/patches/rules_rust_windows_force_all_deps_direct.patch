@@ -1,0 +1,19 @@
+diff --git a/rust/private/rustc.bzl b/rust/private/rustc.bzl
+--- a/rust/private/rustc.bzl
++++ b/rust/private/rustc.bzl
+@@ -1471,6 +1471,15 @@
+         elif ctx.attr.require_explicit_unstable_features == -1:
+             require_explicit_unstable_features = toolchain.require_explicit_unstable_features
+ 
++    # On Windows, rustc registers each -Ldependency directory when loading
++    # proc-macro DLLs. Large Bazel graphs can exceed the Win32 DLL-directory
++    # budget because crate_universe fans transitive crates out across hundreds of
++    # unique output directories. Prefer --extern for the full transitive Rust
++    # closure so rustc sees a Cargo-like dependency layout instead of hundreds of
++    # Bazel-specific search roots.
++    if toolchain.target_os == "windows":
++        force_all_deps_direct = True
++
+     args, env_from_args = construct_arguments(
+         ctx = ctx,
+         attr = attr,

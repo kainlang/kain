@@ -11,6 +11,28 @@ common --repo_env=TMPDIR=D:/Kain-Bazel/tmp
 common --action_env=TMP=D:/Kain-Bazel/tmp
 common --action_env=TEMP=D:/Kain-Bazel/tmp
 common --action_env=TMPDIR=D:/Kain-Bazel/tmp
+# rules_rust's Windows process wrapper reconstructs the rustc child environment
+# from Bazel's action env, so we must explicitly preserve the normal loader and
+# per-user process variables that MSVC-target proc-macro DLLs expect.
+common --action_env=PATH
+common --action_env=PATHEXT
+common --action_env=SystemDrive
+common --action_env=SystemRoot
+common --action_env=ComSpec
+common --action_env=windir
+common --action_env=USERPROFILE
+common --action_env=HOMEDRIVE
+common --action_env=HOMEPATH
+common --action_env=APPDATA
+common --action_env=LOCALAPPDATA
+common --action_env=ProgramData
+common --action_env=ProgramFiles
+common --action_env=ProgramFiles(x86)
+common --action_env=CommonProgramFiles
+common --action_env=CommonProgramFiles(x86)
+common --action_env=NUMBER_OF_PROCESSORS
+common --action_env=PROCESSOR_ARCHITECTURE
+common --action_env=PROCESSOR_IDENTIFIER
 
 build --disk_cache=D:/Kain-Bazel/disk-cache
 build --jobs=HOST_CPUS*.625
