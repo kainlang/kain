@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-05-24 - Interactive Specimen Expansion & React Callback Ref Docs Upgrade
+
+Delivered a major upgrade to the developer documentation suite, introducing three new premium, highly interactive specimens that showcase Kain's core paradigms (World Entanglements, Actor Mailboxes, Silicon-native Atomics, Zero-Copy wire layouts, and Vulkain compute shaders) inspired by `/blades/pong` and `/benchmark/cases_v2/classic_systems.kn`, alongside a robust React Callback Ref rewrite to eliminate asynchronous script-mount race conditions.
+
+What changed:
+
+- `website/public/docs/manifest.json`
+  - Registered three new advanced specimen pages under their respective categories (`advanced-semantics` and `unsafe-systems`).
+- `website/public/docs/pong_state_lattice.html`
+  - Created a playable Oscilloscope Vector Arcade Pong simulator complete with high-performance vectors, AI follower, paddle-ball collision acceleration, and live telemetry.
+  - Implemented an entanglement canvas drawing dynamic quadratic Bezier connections mapping 18 synchronized state properties between `PongAuthority` and `PongMirror` in real-time.
+  - Embedded an Actor mailbox swarm monitor plotting message latency and turns across `InputWorker`, `PhysicsWorker`, and `RenderWorker`.
+- `website/public/docs/angelic_systems.html`
+  - Built an Atomic Contention Wall grid simulating parallel fan-out atomic counter increments across 32 virtual cores with red/amber collision color sweeps.
+  - Built a contiguous packed zero-copy packet wire boundary layout inspector (64 slots, 4 words per packet) showing resolved byte offsets, header signatures, and dynamic math-accurate imul-based avalanche hashing.
+- `website/public/docs/vulkain_compute.html`
+  - Designed a high-density, undulating Wave Particle Compute Canvas rendering 450 GPU-simulated velocity field vectors moving under sliding uniform controls (workgroup sizes, frequencies, wave amplitudes).
+- `website/src-frontend/features/docs/Docs.tsx`
+  - Replaced the timing-sensitive, mutable `useRef` script evaluation wrapper with a React Callback Ref (`useCallback`) bound to the dynamical dynamic container element. This guarantees that script code is compiled and evaluated immediately when the DOM is painted.
+  - Added unique key bindings (`key={selectedGuide.id}`) to force clean unmounting of previous guides, immediately terminating old animation loops via `isConnected` checks to completely eliminate cross-guide resource collisions or thread leakage.
+
+Durable lessons:
+
+- Standard React `useRef` + `useEffect` can easily cause mount-race windows if content loading is asynchronous. A callback ref (`useCallback`) is the gold standard when executing dynamic scripts embedded inside `dangerouslySetInnerHTML`.
+- Node `isConnected` is the cleanest, lowest-overhead tool in HTML5/JS animation frames to prevent thread/memory leaks when transitioning between multi-canvas rendering viewports in dynamic SPAs.
+- WebGL loops with break statements modulated by uniforms (`if (i >= u_octaves) break`) compile poorly on some systems under ANGLE. Branchless step boundaries (`step(float(i), float(u_octaves) - 0.5)`) compile universally and run faster.
+- Native BigInt literals (`0x...n`) are not supported across older browsers or strict transpilers. Use explicit standard constructors `BigInt("0x...")` and `BigInt(val)` for safety.
+
 # 2026-05-23 - `blades/kg` CLI arg repair plus dispatcher metadata prefetch
 
 `kg` is usable again as a native Kain grep blade, but it is still nowhere near `rg` on honest timing.
