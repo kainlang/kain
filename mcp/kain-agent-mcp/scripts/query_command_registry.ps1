@@ -45,6 +45,7 @@ function Get-CommandPath {
 $queryLower = $Query.Trim().ToLowerInvariant()
 $packLower = $Pack.Trim().ToLowerInvariant()
 $matches = New-Object System.Collections.Generic.List[string]
+$exactMatch = ""
 
 foreach ($line in (Get-CommandLines)) {
     $trimmed = $line.Trim()
@@ -55,8 +56,8 @@ foreach ($line in (Get-CommandLines)) {
     if ($Mode -eq "describe") {
         $commandPath = (Get-CommandPath -Line $trimmed).ToLowerInvariant()
         if ($commandPath -eq $queryLower) {
-            Write-Output $trimmed
-            exit 0
+            $exactMatch = $trimmed
+            continue
         }
         if ($queryLower.Length -gt 0 -and $trimmed.ToLowerInvariant().Contains($queryLower) -and $matches.Count -eq 0) {
             $matches.Add($trimmed)
@@ -75,8 +76,14 @@ foreach ($line in (Get-CommandLines)) {
 }
 
 if ($Mode -eq "describe") {
+    if ($exactMatch -ne "") {
+        Write-Output $exactMatch
+        Start-Sleep -Milliseconds 25
+        exit 0
+    }
     if ($matches.Count -gt 0) {
         Write-Output $matches[0]
+        Start-Sleep -Milliseconds 25
         exit 0
     }
     exit 3
@@ -84,4 +91,5 @@ if ($Mode -eq "describe") {
 
 if ($matches.Count -gt 0) {
     $matches
+    Start-Sleep -Milliseconds 25
 }

@@ -1,0 +1,192 @@
+use std::python::bridge
+use std::dcc::image
+use std::dcc::tensor
+use std::dcc::mesh
+
+import numpy as np
+import networkx as nx
+import trimesh
+from PIL import Image as PillowImage
+
+from ecosystem_local import seed_phrase as local_seed_phrase
+from ecosystem_local import make_pillow_numpy_banner as local_make_pillow_numpy_banner
+from ecosystem_local import image_signature as local_image_signature
+from ecosystem_local import save_png as local_save_png
+from ecosystem_local import make_tensor_cube as local_make_tensor_cube
+from ecosystem_local import tensor_signature as local_tensor_signature
+from ecosystem_local import save_npy as local_save_npy
+
+from localforge.graphish import graph_checksum as local_graph_checksum
+from localforge.graphish import graph_report as local_graph_report
+import localforge.meshish as meshish
+
+const GAUNTLET_ROOT: String = "D:/Kain-Lang/blades/kain-test/fabric_FFI/python/python_import_gauntlet"
+
+fn output_path(name: String) -> String:
+    return GAUNTLET_ROOT + "/outputs/" + name
+
+fn require_python_stack():
+    assert(py_bridge_module_available("numpy"), "numpy must be installed for the import gauntlet")
+    assert(py_bridge_module_available("networkx"), "networkx must be installed for the import gauntlet")
+    assert(py_bridge_module_available("trimesh"), "trimesh must be installed for the import gauntlet")
+    assert(py_bridge_module_available("PIL"), "Pillow must be installed for the import gauntlet")
+
+fn external_graph_probe() -> Int:
+    let graph = nx.Graph()
+    graph.add_edge("hub", "alpha")
+    graph.add_edge("hub", "beta")
+    graph.add_edge("hub", "gamma")
+    assert(nx.is_connected(graph), "expected direct networkx graph to stay connected")
+    return (graph.number_of_nodes() * 100) + graph.number_of_edges()
+
+// ============================================================================
+//                          import gauntlet / direct lane
+// ============================================================================
+
+test python_import_gauntlet_external_modules:
+    require_python_stack()
+
+    let line_payload = np.array([-2.0, -1.0, 0.0, 1.0, 2.0], "float32")
+    let line_tensor = dcc_tensor_from_python_shared(line_payload)
+    let line_info = dcc_tensor_info(line_tensor)
+    assert(line_info.shape[0] == 5, "expected shared numpy line shape")
+    assert(dcc_tensor_get(line_tensor, [0]) == -2.0, "expected first tensor slot")
+    assert(dcc_tensor_get(line_tensor, [4]) == 2.0, "expected last tensor slot")
+
+    let graph_score = external_graph_probe()
+    assert(graph_score == 403, "expected direct networkx score")
+
+    let pillow = PillowImage.fromarray(np.zeros([32, 48, 4], "uint8"), "RGBA")
+    assert(pillow.width == 48, "expected Pillow width via imported class")
+    assert(pillow.height == 32, "expected Pillow height via imported class")
+    assert(pillow.mode == "RGBA", "expected Pillow mode")
+
+    let direct_box = trimesh.creation.box([1.0, 1.5, 2.0])
+    direct_box.apply_translation([0.25, 0.0, -0.1])
+    let direct_checksum = meshish.mesh_checksum(direct_box)
+    let direct_geometry = dcc_mesh_from_python_shared(direct_box)
+    let direct_info = dcc_mesh_info(direct_geometry)
+    assert(direct_checksum > 0, "expected direct trimesh checksum")
+    assert(direct_info.vertex_count == 8, "expected box vertex count")
+    assert(direct_info.face_count == 12, "expected box face count")
+    assert(direct_info.vertex_ownership == "shared", "expected direct trimesh shared ownership")
+
+test python_import_gauntlet_local_resolution:
+    require_python_stack()
+    assert(local_seed_phrase() == "local-python-import-ok", "expected sibling python import")
+    assert(local_graph_checksum(6) == 575, "expected local package graph checksum")
+    assert(local_graph_report(6) == "nodes=7 edges=11 checksum=575", "expected local package graph report")
+
+test python_import_gauntlet_shared_image_and_tensor_sync:
+    require_python_stack()
+
+    let banner_payload = local_make_pillow_numpy_banner(192, 128)
+    let banner_before = local_image_signature(banner_payload)
+    let banner = dcc_image_from_python_shared(banner_payload)
+    let banner_info = dcc_image_info(banner)
+    assert(banner_info.width == 192, "expected banner width")
+    assert(banner_info.height == 128, "expected banner height")
+    assert(banner_info.zero_copy == true, "expected shared Pillow/NumPy image backing")
+    dcc_image_set_pixel(banner, 96, 64, [255, 64, 32, 255])
+    let banner_after = local_image_signature(banner_payload)
+    assert(banner_before != banner_after, "expected python-side image signature to change after Kain mutation")
+
+    let cube_payload = local_make_tensor_cube(18)
+    let cube_before = local_tensor_signature(cube_payload)
+    let cube = dcc_tensor_from_python_shared(cube_payload)
+    let cube_info = dcc_tensor_info(cube)
+    assert(cube_info.shape[0] == 18, "expected tensor cube shape")
+    assert(cube_info.zero_copy == true, "expected shared tensor backing")
+    dcc_tensor_set(cube, [9, 9, 9], 42.5)
+    let cube_after = local_tensor_signature(cube_payload)
+    assert(cube_before != cube_after, "expected python-side tensor signature to change after Kain mutation")
+
+test python_import_gauntlet_local_mesh_package_sync:
+    require_python_stack()
+
+    let mesh_payload = meshish.make_mesh(2, 0.85)
+    let mesh_before = meshish.mesh_checksum(mesh_payload)
+    let geometry = dcc_mesh_from_python_shared(mesh_payload)
+    let info = dcc_mesh_info(geometry)
+    let v0 = dcc_mesh_vertex_at(geometry, 0)
+    let y_before = meshish.vertex_y(mesh_payload, 0)
+    dcc_mesh_set_vertex(geometry, 0, [v0[0], v0[1] + 0.4, v0[2] + 0.1])
+    let y_after = meshish.vertex_y(mesh_payload, 0)
+    let mesh_after = meshish.mesh_checksum(mesh_payload)
+    assert(info.vertex_ownership == "shared", "expected local package mesh shared ownership")
+    assert(y_after == y_before + 0.4, "expected python-side mesh vertex sync")
+    assert(mesh_before != mesh_after, "expected mesh checksum to change after mutation")
+
+fn main() -> String:
+    require_python_stack()
+
+    let graph_score = external_graph_probe()
+    let graph_report = local_graph_report(6)
+
+    let banner_payload = local_make_pillow_numpy_banner(320, 192)
+    let banner_before = local_image_signature(banner_payload)
+    let banner = dcc_image_from_python_shared(banner_payload)
+    let banner_info = dcc_image_info(banner)
+    dcc_image_set_pixel(banner, 160, 96, [255, 110, 40, 255])
+    dcc_image_set_pixel(banner, 20, 20, [120, 255, 240, 255])
+    let banner_after = local_image_signature(banner_payload)
+    let banner_path = output_path("gauntlet_banner.png")
+    let banner_bytes = local_save_png(dcc_image_to_numpy(banner), banner_path)
+    assert(file_exists(banner_path), "expected banner PNG output")
+
+    let cube_payload = local_make_tensor_cube(24)
+    let cube_before = local_tensor_signature(cube_payload)
+    let cube = dcc_tensor_from_python_shared(cube_payload)
+    let cube_info = dcc_tensor_info(cube)
+    dcc_tensor_set(cube, [12, 12, 12], 77.25)
+    let cube_after = local_tensor_signature(cube_payload)
+    let cube_path = output_path("gauntlet_cube.npy")
+    let cube_bytes = local_save_npy(dcc_tensor_to_numpy(cube), cube_path)
+    assert(file_exists(cube_path), "expected tensor NPY output")
+
+    let line_payload = np.array([-3.0, -1.5, 0.0, 1.5, 3.0], "float32")
+    let line_tensor = dcc_tensor_from_python_shared(line_payload)
+    let line_info = dcc_tensor_info(line_tensor)
+
+    let mesh_payload = meshish.make_mesh(3, 0.92)
+    let mesh_before = meshish.mesh_checksum(mesh_payload)
+    let geometry = dcc_mesh_from_python_shared(mesh_payload)
+    let geom_info = dcc_mesh_info(geometry)
+    let v0 = dcc_mesh_vertex_at(geometry, 0)
+    let y_before = meshish.vertex_y(mesh_payload, 0)
+    dcc_mesh_set_vertex(geometry, 0, [v0[0], v0[1] + 0.55, v0[2] + 0.2])
+    let y_after = meshish.vertex_y(mesh_payload, 0)
+    let mesh_after = meshish.mesh_checksum(mesh_payload)
+    let mesh_path = output_path("gauntlet_mesh.glb")
+    let mesh_bytes = meshish.save_glb(dcc_mesh_to_trimesh(geometry), mesh_path)
+    assert(file_exists(mesh_path), "expected mesh GLB output")
+
+    let report = "Python import gauntlet\n"
+    let report = report + "seed_phrase: " + local_seed_phrase() + "\n"
+    let report = report + "graph_score: " + str(graph_score) + "\n"
+    let report = report + "graph_report: " + graph_report + "\n"
+    let report = report + "line_shape: " + str(line_info.shape) + "\n"
+    let report = report + "banner_dims: " + str(banner_info.width) + "x" + str(banner_info.height) + "\n"
+    let report = report + "banner_zero_copy: " + str(banner_info.zero_copy) + "\n"
+    let report = report + "banner_before: " + banner_before + "\n"
+    let report = report + "banner_after: " + banner_after + "\n"
+    let report = report + "banner_bytes: " + str(banner_bytes) + "\n"
+    let report = report + "cube_shape: " + str(cube_info.shape) + "\n"
+    let report = report + "cube_zero_copy: " + str(cube_info.zero_copy) + "\n"
+    let report = report + "cube_before: " + cube_before + "\n"
+    let report = report + "cube_after: " + cube_after + "\n"
+    let report = report + "cube_bytes: " + str(cube_bytes) + "\n"
+    let report = report + "mesh_vertices: " + str(geom_info.vertex_count) + "\n"
+    let report = report + "mesh_faces: " + str(geom_info.face_count) + "\n"
+    let report = report + "mesh_before: " + str(mesh_before) + "\n"
+    let report = report + "mesh_after: " + str(mesh_after) + "\n"
+    let report = report + "mesh_y_before: " + str(y_before) + "\n"
+    let report = report + "mesh_y_after: " + str(y_after) + "\n"
+    let report = report + "mesh_bytes: " + str(mesh_bytes) + "\n"
+    let report = report + "banner_path: " + banner_path + "\n"
+    let report = report + "cube_path: " + cube_path + "\n"
+    let report = report + "mesh_path: " + mesh_path
+
+    write_file(output_path("gauntlet_report.txt"), report + "\n")
+    println(report)
+    return report

@@ -214,3 +214,16 @@
 - Minimal repro: author an entangled world pair, assign the mirror-side field directly in a function, run `kain check <file> --target llvm`, then compile the same entry through the native executable lane.
 - Evidence: `D:\Kain-Lang\benchmark\.kain\out\llvm\x86_64-windows\dev\x86_64-windows\benchmark-v2\benchmark-v2-root-executable\kain-evidence.json` included `error[Codegen Error]: while compiling 'ghost_mirror_checksum': cannot write entangle mirror 'ClassicGhostMirror.signal_copy' directly; write authority 'ClassicGhostAuthority.signal'` even though `check-llvm` had already passed.
 - Suggested direction: make the `check --target llvm` path reject the same mirror-side writes that native lowering rejects, or downgrade native lowering to a shared earlier diagnostic pass so authored Kain gets one consistent truth.
+
+---
+
+## 2026-05-24 - python import gauntlet / test harness
+### repo-root `kain test` loses importer-relative Python sibling/package resolution that direct `kain run` preserves
+- Categories: correctness, developer-experience, interop, tooling
+- Status: Active
+- Surface: interop
+- Symptom: a blade that uses first-class Python `import ...` with sibling `ecosystem_local.py` and local package imports under the same folder runs successfully with `kain run ... --target interpret`, but `kain test <blade-path> --target interpret` from repo root fails with `Runtime error: Python import error for 'ecosystem_local': ModuleNotFoundError: No module named 'ecosystem_local'`.
+- Workflow impact: importer-relative local Python modules currently feel reliable in direct execution but not in the common repo-root source-test workflow, which makes the new Python import lane look flaky unless agents discover the working-directory workaround.
+- Minimal repro: from `D:\Kain-Lang`, run `kain test blades/kain-test/fabric_FFI/python/python_import_gauntlet --target interpret` and compare with `kain run blades/kain-test/fabric_FFI/python/python_import_gauntlet/smoke.kn --target interpret`. The direct run succeeds; the repo-root test fails. Running `kain test smoke.kn --target interpret` from inside the blade directory passes.
+- Evidence: direct run emitted the full gauntlet report and artifacts under `blades/kain-test/fabric_FFI/python/python_import_gauntlet/outputs/`, while repo-root test failed with `ModuleNotFoundError: No module named 'ecosystem_local'`.
+- Suggested direction: preserve/import `source_file` context into the source-test harness for Python `import` items, or teach the harness to seed importer-relative search roots before evaluating tests so blade-local sibling `.py` and package imports behave the same in `test` and `run`.
