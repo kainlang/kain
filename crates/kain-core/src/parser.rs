@@ -10121,7 +10121,9 @@ mod tests {
             .collect();
 
         assert!(
-            top_level_names.iter().any(|name| name == "fn:ascii_is_byte"),
+            top_level_names
+                .iter()
+                .any(|name| name == "fn:ascii_is_byte"),
             "ascii follow-on function missing from top level: {top_level_names:?}"
         );
         assert!(
@@ -10154,7 +10156,9 @@ mod tests {
             .collect();
 
         assert!(
-            top_level_names.iter().any(|name| name == "fn:ascii_is_byte"),
+            top_level_names
+                .iter()
+                .any(|name| name == "fn:ascii_is_byte"),
             "ascii function disappeared after ambient prefix: {top_level_names:?}"
         );
         assert!(

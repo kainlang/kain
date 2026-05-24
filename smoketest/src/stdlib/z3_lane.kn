@@ -1,0 +1,62 @@
+use std::z3
+
+pub fn smoke_z3_lane() -> Int:
+    if z3_available() == false:
+        return 0
+
+    if z3_version() == "":
+        return 1
+
+    let ints = z3_solver()
+    let x = z3_int("x")
+    let y = z3_int("y")
+
+    z3_solver_add(ints, [
+        z3_expr_ge(x, z3_int_val(0)),
+        z3_expr_ge(y, z3_int_val(0)),
+        z3_expr_eq(z3_sum([x, y]), z3_int_val(7)),
+        z3_distinct([x, y])
+    ])
+
+    let sat_result = z3_solver_check(ints)
+    if z3_is_sat(sat_result) == false:
+        return 2
+
+    let model = z3_solver_model(ints)
+    let x_value = z3_as_long(z3_model_eval(model, x))
+    let y_value = z3_as_long(z3_model_eval(model, y))
+    if x_value < 0 or y_value < 0:
+        return 3
+    if x_value + y_value != 7:
+        return 4
+    if x_value == y_value:
+        return 5
+
+    z3_solver_push(ints)
+    z3_solver_add(ints, [
+        z3_expr_eq(x, z3_int_val(1)),
+        z3_expr_eq(y, z3_int_val(1))
+    ])
+    let unsat_result = z3_solver_check(ints)
+    if z3_is_unsat(unsat_result) == false:
+        return 6
+    z3_solver_pop(ints, 1)
+
+    if z3_solver_check_name(ints) != "sat":
+        return 7
+
+    let bits = z3_solver()
+    let lane = z3_bitvec("lane", 8)
+    z3_solver_add(bits, [
+        z3_expr_eq(z3_expr_add(lane, z3_bitvec_val(1, 8)), z3_bitvec_val(5, 8))
+    ])
+    let bit_result = z3_solver_check(bits)
+    if z3_is_sat(bit_result) == false:
+        return 8
+
+    let bit_model = z3_solver_model(bits)
+    let lane_value = z3_as_long(z3_model_eval(bit_model, lane))
+    if lane_value != 4:
+        return 9
+
+    return 0

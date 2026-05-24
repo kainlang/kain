@@ -37,6 +37,8 @@ pub struct GpuRuntimeDispatchResult {
     pub tensor_binding_count: u32,
     pub stream_binding_count: u32,
     pub neural_node_count: u32,
+    pub output_binding_count: u32,
+    pub total_output_bytes: u64,
     pub message: [c_char; 256],
 }
 
@@ -108,6 +110,8 @@ pub enum ComputeExecutorError {
     DeviceSizeTooLarge { size: u64 },
     #[error("unable to read file {path}: {message}")]
     ReadFile { path: String, message: String },
+    #[error("unable to write file {path}: {message}")]
+    WriteFile { path: String, message: String },
     #[error("unable to parse shader bundle {path}: {message}")]
     ParseShaderBundle { path: String, message: String },
     #[error("unable to parse compute residency {path}: {message}")]
@@ -139,6 +143,17 @@ pub enum ComputeExecutorError {
     UnsupportedSharedBufferContract { binding: String, value: String },
     #[error("shared buffer metadata is invalid for binding {binding}: {message}")]
     InvalidSharedBufferBinding { binding: String, message: String },
+    #[error(
+        "expected an output payload for binding slot {binding}, but no GPU result was returned"
+    )]
+    MissingOutputBinding { binding: u32 },
+    #[error("output binding slot {binding} produced {actual} bytes but {expected} were expected for {path}")]
+    OutputBindingLengthMismatch {
+        binding: u32,
+        expected: usize,
+        actual: usize,
+        path: String,
+    },
 }
 
 pub type GpuComputeExecutor = VulkanComputeExecutor;
@@ -771,12 +786,7 @@ pub extern "C" fn kain_gpu_runtime_dispatch_primary_compute(
         &compute_key,
     ) {
         Ok(dispatch) => {
-            result.status_code = 0;
-            result.dispatch_invocations = dispatch.dispatch_invocations;
-            result.tensor_binding_count = dispatch.tensor_binding_count as u32;
-            result.stream_binding_count = dispatch.stream_binding_count as u32;
-            result.neural_node_count = dispatch.neural_node_count as u32;
-            write_result_message(result, "dispatch ok");
+            populate_dispatch_result(result, &dispatch, "dispatch ok");
             0
         }
         Err(err) => {
@@ -950,7 +960,7 @@ fn infer_element_size(element_type: &str) -> i64 {
     }
 }
 
-fn c_string_arg(raw: *const c_char) -> Result<String, ComputeExecutorError> {
+pub(crate) fn c_string_arg(raw: *const c_char) -> Result<String, ComputeExecutorError> {
     if raw.is_null() {
         return Err(ComputeExecutorError::ReadFile {
             path: "<null>".to_string(),
@@ -966,18 +976,39 @@ fn c_string_arg(raw: *const c_char) -> Result<String, ComputeExecutorError> {
         })
 }
 
-fn empty_dispatch_result() -> GpuRuntimeDispatchResult {
+pub(crate) fn empty_dispatch_result() -> GpuRuntimeDispatchResult {
     GpuRuntimeDispatchResult {
         status_code: -1,
         dispatch_invocations: 0,
         tensor_binding_count: 0,
         stream_binding_count: 0,
         neural_node_count: 0,
+        output_binding_count: 0,
+        total_output_bytes: 0,
         message: [0; 256],
     }
 }
 
-fn write_result_message(result: &mut GpuRuntimeDispatchResult, message: &str) {
+pub(crate) fn populate_dispatch_result(
+    result: &mut GpuRuntimeDispatchResult,
+    dispatch: &GpuDispatchResult,
+    message: &str,
+) {
+    result.status_code = 0;
+    result.dispatch_invocations = dispatch.dispatch_invocations;
+    result.tensor_binding_count = dispatch.tensor_binding_count as u32;
+    result.stream_binding_count = dispatch.stream_binding_count as u32;
+    result.neural_node_count = dispatch.neural_node_count as u32;
+    result.output_binding_count = dispatch.output_bindings.len() as u32;
+    result.total_output_bytes = dispatch
+        .output_bindings
+        .iter()
+        .map(|(_, bytes)| bytes.len() as u64)
+        .sum();
+    write_result_message(result, message);
+}
+
+pub(crate) fn write_result_message(result: &mut GpuRuntimeDispatchResult, message: &str) {
     let bytes = message.as_bytes();
     let len = bytes.len().min(result.message.len().saturating_sub(1));
     for item in &mut result.message {

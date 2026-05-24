@@ -27,6 +27,7 @@ pub mod shader_analysis;
 pub mod shader_artifact;
 pub mod span;
 pub mod stdlib;
+pub mod tooling_config;
 pub mod types;
 pub mod ui;
 

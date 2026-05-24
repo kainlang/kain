@@ -296,6 +296,8 @@ typedef struct {
     unsigned int tensor_binding_count;
     unsigned int stream_binding_count;
     unsigned int neural_node_count;
+    unsigned int output_binding_count;
+    unsigned long long total_output_bytes;
     char message[GRAPHICS_BUNDLE_MAX_SUMMARY];
 } KainGpuRuntimeDispatchResult;
 

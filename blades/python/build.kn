@@ -22,6 +22,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .entry("src/main.kn")
         .target("llvm")
         .watch("src")
+        .watch("native")
         .watch("data")
 
     let check = build_check("check-llvm")
@@ -30,7 +31,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("src/main.kn")
         .input("src/python_lab/__init__.py")
         .input("src/python_lab/bridge.py")
+        .input("native/python_lab_bridge.h")
+        .input("native/python_lab_bridge.c")
         .input("data/lab_config.json")
+        .input("KAIN.toml")
         .input("build.kn")
 
     let root_exe = native_executable("root-executable")
@@ -40,7 +44,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("src/main.kn")
         .input("src/python_lab/__init__.py")
         .input("src/python_lab/bridge.py")
+        .input("native/python_lab_bridge.h")
+        .input("native/python_lab_bridge.c")
         .input("data/lab_config.json")
+        .input("KAIN.toml")
         .input("build.kn")
 
     return build_graph()

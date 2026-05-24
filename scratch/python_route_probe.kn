@@ -1,0 +1,31 @@
+use std::fs
+use std::json
+use std::python
+
+import python_lab.bridge as py_lab
+from python_lab.bridge import solve_lane_plan_default as py_solve_lane_plan_default
+
+fn main() -> Int:
+    let plan_text = fs_read_text("data/lab_config.json")
+    if python_hasattr(py_lab, "solve_lane_plan_default") == false:
+        fs_write_text("route_probe_status.txt", "missing-attr")
+        return 80
+
+    let imported_route_text = to_string(py_solve_lane_plan_default(plan_text))
+    let direct_route_text = to_string(python_call_attr_raw(py_lab, "solve_lane_plan_default", [plan_text]))
+    fs_write_text("route_probe_output.json", imported_route_text)
+    fs_write_text("route_probe_output_direct.json", direct_route_text)
+
+    let imported_route_plan = json_parse_text(imported_route_text)
+    let imported_route_result = json_int_array_field_result(imported_route_plan, "route")
+    if imported_route_result.ok == false:
+        let direct_route_plan = json_parse_text(direct_route_text)
+        let direct_route_result = json_int_array_field_result(direct_route_plan, "route")
+        if direct_route_result.ok == true:
+            fs_write_text("route_probe_status.txt", "member-import-only")
+            return 81
+        fs_write_text("route_probe_status.txt", to_string(imported_route_result.status.code) + ":" + to_string(direct_route_result.status.code))
+        return 90
+
+    fs_write_text("route_probe_status.txt", "ok")
+    return imported_route_result.value[0]

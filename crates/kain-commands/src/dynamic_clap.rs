@@ -2,6 +2,7 @@ use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
 
 use crate::registry::{CommandArgDefinition, CommandDefinition, CommandRegistry};
+use crate::ui::{apply_command_ui, CommandUiPreferences};
 
 #[derive(Debug, Clone)]
 pub struct DynamicCommandInvocation {
@@ -18,6 +19,22 @@ struct CommandTreeNode {
 }
 
 pub fn dynamic_command_for_bin(registry: &CommandRegistry, bin: &str) -> Command {
+    dynamic_command_for_bin_with_ui(
+        registry,
+        CommandUiPreferences {
+            bin,
+            theme: crate::ui::CommandUiTheme::Hyperpop,
+            color_choice: clap::ColorChoice::Auto,
+            experimental_help: false,
+        },
+    )
+}
+
+pub fn dynamic_command_for_bin_with_ui(
+    registry: &CommandRegistry,
+    preferences: CommandUiPreferences<'_>,
+) -> Command {
+    let bin = preferences.bin;
     let filtered = registry.for_bin(bin);
     let mut tree = CommandTreeNode::default();
     for command in filtered.commands.iter().filter(|command| !command.hidden) {
@@ -41,11 +58,27 @@ pub fn dynamic_command_for_bin(registry: &CommandRegistry, bin: &str) -> Command
     for (name, child) in tree.children {
         command = command.subcommand(build_clap_node(name, child));
     }
-    command
+    apply_command_ui(command, preferences)
 }
 
 pub fn dynamic_help_for_bin(registry: &CommandRegistry, bin: &str) -> Result<String, String> {
-    let mut command = dynamic_command_for_bin(registry, bin);
+    dynamic_help_for_bin_with_ui(
+        registry,
+        CommandUiPreferences {
+            bin,
+            theme: crate::ui::CommandUiTheme::Hyperpop,
+            color_choice: clap::ColorChoice::Auto,
+            experimental_help: false,
+        },
+    )
+}
+
+pub fn dynamic_help_for_bin_with_ui(
+    registry: &CommandRegistry,
+    preferences: CommandUiPreferences<'_>,
+) -> Result<String, String> {
+    let bin = preferences.bin;
+    let mut command = dynamic_command_for_bin_with_ui(registry, preferences);
     let mut buffer = Vec::new();
     command
         .write_long_help(&mut buffer)

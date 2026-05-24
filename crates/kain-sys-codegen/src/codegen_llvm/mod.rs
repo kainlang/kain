@@ -7,8 +7,7 @@
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
     Attribute, AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, ElseBranch, Expr,
-    Import, InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type,
-    UnaryOp,
+    Import, InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type, UnaryOp,
     VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
@@ -545,6 +544,12 @@ struct LlvmGenerator {
     scopes: Vec<Vec<String>>,
     /// Struct definitions: Name -> Vec<(FieldName, Type)>
     struct_defs: HashMap<String, Vec<(String, String)>>,
+    /// Struct fields whose semantic type is `Any` and must pass through the
+    /// native tagged-i64 lane instead of being re-boxed as plain integers.
+    struct_any_passthrough_fields: HashSet<(String, String)>,
+    /// Struct fields whose semantic type is `Array<T>` or `Slice<T>` so field
+    /// indexing can recover the concrete runtime element lane.
+    struct_runtime_array_field_elements: HashMap<(String, String), String>,
     /// Ordinary POD structs and POD tuples that can safely travel by value.
     value_aggregate_structs: HashSet<String>,
     mmio_structs: HashSet<String>,
@@ -683,6 +688,8 @@ impl LlvmGenerator {
             loop_stack: Vec::new(),
             scopes: Vec::new(),
             struct_defs: HashMap::new(),
+            struct_any_passthrough_fields: HashSet::new(),
+            struct_runtime_array_field_elements: HashMap::new(),
             value_aggregate_structs: HashSet::new(),
             mmio_structs: HashSet::new(),
             component_defs: HashMap::new(),
@@ -1635,7 +1642,11 @@ impl LlvmGenerator {
         }
     }
 
-    fn actor_message_reply_llvm_type(&self, actor_name: &str, message_name: &str) -> Option<String> {
+    fn actor_message_reply_llvm_type(
+        &self,
+        actor_name: &str,
+        message_name: &str,
+    ) -> Option<String> {
         self.actor_message_reply_types
             .get(&(actor_name.to_string(), message_name.to_string()))
             .cloned()
@@ -2061,6 +2072,11 @@ impl LlvmGenerator {
             Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
                 self.expr_carries_json_value(value)
             }
+            Expr::Field { object, field, .. } => {
+                self.field_carries_any_passthrough(object, field)
+                    || self.expr_carries_json_value(object)
+                    || self.expr_carries_runtime_any_value(object)
+            }
             Expr::Call { callee, .. } => matches!(
                 callee.as_ref(),
                 Expr::Ident(name, _) if self.call_carries_json_value(name)
@@ -2076,13 +2092,77 @@ impl LlvmGenerator {
             Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
                 self.expr_carries_runtime_any_value(value)
             }
-            Expr::Field { object, .. } => self.expr_carries_runtime_any_value(object),
+            Expr::Field { object, field, .. } => {
+                self.field_carries_any_passthrough(object, field)
+                    || self.expr_carries_runtime_any_value(object)
+                    || self.expr_carries_json_value(object)
+            }
             Expr::Call { callee, .. } => matches!(
                 callee.as_ref(),
                 Expr::Ident(name, _) if self.call_carries_runtime_any_value(name)
             ),
             _ => false,
         }
+    }
+
+    fn resolved_type_carries_any_passthrough(ty: &ResolvedType) -> bool {
+        matches!(ty, ResolvedType::Unknown)
+    }
+
+    fn record_struct_any_passthrough_field(
+        &mut self,
+        struct_name: &str,
+        field_name: &str,
+        ty: &ResolvedType,
+    ) {
+        if Self::resolved_type_carries_any_passthrough(ty) {
+            self.struct_any_passthrough_fields
+                .insert((struct_name.to_string(), field_name.to_string()));
+        }
+    }
+
+    fn record_struct_runtime_array_field(
+        &mut self,
+        struct_name: &str,
+        field_name: &str,
+        ty: &ResolvedType,
+    ) {
+        if let Some(element_ty) = self.resolved_runtime_array_element_llvm_ty(ty) {
+            self.struct_runtime_array_field_elements
+                .insert((struct_name.to_string(), field_name.to_string()), element_ty);
+        }
+    }
+
+    fn field_parent_struct_name(&self, object: &Expr) -> Option<String> {
+        match object {
+            Expr::Paren(inner, _) => self.field_parent_struct_name(inner),
+            Expr::Ident(name, _) => {
+                let (_, obj_ty) = self.locals.get(name)?.clone();
+                if obj_ty.starts_with('%') && !obj_ty.ends_with('*') {
+                    return Some(obj_ty[1..].to_string());
+                }
+                if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {
+                    return Some(struct_name.to_string());
+                }
+                if obj_ty == "i64" {
+                    if let Some(authored_ptr_ty) = self.authored_pointer_locals.get(name) {
+                        if let Some(struct_name) = self.ptr_struct_name(authored_ptr_ty) {
+                            return Some(struct_name.to_string());
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn field_carries_any_passthrough(&self, object: &Expr, field: &str) -> bool {
+        let Some(struct_name) = self.field_parent_struct_name(object) else {
+            return false;
+        };
+        self.struct_any_passthrough_fields
+            .contains(&(struct_name, field.to_string()))
     }
 
     fn expr_owns_json_value(&self, expr: &Expr) -> bool {
@@ -2122,7 +2202,9 @@ impl LlvmGenerator {
 
     fn resolved_runtime_array_element_llvm_ty(&self, ty: &ResolvedType) -> Option<String> {
         match ty {
-            ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => Some(self.map_type(inner)),
+            ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => {
+                Some(self.map_type(inner))
+            }
             _ => None,
         }
     }
@@ -2148,7 +2230,9 @@ impl LlvmGenerator {
         explicit_return_type
             .and_then(|ty| self.ast_runtime_array_element_llvm_ty(ty))
             .or_else(|| match resolved_type {
-                ResolvedType::Function { ret, .. } => self.resolved_runtime_array_element_llvm_ty(ret),
+                ResolvedType::Function { ret, .. } => {
+                    self.resolved_runtime_array_element_llvm_ty(ret)
+                }
                 _ => None,
             })
     }
@@ -2160,6 +2244,13 @@ impl LlvmGenerator {
                 Expr::Ident(name, _) => self.runtime_array_function_returns.get(name).cloned(),
                 _ => None,
             },
+            Expr::Field { object, field, .. } => self
+                .field_parent_struct_name(object)
+                .and_then(|struct_name| {
+                    self.struct_runtime_array_field_elements
+                        .get(&(struct_name, field.clone()))
+                        .cloned()
+                }),
             _ => None,
         }
     }
@@ -5456,7 +5547,10 @@ impl LlvmGenerator {
     ) -> KainResult<(String, String)> {
         let (value, value_ty) = self.compile_expr(expr)?;
         match value_ty.as_str() {
-            "i64" if self.expr_carries_json_value(expr) || self.expr_carries_runtime_any_value(expr) => {
+            "i64"
+                if self.expr_carries_json_value(expr)
+                    || self.expr_carries_runtime_any_value(expr) =>
+            {
                 let result = self.next_reg();
                 self.emit(&format!("  {} = call i64 @to_int(i64 {})", result, value));
                 Ok((result, "i64".to_string()))
@@ -5489,9 +5583,15 @@ impl LlvmGenerator {
         let (value, value_ty) = self.compile_expr(expr)?;
         match value_ty.as_str() {
             "double" => Ok((value, "double".to_string())),
-            "i64" if self.expr_carries_json_value(expr) || self.expr_carries_runtime_any_value(expr) => {
+            "i64"
+                if self.expr_carries_json_value(expr)
+                    || self.expr_carries_runtime_any_value(expr) =>
+            {
                 let result = self.next_reg();
-                self.emit(&format!("  {} = call double @to_float(i64 {})", result, value));
+                self.emit(&format!(
+                    "  {} = call double @to_float(i64 {})",
+                    result, value
+                ));
                 Ok((result, "double".to_string()))
             }
             "i64" | "i32" | "i8" | "i1" => {
@@ -8885,10 +8985,9 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = sext i8 {} to i64", reg, val));
                 reg
             }
-            "double" => {
-                self.emit_saturating_fptosi(val, "i64")
-                    .expect("double -> i64 saturation should stay supported")
-            }
+            "double" => self
+                .emit_saturating_fptosi(val, "i64")
+                .expect("double -> i64 saturation should stay supported"),
             _ if ty.ends_with('*') => {
                 let reg = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint {} {} to i64", reg, ty, val));
@@ -9003,7 +9102,10 @@ impl LlvmGenerator {
                         array_handle, value_any.value
                     ));
                     if value_any.release_after_call {
-                        self.emit(&format!("  call void @json_release(i64 {})", value_any.value));
+                        self.emit(&format!(
+                            "  call void @json_release(i64 {})",
+                            value_any.value
+                        ));
                     }
                 }
                 return Ok(JsonAnyArgument {
@@ -9021,7 +9123,10 @@ impl LlvmGenerator {
                         array_handle, value_any.value
                     ));
                     if value_any.release_after_call {
-                        self.emit(&format!("  call void @json_release(i64 {})", value_any.value));
+                        self.emit(&format!(
+                            "  call void @json_release(i64 {})",
+                            value_any.value
+                        ));
                     }
                 }
                 return Ok(JsonAnyArgument {
@@ -11694,7 +11799,8 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         let (params, ret_ty) = self.callable_signature(resolved_type, name, span)?;
         self.functions.insert(name.to_string(), ret_ty);
-        if let Some(element_ty) = self.callable_return_runtime_array_element_llvm_ty(resolved_type, None)
+        if let Some(element_ty) =
+            self.callable_return_runtime_array_element_llvm_ty(resolved_type, None)
         {
             self.runtime_array_function_returns
                 .insert(name.to_string(), element_ty);
@@ -11703,10 +11809,7 @@ impl LlvmGenerator {
         }
         self.function_params.insert(
             name.to_string(),
-            params
-                .iter()
-                .map(|param| self.map_type(param))
-                .collect(),
+            params.iter().map(|param| self.map_type(param)).collect(),
         );
         self.any_value_function_params.insert(
             name.to_string(),
@@ -11905,6 +12008,16 @@ impl LlvmGenerator {
                     let mut fields = Vec::new();
                     for field in &s.ast.fields {
                         if let Some(res_ty) = s.field_types.get(&field.name) {
+                            self.record_struct_any_passthrough_field(
+                                &s.ast.name,
+                                &field.name,
+                                res_ty,
+                            );
+                            self.record_struct_runtime_array_field(
+                                &s.ast.name,
+                                &field.name,
+                                res_ty,
+                            );
                             fields.push((field.name.clone(), self.map_type(res_ty)));
                         } else {
                             fields.push((field.name.clone(), "i64".into()));
@@ -11961,6 +12074,16 @@ impl LlvmGenerator {
 
                     for state in &a.ast.state {
                         if let Some(res_ty) = a.state_types.get(&state.name) {
+                            self.record_struct_any_passthrough_field(
+                                &a.ast.name,
+                                &state.name,
+                                res_ty,
+                            );
+                            self.record_struct_runtime_array_field(
+                                &a.ast.name,
+                                &state.name,
+                                res_ty,
+                            );
                             fields.push((state.name.clone(), self.map_type(res_ty)));
                         } else {
                             fields.push((state.name.clone(), "i64".into()));
@@ -12481,7 +12604,10 @@ impl LlvmGenerator {
         for (binding_name, _) in python_import_binding_infos(&import.ast) {
             let Some(info) = self.python_import_globals.get(&binding_name).cloned() else {
                 return Err(KainError::codegen(
-                    format!("Missing LLVM python import registration for {}", binding_name),
+                    format!(
+                        "Missing LLVM python import registration for {}",
+                        binding_name
+                    ),
                     import.ast.span,
                 ));
             };
@@ -12616,7 +12742,8 @@ impl LlvmGenerator {
         let stdlib = kain_core::stdlib::StdLib::new();
         for (name, func) in stdlib.functions {
             let ret_ty = self.map_type_from_str(func.return_type);
-            if let Some(element_ty) = self.stringified_runtime_array_element_llvm_ty(func.return_type)
+            if let Some(element_ty) =
+                self.stringified_runtime_array_element_llvm_ty(func.return_type)
             {
                 self.runtime_array_function_returns
                     .insert(name.clone(), element_ty);

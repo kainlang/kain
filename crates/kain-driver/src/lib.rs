@@ -12,7 +12,9 @@ use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::time::Instant;
 
-use kain_core::ast::{Block, Expr, Item, JSXNode, Program, ShaderStage, Stmt, Use, WorldSurfaceKind};
+use kain_core::ast::{
+    Block, Expr, Item, JSXNode, Program, ShaderStage, Stmt, Use, WorldSurfaceKind,
+};
 use kain_core::diagnostics::SourceOriginSegment;
 use kain_core::error::KainError;
 use kain_core::module_resolution::{
@@ -1450,7 +1452,11 @@ fn collect_implicit_root_stdlib_modules_from_item(
             );
         }
         Item::Patch(patch) => {
-            collect_implicit_root_stdlib_modules_from_block(&patch.body, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_block(
+                &patch.body,
+                symbol_lookup,
+                module_names,
+            );
         }
         Item::Law(law) => {
             collect_implicit_root_stdlib_modules_from_block(&law.body, symbol_lookup, module_names);
@@ -1477,7 +1483,11 @@ fn collect_implicit_root_stdlib_modules_from_item(
             );
         }
         Item::Pulse(pulse) => {
-            collect_implicit_root_stdlib_modules_from_block(&pulse.body, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_block(
+                &pulse.body,
+                symbol_lookup,
+                module_names,
+            );
         }
         Item::World(world) => {
             for state in &world.states {
@@ -1510,10 +1520,18 @@ fn collect_implicit_root_stdlib_modules_from_item(
                     module_names,
                 );
             }
-            collect_implicit_root_stdlib_modules_from_jsx(&component.body, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_jsx(
+                &component.body,
+                symbol_lookup,
+                module_names,
+            );
         }
         Item::Shader(shader) => {
-            collect_implicit_root_stdlib_modules_from_block(&shader.body, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_block(
+                &shader.body,
+                symbol_lookup,
+                module_names,
+            );
         }
         Item::Actor(actor) => {
             for state in &actor.state {
@@ -1580,7 +1598,11 @@ fn collect_implicit_root_stdlib_modules_from_item(
             );
         }
         Item::Test(test) => {
-            collect_implicit_root_stdlib_modules_from_block(&test.body, symbol_lookup, module_names);
+            collect_implicit_root_stdlib_modules_from_block(
+                &test.body,
+                symbol_lookup,
+                module_names,
+            );
         }
         Item::Mod(module) => {
             if let Some(items) = &module.inline {
@@ -1659,11 +1681,7 @@ fn collect_implicit_root_stdlib_modules_from_jsx(
             ..
         } => {
             collect_implicit_root_stdlib_modules_from_expr(condition, symbol_lookup, module_names);
-            collect_implicit_root_stdlib_modules_from_jsx(
-                then_branch,
-                symbol_lookup,
-                module_names,
-            );
+            collect_implicit_root_stdlib_modules_from_jsx(then_branch, symbol_lookup, module_names);
             if let Some(else_branch) = else_branch {
                 collect_implicit_root_stdlib_modules_from_jsx(
                     else_branch,
@@ -1697,9 +1715,7 @@ fn collect_implicit_root_stdlib_modules_from_block(
                     );
                 }
             }
-            Stmt::Expr(expr)
-            | Stmt::Return(Some(expr), _)
-            | Stmt::Break(Some(expr), _) => {
+            Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                 collect_implicit_root_stdlib_modules_from_expr(expr, symbol_lookup, module_names);
             }
             Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
@@ -1770,7 +1786,9 @@ fn collect_implicit_root_stdlib_modules_from_expr(
                 );
             }
         }
-        Expr::Struct { name, fields, rest, .. } => {
+        Expr::Struct {
+            name, fields, rest, ..
+        } => {
             if let Some(module_name) = symbol_lookup.get(name) {
                 module_names.insert(module_name.clone());
             }
@@ -1847,11 +1865,7 @@ fn collect_implicit_root_stdlib_modules_from_expr(
         }
         Expr::AggregateInit { fields, .. } => {
             for (_, value) in fields {
-                collect_implicit_root_stdlib_modules_from_expr(
-                    value,
-                    symbol_lookup,
-                    module_names,
-                );
+                collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
             }
         }
         Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
@@ -1930,11 +1944,7 @@ fn collect_implicit_root_stdlib_modules_from_expr(
         Expr::Match {
             scrutinee, arms, ..
         } => {
-            collect_implicit_root_stdlib_modules_from_expr(
-                scrutinee,
-                symbol_lookup,
-                module_names,
-            );
+            collect_implicit_root_stdlib_modules_from_expr(scrutinee, symbol_lookup, module_names);
             for arm in arms {
                 if let Some(guard) = &arm.guard {
                     collect_implicit_root_stdlib_modules_from_expr(
@@ -1956,7 +1966,9 @@ fn collect_implicit_root_stdlib_modules_from_expr(
         Expr::MemLoad { pointer, .. }
         | Expr::VolatileLoad { pointer, .. }
         | Expr::CpuCacheFlush { pointer, .. }
-        | Expr::Decay { target: pointer, .. } => {
+        | Expr::Decay {
+            target: pointer, ..
+        } => {
             collect_implicit_root_stdlib_modules_from_expr(pointer, symbol_lookup, module_names);
         }
         Expr::MemStore { pointer, value, .. } | Expr::VolatileStore { pointer, value, .. } => {
@@ -1986,9 +1998,7 @@ fn collect_implicit_root_stdlib_modules_from_expr(
             collect_implicit_root_stdlib_modules_from_expr(expected, symbol_lookup, module_names);
             collect_implicit_root_stdlib_modules_from_expr(desired, symbol_lookup, module_names);
         }
-        Expr::InlineAsm {
-            operands, ..
-        } => {
+        Expr::InlineAsm { operands, .. } => {
             for operand in operands {
                 collect_implicit_root_stdlib_modules_from_expr(
                     operand,
@@ -2018,21 +2028,13 @@ fn collect_implicit_root_stdlib_modules_from_expr(
         }
         Expr::Spawn { init, .. } => {
             for (_, value) in init {
-                collect_implicit_root_stdlib_modules_from_expr(
-                    value,
-                    symbol_lookup,
-                    module_names,
-                );
+                collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
             }
         }
         Expr::SendMsg { target, data, .. } => {
             collect_implicit_root_stdlib_modules_from_expr(target, symbol_lookup, module_names);
             for (_, value) in data {
-                collect_implicit_root_stdlib_modules_from_expr(
-                    value,
-                    symbol_lookup,
-                    module_names,
-                );
+                collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
             }
         }
         Expr::Block(block, _) => {
@@ -3781,7 +3783,8 @@ fn main() -> Int:
         let ascii_context_start = ascii_origin.combined_span.start.saturating_sub(80);
         let ascii_context_end =
             (ascii_origin.combined_span.start + 160).min(frontend.full_source.len());
-        let ascii_context = frontend.full_source[ascii_context_start..ascii_context_end].to_string();
+        let ascii_context =
+            frontend.full_source[ascii_context_start..ascii_context_end].to_string();
         assert!(
             origin_files
                 .iter()
@@ -3849,7 +3852,8 @@ fn main() -> Int:
             .iter()
             .filter_map(|item| match item {
                 Item::Function(function)
-                    if function.name.starts_with("ascii_") || function.name.starts_with("ASCII_") =>
+                    if function.name.starts_with("ascii_")
+                        || function.name.starts_with("ASCII_") =>
                 {
                     Some(format!(
                         "fn:{}@{:?}",
@@ -3858,7 +3862,8 @@ fn main() -> Int:
                     ))
                 }
                 Item::Const(constant)
-                    if constant.name.starts_with("ascii_") || constant.name.starts_with("ASCII_") =>
+                    if constant.name.starts_with("ascii_")
+                        || constant.name.starts_with("ASCII_") =>
                 {
                     Some(format!(
                         "const:{}@{:?}",

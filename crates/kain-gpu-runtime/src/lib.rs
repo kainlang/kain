@@ -11,4 +11,6 @@ pub use executor::{
     ComputeExecutorError, GpuComputeExecutor, GpuComputeExecutorConfig, GpuRuntimeDispatchRequest,
     GpuRuntimeDispatchResult, VulkanComputeExecutor,
 };
-pub use nvidia_ptx::NvidiaPtxExecutor;
+pub use nvidia_ptx::{
+    kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted, NvidiaPtxExecutor,
+};

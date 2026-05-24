@@ -365,11 +365,18 @@ impl<'a> Lexer<'a> {
     fn process_indentation(&self, raw: Vec<Token>) -> KainResult<Vec<Token>> {
         let mut result = Vec::new();
         let mut indent_stack: Vec<usize> = vec![0]; // Stack of indent levels
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut brace_depth = 0usize;
         let mut iter = raw.into_iter().peekable();
 
         while let Some(token) = iter.next() {
             match &token.kind {
                 TokenKind::Newline(ws) => {
+                    if paren_depth > 0 || bracket_depth > 0 || brace_depth > 0 {
+                        continue;
+                    }
+
                     // Check if this is a blank line (followed by another newline)
                     if let Some(next) = iter.peek() {
                         if matches!(next.kind, TokenKind::Newline(_)) {
@@ -400,6 +407,15 @@ impl<'a> Lexer<'a> {
                     }
                 }
                 _ => {
+                    match token.kind {
+                        TokenKind::LParen => paren_depth += 1,
+                        TokenKind::RParen => paren_depth = paren_depth.saturating_sub(1),
+                        TokenKind::LBracket => bracket_depth += 1,
+                        TokenKind::RBracket => bracket_depth = bracket_depth.saturating_sub(1),
+                        TokenKind::LBrace => brace_depth += 1,
+                        TokenKind::RBrace => brace_depth = brace_depth.saturating_sub(1),
+                        _ => {}
+                    }
                     result.push(token);
                 }
             }
@@ -460,5 +476,30 @@ mod tests {
         let source = "fn foo():\n    let x = 1\n    let y = 2\n";
         let tokens = Lexer::new(source).tokenize().unwrap();
         assert!(tokens.iter().any(|t| matches!(t.kind, TokenKind::Indent)));
+    }
+
+    #[test]
+    fn multiline_grouped_expressions_do_not_emit_formatting_tokens_inside_parens() {
+        let source = "fn foo() -> Int:\n    let value = (\n        1 +\n        2\n    )\n    return value\n";
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        let paren_start = tokens
+            .iter()
+            .rposition(|token| matches!(token.kind, TokenKind::LParen))
+            .expect("expected opening paren");
+        let paren_end = tokens
+            .iter()
+            .enumerate()
+            .skip(paren_start + 1)
+            .find_map(|(index, token)| matches!(token.kind, TokenKind::RParen).then_some(index))
+            .expect("expected closing paren");
+        assert!(
+            !tokens[paren_start + 1..paren_end]
+                .iter()
+                .any(|token| matches!(
+                    token.kind,
+                    TokenKind::Newline(_) | TokenKind::Indent | TokenKind::Dedent
+                )),
+            "grouped expression should not leak formatting tokens inside parentheses"
+        );
     }
 }

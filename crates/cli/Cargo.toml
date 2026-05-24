@@ -22,6 +22,7 @@ blade = { path = "../kain-blades" }
 kain-amalgamate = { path = "../kain-amalgamate" }
 kain-build = { path = "../kain-build" }
 kain-check = { path = "../kain-check" }
+kain-clean = { path = "../kain-clean" }
 kain-test = { path = "../kain-test" }
 kain-driver = { path = "../kain-driver", default-features = false }
 kain-c-ffi = { path = "../kain-c-ffi" }

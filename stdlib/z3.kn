@@ -1,0 +1,137 @@
+use std::python
+
+// Root Z3 surface for Kain.
+//
+// This is intentionally an optional host-backed solver lane. Authored Kain
+// owns the proof shape and orchestration; the active Python environment owns
+// the actual `z3-solver` package. Call `z3_available()` before requiring it if
+// your flow needs to stay soft when the module is missing.
+
+fn z3_operator_module() -> Any:
+    return python_require_module("operator")
+
+fn z3_string_builtin() -> Any:
+    return python_eval_raw("str")
+
+fn z3_repr_builtin() -> Any:
+    return python_eval_raw("repr")
+
+pub fn z3_available() -> Bool:
+    return python_module_available("z3")
+
+pub fn z3_require() -> Any:
+    return python_require_module("z3")
+
+pub fn z3_version() -> String:
+    return python_call_attr(z3_require(), "get_version_string", [])
+
+pub fn z3_solver() -> Any:
+    return python_call_attr_raw(z3_require(), "Solver", [])
+
+pub fn z3_optimize() -> Any:
+    return python_call_attr_raw(z3_require(), "Optimize", [])
+
+pub fn z3_int(name: String) -> Any:
+    return python_call_attr_raw(z3_require(), "Int", [name])
+
+pub fn z3_real(name: String) -> Any:
+    return python_call_attr_raw(z3_require(), "Real", [name])
+
+pub fn z3_bool(name: String) -> Any:
+    return python_call_attr_raw(z3_require(), "Bool", [name])
+
+pub fn z3_bitvec(name: String, bits: Int) -> Any:
+    return python_call_attr_raw(z3_require(), "BitVec", [name, bits])
+
+pub fn z3_int_val(value: Int) -> Any:
+    return python_call_attr_raw(z3_require(), "IntVal", [value])
+
+pub fn z3_bool_val(value: Bool) -> Any:
+    return python_call_attr_raw(z3_require(), "BoolVal", [value])
+
+pub fn z3_bitvec_val(value: Int, bits: Int) -> Any:
+    return python_call_attr_raw(z3_require(), "BitVecVal", [value, bits])
+
+pub fn z3_expr_add(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "add", [left, right])
+
+pub fn z3_expr_sub(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "sub", [left, right])
+
+pub fn z3_expr_mul(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "mul", [left, right])
+
+pub fn z3_expr_eq(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "eq", [left, right])
+
+pub fn z3_expr_ne(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "ne", [left, right])
+
+pub fn z3_expr_lt(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "lt", [left, right])
+
+pub fn z3_expr_le(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "le", [left, right])
+
+pub fn z3_expr_gt(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "gt", [left, right])
+
+pub fn z3_expr_ge(left: Any, right: Any) -> Any:
+    return python_call_attr_raw(z3_operator_module(), "ge", [left, right])
+
+pub fn z3_and(clauses: Any) -> Any:
+    return python_call_attr_raw(z3_require(), "And", clauses)
+
+pub fn z3_or(clauses: Any) -> Any:
+    return python_call_attr_raw(z3_require(), "Or", clauses)
+
+pub fn z3_not(clause: Any) -> Any:
+    return python_call_attr_raw(z3_require(), "Not", [clause])
+
+pub fn z3_distinct(values: Any) -> Any:
+    return python_call_attr_raw(z3_require(), "Distinct", values)
+
+pub fn z3_sum(values: Any) -> Any:
+    return python_call_attr_raw(z3_require(), "Sum", values)
+
+pub fn z3_solver_add(solver: Any, constraints: Any):
+    python_call_attr(solver, "add", constraints)
+
+pub fn z3_solver_push(solver: Any):
+    python_call_attr(solver, "push", [])
+
+pub fn z3_solver_pop(solver: Any, depth: Int):
+    python_call_attr(solver, "pop", [depth])
+
+pub fn z3_solver_check(solver: Any) -> Any:
+    return python_call_attr_raw(solver, "check", [])
+
+pub fn z3_result_name(result: Any) -> String:
+    return python_call(z3_string_builtin(), [result])
+
+pub fn z3_solver_check_name(solver: Any) -> String:
+    return z3_result_name(z3_solver_check(solver))
+
+pub fn z3_is_sat(result: Any) -> Bool:
+    return z3_result_name(result) == "sat"
+
+pub fn z3_is_unsat(result: Any) -> Bool:
+    return z3_result_name(result) == "unsat"
+
+pub fn z3_is_unknown(result: Any) -> Bool:
+    return z3_result_name(result) == "unknown"
+
+pub fn z3_solver_model(solver: Any) -> Any:
+    return python_call_attr_raw(solver, "model", [])
+
+pub fn z3_model_eval(model: Any, expr: Any) -> Any:
+    return python_call_attr_raw(model, "evaluate", [expr])
+
+pub fn z3_as_long(value: Any) -> Int:
+    return python_call_attr(value, "as_long", [])
+
+pub fn z3_as_string(value: Any) -> String:
+    return python_call(z3_string_builtin(), [value])
+
+pub fn z3_repr(value: Any) -> String:
+    return python_call(z3_repr_builtin(), [value])

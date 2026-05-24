@@ -7,6 +7,10 @@ id = "build"
 path = "build.toml"
 
 [[packs]]
+id = "clean"
+path = "clean.toml"
+
+[[packs]]
 id = "runtime"
 path = "runtime.toml"
 

@@ -1,12 +1,15 @@
 use crate::bindings::{
     GpuBindingAccess, GpuDescriptorKind, GpuDispatchBinding, GpuDispatchRequest, GpuDispatchResult,
 };
-use crate::executor::ComputeExecutorError;
+use crate::executor::{
+    c_string_arg, empty_dispatch_result, populate_dispatch_result, write_result_message,
+    ComputeExecutorError, GpuRuntimeDispatchRequest, GpuRuntimeDispatchResult,
+};
 use kain_core::{shader_artifact_bundle_from_json, ShaderArtifactFormat};
 use serde::Deserialize;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 type CUdevice = i32;
@@ -79,12 +82,28 @@ impl NvidiaPtxExecutor {
         compute_residency_path: &Path,
         compute_key: &str,
     ) -> Result<GpuDispatchResult, ComputeExecutorError> {
-        let (ptx, request) = ptx_dispatch_request_from_sidecars(
+        let plan = ptx_dispatch_plan_from_sidecars(
             shader_bundle_path,
             compute_residency_path,
             compute_key,
         )?;
-        self.run_dispatch_request(&ptx, &request)
+        self.run_dispatch_request(&plan.ptx, &plan.request)
+    }
+
+    pub fn dispatch_from_sidecars_persisted(
+        &self,
+        shader_bundle_path: &Path,
+        compute_residency_path: &Path,
+        compute_key: &str,
+    ) -> Result<GpuDispatchResult, ComputeExecutorError> {
+        let plan = ptx_dispatch_plan_from_sidecars(
+            shader_bundle_path,
+            compute_residency_path,
+            compute_key,
+        )?;
+        let result = self.run_dispatch_request(&plan.ptx, &plan.request)?;
+        persist_output_bindings_to_sidecars(&plan.output_targets, &result.output_bindings)?;
+        Ok(result)
     }
 
     pub fn run_dispatch_request(
@@ -174,6 +193,69 @@ impl NvidiaPtxExecutor {
                 stream_binding_count: request.stream_binding_count,
                 neural_node_count: request.neural_node_count,
             })
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted(
+    request: *const GpuRuntimeDispatchRequest,
+    out_result: *mut GpuRuntimeDispatchResult,
+) -> i32 {
+    let Some(result) = (unsafe { out_result.as_mut() }) else {
+        return -1;
+    };
+    *result = empty_dispatch_result();
+
+    if request.is_null() {
+        write_result_message(result, "dispatch request was null");
+        return -1;
+    }
+
+    let request = unsafe { &*request };
+    let shader_bundle_path = match c_string_arg(request.shader_bundle_path) {
+        Ok(value) => PathBuf::from(value),
+        Err(err) => {
+            write_result_message(result, &err.to_string());
+            return -1;
+        }
+    };
+    let compute_residency_path = match c_string_arg(request.compute_residency_path) {
+        Ok(value) => PathBuf::from(value),
+        Err(err) => {
+            write_result_message(result, &err.to_string());
+            return -1;
+        }
+    };
+    let compute_key = match c_string_arg(request.compute_key) {
+        Ok(value) => value,
+        Err(err) => {
+            write_result_message(result, &err.to_string());
+            return -1;
+        }
+    };
+
+    let executor = match NvidiaPtxExecutor::try_new() {
+        Ok(executor) => executor,
+        Err(err) => {
+            write_result_message(result, &err.to_string());
+            return -1;
+        }
+    };
+
+    match executor.dispatch_from_sidecars_persisted(
+        &shader_bundle_path,
+        &compute_residency_path,
+        &compute_key,
+    ) {
+        Ok(dispatch) => {
+            populate_dispatch_result(result, &dispatch, "nvidia ptx dispatch ok");
+            0
+        }
+        Err(err) => {
+            result.status_code = -1;
+            write_result_message(result, &err.to_string());
+            -1
         }
     }
 }
@@ -395,7 +477,11 @@ struct ComputeResidencyBundle {
 #[derive(Debug, Clone, Deserialize)]
 struct ComputeResidencyEntry {
     key: String,
+    #[serde(default)]
+    shader: String,
     module_name: String,
+    #[serde(default)]
+    stage: String,
     entry_point: String,
     workgroup_size: Option<[u32; 3]>,
     dispatch_size: Option<[u32; 3]>,
@@ -418,11 +504,23 @@ struct ComputeResidencyBinding {
     payload_file: String,
 }
 
-fn ptx_dispatch_request_from_sidecars(
+struct OutputBindingTarget {
+    slot: u32,
+    payload_path: PathBuf,
+    byte_length: usize,
+}
+
+struct PtxSidecarDispatchPlan {
+    ptx: String,
+    request: GpuDispatchRequest,
+    output_targets: Vec<OutputBindingTarget>,
+}
+
+fn ptx_dispatch_plan_from_sidecars(
     shader_bundle_path: &Path,
     compute_residency_path: &Path,
     compute_key: &str,
-) -> Result<(String, GpuDispatchRequest), ComputeExecutorError> {
+) -> Result<PtxSidecarDispatchPlan, ComputeExecutorError> {
     let shader_bundle_json =
         fs::read_to_string(shader_bundle_path).map_err(|err| ComputeExecutorError::ReadFile {
             path: shader_bundle_path.display().to_string(),
@@ -461,16 +559,26 @@ fn ptx_dispatch_request_from_sidecars(
             compute_key: compute_key.to_string(),
             path: compute_residency_path.display().to_string(),
         })?;
+    let (resolved_module_name, resolved_entry_point) =
+        resolve_ptx_shader_entry(&shader_bundle, entry);
     let ptx = shader_bundle
         .derived_outputs
         .iter()
         .find(|artifact| {
             artifact.format == ShaderArtifactFormat::Ptx
-                && artifact.module_name == entry.module_name
+                && artifact.module_name == resolved_module_name
+        })
+        .or_else(|| {
+            let mut ptx_artifacts = shader_bundle
+                .derived_outputs
+                .iter()
+                .filter(|artifact| artifact.format == ShaderArtifactFormat::Ptx);
+            let first = ptx_artifacts.next()?;
+            ptx_artifacts.next().is_none().then_some(first)
         })
         .map(|artifact| artifact.contents.clone())
         .ok_or_else(|| ComputeExecutorError::MissingPtxModule {
-            module_name: entry.module_name.clone(),
+            module_name: resolved_module_name.to_string(),
             path: shader_bundle_path.display().to_string(),
         })?;
 
@@ -478,6 +586,7 @@ fn ptx_dispatch_request_from_sidecars(
         .parent()
         .unwrap_or_else(|| Path::new("."));
     let mut bindings = Vec::with_capacity(entry.bindings.len());
+    let mut output_targets = Vec::new();
     for binding in &entry.bindings {
         if binding.contract != "kain.shared.buffer" {
             return Err(ComputeExecutorError::UnsupportedSharedBufferContract {
@@ -490,11 +599,19 @@ fn ptx_dispatch_request_from_sidecars(
             path: payload_path.display().to_string(),
             message: err.to_string(),
         })?;
+        let access = parse_access_mode(&binding.access_mode)?;
+        if access.is_output() {
+            output_targets.push(OutputBindingTarget {
+                slot: binding.slot,
+                payload_path: payload_path.clone(),
+                byte_length: bytes.len(),
+            });
+        }
         bindings.push(GpuDispatchBinding {
             key: binding.key.clone(),
             binding_slot: binding.slot,
             descriptor_kind: parse_descriptor_kind(&binding.descriptor_kind)?,
-            access: parse_access_mode(&binding.access_mode)?,
+            access,
             bytes,
             element_type: binding.element_type.clone(),
             shape: binding.shape.clone(),
@@ -502,11 +619,11 @@ fn ptx_dispatch_request_from_sidecars(
         });
     }
 
-    Ok((
+    Ok(PtxSidecarDispatchPlan {
         ptx,
-        GpuDispatchRequest {
-            module_name: entry.module_name.clone(),
-            entry_point: entry.entry_point.clone(),
+        request: GpuDispatchRequest {
+            module_name: resolved_module_name.to_string(),
+            entry_point: resolved_entry_point.to_string(),
             workgroup_size: entry.workgroup_size.unwrap_or([8, 1, 1]),
             dispatch_size: entry.dispatch_size.unwrap_or([1, 1, 1]),
             bindings,
@@ -514,13 +631,81 @@ fn ptx_dispatch_request_from_sidecars(
             stream_binding_count: entry.stream_binding_count,
             neural_node_count: entry.neural_node_count,
         },
-    ))
+        output_targets,
+    })
+}
+
+fn resolve_ptx_shader_entry<'a>(
+    shader_bundle: &'a kain_core::ShaderArtifactBundle,
+    entry: &'a ComputeResidencyEntry,
+) -> (&'a str, &'a str) {
+    let entry_stage = if entry.stage.is_empty() {
+        "compute"
+    } else {
+        entry.stage.as_str()
+    };
+    let entry_shader = if entry.shader.is_empty() {
+        entry.module_name.as_str()
+    } else {
+        entry.shader.as_str()
+    };
+    if let Some(bundle_entry) = shader_bundle.entry_points.iter().find(|bundle_entry| {
+        bundle_entry.stage.eq_ignore_ascii_case(entry_stage) && bundle_entry.shader == entry_shader
+    }) {
+        return (
+            bundle_entry.module_name.as_str(),
+            bundle_entry.entry_point.as_str(),
+        );
+    }
+    if let Some(bundle_entry) = shader_bundle.entry_points.iter().find(|bundle_entry| {
+        bundle_entry.stage.eq_ignore_ascii_case(entry_stage)
+            && bundle_entry.module_name == entry.module_name
+    }) {
+        return (
+            bundle_entry.module_name.as_str(),
+            bundle_entry.entry_point.as_str(),
+        );
+    }
+    let fallback_entry_point = if entry.entry_point == "main" {
+        entry_shader
+    } else {
+        entry.entry_point.as_str()
+    };
+    (entry.module_name.as_str(), fallback_entry_point)
+}
+
+fn persist_output_bindings_to_sidecars(
+    output_targets: &[OutputBindingTarget],
+    output_bindings: &[(u32, Vec<u8>)],
+) -> Result<(), ComputeExecutorError> {
+    for target in output_targets {
+        let bytes = output_bindings
+            .iter()
+            .find(|(slot, _)| *slot == target.slot)
+            .map(|(_, bytes)| bytes)
+            .ok_or(ComputeExecutorError::MissingOutputBinding {
+                binding: target.slot,
+            })?;
+        if bytes.len() != target.byte_length {
+            return Err(ComputeExecutorError::OutputBindingLengthMismatch {
+                binding: target.slot,
+                expected: target.byte_length,
+                actual: bytes.len(),
+                path: target.payload_path.display().to_string(),
+            });
+        }
+        fs::write(&target.payload_path, bytes).map_err(|err| ComputeExecutorError::WriteFile {
+            path: target.payload_path.display().to_string(),
+            message: err.to_string(),
+        })?;
+    }
+    Ok(())
 }
 
 fn is_ptx_compatible_residency_target(target: &str) -> bool {
     matches!(
         target.trim().to_ascii_lowercase().as_str(),
-        "spirv" | "spv" | "gpu" | "cuda" | "ptx" | "nvptx"
+        "spirv" | "spv" | "gpu" | "cuda" | "ptx" | "nvptx" | "llvm"
     )
 }
 
@@ -554,6 +739,7 @@ fn dispatch_group_count(dispatch: u32, workgroup: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn ptx_dispatch_group_count_rounds_up() {
@@ -618,5 +804,135 @@ mod tests {
             result.output_bindings,
             vec![(0, 42u32.to_le_bytes().to_vec())]
         );
+    }
+
+    #[test]
+    fn persist_output_bindings_to_sidecars_writes_expected_payloads() {
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let output_a = temp.path().join("binding_a.bin");
+        let output_b = temp.path().join("binding_b.bin");
+
+        persist_output_bindings_to_sidecars(
+            &[
+                OutputBindingTarget {
+                    slot: 7,
+                    payload_path: output_b.clone(),
+                    byte_length: 3,
+                },
+                OutputBindingTarget {
+                    slot: 3,
+                    payload_path: output_a.clone(),
+                    byte_length: 4,
+                },
+            ],
+            &[(3, vec![1, 2, 3, 4]), (7, vec![9, 8, 7])],
+        )
+        .expect("payload files should persist");
+
+        assert_eq!(fs::read(&output_a).expect("binding_a"), vec![1, 2, 3, 4]);
+        assert_eq!(fs::read(&output_b).expect("binding_b"), vec![9, 8, 7]);
+    }
+
+    #[test]
+    fn ptx_dispatch_plan_resolves_bundle_entry_point_and_single_ptx_artifact() {
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let shader_bundle_path = temp.path().join("bundle.json");
+        let compute_residency_path = temp.path().join("residency.json");
+        let payload_path = temp.path().join("payload.bin");
+
+        fs::write(&payload_path, [1u8, 2, 3, 4]).expect("payload");
+        fs::write(
+            &shader_bundle_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "canonical_native_payload": "spirv",
+                "spirv_modules": [],
+                "reflection": {
+                    "emitted": true,
+                    "shaders": [],
+                    "notes": []
+                },
+                "resource_layouts": [],
+                "entry_points": [
+                    {
+                        "shader": "CudaFieldKernel",
+                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                        "entry_point": "CudaFieldKernel",
+                        "stage": "compute"
+                    }
+                ],
+                "stage_metadata": [],
+                "specialization_constants": [],
+                "debug": {
+                    "source_map": [],
+                    "notes": []
+                },
+                "derived_outputs": [
+                    {
+                        "format": "ptx",
+                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                        "contents": ".visible .entry CudaFieldKernel() { ret; }"
+                    }
+                ]
+            }))
+            .expect("bundle json"),
+        )
+        .expect("write bundle");
+        fs::write(
+            &compute_residency_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "target": "llvm",
+                "compute_shader_count": 1,
+                "compute_shaders": [
+                    {
+                        "key": "shader::CudaFieldKernel::compute",
+                        "shader": "CudaFieldKernel",
+                        "module_name": "CudaFieldKernel",
+                        "stage": "compute",
+                        "entry_point": "main",
+                        "source": "kain-core",
+                        "execution_domain": "tensor-stream",
+                        "workgroup_size": [8, 8, 1],
+                        "dispatch_size": [8, 8, 1],
+                        "resource_binding_count": 1,
+                        "tensor_binding_count": 1,
+                        "stream_binding_count": 1,
+                        "neural_node_count": 0,
+                        "bindings": [
+                            {
+                                "key": "field",
+                                "contract": "kain.shared.buffer",
+                                "descriptor_kind": "storage_buffer",
+                                "element_type": "u32",
+                                "shape": [1],
+                                "strides": [1],
+                                "access_mode": "write",
+                                "residency_role": "output",
+                                "slot": 1,
+                                "byte_length": 4,
+                                "payload_file": "payload.bin"
+                            }
+                        ]
+                    }
+                ]
+            }))
+            .expect("residency json"),
+        )
+        .expect("write residency");
+
+        let plan = ptx_dispatch_plan_from_sidecars(
+            &shader_bundle_path,
+            &compute_residency_path,
+            "shader::CudaFieldKernel::compute",
+        )
+        .expect("ptx dispatch plan");
+
+        assert_eq!(
+            plan.request.module_name,
+            "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel"
+        );
+        assert_eq!(plan.request.entry_point, "CudaFieldKernel");
+        assert_eq!(plan.ptx, ".visible .entry CudaFieldKernel() { ret; }");
     }
 }

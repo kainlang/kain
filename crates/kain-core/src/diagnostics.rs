@@ -2,8 +2,9 @@
 //! Shows source context with line numbers and error highlighting
 
 use crate::diagnostic_registry::spec_for_code;
-use crate::error::{DiagnosticReport, KainError};
+use crate::error::{DiagnosticReport, DiagnosticSeverity, KainError};
 use crate::span::Span;
+use crate::tooling_config::{active_color_preference, active_ui_theme_name};
 use std::path::Path;
 
 /// Source location with file, line, and column information
@@ -175,6 +176,100 @@ fn normalize_origin_file_key(file: &str) -> String {
         .to_string()
 }
 
+#[derive(Debug, Clone, Copy)]
+struct DiagnosticPalette {
+    enabled: bool,
+    error: &'static str,
+    warning: &'static str,
+    note: &'static str,
+    help: &'static str,
+    gutter: &'static str,
+    pointer: &'static str,
+    reset: &'static str,
+}
+
+impl DiagnosticPalette {
+    fn paint(&self, style: &'static str, text: &str) -> String {
+        if self.enabled {
+            format!("{style}{text}{}", self.reset)
+        } else {
+            text.to_string()
+        }
+    }
+
+    fn severity_text(&self, severity: DiagnosticSeverity, text: &str) -> String {
+        match severity {
+            DiagnosticSeverity::Error => self.paint(self.error, text),
+            DiagnosticSeverity::Warning => self.paint(self.warning, text),
+            DiagnosticSeverity::Note => self.paint(self.note, text),
+            DiagnosticSeverity::Help => self.paint(self.help, text),
+        }
+    }
+
+    fn error_text(&self, text: &str) -> String {
+        self.paint(self.error, text)
+    }
+
+    fn note_text(&self, text: &str) -> String {
+        self.paint(self.note, text)
+    }
+
+    fn gutter_text(&self, text: &str) -> String {
+        self.paint(self.gutter, text)
+    }
+
+    fn pointer_text(&self, text: &str) -> String {
+        self.paint(self.pointer, text)
+    }
+}
+
+fn active_diagnostic_palette() -> DiagnosticPalette {
+    let enabled = active_color_preference().should_color_stderr();
+    let theme = active_ui_theme_name();
+    match theme.as_str() {
+        "ember" => DiagnosticPalette {
+            enabled,
+            error: "\x1b[1;38;2;255;102;64m",
+            warning: "\x1b[1;38;2;255;196;82m",
+            note: "\x1b[1;38;2;255;145;94m",
+            help: "\x1b[1;38;2;255;220;128m",
+            gutter: "\x1b[1;38;2;255;176;120m",
+            pointer: "\x1b[1;38;2;255;102;64m",
+            reset: "\x1b[0m",
+        },
+        "glacier" => DiagnosticPalette {
+            enabled,
+            error: "\x1b[1;38;2;255;112;146m",
+            warning: "\x1b[1;38;2;255;212;102m",
+            note: "\x1b[1;38;2;113;205;255m",
+            help: "\x1b[1;38;2;164;244;255m",
+            gutter: "\x1b[1;38;2;151;221;255m",
+            pointer: "\x1b[1;38;2;255;112;146m",
+            reset: "\x1b[0m",
+        },
+        "oxide" => DiagnosticPalette {
+            enabled,
+            error: "\x1b[1;38;2;209;84;67m",
+            warning: "\x1b[1;38;2;234;187;84m",
+            note: "\x1b[1;38;2;171;201;92m",
+            help: "\x1b[1;38;2;224;223;128m",
+            gutter: "\x1b[1;38;2;224;160;96m",
+            pointer: "\x1b[1;38;2;209;84;67m",
+            reset: "\x1b[0m",
+        },
+        _ => DiagnosticPalette {
+            enabled,
+            error: "\x1b[1;38;2;255;89;168m",
+            warning: "\x1b[1;38;2;255;206;86m",
+            note: "\x1b[1;38;2;92;225;230m",
+            help: "\x1b[1;38;2;171;255;118m",
+            gutter: "\x1b[1;38;2;92;225;230m",
+            pointer: "\x1b[1;38;2;255;89;168m",
+            reset: "\x1b[0m",
+        },
+    }
+}
+
 /// Diagnostic renderer for pretty error messages
 pub struct Diagnostics {
     span_mapper: SpanMapper,
@@ -200,24 +295,25 @@ impl Diagnostics {
 
     /// Format an error with source context
     pub fn format_error(&self, error: &KainError) -> String {
+        let palette = active_diagnostic_palette();
         match error {
             KainError::Lexer { message, span } => {
-                self.format_with_context("Lexer Error", message, *span)
+                self.format_with_context(&palette, "Lexer Error", message, *span)
             }
             KainError::Parser { message, span } => {
-                self.format_with_context("Parse Error", message, *span)
+                self.format_with_context(&palette, "Parse Error", message, *span)
             }
             KainError::Type { message, span } => {
-                self.format_with_context("Type Error", message, *span)
+                self.format_with_context(&palette, "Type Error", message, *span)
             }
             KainError::Effect { message, span } => {
-                self.format_with_context("Effect Error", message, *span)
+                self.format_with_context(&palette, "Effect Error", message, *span)
             }
             KainError::Borrow { message, span } => {
-                self.format_with_context("Borrow Error", message, *span)
+                self.format_with_context(&palette, "Borrow Error", message, *span)
             }
             KainError::Codegen { message, span } => {
-                self.format_with_context("Codegen Error", message, *span)
+                self.format_with_context(&palette, "Codegen Error", message, *span)
             }
             KainError::CodegenWithLocation {
                 message,
@@ -226,19 +322,27 @@ impl Diagnostics {
                 col,
                 ..
             } => format!(
-                "\n\x1b[1;31merror[Codegen]\x1b[0m: {}\n  \x1b[1;34m-->\x1b[0m {}:{}:{}\n",
-                message, file, line, col
+                "\n{}: {}\n  {} {}:{}:{}\n",
+                palette.error_text("error[Codegen]"),
+                message,
+                palette.gutter_text("-->"),
+                file,
+                line,
+                col
             ),
-            KainError::Runtime { message } => format!("\n\x1b[1;31merror\x1b[0m: {}\n", message),
-            KainError::Io(e) => format!("\n\x1b[1;31merror\x1b[0m: IO error: {}\n", e),
+            KainError::Runtime { message } => {
+                format!("\n{}: {}\n", palette.error_text("error"), message)
+            }
+            KainError::Io(e) => format!("\n{}: IO error: {}\n", palette.error_text("error"), e),
             KainError::Enhanced { .. } => {
                 // Enhanced errors format themselves via Display trait
                 format!("\n{}\n", error)
             }
-            KainError::Rich(report) => self.format_diagnostic_report(report),
+            KainError::Rich(report) => self.format_diagnostic_report(&palette, report),
             KainError::Multi(errors) => {
                 let mut output = format!(
-                    "\n\x1b[1;31merror\x1b[0m: {} error(s) found:\n",
+                    "\n{}: {} error(s) found:\n",
+                    palette.error_text("error"),
                     errors.len()
                 );
                 for (i, err) in errors.iter().enumerate() {
@@ -250,12 +354,20 @@ impl Diagnostics {
         }
     }
 
-    fn format_diagnostic_report(&self, report: &DiagnosticReport) -> String {
+    fn format_diagnostic_report(
+        &self,
+        palette: &DiagnosticPalette,
+        report: &DiagnosticReport,
+    ) -> String {
         let spec = spec_for_code(report.code);
         let mut output = String::new();
         output.push_str(&format!(
-            "\n\x1b[1;31m{}[{}:{}]\x1b[0m: {}\n",
-            report.severity, report.kind, spec.code_str, report.message
+            "\n{}: {}\n",
+            palette.severity_text(
+                report.severity,
+                &format!("{}[{}:{}]", report.severity, report.kind, spec.code_str)
+            ),
+            report.message
         ));
 
         if let Some(span) = report.primary_span {
@@ -268,13 +380,17 @@ impl Diagnostics {
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|| loc.file.clone());
             output.push_str(&format!(
-                "  \x1b[1;34m-->\x1b[0m {}:{}:{}\n",
-                file, loc.line, loc.col
+                "  {} {}:{}:{}\n",
+                palette.gutter_text("-->"),
+                file,
+                loc.line,
+                loc.col
             ));
-            output.push_str("   \x1b[1;34m|\x1b[0m\n");
+            output.push_str(&format!("   {}\n", palette.gutter_text("|")));
             output.push_str(&format!(
-                "\x1b[1;34m{:>3} |\x1b[0m {}\n",
-                loc.line, line_content
+                "{} {}\n",
+                palette.gutter_text(&format!("{:>3} |", loc.line)),
+                line_content
             ));
 
             let pointer_offset = loc.col.saturating_sub(1);
@@ -288,17 +404,22 @@ impl Diagnostics {
                 .find(|label| label.primary && label.span == span)
                 .or_else(|| report.labels.iter().find(|label| label.span == span));
             output.push_str(&format!(
-                "   \x1b[1;34m|\x1b[0m {}\x1b[1;31m{}\x1b[0m",
+                "   {} {}{}",
+                palette.gutter_text("|"),
                 " ".repeat(pointer_offset),
-                "^".repeat(pointer_len)
+                palette.pointer_text(&"^".repeat(pointer_len)),
             ));
             if let Some(label) = primary_label {
                 output.push_str(&format!(" {}", label.message));
             }
             output.push('\n');
-            output.push_str("   \x1b[1;34m|\x1b[0m\n");
+            output.push_str(&format!("   {}\n", palette.gutter_text("|")));
         } else if let Some(path) = &report.file {
-            output.push_str(&format!("  \x1b[1;34m-->\x1b[0m {}", path.display()));
+            output.push_str(&format!(
+                "  {} {}",
+                palette.gutter_text("-->"),
+                path.display()
+            ));
             if let Some((line, col)) = report.location {
                 output.push_str(&format!(":{}:{}", line, col));
             }
@@ -314,35 +435,53 @@ impl Diagnostics {
                 .span_mapper
                 .span_to_line_info(label.span, self.filename.as_str());
             output.push_str(&format!(
-                "   \x1b[1;34m=\x1b[0m label {}:{}: {}\n",
-                loc.line, loc.col, label.message
+                "   {} label {}:{}: {}\n",
+                palette.note_text("="),
+                loc.line,
+                loc.col,
+                label.message
             ));
         }
         for note in &report.notes {
-            output.push_str(&format!("   \x1b[1;34m=\x1b[0m note: {}\n", note));
+            output.push_str(&format!("   {} note: {}\n", palette.note_text("="), note));
         }
         for help in &report.help {
-            output.push_str(&format!("   \x1b[1;34m=\x1b[0m help: {}\n", help));
+            output.push_str(&format!("   {} help: {}\n", palette.note_text("="), help));
         }
         for fixit in &report.fixits {
             output.push_str(&format!(
-                "   \x1b[1;34m=\x1b[0m fix-it: {} at bytes {}..{} -> {:?}\n",
-                fixit.message, fixit.span.start, fixit.span.end, fixit.replacement
+                "   {} fix-it: {} at bytes {}..{} -> {:?}\n",
+                palette.note_text("="),
+                fixit.message,
+                fixit.span.start,
+                fixit.span.end,
+                fixit.replacement
             ));
         }
         if let Some(default_suggestion) = spec.default_suggestion {
             output.push_str(&format!(
-                "   \x1b[1;34m=\x1b[0m help: {}\n",
+                "   {} help: {}\n",
+                palette.note_text("="),
                 default_suggestion
             ));
         }
         if let Some(docs_key) = spec.docs_key {
-            output.push_str(&format!("   \x1b[1;34m=\x1b[0m reference: {}\n", docs_key));
+            output.push_str(&format!(
+                "   {} reference: {}\n",
+                palette.note_text("="),
+                docs_key
+            ));
         }
         output
     }
 
-    fn format_with_context(&self, error_type: &str, message: &str, span: Span) -> String {
+    fn format_with_context(
+        &self,
+        palette: &DiagnosticPalette,
+        error_type: &str,
+        message: &str,
+        span: Span,
+    ) -> String {
         let (loc, line_content) = self
             .span_mapper
             .span_to_line_info(span, self.filename.as_str());
@@ -351,23 +490,28 @@ impl Diagnostics {
 
         // Error header
         output.push_str(&format!(
-            "\n\x1b[1;31merror[{}]\x1b[0m: {}\n",
-            error_type, message
+            "\n{}: {}\n",
+            palette.error_text(&format!("error[{error_type}]")),
+            message
         ));
 
         // Location
         output.push_str(&format!(
-            "  \x1b[1;34m-->\x1b[0m {}:{}:{}\n",
-            loc.file, loc.line, loc.col
+            "  {} {}:{}:{}\n",
+            palette.gutter_text("-->"),
+            loc.file,
+            loc.line,
+            loc.col
         ));
 
         // Separator
-        output.push_str("   \x1b[1;34m|\x1b[0m\n");
+        output.push_str(&format!("   {}\n", palette.gutter_text("|")));
 
         // Source line
         output.push_str(&format!(
-            "\x1b[1;34m{:>3} |\x1b[0m {}\n",
-            loc.line, line_content
+            "{} {}\n",
+            palette.gutter_text(&format!("{:>3} |", loc.line)),
+            line_content
         ));
 
         // Error pointer
@@ -378,13 +522,14 @@ impl Diagnostics {
         let pointer_len = span_len.min(remaining_len).max(1);
 
         output.push_str(&format!(
-            "   \x1b[1;34m|\x1b[0m {}\x1b[1;31m{}\x1b[0m\n",
+            "   {} {}{}\n",
+            palette.gutter_text("|"),
             " ".repeat(pointer_offset),
-            "^".repeat(pointer_len)
+            palette.pointer_text(&"^".repeat(pointer_len))
         ));
 
         // Separator
-        output.push_str("   \x1b[1;34m|\x1b[0m\n");
+        output.push_str(&format!("   {}\n", palette.gutter_text("|")));
 
         output
     }

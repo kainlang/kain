@@ -43,8 +43,10 @@ use crypto_lane::smoke_crypto_lane
 use alloc_lane::smoke_alloc_lane
 use diagnostics_lane::smoke_diagnostics_lane
 use fs_lane::smoke_fs_lane
+use z3_lane::smoke_z3_lane
 use json_lane::smoke_json_lane
 use math_lane::smoke_math_lane
+use cuda_lane::smoke_cuda_lane
 use interop_lane::smoke_interop_lane
 use platform_lane::smoke_platform_lane
 use process_lane::smoke_process_lane
@@ -136,7 +138,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 55
+    let total_tracks: Int = 57
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -480,6 +482,24 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_interop_stdlib = smoke_first_error(3450, lane_interop_stdlib)
     if e_interop_stdlib != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_interop_stdlib, "stdlib.interop_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_z3 = now_millis()
+    let lane_z3 = smoke_z3_lane()
+    let ended_z3 = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.z3_lane", "z3", 57, 3455, lane_z3, started_z3, ended_z3, composition_checksum)
+    let e_z3 = smoke_first_error(3455, lane_z3)
+    if e_z3 != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_z3, "stdlib.z3_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_cuda = now_millis()
+    let lane_cuda = smoke_cuda_lane()
+    let ended_cuda = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.cuda_lane", "cuda", 56, 3460, lane_cuda, started_cuda, ended_cuda, composition_checksum)
+    let e_cuda = smoke_first_error(3460, lane_cuda)
+    if e_cuda != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_cuda, "stdlib.cuda_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let started_bridge = now_millis()

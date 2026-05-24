@@ -9162,3 +9162,37 @@ Current runtime blocker is pre-existing and not caused by the visual lane:
 - launching `D:\Kain-Lang\smoketest\smoketest.exe` in normal `full` mode exits early at `stdlib.text_lane`
   - `telemetry/full/summary.json` reports `failure_code=2515` and `failure_track="stdlib.text_lane"`
   - because the album stops there, the new `ui.*` tracks do not execute during that run until the existing text/fmt effect issue is fixed
+# 2026-05-24 - added an optional root `std::z3` host-solver lane
+
+`use std::z3` now exists as a thin, Python-backed solver surface for authored Kain. It is intentionally optional: callers should gate on `z3_available()` when they want a soft dependency, or call `z3_require()` when they want the flow to fail loudly if `z3-solver` is missing from the active Python environment.
+
+- Added the root module and smoketest pressure:
+  - `stdlib/z3.kn`
+    - exposes availability/version checks, solver/model helpers, scalar constructors, and common expression combinators over Python `z3` plus the `operator` module
+  - `smoketest/src/stdlib/z3_lane.kn`
+    - skips cleanly when `z3` is unavailable, otherwise exercises integer and bitvector solving, sat/unsat checks, push/pop, and model evaluation
+  - `smoketest/src/main.kn`
+    - total track count is now `57`
+    - added the `stdlib.z3_lane` album slot
+  - `smoketest/build.kn`
+    - wired `src/stdlib/z3_lane.kn` into the LLVM check inputs
+- Updated root-stdlib tracking:
+  - `stdlib/requirements.md`
+    - added a `KX` row for the new optional `std::z3` family
+  - atlas
+    - refreshed `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json`
+    - current summary after this pass: `61` modules, `2619` public symbols, `3307` total symbols
+
+Validation:
+
+- `python -c "import z3; print(z3.get_version_string())"`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+- `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+- `python query_stdlib.py --module z3 --limit 80`
+- `.\target\debug\kain.exe check stdlib\z3.kn --target llvm`
+- `.\target\debug\kain.exe check smoketest\src\stdlib\z3_lane.kn --target llvm`
+- `.\target\debug\kain.exe check smoketest\src\main.kn --target llvm`
+
+Known repo truth:
+
+- The workspace `kain`/`kn` launchers are currently blocked by the pre-existing Bazel crate-universe lock drift (`Cargo.Bazel.lock` digest mismatch asking for `CARGO_BAZEL_REPIN=true`), so stdlib/source validation should use cargo-owned lanes or direct tool binaries until that repo-level blocker is cleared.

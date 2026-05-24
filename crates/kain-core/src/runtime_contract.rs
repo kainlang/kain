@@ -1016,7 +1016,10 @@ fn collect_runtime_items(
                             .ast
                             .members
                             .iter()
-                            .map(|member| member.alias.clone().unwrap_or_else(|| member.name.clone()))
+                            .map(|member| member
+                                .alias
+                                .clone()
+                                .unwrap_or_else(|| member.name.clone()))
                             .collect::<Vec<_>>()
                             .join(",")
                     )

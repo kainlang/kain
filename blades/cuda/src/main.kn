@@ -1,0 +1,330 @@
+use std::runtime
+use std::cuda
+use std::fs
+use std::process
+
+const CUDA_WIDTH: Int = 256
+const CUDA_HEIGHT: Int = 256
+const CUDA_SEED: Int = 1337
+const CUDA_TONE: Int = 19
+const CUDA_VISUAL_VERIFY_EXE: String = "cuda_visual_verify.exe"
+const CUDA_PARAMS_HEX: String = "00010000000100003905000013000000"
+
+const FIELD_KEY: String = "shader::CudaFieldKernel::compute"
+const BLUR_KEY: String = "shader::CudaBlurKernel::compute"
+const COLOR_KEY: String = "shader::CudaColorizeKernel::compute"
+
+// ============================================================================
+//                         CUDA specimen kernels
+// ============================================================================
+
+shader compute CudaFieldKernel(id: UVec3) -> Void:
+    uniform params: StorageBuffer<UInt> @0
+    uniform field: StorageBuffer<UInt> @1
+
+    comptime:
+        let compute = (
+            [8, 8, 1],
+            [256, 256, 1],
+            [
+                ("params", "u32", ["4"], "input", "kain.shared.buffer"),
+                ("field", "u32", ["dispatch.x", "dispatch.y"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("params", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("field", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let width = params[0]
+    let height = params[1]
+    let seed = params[2]
+    let tone = params[3]
+    let safe_width = max(width, UInt(1))
+    let safe_height = max(height, UInt(1))
+    let x = min(id.x, safe_width - UInt(1))
+    let y = min(id.y, safe_height - UInt(1))
+    let index = (y * safe_width) + x
+    let base = (x * UInt(374761393)) + (y * UInt(668265263)) + (seed * UInt(2246822519))
+    let lane = base ^ (base >> UInt(13))
+    let ripple = ((x ^ y) + (tone * UInt(17))) * UInt(2654435761)
+    field[index] = (lane ^ ripple) & UInt(255)
+    return
+
+shader compute CudaBlurKernel(id: UVec3) -> Void:
+    uniform params: StorageBuffer<UInt> @0
+    uniform field: StorageBuffer<UInt> @1
+    uniform blur: StorageBuffer<UInt> @2
+
+    comptime:
+        let compute = (
+            [8, 8, 1],
+            [256, 256, 1],
+            [
+                ("params", "u32", ["4"], "input", "kain.shared.buffer"),
+                ("field", "u32", ["dispatch.x", "dispatch.y"], "input", "kain.shared.buffer"),
+                ("blur", "u32", ["dispatch.x", "dispatch.y"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("params", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("field", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("blur", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let width = params[0]
+    let height = params[1]
+    let safe_width = max(width, UInt(1))
+    let safe_height = max(height, UInt(1))
+    let x = min(id.x, safe_width - UInt(1))
+    let y = min(id.y, safe_height - UInt(1))
+    let left_x = x - min(x, UInt(1))
+    let right_x = min(x + UInt(1), safe_width - UInt(1))
+    let top_y = y - min(y, UInt(1))
+    let bottom_y = min(y + UInt(1), safe_height - UInt(1))
+    let index = (y * safe_width) + x
+    let center = field[index]
+    let left = field[(y * safe_width) + left_x]
+    let right = field[(y * safe_width) + right_x]
+    let top = field[(top_y * safe_width) + x]
+    let bottom = field[(bottom_y * safe_width) + x]
+    blur[index] = (center + left + right + top + bottom) / UInt(5)
+    return
+
+shader compute CudaColorizeKernel(id: UVec3) -> Void:
+    uniform params: StorageBuffer<UInt> @0
+    uniform field: StorageBuffer<UInt> @1
+    uniform blur: StorageBuffer<UInt> @2
+    uniform image: StorageBuffer<UInt> @3
+
+    comptime:
+        let compute = (
+            [8, 8, 1],
+            [256, 256, 1],
+            [
+                ("params", "u32", ["4"], "input", "kain.shared.buffer"),
+                ("field", "u32", ["dispatch.x", "dispatch.y"], "input", "kain.shared.buffer"),
+                ("blur", "u32", ["dispatch.x", "dispatch.y"], "input", "kain.shared.buffer"),
+                ("image", "u32", ["dispatch.x", "dispatch.y"], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("params", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("field", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("blur", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("image", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let width = params[0]
+    let height = params[1]
+    let tone = params[3]
+    let safe_width = max(width, UInt(1))
+    let safe_height = max(height, UInt(1))
+    let x = min(id.x, safe_width - UInt(1))
+    let y = min(id.y, safe_height - UInt(1))
+    let index = (y * safe_width) + x
+    let base = field[index]
+    let glow = blur[index]
+    let red = (base + (glow >> UInt(1)) + (tone * UInt(3))) & UInt(255)
+    let green = ((base >> UInt(1)) + glow + (tone * UInt(5))) & UInt(255)
+    let blue = ((base * UInt(3)) + (glow * UInt(2)) + (tone * UInt(7))) & UInt(255)
+    image[index] = red | (green << UInt(8)) | (blue << UInt(16)) | (UInt(255) << UInt(24))
+    return
+
+fn cuda_finish(exit_code: Int) -> Int:
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        if exit_code != 0:
+            return exit_code
+        return 200 + shutdown
+    return exit_code
+
+fn params_bytes() -> Array<Int>:
+    return cuda_pack_u32_array_le([CUDA_WIDTH, CUDA_HEIGHT, CUDA_SEED, CUDA_TONE])
+
+fn write_param_payload_hex(compute_key: String) -> Bool:
+    let path = cuda_binding_payload_path(compute_key, "params")
+    if path == "":
+        return false
+    fs_write_bytes_hex(path, CUDA_PARAMS_HEX)
+    return true
+
+fn key_exists(keys: Array<String>, needle: String) -> Bool:
+    var index = 0
+    while index < len(keys):
+        if keys[index] == needle:
+            return true
+        index = index + 1
+    return false
+
+fn summarize_state(state: CudaRuntimeState, field_ready: Bool, blur_ready: Bool, color_ready: Bool) -> String:
+    var text = ""
+    text = text + "driver_available=" + to_string(bool_to_int(state.driver_available)) + "\n"
+    text = text + "runtime_library_available=" + to_string(bool_to_int(state.runtime_library_available)) + "\n"
+    text = text + "runtime_ready=" + to_string(bool_to_int(state.runtime_ready)) + "\n"
+    text = text + "runtime_library_path=" + state.paths.runtime_library_path + "\n"
+    text = text + "shader_bundle_path=" + state.paths.shader_bundle_path + "\n"
+    text = text + "compute_residency_path=" + state.paths.compute_residency_path + "\n"
+    text = text + "field_key_ready=" + to_string(bool_to_int(field_ready)) + "\n"
+    text = text + "blur_key_ready=" + to_string(bool_to_int(blur_ready)) + "\n"
+    text = text + "color_key_ready=" + to_string(bool_to_int(color_ready)) + "\n"
+    text = text + "[manifest]\n" + cuda_manifest_debug_from_path(state.paths.compute_residency_path)
+    text = text + "last_status=" + to_string(state.last_status) + "\n"
+    text = text + "last_error_kind=" + state.last_error_kind + "\n"
+    text = text + "last_error_message=" + state.last_error_message + "\n"
+    return text
+
+fn append_dispatch_summary(report_path: String, label: String, stats: CudaDispatchStats) -> Unit:
+    let text = ""
+    text = text + label + ".ok=" + to_string(bool_to_int(stats.ok)) + "\n"
+    text = text + label + ".status=" + to_string(stats.status) + "\n"
+    text = text + label + ".message=" + stats.message + "\n"
+    text = text + label + ".dispatch_invocations=" + to_string(stats.dispatch_invocations) + "\n"
+    text = text + label + ".tensor_binding_count=" + to_string(stats.tensor_binding_count) + "\n"
+    text = text + label + ".stream_binding_count=" + to_string(stats.stream_binding_count) + "\n"
+    text = text + label + ".neural_node_count=" + to_string(stats.neural_node_count) + "\n"
+    text = text + label + ".output_binding_count=" + to_string(stats.output_binding_count) + "\n"
+    text = text + label + ".total_output_bytes=" + to_string(stats.total_output_bytes) + "\n"
+    fs_append_text(report_path, text)
+
+fn prepare_field_stage(param_blob: Array<Int>) -> Bool:
+    let _param_blob = param_blob
+    if write_param_payload_hex(FIELD_KEY) == false:
+        return false
+    return cuda_zero_output_payloads(FIELD_KEY) >= 1
+
+fn prepare_blur_stage(param_blob: Array<Int>) -> Bool:
+    let _param_blob = param_blob
+    if write_param_payload_hex(BLUR_KEY) == false:
+        return false
+    if cuda_copy_binding_payload(FIELD_KEY, "field", BLUR_KEY, "field") == false:
+        return false
+    return cuda_zero_output_payloads(BLUR_KEY) >= 1
+
+fn prepare_color_stage(param_blob: Array<Int>) -> Bool:
+    let _param_blob = param_blob
+    if write_param_payload_hex(COLOR_KEY) == false:
+        return false
+    if cuda_copy_binding_payload(FIELD_KEY, "field", COLOR_KEY, "field") == false:
+        return false
+    if cuda_copy_binding_payload(BLUR_KEY, "blur", COLOR_KEY, "blur") == false:
+        return false
+    return cuda_zero_output_payloads(COLOR_KEY) >= 1
+
+fn verifier_path() -> String:
+    return fs_path_join(fs_path_join(".kain", "native"), CUDA_VISUAL_VERIFY_EXE)
+
+fn run_visual_verifier(gpu_payload_path: String, report_path: String, gpu_bmp_path: String, cpu_bmp_path: String, diff_bmp_path: String) -> Int:
+    let path = verifier_path()
+    if fs_exists(path) == false:
+        return -1
+    let spec = process_spec_create_piped(path)
+    let _arg0 = process_spec_add_arg(spec, gpu_payload_path)
+    let _arg1 = process_spec_add_arg(spec, report_path)
+    let _arg2 = process_spec_add_arg(spec, gpu_bmp_path)
+    let _arg3 = process_spec_add_arg(spec, cpu_bmp_path)
+    let _arg4 = process_spec_add_arg(spec, diff_bmp_path)
+    let _arg5 = process_spec_add_arg(spec, to_string(CUDA_WIDTH))
+    let _arg6 = process_spec_add_arg(spec, to_string(CUDA_HEIGHT))
+    let _arg7 = process_spec_add_arg(spec, to_string(CUDA_SEED))
+    let _arg8 = process_spec_add_arg(spec, to_string(CUDA_TONE))
+    let child = process_spawn(spec)
+    if child <= 0:
+        return -2
+    if process_wait(child, 60000) != 1:
+        return -3
+    let stdout_text = process_stdout_capture_text(child)
+    let stderr_text = process_stderr_capture_text(child)
+    if stdout_text != "":
+        fs_append_text(report_path, "\n[cpp.stdout]\n" + stdout_text)
+    if stderr_text != "":
+        fs_append_text(report_path, "\n[cpp.stderr]\n" + stderr_text)
+    return process_exit_code(child)
+
+fn main() -> Int:
+    let run_root = ".kain/run"
+    let report_path = fs_path_join(run_root, "cuda_report.txt")
+    let gpu_bmp_path = fs_path_join(run_root, "cuda_gpu.bmp")
+    let cpu_bmp_path = fs_path_join(run_root, "cuda_cpu.bmp")
+    let diff_bmp_path = fs_path_join(run_root, "cuda_diff.bmp")
+    fs_create_dir_all(run_root)
+
+    let boot = runtime_init()
+    if boot != 0:
+        fs_write_text(report_path, "runtime_init_failed=" + to_string(boot) + "\n")
+        return 10 + boot
+
+    let cuda_state = cuda_runtime_state()
+    let field_ready = cuda_has_compute_key(FIELD_KEY)
+    let blur_ready = cuda_has_compute_key(BLUR_KEY)
+    let color_ready = cuda_has_compute_key(COLOR_KEY)
+    let prelude = summarize_state(cuda_state, field_ready, blur_ready, color_ready)
+    let verify_path = verifier_path()
+    if fs_exists(verify_path) == false:
+        fs_write_text(report_path, prelude + "status=missing_cpp_verifier\nverifier_path=" + verify_path + "\n")
+        return cuda_finish(20)
+    if process_platform_available() != 1:
+        fs_write_text(report_path, prelude + "status=process_platform_unavailable\n")
+        return cuda_finish(21)
+    if cuda_state.runtime_ready == false:
+        fs_write_text(report_path, prelude + "status=runtime_not_ready\n")
+        return cuda_finish(22)
+    if field_ready == false or blur_ready == false or color_ready == false:
+        fs_write_text(report_path, prelude + "status=missing_expected_compute_keys\n")
+        return cuda_finish(23)
+
+    let param_blob = params_bytes()
+    if prepare_field_stage(param_blob) == false:
+        fs_write_text(report_path, prelude + "status=prepare_field_failed\n")
+        return cuda_finish(24)
+    let field_stats = cuda_dispatch_primary_compute(FIELD_KEY)
+    if field_stats.ok == false:
+        fs_write_text(report_path, prelude + "status=field_dispatch_failed\nmessage=" + field_stats.message + "\n")
+        return cuda_finish(25)
+
+    if prepare_blur_stage(param_blob) == false:
+        fs_write_text(report_path, prelude + "status=prepare_blur_failed\n")
+        return cuda_finish(26)
+    let blur_stats = cuda_dispatch_primary_compute(BLUR_KEY)
+    if blur_stats.ok == false:
+        fs_write_text(report_path, prelude + "status=blur_dispatch_failed\nmessage=" + blur_stats.message + "\n")
+        return cuda_finish(27)
+
+    if prepare_color_stage(param_blob) == false:
+        fs_write_text(report_path, prelude + "status=prepare_color_failed\n")
+        return cuda_finish(28)
+    let color_stats = cuda_dispatch_primary_compute(COLOR_KEY)
+    if color_stats.ok == false:
+        fs_write_text(report_path, prelude + "status=color_dispatch_failed\nmessage=" + color_stats.message + "\n")
+        return cuda_finish(29)
+
+    let image_payload_path = cuda_binding_payload_path(COLOR_KEY, "image")
+    if image_payload_path == "" or fs_exists(image_payload_path) == false:
+        fs_write_text(report_path, prelude + "status=image_payload_missing\n")
+        return cuda_finish(30)
+
+    let native_status = run_visual_verifier(
+        image_payload_path,
+        report_path,
+        gpu_bmp_path,
+        cpu_bmp_path,
+        diff_bmp_path
+    )
+    if native_status != 0:
+        fs_append_text(report_path, "native_status=" + to_string(native_status) + "\n")
+        append_dispatch_summary(report_path, "field", field_stats)
+        append_dispatch_summary(report_path, "blur", blur_stats)
+        append_dispatch_summary(report_path, "color", color_stats)
+        return cuda_finish(31 + native_status)
+
+    fs_append_text(report_path, "\n[kain]\n")
+    fs_append_text(report_path, prelude)
+    append_dispatch_summary(report_path, "field", field_stats)
+    append_dispatch_summary(report_path, "blur", blur_stats)
+    append_dispatch_summary(report_path, "color", color_stats)
+    fs_append_text(report_path, "verifier_path=" + verify_path + "\n")
+    fs_append_text(report_path, "image_payload_path=" + image_payload_path + "\n")
+    return cuda_finish(0)

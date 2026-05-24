@@ -13,6 +13,8 @@ pub mod amalgamate;
 pub mod blade_launcher;
 pub mod blades;
 pub mod bridge;
+pub mod clean;
+pub mod cli_boot;
 pub mod codebase;
 pub mod error;
 pub mod fabric;

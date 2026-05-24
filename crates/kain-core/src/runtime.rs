@@ -857,6 +857,46 @@ impl Env {
     }
 
     pub fn register_json_stdlib(&mut self) {
+        fn json_value_kind_code(value: &Value) -> i64 {
+            match value {
+                Value::Unit | Value::None => 0,
+                Value::Bool(_) => 1,
+                Value::Int(_) => 2,
+                Value::Float(_) => 3,
+                Value::String(_) => 4,
+                Value::Struct(_, _) => 5,
+                Value::Array(_) | Value::Tuple(_) => 6,
+                _ => -1,
+            }
+        }
+
+        fn json_runtime_to_json(value: &Value) -> serde_json::Value {
+            match value {
+                Value::Unit => serde_json::Value::Null,
+                Value::None => serde_json::Value::Null,
+                Value::Bool(b) => serde_json::Value::Bool(*b),
+                Value::Int(i) => serde_json::json!(i),
+                Value::Float(f) => serde_json::json!(f),
+                Value::String(s) => serde_json::Value::String(s.clone()),
+                Value::Array(arr) => {
+                    let arr = arr.read().unwrap();
+                    serde_json::Value::Array(arr.iter().map(json_runtime_to_json).collect())
+                }
+                Value::Struct(_, fields) => {
+                    let fields = fields.read().unwrap();
+                    let mut map = serde_json::Map::new();
+                    for (k, v) in fields.iter() {
+                        map.insert(k.clone(), json_runtime_to_json(v));
+                    }
+                    serde_json::Value::Object(map)
+                }
+                Value::Tuple(items) => {
+                    serde_json::Value::Array(items.iter().map(json_runtime_to_json).collect())
+                }
+                _ => serde_json::Value::String(format!("{}", value)),
+            }
+        }
+
         self.define_native("json_parse", |_env, args| {
             if args.len() != 1 {
                 return Err(KainError::runtime(
@@ -909,35 +949,59 @@ impl Env {
             if args.len() != 1 {
                 return Err(KainError::runtime("json_string: expected 1 argument"));
             }
-
-            fn to_json(v: &Value) -> serde_json::Value {
-                match v {
-                    Value::Unit => serde_json::Value::Null,
-                    Value::None => serde_json::Value::Null,
-                    Value::Bool(b) => serde_json::Value::Bool(*b),
-                    Value::Int(i) => serde_json::json!(i),
-                    Value::Float(f) => serde_json::json!(f),
-                    Value::String(s) => serde_json::Value::String(s.clone()),
-                    Value::Array(arr) => {
-                        let arr = arr.read().unwrap();
-                        serde_json::Value::Array(arr.iter().map(to_json).collect())
-                    }
-                    Value::Struct(_, fields) => {
-                        let fields = fields.read().unwrap();
-                        let mut map = serde_json::Map::new();
-                        for (k, v) in fields.iter() {
-                            map.insert(k.clone(), to_json(v));
-                        }
-                        serde_json::Value::Object(map)
-                    }
-                    Value::Tuple(items) => {
-                        serde_json::Value::Array(items.iter().map(to_json).collect())
-                    }
-                    _ => serde_json::Value::String(format!("{}", v)), // Fallback
-                }
+            Ok(Value::String(json_runtime_to_json(&args[0]).to_string()))
+        });
+        self.define_native("json_any_kind", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("json_any_kind: expected 1 argument"));
             }
-
-            Ok(Value::String(to_json(&args[0]).to_string()))
+            Ok(Value::Int(json_value_kind_code(&args[0])))
+        });
+        self.define_native("json_any_to_int", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("json_any_to_int: expected 1 argument"));
+            }
+            let value = match &args[0] {
+                Value::Unit | Value::None => 0,
+                Value::Bool(value) => i64::from(*value),
+                Value::Int(value) => *value,
+                Value::Float(value) => *value as i64,
+                Value::String(value) => value.parse::<i64>().unwrap_or(0),
+                _ => 0,
+            };
+            Ok(Value::Int(value))
+        });
+        self.define_native("json_any_to_float", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("json_any_to_float: expected 1 argument"));
+            }
+            let value = match &args[0] {
+                Value::Unit | Value::None => 0.0,
+                Value::Bool(value) => {
+                    if *value {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
+                Value::Int(value) => *value as f64,
+                Value::Float(value) => *value,
+                Value::String(value) => value.parse::<f64>().unwrap_or(0.0),
+                _ => 0.0,
+            };
+            Ok(Value::Float(value))
+        });
+        self.define_native("json_any_to_string", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime(
+                    "json_any_to_string: expected 1 argument",
+                ));
+            }
+            let value = match &args[0] {
+                Value::String(value) => value.clone(),
+                other => json_runtime_to_json(other).to_string(),
+            };
+            Ok(Value::String(value))
         });
         self.define_native("json_get", |_env, args| {
             if args.len() != 2 {
@@ -4610,9 +4674,9 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
         let resolution = resolve_filesystem_module_file_with_context(&u.path, &context)
             .ok_or_else(|| {
                 let tried_paths = filesystem_module_candidates(&u.path)
-                .iter()
-                .map(|p| p.display().to_string())
-                .collect::<Vec<_>>();
+                    .iter()
+                    .map(|p| p.display().to_string())
+                    .collect::<Vec<_>>();
                 KainError::runtime(format!(
                     "Module not found: {} (tried: {:?})",
                     path, tried_paths
@@ -5131,7 +5195,11 @@ fn try_eval_python_method_call(
     ))
 }
 
-fn try_eval_python_callable(env: &mut Env, target: &Value, args: Vec<Value>) -> Option<KainResult<Value>> {
+fn try_eval_python_callable(
+    env: &mut Env,
+    target: &Value,
+    args: Vec<Value>,
+) -> Option<KainResult<Value>> {
     let py_call = lookup_native_fn(env, "py_call_raw")?;
     Some(py_call(env, vec![target.clone(), Value::Tuple(args)]))
 }

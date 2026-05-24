@@ -33,6 +33,7 @@ rust_library(
         "//crates/kain-amalgamate:kain-amalgamate",
         "//crates/kain-blades:blade",
         "//crates/kain-check:kain-check",
+        "//crates/kain-clean:kain-clean",
         "//crates/kain-core:kain-core",
         "//crates/kain-driver:kain-driver",
         "//crates/kain-fs:kain-fs",

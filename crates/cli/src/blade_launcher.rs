@@ -1,8 +1,10 @@
-use clap::Parser;
 use kain_commands::blade::{BladeCli, BladeCommand, BladesCommand};
 
 pub fn main_entry() {
-    let cli = BladeCli::parse();
+    let (cli, _) = cli::cli_boot::parse_blade_cli().unwrap_or_else(|error| {
+        eprintln!("Blade config failed: {error}");
+        std::process::exit(1);
+    });
     if let Err(error) = run(cli.command) {
         eprintln!("Blade command failed: {error}");
         std::process::exit(1);
@@ -20,6 +22,12 @@ fn run(command: BladeCommand) -> Result<(), String> {
             include_vulkan,
             json,
         } => cli::blades::run_build(path, profile, target, dry_run, clean, include_vulkan, json),
+        BladeCommand::Clean {
+            path,
+            scope,
+            dry_run,
+            json,
+        } => cli::blades::run_clean(path, scope, dry_run, json),
         BladeCommand::Run {
             blade,
             path,

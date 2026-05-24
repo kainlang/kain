@@ -1,4 +1,4 @@
-use clap::{Parser as ClapParser, Subcommand};
+use clap::{Parser as ClapParser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 use crate::blade::BladesCommand;
@@ -78,6 +78,13 @@ pub enum RunCommand {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum CliColorArg {
+    Auto,
+    Always,
+    Never,
+}
+
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
 #[command(author = "Kipp")]
@@ -86,6 +93,18 @@ pub enum RunCommand {
 pub struct KainCli {
     #[command(subcommand)]
     pub command: Option<KainCommand>,
+
+    /// Explicit Kain config path. Defaults to ~/.kain/config.toml
+    #[arg(long, global = true)]
+    pub config: Option<PathBuf>,
+
+    /// Force CLI color policy
+    #[arg(long, global = true, value_enum)]
+    pub color: Option<CliColorArg>,
+
+    /// Select a CLI theme: hyperpop, ember, glacier, or oxide
+    #[arg(long, global = true)]
+    pub theme: Option<String>,
 
     /// Source file to compile (legacy positional argument)
     pub input: Option<PathBuf>,
@@ -174,6 +193,10 @@ pub enum BuildCommand {
         /// Generate the native app project but skip cargo build
         #[arg(long)]
         bundle_only: bool,
+
+        /// Clean generated .kain roots before building the native UI app
+        #[arg(long)]
+        clean: bool,
 
         /// Build the generated app in release mode
         #[arg(long)]
@@ -744,6 +767,10 @@ pub enum KainCommand {
         #[arg(long)]
         lane: Option<String>,
 
+        /// Clean generated .kain roots before building
+        #[arg(long)]
+        clean: bool,
+
         /// Build UE5 plugin from KAIN.toml [ue5] config
         #[arg(long)]
         ue5: bool,
@@ -754,6 +781,25 @@ pub enum KainCommand {
         /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
         #[arg(long)]
         embed: bool,
+    },
+
+    /// Clean generated .kain roots for the current workspace
+    Clean {
+        /// Path inside the workspace to clean
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Clean scope: build, run, amalgamate, or all
+        #[arg(long, default_value = "all")]
+        scope: String,
+
+        /// Print the clean plan without removing anything
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
     },
 
     /// Build and validate the manifest-driven native runtime bundle
@@ -1066,16 +1112,58 @@ mod tests {
 
     #[test]
     fn parses_build_native_ui_command() {
-        let cli = KainCli::parse_from(["kain", "build", "native-ui", "app.kn", "--host", "tauri"]);
+        let cli = KainCli::parse_from([
+            "kain",
+            "build",
+            "native-ui",
+            "app.kn",
+            "--host",
+            "tauri",
+            "--clean",
+        ]);
         match cli.command {
             Some(KainCommand::Build {
-                command: Some(BuildCommand::NativeUi { input, host, .. }),
+                command:
+                    Some(BuildCommand::NativeUi {
+                        input, host, clean, ..
+                    }),
                 ..
             }) => {
                 assert_eq!(input, PathBuf::from("app.kn"));
                 assert_eq!(host, "tauri");
+                assert!(clean);
             }
             other => panic!("expected build native-ui command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_build_clean_flag() {
+        let cli = KainCli::parse_from(["kain", "build", "demo.kn", "--clean"]);
+        match cli.command {
+            Some(KainCommand::Build {
+                input,
+                clean,
+                command,
+                ..
+            }) => {
+                assert_eq!(input, Some(PathBuf::from("demo.kn")));
+                assert!(clean);
+                assert!(command.is_none());
+            }
+            other => panic!("expected build command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_clean_command() {
+        let cli = KainCli::parse_from(["kain", "clean", "smoketest", "--scope", "build"]);
+        match cli.command {
+            Some(KainCommand::Clean { path, scope, .. }) => {
+                assert_eq!(path, PathBuf::from("smoketest"));
+                assert_eq!(scope, "build");
+            }
+            other => panic!("expected clean command, got {other:?}"),
         }
     }
 

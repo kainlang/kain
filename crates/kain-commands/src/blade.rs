@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+use crate::kain::CliColorArg;
+
 #[derive(Subcommand, Debug)]
 pub enum BladesCommand {
     /// List blades discovered from the current workspace
@@ -67,6 +69,25 @@ pub enum BladesCommand {
         json: bool,
     },
 
+    /// Clean generated .kain roots under the current blade workspace
+    Clean {
+        /// Path inside the workspace to clean
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Clean scope: build, run, amalgamate, or all
+        #[arg(long, default_value = "all")]
+        scope: String,
+
+        /// Print the clean plan without removing anything
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Run a local blade through the Kain run pipeline
     Run {
         /// Blade name or path inside the workspace
@@ -107,6 +128,18 @@ pub enum BladesCommand {
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Standalone Kain blade workspace tool")]
 pub struct BladeCli {
+    /// Explicit Kain config path. Defaults to ~/.kain/config.toml
+    #[arg(long, global = true)]
+    pub config: Option<PathBuf>,
+
+    /// Force CLI color policy
+    #[arg(long, global = true, value_enum)]
+    pub color: Option<CliColorArg>,
+
+    /// Select a CLI theme: hyperpop, ember, glacier, or oxide
+    #[arg(long, global = true)]
+    pub theme: Option<String>,
+
     #[command(subcommand)]
     pub command: BladeCommand,
 }
@@ -138,6 +171,25 @@ pub enum BladeCommand {
         /// Also run GPU Fabric manifests that dispatch Vulkan compute
         #[arg(long)]
         include_vulkan: bool,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Clean generated .kain roots under the current blade workspace
+    Clean {
+        /// Path inside the workspace to clean
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Clean scope: build, run, amalgamate, or all
+        #[arg(long, default_value = "all")]
+        scope: String,
+
+        /// Print the clean plan without removing anything
+        #[arg(long)]
+        dry_run: bool,
 
         /// Emit JSON instead of text
         #[arg(long)]
@@ -247,6 +299,24 @@ mod tests {
                 assert!(clean);
             }
             other => panic!("expected blade build, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_standalone_blade_clean() {
+        let cli = BladeCli::parse_from(["blade", "clean", ".", "--scope", "run", "--dry-run"]);
+        match cli.command {
+            BladeCommand::Clean {
+                path,
+                scope,
+                dry_run,
+                ..
+            } => {
+                assert_eq!(path, PathBuf::from("."));
+                assert_eq!(scope, "run");
+                assert!(dry_run);
+            }
+            other => panic!("expected blade clean, got {other:?}"),
         }
     }
 

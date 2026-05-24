@@ -935,6 +935,7 @@ dependencies = [
  "kain-build",
  "kain-c-ffi",
  "kain-check",
+ "kain-clean",
  "kain-codebase",
  "kain-commands",
  "kain-core",
@@ -2742,6 +2743,7 @@ dependencies = [
  "blade",
  "kain-amalgamate",
  "kain-check",
+ "kain-clean",
  "kain-core",
  "kain-driver",
  "kain-fs",
@@ -2787,6 +2789,17 @@ dependencies = [
  "kain-fs",
  "serde",
  "tempfile",
+]
+
+[[package]]
+name = "kain-clean"
+version = "0.1.0"
+dependencies = [
+ "blade",
+ "kain-fs",
+ "serde",
+ "tempfile",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2839,6 +2852,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "toml",
 ]
 
 [[package]]
@@ -2933,6 +2947,7 @@ dependencies = [
  "kain-interop",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
 ]
 

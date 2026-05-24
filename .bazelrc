@@ -38,3 +38,8 @@ test --test_env=PATH
 test --test_env=PATHEXT
 
 test:maxperf --local_test_jobs=HOST_CPUS*.5
+
+# Local workstation overrides belong in .bazelrc.local so Bazel can see
+# machine-specific paths (for example a stable PyO3 Python interpreter)
+# without hardcoding them into the shared repo config.
+try-import %workspace%/.bazelrc.local

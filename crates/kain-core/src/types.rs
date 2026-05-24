@@ -395,7 +395,10 @@ fn ensure_metal_attributes_are_unique(env: &TypeEnv, attributes: &[Attribute]) -
         }
         if !seen.insert(attribute.name.clone()) {
             return Err(env.type_error(
-                format!("duplicate @{name} attribute is not allowed", name = attribute.name),
+                format!(
+                    "duplicate @{name} attribute is not allowed",
+                    name = attribute.name
+                ),
                 attribute.span,
             ));
         }
@@ -528,8 +531,10 @@ fn validate_zero_prologue_body(
     attribute_name: &str,
 ) -> KainResult<()> {
     for stmt in &function.body.stmts {
-        let allowed = matches!(stmt, Stmt::Expr(Expr::InlineAsm { .. }) | Stmt::Return(None, _))
-            || matches!(stmt, Stmt::Expr(Expr::Return(None, _)));
+        let allowed = matches!(
+            stmt,
+            Stmt::Expr(Expr::InlineAsm { .. }) | Stmt::Return(None, _)
+        ) || matches!(stmt, Stmt::Expr(Expr::Return(None, _)));
         if !allowed {
             let stmt_span = match stmt {
                 Stmt::Let { span, .. }
@@ -571,11 +576,7 @@ fn validate_const_attributes(env: &TypeEnv, constant: &Const) -> KainResult<()> 
             ATTR_THREAD_LOCAL => {
                 attribute_requires_zero_args(env, attribute)?;
             }
-            ATTR_CALLCONV
-            | ATTR_PACKED
-            | ATTR_ALIGNED
-            | ATTR_NAKED
-            | ATTR_INTERRUPT
+            ATTR_CALLCONV | ATTR_PACKED | ATTR_ALIGNED | ATTR_NAKED | ATTR_INTERRUPT
             | ATTR_MMIO => {
                 return Err(env.type_error(
                     format!(
@@ -671,10 +672,7 @@ fn validate_function_attributes(
                     ));
                 }
                 if return_type != &ResolvedType::Unit {
-                    return Err(env.type_error(
-                        "@naked functions must return Unit",
-                        attribute.span,
-                    ));
+                    return Err(env.type_error("@naked functions must return Unit", attribute.span));
                 }
                 if function
                     .effects
@@ -733,10 +731,9 @@ fn validate_function_attributes(
                     ));
                 }
                 if return_type != &ResolvedType::Unit {
-                    return Err(env.type_error(
-                        "@interrupt handlers must return Unit",
-                        attribute.span,
-                    ));
+                    return Err(
+                        env.type_error("@interrupt handlers must return Unit", attribute.span)
+                    );
                 }
                 if function
                     .effects
@@ -750,10 +747,7 @@ fn validate_function_attributes(
                 }
                 validate_zero_prologue_body(env, function, ATTR_INTERRUPT)?;
             }
-            ATTR_THREAD_LOCAL
-            | ATTR_PACKED
-            | ATTR_ALIGNED
-            | ATTR_MMIO => {
+            ATTR_THREAD_LOCAL | ATTR_PACKED | ATTR_ALIGNED | ATTR_MMIO => {
                 return Err(env.type_error(
                     format!(
                         "@{} is not valid on functions; use it on authored const globals or structs instead",
@@ -847,11 +841,7 @@ fn validate_struct_attributes(env: &TypeEnv, structure: &Struct) -> KainResult<(
                     }
                 }
             }
-            ATTR_SECTION
-            | ATTR_LINK_NAME
-            | ATTR_CALLCONV
-            | ATTR_THREAD_LOCAL
-            | ATTR_NAKED
+            ATTR_SECTION | ATTR_LINK_NAME | ATTR_CALLCONV | ATTR_THREAD_LOCAL | ATTR_NAKED
             | ATTR_INTERRUPT => {
                 return Err(env.type_error(
                     format!(
@@ -1878,6 +1868,25 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             vec![ResolvedType::Unknown, ResolvedType::String],
             ResolvedType::Unknown,
         ),
+    );
+    env.define_global(
+        "json_any_kind".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "json_any_to_int".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "json_any_to_float".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown],
+            ResolvedType::Float(FloatSize::F64),
+        ),
+    );
+    env.define_global(
+        "json_any_to_string".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::String),
     );
     env.define_global(
         "json_get_string".into(),
@@ -4126,7 +4135,9 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Const(c) => Ok(TypedItem::Const(check_const(env, c)?)),
         Item::Macro(m) => Ok(TypedItem::Macro(TypedMacro { ast: m.clone() })),
         Item::Use(u) => Ok(TypedItem::Use(TypedUse { ast: u.clone() })),
-        Item::Import(import) => Ok(TypedItem::Import(TypedImport { ast: import.clone() })),
+        Item::Import(import) => Ok(TypedItem::Import(TypedImport {
+            ast: import.clone(),
+        })),
         Item::Mod(module) => Ok(TypedItem::Mod(check_mod(env, module)?)),
         Item::Impl(i) => Ok(TypedItem::Impl(check_impl(env, i)?)),
         Item::Test(t) => Ok(TypedItem::Test(check_test(env, t)?)),
@@ -4221,12 +4232,14 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
             env.define(param.name.clone(), ty);
         }
         check_block_semantics(env, &handler.body, &ctx)?;
-        let reply_contract = handler_param_types.first().and_then(|(param_name, param_ty)| {
-            if !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
-                return None;
-            }
-            infer_reply_contract_from_handler_body(env, &handler.body, param_name)
-        });
+        let reply_contract = handler_param_types
+            .first()
+            .and_then(|(param_name, param_ty)| {
+                if !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
+                    return None;
+                }
+                infer_reply_contract_from_handler_body(env, &handler.body, param_name)
+            });
         env.pop_scope();
         let message_signature = if let Some(reply_contract) = reply_contract {
             MessageSignature::call(handler.message_type.clone(), message_params, reply_contract)
@@ -4365,10 +4378,12 @@ fn infer_reply_contract_from_handler_body(
     if collect_reply_contract_type(env, body, reply_port_name, &mut reply_type).is_err() {
         return None;
     }
-    reply_type.map(|ty| kain_actor::message::MessageReplyContract::new(
-        resolved_type_contract_name(&ty),
-        kain_actor::lifecycle::DEFAULT_ASK_TIMEOUT_MS,
-    ))
+    reply_type.map(|ty| {
+        kain_actor::message::MessageReplyContract::new(
+            resolved_type_contract_name(&ty),
+            kain_actor::lifecycle::DEFAULT_ASK_TIMEOUT_MS,
+        )
+    })
 }
 
 fn collect_reply_contract_type(
@@ -4396,7 +4411,9 @@ fn collect_reply_contract_type_from_stmt(
             }
             Ok(())
         }
-        Stmt::Expr(expr) => collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type),
+        Stmt::Expr(expr) => {
+            collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type)
+        }
         Stmt::Return(value, _) => {
             if let Some(value) = value {
                 collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
@@ -4413,7 +4430,9 @@ fn collect_reply_contract_type_from_stmt(
             collect_reply_contract_type_from_expr(env, iter, reply_port_name, reply_type)?;
             collect_reply_contract_type(env, body, reply_port_name, reply_type)
         }
-        Stmt::Loop { body, .. } => collect_reply_contract_type(env, body, reply_port_name, reply_type),
+        Stmt::Loop { body, .. } => {
+            collect_reply_contract_type(env, body, reply_port_name, reply_type)
+        }
         Stmt::Break(value, _) => {
             if let Some(value) = value {
                 collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
@@ -4449,7 +4468,9 @@ fn collect_reply_contract_type_from_expr(
                     }
                     let value_ty = infer_expr_type_read_only(env, value).map_err(|_| ())?;
                     if let Some(existing) = reply_type.as_ref() {
-                        if !types_compatible(existing, &value_ty) || !types_compatible(&value_ty, existing) {
+                        if !types_compatible(existing, &value_ty)
+                            || !types_compatible(&value_ty, existing)
+                        {
                             return Err(());
                         }
                     } else {
@@ -4465,7 +4486,9 @@ fn collect_reply_contract_type_from_expr(
             }
             Ok(())
         }
-        Expr::Block(block, _) => collect_reply_contract_type(env, block, reply_port_name, reply_type),
+        Expr::Block(block, _) => {
+            collect_reply_contract_type(env, block, reply_port_name, reply_type)
+        }
         Expr::If {
             condition,
             then_branch,
@@ -4514,20 +4537,35 @@ fn collect_reply_contract_type_from_expr(
         Expr::Call { callee, args, .. } => {
             collect_reply_contract_type_from_expr(env, callee, reply_port_name, reply_type)?;
             for arg in args {
-                collect_reply_contract_type_from_expr(env, &arg.value, reply_port_name, reply_type)?;
+                collect_reply_contract_type_from_expr(
+                    env,
+                    &arg.value,
+                    reply_port_name,
+                    reply_type,
+                )?;
             }
             Ok(())
         }
         Expr::MethodCall { receiver, args, .. } => {
             collect_reply_contract_type_from_expr(env, receiver, reply_port_name, reply_type)?;
             for arg in args {
-                collect_reply_contract_type_from_expr(env, &arg.value, reply_port_name, reply_type)?;
+                collect_reply_contract_type_from_expr(
+                    env,
+                    &arg.value,
+                    reply_port_name,
+                    reply_type,
+                )?;
             }
             Ok(())
         }
         Expr::StageCall { args, .. } => {
             for arg in args {
-                collect_reply_contract_type_from_expr(env, &arg.value, reply_port_name, reply_type)?;
+                collect_reply_contract_type_from_expr(
+                    env,
+                    &arg.value,
+                    reply_port_name,
+                    reply_type,
+                )?;
             }
             Ok(())
         }
@@ -4605,10 +4643,18 @@ fn collect_reply_contract_type_from_expr(
         | Expr::Cast { value: object, .. }
         | Expr::Bitcast { value: object, .. }
         | Expr::Teleport { value: object, .. }
-        | Expr::MemLoad { pointer: object, .. }
-        | Expr::VolatileLoad { pointer: object, .. }
-        | Expr::AtomicLoad { pointer: object, .. }
-        | Expr::CpuCacheFlush { pointer: object, .. }
+        | Expr::MemLoad {
+            pointer: object, ..
+        }
+        | Expr::VolatileLoad {
+            pointer: object, ..
+        }
+        | Expr::AtomicLoad {
+            pointer: object, ..
+        }
+        | Expr::CpuCacheFlush {
+            pointer: object, ..
+        }
         | Expr::Decay { target: object, .. } => {
             collect_reply_contract_type_from_expr(env, object, reply_port_name, reply_type)
         }
@@ -4685,7 +4731,9 @@ fn collect_reply_contract_type_from_else_branch(
     reply_type: &mut Option<ResolvedType>,
 ) -> Result<(), ()> {
     match branch {
-        ElseBranch::Else(block) => collect_reply_contract_type(env, block, reply_port_name, reply_type),
+        ElseBranch::Else(block) => {
+            collect_reply_contract_type(env, block, reply_port_name, reply_type)
+        }
         ElseBranch::ElseIf(condition, block, next) => {
             collect_reply_contract_type_from_expr(env, condition, reply_port_name, reply_type)?;
             collect_reply_contract_type(env, block, reply_port_name, reply_type)?;
@@ -6089,7 +6137,10 @@ fn supports_converge_verify_sampling(ty: &ResolvedType) -> bool {
 
 fn check_struct(env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
     validate_struct_attributes(env, s)?;
-    let has_mmio = s.attributes.iter().any(|attribute| attribute.name == ATTR_MMIO);
+    let has_mmio = s
+        .attributes
+        .iter()
+        .any(|attribute| attribute.name == ATTR_MMIO);
     let mmio_stride_bytes = if has_mmio {
         s.attributes
             .iter()
@@ -11390,8 +11441,14 @@ fn main() -> Int:
     return len(base64_encode("ok"))
 "#;
         let (combined, origins) = combine_sources_with_origins(&[
-            ("D:/Kain-Lang/stdlib/ascii.kn", include_str!("../../../stdlib/ascii.kn")),
-            ("D:/Kain-Lang/stdlib/base64.kn", include_str!("../../../stdlib/base64.kn")),
+            (
+                "D:/Kain-Lang/stdlib/ascii.kn",
+                include_str!("../../../stdlib/ascii.kn"),
+            ),
+            (
+                "D:/Kain-Lang/stdlib/base64.kn",
+                include_str!("../../../stdlib/base64.kn"),
+            ),
             ("<test>", entry),
         ]);
         let span_mapper = SpanMapper::with_origins(&combined, origins);
@@ -11414,10 +11471,22 @@ fn main() -> Int:
     return len(fs_read_text("shadow-smoke.txt"))
 "#;
         let (combined, origins) = combine_sources_with_origins(&[
-            ("D:/Kain-Lang/stdlib/ascii.kn", include_str!("../../../stdlib/ascii.kn")),
-            ("D:/Kain-Lang/stdlib/base64.kn", include_str!("../../../stdlib/base64.kn")),
-            ("D:/Kain-Lang/stdlib/text.kn", include_str!("../../../stdlib/text.kn")),
-            ("D:/Kain-Lang/stdlib/fs.kn", include_str!("../../../stdlib/fs.kn")),
+            (
+                "D:/Kain-Lang/stdlib/ascii.kn",
+                include_str!("../../../stdlib/ascii.kn"),
+            ),
+            (
+                "D:/Kain-Lang/stdlib/base64.kn",
+                include_str!("../../../stdlib/base64.kn"),
+            ),
+            (
+                "D:/Kain-Lang/stdlib/text.kn",
+                include_str!("../../../stdlib/text.kn"),
+            ),
+            (
+                "D:/Kain-Lang/stdlib/fs.kn",
+                include_str!("../../../stdlib/fs.kn"),
+            ),
             ("<test>", entry),
         ]);
         let span_mapper = SpanMapper::with_origins(&combined, origins);

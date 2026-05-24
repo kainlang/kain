@@ -680,10 +680,7 @@ fn collect_source_snapshot(options: &PackOptions) -> CapsuleResult<SourceSnapsho
             .unwrap_or_else(|| folder_name(&root))
     });
     let root_label = folder_name(&root);
-    let capsule_set = options
-        .capsule_set
-        .clone()
-        .unwrap_or_else(|| name.clone());
+    let capsule_set = options.capsule_set.clone().unwrap_or_else(|| name.clone());
     let version = options.version.clone().or_else(|| {
         manifest.as_ref().and_then(|manifest| {
             manifest
@@ -819,33 +816,87 @@ fn build_capsule_selection(
     }
 
     if let Some(manifest) = manifest {
-        add_optional_relative_file(&mut selection.source_files, root, manifest.build.entry.as_deref());
-        add_optional_relative_file(&mut selection.source_files, root, manifest.run.entry.as_deref());
-        add_optional_relative_file(&mut selection.source_files, root, manifest.blade.entry.as_deref());
-        add_optional_relative_dir(&mut selection.source_dirs, root, manifest.build.source_root.as_deref());
-        add_relative_dirs(&mut selection.source_dirs, root, &manifest.build.module_roots);
-        add_relative_dirs(&mut selection.source_dirs, root, &manifest.build.module_search_paths);
-        add_relative_dirs(&mut selection.source_dirs, root, &manifest.workspace.search_roots);
-        add_relative_dirs(&mut selection.source_dirs, root, &manifest.blade.source_roots);
-        add_relative_dirs(&mut selection.source_dirs, root, &manifest.blade.module_roots);
+        add_optional_relative_file(
+            &mut selection.source_files,
+            root,
+            manifest.build.entry.as_deref(),
+        );
+        add_optional_relative_file(
+            &mut selection.source_files,
+            root,
+            manifest.run.entry.as_deref(),
+        );
+        add_optional_relative_file(
+            &mut selection.source_files,
+            root,
+            manifest.blade.entry.as_deref(),
+        );
+        add_optional_relative_dir(
+            &mut selection.source_dirs,
+            root,
+            manifest.build.source_root.as_deref(),
+        );
+        add_relative_dirs(
+            &mut selection.source_dirs,
+            root,
+            &manifest.build.module_roots,
+        );
+        add_relative_dirs(
+            &mut selection.source_dirs,
+            root,
+            &manifest.build.module_search_paths,
+        );
+        add_relative_dirs(
+            &mut selection.source_dirs,
+            root,
+            &manifest.workspace.search_roots,
+        );
+        add_relative_dirs(
+            &mut selection.source_dirs,
+            root,
+            &manifest.blade.source_roots,
+        );
+        add_relative_dirs(
+            &mut selection.source_dirs,
+            root,
+            &manifest.blade.module_roots,
+        );
         add_relative_paths(
             &mut selection.source_files,
             &mut selection.source_dirs,
             root,
             &manifest.run.watch,
         );
-        add_relative_dir(&mut selection.artifact_dirs, root, manifest.build.artifact_root.as_deref());
-        add_relative_dir(&mut selection.artifact_dirs, root, manifest.build.cache_root.as_deref());
+        add_relative_dir(
+            &mut selection.artifact_dirs,
+            root,
+            manifest.build.artifact_root.as_deref(),
+        );
+        add_relative_dir(
+            &mut selection.artifact_dirs,
+            root,
+            manifest.build.cache_root.as_deref(),
+        );
 
         for task in &manifest.build.tasks {
-            add_relative_file_or_dir(&mut selection.source_files, &mut selection.source_dirs, root, task.entry.as_deref());
+            add_relative_file_or_dir(
+                &mut selection.source_files,
+                &mut selection.source_dirs,
+                root,
+                task.entry.as_deref(),
+            );
             add_relative_file_or_dir(
                 &mut selection.source_files,
                 &mut selection.source_dirs,
                 root,
                 task.manifest.as_deref(),
             );
-            add_relative_paths(&mut selection.source_files, &mut selection.source_dirs, root, &task.inputs);
+            add_relative_paths(
+                &mut selection.source_files,
+                &mut selection.source_dirs,
+                root,
+                &task.inputs,
+            );
             classify_task_outputs_into_selection(root, task, &mut selection);
         }
     }
@@ -1029,7 +1080,10 @@ fn select_directory_contents(
         CapsuleContents::Evidence => selection.evidence_dirs.iter().cloned().collect::<Vec<_>>(),
         CapsuleContents::Assets | CapsuleContents::Snapshot => Vec::new(),
     };
-    (files.clone(), merge_directory_inventory(&files, &explicit_dirs))
+    (
+        files.clone(),
+        merge_directory_inventory(&files, &explicit_dirs),
+    )
 }
 
 fn classify_snapshot_file(file: &SourceFile, selection: &CapsuleSelection) -> CapsuleContents {
@@ -1116,42 +1170,10 @@ fn looks_like_capsule_file(file: &SourceFile) -> bool {
 fn looks_like_asset_file(file: &SourceFile) -> bool {
     let lower = file.rel_path.to_ascii_lowercase();
     if [
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".bmp",
-        ".tga",
-        ".webp",
-        ".ico",
-        ".icns",
-        ".dds",
-        ".ktx",
-        ".ktx2",
-        ".hdr",
-        ".exr",
-        ".ttf",
-        ".otf",
-        ".woff",
-        ".woff2",
-        ".mp3",
-        ".wav",
-        ".ogg",
-        ".flac",
-        ".mp4",
-        ".mov",
-        ".avi",
-        ".mkv",
-        ".webm",
-        ".glb",
-        ".gltf",
-        ".fbx",
-        ".dae",
-        ".zip",
-        ".7z",
-        ".tar",
-        ".gz",
-        ".pdf",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tga", ".webp", ".ico", ".icns", ".dds", ".ktx",
+        ".ktx2", ".hdr", ".exr", ".ttf", ".otf", ".woff", ".woff2", ".mp3", ".wav", ".ogg",
+        ".flac", ".mp4", ".mov", ".avi", ".mkv", ".webm", ".glb", ".gltf", ".fbx", ".dae", ".zip",
+        ".7z", ".tar", ".gz", ".pdf",
     ]
     .iter()
     .any(|suffix| lower.ends_with(suffix))
@@ -2455,15 +2477,11 @@ mod tests {
     #[test]
     fn pack_capsule_skips_existing_output_file_inside_input_root() {
         let root = unique_temp_dir("skip-output");
-        fs::write(
-            root.join("main.kn"),
-            "fn main() -> Int:\n    return 0\n",
-        )
-        .expect("write main");
+        fs::write(root.join("main.kn"), "fn main() -> Int:\n    return 0\n").expect("write main");
         fs::write(root.join("capsule.kn"), "old capsule").expect("seed old output");
 
-        let report = pack_capsule(&PackOptions::new(&root, root.join("capsule.kn")))
-            .expect("pack capsule");
+        let report =
+            pack_capsule(&PackOptions::new(&root, root.join("capsule.kn"))).expect("pack capsule");
         let inspect = inspect_capsule(&report.output_path).expect("inspect capsule");
 
         assert!(inspect.files.iter().any(|file| file.path == "main.kn"));
@@ -2478,8 +2496,12 @@ mod tests {
         fs::create_dir_all(root.join("src")).expect("create src");
         fs::create_dir_all(root.join("native")).expect("create native");
         fs::create_dir_all(root.join("telemetry").join("full")).expect("create telemetry");
-        fs::create_dir_all(root.join("generated").join("native_runtime").join("objects"))
-            .expect("create generated");
+        fs::create_dir_all(
+            root.join("generated")
+                .join("native_runtime")
+                .join("objects"),
+        )
+        .expect("create generated");
         fs::write(
             root.join("src").join("main.kn"),
             "fn main() -> Int:\n    return 0\n",
@@ -2495,8 +2517,11 @@ mod tests {
             "fn mode() -> Int:\n    return 9\n",
         )
         .expect("write second watch file");
-        fs::write(root.join("native").join("bridge.c"), "int bridge(void) { return 7; }\n")
-            .expect("write bridge");
+        fs::write(
+            root.join("native").join("bridge.c"),
+            "int bridge(void) { return 7; }\n",
+        )
+        .expect("write bridge");
         fs::write(root.join("README.md"), "# Smoketest\n").expect("write readme");
         fs::write(root.join("logo.png"), [0u8, 1, 2, 3]).expect("write asset");
         fs::write(root.join("manual-smoketest.exe"), b"MZ").expect("write exe");
@@ -2545,7 +2570,10 @@ cache_root = ".kain/cache/build"
         let source_report = pack_capsule(&source_options).expect("pack source");
         let source = inspect_capsule(&source_report.output_path).expect("inspect source");
         assert!(source.files.iter().any(|file| file.path == "src/main.kn"));
-        assert!(source.files.iter().any(|file| file.path == "native/bridge.c"));
+        assert!(source
+            .files
+            .iter()
+            .any(|file| file.path == "native/bridge.c"));
         assert!(source.files.iter().any(|file| file.path == "README.md"));
         assert!(source
             .files
@@ -2597,9 +2625,10 @@ cache_root = ".kain/cache/build"
             .files
             .iter()
             .any(|file| file.path == "manual-smoketest.runtime_contract.json"));
-        assert!(artifacts.files.iter().any(|file| {
-            file.path == "generated/native_runtime/objects/manual-smoketest.obj"
-        }));
+        assert!(artifacts
+            .files
+            .iter()
+            .any(|file| { file.path == "generated/native_runtime/objects/manual-smoketest.obj" }));
         assert!(!artifacts
             .files
             .iter()
@@ -2655,8 +2684,15 @@ cache_root = ".kain/cache/build"
 
         let materialized = materialize_capsule(&source_report.output_path, &root.join(".cache"))
             .expect("materialize source capsule");
-        assert!(materialized.workspace_root.join("src").join("main.kn").exists());
-        assert!(materialized.workspace_root.join("manual-smoketest.exe").exists());
+        assert!(materialized
+            .workspace_root
+            .join("src")
+            .join("main.kn")
+            .exists());
+        assert!(materialized
+            .workspace_root
+            .join("manual-smoketest.exe")
+            .exists());
         assert!(materialized
             .workspace_root
             .join("telemetry")

@@ -1,8 +1,8 @@
 // KAIN Compiler CLI
 
-use clap::{CommandFactory, FromArgMatches};
 use cli::amalgamate;
 use cli::blades;
+use cli::clean;
 use cli::codebase;
 use cli::fabric;
 use cli::import_asm;
@@ -1372,6 +1372,11 @@ fn print_kain_build_report(report: &kain_build::BladeBuildReport) {
     );
     println!(" Artifact root: {}", report.artifact_root.display());
     println!(" Report: {}", report.report_path.display());
+    let cached_tasks = report
+        .tasks
+        .iter()
+        .filter(|task| task.status == kain_build::BuildTaskStatus::Cached || task.cache_hit)
+        .count();
     for task in &report.tasks {
         let marker = match task.status {
             kain_build::BuildTaskStatus::Cached => "cached",
@@ -1388,6 +1393,10 @@ fn print_kain_build_report(report: &kain_build::BladeBuildReport) {
             eprintln!("      {}", error);
         }
     }
+    println!(
+        " Freshness: SHA-256 task stamps guard build cache reuse across inputs, adapter state, and output layout"
+    );
+    println!(" Cache hits: {}", cached_tasks);
 }
 
 fn run_kn_repl() -> bool {
@@ -1724,7 +1733,11 @@ fn run_registry_command(command: RegistryCommand) -> Result<(), String> {
         }
         RegistryCommand::Help { bin, runtime } => {
             let registry = command_registry_for_display(None, runtime)?;
-            let help = kain_commands::dynamic_clap::dynamic_help_for_bin(&registry, &bin)?;
+            let leaked_bin = Box::leak(bin.clone().into_boxed_str());
+            let help = kain_commands::dynamic_clap::dynamic_help_for_bin_with_ui(
+                &registry,
+                cli::cli_boot::active_command_ui_preferences(leaked_bin),
+            )?;
             print!("{help}");
             Ok(())
         }
@@ -1845,11 +1858,11 @@ fn run_runtime_command_fallback(launcher: LauncherKind, argv: &[String]) -> Resu
     ))
 }
 
-fn external_command_argv_from_matches(
-    matches: &clap::ArgMatches,
+fn external_command_argv(
+    external_command_name: Option<&str>,
     external_args: Vec<String>,
 ) -> Vec<String> {
-    let Some((name, _)) = matches.subcommand() else {
+    let Some(name) = external_command_name else {
         return external_args;
     };
     let mut argv = Vec::with_capacity(1 + external_args.len());
@@ -1954,10 +1967,11 @@ pub fn main_entry() {
     let handler = builder
         .spawn(|| {
             let launcher = detect_launcher_from_path(std::env::current_exe().ok().as_deref());
-            let matches = Args::command()
-                .bin_name(launcher.display_name())
-                .get_matches();
-            let args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
+            let (args, _tooling_config, external_command_name) =
+                cli::cli_boot::parse_kain_cli(launcher).unwrap_or_else(|error| {
+                    eprintln!(" Kain config failed: {error}");
+                    std::process::exit(1);
+                });
             let suppress_banner = should_suppress_cli_banner(&args);
             let mut stdin_source = None;
             if args.command.is_none()
@@ -2352,6 +2366,7 @@ pub fn main_entry() {
                     target,
                     targets,
                     lane,
+                    clean,
                     ue5,
                     r#rust,
                     embed,
@@ -2371,6 +2386,7 @@ pub fn main_entry() {
                         project_dir,
                         artifact_dir,
                         bundle_only,
+                        clean: native_ui_clean,
                         release,
                         runtime_crate,
                         runtime_path,
@@ -2396,6 +2412,7 @@ pub fn main_entry() {
                         };
                         let mut options = kain_build::KainNativeUiBuildOptions::new(input);
                         options.lane = lane;
+                        options.clean = clean || native_ui_clean;
                         options.host = host;
                         options.root_component = root_component;
                         options.window_title = window_title;
@@ -2418,6 +2435,12 @@ pub fn main_entry() {
                             }
                         }
                     } else if ue5 {
+                        if clean {
+                            eprintln!(
+                                " Build failed: --clean is not supported with --ue5; run `kain clean` first"
+                            );
+                            std::process::exit(1);
+                        }
                         // UE5 plugin build
                         if let Err(e) = packager::build_ue5_plugin_with_options(embed) {
                             // Error already contains formatted details with file:line:col
@@ -2432,6 +2455,7 @@ pub fn main_entry() {
                                         let mut options = kain_build::KainRustBuildOptions::new(file);
                                         options.output = output.clone();
                                         options.lane = lane;
+                                        options.clean = clean;
                                         match kain_build::build_kain_rust_file(&options) {
                                             Ok(report) => print_kain_build_report(&report),
                                             Err(e) => {
@@ -2451,6 +2475,7 @@ pub fn main_entry() {
                                             kain_build::KainProjectBuildOptions::new(project_root);
                                         options.rust_only = true;
                                         options.lane = lane;
+                                        options.clean = clean;
                                         if let Err(e) = kain_build::build_kain_project(&options)
                                             .map(|report| print_kain_build_report(&report))
                                         {
@@ -2470,6 +2495,7 @@ pub fn main_entry() {
                                 );
                                 options.rust_only = true;
                                 options.lane = lane;
+                                options.clean = clean;
                                 if let Err(e) = kain_build::build_kain_project(&options)
                                     .map(|report| print_kain_build_report(&report))
                                 {
@@ -2499,6 +2525,7 @@ pub fn main_entry() {
                                             kain_build::KainFileBuildOptions::new(file, resolved_target);
                                         options.output = output.clone();
                                         options.lane = lane;
+                                        options.clean = clean;
                                         match kain_build::build_kain_file(&options) {
                                             Ok(report) => print_kain_build_report(&report),
                                             Err(e) => {
@@ -2523,6 +2550,7 @@ pub fn main_entry() {
                                             kain_build::KainProjectBuildOptions::new(project_root);
                                         options.target_overrides = target_overrides;
                                         options.lane = lane;
+                                        options.clean = clean;
                                         match kain_build::build_kain_project(&options) {
                                             Ok(report) => print_kain_build_report(&report),
                                             Err(e) => {
@@ -2549,6 +2577,7 @@ pub fn main_entry() {
                                 );
                                 options.target_overrides = target_overrides;
                                 options.lane = lane;
+                                options.clean = clean;
                                 match kain_build::build_kain_project(&options) {
                                     Ok(report) => print_kain_build_report(&report),
                                     Err(e) => {
@@ -2637,6 +2666,17 @@ pub fn main_entry() {
                 Some(Commands::Codebase { command }) => {
                     if let Err(err) = codebase::run(command) {
                         eprintln!(" Codebase command failed: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::Clean {
+                    path,
+                    scope,
+                    dry_run,
+                    json,
+                }) => {
+                    if let Err(err) = clean::run_workspace_clean(path, scope, dry_run, json) {
+                        eprintln!(" Clean failed: {}", err);
                         std::process::exit(1);
                     }
                 }
@@ -2967,7 +3007,7 @@ pub fn main_entry() {
                     }
                 }
                 Some(Commands::External(argv)) => {
-                    let argv = external_command_argv_from_matches(&matches, argv);
+                    let argv = external_command_argv(external_command_name.as_deref(), argv);
                     if let Err(err) = run_runtime_command_fallback(launcher, &argv) {
                         eprintln!(" Runtime command failed: {}", err);
                         std::process::exit(1);

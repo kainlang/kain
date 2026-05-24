@@ -12,7 +12,10 @@
         "authority.epoch",
         "authority.health",
         "authority.module_score",
-        "authority.signal"
+        "authority.native_score",
+        "authority.route_score",
+        "authority.signal",
+        "authority.surface_score"
       ],
       "undo_mode": "reversible",
       "collaboration_event": "patch.commit_python_signal"
@@ -51,6 +54,21 @@
           "name": "module_score",
           "type_name": "Int",
           "initial_expr": "0"
+        },
+        {
+          "name": "route_score",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "surface_score",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "native_score",
+          "type_name": "Int",
+          "initial_expr": "0"
         }
       ],
       "surfaces": [
@@ -81,6 +99,21 @@
         },
         {
           "name": "module_score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "route_score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "surface_score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "native_score_copy",
           "type_name": "Int",
           "initial_expr": "0"
         }
@@ -116,6 +149,21 @@
         "name": "module_score",
         "type_name": "Int",
         "initial_expr": "0"
+      },
+      {
+        "name": "route_score",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "surface_score",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "native_score",
+        "type_name": "Int",
+        "initial_expr": "0"
       }
     ],
     "surfaces": [
@@ -146,8 +194,26 @@
       "type_name": "Int"
     },
     {
+      "authority": "PythonInteropAuthority.native_score",
+      "mirror": "PythonInteropMirror.native_score_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.route_score",
+      "mirror": "PythonInteropMirror.route_score_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
       "authority": "PythonInteropAuthority.signal",
       "mirror": "PythonInteropMirror.signal_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "PythonInteropAuthority.surface_score",
+      "mirror": "PythonInteropMirror.surface_score_copy",
       "policy": "single_writer",
       "type_name": "Int"
     }
@@ -157,6 +223,7 @@
   "tool_caps": [
     "law.invariants",
     "patch.transactions",
+    "scene.actors",
     "state.entangle",
     "world.native-ui",
     "world.web"

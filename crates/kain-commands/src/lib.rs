@@ -10,6 +10,7 @@ pub mod repair;
 pub mod runtime;
 pub mod selfhost;
 pub mod shared;
+pub mod ui;
 
 pub use registry::{
     builtin_command_definitions, builtin_command_packs, builtin_registry,

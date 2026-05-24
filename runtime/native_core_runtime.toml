@@ -30,6 +30,7 @@ sources = [
     "native/src/core/scene.c",
     "native/src/core/reflection.c",
     "native/src/core/realtime.c",
+    "native/src/core/cuda_runtime.c",
     "native/src/core/attrition.c",
     "native/src/core/async.c",
     "native/src/core/compatibility.c",
@@ -409,6 +410,15 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "Compute bundle validation, dispatch planning, and native runtime handoff"
+
+[[services]]
+key = "gfx.compute.cuda"
+name = "CUDA PTX Dispatch"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows", "linux"]
+description = "Windows-first NVIDIA PTX sidecar dispatch bridge backed by the external kain-gpu-runtime driver lane"
 
 [[services]]
 key = "ui.component"

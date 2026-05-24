@@ -353,6 +353,30 @@ impl StdLib {
             "Serialize a KAIN value into JSON text",
         );
         lib.add_fn(
+            "json_any_kind",
+            &[("value", "Any")],
+            "Int",
+            "Return the native JSON kind tag for a runtime JSON value",
+        );
+        lib.add_fn(
+            "json_any_to_int",
+            &[("value", "Any")],
+            "Int",
+            "Coerce a runtime JSON value to an integer using native JSON rules",
+        );
+        lib.add_fn(
+            "json_any_to_float",
+            &[("value", "Any")],
+            "Float",
+            "Coerce a runtime JSON value to a float using native JSON rules",
+        );
+        lib.add_fn(
+            "json_any_to_string",
+            &[("value", "Any")],
+            "String",
+            "Coerce a runtime JSON value to a string using native JSON rules",
+        );
+        lib.add_fn(
             "json_get",
             &[("object", "Any"), ("key", "String")],
             "Any",

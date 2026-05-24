@@ -1,0 +1,12 @@
+# build.kn owns the explicit package and task authority for the python blade.
+# This manifest currently carries the blade-local C bridge metadata.
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "python_lab_bridge"
+tier = "inline"
+header = "native/python_lab_bridge.h"
+sources = ["native/python_lab_bridge.c"]
+include_paths = ["native"]
+defines = ["_CRT_SECURE_NO_WARNINGS"]

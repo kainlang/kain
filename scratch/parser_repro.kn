@@ -1,0 +1,9 @@
+fn repro() -> Int:
+    var acc: Int = 0
+    if true:
+        acc = (
+            acc +
+            1 +
+            2
+        )
+    return acc

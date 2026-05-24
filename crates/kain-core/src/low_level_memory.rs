@@ -144,8 +144,8 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) ->
                         }
                         None => None,
                     };
-                let public_type_align =
-                    attr_usize_arg(&st.ast.attributes, PUBLIC_ALIGNED_ATTR).filter(|align| *align > 0);
+                let public_type_align = attr_usize_arg(&st.ast.attributes, PUBLIC_ALIGNED_ATTR)
+                    .filter(|align| *align > 0);
                 let explicit_type_align = match (explicit_type_align, public_type_align) {
                     (Some(internal), Some(public)) => Some(internal.max(public)),
                     (Some(internal), None) => Some(internal),

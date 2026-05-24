@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 pub const KAIN_HOME_ENV_VAR: &str = "KAIN_HOME";
+pub const KAIN_CONFIG_ENV_VAR: &str = "KAIN_CONFIG";
 pub const KAIN_STDLIB_ENV_VAR: &str = "KAIN_STDLIB_PATH";
 pub const KAIN_RUNTIME_C_ENV_VAR: &str = "KAIN_RUNTIME_C_PATH";
 pub const KAIN_RUNTIME_MANIFEST_ENV_VARS: &[&str] =
@@ -43,6 +44,7 @@ const NATIVE_RUNTIME_MANIFEST_CANDIDATE_SUFFIXES: &[&str] = &[
 pub struct KainInstallLayout {
     pub home_dir: PathBuf,
     pub bin_dir: PathBuf,
+    pub config_path: PathBuf,
     pub stdlib_dir: PathBuf,
     pub runtime_dir: PathBuf,
     pub toolchain_dir: PathBuf,
@@ -60,6 +62,7 @@ impl KainInstallLayout {
         Self {
             home_dir: home_dir.clone(),
             bin_dir: home_dir.join("bin"),
+            config_path: home_dir.join("config.toml"),
             stdlib_dir: home_dir.join(STDLIB_DIR_NAME),
             runtime_dir: home_dir.join("runtime"),
             llvm_bin_dir: toolchain_dir.join("llvm").join("bin"),
@@ -109,7 +112,10 @@ pub fn resolve_runtime_c_path() -> Option<PathBuf> {
         return Some(explicit_path);
     }
 
-    find_first_existing_relative_path(&default_resource_search_roots(), RUNTIME_C_CANDIDATE_SUFFIXES)
+    find_first_existing_relative_path(
+        &default_resource_search_roots(),
+        RUNTIME_C_CANDIDATE_SUFFIXES,
+    )
 }
 
 pub fn resolve_native_runtime_manifest_path() -> Option<PathBuf> {
@@ -164,7 +170,10 @@ fn default_resource_search_roots() -> Vec<PathBuf> {
     roots
 }
 
-fn find_first_existing_relative_path(search_roots: &[PathBuf], suffixes: &[&str]) -> Option<PathBuf> {
+fn find_first_existing_relative_path(
+    search_roots: &[PathBuf],
+    suffixes: &[&str],
+) -> Option<PathBuf> {
     for root in search_roots {
         for suffix in suffixes {
             let candidate = root.join(suffix);
@@ -257,10 +266,17 @@ mod tests {
             .unwrap_or_else(|| super::KainInstallLayout::new(PathBuf::from("C:/Users/Test/.kain")));
         let explicit_layout = super::KainInstallLayout::new(layout.home_dir.clone());
 
-        assert_eq!(explicit_layout.bin_dir, explicit_layout.home_dir.join("bin"));
+        assert_eq!(
+            explicit_layout.bin_dir,
+            explicit_layout.home_dir.join("bin")
+        );
         assert_eq!(
             explicit_layout.llvm_bin_dir,
-            explicit_layout.home_dir.join("toolchain").join("llvm").join("bin")
+            explicit_layout
+                .home_dir
+                .join("toolchain")
+                .join("llvm")
+                .join("bin")
         );
         assert_eq!(
             explicit_layout.install_manifest_path,

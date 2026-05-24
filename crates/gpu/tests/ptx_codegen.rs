@@ -89,3 +89,28 @@ shader fragment pixel(position: Vec4) -> Vec4:
     let err = generate_ptx(&typed).expect_err("fragment shader should not lower to PTX");
     assert!(err.to_string().contains("only supports compute shaders"));
 }
+
+#[test]
+fn ptx_supports_min_max_in_compute_kernels() {
+    let src = r#"
+shader compute min_max_kernel(id: UVec3) -> Void:
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+    uniform count: UInt @2
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let safe_count = max(count, UInt(1))
+    let idx = min(id.x, safe_count - UInt(1))
+    dst[idx] = max(src[idx], UInt(7))
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_ptx(&typed).expect("ptx generation with min/max should succeed");
+
+    assert!(ptx.contains(".visible .entry min_max_kernel"));
+    assert!(ptx.contains("setp.lt.u32"));
+    assert!(ptx.contains("selp.u32"));
+}

@@ -7,8 +7,8 @@ use kain_fs as kfs;
 use kain_omni::fabric::FabricSessionStatus;
 use kain_process::{ProcessEnvironmentEntry, ProcessSpec, ProcessStdioMode};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -2714,10 +2714,9 @@ fn main() -> String:
         )
         .unwrap();
 
-        let report = execute_run(
-            &RunRequest::new(Some(entry.clone())).with_target(RunTarget::Llvm),
-        )
-        .unwrap();
+        let report =
+            execute_run(&RunRequest::new(Some(entry.clone())).with_target(RunTarget::Llvm))
+                .unwrap();
 
         assert!(report.is_success());
         assert_eq!(

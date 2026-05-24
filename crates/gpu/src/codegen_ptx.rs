@@ -512,10 +512,9 @@ fn emit_stmt(ctx: &mut PtxContext, stmt: &Stmt) -> KainResult<()> {
             ));
         }
         Stmt::Item(_) => {
-            return Err(KainError::codegen(
-                "PTX backend does not support nested item declarations in shader bodies",
-                Span::default(),
-            ));
+            // Shader-local comptime metadata is consumed before PTX lowering.
+            // Ignore nested items here rather than rejecting otherwise valid
+            // compute kernels that carry residency/planning sidecars.
         }
     }
     Ok(())
@@ -1137,6 +1136,8 @@ fn emit_call(
     span: Span,
 ) -> KainResult<PtxValue> {
     match name {
+        "max" if args.len() == 2 => emit_min_max_call(ctx, args, span, true),
+        "min" if args.len() == 2 => emit_min_max_call(ctx, args, span, false),
         "Float" | "float" if args.len() == 1 => {
             let value = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
             Ok(PtxValue::Scalar(coerce_scalar(
@@ -1175,6 +1176,75 @@ fn emit_call(
             span,
         )),
     }
+}
+
+fn emit_min_max_call(
+    ctx: &mut PtxContext,
+    args: &[CallArg],
+    span: Span,
+    is_max: bool,
+) -> KainResult<PtxValue> {
+    let left = emit_expr(ctx, &args[0].value)?;
+    let right = emit_expr(ctx, &args[1].value)?;
+    match (left, right) {
+        (PtxValue::Scalar(left), PtxValue::Scalar(right)) => Ok(PtxValue::Scalar(
+            emit_min_max_scalar(ctx, left, right, span, is_max)?,
+        )),
+        (PtxValue::Vector(left), PtxValue::Vector(right)) if left.len() == right.len() => {
+            let mut values = Vec::with_capacity(left.len());
+            for (left_lane, right_lane) in left.into_iter().zip(right.into_iter()) {
+                values.push(emit_min_max_scalar(
+                    ctx, left_lane, right_lane, span, is_max,
+                )?);
+            }
+            Ok(PtxValue::Vector(values))
+        }
+        _ => Err(KainError::codegen(
+            "PTX min/max requires scalar-scalar or same-size vector-vector operands",
+            span,
+        )),
+    }
+}
+
+fn emit_min_max_scalar(
+    ctx: &mut PtxContext,
+    left: ScalarValue,
+    right: ScalarValue,
+    span: Span,
+    is_max: bool,
+) -> KainResult<ScalarValue> {
+    let kind = arithmetic_kind(left.kind, right.kind, span)?;
+    let left = coerce_scalar(ctx, left, kind)?;
+    let right = coerce_scalar(ctx, right, kind)?;
+    let pred = ctx.alloc_scalar(PtxScalarKind::Pred);
+    let out = ctx.alloc_scalar(kind);
+    ctx.line(format!(
+        "setp.lt.{} {}, {}, {};",
+        kind.op_suffix(),
+        pred.reg,
+        left.reg,
+        right.reg
+    ));
+    if is_max {
+        ctx.line(format!(
+            "selp.{} {}, {}, {}, {};",
+            kind.op_suffix(),
+            out.reg,
+            right.reg,
+            left.reg,
+            pred.reg
+        ));
+    } else {
+        ctx.line(format!(
+            "selp.{} {}, {}, {}, {};",
+            kind.op_suffix(),
+            out.reg,
+            left.reg,
+            right.reg,
+            pred.reg
+        ));
+    }
+    Ok(out)
 }
 
 fn emit_vector_constructor(

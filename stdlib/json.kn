@@ -28,6 +28,16 @@ pub const JSON_KIND_FLOAT: String = "float"
 pub const JSON_KIND_STRING: String = "string"
 pub const JSON_KIND_OBJECT: String = "object"
 pub const JSON_KIND_ARRAY: String = "array"
+pub const JSON_KIND_UNKNOWN: String = "unknown"
+
+pub const JSON_KIND_CODE_NULL: Int = 0
+pub const JSON_KIND_CODE_BOOL: Int = 1
+pub const JSON_KIND_CODE_INT: Int = 2
+pub const JSON_KIND_CODE_FLOAT: Int = 3
+pub const JSON_KIND_CODE_STRING: Int = 4
+pub const JSON_KIND_CODE_OBJECT: Int = 5
+pub const JSON_KIND_CODE_ARRAY: Int = 6
+pub const JSON_KIND_CODE_UNKNOWN: Int = 7
 
 pub const JSON_STATUS_OK: Int = 0
 pub const JSON_STATUS_MISSING_KEY: Int = 1
@@ -181,19 +191,35 @@ fn json_wrap_value(value: JsonValue) -> JsonObject:
     json_object_set(wrapper, "__value", value)
     return wrapper
 
+fn json_native_kind_name(kind: Int) -> String:
+    if kind == 0:
+        return JSON_KIND_NULL
+    if kind == 1:
+        return JSON_KIND_BOOL
+    if kind == 2:
+        return JSON_KIND_INT
+    if kind == 3:
+        return JSON_KIND_FLOAT
+    if kind == 4:
+        return JSON_KIND_STRING
+    if kind == 5:
+        return JSON_KIND_OBJECT
+    if kind == 6:
+        return JSON_KIND_ARRAY
+    return JSON_KIND_UNKNOWN
+
 fn json_string_value(value: JsonValue) -> String:
-    return json_get_string(json_wrap_value(value), "__value")
+    return json_any_to_string(value)
 
 fn json_int_value(value: JsonValue) -> Int:
-    return json_get_int(json_wrap_value(value), "__value")
+    return json_any_to_int(value)
 
 fn json_float_value(value: JsonValue, actual_kind: String) -> Float:
-    if actual_kind == JSON_KIND_INT:
-        return json_int_value(value) / 1.0
-    return json_get_float(json_wrap_value(value), "__value")
+    let _kind = actual_kind
+    return json_any_to_float(value)
 
 fn json_bool_value(value: JsonValue) -> Bool:
-    return json_get_bool(json_wrap_value(value), "__value")
+    return json_any_to_int(value) != 0
 
 fn json_string_result_error(status: JsonStatus) -> JsonStringResult:
     return JsonStringResult {
@@ -332,11 +358,7 @@ fn json_kind_from_rendered(rendered: String) -> String:
     return JSON_KIND_INT
 
 fn json_kind_from_value(value: JsonValue) -> String:
-    let wrapped = json_stringify(json_wrap_value(value))
-    let prefix = "{\"__value\":"
-    if len(wrapped) <= len(prefix):
-        return JSON_KIND_NULL
-    return json_kind_from_rendered(substring(wrapped, len(prefix), len(wrapped) - 1))
+    return json_native_kind_name(json_any_kind(value))
 
 fn json_rendered_result(value: String) -> JsonStringResult:
     return JsonStringResult {
@@ -422,26 +444,29 @@ pub fn json_get_value(object: JsonObject, key: String) -> JsonValue:
 pub fn json_value_kind(value: JsonValue) -> String:
     return json_kind_from_value(value)
 
+pub fn json_value_kind_code(value: JsonValue) -> Int:
+    return json_any_kind(value)
+
 pub fn json_is_null(value: JsonValue) -> Bool:
-    return json_value_kind(value) == JSON_KIND_NULL
+    return json_value_kind_code(value) == JSON_KIND_CODE_NULL
 
 pub fn json_is_string(value: JsonValue) -> Bool:
-    return json_value_kind(value) == JSON_KIND_STRING
+    return json_value_kind_code(value) == JSON_KIND_CODE_STRING
 
 pub fn json_is_int(value: JsonValue) -> Bool:
-    return json_value_kind(value) == JSON_KIND_INT
+    return json_value_kind_code(value) == JSON_KIND_CODE_INT
 
 pub fn json_is_float(value: JsonValue) -> Bool:
-    return json_value_kind(value) == JSON_KIND_FLOAT
+    return json_value_kind_code(value) == JSON_KIND_CODE_FLOAT
 
 pub fn json_is_bool(value: JsonValue) -> Bool:
-    return json_value_kind(value) == JSON_KIND_BOOL
+    return json_value_kind_code(value) == JSON_KIND_CODE_BOOL
 
 pub fn json_is_object(value: JsonValue) -> Bool:
-    return json_value_kind(value) == JSON_KIND_OBJECT
+    return json_value_kind_code(value) == JSON_KIND_CODE_OBJECT
 
 pub fn json_is_array(value: JsonValue) -> Bool:
-    return json_value_kind(value) == JSON_KIND_ARRAY
+    return json_value_kind_code(value) == JSON_KIND_CODE_ARRAY
 
 pub fn json_string_required(object: JsonObject, key: String) -> String:
     return json_get_string(object, key)
@@ -476,80 +501,88 @@ pub fn json_bool_or(object: JsonObject, key: String, default_value: Bool) -> Boo
     return json_bool_required(object, key)
 
 pub fn json_string_field(object: JsonObject, key: String) -> JsonStringResult:
-    let field = json_field_rendered(object, key)
-    if field.ok == false:
-        return field
-    let actual_kind = json_kind_from_rendered(field.value)
-    if actual_kind != JSON_KIND_STRING:
+    if !json_has_key(object, key):
+        return json_string_result_error(json_missing_key_status(key))
+    let value = json_get_value(object, key)
+    let actual_kind_code = json_value_kind_code(value)
+    if actual_kind_code != JSON_KIND_CODE_STRING:
+        let actual_kind = json_native_kind_name(actual_kind_code)
         return json_string_result_error(json_wrong_kind_status(key, JSON_KIND_STRING, actual_kind, -1))
     return JsonStringResult {
         ok: true,
-        value: json_get_string(object, key),
+        value: json_string_value(value),
         status: json_status_ok()
     }
 
 pub fn json_int_field(object: JsonObject, key: String) -> JsonIntResult:
-    let field = json_field_rendered(object, key)
-    if field.ok == false:
-        return json_int_result_error(field.status)
-    let actual_kind = json_kind_from_rendered(field.value)
-    if actual_kind != JSON_KIND_INT:
+    if !json_has_key(object, key):
+        return json_int_result_error(json_missing_key_status(key))
+    let value = json_get_value(object, key)
+    let actual_kind_code = json_value_kind_code(value)
+    if actual_kind_code != JSON_KIND_CODE_INT:
+        let actual_kind = json_native_kind_name(actual_kind_code)
         return json_int_result_error(json_wrong_kind_status(key, JSON_KIND_INT, actual_kind, -1))
     return JsonIntResult {
         ok: true,
-        value: json_get_int(object, key),
+        value: json_int_value(value),
         status: json_status_ok()
     }
 
 pub fn json_float_field(object: JsonObject, key: String) -> JsonFloatResult:
-    let field = json_field_rendered(object, key)
-    if field.ok == false:
-        return json_float_result_error(field.status)
-    let actual_kind = json_kind_from_rendered(field.value)
-    if actual_kind != JSON_KIND_FLOAT and actual_kind != JSON_KIND_INT:
+    if !json_has_key(object, key):
+        return json_float_result_error(json_missing_key_status(key))
+    let value = json_get_value(object, key)
+    let actual_kind_code = json_value_kind_code(value)
+    if actual_kind_code != JSON_KIND_CODE_FLOAT and actual_kind_code != JSON_KIND_CODE_INT:
+        let actual_kind = json_native_kind_name(actual_kind_code)
         return json_float_result_error(json_wrong_kind_status(key, JSON_KIND_FLOAT, actual_kind, -1))
     return JsonFloatResult {
         ok: true,
-        value: json_get_float(object, key),
+        value: json_float_value(value, json_native_kind_name(actual_kind_code)),
         status: json_status_ok()
     }
 
 pub fn json_bool_field(object: JsonObject, key: String) -> JsonBoolResult:
-    let field = json_field_rendered(object, key)
-    if field.ok == false:
-        return json_bool_result_error(field.status)
-    let actual_kind = json_kind_from_rendered(field.value)
-    if actual_kind != JSON_KIND_BOOL:
+    if !json_has_key(object, key):
+        return json_bool_result_error(json_missing_key_status(key))
+    let value = json_get_value(object, key)
+    let actual_kind_code = json_value_kind_code(value)
+    if actual_kind_code != JSON_KIND_CODE_BOOL:
+        let actual_kind = json_native_kind_name(actual_kind_code)
         return json_bool_result_error(json_wrong_kind_status(key, JSON_KIND_BOOL, actual_kind, -1))
     return JsonBoolResult {
         ok: true,
-        value: json_get_bool(object, key),
+        value: json_bool_value(value),
         status: json_status_ok()
     }
 
 pub fn json_object_field(object: JsonObject, key: String) -> JsonObjectResult:
-    let field = json_field_rendered(object, key)
-    if field.ok == false:
-        return json_object_result_error(field.status)
-    let actual_kind = json_kind_from_rendered(field.value)
-    if actual_kind != JSON_KIND_OBJECT:
+    if !json_has_key(object, key):
+        return json_object_result_error(json_missing_key_status(key))
+    let value = json_get_value(object, key)
+    let actual_kind_code = json_value_kind_code(value)
+    if actual_kind_code != JSON_KIND_CODE_OBJECT:
+        let actual_kind = json_native_kind_name(actual_kind_code)
         return json_object_result_error(json_wrong_kind_status(key, JSON_KIND_OBJECT, actual_kind, -1))
+    let rendered = json_stringify(value)
     return JsonObjectResult {
         ok: true,
-        value: json_parse_text(field.value),
+        value: json_parse_text(rendered),
         status: json_status_ok()
     }
 
 pub fn json_array_field(object: JsonObject, key: String) -> JsonArrayResult:
-    let field = json_field_rendered(object, key)
-    if field.ok == false:
-        return json_array_result_error(field.status)
-    let actual_kind = json_kind_from_rendered(field.value)
-    if actual_kind != JSON_KIND_ARRAY:
+    if !json_has_key(object, key):
+        return json_array_result_error(json_missing_key_status(key))
+    let value = json_get_value(object, key)
+    let actual_kind_code = json_value_kind_code(value)
+    if actual_kind_code != JSON_KIND_CODE_ARRAY:
+        let actual_kind = json_native_kind_name(actual_kind_code)
         return json_array_result_error(json_wrong_kind_status(key, JSON_KIND_ARRAY, actual_kind, -1))
+    let rendered = json_stringify(value)
     return JsonArrayResult {
         ok: true,
-        value: json_parse_text(field.value),
+        value: json_parse_text(rendered),
         status: json_status_ok()
     }
 
@@ -649,8 +682,9 @@ pub fn json_string_array_result(values: JsonArray) -> JsonStringArrayResult:
     var index = 0
     while index < json_array_length(values):
         let value = json_array_value_at(values, index)
-        let actual_kind = json_value_kind(value)
-        if actual_kind != JSON_KIND_STRING:
+        let actual_kind_code = json_value_kind_code(value)
+        if actual_kind_code != JSON_KIND_CODE_STRING:
+            let actual_kind = json_native_kind_name(actual_kind_code)
             return json_string_array_result_error(json_wrong_kind_status("", JSON_KIND_STRING, actual_kind, index))
         push(items, json_string_value(value))
         index = index + 1
@@ -667,8 +701,9 @@ pub fn json_int_array_result(values: JsonArray) -> JsonIntArrayResult:
     var index = 0
     while index < json_array_length(values):
         let value = json_array_value_at(values, index)
-        let actual_kind = json_value_kind(value)
-        if actual_kind != JSON_KIND_INT:
+        let actual_kind_code = json_value_kind_code(value)
+        if actual_kind_code != JSON_KIND_CODE_INT:
+            let actual_kind = json_native_kind_name(actual_kind_code)
             return json_int_array_result_error(json_wrong_kind_status("", JSON_KIND_INT, actual_kind, index))
         push(items, json_int_value(value))
         index = index + 1
@@ -685,10 +720,11 @@ pub fn json_float_array_result(values: JsonArray) -> JsonFloatArrayResult:
     var index = 0
     while index < json_array_length(values):
         let value = json_array_value_at(values, index)
-        let actual_kind = json_value_kind(value)
-        if actual_kind != JSON_KIND_FLOAT and actual_kind != JSON_KIND_INT:
+        let actual_kind_code = json_value_kind_code(value)
+        if actual_kind_code != JSON_KIND_CODE_FLOAT and actual_kind_code != JSON_KIND_CODE_INT:
+            let actual_kind = json_native_kind_name(actual_kind_code)
             return json_float_array_result_error(json_wrong_kind_status("", JSON_KIND_FLOAT, actual_kind, index))
-        push(items, json_float_value(value, actual_kind))
+        push(items, json_float_value(value, json_native_kind_name(actual_kind_code)))
         index = index + 1
     return JsonFloatArrayResult {
         ok: true,
@@ -703,8 +739,9 @@ pub fn json_bool_array_result(values: JsonArray) -> JsonBoolArrayResult:
     var index = 0
     while index < json_array_length(values):
         let value = json_array_value_at(values, index)
-        let actual_kind = json_value_kind(value)
-        if actual_kind != JSON_KIND_BOOL:
+        let actual_kind_code = json_value_kind_code(value)
+        if actual_kind_code != JSON_KIND_CODE_BOOL:
+            let actual_kind = json_native_kind_name(actual_kind_code)
             return json_bool_array_result_error(json_wrong_kind_status("", JSON_KIND_BOOL, actual_kind, index))
         push(items, json_bool_value(value))
         index = index + 1

@@ -314,7 +314,8 @@ fn main() -> Int:
     let default_store_index = lines
         .iter()
         .position(|line| {
-            line.contains("getelementptr inbounds %Banner, %Banner*") && line.contains("i32 0, i32 1")
+            line.contains("getelementptr inbounds %Banner, %Banner*")
+                && line.contains("i32 0, i32 1")
         })
         .expect("main should address the Banner.text field during spawn lowering");
     let default_store_line = lines
@@ -2577,6 +2578,40 @@ fn mutate_items() -> Int:
 }
 
 #[test]
+fn llvm_preserves_any_struct_field_passthrough_when_forwarded_to_any_param() {
+    let source = r#"
+type JsonArray = Any
+
+struct JsonArrayResult:
+    value: JsonArray
+
+fn take(values: JsonArray) -> Int:
+    return json_any_kind(values)
+
+fn forward(result: JsonArrayResult) -> Int:
+    return take(result.value)
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    let start = llvm
+        .find("define internal i64 @forward(")
+        .expect("forward function should exist");
+    let rest = &llvm[start..];
+    let end = rest
+        .find("\n}\n")
+        .map(|offset| start + offset)
+        .unwrap_or_else(|| llvm.len());
+    let forward_body = &llvm[start..end];
+
+    assert!(forward_body.contains("call i64 @take(i64 "));
+    assert!(!forward_body.contains("shl i64"));
+    assert!(!forward_body.contains(" or i64 "));
+}
+
+#[test]
 fn llvm_generates_struct_destructuring_patterns() {
     let point = TypedItem::Struct(TypedStruct {
         ast: Struct {
@@ -2879,8 +2914,9 @@ fn llvm_lowers_println_to_stdout_write() {
 
 #[test]
 fn llvm_lowers_stderr_write_as_native_runtime_call() {
-    let typed =
-        typed_program_from_source("fn main() -> Int:\n    stderr_write(\"llvm-stderr\")\n    return 0\n");
+    let typed = typed_program_from_source(
+        "fn main() -> Int:\n    stderr_write(\"llvm-stderr\")\n    return 0\n",
+    );
 
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
@@ -3390,12 +3426,9 @@ fn main() -> Int:
     let typed = typed_program_from_source(source);
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
-    let parse_byte_ir =
-        llvm_function_ir(&llvm, "define internal i64 @parse_byte(i8* %arg0)");
-    let rebuild_byte_ir =
-        llvm_function_ir(&llvm, "define internal i8* @rebuild_byte(i64 %arg0)");
-    let parse_int_ir =
-        llvm_function_ir(&llvm, "define internal i64 @parse_int_text(i8* %arg0)");
+    let parse_byte_ir = llvm_function_ir(&llvm, "define internal i64 @parse_byte(i8* %arg0)");
+    let rebuild_byte_ir = llvm_function_ir(&llvm, "define internal i8* @rebuild_byte(i64 %arg0)");
+    let parse_int_ir = llvm_function_ir(&llvm, "define internal i64 @parse_int_text(i8* %arg0)");
 
     assert!(
         parse_byte_ir.contains("call i64 @kain_ord(i8*"),
@@ -3435,7 +3468,10 @@ fn pow_bucket(base: Int, exp: Int) -> Int:
         .expect("llvm output should be utf8");
     let boolify_ir = llvm_function_ir(&llvm, "define internal i1 @boolify(double %arg0)");
     let truncate_ir = llvm_function_ir(&llvm, "define internal i64 @truncate(double %arg0)");
-    let pow_ir = llvm_function_ir(&llvm, "define internal i64 @pow_bucket(i64 %arg0, i64 %arg1)");
+    let pow_ir = llvm_function_ir(
+        &llvm,
+        "define internal i64 @pow_bucket(i64 %arg0, i64 %arg1)",
+    );
 
     assert!(
         boolify_ir.contains("fcmp une double %r0, 0.0"),

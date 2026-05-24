@@ -1,0 +1,797 @@
+use std::fs
+use std::json
+
+pub const CUDA_SHADER_BUNDLE_ENV: String = "KAIN_CUDA_SHADER_BUNDLE"
+pub const CUDA_COMPUTE_RESIDENCY_ENV: String = "KAIN_CUDA_COMPUTE_RESIDENCY"
+pub const CUDA_RUNTIME_LIBRARY_ENV: String = "KAIN_GPU_RUNTIME_LIBRARY"
+pub const CUDA_SHADER_BUNDLE_FILE_NAME: String = "kain_shader_bundle.json"
+pub const CUDA_COMPUTE_RESIDENCY_FILE_NAME: String = "kain_compute_residency.json"
+
+pub struct CudaPaths:
+    runtime_library_path: String
+    shader_bundle_path: String
+    compute_residency_path: String
+
+pub struct CudaRuntimeState:
+    driver_available: Bool
+    runtime_library_available: Bool
+    runtime_ready: Bool
+    paths: CudaPaths
+    last_status: Int
+    last_error_kind: String
+    last_error_message: String
+
+pub struct CudaDispatchStats:
+    ok: Bool
+    status: Int
+    message: String
+    compute_key: String
+    shader_bundle_path: String
+    compute_residency_path: String
+    dispatch_invocations: Int
+    tensor_binding_count: Int
+    stream_binding_count: Int
+    neural_node_count: Int
+    output_binding_count: Int
+    total_output_bytes: Int
+
+pub struct CudaBindingLocator:
+    ok: Bool
+    compute_key: String
+    binding_key: String
+    payload_path: String
+    descriptor_kind: String
+    access_mode: String
+    element_type: String
+    slot: Int
+    byte_length: Int
+
+struct CudaTextRange:
+    ok: Bool
+    start: Int
+    end: Int
+
+@extern
+pub fn abi_cuda_driver_available() -> Bool
+
+@extern
+pub fn abi_cuda_runtime_library_available() -> Bool
+
+@extern
+pub fn abi_cuda_runtime_ready() -> Bool
+
+@extern
+pub fn abi_cuda_runtime_library_path() -> String
+
+@extern
+pub fn abi_cuda_shader_bundle_path() -> String
+
+@extern
+pub fn abi_cuda_compute_residency_path() -> String
+
+@extern
+pub fn abi_cuda_dispatch_primary_compute(compute_key: String) -> Int
+
+@extern
+pub fn abi_cuda_dispatch(shader_bundle_path: String, compute_residency_path: String, compute_key: String) -> Int
+
+@extern
+pub fn abi_cuda_last_status() -> Int
+
+@extern
+pub fn abi_cuda_last_error_kind() -> String
+
+@extern
+pub fn abi_cuda_last_error_message() -> String
+
+@extern
+pub fn abi_cuda_last_dispatch_invocations() -> Int
+
+@extern
+pub fn abi_cuda_last_tensor_binding_count() -> Int
+
+@extern
+pub fn abi_cuda_last_stream_binding_count() -> Int
+
+@extern
+pub fn abi_cuda_last_neural_node_count() -> Int
+
+@extern
+pub fn abi_cuda_last_output_binding_count() -> Int
+
+@extern
+pub fn abi_cuda_last_total_output_bytes() -> Int
+
+fn cuda_empty_binding_locator(compute_key: String, binding_key: String) -> CudaBindingLocator:
+    return CudaBindingLocator {
+        ok: false,
+        compute_key: compute_key,
+        binding_key: binding_key,
+        payload_path: "",
+        descriptor_kind: "",
+        access_mode: "",
+        element_type: "",
+        slot: -1,
+        byte_length: 0
+    }
+
+fn cuda_manifest_text(path: String) -> String:
+    if path == "" or fs_exists(path) == false:
+        return ""
+    return fs_read_text(path)
+
+fn cuda_manifest_from_text(text: String) -> JsonObject:
+    if text == "":
+        return json_object()
+    let parsed = json_parse_text(text)
+    if json_is_object(parsed):
+        return parsed
+    return json_object()
+
+fn cuda_compute_entries(manifest: JsonObject) -> JsonArray:
+    let entries = json_array_field(manifest, "compute_shaders")
+    if entries.ok == false:
+        return json_array()
+    return entries.value
+
+fn cuda_compute_entry_from_manifest(manifest: JsonObject, compute_key: String) -> JsonObject:
+    let entries = cuda_compute_entries(manifest)
+    var index = 0
+    while index < json_array_length(entries):
+        let candidate = json_array_value_at(entries, index)
+        let key_field = json_string_field(candidate, "key")
+        if key_field.ok and key_field.value == compute_key:
+            return candidate
+        index = index + 1
+    return json_object()
+
+fn cuda_binding_locator_from_manifest_path(manifest_path: String, manifest: JsonObject, compute_key: String, binding_key: String) -> CudaBindingLocator:
+    let entry = cuda_compute_entry_from_manifest(manifest, compute_key)
+    let bindings_result = json_array_field(entry, "bindings")
+    if bindings_result.ok == false:
+        return cuda_empty_binding_locator(compute_key, binding_key)
+    let root_dir = fs_path_parent(manifest_path)
+    let bindings = bindings_result.value
+    var index = 0
+    while index < json_array_length(bindings):
+        let binding = json_array_value_at(bindings, index)
+        let key_field = json_string_field(binding, "key")
+        if key_field.ok and key_field.value == binding_key:
+            let payload_field = json_string_field(binding, "payload_file")
+            let descriptor_field = json_string_field(binding, "descriptor_kind")
+            let access_field = json_string_field(binding, "access_mode")
+            let element_field = json_string_field(binding, "element_type")
+            let slot_field = json_int_field(binding, "slot")
+            let byte_length_field = json_int_field(binding, "byte_length")
+            if payload_field.ok == false:
+                return cuda_empty_binding_locator(compute_key, binding_key)
+            let descriptor_kind = if descriptor_field.ok: descriptor_field.value else: ""
+            let access_mode = if access_field.ok: access_field.value else: ""
+            let element_type = if element_field.ok: element_field.value else: ""
+            let slot = if slot_field.ok: slot_field.value else: -1
+            let byte_length = if byte_length_field.ok: byte_length_field.value else: 0
+            return CudaBindingLocator {
+                ok: true,
+                compute_key: compute_key,
+                binding_key: binding_key,
+                payload_path: fs_path_join(root_dir, payload_field.value),
+                descriptor_kind: descriptor_kind,
+                access_mode: access_mode,
+                element_type: element_type,
+                slot: slot,
+                byte_length: byte_length
+            }
+        index = index + 1
+    return cuda_empty_binding_locator(compute_key, binding_key)
+
+fn cuda_empty_range() -> CudaTextRange:
+    return CudaTextRange {
+        ok: false,
+        start: -1,
+        end: -1
+    }
+
+fn cuda_range(start: Int, end: Int) -> CudaTextRange:
+    return CudaTextRange {
+        ok: true,
+        start: start,
+        end: end
+    }
+
+fn cuda_is_ws(ch: String) -> Bool:
+    return ch == " " or ch == "\n" or ch == "\r" or ch == "\t"
+
+fn cuda_skip_ws(text: String, start: Int) -> Int:
+    var index = start
+    while index < len(text) and cuda_is_ws(char_at(text, index)):
+        index = index + 1
+    return index
+
+fn cuda_json_string_end(text: String, start: Int) -> Int:
+    var index = start + 1
+    var escaped = false
+    while index < len(text):
+        let ch = char_at(text, index)
+        if escaped:
+            escaped = false
+        else:
+            if ch == "\\":
+                escaped = true
+            else:
+                if ch == "\"":
+                    return index
+        index = index + 1
+    return -1
+
+fn cuda_json_string_literal(text: String, start: Int) -> String:
+    let end = cuda_json_string_end(text, start)
+    if end < 0:
+        return ""
+    return substring(text, start + 1, end)
+
+fn cuda_match_delimited(text: String, start: Int, open_ch: String, close_ch: String) -> Int:
+    var index = start
+    var depth = 0
+    var in_string = false
+    var escaped = false
+    while index < len(text):
+        let ch = char_at(text, index)
+        if in_string:
+            if escaped:
+                escaped = false
+            else:
+                if ch == "\\":
+                    escaped = true
+                else:
+                    if ch == "\"":
+                        in_string = false
+        else:
+            if ch == "\"":
+                in_string = true
+            else:
+                if ch == open_ch:
+                    depth = depth + 1
+                else:
+                    if ch == close_ch:
+                        depth = depth - 1
+                        if depth == 0:
+                            return index
+        index = index + 1
+    return -1
+
+fn cuda_json_scalar_end(text: String, start: Int, limit: Int) -> Int:
+    var index = start
+    while index < limit:
+        let ch = char_at(text, index)
+        if ch == "," or ch == "}" or ch == "]" or cuda_is_ws(ch):
+            return index
+        index = index + 1
+    return limit
+
+fn cuda_root_object_range(text: String) -> CudaTextRange:
+    let start = cuda_skip_ws(text, 0)
+    if start >= len(text) or char_at(text, start) != "{":
+        return cuda_empty_range()
+    let finish = cuda_match_delimited(text, start, "{", "}")
+    if finish < 0:
+        return cuda_empty_range()
+    return cuda_range(start, finish + 1)
+
+fn cuda_object_field_value_start(text: String, object_start: Int, object_end: Int, key: String) -> Int:
+    var index = object_start + 1
+    var object_depth = 1
+    var array_depth = 0
+    while index < object_end:
+        let ch = char_at(text, index)
+        if ch == "\"":
+            let end = cuda_json_string_end(text, index)
+            if end < 0:
+                return -1
+            let literal = substring(text, index + 1, end)
+            let after = cuda_skip_ws(text, end + 1)
+            if object_depth == 1 and array_depth == 0 and literal == key and after < object_end and char_at(text, after) == ":":
+                return cuda_skip_ws(text, after + 1)
+            index = end + 1
+        else:
+            if ch == "{":
+                object_depth = object_depth + 1
+            else:
+                if ch == "}":
+                    object_depth = object_depth - 1
+                else:
+                    if ch == "[":
+                        array_depth = array_depth + 1
+                    else:
+                        if ch == "]":
+                            array_depth = array_depth - 1
+            index = index + 1
+    return -1
+
+fn cuda_object_field_range(text: String, object_start: Int, object_end: Int, key: String) -> CudaTextRange:
+    let value_start = cuda_object_field_value_start(text, object_start, object_end, key)
+    if value_start < 0 or value_start >= object_end:
+        return cuda_empty_range()
+    let ch = char_at(text, value_start)
+    if ch == "\"":
+        let finish = cuda_json_string_end(text, value_start)
+        if finish < 0:
+            return cuda_empty_range()
+        return cuda_range(value_start, finish + 1)
+    if ch == "{":
+        let finish = cuda_match_delimited(text, value_start, "{", "}")
+        if finish < 0:
+            return cuda_empty_range()
+        return cuda_range(value_start, finish + 1)
+    if ch == "[":
+        let finish = cuda_match_delimited(text, value_start, "[", "]")
+        if finish < 0:
+            return cuda_empty_range()
+        return cuda_range(value_start, finish + 1)
+    let finish = cuda_json_scalar_end(text, value_start, object_end)
+    if finish <= value_start:
+        return cuda_empty_range()
+    return cuda_range(value_start, finish)
+
+fn cuda_field_string_in_object(text: String, object_start: Int, object_end: Int, key: String) -> String:
+    let field = cuda_object_field_range(text, object_start, object_end, key)
+    if field.ok == false or char_at(text, field.start) != "\"":
+        return ""
+    return cuda_json_string_literal(text, field.start)
+
+fn cuda_field_int_in_object(text: String, object_start: Int, object_end: Int, key: String) -> Int:
+    let field = cuda_object_field_range(text, object_start, object_end, key)
+    if field.ok == false:
+        return 0
+    let scalar = substring(text, field.start, field.end)
+    if scalar == "":
+        return 0
+    return to_int(scalar)
+
+fn cuda_field_array_in_object(text: String, object_start: Int, object_end: Int, key: String) -> CudaTextRange:
+    let field = cuda_object_field_range(text, object_start, object_end, key)
+    if field.ok == false or char_at(text, field.start) != "[":
+        return cuda_empty_range()
+    return field
+
+fn cuda_next_object_in_array(text: String, array_range: CudaTextRange, cursor: Int) -> CudaTextRange:
+    var index = cursor
+    while index < array_range.end:
+        index = cuda_skip_ws(text, index)
+        if index >= array_range.end:
+            return cuda_empty_range()
+        let ch = char_at(text, index)
+        if ch == ",":
+            index = index + 1
+        else:
+            if ch != "{":
+                return cuda_empty_range()
+            let finish = cuda_match_delimited(text, index, "{", "}")
+            if finish < 0:
+                return cuda_empty_range()
+            return cuda_range(index, finish + 1)
+    return cuda_empty_range()
+
+fn cuda_compute_shaders_range_from_text(text: String) -> CudaTextRange:
+    let root = cuda_root_object_range(text)
+    if root.ok == false:
+        return cuda_empty_range()
+    return cuda_field_array_in_object(text, root.start, root.end, "compute_shaders")
+
+fn cuda_compute_entry_range_from_text(text: String, compute_key: String) -> CudaTextRange:
+    let entries = cuda_compute_shaders_range_from_text(text)
+    if entries.ok == false:
+        return cuda_empty_range()
+    var cursor = entries.start + 1
+    while true:
+        let entry = cuda_next_object_in_array(text, entries, cursor)
+        if entry.ok == false:
+            return cuda_empty_range()
+        if cuda_field_string_in_object(text, entry.start, entry.end, "key") == compute_key:
+            return entry
+        cursor = entry.end
+    return cuda_empty_range()
+
+fn cuda_binding_range_from_text(text: String, compute_key: String, binding_key: String) -> CudaTextRange:
+    let entry = cuda_compute_entry_range_from_text(text, compute_key)
+    if entry.ok == false:
+        return cuda_empty_range()
+    let bindings = cuda_field_array_in_object(text, entry.start, entry.end, "bindings")
+    if bindings.ok == false:
+        return cuda_empty_range()
+    var cursor = bindings.start + 1
+    while true:
+        let binding = cuda_next_object_in_array(text, bindings, cursor)
+        if binding.ok == false:
+            return cuda_empty_range()
+        if cuda_field_string_in_object(text, binding.start, binding.end, "key") == binding_key:
+            return binding
+        cursor = binding.end
+    return cuda_empty_range()
+
+fn cuda_zero_bytes(count: Int) -> Array<Int>:
+    let safe_count = if count > 0: count else: 0
+    let mut bytes: Array<Int> = []
+    var index = 0
+    while index < safe_count:
+        push(bytes, 0)
+        index = index + 1
+    return bytes
+
+fn cuda_hex_from_bytes(bytes: Array<Int>) -> String:
+    var hex = ""
+    var index = 0
+    while index < len(bytes):
+        let byte = bytes[index] & 255
+        let hi = (byte >> 4) & 15
+        let lo = byte & 15
+        hex = hex + substring("0123456789abcdef", hi, hi + 1)
+        hex = hex + substring("0123456789abcdef", lo, lo + 1)
+        index = index + 1
+    return hex
+
+fn cuda_zero_hex(byte_count: Int) -> String:
+    let safe_count = if byte_count > 0: byte_count else: 0
+    var hex = ""
+    var index = 0
+    while index < safe_count:
+        hex = hex + "00"
+        index = index + 1
+    return hex
+
+fn cuda_dispatch_stats(compute_key: String) -> CudaDispatchStats:
+    return CudaDispatchStats {
+        ok: abi_cuda_last_status() == 0,
+        status: abi_cuda_last_status(),
+        message: abi_cuda_last_error_message(),
+        compute_key: compute_key,
+        shader_bundle_path: abi_cuda_shader_bundle_path(),
+        compute_residency_path: abi_cuda_compute_residency_path(),
+        dispatch_invocations: abi_cuda_last_dispatch_invocations(),
+        tensor_binding_count: abi_cuda_last_tensor_binding_count(),
+        stream_binding_count: abi_cuda_last_stream_binding_count(),
+        neural_node_count: abi_cuda_last_neural_node_count(),
+        output_binding_count: abi_cuda_last_output_binding_count(),
+        total_output_bytes: abi_cuda_last_total_output_bytes()
+    }
+
+pub fn cuda_paths() -> CudaPaths:
+    return CudaPaths {
+        runtime_library_path: abi_cuda_runtime_library_path(),
+        shader_bundle_path: abi_cuda_shader_bundle_path(),
+        compute_residency_path: abi_cuda_compute_residency_path()
+    }
+
+pub fn cuda_runtime_state() -> CudaRuntimeState:
+    return CudaRuntimeState {
+        driver_available: abi_cuda_driver_available(),
+        runtime_library_available: abi_cuda_runtime_library_available(),
+        runtime_ready: abi_cuda_runtime_ready(),
+        paths: cuda_paths(),
+        last_status: abi_cuda_last_status(),
+        last_error_kind: abi_cuda_last_error_kind(),
+        last_error_message: abi_cuda_last_error_message()
+    }
+
+pub fn cuda_driver_available() -> Bool:
+    return abi_cuda_driver_available()
+
+pub fn cuda_runtime_library_available() -> Bool:
+    return abi_cuda_runtime_library_available()
+
+pub fn cuda_runtime_ready() -> Bool:
+    return abi_cuda_runtime_ready()
+
+pub fn cuda_runtime_library_path() -> String:
+    return abi_cuda_runtime_library_path()
+
+pub fn cuda_shader_bundle_path() -> String:
+    return abi_cuda_shader_bundle_path()
+
+pub fn cuda_compute_residency_path() -> String:
+    return abi_cuda_compute_residency_path()
+
+pub fn cuda_last_status() -> Int:
+    return abi_cuda_last_status()
+
+pub fn cuda_last_error_kind() -> String:
+    return abi_cuda_last_error_kind()
+
+pub fn cuda_last_error_message() -> String:
+    return abi_cuda_last_error_message()
+
+pub fn cuda_compute_manifest_from_path(path: String) -> JsonObject:
+    return cuda_manifest_from_text(cuda_manifest_text(path))
+
+pub fn cuda_compute_manifest() -> JsonObject:
+    return cuda_compute_manifest_from_path(cuda_compute_residency_path())
+
+pub fn cuda_manifest_debug_from_path(path: String) -> String:
+    let text = cuda_manifest_text(path)
+    let root = cuda_root_object_range(text)
+    let entries = cuda_compute_shaders_range_from_text(text)
+    var report = ""
+    report = report + "text_len=" + to_string(len(text)) + "\n"
+    report = report + "root_ok=" + to_string(bool_to_int(root.ok)) + "\n"
+    report = report + "entries_ok=" + to_string(bool_to_int(entries.ok)) + "\n"
+    if entries.ok:
+        report = report + "entries_span=" + to_string(entries.start) + ":" + to_string(entries.end) + "\n"
+        let first = cuda_next_object_in_array(text, entries, entries.start + 1)
+        report = report + "first_entry_ok=" + to_string(bool_to_int(first.ok)) + "\n"
+        if first.ok:
+            report = report + "first_entry_key=" + cuda_field_string_in_object(text, first.start, first.end, "key") + "\n"
+            let bindings = cuda_field_array_in_object(text, first.start, first.end, "bindings")
+            report = report + "first_bindings_ok=" + to_string(bool_to_int(bindings.ok)) + "\n"
+            if bindings.ok:
+                report = report + "first_bindings_span=" + to_string(bindings.start) + ":" + to_string(bindings.end) + "\n"
+        var cursor = entries.start + 1
+        var iter = 0
+        while true:
+            let entry = cuda_next_object_in_array(text, entries, cursor)
+            if entry.ok == false:
+                break
+            report = report + "iter_key[" + to_string(iter) + "]=" + cuda_field_string_in_object(text, entry.start, entry.end, "key") + "\n"
+            iter = iter + 1
+            cursor = entry.end
+        report = report + "iter_count=" + to_string(iter) + "\n"
+    return report
+
+pub fn cuda_manifest_debug() -> String:
+    return cuda_manifest_debug_from_path(cuda_compute_residency_path())
+
+pub fn cuda_compute_keys_from_path(path: String) -> Array<String>:
+    let text = cuda_manifest_text(path)
+    let mut keys: Array<String> = []
+    let entries = cuda_compute_shaders_range_from_text(text)
+    if entries.ok == false:
+        return keys
+    var cursor = entries.start + 1
+    while true:
+        let entry = cuda_next_object_in_array(text, entries, cursor)
+        if entry.ok == false:
+            return keys
+        let key = cuda_field_string_in_object(text, entry.start, entry.end, "key")
+        if key != "":
+            push(keys, key)
+        cursor = entry.end
+    return keys
+
+pub fn cuda_compute_keys() -> Array<String>:
+    return cuda_compute_keys_from_path(cuda_compute_residency_path())
+
+pub fn cuda_has_compute_key_from_path(path: String, compute_key: String) -> Bool:
+    let text = cuda_manifest_text(path)
+    return cuda_compute_entry_range_from_text(text, compute_key).ok
+
+pub fn cuda_has_compute_key(compute_key: String) -> Bool:
+    return cuda_has_compute_key_from_path(cuda_compute_residency_path(), compute_key)
+
+pub fn cuda_first_compute_key_from_path(path: String) -> String:
+    let keys = cuda_compute_keys_from_path(path)
+    if len(keys) == 0:
+        return ""
+    return keys[0]
+
+pub fn cuda_first_compute_key() -> String:
+    return cuda_first_compute_key_from_path(cuda_compute_residency_path())
+
+pub fn cuda_binding_keys_from_path(path: String, compute_key: String) -> Array<String>:
+    let text = cuda_manifest_text(path)
+    let mut keys: Array<String> = []
+    let entry = cuda_compute_entry_range_from_text(text, compute_key)
+    if entry.ok == false:
+        return keys
+    let bindings = cuda_field_array_in_object(text, entry.start, entry.end, "bindings")
+    if bindings.ok == false:
+        return keys
+    var cursor = bindings.start + 1
+    while true:
+        let binding = cuda_next_object_in_array(text, bindings, cursor)
+        if binding.ok == false:
+            return keys
+        let key = cuda_field_string_in_object(text, binding.start, binding.end, "key")
+        if key != "":
+            push(keys, key)
+        cursor = binding.end
+    return keys
+
+pub fn cuda_binding_keys(compute_key: String) -> Array<String>:
+    return cuda_binding_keys_from_path(cuda_compute_residency_path(), compute_key)
+
+pub fn cuda_output_binding_keys_from_path(path: String, compute_key: String) -> Array<String>:
+    let text = cuda_manifest_text(path)
+    let mut keys: Array<String> = []
+    let entry = cuda_compute_entry_range_from_text(text, compute_key)
+    if entry.ok == false:
+        return keys
+    let bindings = cuda_field_array_in_object(text, entry.start, entry.end, "bindings")
+    if bindings.ok == false:
+        return keys
+    var cursor = bindings.start + 1
+    while true:
+        let binding = cuda_next_object_in_array(text, bindings, cursor)
+        if binding.ok == false:
+            return keys
+        let key = cuda_field_string_in_object(text, binding.start, binding.end, "key")
+        let access_mode = cuda_field_string_in_object(text, binding.start, binding.end, "access_mode")
+        if key != "" and (access_mode == "write" or access_mode == "read_write"):
+            push(keys, key)
+        cursor = binding.end
+    return keys
+
+pub fn cuda_output_binding_keys(compute_key: String) -> Array<String>:
+    return cuda_output_binding_keys_from_path(cuda_compute_residency_path(), compute_key)
+
+pub fn cuda_binding_locator_from_path(path: String, compute_key: String, binding_key: String) -> CudaBindingLocator:
+    let text = cuda_manifest_text(path)
+    let binding = cuda_binding_range_from_text(text, compute_key, binding_key)
+    if binding.ok == false:
+        return cuda_empty_binding_locator(compute_key, binding_key)
+    let root_dir = fs_path_parent(path)
+    let payload_file = cuda_field_string_in_object(text, binding.start, binding.end, "payload_file")
+    if payload_file == "":
+        return cuda_empty_binding_locator(compute_key, binding_key)
+    return CudaBindingLocator {
+        ok: true,
+        compute_key: compute_key,
+        binding_key: binding_key,
+        payload_path: fs_path_join(root_dir, payload_file),
+        descriptor_kind: cuda_field_string_in_object(text, binding.start, binding.end, "descriptor_kind"),
+        access_mode: cuda_field_string_in_object(text, binding.start, binding.end, "access_mode"),
+        element_type: cuda_field_string_in_object(text, binding.start, binding.end, "element_type"),
+        slot: cuda_field_int_in_object(text, binding.start, binding.end, "slot"),
+        byte_length: cuda_field_int_in_object(text, binding.start, binding.end, "byte_length")
+    }
+
+pub fn cuda_binding_locator(compute_key: String, binding_key: String) -> CudaBindingLocator:
+    let path = cuda_compute_residency_path()
+    return cuda_binding_locator_from_path(path, compute_key, binding_key)
+
+pub fn cuda_binding_payload_path_from_path(path: String, compute_key: String, binding_key: String) -> String:
+    let locator = cuda_binding_locator_from_path(path, compute_key, binding_key)
+    if locator.ok == false:
+        return ""
+    return locator.payload_path
+
+pub fn cuda_binding_payload_path(compute_key: String, binding_key: String) -> String:
+    return cuda_binding_payload_path_from_path(cuda_compute_residency_path(), compute_key, binding_key)
+
+pub fn cuda_binding_payload_bytes_from_path(path: String, compute_key: String, binding_key: String) -> Array<Int>:
+    let locator = cuda_binding_locator_from_path(path, compute_key, binding_key)
+    if locator.ok == false or locator.payload_path == "" or fs_exists(locator.payload_path) == false:
+        return []
+    return fs_read_bytes(locator.payload_path)
+
+pub fn cuda_binding_payload_bytes(compute_key: String, binding_key: String) -> Array<Int>:
+    return cuda_binding_payload_bytes_from_path(cuda_compute_residency_path(), compute_key, binding_key)
+
+pub fn cuda_write_binding_payload_bytes_from_path(path: String, compute_key: String, binding_key: String, bytes: Array<Int>) -> Bool:
+    let locator = cuda_binding_locator_from_path(path, compute_key, binding_key)
+    if locator.ok == false or locator.payload_path == "":
+        return false
+    fs_write_bytes_hex(locator.payload_path, cuda_hex_from_bytes(bytes))
+    return true
+
+pub fn cuda_write_binding_payload_bytes(compute_key: String, binding_key: String, bytes: Array<Int>) -> Bool:
+    return cuda_write_binding_payload_bytes_from_path(cuda_compute_residency_path(), compute_key, binding_key, bytes)
+
+pub fn cuda_zero_binding_payload_from_path(path: String, compute_key: String, binding_key: String) -> Bool:
+    let locator = cuda_binding_locator_from_path(path, compute_key, binding_key)
+    if locator.ok == false:
+        return false
+    fs_write_bytes_hex(locator.payload_path, cuda_zero_hex(locator.byte_length))
+    return true
+
+pub fn cuda_zero_binding_payload(compute_key: String, binding_key: String) -> Bool:
+    return cuda_zero_binding_payload_from_path(cuda_compute_residency_path(), compute_key, binding_key)
+
+pub fn cuda_zero_output_payloads_from_path(path: String, compute_key: String) -> Int:
+    let text = cuda_manifest_text(path)
+    let entry = cuda_compute_entry_range_from_text(text, compute_key)
+    var zeroed = 0
+    if entry.ok == false:
+        return zeroed
+    let bindings = cuda_field_array_in_object(text, entry.start, entry.end, "bindings")
+    if bindings.ok == false:
+        return zeroed
+    let root_dir = fs_path_parent(path)
+    var cursor = bindings.start + 1
+    while true:
+        let binding = cuda_next_object_in_array(text, bindings, cursor)
+        if binding.ok == false:
+            return zeroed
+        let residency_role = cuda_field_string_in_object(text, binding.start, binding.end, "residency_role")
+        let payload_file = cuda_field_string_in_object(text, binding.start, binding.end, "payload_file")
+        let byte_length = cuda_field_int_in_object(text, binding.start, binding.end, "byte_length")
+        if payload_file != "" and (residency_role == "output" or residency_role == "required_output"):
+            fs_write_bytes_hex(fs_path_join(root_dir, payload_file), cuda_zero_hex(byte_length))
+            zeroed = zeroed + 1
+        cursor = binding.end
+    return zeroed
+
+pub fn cuda_zero_output_payloads(compute_key: String) -> Int:
+    return cuda_zero_output_payloads_from_path(cuda_compute_residency_path(), compute_key)
+
+pub fn cuda_copy_binding_payload_from_path(path: String, from_compute_key: String, from_binding_key: String, to_compute_key: String, to_binding_key: String) -> Bool:
+    let src = cuda_binding_locator_from_path(path, from_compute_key, from_binding_key)
+    let dst = cuda_binding_locator_from_path(path, to_compute_key, to_binding_key)
+    if src.ok == false or dst.ok == false or src.payload_path == "" or dst.payload_path == "":
+        return false
+    fs_copy_file(src.payload_path, dst.payload_path)
+    return true
+
+pub fn cuda_copy_binding_payload(from_compute_key: String, from_binding_key: String, to_compute_key: String, to_binding_key: String) -> Bool:
+    return cuda_copy_binding_payload_from_path(
+        cuda_compute_residency_path(),
+        from_compute_key,
+        from_binding_key,
+        to_compute_key,
+        to_binding_key
+    )
+
+pub fn cuda_pack_u32_le(value: Int) -> Array<Int>:
+    let lane = value & 4294967295
+    return [
+        lane & 255,
+        (lane >> 8) & 255,
+        (lane >> 16) & 255,
+        (lane >> 24) & 255
+    ]
+
+pub fn cuda_pack_i32_le(value: Int) -> Array<Int>:
+    return cuda_pack_u32_le(value)
+
+pub fn cuda_pack_u32_array_le(values: Array<Int>) -> Array<Int>:
+    let mut bytes: Array<Int> = []
+    var index = 0
+    while index < len(values):
+        let lane = cuda_pack_u32_le(values[index])
+        push(bytes, lane[0])
+        push(bytes, lane[1])
+        push(bytes, lane[2])
+        push(bytes, lane[3])
+        index = index + 1
+    return bytes
+
+pub fn cuda_pack_i32_array_le(values: Array<Int>) -> Array<Int>:
+    return cuda_pack_u32_array_le(values)
+
+pub fn cuda_unpack_u32_le(bytes: Array<Int>, offset: Int) -> Int:
+    if offset < 0 or offset + 3 >= len(bytes):
+        return 0
+    let byte0 = bytes[offset + 0] & 255
+    let byte1 = bytes[offset + 1] & 255
+    let byte2 = bytes[offset + 2] & 255
+    let byte3 = bytes[offset + 3] & 255
+    return (byte0 | (byte1 << 8) | (byte2 << 16) | (byte3 << 24)) & 4294967295
+
+pub fn cuda_unpack_u32_array_le(bytes: Array<Int>) -> Array<Int>:
+    let mut values: Array<Int> = []
+    var offset = 0
+    while offset + 3 < len(bytes):
+        push(values, cuda_unpack_u32_le(bytes, offset))
+        offset = offset + 4
+    return values
+
+pub fn cuda_unpack_i32_array_le(bytes: Array<Int>) -> Array<Int>:
+    return cuda_unpack_u32_array_le(bytes)
+
+pub fn cuda_dispatch_primary_compute(compute_key: String) -> CudaDispatchStats:
+    let _status = abi_cuda_dispatch_primary_compute(compute_key)
+    return cuda_dispatch_stats(compute_key)
+
+pub fn cuda_dispatch(shader_bundle_path: String, compute_residency_path: String, compute_key: String) -> CudaDispatchStats:
+    let _status = abi_cuda_dispatch(shader_bundle_path, compute_residency_path, compute_key)
+    return CudaDispatchStats {
+        ok: abi_cuda_last_status() == 0,
+        status: abi_cuda_last_status(),
+        message: abi_cuda_last_error_message(),
+        compute_key: compute_key,
+        shader_bundle_path: shader_bundle_path,
+        compute_residency_path: compute_residency_path,
+        dispatch_invocations: abi_cuda_last_dispatch_invocations(),
+        tensor_binding_count: abi_cuda_last_tensor_binding_count(),
+        stream_binding_count: abi_cuda_last_stream_binding_count(),
+        neural_node_count: abi_cuda_last_neural_node_count(),
+        output_binding_count: abi_cuda_last_output_binding_count(),
+        total_output_bytes: abi_cuda_last_total_output_bytes()
+    }

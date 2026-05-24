@@ -1,0 +1,320 @@
+use std::actor
+use std::fs
+use std::intent
+use std::json
+use std::python
+use std::runtime
+use c::python_lab_bridge
+
+import fastmcp as fastmcp
+import numpy as np
+import pygame as pygame
+import torch as torch
+import z3 as z3
+import python_lab.bridge as py_lab
+from python_lab.bridge import fastmcp_name as py_fastmcp_name
+from python_lab.bridge import module_digest as py_module_digest
+from python_lab.bridge import pygame_driver_name as py_pygame_driver_name
+from python_lab.bridge import pygame_surface_signature as py_pygame_surface_signature
+from python_lab.bridge import pygame_surface_signature_default as py_pygame_surface_signature_default
+from python_lab.bridge import solve_lane_plan_default as py_solve_lane_plan_default
+from python_lab.bridge import tensor_signature as py_tensor_signature
+from python_lab.bridge import tensor_tail as py_tensor_tail
+
+const PYTHON_LAB_MODULUS: Int = 1000000007
+const PYTHON_LAB_CONFIG_PATH: String = "data/lab_config.json"
+const PYTHON_LAB_ROUTE_WIDTH: Int = 4
+const PYTHON_LAB_PYGAME_CHANNELS: Int = 3
+
+component PythonInteropPanel():
+    render <panel title="Kain Python Lab // C + Torch + Z3 + Pygame" />
+
+world PythonInteropAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state health: Int = 100
+    state module_score: Int = 0
+    state route_score: Int = 0
+    state surface_score: Int = 0
+    state native_score: Int = 0
+    surface native_ui => PythonInteropPanel
+
+world PythonInteropMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state health_copy: Int = 100
+    state module_score_copy: Int = 0
+    state route_score_copy: Int = 0
+    state surface_score_copy: Int = 0
+    state native_score_copy: Int = 0
+    surface web => PythonInteropPanel
+
+entangle PythonInteropAuthority.signal <-> PythonInteropMirror.signal_copy with single_writer
+entangle PythonInteropAuthority.epoch <-> PythonInteropMirror.epoch_copy with single_writer
+entangle PythonInteropAuthority.health <-> PythonInteropMirror.health_copy with single_writer
+entangle PythonInteropAuthority.module_score <-> PythonInteropMirror.module_score_copy with single_writer
+entangle PythonInteropAuthority.route_score <-> PythonInteropMirror.route_score_copy with single_writer
+entangle PythonInteropAuthority.surface_score <-> PythonInteropMirror.surface_score_copy with single_writer
+entangle PythonInteropAuthority.native_score <-> PythonInteropMirror.native_score_copy with single_writer
+
+shatter struct PythonInteropShard:
+    bias: Int
+    phase: Int
+    salt: Int
+    hot: Bool
+
+actor PythonInteropRelay:
+    state bias: Int = 29
+    state turns: Int = 0
+
+    on Fold(reply_to: P, request: Int):
+        self.turns = self.turns + 1
+        let native_mix = python_lab_bridge_mix(request + self.bias + self.turns, self.bias + 17)
+        send reply_to.Reply(value = native_mix % PYTHON_LAB_MODULUS)
+
+law python_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < PYTHON_LAB_MODULUS
+
+patch commit_python_signal(authority: PythonInteropAuthority, value: Int, module_score: Int, route_score: Int, surface_score: Int, native_score: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.health = authority.health + 1
+    authority.module_score = module_score
+    authority.route_score = route_score
+    authority.surface_score = surface_score
+    authority.native_score = native_score
+    return authority.signal
+
+fn config_text() -> String:
+    return fs_read_text(PYTHON_LAB_CONFIG_PATH)
+
+fn config_plan(plan_text: String) -> Any:
+    return json_parse_text(plan_text)
+
+fn config_int(plan: Any, key: String, fallback: Int) -> Int:
+    return json_int_or(plan, key, fallback)
+
+fn config_string(plan: Any, key: String, fallback: String) -> String:
+    return json_string_or(plan, key, fallback)
+
+fn module_probe_lane(plan: Any, plan_text: String) -> Int:
+    let module_score = to_int(py_module_digest(plan_text))
+    if module_score <= 0:
+        return 10
+
+    let preview_samples = config_int(plan, "preview_samples", 5)
+    let preview = python_call_attr_raw(np, "linspace", [0.0, 1.0, preview_samples])
+    let preview_info = kain_tensor_info(python_tensor_shared(preview))
+    if preview_info.shape[0] != preview_samples:
+        return 11
+
+    let torch_preview = python_call_attr_raw(torch, "arange", [0, preview_samples])
+    let torch_preview_info = kain_tensor_info(python_tensor_shared(torch_preview))
+    if torch_preview_info.shape[0] != preview_samples:
+        return 12
+
+    if to_string(python_getattr_raw(py_lab, "__name__")) != "python_lab.bridge":
+        return 13
+    if to_string(python_getattr_raw(torch, "__name__")) != "torch":
+        return 14
+    if to_string(python_getattr_raw(z3, "__name__")) != "z3":
+        return 15
+    if to_string(python_getattr_raw(pygame, "__name__")) != "pygame":
+        return 16
+
+    let direct_solver = python_call_attr_raw(z3, "Solver", [])
+    if python_hasattr(direct_solver, "check") == false:
+        return 17
+
+    let route_text = to_string(py_solve_lane_plan_default(plan_text))
+    let route_plan = json_parse_text(route_text)
+    let route_result = json_int_array_field_result(route_plan, "route")
+    if route_result.ok == false:
+        return 18
+    let route = route_result.value
+    if len(route) != PYTHON_LAB_ROUTE_WIDTH:
+        return 19
+    let route_native = python_lab_bridge_fold4(route[0], route[1], route[2], route[3])
+    if route_native <= 0:
+        return 20
+
+    let pygame_signature = to_int(py_pygame_surface_signature_default(plan_text))
+    if pygame_signature <= 0:
+        return 21
+
+    let direct_color = python_call_attr_raw(pygame, "Color", [17, 19, 23])
+    if to_int(python_getattr_raw(direct_color, "g")) != 19:
+        return 22
+
+    let server_name = config_string(plan, "fastmcp_server_name", "kain-python-lab")
+    let direct_app = python_call_attr_raw(fastmcp, "FastMCP", [server_name])
+    if to_string(python_getattr_raw(direct_app, "name")) != server_name:
+        return 23
+    if to_string(py_fastmcp_name(plan_text)) != server_name:
+        return 24
+
+    let driver_name = to_string(py_pygame_driver_name(plan_text))
+    if json_bool_or(plan, "pygame_use_display", true) and driver_name == "":
+        return 25
+    return 0
+
+fn tensor_semantics_lane(plan: Any, plan_text: String) -> Int with Unsafe:
+    let authority = PythonInteropAuthority
+    let relay_bias = config_int(plan, "relay_bias", 29)
+    let relay = spawn PythonInteropRelay(bias = relay_bias)
+    let rounds = config_int(plan, "rounds", 4)
+    let rows = config_int(plan, "tensor_rows", 3)
+    let cols = config_int(plan, "tensor_cols", 4)
+    let authority_seed = config_int(plan, "authority_seed", 17)
+    let teleport_bias = config_int(plan, "teleport_bias", 5)
+    let teleport_phase = config_int(plan, "teleport_phase", 11)
+    let teleport_salt = config_int(plan, "teleport_salt", 19)
+    let pygame_width = config_int(plan, "pygame_width", 96)
+    let pygame_height = config_int(plan, "pygame_height", 72)
+    let pygame_frames = config_int(plan, "pygame_frames", 9)
+    let module_score = to_int(py_module_digest(plan_text))
+
+    if rounds <= 0 or rows <= 1 or cols <= 1:
+        return 30
+
+    // ============================================================================
+    //                       numpy + torch ownership hot lane
+    // ============================================================================
+    // The Python objects stay live and ecosystem-shaped.
+    // Kain still decides mutation windows, actor pressure, world state, and native fusion.
+    let mut cells: ptr<Int> = alloc_zeroed(rounds, "Int")
+    var checksum: Int = authority_seed
+    var last_signal: Int = authority_seed
+    var lane_error: Int = 0
+    let _warm = ask(relay, "Fold", authority_seed)
+
+    collapse cells:
+        var round: Int = 0
+        while round < rounds and lane_error == 0:
+            let shard = PythonInteropShard {
+                bias: teleport_bias + round,
+                phase: teleport_phase + (round * 2),
+                salt: teleport_salt + (round * 3),
+                hot: (round & 1) == 0
+            }
+            let moved = teleport shard from PythonInteropAuthority to PythonInteropMirror via python_tensor_bus
+
+            let numpy_signal = python_call_attr_raw(py_lab, "make_numpy_grid", [plan_text, moved.bias + round])
+            let shared_numpy = python_tensor_shared(numpy_signal)
+            let shared_numpy_info = kain_tensor_info(shared_numpy)
+            if to_string(shared_numpy_info.ownership) != "shared":
+                lane_error = 31
+            else:
+                if shared_numpy_info.shape[0] != rows or shared_numpy_info.shape[1] != cols:
+                    lane_error = 32
+                else:
+                    let numpy_signature_before = to_int(py_tensor_signature(numpy_signal))
+                    let row = round % rows
+                    let col = (round + moved.phase) % cols
+                    let write_value = to_float((moved.bias * 7) + moved.phase + moved.salt + round)
+                    kain_tensor_set(shared_numpy, [row, col], write_value)
+                    let numpy_signature_after = to_int(py_tensor_signature(numpy_signal))
+                    if numpy_signature_after == numpy_signature_before:
+                        lane_error = 33
+                    else:
+                        let torch_signal = python_call_attr_raw(py_lab, "make_torch_grid", [plan_text, moved.salt + round])
+                        let shared_torch = python_tensor_shared(torch_signal)
+                        let shared_torch_info = kain_tensor_info(shared_torch)
+                        if to_string(shared_torch_info.ownership) != "shared":
+                            lane_error = 34
+                        else:
+                            if shared_torch_info.shape[0] != rows or shared_torch_info.shape[1] != cols:
+                                lane_error = 35
+                            else:
+                                let torch_row = (round + 1) % rows
+                                let torch_col = (round + moved.bias) % cols
+                                kain_tensor_set(shared_torch, [torch_row, torch_col], write_value + 0.5)
+                                let torch_signature_after = to_int(py_tensor_signature(torch_signal))
+                                let native_bias = python_lab_bridge_bias(numpy_signature_after)
+                                let native_mix = python_lab_bridge_mix(
+                                    numpy_signature_after + native_bias,
+                                    torch_signature_after + pygame_frames
+                                )
+                                let native_fold = python_lab_bridge_fold4(
+                                    numpy_signature_after,
+                                    torch_signature_after,
+                                    native_mix,
+                                    native_bias
+                                )
+                                let native_route = python_lab_bridge_window_route(
+                                    pygame_width,
+                                    pygame_height,
+                                    pygame_frames,
+                                    native_fold
+                                )
+                                let native_score = (native_bias + native_mix + native_fold + native_route) % PYTHON_LAB_MODULUS
+                                let actor_reply = ask(relay, "Fold", native_score + moved.phase + round)
+                                let owned_numpy = python_tensor_owned(numpy_signal)
+                                let owned_numpy_info = kain_tensor_info(owned_numpy)
+                                if to_string(owned_numpy_info.ownership) != "owned":
+                                    lane_error = 36
+                                else:
+                                    let detached_before = to_int(py_tensor_signature(numpy_signal))
+                                    kain_tensor_set(owned_numpy, [0, 0], 999.0 + round)
+                                    let detached_after = to_int(py_tensor_signature(numpy_signal))
+                                    if detached_after != detached_before:
+                                        lane_error = 37
+                                    else:
+                                        let torch_export_tail = to_int(py_tensor_tail(python_tensor_to(shared_torch, "torch")))
+                                        let signal = commit_python_signal(
+                                            authority,
+                                            (checksum + numpy_signature_after + torch_signature_after + actor_reply + native_score) % PYTHON_LAB_MODULUS,
+                                            module_score,
+                                            torch_signature_after,
+                                            torch_export_tail,
+                                            native_score
+                                        )
+                                        if python_signal_in_bounds(signal) == false:
+                                            lane_error = 38
+                                        else:
+                                            checksum = (checksum + signal + numpy_signature_after + torch_signature_after + actor_reply + torch_export_tail) % PYTHON_LAB_MODULUS
+                                            last_signal = signal
+                                            mem_store(ptr_offset(cells, round, "Int"), checksum, "Int")
+            if lane_error == 0:
+                round = round + 1
+        0
+
+    if lane_error != 0:
+        decay cells
+        return lane_error
+
+    decay cells
+    return 0
+
+fn main() -> Int with Unsafe:
+    let authority = PythonInteropAuthority
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let plan_text = config_text()
+    let plan = config_plan(plan_text)
+
+    let module_status = module_probe_lane(plan, plan_text)
+    if module_status != 0:
+        let shutdown_early = runtime_shutdown()
+        if shutdown_early != 0:
+            return 200 + shutdown_early
+        return module_status
+
+    let tensor_status = tensor_semantics_lane(plan, plan_text)
+    if tensor_status != 0:
+        let shutdown_tensor = runtime_shutdown()
+        if shutdown_tensor != 0:
+            return 300 + shutdown_tensor
+        return tensor_status
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 500 + shutdown
+    if authority.surface_score <= 0:
+        return 66
+    if authority.native_score <= 0:
+        return 67
+    return 0
+

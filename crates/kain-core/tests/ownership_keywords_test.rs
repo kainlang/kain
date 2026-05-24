@@ -120,6 +120,27 @@ fn non_native_backends_reject_ownership_expressions_before_codegen() {
 }
 
 #[test]
+fn parser_accepts_multiline_parenthesized_binary_expressions_inside_collapse_scopes() {
+    let source = r#"fn own(count: Int) -> Int:
+    let mut cells: ptr<Int> = alloc_zeroed(count, "Int")
+    var checksum: Int = 0
+    collapse cells:
+        mem_store(cells, 7, "Int")
+        checksum = (
+            checksum +
+            mem_load(cells, "Int") +
+            5
+        )
+        0
+    decay cells
+    return checksum
+"#;
+
+    parse_and_typecheck(source)
+        .expect("multiline grouped arithmetic inside collapse should typecheck");
+}
+
+#[test]
 fn machine_stones_typecheck_and_teleport_poison_origin() {
     let valid = r#"axiom native_atomic_mask_truth:
     when target("llvm")

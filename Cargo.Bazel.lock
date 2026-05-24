@@ -1,5 +1,5 @@
 {
-  "checksum": "adc531e01af5f991ce6213a655ae040159b0b024228cfce174d9cc12b9ef4e1c",
+  "checksum": "038597e84321b1b33d3b9c2ffbcbb286e8336e39100b57d3c196571170d6bffc",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -16301,6 +16301,61 @@
       ],
       "license_file": null
     },
+    "kain-clean 0.1.0": {
+      "name": "kain-clean",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_clean",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_clean",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "serde 1.0.209",
+              "target": "serde"
+            },
+            {
+              "id": "thiserror 1.0.69",
+              "target": "thiserror"
+            }
+          ],
+          "selects": {}
+        },
+        "deps_dev": {
+          "common": [
+            {
+              "id": "tempfile 3.25.0",
+              "target": "tempfile"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": null
+    },
     "kain-codebase 0.1.0": {
       "name": "kain-codebase",
       "version": "0.1.0",
@@ -16548,6 +16603,10 @@
             {
               "id": "tokio 1.48.0",
               "target": "tokio"
+            },
+            {
+              "id": "toml 0.8.23",
+              "target": "toml"
             }
           ],
           "selects": {}
@@ -16970,6 +17029,15 @@
             {
               "id": "thiserror 1.0.69",
               "target": "thiserror"
+            }
+          ],
+          "selects": {}
+        },
+        "deps_dev": {
+          "common": [
+            {
+              "id": "tempfile 3.25.0",
+              "target": "tempfile"
             }
           ],
           "selects": {}
@@ -48389,6 +48457,7 @@
     "kain-build 0.1.0": "crates/kain-build",
     "kain-c-ffi 0.1.0": "crates/kain-c-ffi",
     "kain-check 0.1.0": "crates/kain-check",
+    "kain-clean 0.1.0": "crates/kain-clean",
     "kain-codebase 0.1.0": "crates/kain-codebase",
     "kain-commands 0.1.0": "crates/kain-commands",
     "kain-core 0.1.0": "crates/kain-core",

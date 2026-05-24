@@ -30,7 +30,7 @@ const DEFAULT_PROFILE: &str = "debug";
 const DEFAULT_ARTIFACT_ROOT: &str = ".kain/out";
 const DEFAULT_CACHE_ROOT: &str = ".kain/cache/build";
 const DEFAULT_REPORT_ROOT: &str = ".kain/reports/build";
-const BUILD_ADAPTER_VERSION: &str = "kain-build-v6";
+const BUILD_ADAPTER_VERSION: &str = "kain-build-v7";
 const BUILD_ARTIFACT_SCHEMA_VERSION: u32 = 2;
 
 pub type BuildResult<T> = Result<T, BuildError>;
@@ -41,6 +41,8 @@ pub enum BuildError {
     Io(#[from] std::io::Error),
     #[error("filesystem error: {0}")]
     Fs(#[from] kain_fs::FsError),
+    #[error("clean error: {0}")]
+    Clean(#[from] kain_clean::CleanError),
     #[error("blade workspace error: {0}")]
     Blade(#[from] BladeError),
     #[error("Fabric error: {0}")]
@@ -190,6 +192,20 @@ pub struct BuildTask {
     pub cacheable: bool,
     #[serde(skip)]
     adapter: BuildTaskAdapter,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct NativeRuntimeManifestCacheInputs {
+    #[serde(default)]
+    sources: Vec<PathBuf>,
+    #[serde(default)]
+    windows_sources: Vec<PathBuf>,
+    #[serde(default)]
+    linux_sources: Vec<PathBuf>,
+    #[serde(default)]
+    macos_sources: Vec<PathBuf>,
+    #[serde(default)]
+    include_dirs: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -1628,7 +1644,9 @@ fn extract_build_graph_explicit_tasks(source: &str) -> Vec<KainBuildTaskSection>
                         }
                     }
                     "archive" => {
-                        let enabled = values.first().map_or(true, |value| parse_bool_string(value));
+                        let enabled = values
+                            .first()
+                            .map_or(true, |value| parse_bool_string(value));
                         task.options.insert(
                             "storage".to_string(),
                             if enabled { "archive" } else { "editable" }.to_string(),
@@ -2183,6 +2201,7 @@ fn build_explicit_task(
             if !inputs.iter().any(|path| path == &script_path) {
                 inputs.push(script_path.clone());
             }
+            append_native_runtime_cache_inputs(&mut inputs, root)?;
             BuildTaskAdapter::NativeExecutable {
                 entry,
                 output,
@@ -2364,14 +2383,12 @@ fn build_explicit_task(
             let program = task.command.clone().ok_or_else(|| {
                 BuildError::Config(format!("exec task '{}' requires command", task.id))
             })?;
-            let stdout_path = task
-                .options
-                .get("stdout")
-                .map(|path| resolve_build_graph_path(&config.workspace_root, root, &task_root, Path::new(path)));
-            let stderr_path = task
-                .options
-                .get("stderr")
-                .map(|path| resolve_build_graph_path(&config.workspace_root, root, &task_root, Path::new(path)));
+            let stdout_path = task.options.get("stdout").map(|path| {
+                resolve_build_graph_path(&config.workspace_root, root, &task_root, Path::new(path))
+            });
+            let stderr_path = task.options.get("stderr").map(|path| {
+                resolve_build_graph_path(&config.workspace_root, root, &task_root, Path::new(path))
+            });
             let timeout_ms = task
                 .options
                 .get("timeout_ms")
@@ -3980,10 +3997,13 @@ fn run_fabric(manifest_path: &Path, run: bool) -> BuildResult<String> {
     }
 }
 
-fn build_amalgamate_task_settings(task: &KainBuildTaskSection) -> BuildResult<AmalgamateTaskSettings> {
+fn build_amalgamate_task_settings(
+    task: &KainBuildTaskSection,
+) -> BuildResult<AmalgamateTaskSettings> {
     Ok(AmalgamateTaskSettings {
         storage: parse_capsule_storage_option(task, "storage")?.unwrap_or(CapsuleStorage::Editable),
-        contents: parse_capsule_contents_option(task, "contents")?.unwrap_or(CapsuleContents::Source),
+        contents: parse_capsule_contents_option(task, "contents")?
+            .unwrap_or(CapsuleContents::Source),
         name: task.options.get("name").cloned(),
         capsule_set: task.options.get("capsule_set").cloned(),
         version: task.options.get("version").cloned(),
@@ -4277,10 +4297,9 @@ fn run_captured_command(
     let stderr_reader = child.stderr.take().map(spawn_output_reader);
     let start = Instant::now();
     let (status, timed_out) = loop {
-        if let Some(status) = child
-            .try_wait()
-            .map_err(|err| BuildError::Command(format!("failed while waiting for {label}: {err}")))?
-        {
+        if let Some(status) = child.try_wait().map_err(|err| {
+            BuildError::Command(format!("failed while waiting for {label}: {err}"))
+        })? {
             break (status, false);
         }
         if let Some(timeout_ms) = timeout_ms {
@@ -4329,7 +4348,9 @@ fn join_output_reader(
         .join()
         .map_err(|_| BuildError::Command(format!("{label} {stream_name} reader panicked")))?
         .map_err(|err| {
-            BuildError::Command(format!("failed to capture {stream_name} for {label}: {err}"))
+            BuildError::Command(format!(
+                "failed to capture {stream_name} for {label}: {err}"
+            ))
         })?;
     Ok(String::from_utf8_lossy(&bytes).to_string())
 }
@@ -4599,9 +4620,9 @@ fn validate_plan_safety(plan: &BladeBuildPlan) -> BuildResult<()> {
             }
         }
     }
-    ensure_safe_clean_root(&plan.workspace_root, &plan.artifact_root)?;
-    ensure_safe_clean_root(&plan.workspace_root, &plan.cache_root)?;
-    ensure_safe_clean_root(&plan.workspace_root, &plan.report_root)?;
+    kain_clean::ensure_safe_clean_root(&plan.workspace_root, &plan.artifact_root)?;
+    kain_clean::ensure_safe_clean_root(&plan.workspace_root, &plan.cache_root)?;
+    kain_clean::ensure_safe_clean_root(&plan.workspace_root, &plan.report_root)?;
     Ok(())
 }
 
@@ -5039,57 +5060,20 @@ fn find_clang(workspace_root: &Path) -> BuildResult<PathBuf> {
 }
 
 fn clean_build_roots(plan: &BladeBuildPlan) -> BuildResult<()> {
-    for root in [&plan.artifact_root, &plan.cache_root, &plan.report_root] {
-        if root.exists() {
-            ensure_safe_clean_root(&plan.workspace_root, root)?;
-            kfs::remove_dir_all(root)?;
-        }
-    }
-    Ok(())
-}
-
-fn ensure_safe_clean_root(workspace_root: &Path, root: &Path) -> BuildResult<()> {
-    let workspace_raw = if workspace_root.is_absolute() {
-        workspace_root.to_path_buf()
-    } else {
-        std::env::current_dir()?.join(workspace_root)
-    };
-    let workspace = PathBuf::from(kfs::canonicalize_path(&workspace_raw)?);
-    let target_raw = if root.is_absolute() {
-        root.to_path_buf()
-    } else {
-        workspace_raw.join(root)
-    };
-    let target = kfs::canonicalize_path(&target_raw)
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| target_raw.clone());
-    if paths_equivalent(&target, &workspace)
-        || (!path_starts_with_equivalent(&target, &workspace)
-            && !path_starts_with_equivalent(&target, &workspace_raw))
-    {
-        return Err(BuildError::Config(format!(
-            "refusing to clean build path outside workspace: {}",
-            root.display()
-        )));
-    }
-    if !target
-        .components()
-        .any(|component| component.as_os_str() == std::ffi::OsStr::new(".kain"))
-    {
-        return Err(BuildError::Config(format!(
-            "refusing to clean non-.kain build path: {}",
-            root.display()
-        )));
-    }
+    let _ = kain_clean::clean_paths(
+        &plan.workspace_root,
+        vec![
+            plan.artifact_root.clone(),
+            plan.cache_root.clone(),
+            plan.report_root.clone(),
+        ],
+        false,
+    )?;
     Ok(())
 }
 
 fn paths_equivalent(left: &Path, right: &Path) -> bool {
     comparable_path(left) == comparable_path(right)
-}
-
-fn path_starts_with_equivalent(path: &Path, base: &Path) -> bool {
-    path.starts_with(base) || comparable_path(path).starts_with(&comparable_path(base))
 }
 
 fn comparable_path(path: &Path) -> String {
@@ -5199,6 +5183,192 @@ fn find_lang_projects_compile_script(start: &Path) -> PathBuf {
         }
     }
     start.join(relative)
+}
+
+fn append_native_runtime_cache_inputs(inputs: &mut Vec<PathBuf>, start: &Path) -> BuildResult<()> {
+    let manifest_path = find_native_runtime_manifest(start);
+    if !inputs.iter().any(|path| path == &manifest_path) {
+        inputs.push(manifest_path.clone());
+    }
+    if !manifest_path.exists() {
+        return Ok(());
+    }
+    for path in collect_native_runtime_cache_inputs(&manifest_path)? {
+        if !inputs.iter().any(|existing| existing == &path) {
+            inputs.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn find_native_runtime_manifest(start: &Path) -> PathBuf {
+    for ancestor in start.ancestors() {
+        for suffix in kain_core::install_layout::native_runtime_manifest_candidate_suffixes() {
+            let candidate = ancestor.join(suffix);
+            if candidate.exists() {
+                return canonicalize_input_path(&candidate);
+            }
+        }
+    }
+    if let Some(candidate) = kain_core::install_layout::resolve_native_runtime_manifest_path() {
+        return canonicalize_input_path(&candidate);
+    }
+    let fallback = kain_core::install_layout::native_runtime_manifest_candidate_suffixes()
+        .first()
+        .copied()
+        .unwrap_or("runtime/native_core_runtime.toml");
+    start.join(fallback)
+}
+
+fn collect_native_runtime_cache_inputs(manifest_path: &Path) -> BuildResult<Vec<PathBuf>> {
+    let manifest_source = kfs::read_text(manifest_path)?;
+    let manifest: NativeRuntimeManifestCacheInputs =
+        toml::from_str(&manifest_source).map_err(|error| {
+            BuildError::Config(format!(
+                "unable to parse native runtime manifest {}: {}",
+                manifest_path.display(),
+                error
+            ))
+        })?;
+    let platform_sources = current_platform_native_runtime_sources(&manifest);
+    if manifest.sources.is_empty() && platform_sources.is_empty() {
+        return Err(BuildError::Config(format!(
+            "native runtime manifest {} does not declare any sources",
+            manifest_path.display()
+        )));
+    }
+    let manifest_dir = manifest_path.parent().ok_or_else(|| {
+        BuildError::Config(format!(
+            "native runtime manifest {} has no parent directory",
+            manifest_path.display()
+        ))
+    })?;
+    let source_paths = manifest
+        .sources
+        .iter()
+        .chain(platform_sources.iter())
+        .map(|path| canonicalize_input_path(&resolve_runtime_manifest_path(manifest_dir, path)))
+        .collect::<Vec<_>>();
+    for source_path in &source_paths {
+        if !source_path.exists() {
+            return Err(BuildError::Config(format!(
+                "native runtime source {} does not exist",
+                source_path.display()
+            )));
+        }
+    }
+    let include_dirs = manifest
+        .include_dirs
+        .iter()
+        .map(|path| canonicalize_input_path(&resolve_runtime_manifest_path(manifest_dir, path)))
+        .collect::<Vec<_>>();
+    for include_dir in &include_dirs {
+        if !include_dir.exists() {
+            return Err(BuildError::Config(format!(
+                "native runtime include directory {} does not exist",
+                include_dir.display()
+            )));
+        }
+    }
+    let mut resolved_inputs = source_paths.clone();
+    resolved_inputs.extend(include_dirs.clone());
+    resolved_inputs.extend(discover_native_runtime_local_include_inputs(
+        &source_paths,
+        &include_dirs,
+    )?);
+    Ok(dedup_paths(resolved_inputs))
+}
+
+fn current_platform_native_runtime_sources(
+    manifest: &NativeRuntimeManifestCacheInputs,
+) -> &[PathBuf] {
+    if cfg!(windows) {
+        &manifest.windows_sources
+    } else if cfg!(target_os = "macos") {
+        &manifest.macos_sources
+    } else {
+        &manifest.linux_sources
+    }
+}
+
+fn resolve_runtime_manifest_path(root: &Path, value: &Path) -> PathBuf {
+    if value.is_absolute() {
+        value.to_path_buf()
+    } else {
+        root.join(value)
+    }
+}
+
+fn discover_native_runtime_local_include_inputs(
+    source_paths: &[PathBuf],
+    include_dirs: &[PathBuf],
+) -> BuildResult<Vec<PathBuf>> {
+    let mut visited = BTreeSet::new();
+    let mut discovered = Vec::new();
+    let mut pending = source_paths.to_vec();
+    while let Some(path) = pending.pop() {
+        let normalized = canonicalize_input_path(&path);
+        let key = normalized.display().to_string();
+        if !visited.insert(key) || !normalized.is_file() {
+            continue;
+        }
+        let source = kfs::read_text(&normalized)?;
+        for include_path in parse_quoted_include_paths(&source) {
+            let Some(resolved) =
+                resolve_native_runtime_quoted_include(&normalized, &include_path, include_dirs)
+            else {
+                continue;
+            };
+            let resolved = canonicalize_input_path(&resolved);
+            if !path_is_within_any_dir(&resolved, include_dirs)
+                && !discovered.iter().any(|existing| existing == &resolved)
+            {
+                discovered.push(resolved.clone());
+            }
+            pending.push(resolved);
+        }
+    }
+    Ok(discovered)
+}
+
+fn parse_quoted_include_paths(source: &str) -> Vec<PathBuf> {
+    source
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim_start();
+            let rest = trimmed.strip_prefix("#include \"")?;
+            let end = rest.find('"')?;
+            Some(PathBuf::from(&rest[..end]))
+        })
+        .collect()
+}
+
+fn resolve_native_runtime_quoted_include(
+    owner: &Path,
+    include_path: &Path,
+    include_dirs: &[PathBuf],
+) -> Option<PathBuf> {
+    if let Some(parent) = owner.parent() {
+        let candidate = parent.join(include_path);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    for include_dir in include_dirs {
+        let candidate = include_dir.join(include_path);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn path_is_within_any_dir(path: &Path, dirs: &[PathBuf]) -> bool {
+    dirs.iter().any(|dir| path.starts_with(dir))
+}
+
+fn canonicalize_input_path(path: &Path) -> PathBuf {
+    PathBuf::from(kfs::canonicalize_path(path).unwrap_or_else(|_| path.display().to_string()))
 }
 
 fn resolve_build_graph_path(
@@ -5562,7 +5732,9 @@ fn build(ctx: BuildContext) -> BuildGraph:
                 name: "smoketest_visualizer_bridge".to_string(),
                 header: workspace_root.join("native/smoketest_visualizer_bridge.h"),
                 sources: vec![workspace_root.join("native/smoketest_visualizer_bridge.c")],
-                shared_lib: Some(workspace_root.join(".kain/native/smoketest_visualizer_bridge.obj")),
+                shared_lib: Some(
+                    workspace_root.join(".kain/native/smoketest_visualizer_bridge.obj"),
+                ),
                 include_paths: vec![workspace_root.join("native")],
                 defines: vec!["_CRT_SECURE_NO_WARNINGS".to_string()],
                 link_libs: vec![
@@ -5676,7 +5848,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
             Some("32")
         );
         assert_eq!(
-            by_id["smoketest-capsule"].meta.get("album").map(String::as_str),
+            by_id["smoketest-capsule"]
+                .meta
+                .get("album")
+                .map(String::as_str),
             Some("smoketest")
         );
     }
@@ -6064,9 +6239,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
             capsule_task.options.get("capsule_set").map(String::as_str),
             Some("smoketest")
         );
-        assert!(resolved_capsule.outputs.iter().any(|path| {
-            path.file_name().and_then(OsStr::to_str) == Some("smoketest.kn")
-        }));
+        assert!(resolved_capsule
+            .outputs
+            .iter()
+            .any(|path| { path.file_name().and_then(OsStr::to_str) == Some("smoketest.kn") }));
         assert!(resolved_capsule.outputs.iter().any(|path| {
             path.file_name().and_then(OsStr::to_str) == Some("kain-amalgamate.json")
         }));
@@ -6098,7 +6274,12 @@ fn build(ctx: BuildContext) -> BuildGraph:
         let root = workspace_root;
         let task_root = Path::new(r"\\?\D:\Kain-Lang\smoketest\.kain\out\task");
         assert_eq!(
-            resolve_build_graph_string_value(workspace_root, root, task_root, "$root/telemetry/attrition"),
+            resolve_build_graph_string_value(
+                workspace_root,
+                root,
+                task_root,
+                "$root/telemetry/attrition"
+            ),
             r"D:\Kain-Lang\smoketest\telemetry\attrition"
         );
         assert_eq!(
@@ -6134,6 +6315,109 @@ fn build(ctx: BuildContext) -> BuildGraph:
             .inputs
             .iter()
             .any(|path| path.ends_with("compile_kain_project_to_root.ps1")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn native_executable_task_stamp_changes_when_runtime_header_changes() {
+        let root = unique_test_dir("native-executable-runtime-cache");
+        std::fs::create_dir_all(root.join("src")).expect("create src");
+        std::fs::write(
+            root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("write source");
+        std::fs::create_dir_all(
+            root.join(".agents")
+                .join("skills")
+                .join("lang-projects")
+                .join("scripts"),
+        )
+        .expect("create script dir");
+        std::fs::write(
+            root.join(".agents")
+                .join("skills")
+                .join("lang-projects")
+                .join("scripts")
+                .join("compile_kain_project_to_root.ps1"),
+            "# stub\n",
+        )
+        .expect("write helper script");
+        std::fs::create_dir_all(root.join("runtime").join("native").join("include"))
+            .expect("create include dir");
+        std::fs::create_dir_all(root.join("runtime").join("native").join("src").join("core"))
+            .expect("create runtime source dir");
+        std::fs::write(
+            root.join("runtime").join("native_core_runtime.toml"),
+            r#"
+name = "test-runtime"
+sources = ["native/src/core/probe.c"]
+include_dirs = ["native/include"]
+"#,
+        )
+        .expect("write runtime manifest");
+        std::fs::write(
+            root.join("runtime")
+                .join("native")
+                .join("include")
+                .join("probe.h"),
+            "#define PROBE_VALUE 7\n",
+        )
+        .expect("write public header");
+        let local_header = root
+            .join("runtime")
+            .join("native")
+            .join("src")
+            .join("core")
+            .join("probe_local.h");
+        std::fs::write(&local_header, "#define PROBE_LOCAL 11\n").expect("write local header");
+        std::fs::write(
+            root.join("runtime")
+                .join("native")
+                .join("src")
+                .join("core")
+                .join("probe.c"),
+            "#include \"../../include/probe.h\"\n#include \"probe_local.h\"\nint probe_value(void) { return PROBE_VALUE + PROBE_LOCAL; }\n",
+        )
+        .expect("write runtime source");
+
+        let config = test_workspace_config(&root);
+        let task = KainBuildTaskSection {
+            id: "root-exe".to_string(),
+            kind: "native-executable".to_string(),
+            entry: Some(PathBuf::from("src/main.kn")),
+            outputs: vec![PathBuf::from("$root/bin/probe.exe")],
+            ..KainBuildTaskSection::default()
+        };
+        let resolved =
+            build_explicit_task(&config, None, &root, &task).expect("build native exe task");
+        assert!(resolved
+            .inputs
+            .iter()
+            .any(|path| path.ends_with(Path::new("probe_local.h"))));
+        assert!(resolved
+            .inputs
+            .iter()
+            .any(|path| path.ends_with(Path::new("runtime").join("native_core_runtime.toml"))));
+
+        let plan = BladeBuildPlan {
+            schema_version: BUILD_ARTIFACT_SCHEMA_VERSION,
+            workspace_root: config.workspace_root.clone(),
+            artifact_root: config.artifact_root.clone(),
+            cache_root: config.cache_root.clone(),
+            report_root: config.report_root.clone(),
+            host: config.host.clone(),
+            lane: config.lane,
+            profile: config.profile.clone(),
+            target: config.target.clone(),
+            build_graph: None,
+            tasks: vec![resolved.clone()],
+        };
+        let before = task_stamp(&resolved, &plan).expect("stamp before");
+        std::fs::write(&local_header, "#define PROBE_LOCAL 29\n").expect("rewrite local header");
+        let after = task_stamp(&resolved, &plan).expect("stamp after");
+        assert_ne!(before, after);
+
         let _ = std::fs::remove_dir_all(root);
     }
 

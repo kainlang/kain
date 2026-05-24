@@ -13,6 +13,10 @@
 
 #define KAIN_RC_TYPE_PY_OBJECT  UINT64_C(0x4b50594f424a0001)
 #define KAIN_RC_TYPE_PY_TENSOR  UINT64_C(0x4b505954454e0001)
+#define KAIN_RC_TYPE_PY_IMAGE   UINT64_C(0x4b5059494d470001)
+#define KAIN_PY_JSON_INT(value)  ((((int64_t)(value)) << 3) | 1LL)
+#define KAIN_PY_JSON_BOOL(value) ((((int64_t)((value) != 0)) << 3) | 2LL)
+#define KAIN_PY_JSON_NULL        4LL
 
 typedef intptr_t Py_ssize_t;
 typedef struct _object PyObject;
@@ -78,6 +82,25 @@ typedef struct {
 } KainPythonTensorHandle;
 
 typedef struct {
+    PyObject* object;
+    long long* shape;
+    long long ndim;
+    long long batch;
+    long long width;
+    long long height;
+    long long channels;
+    long long pixel_count;
+    long long byte_length;
+    long long row_stride;
+    int zero_copy;
+    char ownership[8];
+    char dtype[24];
+    char layout[8];
+    char storage[16];
+    char source_backend[16];
+} KainPythonImageHandle;
+
+typedef struct {
     int active;
     PyGILState_STATE state;
 } KainPythonGilScope;
@@ -90,6 +113,7 @@ void KAIN_set_destructor(void* ptr, void (*dtor)(void*));
 void rc_release(void* ptr);
 long long py_getattr_raw(long long target, char* name);
 long long kain_tensor_from_py_shared(long long target);
+long long kain_image_from_py_shared(long long target);
 
 static int kain_py_trace_enabled(void) {
 #ifdef _WIN32
@@ -589,6 +613,435 @@ static void kain_py_tensor_destructor(void* payload) {
     kain_py_gil_exit(&scope);
 }
 
+static int kain_py_small_channel_count(long long value) {
+    return value >= 1 && value <= 4;
+}
+
+static const char* kain_py_storage_from_dtype(const char* dtype) {
+    if (!dtype || !dtype[0]) {
+        return "unknown";
+    }
+    if (strcmp(dtype, "uint8") == 0 || strcmp(dtype, "ubyte") == 0) {
+        return "u8";
+    }
+    if (strcmp(dtype, "uint16") == 0) {
+        return "u16";
+    }
+    if (strcmp(dtype, "int32") == 0) {
+        return "i32";
+    }
+    if (strcmp(dtype, "uint32") == 0) {
+        return "u32";
+    }
+    if (strcmp(dtype, "int64") == 0) {
+        return "i64";
+    }
+    if (strcmp(dtype, "uint64") == 0) {
+        return "u64";
+    }
+    if (strcmp(dtype, "float32") == 0) {
+        return "f32";
+    }
+    if (strcmp(dtype, "float64") == 0 || strcmp(dtype, "double") == 0) {
+        return "f64";
+    }
+    if (strcmp(dtype, "bool") == 0 || strcmp(dtype, "bool_") == 0) {
+        return "bool";
+    }
+    return dtype;
+}
+
+static int kain_py_copy_python_text(PyObject* object, char* dest, size_t dest_size) {
+    PyObject* text_obj;
+    const char* utf8;
+    if (!object || !dest || dest_size == 0u) {
+        return 0;
+    }
+    text_obj = g_kain_python_api.PyObject_Str(object);
+    if (!text_obj) {
+        kain_py_clear_error();
+        return 0;
+    }
+    utf8 = g_kain_python_api.PyUnicode_AsUTF8(text_obj);
+    if (!utf8) {
+        kain_py_clear_error();
+        g_kain_python_api.Py_DecRef(text_obj);
+        return 0;
+    }
+    strncpy_s(dest, dest_size, utf8, _TRUNCATE);
+    g_kain_python_api.Py_DecRef(text_obj);
+    return 1;
+}
+
+static int kain_py_copy_attr_text(PyObject* object, const char* name, char* dest, size_t dest_size) {
+    PyObject* attr;
+    int ok;
+    if (!object || !name || !dest || dest_size == 0u) {
+        return 0;
+    }
+    attr = g_kain_python_api.PyObject_GetAttrString(object, name);
+    if (!attr) {
+        kain_py_clear_error();
+        return 0;
+    }
+    ok = kain_py_copy_python_text(attr, dest, dest_size);
+    g_kain_python_api.Py_DecRef(attr);
+    return ok;
+}
+
+static long long kain_py_attr_int(PyObject* object, const char* name, long long fallback) {
+    PyObject* attr;
+    PyObject* coerced;
+    long long value = fallback;
+    if (!object || !name) {
+        return fallback;
+    }
+    attr = g_kain_python_api.PyObject_GetAttrString(object, name);
+    if (!attr) {
+        kain_py_clear_error();
+        return fallback;
+    }
+    coerced = g_kain_python_api.PyNumber_Long(attr);
+    if (coerced) {
+        value = g_kain_python_api.PyLong_AsLongLong(coerced);
+        g_kain_python_api.Py_DecRef(coerced);
+    } else {
+        kain_py_clear_error();
+    }
+    g_kain_python_api.Py_DecRef(attr);
+    return value;
+}
+
+static int kain_py_read_shape(PyObject* object, long long** out_shape, long long* out_ndim) {
+    PyObject* shape_obj;
+    Py_ssize_t shape_len;
+    Py_ssize_t index;
+    long long* shape = NULL;
+    if (out_shape) {
+        *out_shape = NULL;
+    }
+    if (out_ndim) {
+        *out_ndim = 0;
+    }
+    if (!object) {
+        return 0;
+    }
+    shape_obj = g_kain_python_api.PyObject_GetAttrString(object, "shape");
+    if (!shape_obj) {
+        kain_py_clear_error();
+        return 0;
+    }
+    shape_len = g_kain_python_api.PySequence_Size(shape_obj);
+    if (shape_len < 0) {
+        kain_py_clear_error();
+        g_kain_python_api.Py_DecRef(shape_obj);
+        return 0;
+    }
+    if (shape_len > 0) {
+        shape = (long long*)calloc((size_t)shape_len, sizeof(long long));
+        if (!shape) {
+            g_kain_python_api.Py_DecRef(shape_obj);
+            return 0;
+        }
+        for (index = 0; index < shape_len; ++index) {
+            PyObject* item = g_kain_python_api.PySequence_GetItem(shape_obj, index);
+            if (!item) {
+                kain_py_clear_error();
+                free(shape);
+                g_kain_python_api.Py_DecRef(shape_obj);
+                return 0;
+            }
+            {
+                PyObject* coerced = g_kain_python_api.PyNumber_Long(item);
+                g_kain_python_api.Py_DecRef(item);
+                if (!coerced) {
+                    kain_py_clear_error();
+                    free(shape);
+                    g_kain_python_api.Py_DecRef(shape_obj);
+                    return 0;
+                }
+                shape[index] = g_kain_python_api.PyLong_AsLongLong(coerced);
+                g_kain_python_api.Py_DecRef(coerced);
+            }
+        }
+    }
+    g_kain_python_api.Py_DecRef(shape_obj);
+    if (out_shape) {
+        *out_shape = shape;
+    } else if (shape) {
+        free(shape);
+    }
+    if (out_ndim) {
+        *out_ndim = (long long)shape_len;
+    }
+    return 1;
+}
+
+static int kain_py_infer_image_layout(
+    const long long* shape,
+    long long ndim,
+    char* layout,
+    size_t layout_size,
+    long long* batch,
+    long long* height,
+    long long* width,
+    long long* channels
+) {
+    if (!shape || !layout || layout_size == 0u || !batch || !height || !width || !channels) {
+        return 0;
+    }
+    if (ndim == 2) {
+        strncpy_s(layout, layout_size, "HW", _TRUNCATE);
+        *batch = 1;
+        *height = shape[0];
+        *width = shape[1];
+        *channels = 1;
+        return 1;
+    }
+    if (ndim == 3 && kain_py_small_channel_count(shape[2])) {
+        strncpy_s(layout, layout_size, "HWC", _TRUNCATE);
+        *batch = 1;
+        *height = shape[0];
+        *width = shape[1];
+        *channels = shape[2];
+        return 1;
+    }
+    if (ndim == 3 && kain_py_small_channel_count(shape[0])) {
+        strncpy_s(layout, layout_size, "CHW", _TRUNCATE);
+        *batch = 1;
+        *height = shape[1];
+        *width = shape[2];
+        *channels = shape[0];
+        return 1;
+    }
+    if (ndim == 4 && kain_py_small_channel_count(shape[3])) {
+        strncpy_s(layout, layout_size, "NHWC", _TRUNCATE);
+        *batch = shape[0];
+        *height = shape[1];
+        *width = shape[2];
+        *channels = shape[3];
+        return 1;
+    }
+    if (ndim == 4 && kain_py_small_channel_count(shape[1])) {
+        strncpy_s(layout, layout_size, "NCHW", _TRUNCATE);
+        *batch = shape[0];
+        *height = shape[2];
+        *width = shape[3];
+        *channels = shape[1];
+        return 1;
+    }
+    return 0;
+}
+
+static long long kain_py_default_image_row_stride(
+    const char* layout,
+    long long width,
+    long long channels,
+    long long item_size
+) {
+    if (!layout || width < 0 || channels < 0 || item_size <= 0) {
+        return 0;
+    }
+    if (strcmp(layout, "HW") == 0) {
+        return width * item_size;
+    }
+    if (strcmp(layout, "HWC") == 0 || strcmp(layout, "NHWC") == 0) {
+        return width * channels * item_size;
+    }
+    if (strcmp(layout, "CHW") == 0 || strcmp(layout, "NCHW") == 0) {
+        return width * item_size;
+    }
+    return 0;
+}
+
+static long long kain_py_abs_i64(long long value) {
+    return value < 0 ? -value : value;
+}
+
+static long long kain_py_image_row_stride_from_strides(
+    const char* layout,
+    const long long* strides,
+    long long ndim
+) {
+    if (!layout || !strides || ndim <= 0) {
+        return 0;
+    }
+    if (strcmp(layout, "HW") == 0 || strcmp(layout, "HWC") == 0) {
+        return ndim >= 1 ? kain_py_abs_i64(strides[0]) : 0;
+    }
+    if (strcmp(layout, "CHW") == 0) {
+        return ndim >= 2 ? kain_py_abs_i64(strides[1]) : 0;
+    }
+    if (strcmp(layout, "NHWC") == 0) {
+        return ndim >= 2 ? kain_py_abs_i64(strides[1]) : 0;
+    }
+    if (strcmp(layout, "NCHW") == 0) {
+        return ndim >= 3 ? kain_py_abs_i64(strides[2]) : 0;
+    }
+    return 0;
+}
+
+static int kain_py_copy_source_backend(PyObject* object, char* dest, size_t dest_size) {
+    PyObject* klass;
+    PyObject* module_name;
+    int ok = 0;
+    if (!object || !dest || dest_size == 0u) {
+        return 0;
+    }
+    klass = g_kain_python_api.PyObject_GetAttrString(object, "__class__");
+    if (!klass) {
+        kain_py_clear_error();
+        return 0;
+    }
+    module_name = g_kain_python_api.PyObject_GetAttrString(klass, "__module__");
+    g_kain_python_api.Py_DecRef(klass);
+    if (!module_name) {
+        kain_py_clear_error();
+        return 0;
+    }
+    if (kain_py_copy_python_text(module_name, dest, dest_size)) {
+        if (strstr(dest, "numpy") != NULL) {
+            strncpy_s(dest, dest_size, "numpy", _TRUNCATE);
+        } else if (strstr(dest, "torch") != NULL) {
+            strncpy_s(dest, dest_size, "torch", _TRUNCATE);
+        }
+        ok = 1;
+    }
+    g_kain_python_api.Py_DecRef(module_name);
+    return ok;
+}
+
+static KainPythonImageHandle* kain_py_wrap_image(PyObject* object, const char* ownership) {
+    KainPythonImageHandle* image;
+    long long* strides = NULL;
+    long long strides_ndim = 0;
+    long long item_size = 1;
+    long long byte_length = 0;
+    if (!object) {
+        return NULL;
+    }
+    image = (KainPythonImageHandle*)kain_alloc_rc(sizeof(KainPythonImageHandle), KAIN_RC_TYPE_PY_IMAGE);
+    if (!image) {
+        return NULL;
+    }
+    memset(image, 0, sizeof(*image));
+    image->object = object;
+    strncpy_s(image->ownership, sizeof(image->ownership), ownership ? ownership : "shared", _TRUNCATE);
+    image->zero_copy = ownership == NULL || strcmp(ownership, "owned") != 0;
+    if (!kain_py_read_shape(object, &image->shape, &image->ndim)) {
+        rc_release(image);
+        return NULL;
+    }
+    if (!kain_py_infer_image_layout(
+            image->shape,
+            image->ndim,
+            image->layout,
+            sizeof(image->layout),
+            &image->batch,
+            &image->height,
+            &image->width,
+            &image->channels)) {
+        rc_release(image);
+        return NULL;
+    }
+    item_size = kain_py_attr_int(object, "itemsize", 1);
+    byte_length = kain_py_attr_int(object, "nbytes", 0);
+    image->pixel_count = image->batch * image->width * image->height;
+    image->byte_length = byte_length > 0
+        ? byte_length
+        : image->pixel_count * image->channels * item_size;
+    if (!kain_py_copy_attr_text(object, "dtype", image->dtype, sizeof(image->dtype))) {
+        strncpy_s(image->dtype, sizeof(image->dtype), "unknown", _TRUNCATE);
+    } else {
+        PyObject* dtype_obj = g_kain_python_api.PyObject_GetAttrString(object, "dtype");
+        if (dtype_obj) {
+            char narrowed[24];
+            if (kain_py_copy_attr_text(dtype_obj, "name", narrowed, sizeof(narrowed))) {
+                strncpy_s(image->dtype, sizeof(image->dtype), narrowed, _TRUNCATE);
+            }
+            g_kain_python_api.Py_DecRef(dtype_obj);
+        } else {
+            kain_py_clear_error();
+        }
+    }
+    strncpy_s(
+        image->storage,
+        sizeof(image->storage),
+        kain_py_storage_from_dtype(image->dtype),
+        _TRUNCATE);
+    {
+        PyObject* strides_obj = g_kain_python_api.PyObject_GetAttrString(object, "strides");
+        if (strides_obj) {
+            Py_ssize_t stride_len = g_kain_python_api.PySequence_Size(strides_obj);
+            if (stride_len > 0) {
+                long long* stride_values = (long long*)calloc((size_t)stride_len, sizeof(long long));
+                Py_ssize_t index;
+                if (stride_values) {
+                    for (index = 0; index < stride_len; ++index) {
+                        PyObject* item = g_kain_python_api.PySequence_GetItem(strides_obj, index);
+                        if (!item) {
+                            kain_py_clear_error();
+                            break;
+                        }
+                        {
+                            PyObject* coerced = g_kain_python_api.PyNumber_Long(item);
+                            g_kain_python_api.Py_DecRef(item);
+                            if (!coerced) {
+                                kain_py_clear_error();
+                                break;
+                            }
+                            stride_values[index] = g_kain_python_api.PyLong_AsLongLong(coerced);
+                            g_kain_python_api.Py_DecRef(coerced);
+                        }
+                    }
+                    if (index == stride_len) {
+                        image->row_stride = kain_py_image_row_stride_from_strides(
+                            image->layout,
+                            stride_values,
+                            (long long)stride_len);
+                    }
+                    free(stride_values);
+                }
+            }
+            g_kain_python_api.Py_DecRef(strides_obj);
+        } else {
+            kain_py_clear_error();
+        }
+    }
+    if (image->row_stride <= 0) {
+        image->row_stride = kain_py_default_image_row_stride(
+            image->layout,
+            image->width,
+            image->channels,
+            item_size);
+    }
+    if (!kain_py_copy_source_backend(object, image->source_backend, sizeof(image->source_backend))) {
+        image->source_backend[0] = '\0';
+    }
+    KAIN_set_destructor(image, NULL);
+    return image;
+}
+
+static void kain_py_image_destructor(void* payload) {
+    KainPythonImageHandle* image = (KainPythonImageHandle*)payload;
+    KainPythonGilScope scope;
+    if (!image) {
+        return;
+    }
+    if (image->shape) {
+        free(image->shape);
+        image->shape = NULL;
+    }
+    if (!image->object) {
+        return;
+    }
+    scope = kain_py_gil_enter();
+    if (scope.active) {
+        g_kain_python_api.Py_DecRef(image->object);
+    }
+    kain_py_gil_exit(&scope);
+}
+
 static int kain_py_finalize_wrap(KainPythonObjectHandle* handle, void (*destructor)(void*)) {
     if (!handle) {
         return 0;
@@ -606,6 +1059,12 @@ static KainPythonObjectHandle* kain_py_as_object_handle(long long value) {
 static KainPythonTensorHandle* kain_py_as_tensor_handle(long long value) {
     return kain_py_type_tag_matches((void*)(intptr_t)value, KAIN_RC_TYPE_PY_TENSOR)
         ? (KainPythonTensorHandle*)(intptr_t)value
+        : NULL;
+}
+
+static KainPythonImageHandle* kain_py_as_image_handle(long long value) {
+    return kain_py_type_tag_matches((void*)(intptr_t)value, KAIN_RC_TYPE_PY_IMAGE)
+        ? (KainPythonImageHandle*)(intptr_t)value
         : NULL;
 }
 
@@ -686,6 +1145,7 @@ static PyObject* kain_py_any_to_kwargs(long long value) {
 static PyObject* kain_py_any_to_pyobject(long long value) {
     KainPythonObjectHandle* object_handle = kain_py_as_object_handle(value);
     KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(value);
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(value);
     int kind;
     if (object_handle) {
         g_kain_python_api.Py_IncRef(object_handle->object);
@@ -694,6 +1154,10 @@ static PyObject* kain_py_any_to_pyobject(long long value) {
     if (tensor_handle) {
         g_kain_python_api.Py_IncRef(tensor_handle->object);
         return tensor_handle->object;
+    }
+    if (image_handle) {
+        g_kain_python_api.Py_IncRef(image_handle->object);
+        return image_handle->object;
     }
     if (kain_py_any_is_null_tag(value)) {
         PyObject* globals = kain_py_main_dict();
@@ -772,6 +1236,58 @@ static long long kain_py_string_tag(const char* text) {
     }
     bits = (long long)(intptr_t)owned;
     return bits | 3LL;
+}
+
+static long long kain_py_image_attr_value(const KainPythonImageHandle* image, const char* name) {
+    if (!image || !name) {
+        return 0;
+    }
+    if (strcmp(name, "shape") == 0) {
+        return (long long)(intptr_t)image->shape;
+    }
+    if (strcmp(name, "ownership") == 0) {
+        return kain_py_string_tag(image->ownership);
+    }
+    if (strcmp(name, "dtype") == 0) {
+        return kain_py_string_tag(image->dtype);
+    }
+    if (strcmp(name, "layout") == 0) {
+        return kain_py_string_tag(image->layout);
+    }
+    if (strcmp(name, "storage") == 0) {
+        return kain_py_string_tag(image->storage);
+    }
+    if (strcmp(name, "source_runtime") == 0) {
+        return kain_py_string_tag("python");
+    }
+    if (strcmp(name, "source_backend") == 0) {
+        return image->source_backend[0] ? kain_py_string_tag(image->source_backend) : KAIN_PY_JSON_NULL;
+    }
+    if (strcmp(name, "width") == 0) {
+        return KAIN_PY_JSON_INT(image->width);
+    }
+    if (strcmp(name, "height") == 0) {
+        return KAIN_PY_JSON_INT(image->height);
+    }
+    if (strcmp(name, "channels") == 0) {
+        return KAIN_PY_JSON_INT(image->channels);
+    }
+    if (strcmp(name, "batch") == 0) {
+        return KAIN_PY_JSON_INT(image->batch);
+    }
+    if (strcmp(name, "pixel_count") == 0) {
+        return KAIN_PY_JSON_INT(image->pixel_count);
+    }
+    if (strcmp(name, "byte_length") == 0) {
+        return KAIN_PY_JSON_INT(image->byte_length);
+    }
+    if (strcmp(name, "row_stride") == 0) {
+        return KAIN_PY_JSON_INT(image->row_stride);
+    }
+    if (strcmp(name, "zero_copy") == 0) {
+        return KAIN_PY_JSON_BOOL(image->zero_copy);
+    }
+    return 0;
 }
 
 static long long kain_py_call_internal(long long target, long long attr, long long args, long long kwargs) {
@@ -912,9 +1428,12 @@ static PyObject* kain_py_tensor_index_key(long long indices_any) {
 long long to_int(long long value) {
     KainPythonObjectHandle* object_handle = kain_py_as_object_handle(value);
     KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(value);
-    if (object_handle || tensor_handle) {
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(value);
+    if (object_handle || tensor_handle || image_handle) {
         KainPythonGilScope scope = kain_py_gil_enter();
-        PyObject* object = object_handle ? object_handle->object : tensor_handle->object;
+        PyObject* object = object_handle
+            ? object_handle->object
+            : (tensor_handle ? tensor_handle->object : image_handle->object);
         PyObject* coerced;
         PyObject* rendered = NULL;
         long long result = 0;
@@ -945,9 +1464,12 @@ long long to_int(long long value) {
 double to_float(long long value) {
     KainPythonObjectHandle* object_handle = kain_py_as_object_handle(value);
     KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(value);
-    if (object_handle || tensor_handle) {
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(value);
+    if (object_handle || tensor_handle || image_handle) {
         KainPythonGilScope scope = kain_py_gil_enter();
-        PyObject* object = object_handle ? object_handle->object : tensor_handle->object;
+        PyObject* object = object_handle
+            ? object_handle->object
+            : (tensor_handle ? tensor_handle->object : image_handle->object);
         PyObject* coerced;
         double result = 0.0;
         if (!scope.active) {
@@ -969,9 +1491,12 @@ double to_float(long long value) {
 char* to_string_any(long long value) {
     KainPythonObjectHandle* object_handle = kain_py_as_object_handle(value);
     KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(value);
-    if (object_handle || tensor_handle) {
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(value);
+    if (object_handle || tensor_handle || image_handle) {
         KainPythonGilScope scope = kain_py_gil_enter();
-        PyObject* object = object_handle ? object_handle->object : tensor_handle->object;
+        PyObject* object = object_handle
+            ? object_handle->object
+            : (tensor_handle ? tensor_handle->object : image_handle->object);
         PyObject* text_obj;
         const char* utf8;
         char* out;
@@ -1086,6 +1611,7 @@ long long py_getattr(long long target, char* name) {
 long long py_getattr_raw(long long target, char* name) {
     KainPythonGilScope scope = kain_py_gil_enter();
     KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(target);
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(target);
     PyObject* object;
     PyObject* attr;
     if (!scope.active || !name) {
@@ -1103,6 +1629,14 @@ long long py_getattr_raw(long long target, char* name) {
             return tagged;
         }
         object = tensor_handle->object;
+        g_kain_python_api.Py_IncRef(object);
+    } else if (image_handle) {
+        long long tagged = kain_py_image_attr_value(image_handle, name);
+        if (tagged != 0 || strcmp(name, "source_backend") == 0) {
+            kain_py_gil_exit(&scope);
+            return tagged;
+        }
+        object = image_handle->object;
         g_kain_python_api.Py_IncRef(object);
     } else {
         object = kain_py_resolve_target(target);
@@ -1329,6 +1863,277 @@ long long kain_tensor_to_py(long long tensor, char* backend) {
     wrapped = kain_py_wrap_object(tensor_handle->object);
     if (!wrapped) {
         g_kain_python_api.Py_DecRef(tensor_handle->object);
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    kain_py_finalize_wrap(wrapped, kain_py_object_destructor);
+    kain_py_gil_exit(&scope);
+    return (long long)(intptr_t)wrapped;
+}
+
+static PyObject* kain_py_full_slice(void) {
+    PyObject* globals = kain_py_main_dict();
+    PyObject* slice_obj = globals
+        ? g_kain_python_api.PyRun_StringFlags("slice(None)", KAIN_PY_EVAL_INPUT, globals, globals, NULL)
+        : NULL;
+    if (globals) {
+        g_kain_python_api.Py_DecRef(globals);
+    }
+    if (!slice_obj) {
+        kain_py_clear_error();
+    }
+    return slice_obj;
+}
+
+static PyObject* kain_py_image_pixel_key(
+    const KainPythonImageHandle* image,
+    long long batch,
+    long long x,
+    long long y
+) {
+    PyObject* key = NULL;
+    PyObject* full = NULL;
+    if (!image || x < 0 || y < 0 || x >= image->width || y >= image->height) {
+        return NULL;
+    }
+    if (batch < 0 || batch >= image->batch) {
+        return NULL;
+    }
+    if (strcmp(image->layout, "HW") == 0 || strcmp(image->layout, "HWC") == 0) {
+        key = g_kain_python_api.PyTuple_New(2);
+        if (!key) {
+            return NULL;
+        }
+        g_kain_python_api.PyTuple_SetItem(key, 0, g_kain_python_api.PyLong_FromLongLong(y));
+        g_kain_python_api.PyTuple_SetItem(key, 1, g_kain_python_api.PyLong_FromLongLong(x));
+        return key;
+    }
+    if (strcmp(image->layout, "NHWC") == 0) {
+        key = g_kain_python_api.PyTuple_New(3);
+        if (!key) {
+            return NULL;
+        }
+        g_kain_python_api.PyTuple_SetItem(key, 0, g_kain_python_api.PyLong_FromLongLong(batch));
+        g_kain_python_api.PyTuple_SetItem(key, 1, g_kain_python_api.PyLong_FromLongLong(y));
+        g_kain_python_api.PyTuple_SetItem(key, 2, g_kain_python_api.PyLong_FromLongLong(x));
+        return key;
+    }
+    full = kain_py_full_slice();
+    if (!full) {
+        return NULL;
+    }
+    if (strcmp(image->layout, "CHW") == 0) {
+        key = g_kain_python_api.PyTuple_New(3);
+        if (!key) {
+            g_kain_python_api.Py_DecRef(full);
+            return NULL;
+        }
+        g_kain_python_api.PyTuple_SetItem(key, 0, full);
+        g_kain_python_api.PyTuple_SetItem(key, 1, g_kain_python_api.PyLong_FromLongLong(y));
+        g_kain_python_api.PyTuple_SetItem(key, 2, g_kain_python_api.PyLong_FromLongLong(x));
+        return key;
+    }
+    if (strcmp(image->layout, "NCHW") == 0) {
+        key = g_kain_python_api.PyTuple_New(4);
+        if (!key) {
+            g_kain_python_api.Py_DecRef(full);
+            return NULL;
+        }
+        g_kain_python_api.PyTuple_SetItem(key, 0, g_kain_python_api.PyLong_FromLongLong(batch));
+        g_kain_python_api.PyTuple_SetItem(key, 1, full);
+        g_kain_python_api.PyTuple_SetItem(key, 2, g_kain_python_api.PyLong_FromLongLong(y));
+        g_kain_python_api.PyTuple_SetItem(key, 3, g_kain_python_api.PyLong_FromLongLong(x));
+        return key;
+    }
+    g_kain_python_api.Py_DecRef(full);
+    return NULL;
+}
+
+static long long kain_py_pyobject_to_any(PyObject* object) {
+    PyObject* coerced;
+    if (!object) {
+        return 0;
+    }
+    coerced = g_kain_python_api.PyNumber_Long(object);
+    if (coerced) {
+        long long value = g_kain_python_api.PyLong_AsLongLong(coerced);
+        g_kain_python_api.Py_DecRef(coerced);
+        g_kain_python_api.Py_DecRef(object);
+        return KAIN_PY_JSON_INT(value);
+    }
+    kain_py_clear_error();
+    coerced = g_kain_python_api.PyNumber_Float(object);
+    if (coerced) {
+        double value = g_kain_python_api.PyFloat_AsDouble(coerced);
+        g_kain_python_api.Py_DecRef(coerced);
+        g_kain_python_api.Py_DecRef(object);
+        return json_box_float(value);
+    }
+    kain_py_clear_error();
+    {
+        Py_ssize_t len = g_kain_python_api.PySequence_Size(object);
+        if (len >= 0) {
+            long long array = json_array_new();
+            Py_ssize_t index;
+            for (index = 0; index < len; ++index) {
+                PyObject* item = g_kain_python_api.PySequence_GetItem(object, index);
+                if (!item) {
+                    kain_py_clear_error();
+                    g_kain_python_api.Py_DecRef(object);
+                    return array;
+                }
+                json_array_push(array, kain_py_pyobject_to_any(item));
+            }
+            g_kain_python_api.Py_DecRef(object);
+            return array;
+        }
+    }
+    kain_py_clear_error();
+    return kain_py_wrap_result(object);
+}
+
+long long kain_image_from_py(long long target) {
+    return kain_image_from_py_shared(target);
+}
+
+long long kain_image_from_py_shared(long long target) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    PyObject* object;
+    KainPythonImageHandle* image;
+    if (!scope.active) {
+        return 0;
+    }
+    object = kain_py_resolve_target(target);
+    if (!object) {
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    image = kain_py_wrap_image(object, "shared");
+    if (!image) {
+        g_kain_python_api.Py_DecRef(object);
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    KAIN_set_destructor(image, kain_py_image_destructor);
+    kain_py_gil_exit(&scope);
+    return (long long)(intptr_t)image;
+}
+
+long long kain_image_from_py_owned(long long target) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    PyObject* object;
+    PyObject* copy_method;
+    PyObject* empty_args;
+    PyObject* copied;
+    KainPythonImageHandle* image;
+    if (!scope.active) {
+        return 0;
+    }
+    object = kain_py_resolve_target(target);
+    if (!object) {
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    copy_method = g_kain_python_api.PyObject_GetAttrString(object, "copy");
+    g_kain_python_api.Py_DecRef(object);
+    if (!copy_method) {
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    empty_args = g_kain_python_api.PyTuple_New(0);
+    copied = empty_args ? g_kain_python_api.PyObject_Call(copy_method, empty_args, NULL) : NULL;
+    if (empty_args) {
+        g_kain_python_api.Py_DecRef(empty_args);
+    }
+    g_kain_python_api.Py_DecRef(copy_method);
+    if (!copied) {
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    image = kain_py_wrap_image(copied, "owned");
+    if (!image) {
+        g_kain_python_api.Py_DecRef(copied);
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    KAIN_set_destructor(image, kain_py_image_destructor);
+    kain_py_gil_exit(&scope);
+    return (long long)(intptr_t)image;
+}
+
+long long kain_image_info(long long image) {
+    return image;
+}
+
+long long kain_image_pixel(long long image, long long x, long long y) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(image);
+    PyObject* key;
+    PyObject* value;
+    if (!scope.active || !image_handle) {
+        return 0;
+    }
+    key = kain_py_image_pixel_key(image_handle, 0, x, y);
+    if (!key) {
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    value = g_kain_python_api.PyObject_GetItem(image_handle->object, key);
+    g_kain_python_api.Py_DecRef(key);
+    if (!value) {
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    {
+        long long any = kain_py_pyobject_to_any(value);
+        kain_py_gil_exit(&scope);
+        return any;
+    }
+}
+
+void kain_image_set_pixel(long long image, long long x, long long y, long long value) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(image);
+    PyObject* key;
+    PyObject* py_value;
+    if (!scope.active || !image_handle) {
+        return;
+    }
+    key = kain_py_image_pixel_key(image_handle, 0, x, y);
+    py_value = kain_py_any_to_pyobject(value);
+    if (!key || !py_value) {
+        if (key) {
+            g_kain_python_api.Py_DecRef(key);
+        }
+        if (py_value) {
+            g_kain_python_api.Py_DecRef(py_value);
+        }
+        kain_py_gil_exit(&scope);
+        return;
+    }
+    if (g_kain_python_api.PyObject_SetItem(image_handle->object, key, py_value) != 0) {
+        kain_py_clear_error();
+    }
+    g_kain_python_api.Py_DecRef(py_value);
+    g_kain_python_api.Py_DecRef(key);
+    kain_py_gil_exit(&scope);
+}
+
+long long kain_image_to_py(long long image, char* backend) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(image);
+    KainPythonObjectHandle* wrapped;
+    (void)backend;
+    if (!scope.active || !image_handle) {
+        return 0;
+    }
+    g_kain_python_api.Py_IncRef(image_handle->object);
+    wrapped = kain_py_wrap_object(image_handle->object);
+    if (!wrapped) {
+        g_kain_python_api.Py_DecRef(image_handle->object);
         kain_py_gil_exit(&scope);
         return 0;
     }

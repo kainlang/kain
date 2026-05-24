@@ -15,7 +15,8 @@ pub enum IdentifierDomain {
 
 const EXTRA_LEXER_KEYWORDS: &[&str] = &[
     // These tokenize as operators and cannot appear in identifier positions.
-    "and", "or",
+    "and",
+    "or",
     // First-class/contextual tokens that the parser does not accept in normal
     // imported value/type/field positions even when the source language does.
     "shader",

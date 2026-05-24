@@ -62,6 +62,12 @@ pub fn run(command: BladesCommand) -> Result<(), String> {
             include_vulkan,
             json,
         } => run_build(path, profile, target, dry_run, clean, include_vulkan, json),
+        BladesCommand::Clean {
+            path,
+            scope,
+            dry_run,
+            json,
+        } => run_clean(path, scope, dry_run, json),
         BladesCommand::Run {
             blade,
             path,
@@ -252,6 +258,10 @@ pub fn run_build(
     }
 }
 
+pub fn run_clean(path: PathBuf, scope: String, dry_run: bool, json: bool) -> Result<(), String> {
+    crate::clean::run_workspace_clean(path, scope, dry_run, json)
+}
+
 fn print_build_report(report: &kain_build::BladeBuildReport) {
     println!("Blade build: {}", report.workspace_root.display());
     println!("  status: {:?}", report.status);
@@ -260,6 +270,11 @@ fn print_build_report(report: &kain_build::BladeBuildReport) {
     println!("  artifacts: {}", report.artifact_root.display());
     println!("  report: {}", report.report_path.display());
     println!("  tasks: {}", report.tasks.len());
+    let cached_tasks = report
+        .tasks
+        .iter()
+        .filter(|task| task.status == kain_build::BuildTaskStatus::Cached || task.cache_hit)
+        .count();
     for task in &report.tasks {
         let blade = task
             .blade
@@ -272,6 +287,10 @@ fn print_build_report(report: &kain_build::BladeBuildReport) {
             println!("      error: {error}");
         }
     }
+    println!(
+        "  freshness: SHA-256 task stamps guard cache reuse across inputs, adapter state, and output layout"
+    );
+    println!("  cache hits: {}", cached_tasks);
 }
 
 fn check_workspace(workspace: BladeWorkspace) -> BladeCheckReport {
