@@ -54,27 +54,57 @@ pub fn test_count_failure(outcome: TestOutcome, count: Int) -> Int:
         return count
     return count + 1
 
+pub fn test_expect_proof_assessment(assessment: ProofAssessment) -> TestOutcome:
+    if proof_assessment_ok(assessment) == false:
+        return test_fail(assessment.case_spec.label, proof_assessment_summary(assessment))
+    if proof_outcome_is_skip(assessment.outcome):
+        return test_skip(assessment.case_spec.label, proof_assessment_summary(assessment))
+    if proof_outcome_is_proved(assessment.outcome):
+        return test_outcome(
+            TEST_STATUS_PROVED,
+            assessment.case_spec.label,
+            proof_assessment_summary(assessment),
+            assessment.outcome.evidence
+        )
+    if proof_outcome_is_witness(assessment.outcome):
+        var evidence = assessment.outcome.model
+        if evidence == "":
+            evidence = assessment.outcome.evidence
+        return test_outcome(
+            TEST_STATUS_WITNESS,
+            assessment.case_spec.label,
+            proof_assessment_summary(assessment),
+            evidence
+        )
+    return test_outcome(
+        TEST_STATUS_PASS,
+        assessment.case_spec.label,
+        proof_assessment_summary(assessment),
+        assessment.outcome.evidence
+    )
+
+pub fn test_expect_proof_suite(summary: ProofSuiteSummary) -> TestOutcome:
+    if proof_suite_ok(summary):
+        return test_outcome(TEST_STATUS_PASS, summary.label, proof_suite_summary_text(summary), "")
+    return test_fail(summary.label, proof_suite_summary_text(summary))
+
+pub fn test_expect_case(spec: ProofCase, outcome: ProofOutcome) -> TestOutcome:
+    return test_expect_proof_assessment(proof_case_assess(spec, outcome))
+
 pub fn test_expect_proved(outcome: ProofOutcome) -> TestOutcome:
-    if proof_outcome_is_proved(outcome):
-        return test_proved(outcome.label, outcome.evidence)
-    if proof_outcome_is_skip(outcome):
-        return test_skip(outcome.label, outcome.detail)
-    return test_fail(outcome.label, "expected unsat // " + proof_outcome_summary(outcome))
+    return test_expect_case(proof_case(outcome.label).expect_proved(), outcome)
 
 pub fn test_expect_witness(outcome: ProofOutcome) -> TestOutcome:
-    if proof_outcome_is_witness(outcome):
-        if outcome.model != "":
-            return test_witness(outcome.label, outcome.model)
-        return test_witness(outcome.label, outcome.evidence)
-    if proof_outcome_is_skip(outcome):
-        return test_skip(outcome.label, outcome.detail)
-    return test_fail(outcome.label, "expected sat // " + proof_outcome_summary(outcome))
+    return test_expect_case(proof_case(outcome.label).expect_witness(), outcome)
+
+pub fn test_assert_case(spec: ProofCase, backend_subject: Any) -> TestOutcome:
+    return test_expect_proof_assessment(proof_case_check(spec, backend_subject))
 
 pub fn test_assert_unsat(label: String, solver: Any) -> TestOutcome:
-    return test_expect_proved(proof_check(label, solver))
+    return test_assert_case(proof_case(label).expect_proved(), solver)
 
 pub fn test_assert_sat(label: String, solver: Any) -> TestOutcome:
-    return test_expect_witness(proof_check(label, solver))
+    return test_assert_case(proof_case(label).expect_witness(), solver)
 
 pub fn test_task(id: String) -> BuildTaskSpec:
     return build_task_of_kind(id, BUILD_KIND_TEST)

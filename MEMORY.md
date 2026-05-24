@@ -9170,11 +9170,12 @@ Current runtime blocker is pre-existing and not caused by the visual lane:
   - `stdlib/z3.kn`
     - exposes availability/version checks, solver/model helpers, scalar constructors, and common expression combinators over Python `z3` plus the `operator` module
   - `stdlib/proof.kn`
-    - now carries a real `ProofOutcome` lane plus raw solver-to-proof helpers like `proof_check`, `proof_proved`, `proof_witness`, and expectation-neutral proof status inspection
+    - now carries a real `ProofOutcome` lane plus declarative `ProofExpectation`, `ProofCase`, `ProofAssessment`, and suite-summary records
+    - backend dispatch is data-driven through proof-case metadata, with the current optional `z3` lane wired as the first global proof adapter instead of baking labels into one-off helpers
   - `stdlib/test.kn`
-    - now layers expectation sugar like `test_assert_unsat`, `test_assert_sat`, `test_expect_proved`, and `test_expect_witness` on top of `std::proof`
+    - now layers expectation sugar like `test_assert_case`, `test_expect_proof_assessment`, `test_expect_proof_suite`, `test_assert_unsat`, and `test_assert_sat` on top of `std::proof`
   - `smoketest/src/stdlib/z3_lane.kn`
-    - skips cleanly when `z3` is unavailable, otherwise exercises integer and bitvector solving, sat/unsat checks, push/pop, model evaluation, and the full `std::z3 -> std::proof -> std::test` chain
+    - skips cleanly when `z3` is unavailable, otherwise exercises named proof cases, sat/unsat checks, push/pop, model evaluation, suite summarization, and the full `std::z3 -> std::proof -> std::test` chain
   - `smoketest/src/main.kn`
     - total track count is now `57`
     - added the `stdlib.z3_lane` album slot
@@ -9182,10 +9183,10 @@ Current runtime blocker is pre-existing and not caused by the visual lane:
     - wired `src/stdlib/z3_lane.kn` into the LLVM check inputs
 - Updated root-stdlib tracking:
   - `stdlib/requirements.md`
-    - added a `KX` row for the new optional `std::z3` family
+    - added a `KX` row for the new optional `std::z3` family and updated the `std::test` / `std::proof` row to reflect declarative case-assessment coverage
   - atlas
     - refreshed `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json`
-    - current summary after this pass: `61` modules, `2649` public symbols, `3337` total symbols
+    - current summary after this pass: `61` modules, `2681` public symbols, `3383` total symbols
 
 Validation:
 
@@ -9195,8 +9196,9 @@ Validation:
 - `.\target\debug\kain.exe stdlib-map --write`
 - `.\target\debug\kain.exe stdlib-map --check`
 - `python query_stdlib.py --module z3 --limit 80`
-- `python query_stdlib.py --module proof --limit 80`
-- `python query_stdlib.py --module test --limit 80`
+- `python query_stdlib.py --module proof --limit 260`
+- `python query_stdlib.py --module test --limit 260`
+- `python query_stdlib.py --summary`
 - `.\target\debug\kain.exe check stdlib\z3.kn --target llvm`
 - `.\target\debug\kain.exe check stdlib\proof.kn --target llvm`
 - `.\target\debug\kain.exe check stdlib\test.kn --target llvm`

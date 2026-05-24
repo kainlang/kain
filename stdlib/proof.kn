@@ -5,6 +5,8 @@ pub const PROOF_STATUS_SKIP: Int = 1
 pub const PROOF_STATUS_PROVED: Int = 2
 pub const PROOF_STATUS_WITNESS: Int = 3
 pub const PROOF_STATUS_UNKNOWN: Int = 4
+pub const PROOF_EXPECT_ANY: Int = 0
+pub const PROOF_BACKEND_Z3: String = "z3"
 
 pub struct ProofOutcome:
     status: Int
@@ -12,6 +14,82 @@ pub struct ProofOutcome:
     detail: String
     evidence: String
     model: String
+
+pub struct ProofExpectation:
+    expected_status: Int
+    label: String
+    allow_skip: Bool
+
+pub struct ProofCase:
+    label: String
+    description: String
+    suite_label: String
+    backend: String
+    evidence_ref: String
+    tags: Array<String>
+    expectation: ProofExpectation
+
+pub struct ProofAssessment:
+    case_spec: ProofCase
+    outcome: ProofOutcome
+    accepted: Bool
+    summary: String
+
+pub struct ProofSuiteSummary:
+    label: String
+    total: Int
+    accepted: Int
+    rejected: Int
+    skipped: Int
+    proved: Int
+    witness: Int
+    unknown: Int
+
+pub fn proof_status_name(status: Int) -> String:
+    if status == PROOF_EXPECT_ANY:
+        return "any"
+    if status == PROOF_STATUS_SKIP:
+        return "skip"
+    if status == PROOF_STATUS_PROVED:
+        return "proved"
+    if status == PROOF_STATUS_WITNESS:
+        return "witness"
+    if status == PROOF_STATUS_UNKNOWN:
+        return "unknown"
+    return "status-" + to_string(status)
+
+pub fn proof_expectation(expected_status: Int) -> ProofExpectation:
+    return ProofExpectation {
+        expected_status: expected_status,
+        label: proof_status_name(expected_status),
+        allow_skip: false
+    }
+
+pub fn proof_expect_any() -> ProofExpectation:
+    return proof_expectation(PROOF_EXPECT_ANY)
+
+pub fn proof_expect_proved() -> ProofExpectation:
+    return proof_expectation(PROOF_STATUS_PROVED)
+
+pub fn proof_expect_witness() -> ProofExpectation:
+    return proof_expectation(PROOF_STATUS_WITNESS)
+
+pub fn proof_expect_unknown() -> ProofExpectation:
+    return proof_expectation(PROOF_STATUS_UNKNOWN)
+
+pub fn proof_expectation_allow_skip(expectation: ProofExpectation) -> ProofExpectation:
+    let mut next = expectation
+    next.allow_skip = true
+    return next
+
+impl ProofExpectation:
+    fn named(_self: Self_, value: String) -> ProofExpectation:
+        let mut next = _self
+        next.label = value
+        return next
+
+    fn allow_skip(_self: Self_) -> ProofExpectation:
+        return proof_expectation_allow_skip(_self)
 
 pub fn proof_outcome(status: Int, label: String, detail: String, evidence: String, model: String) -> ProofOutcome:
     return ProofOutcome {
@@ -51,7 +129,195 @@ pub fn proof_outcome_summary(outcome: ProofOutcome) -> String:
         return outcome.detail + " // " + outcome.model
     if outcome.evidence != "":
         return outcome.detail + " // " + outcome.evidence
-    return outcome.detail
+    if outcome.detail != "":
+        return outcome.detail
+    return proof_status_name(outcome.status)
+
+pub fn proof_case(label: String) -> ProofCase:
+    return ProofCase {
+        label: label,
+        description: "",
+        suite_label: "",
+        backend: PROOF_BACKEND_Z3,
+        evidence_ref: "",
+        tags: [],
+        expectation: proof_expect_any()
+    }
+
+pub fn proof_proved_case(label: String) -> ProofCase:
+    return proof_case(label).expect_proved()
+
+pub fn proof_witness_case(label: String) -> ProofCase:
+    return proof_case(label).expect_witness()
+
+impl ProofCase:
+    fn description(_self: Self_, value: String) -> ProofCase:
+        let mut next = _self
+        next.description = value
+        return next
+
+    fn suite(_self: Self_, value: String) -> ProofCase:
+        let mut next = _self
+        next.suite_label = value
+        return next
+
+    fn backend(_self: Self_, value: String) -> ProofCase:
+        let mut next = _self
+        next.backend = value
+        return next
+
+    fn evidence(_self: Self_, value: String) -> ProofCase:
+        let mut next = _self
+        next.evidence_ref = value
+        return next
+
+    fn tag(_self: Self_, value: String) -> ProofCase:
+        let mut next = _self
+        push(next.tags, value)
+        return next
+
+    fn expect(_self: Self_, value: ProofExpectation) -> ProofCase:
+        let mut next = _self
+        next.expectation = value
+        return next
+
+    fn expect_any(_self: Self_) -> ProofCase:
+        return _self.expect(proof_expect_any())
+
+    fn expect_proved(_self: Self_) -> ProofCase:
+        return _self.expect(proof_expect_proved())
+
+    fn expect_witness(_self: Self_) -> ProofCase:
+        return _self.expect(proof_expect_witness())
+
+    fn expect_unknown(_self: Self_) -> ProofCase:
+        return _self.expect(proof_expect_unknown())
+
+    fn allow_skip(_self: Self_) -> ProofCase:
+        let mut next = _self
+        next.expectation = proof_expectation_allow_skip(next.expectation)
+        return next
+
+fn proof_join_strings(items: Array<String>, separator: String) -> String:
+    if len(items) == 0:
+        return ""
+    var index: Int = 0
+    var text: String = ""
+    while index < len(items):
+        if index > 0:
+            text = text + separator
+        text = text + items[index]
+        index = index + 1
+    return text
+
+pub fn proof_case_summary(spec: ProofCase) -> String:
+    var summary = spec.label + " [" + spec.backend + "] expect=" + spec.expectation.label
+    if spec.suite_label != "":
+        summary = summary + " suite=" + spec.suite_label
+    if len(spec.tags) > 0:
+        summary = summary + " tags=" + proof_join_strings(spec.tags, ",")
+    if spec.evidence_ref != "":
+        summary = summary + " evidence=" + spec.evidence_ref
+    return summary
+
+pub fn proof_case_accepts(spec: ProofCase, outcome: ProofOutcome) -> Bool:
+    if proof_outcome_is_skip(outcome):
+        return spec.expectation.allow_skip
+    if spec.expectation.expected_status == PROOF_EXPECT_ANY:
+        return true
+    return outcome.status == spec.expectation.expected_status
+
+pub fn proof_case_outcome_from_result(spec: ProofCase, backend_subject: Any, result: Any) -> ProofOutcome:
+    // Keep backend dispatch data-driven so future proof engines can plug into
+    // the same authored case surface without rewriting every call site.
+    if spec.backend == "" or spec.backend == PROOF_BACKEND_Z3:
+        if z3_available() == false:
+            return proof_skip(spec.label, "z3 backend unavailable")
+        return proof_check_result(spec.label, backend_subject, result)
+    return proof_skip(spec.label, "unsupported proof backend: " + spec.backend)
+
+pub fn proof_case_outcome(spec: ProofCase, backend_subject: Any) -> ProofOutcome:
+    if spec.backend == "" or spec.backend == PROOF_BACKEND_Z3:
+        if z3_available() == false:
+            return proof_skip(spec.label, "z3 backend unavailable")
+        return proof_check(spec.label, backend_subject)
+    return proof_skip(spec.label, "unsupported proof backend: " + spec.backend)
+
+pub fn proof_case_assess(spec: ProofCase, outcome: ProofOutcome) -> ProofAssessment:
+    let accepted = proof_case_accepts(spec, outcome)
+    var summary = "expected " + spec.expectation.label + ", got " + proof_status_name(outcome.status)
+    if outcome.detail != "":
+        summary = summary + " // " + outcome.detail
+    if outcome.model != "":
+        summary = summary + " // " + outcome.model
+    if outcome.model == "" and outcome.evidence != "":
+        summary = summary + " // " + outcome.evidence
+    if spec.description != "":
+        summary = spec.description + " // " + summary
+    return ProofAssessment {
+        case_spec: spec,
+        outcome: outcome,
+        accepted: accepted,
+        summary: summary
+    }
+
+pub fn proof_case_check_result(spec: ProofCase, backend_subject: Any, result: Any) -> ProofAssessment:
+    return proof_case_assess(spec, proof_case_outcome_from_result(spec, backend_subject, result))
+
+pub fn proof_case_check(spec: ProofCase, backend_subject: Any) -> ProofAssessment:
+    return proof_case_assess(spec, proof_case_outcome(spec, backend_subject))
+
+pub fn proof_assessment_ok(assessment: ProofAssessment) -> Bool:
+    return assessment.accepted
+
+pub fn proof_assessment_summary(assessment: ProofAssessment) -> String:
+    return assessment.summary
+
+pub fn proof_suite_summary(label: String, assessments: Array<ProofAssessment>) -> ProofSuiteSummary:
+    var index: Int = 0
+    var accepted: Int = 0
+    var rejected: Int = 0
+    var skipped: Int = 0
+    var proved: Int = 0
+    var witness: Int = 0
+    var unknown: Int = 0
+    while index < len(assessments):
+        let assessment = assessments[index]
+        if assessment.accepted:
+            accepted = accepted + 1
+        if assessment.accepted == false:
+            rejected = rejected + 1
+        if proof_outcome_is_skip(assessment.outcome):
+            skipped = skipped + 1
+        if proof_outcome_is_proved(assessment.outcome):
+            proved = proved + 1
+        if proof_outcome_is_witness(assessment.outcome):
+            witness = witness + 1
+        if proof_outcome_is_unknown(assessment.outcome):
+            unknown = unknown + 1
+        index = index + 1
+    return ProofSuiteSummary {
+        label: label,
+        total: len(assessments),
+        accepted: accepted,
+        rejected: rejected,
+        skipped: skipped,
+        proved: proved,
+        witness: witness,
+        unknown: unknown
+    }
+
+pub fn proof_suite_ok(summary: ProofSuiteSummary) -> Bool:
+    return summary.rejected == 0
+
+pub fn proof_suite_summary_text(summary: ProofSuiteSummary) -> String:
+    var text = "accepted " + to_string(summary.accepted) + "/" + to_string(summary.total)
+    text = text + ", rejected " + to_string(summary.rejected)
+    text = text + ", skipped " + to_string(summary.skipped)
+    text = text + ", proved " + to_string(summary.proved)
+    text = text + ", witness " + to_string(summary.witness)
+    text = text + ", unknown " + to_string(summary.unknown)
+    return text
 
 pub fn proof_check_result(label: String, solver: Any, result: Any) -> ProofOutcome:
     let result_name = z3_result_name(result)

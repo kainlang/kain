@@ -12,6 +12,7 @@ pub fn smoke_z3_lane() -> Int:
     let ints = z3_solver()
     let x = z3_int("x")
     let y = z3_int("y")
+    let sat_case = proof_case("smoke.z3.integer_route").suite("smoke.z3").description("non-negative distinct integer pair should admit a witness").expect_witness().tag("integer").tag("sat")
 
     z3_solver_add(ints, [
         z3_expr_ge(x, z3_int_val(0)),
@@ -20,7 +21,8 @@ pub fn smoke_z3_lane() -> Int:
         z3_distinct([x, y])
     ])
 
-    let sat_test = test_assert_sat("smoke.z3.integer_route", ints)
+    let sat_assessment = proof_case_check(sat_case, ints)
+    let sat_test = test_expect_proof_assessment(sat_assessment)
     if test_outcome_ok(sat_test) == false:
         return 2
 
@@ -34,26 +36,31 @@ pub fn smoke_z3_lane() -> Int:
     if x_value == y_value:
         return 5
 
+    let unsat_case = proof_case("smoke.z3.integer_conflict").suite("smoke.z3").description("contradictory assignments should close the search space").expect_proved().tag("integer").tag("unsat")
     z3_solver_push(ints)
     z3_solver_add(ints, [
         z3_expr_eq(x, z3_int_val(1)),
         z3_expr_eq(y, z3_int_val(1))
     ])
-    let unsat_test = test_assert_unsat("smoke.z3.integer_conflict", ints)
+    let unsat_assessment = proof_case_check(unsat_case, ints)
+    let unsat_test = test_expect_proof_assessment(unsat_assessment)
     if test_outcome_ok(unsat_test) == false:
         return 6
     z3_solver_pop(ints, 1)
 
-    let stable = proof_check("smoke.z3.integer_resume", ints)
-    if proof_outcome_is_witness(stable) == false:
+    let stable_case = proof_case("smoke.z3.integer_resume").suite("smoke.z3").description("popping the conflicting frame should recover the original witness").expect_witness().tag("integer").tag("resume")
+    let stable_assessment = proof_case_check(stable_case, ints)
+    if proof_assessment_ok(stable_assessment) == false:
         return 7
 
     let bits = z3_solver()
     let lane = z3_bitvec("lane", 8)
+    let bit_case = proof_case("smoke.z3.bitvec_lane").suite("smoke.z3").description("8-bit arithmetic witness should materialize with the expected lane value").expect_witness().tag("bitvec").tag("sat")
     z3_solver_add(bits, [
         z3_expr_eq(z3_expr_add(lane, z3_bitvec_val(1, 8)), z3_bitvec_val(5, 8))
     ])
-    let bit_test = test_assert_sat("smoke.z3.bitvec_lane", bits)
+    let bit_assessment = proof_case_check(bit_case, bits)
+    let bit_test = test_expect_proof_assessment(bit_assessment)
     if test_outcome_ok(bit_test) == false:
         return 8
 
@@ -61,5 +68,15 @@ pub fn smoke_z3_lane() -> Int:
     let lane_value = z3_as_long(z3_model_eval(bit_model, lane))
     if lane_value != 4:
         return 9
+
+    let suite = proof_suite_summary("smoke.z3", [
+        sat_assessment,
+        unsat_assessment,
+        stable_assessment,
+        bit_assessment
+    ])
+    let suite_test = test_expect_proof_suite(suite)
+    if test_outcome_ok(suite_test) == false:
+        return 10
 
     return 0
