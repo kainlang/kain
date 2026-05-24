@@ -1,25 +1,29 @@
 # Kain Memory
 
-# 2026-05-24 - Rust Docs Categorized Lexicon and Interactive Simulator Generator Upgrade
+# 2026-05-24 - Rust Docs Categorized Lexicon, Snappy Viewports, and Dynamic Keyword Relations Upgrade
 
-Delivered a complete, high-density, minimal "Rust Docs" style keyword manual next to "Guides" and "API" tabs, mapping all 93 active Kain-Lang keywords from `CATALOG.md` (excluding the `ue5` compatibility blacklist) with formal breadcrumbs, section anchors `§`, and dynamic simulator injection. Also engineered an "insane" Python-based interactive sandbox template generator (`generate_sim.py`) in the repository root with pre-baked visualizers to eliminate boilerplate writing.
+Delivered a complete, high-density, minimal "Rust Docs" style keyword manual next to "Guides" and "API" tabs, mapping all 93 active Kain-Lang keywords from `CATALOG.md` (excluding the `ue5` compatibility blacklist) with formal breadcrumbs, section anchors `§`, and dynamic simulator injection. Stripped all layout delays to enable instant, ultra-fluid switching across all viewports. Engineered a robust semantic relationships graph mapping connections across related keywords, and compiled an "insane" Python-based interactive sandbox template generator (`generate_sim.py`) in the repository root.
 
 What changed:
 
 - `website/src-frontend/features/docs/data/keywords.ts`
   - Re-authored the entire lexicon database, expanding it from 20 to 93 active Kain-Lang keywords across five categories: `core-grammar`, `types-modules`, `concurrency-ownership`, `silicon-gpu`, and `lattices-declarations`.
   - Added dedicated type signatures, ELI5 toy analogies, Senior Architect definitions, and usage blueprints for every single keyword.
+  - Engineered a static `KEYWORD_RELATIONS` relationship map at the bottom of the registry mapping semantic bindings across all keywords (e.g. linking `actor` to `spawn`, `send`, `receive`, `on`, and `state`).
 - `website/src-frontend/features/docs/Docs.tsx`
   - Integrated the `'keywords'` tab as a high-density, minimal categorized vertical list with sub-indents, dynamic hover effects, and left-accent glowing borders matching the Rust macro and keyword sidebar.
   - Formatted the Selected Keyword main viewport to look exactly like the Rust macro detail page, featuring breadcrumbs, compiler declaration signature blocks, and `§` section anchors.
+  - Injected the `§ Related Keywords` dynamic navigation drawer at the end of the Selected Keyword viewport, plotting inline-block tag triggers that support instant cross-navigation.
+  - Stripped all dynamic `<AnimatePresence>` wrappers and `<motion.div>` animations from the guides, API, and keyword viewports. Page transitions now render instantly with zero lag, providing an incredibly snappy browser-native documentation experience.
 - `generate_sim.py`
   - Created a robust, parameter-driven Python interactive simulator and documentation generator in the repository root.
   - Packed it with three pre-baked, leak-proof visualizer templates: `particles` (neon particle flow fields), `nodes` (glowing network data packet topology), and `lattice` (cellular matrix state tickers), all bound to `ResizeObserver` lifecycle observers and canvas `isConnected` cleanup triggers.
 
 Durable lessons:
 
+- Transition entry/exit animations (like Framer Motion's `AnimatePresence` with `mode="wait"`) are beautiful but introduce jarring browser delays on documentation sites where developers expect high-speed, instant reference hopping. Removing motion wrappers in favor of simple, native React DOM switches yields a super fluid, browser-native Snappiness.
 - Structuring UI lists as flat, categorized vertical links instead of grid buttons drastically improves visual scanning speed and increases content density, mirroring the developer-friendly layout of high-quality standard doc sites like doc.rust-lang.org.
-- Providing standardized automation CLI utilities like python-based script generators accelerates developer workflow, ensures architectural consistency, and drastically reduces token overhead when adding interactive visual specimens.
+- Decoupling complex semantic relations (graphs) into independent static dictionaries instead of embedding nested lists within raw items preserves data isolation, prevents data structure bloat, and simplifies runtime resolution.
 
 # 2026-05-24 - Unified Interactive Keyword Encyclopedia Pack Upgrade
 
