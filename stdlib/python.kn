@@ -1,8 +1,10 @@
 // Root Python surface for Kain.
 //
-// This is the generic low-level lane for embedded Python interop. The package-
-// specific helper modules under `std::python::*` are optional convenience
-// layers, not the core requirement for talking to Python.
+// This is the generic low-level lane for embedded Python interop.
+//
+// Package access should come through first-class `import ...` in authored Kain.
+// `use std::python` exists for explicit bridge calls, module checks, and
+// controlled materialization between live Python objects and Kain-owned data.
 
 pub fn python_bootstrap():
     py_exec("import importlib.util\n\ndef __kain_module_available(name):\n    return importlib.util.find_spec(name) is not None\n")

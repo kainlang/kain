@@ -23,7 +23,7 @@ This document tracks capability parity, not donor file-count parity. We do not n
 ## Scope
 
 - This document governs the root native profile only: top-level `stdlib/*.kn`.
-- Vendor or overlay trees such as `stdlib/python`, `stdlib/javascript`, `stdlib/ue5`, `stdlib/c`, and `stdlib/interop` do not satisfy missing root requirements by themselves.
+- Overlay trees, blade-local helpers, and ad hoc package shims do not satisfy missing root requirements by themselves.
 - If a capability belongs in authored Kain everywhere, it needs a root `std::*` story here.
 - If a missing capability is blocked by compiler, typechecker, lowering, or runtime truth, fix the owning subsystem instead of encoding a permanent workaround in demos.
 

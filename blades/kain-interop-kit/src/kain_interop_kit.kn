@@ -1,4 +1,4 @@
-use std::interop::bridge
+use std::interop
 
 pub fn interop_rgba_image(width: Int, height: Int, bytes: Any, mime_type: String) -> Any:
     return interop_shared_image_from_bytes(bytes, width, height, 4, "HWC", "rgba8", mime_type)

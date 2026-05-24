@@ -1758,7 +1758,7 @@ mod tests {
     #[test]
     fn prepare_blocks_non_host_targets_when_js_bridge_is_used() {
         let error = prepare_source_for_runtime(
-            "use std::javascript::bridge\nfn main(): js_eval(\"1 + 1\")\n",
+            "use std::js\nfn main(): js_eval(\"1 + 1\")\n",
             CompileTarget::Js,
         )
         .expect_err("js bridge should reject JS codegen target");
@@ -1769,7 +1769,7 @@ mod tests {
     fn javascript_exec_and_eval_persist_scope() {
         let result = interpret_source(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> Int:
     js_exec("globalThis.kainNodeValue = 39")
@@ -1787,7 +1787,7 @@ fn main() -> Int:
     fn javascript_import_and_call_support_node_modules() {
         let result = interpret_source(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> String:
     let path = js_import("node:path")
@@ -1805,7 +1805,7 @@ fn main() -> String:
     fn javascript_raw_import_and_call_support_node_modules() {
         let result = interpret_source(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> String:
     let path = js_import_raw("node:path")
@@ -1836,7 +1836,7 @@ fn main() -> String:
         let module_literal = serde_json::to_string(&module_path.display().to_string()).unwrap();
         let source = format!(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> String:
     let module_ref = js_import_raw({module_literal})
@@ -1871,7 +1871,7 @@ fn main() -> String:
         let module_literal = serde_json::to_string(&module_path.display().to_string()).unwrap();
         let source = format!(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> String:
     let module_ref = node_require({module_literal})
@@ -1908,7 +1908,7 @@ fn main() -> String:
         let package_literal = serde_json::to_string(&package_dir.display().to_string()).unwrap();
         let source = format!(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main():
     let result = node_package_run({package_literal}, "kain-smoke", [])
@@ -1935,7 +1935,7 @@ fn main():
     fn javascript_buffer_info_and_bytes_support_typed_arrays() {
         let result = interpret_source(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> Any:
     let bytes = js_eval_raw("new Uint8Array([4, 8, 15, 16, 23, 42])")
@@ -1961,8 +1961,8 @@ fn main() -> Any:
     fn javascript_bridge_projects_shared_contracts_as_typed_payloads() {
         let result = interpret_source(
             r#"
-use std::javascript::bridge
-use std::interop::bridge
+use std::js
+use std::interop
 
 fn main():
     js_exec("globalThis.inspectSharedContracts = (image, snapshot) => [image.contract, image.bytes instanceof Uint8Array, image.bytes[2], snapshot.contract, snapshot.bytes instanceof Uint8Array, snapshot.bytes[1]]")
@@ -1993,7 +1993,7 @@ fn main():
     fn javascript_document_and_image_payload_adapters_work() {
         let result = interpret_source(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> Any:
     let document = js_eval_raw("({ kind: 'document', title: 'Signal Notes', text: '<!doctype html><html><body>signal</body></html>', mime_type: 'text/html' })")
@@ -2027,7 +2027,7 @@ fn main() -> Any:
     fn javascript_can_materialize_shared_image_contracts() {
         let result = interpret_source(
             r#"
-use std::javascript::bridge
+use std::js
 
 fn main() -> Any:
     let image = js_eval_raw("({ kind: 'image', width: 8, height: 4, channels: 3, layout: 'HWC', pixel_format: 'rgb8', representation: 'raster', mime_type: 'image/x-kain-raster', bytes: new Uint8Array(8 * 4 * 3).fill(17) })")
@@ -2053,10 +2053,8 @@ fn main() -> Any:
 
     fn interpret_source(source: &str) -> Value {
         register();
-        let stdlib = kain_core::stdlib::load_stdlib_for_target(CompileTarget::Interpret);
-        let full_source = format!("{stdlib}\n{source}");
-        let tokens = Lexer::new(&full_source).tokenize().unwrap();
-        let span_mapper = SpanMapper::new(&full_source);
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        let span_mapper = SpanMapper::new(source);
         let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
             .parse()
             .unwrap();

@@ -2043,7 +2043,9 @@ fn load_and_parse_sources(
             .all(|always| name != always)
     });
 
-    // Determine stdlib path with prioritized search strategy
+    // Determine stdlib path with prioritized search strategy.
+    // UE now shares the main root stdlib; we no longer auto-special-case
+    // `stdlib/ue5` during discovery.
     let stdlib_search_paths: Vec<PathBuf> = if let Some(custom_path) = &ue5_config.stdlib_path {
         // Priority 1: Explicit path from KAIN.toml (highest priority)
         vec![custom_path.clone()]
@@ -2064,14 +2066,11 @@ fn load_and_parse_sources(
                     break;
                 }
 
-                // Check for stdlib in current directory (but only if it has ue5/ subdirectory)
+                // Check for stdlib in current directory.
                 let stdlib_dir = current.join("stdlib");
                 if stdlib_dir.exists() && stdlib_dir.is_dir() {
-                    let ue5_subdir = stdlib_dir.join("ue5");
-                    if ue5_subdir.exists() && ue5_subdir.is_dir() {
-                        roots.push(stdlib_dir);
-                        break;
-                    }
+                    roots.push(stdlib_dir);
+                    break;
                 }
 
                 // Move to parent directory
@@ -2086,16 +2085,8 @@ fn load_and_parse_sources(
         roots
     };
 
-    // Try each search path, checking ue5/ subdirectory first
-    for stdlib_root in stdlib_search_paths {
-        // Try <root>/ue5/ first (UE5-specific stdlib)
-        let ue5_path = stdlib_root.join("ue5");
-        let search_path = if ue5_path.exists() && ue5_path.is_dir() {
-            ue5_path
-        } else {
-            stdlib_root.clone()
-        };
-
+    // Try each discovered stdlib root directly.
+    for search_path in stdlib_search_paths {
         if search_path.exists() {
             if let Ok(entries) = fs::read_dir(&search_path) {
                 for entry in entries {

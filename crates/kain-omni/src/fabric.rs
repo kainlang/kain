@@ -880,7 +880,7 @@ const POLYGLOT_NODE_STEP: &str = r#"export function run(fabricInputs) {
 }
 "#;
 
-const POLYGLOT_KAIN_ENTRY: &str = r#"use std::interop::bridge
+const POLYGLOT_KAIN_ENTRY: &str = r#"use std::interop
 
 struct KainOutputs:
     image: Any
@@ -922,7 +922,7 @@ fn main() -> KainOutputs:
 "#;
 
 const POLYGLOT_NATIVE_ENTRY: &str = r#"use c::image_fx
-use std::interop::bridge
+use std::interop
 
 struct NativeOutputs:
     filtered_image: Any
@@ -951,7 +951,7 @@ fn main() -> NativeOutputs:
 "#;
 
 const POLYGLOT_RUST_ENTRY: &str = r#"use rust::fabric_runtime_lab
-use std::interop::bridge
+use std::interop
 
 fn main() -> String:
     let snapshot = fabric_inputs.native_filter.snapshot

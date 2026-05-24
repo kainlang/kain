@@ -62,7 +62,7 @@
 - Categories: correctness, developer-experience, interop
 - Status: Bypass-Applied
 - Surface: stdlib
-- Symptom: `kain run ... --target interpret` can fail with `Runtime error: Undefined: abi_fs_create_dir_all` or `Undefined: abi_fs_path_join` even when the authored wrapper only wants to use `std::python::bridge` plus a small helper import.
+- Symptom: `kain run ... --target interpret` can fail with `Runtime error: Undefined: abi_fs_create_dir_all` or `Undefined: abi_fs_path_join` even when the authored wrapper only wants to use `std::python` plus a small helper import.
 - Workflow impact: The new `smoketest/telemetry/run_smoketest_mode.kn` wrapper could not write runner notes or even import `src/telemetry/report.kn` safely in interpret mode, which blocked the all-Kain telemetry/attrition runner until the wrapper was rewritten to keep checksum logic local and route note writes back through Python FFI instead of `std::fs`.
 - Minimal repro: `cargo run -q -p cli --bin kain -- run smoketest/telemetry/run_smoketest_mode.kn --target interpret -- --mode attrition --executable <abs-smoketest.exe> --output-dir <abs-out>` with the wrapper importing `report::smoke_telemetry_track_checksum` or calling `fs_create_dir_all` / `fs_path_join`.
 - Evidence: Initial failures were `Kain error: Runtime error: Undefined: abi_fs_path_join` and then `Kain error: Runtime error: Undefined: abi_fs_create_dir_all` from the interpret-target runner lane.

@@ -1,0 +1,4919 @@
+// Root Unreal stdlib surface extracted from the amalgamated UE5 capsule.
+// Source capsule: stdlib/ue5/unreal.kn
+// Keep this file importable as `std::unreal`; the capsule remains as the archival source bundle.
+
+// ============================================================================
+// source: ue5/actor.kn
+// ============================================================================
+# Actor Functions
+# Common AActor functions for UE5 actors
+
+# ============================================================================
+# Location and Transform
+# ============================================================================
+
+/// Get the actor's current world location
+///
+/// # Returns
+/// Vec3 - The actor's location in world space
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorLocation() -> Vec3
+
+/// Set the actor's world location
+///
+/// # Parameters
+/// - location: Vec3 - The new world location for the actor
+///
+/// # Side Effects
+/// Modifies actor transform, may trigger collision events
+@extern
+pub fn SetActorLocation(location: Vec3)
+
+/// Get the actor's current world rotation
+///
+/// # Returns
+/// Rotator - The actor's rotation in world space (pitch, yaw, roll)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorRotation() -> Rotator
+
+/// Set the actor's world rotation
+///
+/// # Parameters
+/// - rotation: Rotator - The new world rotation for the actor
+///
+/// # Side Effects
+/// Modifies actor transform, may trigger collision events
+@extern
+pub fn SetActorRotation(rotation: Rotator)
+
+/// Get the actor's current world scale
+///
+/// # Returns
+/// Vec3 - The actor's scale in world space (X, Y, Z)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorScale() -> Vec3
+
+/// Set the actor's world scale
+///
+/// # Parameters
+/// - scale: Vec3 - The new world scale for the actor (X, Y, Z)
+///
+/// # Side Effects
+/// Modifies actor transform, affects collision bounds
+@extern
+pub fn SetActorScale(scale: Vec3)
+
+# ============================================================================
+# Direction Vectors
+# ============================================================================
+
+/// Get the actor's forward direction vector (X axis)
+///
+/// # Returns
+/// Vec3 - Normalized forward vector in world space
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorForwardVector() -> Vec3
+
+/// Get the actor's right direction vector (Y axis)
+///
+/// # Returns
+/// Vec3 - Normalized right vector in world space
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorRightVector() -> Vec3
+
+/// Get the actor's up direction vector (Z axis)
+///
+/// # Returns
+/// Vec3 - Normalized up vector in world space
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorUpVector() -> Vec3
+
+# ============================================================================
+# Actor Lifecycle
+# ============================================================================
+
+/// Destroy this actor and remove it from the world
+///
+/// # Side Effects
+/// Destroys actor, triggers EndPlay, removes from world, cleans up components
+///
+/// # Note
+/// Actor is not immediately deleted but marked for destruction
+@extern
+pub fn DestroyActor()
+
+/// Calculate distance from this actor to another actor
+///
+/// # Parameters
+/// - other: Actor - The target actor to measure distance to
+///
+/// # Returns
+/// Float - Distance in world units between actor origins
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetDistanceTo(other: Actor) -> Float
+
+/// Set whether the actor is hidden in game
+///
+/// # Parameters
+/// - hidden: Bool - True to hide actor, false to show
+///
+/// # Side Effects
+/// Modifies actor visibility, affects rendering
+@extern
+pub fn SetActorHiddenInGame(hidden: Bool)
+
+/// Enable or disable collision for this actor
+///
+/// # Parameters
+/// - enable: Bool - True to enable collision, false to disable
+///
+/// # Side Effects
+/// Modifies collision state, affects physics interactions
+@extern
+pub fn SetActorEnableCollision(enable: Bool)
+
+# ============================================================================
+# Actor Properties
+# ============================================================================
+
+/// Get the actor's bounding box extents
+///
+/// # Returns
+/// Vec3 - Half-extents of the actor's bounding box (X, Y, Z)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorBounds() -> Vec3
+
+/// Check if the actor is currently being destroyed
+///
+/// # Returns
+/// Bool - True if actor is pending destruction, false otherwise
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn IsActorBeingDestroyed() -> Bool
+
+# ============================================================================
+# Movement
+# ============================================================================
+
+/// Add an offset to the actor's world location
+///
+/// # Parameters
+/// - offset: Vec3 - The offset to add in world space
+///
+/// # Side Effects
+/// Modifies actor location, may trigger collision events, respects collision
+@extern
+pub fn AddActorWorldOffset(offset: Vec3)
+
+/// Add a rotation to the actor's world rotation
+///
+/// # Parameters
+/// - rotation: Rotator - The rotation to add in world space
+///
+/// # Side Effects
+/// Modifies actor rotation, may trigger collision events
+@extern
+pub fn AddActorWorldRotation(rotation: Rotator)
+
+# ============================================================================
+# Lifetime Management
+# ============================================================================
+
+/// Set the actor's lifespan in seconds
+///
+/// # Parameters
+/// - seconds: Float - Time in seconds before actor is automatically destroyed (0 = infinite)
+///
+/// # Side Effects
+/// Sets destruction timer, actor will be destroyed after specified time
+@extern
+pub fn SetLifeSpan(seconds: Float)
+
+/// Get the actor's remaining lifespan
+///
+/// # Returns
+/// Float - Remaining time in seconds before destruction (0 = infinite)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetLifeSpan() -> Float
+
+# ============================================================================
+# Attachment
+# ============================================================================
+
+/// Attach this actor to another actor
+///
+/// # Parameters
+/// - parent: Actor - The actor to attach to
+///
+/// # Side Effects
+/// Creates attachment relationship, actor moves with parent
+@extern
+pub fn AttachToActor(parent: Actor)
+
+/// Detach this actor from its parent
+///
+/// # Side Effects
+/// Breaks attachment relationship, actor becomes independent
+@extern
+pub fn DetachFromActor()
+
+/// Get all actors attached to this actor
+///
+/// # Returns
+/// Array<Actor> - List of child actors attached to this actor
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetAttachedActors() -> Array<Actor>
+
+/// Get the parent actor this actor is attached to
+///
+/// # Returns
+/// Actor - The parent actor, or null if not attached
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetAttachParentActor() -> Actor
+
+/// Attach this actor to a specific component
+///
+/// # Parameters
+/// - target_component: SceneComponent - The component to attach to
+///
+/// # Side Effects
+/// Creates attachment relationship, actor moves with component
+@extern
+pub fn AttachToComponent(target_component: SceneComponent)
+
+# ============================================================================
+# Velocity and Physics
+# ============================================================================
+
+/// Get the actor's current velocity
+///
+/// # Returns
+/// Vec3 - The actor's velocity in world space (units per second)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetVelocity() -> Vec3
+
+/// Set the actor's velocity
+///
+/// # Parameters
+/// - velocity: Vec3 - The new velocity in world space (units per second)
+///
+/// # Side Effects
+/// Modifies actor velocity, affects physics simulation
+@extern
+pub fn SetVelocity(velocity: Vec3)
+
+/// Get the actor's angular velocity
+///
+/// # Returns
+/// Vec3 - The actor's angular velocity (radians per second)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorAngularVelocity() -> Vec3
+
+/// Set the actor's angular velocity
+///
+/// # Parameters
+/// - angular_velocity: Vec3 - The new angular velocity (radians per second)
+///
+/// # Side Effects
+/// Modifies actor angular velocity, affects physics simulation
+@extern
+pub fn SetActorAngularVelocity(angular_velocity: Vec3)
+
+# ============================================================================
+# Teleportation
+# ============================================================================
+
+/// Teleport the actor to a new location and rotation
+///
+/// # Parameters
+/// - location: Vec3 - The target world location
+/// - rotation: Rotator - The target world rotation
+///
+/// # Returns
+/// Bool - True if teleport succeeded, false if blocked by collision
+///
+/// # Side Effects
+/// Instantly moves actor, ignores collision during teleport, may trigger overlap events
+@extern
+pub fn TeleportTo(location: Vec3, rotation: Rotator) -> Bool
+
+# ============================================================================
+# Relative Transform
+# ============================================================================
+
+/// Set the actor's location relative to its parent
+///
+/// # Parameters
+/// - location: Vec3 - The new relative location
+///
+/// # Side Effects
+/// Modifies actor transform relative to parent
+@extern
+pub fn SetActorRelativeLocation(location: Vec3)
+
+/// Set the actor's rotation relative to its parent
+///
+/// # Parameters
+/// - rotation: Rotator - The new relative rotation
+///
+/// # Side Effects
+/// Modifies actor transform relative to parent
+@extern
+pub fn SetActorRelativeRotation(rotation: Rotator)
+
+/// Set the actor's scale relative to its parent
+///
+/// # Parameters
+/// - scale: Vec3 - The new relative scale (X, Y, Z)
+///
+/// # Side Effects
+/// Modifies actor transform relative to parent
+@extern
+pub fn SetActorRelativeScale3D(scale: Vec3)
+
+/// Get the actor's location relative to its parent
+///
+/// # Returns
+/// Vec3 - The relative location
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorRelativeLocation() -> Vec3
+
+/// Get the actor's rotation relative to its parent
+///
+/// # Returns
+/// Rotator - The relative rotation
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorRelativeRotation() -> Rotator
+
+/// Get the actor's scale relative to its parent
+///
+/// # Returns
+/// Vec3 - The relative scale (X, Y, Z)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorRelativeScale3D() -> Vec3
+
+# ============================================================================
+# Component Access
+# ============================================================================
+
+/// Get a component of the actor by class name
+///
+/// # Parameters
+/// - component_class: String - The component class name (e.g., "StaticMeshComponent")
+///
+/// # Returns
+/// Component - The first component of the specified class, or null if not found
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetComponentByClass(component_class: String) -> Component
+
+/// Get all components of the actor by class name
+///
+/// # Parameters
+/// - component_class: String - The component class name (e.g., "StaticMeshComponent")
+///
+/// # Returns
+/// Array<Component> - List of all components of the specified class
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetComponentsByClass(component_class: String) -> Array<Component>
+
+/// Get the actor's root component
+///
+/// # Returns
+/// SceneComponent - The root component that defines the actor's transform
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetRootComponent() -> SceneComponent
+
+# ============================================================================
+# Transform Operations
+# ============================================================================
+
+/// Add an offset to the actor's location in local space
+///
+/// # Parameters
+/// - offset: Vec3 - The offset to add in local space
+///
+/// # Side Effects
+/// Modifies actor location, may trigger collision events
+@extern
+pub fn AddActorLocalOffset(offset: Vec3)
+
+/// Add a rotation to the actor's rotation in local space
+///
+/// # Parameters
+/// - rotation: Rotator - The rotation to add in local space
+///
+/// # Side Effects
+/// Modifies actor rotation, may trigger collision events
+@extern
+pub fn AddActorLocalRotation(rotation: Rotator)
+
+/// Set the actor's complete transform (location, rotation, scale)
+///
+/// # Parameters
+/// - location: Vec3 - The new world location
+/// - rotation: Rotator - The new world rotation
+/// - scale: Vec3 - The new world scale (X, Y, Z)
+///
+/// # Side Effects
+/// Modifies actor transform, may trigger collision events
+@extern
+pub fn SetActorTransform(location: Vec3, rotation: Rotator, scale: Vec3)
+
+/// Get the actor's complete transform
+///
+/// # Returns
+/// Transform - The actor's world transform (location, rotation, scale)
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetActorTransform() -> Transform
+
+# ============================================================================
+# Actor Tags
+# ============================================================================
+
+/// Check if the actor has a specific tag
+///
+/// # Parameters
+/// - tag: String - The tag name to check
+///
+/// # Returns
+/// Bool - True if actor has the tag, false otherwise
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn ActorHasTag(tag: String) -> Bool
+
+/// Add a tag to the actor
+///
+/// # Parameters
+/// - tag: String - The tag name to add
+///
+/// # Side Effects
+/// Adds tag to actor's tag list, enables tag-based queries
+@extern
+pub fn AddActorTag(tag: String)
+
+/// Remove a tag from the actor
+///
+/// # Parameters
+/// - tag: String - The tag name to remove
+///
+/// # Side Effects
+/// Removes tag from actor's tag list
+@extern
+pub fn RemoveActorTag(tag: String)
+
+# ============================================================================
+# Actor Queries
+# ============================================================================
+
+/// Get the actor's owner
+///
+/// # Returns
+/// Actor - The owning actor, or null if no owner
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetOwner() -> Actor
+
+/// Set the actor's owner
+///
+/// # Parameters
+/// - owner: Actor - The new owning actor
+///
+/// # Side Effects
+/// Sets ownership relationship, affects replication and authority
+@extern
+pub fn SetOwner(owner: Actor)
+
+/// Get the actor's instigator
+///
+/// # Returns
+/// Actor - The instigating actor, or null if no instigator
+///
+/// # Side Effects
+/// None (read-only)
+@extern
+pub fn GetInstigator() -> Actor
+
+/// Set the actor's instigator
+///
+/// # Parameters
+/// - instigator: Actor - The new instigating actor
+///
+/// # Side Effects
+/// Sets instigator relationship, used for damage attribution
+@extern
+pub fn SetInstigator(instigator: Actor)
+
+// ============================================================================
+// source: ue5/common.kn
+// ============================================================================
+// KAIN Library of Babel - UE5 Common Types
+// Standard definitions for UE5-specific KAIN types.
+
+// TODO: Attribute type definitions (not yet implemented in parser)
+// @attribute
+// type property = {
+//     category: String,
+//     replicated: Bool,
+//     save_game: Bool
+// }
+
+// @attribute
+// type function = {
+//     category: String,
+//     pure: Bool,
+//     reliable: Bool
+// }
+
+/// Common type definitions and utilities
+/// Note: World functions moved to world.kn, Actor functions moved to actor.kn
+
+// ============================================================================
+// source: ue5/components.kn
+// ============================================================================
+# Component Definitions
+# Common component struct definitions for UE5 systems
+# These are marked @stdlib_optional to prevent generation unless explicitly used
+
+# Timer handle for managing delayed and repeating function calls
+@stdlib_optional
+pub struct KainTimerHandle:
+    handle_id: Int
+    is_active: Bool
+    loop_count: Int
+    elapsed_time: Float
+
+# Input action data for enhanced input system
+@stdlib_optional
+pub struct KainInputAction:
+    action_name: String
+    key_binding: String
+    is_pressed: Bool
+    trigger_value: Float
+
+# Health component data for managing health, damage, and healing
+@stdlib_optional
+pub struct HealthComponentData:
+    current_health: Float
+    max_health: Float
+    is_invulnerable: Bool
+    regeneration_rate: Float
+    last_damage_time: Float
+
+# Inventory component data for managing item storage
+@stdlib_optional
+pub struct InventoryComponentData:
+    max_capacity: Int
+    current_weight: Float
+    max_weight: Float
+    gold: Int
+
+# Movement component data for character movement
+@stdlib_optional
+pub struct MovementComponentData:
+    max_walk_speed: Float
+    max_sprint_speed: Float
+    jump_velocity: Float
+    air_control: Float
+    is_sprinting: Bool
+
+# Combat component data for managing combat state
+@stdlib_optional
+pub struct CombatComponentData:
+    base_damage: Float
+    attack_speed: Float
+    crit_chance: Float
+    crit_multiplier: Float
+    last_attack_time: Float
+
+# Interaction component data for object interaction
+@stdlib_optional
+pub struct InteractionComponentData:
+    interaction_range: Float
+    interaction_prompt: String
+    can_interact: Bool
+    requires_key: Bool
+    key_id: Int
+
+# Quest component data for managing active quests
+@stdlib_optional
+pub struct QuestComponentData:
+    active_quest_count: Int
+    completed_quest_count: Int
+    total_experience: Int
+
+# Dialogue component data for conversation systems
+@stdlib_optional
+pub struct DialogueComponentData:
+    current_dialogue_id: Int
+    dialogue_state: Int
+    available_choices: Array<Int>
+    npc_name: String
+
+# Crafting component data for crafting systems
+@stdlib_optional
+pub struct CraftingComponentData:
+    known_recipes: Array<Int>
+    crafting_level: Int
+    crafting_experience: Int
+    is_crafting: Bool
+
+# Stats component data for RPG character stats
+@stdlib_optional
+pub struct StatsComponentData:
+    strength: Int
+    dexterity: Int
+    intelligence: Int
+    vitality: Int
+    luck: Int
+    level: Int
+
+# Status effect component data for buffs/debuffs
+@stdlib_optional
+pub struct StatusEffectComponentData:
+    active_effect_count: Int
+    max_effect_slots: Int
+    immunity_flags: Int
+
+// ============================================================================
+// source: ue5/gameplay.kn
+// ============================================================================
+# KAIN UE5 Standard Library - Gameplay Helpers
+# High-level gameplay functions
+
+# ============================================================================
+# Health Management
+# ============================================================================
+
+/// Apply damage to a character with armor mitigation
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+/// - damage: Float - The raw damage amount before mitigation
+/// - armor: Float - The character's armor value (0-100 scale)
+///
+/// # Returns
+/// Float - The new health value after damage (clamped to 0)
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Formula
+/// mitigated_damage = damage * (1 - armor / 100)
+/// new_health = max(current_health - mitigated_damage, 0)
+@blueprint
+pub fn apply_damage(current_health: Float, max_health: Float, damage: Float, armor: Float) -> Float:
+    let mitigated_damage = damage * (1.0 - armor / 100.0)
+    let new_health = current_health - mitigated_damage
+    return max(new_health, 0.0)
+
+/// Apply healing to a character
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+/// - heal_amount: Float - The amount of health to restore
+///
+/// # Returns
+/// Float - The new health value after healing (clamped to max_health)
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn apply_healing(current_health: Float, max_health: Float, heal_amount: Float) -> Float:
+    let new_health = current_health + heal_amount
+    return min(new_health, max_health)
+
+/// Calculate health as a percentage
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+///
+/// # Returns
+/// Float - Health percentage (0-100), or 0 if max_health is 0
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn get_health_percentage(current_health: Float, max_health: Float) -> Float:
+    if max_health <= 0.0:
+        return 0.0
+    return (current_health / max_health) * 100.0
+
+/// Check if character health is below a threshold
+///
+/// # Parameters
+/// - current_health: Float - The character's current health points
+/// - max_health: Float - The character's maximum health points
+/// - threshold: Float - The percentage threshold (0-100)
+///
+/// # Returns
+/// Bool - True if health percentage is below threshold
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn is_low_health(current_health: Float, max_health: Float, threshold: Float) -> Bool:
+    return get_health_percentage(current_health, max_health) < threshold
+
+# ============================================================================
+# Combat Calculations
+# ============================================================================
+
+/// Calculate critical hit damage
+///
+/// # Parameters
+/// - base_damage: Float - The base damage amount
+/// - crit_multiplier: Float - The critical hit multiplier (e.g., 2.0 for 2x damage)
+///
+/// # Returns
+/// Float - The critical damage amount
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn calculate_crit_damage(base_damage: Float, crit_multiplier: Float) -> Float:
+    return base_damage * crit_multiplier
+
+/// Determine if an attack should critically hit
+///
+/// # Parameters
+/// - crit_chance: Float - The critical hit chance percentage (0-100)
+///
+/// # Returns
+/// Bool - True if attack should crit (random roll)
+///
+/// # Side Effects
+/// Uses random number generation
+@blueprint
+pub fn should_crit(crit_chance: Float) -> Bool:
+    return random() < (crit_chance / 100.0)
+
+/// Calculate damage reduction from armor
+///
+/// # Parameters
+/// - damage: Float - The raw damage amount
+/// - armor: Float - The armor value
+///
+/// # Returns
+/// Float - The mitigated damage amount
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Formula
+/// Standard armor formula: damage * (1 - armor / (armor + 100))
+@blueprint
+pub fn calculate_armor_mitigation(damage: Float, armor: Float) -> Float:
+    # Standard armor formula: damage * (1 - armor / (armor + 100))
+    return damage * (1.0 - armor / (armor + 100.0))
+
+# ============================================================================
+# Level & XP
+# ============================================================================
+
+/// Calculate experience points required for a level
+///
+/// # Parameters
+/// - level: Int - The target level
+///
+/// # Returns
+/// Int - The total XP required to reach that level
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Formula
+/// Standard RPG XP curve: level^2 * 100
+@blueprint
+pub fn calculate_experience_for_level(level: Int) -> Int:
+    # Standard RPG XP curve: level^2 * 100
+    return level * level * 100
+
+/// Add experience points and handle level-up overflow
+///
+/// # Parameters
+/// - current_xp: Int - The character's current XP
+/// - xp_to_add: Int - The XP amount to add
+/// - current_level: Int - The character's current level
+///
+/// # Returns
+/// Int - The new XP value (overflow subtracted if leveled up)
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Note
+/// Returns XP minus next level requirement if leveled up
+@blueprint
+pub fn add_experience(current_xp: Int, xp_to_add: Int, current_level: Int) -> Int:
+    let new_xp = current_xp + xp_to_add
+    let xp_for_next_level = calculate_experience_for_level(current_level + 1)
+    
+    # Simplified to avoid if-else expression codegen issues
+    if new_xp >= xp_for_next_level:
+        return new_xp - xp_for_next_level
+    return new_xp
+
+/// Calculate XP progress toward next level as percentage
+///
+/// # Parameters
+/// - current_xp: Int - The character's current XP
+/// - current_level: Int - The character's current level
+///
+/// # Returns
+/// Float - Progress percentage (0-100)
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn get_xp_progress(current_xp: Int, current_level: Int) -> Float:
+    let xp_for_current = calculate_experience_for_level(current_level)
+    let xp_for_next = calculate_experience_for_level(current_level + 1)
+    let xp_needed = xp_for_next - xp_for_current
+    let xp_progress = current_xp - xp_for_current
+    return (xp_progress / xp_needed) * 100.0
+
+# ============================================================================
+# Inventory Management
+# ============================================================================
+
+/// Check if an item can be added to inventory
+///
+/// # Parameters
+/// - current_count: Int - Current number of items in inventory
+/// - max_capacity: Int - Maximum inventory capacity
+/// - item_stack_size: Int - Size of the item stack to add
+///
+/// # Returns
+/// Bool - True if item can be added without exceeding capacity
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn can_add_item_to_inventory(current_count: Int, max_capacity: Int, item_stack_size: Int) -> Bool:
+    return current_count + item_stack_size <= max_capacity
+
+/// Calculate total weight of inventory items
+///
+/// # Parameters
+/// - items: Array<KainInventorySlot> - Array of inventory slots
+/// - item_weights: Array<Float> - Array of item weights by item ID
+///
+/// # Returns
+/// Float - Total weight of all items in inventory
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Example
+/// items = [InventorySlot(item_id: 0, quantity: 5), InventorySlot(item_id: 1, quantity: 2)]
+/// item_weights = [1.5, 3.0]
+/// result = 5 * 1.5 + 2 * 3.0 = 13.5
+@blueprint
+pub fn calculate_inventory_weight(items: Array<KainInventorySlot>, item_weights: Array<Float>) -> Float:
+    var total_weight = 0.0
+    var i = 0
+    while i < items.len():
+        let slot = items[i]
+        if slot.item_id >= 0 and slot.item_id < item_weights.len():
+            total_weight = total_weight + item_weights[slot.item_id] * slot.quantity
+        i = i + 1
+    return total_weight
+
+# ============================================================================
+# Cooldown Management
+# ============================================================================
+
+/// Check if an ability cooldown is ready
+///
+/// # Parameters
+/// - last_use_time: Float - The time when ability was last used
+/// - cooldown_duration: Float - The cooldown duration in seconds
+/// - current_time: Float - The current game time
+///
+/// # Returns
+/// Bool - True if cooldown has elapsed
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn is_cooldown_ready(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Bool:
+    return current_time - last_use_time >= cooldown_duration
+
+/// Get remaining cooldown time
+///
+/// # Parameters
+/// - last_use_time: Float - The time when ability was last used
+/// - cooldown_duration: Float - The cooldown duration in seconds
+/// - current_time: Float - The current game time
+///
+/// # Returns
+/// Float - Remaining cooldown time in seconds (0 if ready)
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn get_cooldown_remaining(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Float:
+    let elapsed = current_time - last_use_time
+    let remaining = cooldown_duration - elapsed
+    return max(remaining, 0.0)
+
+/// Get cooldown progress as percentage
+///
+/// # Parameters
+/// - last_use_time: Float - The time when ability was last used
+/// - cooldown_duration: Float - The cooldown duration in seconds
+/// - current_time: Float - The current game time
+///
+/// # Returns
+/// Float - Cooldown progress percentage (0-100, 100 = ready)
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn get_cooldown_percentage(last_use_time: Float, cooldown_duration: Float, current_time: Float) -> Float:
+    let elapsed = current_time - last_use_time
+    return min((elapsed / cooldown_duration) * 100.0, 100.0)
+
+# ============================================================================
+# Status Effects
+# ============================================================================
+
+/// Apply a buff to a base value
+///
+/// # Parameters
+/// - base_value: Float - The base stat value
+/// - buff_magnitude: Float - The buff strength percentage
+/// - buff_type: BuffType - The type of buff (Damage, Defense, Speed)
+///
+/// # Returns
+/// Float - The modified value with buff applied
+///
+/// # Side Effects
+/// None (pure calculation)
+///
+/// # Example
+/// apply_buff(100.0, 25.0, BuffType::Damage) = 125.0 (25% increase)
+@blueprint
+pub fn apply_buff(base_value: Float, buff_magnitude: Float, buff_type: BuffType) -> Float:
+    match buff_type:
+        BuffType::Damage => base_value * (1.0 + buff_magnitude / 100.0)
+        BuffType::Defense => base_value * (1.0 + buff_magnitude / 100.0)
+        BuffType::Speed => base_value * (1.0 + buff_magnitude / 100.0)
+        _ => base_value
+
+/// Update buff duration by subtracting delta time
+///
+/// # Parameters
+/// - remaining_time: Float - Current remaining buff duration
+/// - delta_time: Float - Time elapsed since last update
+///
+/// # Returns
+/// Float - New remaining time (clamped to 0)
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn update_buff_duration(remaining_time: Float, delta_time: Float) -> Float:
+    return max(remaining_time - delta_time, 0.0)
+
+/// Check if a buff is still active
+///
+/// # Parameters
+/// - remaining_time: Float - Current remaining buff duration
+///
+/// # Returns
+/// Bool - True if buff has time remaining
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn is_buff_active(remaining_time: Float) -> Bool:
+    return remaining_time > 0.0
+
+# ============================================================================
+# Loot Generation
+# ============================================================================
+
+/// Roll for loot drop based on drop chance
+///
+/// # Parameters
+/// - drop_chance: Float - The drop chance percentage (0-100)
+///
+/// # Returns
+/// Bool - True if loot should drop (random roll)
+///
+/// # Side Effects
+/// Uses random number generation
+@blueprint
+pub fn roll_loot_drop(drop_chance: Float) -> Bool:
+    return random() < (drop_chance / 100.0)
+
+/// Determine loot rarity based on luck stat
+///
+/// # Parameters
+/// - luck_stat: Float - The character's luck stat (bonus to roll)
+///
+/// # Returns
+/// LootRarity - The determined rarity (Common, Uncommon, Rare, Epic, Legendary, Mythic)
+///
+/// # Side Effects
+/// Uses random number generation
+///
+/// # Rarity Thresholds
+/// - Mythic: 95+ (5% base chance)
+/// - Legendary: 85-94 (10% base chance)
+/// - Epic: 70-84 (15% base chance)
+/// - Rare: 50-69 (20% base chance)
+/// - Uncommon: 25-49 (25% base chance)
+/// - Common: 0-24 (25% base chance)
+@blueprint
+pub fn determine_loot_rarity(luck_stat: Float) -> LootRarity:
+    let roll = random() * 100.0 + luck_stat
+    
+    # Simplified to avoid nested if-else codegen issues
+    if roll >= 95.0:
+        return LootRarity::Mythic
+    if roll >= 85.0:
+        return LootRarity::Legendary
+    if roll >= 70.0:
+        return LootRarity::Epic
+    if roll >= 50.0:
+        return LootRarity::Rare
+    if roll >= 25.0:
+        return LootRarity::Uncommon
+    return LootRarity::Common
+
+# ============================================================================
+# Quest Progress
+# ============================================================================
+
+/// Update quest objective progress
+///
+/// # Parameters
+/// - current_progress: Int - Current objective progress
+/// - increment: Int - Amount to increment progress by
+/// - required_progress: Int - Total progress required for completion
+///
+/// # Returns
+/// Int - New progress value (clamped to required_progress)
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn update_quest_objective(current_progress: Int, increment: Int, required_progress: Int) -> Int:
+    let new_progress = current_progress + increment
+    return min(new_progress, required_progress)
+
+/// Check if quest objective is complete
+///
+/// # Parameters
+/// - current_progress: Int - Current objective progress
+/// - required_progress: Int - Total progress required for completion
+///
+/// # Returns
+/// Bool - True if objective is complete
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn is_quest_objective_complete(current_progress: Int, required_progress: Int) -> Bool:
+    return current_progress >= required_progress
+
+/// Calculate quest progress as percentage
+///
+/// # Parameters
+/// - current_progress: Int - Current objective progress
+/// - required_progress: Int - Total progress required for completion
+///
+/// # Returns
+/// Float - Progress percentage (0-100), or 0 if required_progress is 0
+///
+/// # Side Effects
+/// None (pure calculation)
+@blueprint
+pub fn get_quest_progress_percentage(current_progress: Int, required_progress: Int) -> Float:
+    if required_progress <= 0:
+        return 0.0
+    return (current_progress / required_progress) * 100.0
+
+// ============================================================================
+// source: ue5/materials.kn
+// ============================================================================
+# Material Functions
+# Material parameter control for dynamic material instances
+
+# Scalar Parameters
+@extern
+pub fn SetScalarParameter(material: Material, param_name: String, value: Float)
+
+@extern
+pub fn GetScalarParameter(material: Material, param_name: String) -> Float
+
+# Vector Parameters
+@extern
+pub fn SetVectorParameter(material: Material, param_name: String, value: Vec3)
+
+@extern
+pub fn GetVectorParameter(material: Material, param_name: String) -> Vec3
+
+# Texture Parameters
+@extern
+pub fn SetTextureParameter(material: Material, param_name: String, tex: TextureObject)
+
+# Material Instance Management
+@extern
+pub fn CreateDynamicMaterialInstance(material: Material) -> Material
+
+@extern
+pub fn SetMaterial(mesh: MeshComponent, slot: Int, material: Material)
+
+@extern
+pub fn GetMaterial(mesh: MeshComponent, slot: Int) -> Material
+
+# Additional Parameter Functions
+@extern
+pub fn SetScalarParameterValueByInfo(material: Material, param_info: String, value: Float)
+
+@extern
+pub fn SetVectorParameterValueByInfo(material: Material, param_info: String, value: Vec3)
+
+@extern
+pub fn GetMaterialParameterCollection(collection_name: String) -> MaterialParameterCollection
+
+@extern
+pub fn SetScalarParameterValueOnMaterials(param_name: String, value: Float)
+
+@extern
+pub fn SetVectorParameterValueOnMaterials(param_name: String, value: Vec3)
+
+@extern
+pub fn ClearParameterValues(material: Material)
+
+# Material Queries
+@extern
+pub fn GetBaseMaterial(material: Material) -> Material
+
+@extern
+pub fn GetMaterialInstanceDynamic(mesh: MeshComponent, slot: Int) -> Material
+
+@extern
+pub fn SetMaterialByName(mesh: MeshComponent, material_name: String)
+
+@extern
+pub fn GetNumMaterials(mesh: MeshComponent) -> Int
+
+# Material Properties
+@extern
+pub fn SetMaterialOpacity(material: Material, opacity: Float)
+
+@extern
+pub fn SetMaterialEmissive(material: Material, emissive_color: Vec3, intensity: Float)
+
+@extern
+pub fn SetMaterialRoughness(material: Material, roughness: Float)
+
+@extern
+pub fn SetMaterialMetallic(material: Material, metallic: Float)
+
+// ============================================================================
+// source: ue5/math.kn
+// ============================================================================
+// KAIN UE5 Standard Library - Math
+// Maps Unreal Engine's FMath and Vector types
+
+/// Vector types (Automatically mapped to FVector/FVector2D/FVector4 in C++)
+pub type Vec2 = vec2
+pub type Vec3 = vec3
+pub type Vec4 = vec4
+pub type Color = vec4
+pub type Rotation = rotation
+pub type Transform = transform
+
+// --- SCALAR MATH ---
+
+@extern
+pub fn max(a: Float, b: Float) -> Float
+
+@extern
+pub fn min(a: Float, b: Float) -> Float
+
+@extern
+pub fn abs(x: Float) -> Float
+
+@extern
+pub fn sqrt(x: Float) -> Float
+
+@extern
+pub fn pow(base: Float, exp: Float) -> Float
+
+@extern
+pub fn floor(x: Float) -> Float
+
+@extern
+pub fn ceil(x: Float) -> Float
+
+@extern
+pub fn round(x: Float) -> Float
+
+@extern
+pub fn clamp(value: Float, min_val: Float, max_val: Float) -> Float
+
+@extern
+pub fn sin(x: Float) -> Float
+
+@extern
+pub fn cos(x: Float) -> Float
+
+@extern
+pub fn tan(x: Float) -> Float
+
+@extern
+pub fn asin(x: Float) -> Float
+
+@extern
+pub fn acos(x: Float) -> Float
+
+@extern
+pub fn atan(x: Float) -> Float
+
+@extern
+pub fn atan2(y: Float, x: Float) -> Float
+
+@extern
+pub fn random() -> Float
+
+// --- VECTOR MATH ---
+
+@extern
+pub fn Vector_Length(v: Vec3) -> Float
+
+@extern
+pub fn Vector_Normalize(v: Vec3) -> Vec3
+
+@extern
+pub fn Vector_Dot(a: Vec3, b: Vec3) -> Float
+
+@extern
+pub fn Vector_Cross(a: Vec3, b: Vec3) -> Vec3
+
+@extern
+pub fn Vector_Distance(a: Vec3, b: Vec3) -> Float
+
+// --- ROTATION MATH ---
+
+@extern
+pub fn Rotator_GetForwardVector(r: Rotation) -> Vec3
+
+@extern
+pub fn Rotator_GetRightVector(r: Rotation) -> Vec3
+
+@extern
+pub fn Rotator_GetUpVector(r: Rotation) -> Vec3
+
+// --- INTERPOLATION ---
+
+@extern
+pub fn Lerp(a: Float, b: Float, alpha: Float) -> Float
+
+@extern
+pub fn VLerp(a: Vec3, b: Vec3, alpha: Float) -> Vec3
+
+@extern
+pub fn RLerp(a: Rotation, b: Rotation, alpha: Float, shortest_path: Bool) -> Rotation
+
+@extern
+pub fn FInterpTo(current: Float, target: Float, delta_time: Float, speed: Float) -> Float
+
+@extern
+pub fn VInterpTo(current: Vec3, target: Vec3, delta_time: Float, speed: Float) -> Vec3
+
+// ============================================================================
+// source: ue5/particles.kn
+// ============================================================================
+# Particle Functions
+# Niagara particle system control and parameter management
+
+# Particle System Spawning
+@extern
+pub fn SpawnEmitterAtLocation(system_name: String, location: Vec3) -> Actor
+
+@extern
+pub fn SpawnEmitterAttached(system_name: String, attach_to: SceneComponent, socket_name: String) -> Actor
+
+# Particle System Control
+@extern
+pub fn ActivateSystem(niagara: Actor)
+
+@extern
+pub fn DeactivateSystem(niagara: Actor)
+
+# Particle System Parameters
+@extern
+pub fn SetFloatParameter(niagara: Actor, param_name: String, value: Float)
+
+@extern
+pub fn SetVectorParameter(niagara: Actor, param_name: String, value: Vec3)
+
+@extern
+pub fn SetColorParameter(niagara: Actor, param_name: String, color: Vec4)
+
+@extern
+pub fn SetActorParameter(niagara: Actor, param_name: String, target: Actor)
+
+@extern
+pub fn SetBoolParameter(niagara: Actor, param_name: String, value: Bool)
+
+# Additional Niagara Parameters
+@extern
+pub fn SetNiagaraVariableVec2(niagara: Actor, param_name: String, value: Vec2)
+
+@extern
+pub fn SetNiagaraVariableVec4(niagara: Actor, param_name: String, value: Vec4)
+
+@extern
+pub fn SetNiagaraVariableQuat(niagara: Actor, param_name: String, value: Quat)
+
+@extern
+pub fn SetNiagaraVariableLinearColor(niagara: Actor, param_name: String, color: Vec4)
+
+@extern
+pub fn GetNiagaraVariableFloat(niagara: Actor, param_name: String) -> Float
+
+@extern
+pub fn GetNiagaraVariableVec3(niagara: Actor, param_name: String) -> Vec3
+
+# Particle System State
+@extern
+pub fn ResetNiagaraSystem(niagara: Actor)
+
+@extern
+pub fn SeekNiagaraSystem(niagara: Actor, time: Float)
+
+@extern
+pub fn SetNiagaraSystemAge(niagara: Actor, age: Float)
+
+@extern
+pub fn GetNiagaraSystemAge(niagara: Actor) -> Float
+
+# Advanced Parameters
+@extern
+pub fn SetNiagaraVariableActor(niagara: Actor, param_name: String, target: Actor)
+
+@extern
+pub fn SetNiagaraVariableObject(niagara: Actor, param_name: String, obj: Object)
+
+@extern
+pub fn SetNiagaraVariableInt(niagara: Actor, param_name: String, value: Int)
+
+# Particle System Queries
+@extern
+pub fn IsNiagaraSystemActive(niagara: Actor) -> Bool
+
+@extern
+pub fn GetNiagaraParticleCount(niagara: Actor) -> Int
+
+// ============================================================================
+// source: ue5/patterns.kn
+// ============================================================================
+# KAIN UE5 Standard Library - Common Type Patterns
+# Type definitions used across gameplay systems
+# These are marked @stdlib_optional to prevent generation unless explicitly used
+
+# Loot rarity levels for item drops and rewards
+@stdlib_optional
+pub enum LootRarity:
+    Common
+    Uncommon
+    Rare
+    Epic
+    Legendary
+    Mythic
+    LootRarity_MAX
+
+# Buff types for status effect systems
+@stdlib_optional
+pub enum BuffType:
+    Damage
+    Defense
+    Speed
+    Healing
+    BuffType_MAX
+
+# Inventory slot data structure
+@stdlib_optional
+pub struct KainInventorySlot:
+    item_id: Int
+    quantity: Int
+    max_stack: Int
+
+# Health component data structure
+@stdlib_optional
+pub struct KainHealthComponent:
+    current_health: Float
+    max_health: Float
+    is_invulnerable: Bool
+
+# Damage type classification for combat systems
+@stdlib_optional
+pub enum DamageType:
+    Physical
+    Fire
+    Ice
+    Lightning
+    Poison
+    Holy
+    Dark
+    DamageType_MAX
+
+# Quest status tracking
+@stdlib_optional
+pub enum QuestStatus:
+    NotStarted
+    InProgress
+    Completed
+    Failed
+    QuestStatus_MAX
+
+# Dialogue node types for conversation systems
+pub enum DialogueNodeType:
+    Speech
+    Choice
+    Condition
+    Action
+    End
+    DialogueNodeType_MAX
+
+# Crafting recipe data structure
+pub struct CraftingRecipe:
+    recipe_id: Int
+    required_items: Array<Int>
+    required_quantities: Array<Int>
+    output_item_id: Int
+    output_quantity: Int
+    crafting_time: Float
+
+# Save game data structure
+pub struct SaveGameData:
+    save_slot: Int
+    player_level: Int
+    player_experience: Int
+    current_location: String
+    play_time_seconds: Float
+
+# Achievement data structure
+pub struct AchievementData:
+    achievement_id: Int
+    achievement_name: String
+    is_unlocked: Bool
+    unlock_timestamp: Float
+    progress: Float
+
+# Skill tree node structure
+pub struct SkillTreeNode:
+    skill_id: Int
+    skill_name: String
+    skill_level: Int
+    max_level: Int
+    is_unlocked: Bool
+    required_skill_ids: Array<Int>
+
+# Status effect data structure
+pub struct StatusEffect:
+    effect_id: Int
+    effect_type: BuffType
+    duration: Float
+    remaining_time: Float
+    stack_count: Int
+    max_stacks: Int
+
+# Weapon stats structure
+pub struct WeaponStats:
+    base_damage: Float
+    attack_speed: Float
+    crit_chance: Float
+    crit_multiplier: Float
+    durability: Float
+    max_durability: Float
+
+# Armor stats structure
+pub struct ArmorStats:
+    defense_rating: Float
+    damage_reduction: Float
+    weight: Float
+    durability: Float
+    max_durability: Float
+
+// ============================================================================
+// source: ue5/shaders.kn
+// ============================================================================
+# Shader Functions
+# Shader-specific functions for PBR, noise, and color operations
+#
+# NOTE: These functions are marked with @blueprint as a workaround.
+# Future implementation should use @shader_fn annotation for proper shader inlining.
+# Migration path: When @shader_fn is implemented, replace @blueprint with @shader_fn
+# and update USF codegen to inline function bodies instead of emitting calls.
+
+# PBR Functions
+@blueprint
+pub fn fresnel_schlick(cos_theta: Float, f0: Vec3) -> Vec3:
+    let one_minus_cos = 1.0 - cos_theta
+    let factor = pow(one_minus_cos, 5.0)
+    let one_vec = vec3(1.0, 1.0, 1.0)
+    return f0 + (one_vec - f0) * factor
+
+@blueprint
+pub fn distribution_ggx(n: Vec3, h: Vec3, roughness: Float) -> Float:
+    let a = roughness * roughness
+    let a2 = a * a
+    let n_dot_h = max(dot(n, h), 0.0)
+    let n_dot_h2 = n_dot_h * n_dot_h
+    
+    let denom = n_dot_h2 * (a2 - 1.0) + 1.0
+    let pi = 3.14159265359
+    return a2 / (pi * denom * denom)
+
+@blueprint
+pub fn geometry_schlick_ggx(n_dot_v: Float, roughness: Float) -> Float:
+    let r = roughness + 1.0
+    let k = (r * r) / 8.0
+    let denom = n_dot_v * (1.0 - k) + k
+    return n_dot_v / denom
+
+# Noise Functions
+@blueprint
+pub fn hash(p: Vec2) -> Float:
+    let dot_val = dot(p, vec2(127.1, 311.7))
+    let sin_val = sin(dot_val)
+    return frac(sin_val * 43758.5453123)
+
+@blueprint
+pub fn perlin_noise(uv: Vec2) -> Float:
+    let i = floor(uv)
+    let f = frac(uv)
+    
+    let a = hash(i)
+    let b = hash(i + vec2(1.0, 0.0))
+    let c = hash(i + vec2(0.0, 1.0))
+    let d = hash(i + vec2(1.0, 1.0))
+    
+    let u = f * f * (3.0 - 2.0 * f)
+    
+    let ab = a + (b - a) * u.x
+    let cd = c + (d - c) * u.x
+    return ab + (cd - ab) * u.y
+
+@blueprint
+pub fn fbm(uv: Vec2, octaves: Int) -> Float:
+    let value = 0.0
+    let amplitude = 0.5
+    let frequency = 1.0
+    
+    let i = 0
+    while i < octaves:
+        let scaled_uv = vec2(uv.x * frequency, uv.y * frequency)
+        value = value + amplitude * perlin_noise(scaled_uv)
+        frequency = frequency * 2.0
+        amplitude = amplitude * 0.5
+        i = i + 1
+    
+    return value
+
+# Color Grading Functions
+@blueprint
+pub fn apply_contrast(color: Vec3, contrast: Float) -> Vec3:
+    let adjusted_r = (color.x - 0.5) * contrast + 0.5
+    let adjusted_g = (color.y - 0.5) * contrast + 0.5
+    let adjusted_b = (color.z - 0.5) * contrast + 0.5
+    return vec3(adjusted_r, adjusted_g, adjusted_b)
+
+@blueprint
+pub fn apply_saturation(color: Vec3, saturation: Float) -> Vec3:
+    let gray = 0.299 * color.x + 0.587 * color.y + 0.114 * color.z
+    let r = gray + (color.x - gray) * saturation
+    let g = gray + (color.y - gray) * saturation
+    let b = gray + (color.z - gray) * saturation
+    return vec3(r, g, b)
+
+@blueprint
+pub fn tonemap_aces(color: Vec3) -> Vec3:
+    let a = 2.51
+    let b = 0.03
+    let c = 2.43
+    let d = 0.59
+    let e = 0.14
+    
+    let numerator_r = color.x * (a * color.x + b)
+    let numerator_g = color.y * (a * color.y + b)
+    let numerator_b = color.z * (a * color.z + b)
+    
+    let denom_r = color.x * (c * color.x + d) + e
+    let denom_g = color.y * (c * color.y + d) + e
+    let denom_b = color.z * (c * color.z + d) + e
+    
+    return vec3(numerator_r / denom_r, numerator_g / denom_g, numerator_b / denom_b)
+
+@blueprint
+pub fn tonemap_reinhard(color: Vec3) -> Vec3:
+    let r = color.x / (1.0 + color.x)
+    let g = color.y / (1.0 + color.y)
+    let b = color.z / (1.0 + color.z)
+    return vec3(r, g, b)
+
+# UV Manipulation Functions
+@blueprint
+pub fn rotate_uv(uv: Vec2, angle: Float) -> Vec2:
+    let cos_angle = cos(angle)
+    let sin_angle = sin(angle)
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let rotated_x = centered.x * cos_angle - centered.y * sin_angle
+    let rotated_y = centered.x * sin_angle + centered.y * cos_angle
+    return vec2(rotated_x + 0.5, rotated_y + 0.5)
+
+@blueprint
+pub fn polar_coordinates(uv: Vec2) -> Vec2:
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let radius = sqrt(centered.x * centered.x + centered.y * centered.y)
+    let angle = atan2(centered.y, centered.x)
+    return vec2(radius, angle)
+
+@blueprint
+pub fn vignette(uv: Vec2, intensity: Float) -> Float:
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let dist = sqrt(centered.x * centered.x + centered.y * centered.y)
+    let vignette_val = 1.0 - dist * intensity
+    return clamp(vignette_val, 0.0, 1.0)
+
+@blueprint
+pub fn chromatic_aberration(uv: Vec2, offset: Float) -> Vec2:
+    let centered = vec2(uv.x - 0.5, uv.y - 0.5)
+    let dist = sqrt(centered.x * centered.x + centered.y * centered.y)
+    let direction = vec2(centered.x / dist, centered.y / dist)
+    return vec2(direction.x * offset, direction.y * offset)
+
+# Advanced PBR Functions
+
+@blueprint
+pub fn fresnel_schlick_roughness(cos_theta: Float, f0: Vec3, roughness: Float) -> Vec3:
+    """
+    Fresnel-Schlick approximation with roughness for image-based lighting (IBL).
+    Accounts for surface roughness in reflections, used in environment map sampling.
+    
+    Parameters:
+    - cos_theta: Cosine of angle between view direction and surface normal
+    - f0: Base reflectance at normal incidence (0.04 for dielectrics, albedo for metals)
+    - roughness: Surface roughness (0.0 = smooth, 1.0 = rough)
+    
+    Returns: Fresnel reflectance factor as Vec3 (per-channel)
+    
+    Usage:
+        let f0 = mix(vec3(0.04), albedo, metallic)
+        let fresnel = fresnel_schlick_roughness(max(dot(n, v), 0.0), f0, roughness)
+    
+    Reference: Schlick's approximation (1994) with roughness extension for IBL
+    """
+    let clamped_cos = clamp(cos_theta, 0.0, 1.0)
+    let power = pow(1.0 - clamped_cos, 5.0)
+    let max_x = max(1.0 - roughness, f0.x)
+    let max_y = max(1.0 - roughness, f0.y)
+    let max_z = max(1.0 - roughness, f0.z)
+    let max_vec = vec3(max_x, max_y, max_z)
+    return f0 + (max_vec - f0) * power
+
+@blueprint
+pub fn geometry_smith(n: Vec3, v: Vec3, l: Vec3, roughness: Float) -> Float:
+    """
+    Smith's geometry function combining view and light directions.
+    Accounts for microfacet self-shadowing and masking in both directions.
+    Essential component of physically-based Cook-Torrance BRDF.
+    
+    Parameters:
+    - n: Surface normal (normalized)
+    - v: View direction (normalized, pointing toward camera)
+    - l: Light direction (normalized, pointing toward light)
+    - roughness: Surface roughness (0.0 = smooth, 1.0 = rough)
+    
+    Returns: Geometry attenuation factor [0.0, 1.0]
+    
+    Usage:
+        let g = geometry_smith(normal, view_dir, light_dir, material.roughness)
+        let specular = (ndf * g * fresnel) / (4.0 * n_dot_v * n_dot_l)
+    
+    Reference: Smith's geometry function (1967), Schlick-GGX approximation
+    """
+    let n_dot_v = max(dot(n, v), 0.0)
+    let n_dot_l = max(dot(n, l), 0.0)
+    let ggx_view = geometry_schlick_ggx(n_dot_v, roughness)
+    let ggx_light = geometry_schlick_ggx(n_dot_l, roughness)
+    return ggx_view * ggx_light
+
+@blueprint
+pub fn lambert_diffuse(albedo: Vec3, n_dot_l: Float) -> Vec3:
+    """
+    Lambert diffuse BRDF - simplest physically-based diffuse model.
+    Assumes perfectly diffuse (Lambertian) surface with uniform scattering.
+    
+    Parameters:
+    - albedo: Surface color (diffuse reflectance)
+    - n_dot_l: Dot product of normal and light direction (pre-clamped to [0,1])
+    
+    Returns: Diffuse contribution (albedo / π * n_dot_l)
+    
+    Usage:
+        let n_dot_l = max(dot(normal, light_dir), 0.0)
+        let diffuse = lambert_diffuse(material.albedo, n_dot_l)
+    
+    Reference: Lambert's cosine law (1760)
+    """
+    let pi = 3.14159265359
+    return albedo / pi * n_dot_l
+
+@blueprint
+pub fn cook_torrance_specular(ndf: Float, g: Float, f: Vec3, n_dot_v: Float, n_dot_l: Float) -> Vec3:
+    """
+    Cook-Torrance specular BRDF term.
+    Combines normal distribution function (NDF), geometry term (G), and Fresnel (F).
+    
+    Parameters:
+    - ndf: Normal distribution function value (from distribution_ggx)
+    - g: Geometry attenuation (from geometry_smith)
+    - f: Fresnel reflectance (from fresnel_schlick)
+    - n_dot_v: Dot product of normal and view direction
+    - n_dot_l: Dot product of normal and light direction
+    
+    Returns: Specular BRDF value
+    
+    Usage:
+        let ndf = distribution_ggx(normal, half_vec, roughness)
+        let g = geometry_smith(normal, view_dir, light_dir, roughness)
+        let f = fresnel_schlick(max(dot(half_vec, view_dir), 0.0), f0)
+        let specular = cook_torrance_specular(ndf, g, f, n_dot_v, n_dot_l)
+    
+    Reference: Cook-Torrance BRDF (1982)
+    """
+    let numerator = ndf * g * f
+    let denominator = 4.0 * n_dot_v * n_dot_l + 0.0001
+    return numerator / denominator
+
+@blueprint
+pub fn pbr_direct_lighting(albedo: Vec3, metallic: Float, roughness: Float, normal: Vec3, view_dir: Vec3, light_dir: Vec3, light_color: Vec3, light_intensity: Float) -> Vec3:
+    """
+    Complete PBR direct lighting calculation for a single light source.
+    Combines diffuse (Lambert) and specular (Cook-Torrance) terms with energy conservation.
+    
+    Parameters:
+    - albedo: Surface base color
+    - metallic: Metallic factor [0.0 = dielectric, 1.0 = metal]
+    - roughness: Surface roughness [0.0 = smooth, 1.0 = rough]
+    - normal: Surface normal (normalized)
+    - view_dir: Direction to camera (normalized)
+    - light_dir: Direction to light (normalized)
+    - light_color: Light color (linear RGB)
+    - light_intensity: Light intensity multiplier
+    
+    Returns: Outgoing radiance for this light
+    
+    Usage:
+        let radiance = pbr_direct_lighting(
+            material.albedo,
+            material.metallic,
+            material.roughness,
+            normal,
+            view_dir,
+            light_dir,
+            light.color,
+            light.intensity
+        )
+    
+    Reference: Cook-Torrance BRDF (1982), PBR theory
+    """
+    let half_vec = normalize(view_dir + light_dir)
+    let n_dot_l = max(dot(normal, light_dir), 0.0)
+    let n_dot_v = max(dot(normal, view_dir), 0.0)
+    let h_dot_v = max(dot(half_vec, view_dir), 0.0)
+    
+    # Calculate F0 (base reflectance at normal incidence)
+    let f0_dielectric = vec3(0.04, 0.04, 0.04)
+    let f0 = mix(f0_dielectric, albedo, metallic)
+    
+    # Cook-Torrance specular BRDF
+    let ndf = distribution_ggx(normal, half_vec, roughness)
+    let g = geometry_smith(normal, view_dir, light_dir, roughness)
+    let f = fresnel_schlick(h_dot_v, f0)
+    let specular = cook_torrance_specular(ndf, g, f, n_dot_v, n_dot_l)
+    
+    # Energy conservation: diffuse component
+    # ks (specular) = Fresnel, kd (diffuse) = 1 - ks
+    # Metals have no diffuse component
+    let ks = f
+    let one_vec = vec3(1.0, 1.0, 1.0)
+    let kd = (one_vec - ks) * (1.0 - metallic)
+    
+    # Lambert diffuse
+    let pi = 3.14159265359
+    let diffuse = kd * albedo / pi
+    
+    # Combine diffuse and specular with light contribution
+    let radiance = light_color * light_intensity
+    return (diffuse + specular) * radiance * n_dot_l
+
+# Volumetric & Scattering Functions
+
+@blueprint
+pub fn henyey_greenstein(cos_theta: Float, g: Float) -> Float:
+    """
+    Henyey-Greenstein phase function for anisotropic scattering.
+    Models how light scatters in participating media (clouds, fog, smoke).
+    
+    Parameters:
+    - cos_theta: Cosine of angle between light direction and view direction
+    - g: Anisotropy factor [-1.0 = back-scatter, 0.0 = isotropic, 1.0 = forward-scatter]
+    
+    Returns: Phase function value (probability of scattering in view direction)
+    
+    Usage:
+        let cos_theta = dot(light_dir, view_dir)
+        let phase = henyey_greenstein(cos_theta, 0.6)  # Forward scattering
+        let in_scatter = light_color * phase * density
+    
+    Reference: Henyey & Greenstein (1941)
+    """
+    let g2 = g * g
+    let cos_theta_2g = 1.0 + g2 - 2.0 * g * cos_theta
+    let pi = 3.14159265359
+    let numerator = 1.0 - g2
+    let denominator = 4.0 * pi * pow(cos_theta_2g, 1.5)
+    return numerator / denominator
+
+@blueprint
+pub fn beer_lambert(density: Float, distance: Float) -> Float:
+    """
+    Beer-Lambert law for light transmittance through participating media.
+    Calculates how much light is absorbed over a distance through a medium.
+    
+    Parameters:
+    - density: Medium density (absorption coefficient)
+    - distance: Distance traveled through medium
+    
+    Returns: Transmittance factor [0.0 = fully absorbed, 1.0 = no absorption]
+    
+    Usage:
+        let transmittance = beer_lambert(fog_density, ray_distance)
+        let visible_light = light_color * transmittance
+    
+    Reference: Beer-Lambert law (1852)
+    """
+    return exp(-density * distance)
+
+@blueprint
+pub fn powder_effect(density: Float, cos_theta: Float) -> Float:
+    """
+    Powder effect for enhanced cloud realism (Schneider 2015).
+    Approximates multiple scattering in dense participating media.
+    Creates darker cloud cores and brighter edges.
+    
+    Parameters:
+    - density: Cloud density at sample point
+    - cos_theta: Cosine of angle between light and view direction
+    
+    Returns: Multi-scattering approximation factor
+    
+    Usage:
+        let powder = powder_effect(cloud_density, dot(sun_dir, view_dir))
+        let light_energy = light_energy * powder
+    
+    Reference: Schneider, "Real-Time Volumetric Cloudscapes" (2015)
+    """
+    let multi_scatter = 1.0 - exp(-density * 2.0)
+    let blend_factor = smoothstep(0.5, -0.5, cos_theta)
+    return mix(1.0, multi_scatter, blend_factor)
+
+# Advanced Color Grading Functions
+# Extracted from post_processing.kn and UltimateVisualEffectsSuite.kn
+# Industry-standard color correction and grading operations
+
+# RGB to HSV color space conversion
+# Enables hue/saturation manipulation in HSV space
+# Returns: Vec3(hue [0-1], saturation [0-1], value [0-1])
+@blueprint
+pub fn rgb_to_hsv(rgb: Vec3) -> Vec3:
+    let r = rgb.x
+    let g = rgb.y
+    let b = rgb.z
+    
+    let max_c = max(r, max(g, b))
+    let min_c = min(r, min(g, b))
+    let delta = max_c - min_c
+    
+    var h = 0.0
+    if delta > 0.0001:
+        if max_c == r:
+            h = ((g - b) / delta) % 6.0
+        else if max_c == g:
+            h = (b - r) / delta + 2.0
+        else:
+            h = (r - g) / delta + 4.0
+        h = h / 6.0
+    
+    let s = if max_c > 0.0001: delta / max_c else: 0.0
+    let v = max_c
+    
+    return vec3(h, s, v)
+
+# HSV to RGB color space conversion
+# Converts HSV back to RGB color space
+# Input: Vec3(hue [0-1], saturation [0-1], value [0-1])
+@blueprint
+pub fn hsv_to_rgb(hsv: Vec3) -> Vec3:
+    let h = hsv.x * 6.0
+    let s = hsv.y
+    let v = hsv.z
+    
+    let c = v * s
+    let x = c * (1.0 - abs((h % 2.0) - 1.0))
+    let m = v - c
+    
+    var rgb = vec3(0.0, 0.0, 0.0)
+    if h < 1.0:
+        rgb = vec3(c, x, 0.0)
+    else if h < 2.0:
+        rgb = vec3(x, c, 0.0)
+    else if h < 3.0:
+        rgb = vec3(0.0, c, x)
+    else if h < 4.0:
+        rgb = vec3(0.0, x, c)
+    else if h < 5.0:
+        rgb = vec3(x, 0.0, c)
+    else:
+        rgb = vec3(c, 0.0, x)
+    
+    return rgb + vec3(m, m, m)
+
+# Apply brightness adjustment
+# Multiplies color by exposure factor (2^exposure)
+# Negative values darken, positive values brighten
+@blueprint
+pub fn apply_brightness(color: Vec3, exposure: Float) -> Vec3:
+    let factor = pow(2.0, exposure)
+    return vec3(color.x * factor, color.y * factor, color.z * factor)
+
+# Filmic tonemapping operator
+# Simple S-curve tonemap for HDR to LDR conversion
+# Provides natural film-like response
+@blueprint
+pub fn tonemap_filmic(color: Vec3) -> Vec3:
+    let x_r = max(0.0, color.x - 0.004)
+    let x_g = max(0.0, color.y - 0.004)
+    let x_b = max(0.0, color.z - 0.004)
+    
+    let r = (x_r * (6.2 * x_r + 0.5)) / (x_r * (6.2 * x_r + 1.7) + 0.06)
+    let g = (x_g * (6.2 * x_g + 0.5)) / (x_g * (6.2 * x_g + 1.7) + 0.06)
+    let b = (x_b * (6.2 * x_b + 0.5)) / (x_b * (6.2 * x_b + 1.7) + 0.06)
+    
+    return vec3(r, g, b)
+
+# Uncharted 2 tonemapping operator
+# John Hable's filmic curve used in Uncharted 2
+# Provides cinematic look with shoulder and toe
+@blueprint
+pub fn tonemap_uncharted2(color: Vec3) -> Vec3:
+    let a = 0.15
+    let b = 0.50
+    let c = 0.10
+    let d = 0.20
+    let e = 0.02
+    let f = 0.30
+    
+    let r_num = color.x * (a * color.x + c * b) + d * e
+    let r_den = color.x * (a * color.x + b) + d * f
+    let r = r_num / (r_den + 0.0001) - e / f
+    
+    let g_num = color.y * (a * color.y + c * b) + d * e
+    let g_den = color.y * (a * color.y + b) + d * f
+    let g = g_num / (g_den + 0.0001) - e / f
+    
+    let b_num = color.z * (a * color.z + c * b) + d * e
+    let b_den = color.z * (a * color.z + b) + d * f
+    let b_val = b_num / (b_den + 0.0001) - e / f
+    
+    let white_scale = 11.2
+    let white_r_num = white_scale * (a * white_scale + c * b) + d * e
+    let white_r_den = white_scale * (a * white_scale + b) + d * f
+    let white = white_r_num / (white_r_den + 0.0001) - e / f
+    
+    return vec3(r / white, g / white, b_val / white)
+
+# Complete color correction with lift/gamma/gain
+# ASC-CDL (American Society of Cinematographers Color Decision List)
+# Industry-standard color grading formula
+@blueprint
+pub fn color_correction(color: Vec3, lift: Vec3, gamma: Vec3, gain: Vec3) -> Vec3:
+    let lifted_r = color.x * gain.x + lift.x
+    let lifted_g = color.y * gain.y + lift.y
+    let lifted_b = color.z * gain.z + lift.z
+    
+    let r = pow(max(lifted_r, 0.0), 1.0 / max(gamma.x, 0.01))
+    let g = pow(max(lifted_g, 0.0), 1.0 / max(gamma.y, 0.01))
+    let b = pow(max(lifted_b, 0.0), 1.0 / max(gamma.z, 0.01))
+    
+    return vec3(r, g, b)
+
+# White balance adjustment
+# Simulates temperature (warm/cool) and tint (green/magenta) shifts
+# Temperature: negative = cool (blue), positive = warm (orange)
+# Tint: negative = green, positive = magenta
+@blueprint
+pub fn white_balance(color: Vec3, temperature: Float, tint: Float) -> Vec3:
+    let temp_r = color.x + temperature * 0.1
+    let temp_g = color.y
+    let temp_b = color.z - temperature * 0.1
+    
+    let tint_r = temp_r
+    let tint_g = temp_g - tint * 0.05
+    let tint_b = temp_b + tint * 0.05
+    
+    return vec3(tint_r, tint_g, tint_b)
+
+# Hue shift in HSV space
+# Rotates hue by specified amount (in normalized 0-1 range)
+# Preserves saturation and value
+@blueprint
+pub fn hue_shift(color: Vec3, shift: Float) -> Vec3:
+    let hsv = rgb_to_hsv(color)
+    let shifted_h = (hsv.x + shift) % 1.0
+    let shifted_hsv = vec3(shifted_h, hsv.y, hsv.z)
+    return hsv_to_rgb(shifted_hsv)
+
+# Vibrance adjustment
+# Smart saturation that affects muted colors more than saturated ones
+# Prevents over-saturation of already vibrant colors
+@blueprint
+pub fn vibrance(color: Vec3, amount: Float) -> Vec3:
+    let lum = 0.299 * color.x + 0.587 * color.y + 0.114 * color.z
+    let max_component = max(color.x, max(color.y, color.z))
+    let min_component = min(color.x, min(color.y, color.z))
+    let sat = max_component - min_component
+    
+    let boost = (1.0 - sat) * amount
+    
+    let r = lum + (color.x - lum) * (1.0 + boost)
+    let g = lum + (color.y - lum) * (1.0 + boost)
+    let b = lum + (color.z - lum) * (1.0 + boost)
+    
+    return vec3(r, g, b)
+
+# Three-way color correction
+# Separate control over shadows, midtones, and highlights
+# Uses luminance-based weighting for smooth transitions
+@blueprint
+pub fn three_way_color_correction(color: Vec3, shadows: Vec3, midtones: Vec3, highlights: Vec3) -> Vec3:
+    let lum = 0.2126 * color.x + 0.7152 * color.y + 0.0722 * color.z
+    
+    let shadow_weight = 1.0 - smoothstep(0.0, 0.5, lum)
+    let highlight_weight = smoothstep(0.5, 1.0, lum)
+    let midtone_weight = 1.0 - shadow_weight - highlight_weight
+    
+    let shadow_contrib = vec3(shadows.x * shadow_weight, shadows.y * shadow_weight, shadows.z * shadow_weight)
+    let midtone_contrib = vec3(midtones.x * midtone_weight, midtones.y * midtone_weight, midtones.z * midtone_weight)
+    let highlight_contrib = vec3(highlights.x * highlight_weight, highlights.y * highlight_weight, highlights.z * highlight_weight)
+    
+    let correction = shadow_contrib + midtone_contrib + highlight_contrib
+    
+    return vec3(color.x * correction.x, color.y * correction.y, color.z * correction.z)
+
+# Luminance calculation (Rec. 709 standard)
+# Returns perceptual brightness of RGB color
+# Used in tone mapping and color grading operations
+@blueprint
+pub fn luminance(color: Vec3) -> Float:
+    return 0.2126 * color.x + 0.7152 * color.y + 0.0722 * color.z
+
+# ============================================================================
+# Advanced Noise Functions
+# ============================================================================
+# Comprehensive noise library for procedural generation, including:
+# - Hash functions (2D/3D variants)
+# - Perlin/Simplex noise
+# - Fractal Brownian Motion (FBM)
+# - Voronoi/Worley noise
+# - Turbulence and ridged noise
+# - Curl noise for fluid simulation
+# ============================================================================
+
+# 3D Hash Function
+# Fast pseudo-random hash for 3D coordinates
+# Used as foundation for 3D noise generation
+@blueprint
+pub fn hash3(p: Vec3) -> Float:
+    let h = dot(p, vec3(127.1, 311.7, 74.7))
+    return frac(sin(h) * 43758.5453123)
+
+# 2D Hash Function (High Quality)
+# Better distribution than simple hash
+# Returns value in [0, 1]
+@blueprint
+pub fn hash2(p: Vec2) -> Float:
+    let p_frac = frac(p * vec2(123.34, 456.21))
+    let p_sum = p_frac + dot(p_frac, p_frac + vec2(45.32, 45.32))
+    return frac(p_sum.x * p_sum.y)
+
+# 2D to 2D Hash Function
+# Returns 2D pseudo-random vector from 2D input
+# Useful for Voronoi cell offsets
+@blueprint
+pub fn hash22(p: Vec2) -> Vec2:
+    let p3 = frac(vec3(p.x, p.y, p.x) * vec3(0.1031, 0.1030, 0.0973))
+    let p3_sum = p3 + dot(p3, vec3(p3.y, p3.z, p3.x) + vec3(33.33, 33.33, 33.33))
+    return frac(vec2(p3_sum.x + p3_sum.y, p3_sum.x + p3_sum.z) * vec2(p3_sum.z, p3_sum.y))
+
+# 3D Perlin-Style Noise
+# Smooth continuous noise with trilinear interpolation
+# Samples 8 corners of cube for smooth gradients
+# Returns value in [0, 1]
+@blueprint
+pub fn noise3(p: Vec3) -> Float:
+    let i = floor(p)
+    let f = frac(p)
+    
+    # Cubic Hermite interpolation for smoothness
+    let u = f * f * (vec3(3.0, 3.0, 3.0) - vec3(2.0, 2.0, 2.0) * f)
+    
+    # Sample 8 corners of cube
+    let n000 = hash3(i + vec3(0.0, 0.0, 0.0))
+    let n100 = hash3(i + vec3(1.0, 0.0, 0.0))
+    let n010 = hash3(i + vec3(0.0, 1.0, 0.0))
+    let n110 = hash3(i + vec3(1.0, 1.0, 0.0))
+    let n001 = hash3(i + vec3(0.0, 0.0, 1.0))
+    let n101 = hash3(i + vec3(1.0, 0.0, 1.0))
+    let n011 = hash3(i + vec3(0.0, 1.0, 1.0))
+    let n111 = hash3(i + vec3(1.0, 1.0, 1.0))
+    
+    # Trilinear interpolation
+    let nx00 = lerp(n000, n100, u.x)
+    let nx10 = lerp(n010, n110, u.x)
+    let nx01 = lerp(n001, n101, u.x)
+    let nx11 = lerp(n011, n111, u.x)
+    
+    let nxy0 = lerp(nx00, nx10, u.y)
+    let nxy1 = lerp(nx01, nx11, u.y)
+    
+    return lerp(nxy0, nxy1, u.z)
+
+# 2D Smooth Noise
+# Bilinear interpolated noise for 2D coordinates
+# Foundation for 2D FBM and procedural textures
+@blueprint
+pub fn noise2(uv: Vec2) -> Float:
+    let i = floor(uv)
+    let f = frac(uv)
+    let f_smooth = f * f * (vec2(3.0, 3.0) - vec2(2.0, 2.0) * f)
+    
+    let a = hash2(i)
+    let b = hash2(i + vec2(1.0, 0.0))
+    let c = hash2(i + vec2(0.0, 1.0))
+    let d = hash2(i + vec2(1.0, 1.0))
+    
+    return lerp(lerp(a, b, f_smooth.x), lerp(c, d, f_smooth.x), f_smooth.y)
+
+# Simplex Noise 3D (Fast Approximation)
+# Faster than Perlin noise with similar quality
+# Returns value in [-1, 1]
+# Note: This is a simplified approximation, not true simplex
+@blueprint
+pub fn simplex_noise(x: Float, y: Float, z: Float) -> Float:
+    let sin_x = sin(x * 12.9898 + y * 78.233 + z * 37.719)
+    let sin_y = sin(y * 12.9898 + z * 78.233 + x * 37.719)
+    let sin_z = sin(z * 12.9898 + x * 78.233 + y * 37.719)
+    
+    let noise = frac(sin_x * 43758.5453 + sin_y * 22578.1459 + sin_z * 19134.1032)
+    return noise * 2.0 - 1.0
+
+# Fractal Brownian Motion (3D)
+# Multi-octave noise for natural-looking detail
+# Each octave adds finer detail at half amplitude
+# octaves: Number of noise layers (typically 3-8)
+# Returns normalized value in [0, 1]
+@blueprint
+pub fn fbm3(p: Vec3, octaves: Int) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var total_amplitude = 0.0
+    
+    var i = 0
+    while i < octaves:
+        value = value + amplitude * noise3(p * frequency)
+        total_amplitude = total_amplitude + amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        i = i + 1
+    
+    return value / total_amplitude
+
+# Fractal Brownian Motion (2D)
+# Multi-octave 2D noise for textures and heightmaps
+# octaves: Number of noise layers (typically 3-8)
+@blueprint
+pub fn fbm2(uv: Vec2, octaves: Int) -> Float:
+    var val = 0.0
+    var amp = 0.5
+    var freq = 1.0
+    
+    var i = 0
+    while i < octaves:
+        val = val + amp * noise2(uv * freq)
+        freq = freq * 2.0
+        amp = amp * 0.5
+        i = i + 1
+    
+    return val
+
+# Voronoi Noise (Cellular Pattern)
+# Creates cell-based patterns with distance to nearest/second-nearest point
+# Returns vec2(F1, F2) where F1 is distance to closest, F2 to second closest
+# scale: Cell density (higher = more cells)
+# randomness: Cell center randomization [0-1]
+# seed: Random seed for variation
+@blueprint
+pub fn voronoi(uv: Vec2, scale: Float, randomness: Float, seed: Float) -> Vec2:
+    let n = floor(uv * scale)
+    let f = frac(uv * scale)
+    
+    var F1 = 8.0
+    var F2 = 8.0
+    
+    # Check 3x3 neighborhood
+    var j = -1
+    while j <= 1:
+        var i = -1
+        while i <= 1:
+            let g = vec2(float(i), float(j))
+            let o = hash22(n + g + vec2(seed, seed)) * randomness
+            let r = g + o - f
+            let d = dot(r, r)
+            
+            if d < F1:
+                F2 = F1
+                F1 = d
+            else:
+                if d < F2:
+                    F2 = d
+            
+            i = i + 1
+        j = j + 1
+    
+    return vec2(sqrt(F1), sqrt(F2))
+
+# Worley Noise (Distance to Nearest Cell)
+# Simplified Voronoi returning only closest distance
+# Creates organic cellular patterns
+@blueprint
+pub fn worley_noise(uv: Vec2, scale: Float, randomness: Float, seed: Float) -> Float:
+    return voronoi(uv, scale, randomness, seed).x
+
+# Voronoi Edge Detection
+# Highlights cell boundaries by computing F2 - F1
+# edge_width: Controls edge thickness
+@blueprint
+pub fn voronoi_edges(uv: Vec2, scale: Float, edge_width: Float, seed: Float) -> Float:
+    let v = voronoi(uv, scale, 1.0, seed)
+    let edge = v.y - v.x
+    return clamp(edge / edge_width, 0.0, 1.0)
+
+# Turbulence Noise
+# Absolute value of multi-octave noise creates sharp ridges
+# Useful for marble, fire, and turbulent effects
+@blueprint
+pub fn turbulence(uv: Vec2, scale: Float, octaves: Int, seed: Float) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = scale
+    
+    var i = 0
+    while i < octaves:
+        let n = noise2((uv + vec2(seed, seed)) * frequency)
+        value = value + amplitude * abs(n * 2.0 - 1.0)
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        i = i + 1
+    
+    return value
+
+# Ridged Noise
+# Inverted turbulence with weight-based octaves
+# Creates sharp mountain ridges and terrain features
+@blueprint
+pub fn ridged_noise(uv: Vec2, scale: Float, octaves: Int, seed: Float) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = scale
+    var weight = 1.0
+    
+    var i = 0
+    while i < octaves:
+        let n = noise2((uv + vec2(seed, seed)) * frequency)
+        let n_ridged = 1.0 - abs(n * 2.0 - 1.0)
+        let n_squared = n_ridged * n_ridged
+        let n_weighted = n_squared * weight
+        weight = clamp(n_weighted * 2.0, 0.0, 1.0)
+        value = value + amplitude * n_weighted
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        i = i + 1
+    
+    return value
+
+# Perlin Noise 3D (Multi-Octave)
+# High-quality 3D Perlin noise with frequency control
+# frequency: Base frequency multiplier
+# Returns value in [-1, 1]
+@blueprint
+pub fn perlin_noise3(x: Float, y: Float, z: Float, frequency: Float) -> Float:
+    let fx = x * frequency
+    let fy = y * frequency
+    let fz = z * frequency
+    
+    var result = 0.0
+    var amplitude = 1.0
+    var total_amplitude = 0.0
+    
+    # 3 octaves (manually unrolled for compatibility)
+    var octave = 0
+    let scale0 = pow(2.0, float(octave))
+    result = result + simplex_noise(fx * scale0, fy * scale0, fz * scale0) * amplitude
+    total_amplitude = total_amplitude + amplitude
+    amplitude = amplitude * 0.5
+    
+    octave = 1
+    let scale1 = pow(2.0, float(octave))
+    result = result + simplex_noise(fx * scale1, fy * scale1, fz * scale1) * amplitude
+    total_amplitude = total_amplitude + amplitude
+    amplitude = amplitude * 0.5
+    
+    octave = 2
+    let scale2 = pow(2.0, float(octave))
+    result = result + simplex_noise(fx * scale2, fy * scale2, fz * scale2) * amplitude
+    total_amplitude = total_amplitude + amplitude
+    
+    return result / total_amplitude
+
+# Curl Noise 3D
+# Divergence-free noise field for fluid simulation
+# Creates swirling, turbulent motion without compression
+# frequency: Base frequency for underlying noise
+# Returns 3D vector field
+@blueprint
+pub fn curl_noise(x: Float, y: Float, z: Float, frequency: Float) -> Vec3:
+    let eps = 0.01
+    
+    # Sample noise at offset positions for gradient calculation
+    let n1 = perlin_noise3(x, y + eps, z, frequency)
+    let n2 = perlin_noise3(x, y - eps, z, frequency)
+    let n3 = perlin_noise3(x, y, z + eps, frequency)
+    let n4 = perlin_noise3(x, y, z - eps, frequency)
+    let n5 = perlin_noise3(x + eps, y, z, frequency)
+    let n6 = perlin_noise3(x - eps, y, z, frequency)
+    
+    # Calculate curl (∇ × F)
+    let curl_x = (n3 - n4) - (n1 - n2)
+    let curl_y = (n5 - n6) - (n3 - n4)
+    let curl_z = (n1 - n2) - (n5 - n6)
+    
+    return vec3(curl_x, curl_y, curl_z)
+
+# Cellular Noise (Alternative Voronoi)
+# Alias for worley_noise for consistency with common naming
+@blueprint
+pub fn cellular_noise(uv: Vec2, scale: Float, randomness: Float, seed: Float) -> Float:
+    return worley_noise(uv, scale, randomness, seed)
+
+# Flow Noise (Time-Animated)
+# Noise that flows smoothly over time
+# Creates animated water, clouds, or energy effects
+# time: Animation time parameter
+# flow_speed: Speed of flow animation
+@blueprint
+pub fn flow_noise(uv: Vec2, time: Float, flow_speed: Float, octaves: Int) -> Float:
+    let flow_offset = vec2(time * flow_speed, time * flow_speed * 0.5)
+    return fbm2(uv + flow_offset, octaves)
+
+# Domain Warped Noise
+# Noise with UV coordinates distorted by another noise layer
+# Creates organic, swirling patterns
+# warp_strength: Amount of distortion
+@blueprint
+pub fn domain_warp_noise(uv: Vec2, warp_strength: Float, octaves: Int) -> Float:
+    let warp_x = fbm2(uv + vec2(0.0, 0.0), octaves)
+    let warp_y = fbm2(uv + vec2(5.2, 1.3), octaves)
+    let warped_uv = uv + vec2(warp_x, warp_y) * warp_strength
+    return fbm2(warped_uv, octaves)
+
+# ============================================================================
+# Volumetric & Scattering Functions
+# ============================================================================
+# Functions for volumetric rendering, atmospheric effects, and light scattering
+
+# Henyey-Greenstein Phase Function
+# Models anisotropic light scattering in participating media
+# cos_theta: Cosine of angle between view and light direction
+# g: Anisotropy parameter [-1, 1]
+#    g > 0: Forward scattering (clouds, fog)
+#    g < 0: Back scattering
+#    g = 0: Isotropic scattering
+# NOTE: Duplicate removed - see line 315 for implementation
+
+# Exponential Height Fog Density
+# Height-based fog density with exponential falloff
+# pos_y: World Y position
+# fog_height: Base height of fog layer
+# falloff: Density falloff rate with height
+@blueprint
+pub fn height_fog_density(pos_y: Float, fog_height: Float, falloff: Float) -> Float:
+    return exp(-max(pos_y - fog_height, 0.0) * falloff)
+
+# ============================================================================
+# Procedural Shape Generators
+# ============================================================================
+
+# Radial Falloff
+# Smooth radial gradient from center
+# falloff_power: Controls falloff curve (higher = sharper)
+@blueprint
+pub fn radial_falloff(uv: Vec2, falloff_power: Float) -> Float:
+    let centered = uv - vec2(0.5, 0.5)
+    let dist = length(centered) * 2.0
+    return clamp(1.0 - pow(dist, falloff_power), 0.0, 1.0)
+
+# Circle Shape
+# Generates circular shape with soft edges
+# radius: Circle radius [0, 1]
+# edge_softness: Edge blur amount
+@blueprint
+pub fn circle_shape(uv: Vec2, radius: Float, edge_softness: Float) -> Float:
+    let centered = uv - vec2(0.5, 0.5)
+    let dist = length(centered) * 2.0
+    let edge = (radius - dist) / max(edge_softness, 0.001)
+    return clamp(edge, 0.0, 1.0)
+
+# Square Shape
+# Generates square with soft edges
+# size: Square size [0, 1]
+# edge_softness: Edge blur amount
+@blueprint
+pub fn square_shape(uv: Vec2, size: Float, edge_softness: Float) -> Float:
+    let centered = uv - vec2(0.5, 0.5)
+    let d = max(abs(centered.x), abs(centered.y)) * 2.0
+    let edge = (size - d) / max(edge_softness, 0.001)
+    return clamp(edge, 0.0, 1.0)
+
+# Diamond Shape
+# Generates diamond (rotated square) with soft edges
+@blueprint
+pub fn diamond_shape(uv: Vec2, size: Float, edge_softness: Float) -> Float:
+    let centered = uv - vec2(0.5, 0.5)
+    let d = (abs(centered.x) + abs(centered.y)) * 2.0
+    let edge = (size - d) / max(edge_softness, 0.001)
+    return clamp(edge, 0.0, 1.0)
+
+# Checkerboard Pattern
+# Classic checkerboard with configurable scale
+# scale: Number of checks per axis
+@blueprint
+pub fn checkerboard(uv: Vec2, scale: Float) -> Float:
+    let scaled = uv * scale
+    let checker = frac((floor(scaled.x) + floor(scaled.y)) * 0.5) * 2.0
+    return checker
+
+# ============================================================================
+# UV Manipulation Functions
+# ============================================================================
+# Comprehensive UV transformation and projection functions for texture mapping
+# Includes: scaling, offset, rotation, polar coordinates, parallax mapping,
+# triplanar projection, spherical/cylindrical/cube mapping, and tiling
+
+# Scale UV Coordinates
+# Multiplies UV coordinates by scale factor
+# scale: Uniform scale factor (>1 = zoom out, <1 = zoom in)
+# Returns: Scaled UV coordinates
+@blueprint
+pub fn scale_uv(uv: Vec2, scale: Float) -> Vec2:
+    let centered = uv - vec2(0.5, 0.5)
+    let scaled = centered * scale
+    return scaled + vec2(0.5, 0.5)
+
+# Offset UV Coordinates
+# Translates UV coordinates by offset vector
+# offset: Translation amount (x, y)
+# Returns: Translated UV coordinates
+@blueprint
+pub fn offset_uv(uv: Vec2, offset: Vec2) -> Vec2:
+    return uv + offset
+
+# Cartesian to Polar Coordinates
+# Converts UV from Cartesian (x, y) to polar (radius, angle)
+# Useful for radial effects, circular patterns, and polar distortions
+# Returns: Vec2(radius [0-1], angle [0-2π])
+@blueprint
+pub fn cartesian_to_polar(uv: Vec2) -> Vec2:
+    let centered = uv - vec2(0.5, 0.5)
+    let radius = length(centered) * 2.0
+    let angle = atan2(centered.y, centered.x)
+    let normalized_angle = (angle + 3.14159265) / (2.0 * 3.14159265)
+    return vec2(radius, normalized_angle)
+
+# Parallax Mapping (Basic)
+# Offsets UV coordinates based on height map for depth illusion
+# height: Height value from height map [0-1]
+# view_dir: View direction in tangent space (normalized)
+# scale: Parallax effect strength
+# Returns: Offset UV coordinates
+@blueprint
+pub fn parallax_mapping(uv: Vec2, height: Float, view_dir: Vec3, scale: Float) -> Vec2:
+    let parallax_offset = (height - 0.5) * scale
+    let offset_x = view_dir.x * parallax_offset
+    let offset_y = view_dir.y * parallax_offset
+    return uv + vec2(offset_x, offset_y)
+
+# Parallax Occlusion Mapping (Advanced)
+# Advanced parallax with self-shadowing and occlusion
+# Performs ray marching through height field for accurate depth
+# height: Height value from height map [0-1]
+# view_dir: View direction in tangent space (normalized)
+# scale: Parallax depth scale
+# num_steps: Ray marching steps (8-32 typical)
+# Returns: Offset UV coordinates with occlusion
+@blueprint
+pub fn parallax_occlusion_mapping(uv: Vec2, height: Float, view_dir: Vec3, scale: Float, num_steps: Int) -> Vec2:
+    let step_size = 1.0 / float(num_steps)
+    let uv_offset = vec2(view_dir.x, view_dir.y) * scale
+    let uv_delta = uv_offset * step_size
+    
+    var current_uv = uv
+    var current_height = 1.0
+    var sampled_height = height
+    
+    var i = 0
+    while i < num_steps && current_height > sampled_height:
+        current_uv = current_uv - uv_delta
+        current_height = current_height - step_size
+        sampled_height = height
+        i = i + 1
+    
+    let prev_uv = current_uv + uv_delta
+    let prev_height = current_height + step_size
+    
+    let after_depth = sampled_height - current_height
+    let before_depth = prev_height - height
+    let weight = after_depth / (after_depth + before_depth)
+    
+    return lerp(current_uv, prev_uv, weight)
+
+# Triplanar Mapping
+# Projects texture from 3 axes (X, Y, Z) and blends based on normal
+# Eliminates UV stretching on arbitrary geometry
+# world_pos: World space position
+# world_normal: World space normal (normalized)
+# scale: Texture tiling scale
+# Returns: Vec3 of blended texture coordinates (xy, xz, yz planes)
+@blueprint
+pub fn triplanar_mapping(world_pos: Vec3, world_normal: Vec3, scale: Float) -> Vec3:
+    let blend_weights = abs(world_normal)
+    let total_weight = blend_weights.x + blend_weights.y + blend_weights.z
+    let normalized_weights = blend_weights / max(total_weight, 0.001)
+    
+    let uv_x = vec2(world_pos.y, world_pos.z) * scale
+    let uv_y = vec2(world_pos.x, world_pos.z) * scale
+    let uv_z = vec2(world_pos.x, world_pos.y) * scale
+    
+    return vec3(normalized_weights.x, normalized_weights.y, normalized_weights.z)
+
+# Spherical Mapping
+# Projects UV coordinates onto sphere surface
+# Useful for environment maps, planets, and spherical objects
+# world_pos: World space position (relative to sphere center)
+# Returns: Spherical UV coordinates
+@blueprint
+pub fn spherical_mapping(world_pos: Vec3) -> Vec2:
+    let normalized = normalize(world_pos)
+    let u = 0.5 + atan2(normalized.z, normalized.x) / (2.0 * 3.14159265)
+    let v = 0.5 - asin(normalized.y) / 3.14159265
+    return vec2(u, v)
+
+# Cylindrical Mapping
+# Projects UV coordinates onto cylinder surface
+# Useful for columns, pipes, and cylindrical objects
+# world_pos: World space position (relative to cylinder axis)
+# height_scale: Vertical tiling scale
+# Returns: Cylindrical UV coordinates
+@blueprint
+pub fn cylindrical_mapping(world_pos: Vec3, height_scale: Float) -> Vec2:
+    let u = 0.5 + atan2(world_pos.z, world_pos.x) / (2.0 * 3.14159265)
+    let v = world_pos.y * height_scale
+    return vec2(u, v)
+
+# Cube Mapping
+# Projects UV coordinates onto cube faces
+# Returns face index and UV coordinates for cube map sampling
+# dir: Direction vector (normalized)
+# Returns: Vec3(face_u, face_v, face_index)
+@blueprint
+pub fn cube_mapping(dir: Vec3) -> Vec3:
+    let abs_x = abs(dir.x)
+    let abs_y = abs(dir.y)
+    let abs_z = abs(dir.z)
+    
+    var face_index = 0.0
+    var u = 0.0
+    var v = 0.0
+    
+    if abs_x >= abs_y && abs_x >= abs_z:
+        if dir.x > 0.0:
+            face_index = 0.0
+            u = -dir.z / abs_x
+            v = dir.y / abs_x
+        else:
+            face_index = 1.0
+            u = dir.z / abs_x
+            v = dir.y / abs_x
+    else:
+        if abs_y >= abs_z:
+            if dir.y > 0.0:
+                face_index = 2.0
+                u = dir.x / abs_y
+                v = -dir.z / abs_y
+            else:
+                face_index = 3.0
+                u = dir.x / abs_y
+                v = dir.z / abs_y
+        else:
+            if dir.z > 0.0:
+                face_index = 4.0
+                u = dir.x / abs_z
+                v = dir.y / abs_z
+            else:
+                face_index = 5.0
+                u = -dir.x / abs_z
+                v = dir.y / abs_z
+    
+    let final_u = (u + 1.0) * 0.5
+    let final_v = (v + 1.0) * 0.5
+    
+    return vec3(final_u, final_v, face_index)
+
+# UV Tiling
+# Repeats UV coordinates with configurable tiling factor
+# tiling: Number of repetitions (Vec2 for non-uniform tiling)
+# Returns: Tiled UV coordinates
+@blueprint
+pub fn uv_tiling(uv: Vec2, tiling: Vec2) -> Vec2:
+    return frac(uv * tiling)
+
+# UV Flip Horizontal
+# Mirrors UV coordinates horizontally
+# Returns: Horizontally flipped UV
+@blueprint
+pub fn flip_uv_horizontal(uv: Vec2) -> Vec2:
+    return vec2(1.0 - uv.x, uv.y)
+
+# UV Flip Vertical
+# Mirrors UV coordinates vertically
+# Returns: Vertically flipped UV
+@blueprint
+pub fn flip_uv_vertical(uv: Vec2) -> Vec2:
+    return vec2(uv.x, 1.0 - uv.y)
+
+# UV Scroll
+# Animates UV coordinates over time
+# scroll_speed: Scroll velocity (x, y)
+# time: Current time value
+# Returns: Scrolled UV coordinates
+@blueprint
+pub fn uv_scroll(uv: Vec2, scroll_speed: Vec2, time: Float) -> Vec2:
+    return uv + scroll_speed * time
+
+# UV Rotate Around Point
+# Rotates UV coordinates around arbitrary pivot point
+# angle: Rotation angle in radians
+# pivot: Rotation center point
+# Returns: Rotated UV coordinates
+@blueprint
+pub fn rotate_uv_around_point(uv: Vec2, angle: Float, pivot: Vec2) -> Vec2:
+    let cos_angle = cos(angle)
+    let sin_angle = sin(angle)
+    let centered = uv - pivot
+    let rotated_x = centered.x * cos_angle - centered.y * sin_angle
+    let rotated_y = centered.x * sin_angle + centered.y * cos_angle
+    return vec2(rotated_x, rotated_y) + pivot
+
+# UV Radial Distortion
+# Applies radial distortion (barrel/pincushion)
+# strength: Distortion strength (positive = barrel, negative = pincushion)
+# Returns: Distorted UV coordinates
+@blueprint
+pub fn uv_radial_distortion(uv: Vec2, strength: Float) -> Vec2:
+    let centered = uv - vec2(0.5, 0.5)
+    let dist_sq = dot(centered, centered)
+    let distortion = 1.0 + strength * dist_sq
+    return centered * distortion + vec2(0.5, 0.5)
+
+# UV Swirl
+# Creates swirling distortion effect
+# center: Swirl center point
+# strength: Swirl intensity
+# radius: Swirl radius
+# Returns: Swirled UV coordinates
+@blueprint
+pub fn uv_swirl(uv: Vec2, center: Vec2, strength: Float, radius: Float) -> Vec2:
+    let offset = uv - center
+    let dist = length(offset)
+    let angle = atan2(offset.y, offset.x)
+    
+    let swirl_amount = max(0.0, 1.0 - dist / radius) * strength
+    let new_angle = angle + swirl_amount
+    
+    let cos_a = cos(new_angle)
+    let sin_a = sin(new_angle)
+    let rotated = vec2(cos_a * dist, sin_a * dist)
+    
+    return rotated + center
+
+# UV Wave Distortion
+# Applies sine wave distortion to UV coordinates
+# frequency: Wave frequency
+# amplitude: Wave amplitude
+# direction: Wave direction (0 = horizontal, 1 = vertical)
+# time: Animation time
+# Returns: Wave-distorted UV coordinates
+@blueprint
+pub fn uv_wave_distortion(uv: Vec2, frequency: Float, amplitude: Float, direction: Float, time: Float) -> Vec2:
+    let wave_input = lerp(uv.x, uv.y, direction)
+    let wave = sin(wave_input * frequency + time) * amplitude
+    let offset = lerp(vec2(0.0, wave), vec2(wave, 0.0), direction)
+    return uv + offset
+
+# UV Aspect Ratio Correction
+# Corrects UV coordinates for non-square aspect ratios
+# aspect_ratio: Width / Height ratio
+# Returns: Aspect-corrected UV coordinates
+@blueprint
+pub fn uv_aspect_correction(uv: Vec2, aspect_ratio: Float) -> Vec2:
+    let centered = uv - vec2(0.5, 0.5)
+    let corrected_x = centered.x * aspect_ratio
+    return vec2(corrected_x, centered.y) + vec2(0.5, 0.5)
+
+# ============================================================================
+# Volumetric Rendering Functions
+# ============================================================================
+# Comprehensive volumetric rendering library for clouds, fog, smoke, and
+# participating media. Includes ray marching, scattering, absorption, and
+# atmospheric effects.
+# Extracted from: volumetric_clouds.kn, volumetric_fog.kn, KainCosmosGod.kn
+# ============================================================================
+
+# Basic Volume Ray Marching
+# Performs ray marching through a volume with density sampling
+# ray_origin: Starting point of ray
+# ray_dir: Ray direction (normalized)
+# t_near: Near clipping distance
+# t_far: Far clipping distance
+# max_steps: Number of ray marching steps
+# density_fn: Function to sample density at position (placeholder - use with custom logic)
+# Returns: Vec4(accumulated_light.rgb, transmittance)
+@blueprint
+pub fn ray_march_volume(ray_origin: Vec3, ray_dir: Vec3, t_near: Float, t_far: Float, max_steps: Int) -> Vec4:
+    let step_size = (t_far - t_near) / float(max_steps)
+    var transmittance = 1.0
+    var accumulated_light = vec3(0.0, 0.0, 0.0)
+    var t = t_near
+    
+    var i = 0
+    while i < max_steps:
+        let sample_pos = ray_origin + ray_dir * t
+        
+        # Placeholder density sampling - in practice, sample from 3D texture or noise
+        # Users should replace this with actual density sampling logic
+        let density = 0.0
+        
+        if density > 0.001:
+            let sample_transmittance = exp(-density * step_size)
+            let light_contribution = vec3(1.0, 1.0, 1.0) * density * transmittance * step_size
+            accumulated_light = accumulated_light + light_contribution
+            transmittance = transmittance * sample_transmittance
+            
+            # Early exit if opaque
+            if transmittance < 0.01:
+                i = max_steps
+        
+        t = t + step_size
+        i = i + 1
+    
+    return vec4(accumulated_light.x, accumulated_light.y, accumulated_light.z, 1.0 - transmittance)
+
+# Signed Distance Field Ray Marching
+# Sphere tracing through SDF for volumetric effects
+# ray_origin: Starting point of ray
+# ray_dir: Ray direction (normalized)
+# max_distance: Maximum ray travel distance
+# max_steps: Maximum number of steps
+# epsilon: Surface threshold
+# Returns: Distance to surface (negative if no hit)
+@blueprint
+pub fn ray_march_sdf(ray_origin: Vec3, ray_dir: Vec3, max_distance: Float, max_steps: Int, epsilon: Float) -> Float:
+    var t = 0.0
+    
+    var i = 0
+    while i < max_steps:
+        let pos = ray_origin + ray_dir * t
+        
+        # Placeholder SDF - users should replace with actual SDF function
+        # Example: sphere SDF = length(pos) - radius
+        let dist = length(pos) - 1.0
+        
+        if dist < epsilon:
+            return t
+        
+        t = t + dist
+        
+        if t > max_distance:
+            return -1.0
+        
+        i = i + 1
+    
+    return -1.0
+
+# Sample Volume Texture with Trilinear Interpolation
+# Samples a 3D texture coordinate with smooth interpolation
+# uvw: 3D texture coordinates [0-1]
+# Returns: Interpolated density value
+# Note: This is a conceptual function - actual texture sampling uses hardware samplers
+@blueprint
+pub fn sample_volume_texture(uvw: Vec3) -> Float:
+    let i = floor(uvw)
+    let f = frac(uvw)
+    
+    # Cubic Hermite interpolation for smoothness
+    let u = f * f * (vec3(3.0, 3.0, 3.0) - vec3(2.0, 2.0, 2.0) * f)
+    
+    # In practice, this would sample from a 3D texture
+    # This is a placeholder showing the interpolation structure
+    # Users should replace with actual texture sampling
+    let n000 = hash3(i + vec3(0.0, 0.0, 0.0))
+    let n100 = hash3(i + vec3(1.0, 0.0, 0.0))
+    let n010 = hash3(i + vec3(0.0, 1.0, 0.0))
+    let n110 = hash3(i + vec3(1.0, 1.0, 0.0))
+    let n001 = hash3(i + vec3(0.0, 0.0, 1.0))
+    let n101 = hash3(i + vec3(1.0, 0.0, 1.0))
+    let n011 = hash3(i + vec3(0.0, 1.0, 1.0))
+    let n111 = hash3(i + vec3(1.0, 1.0, 1.0))
+    
+    # Trilinear interpolation
+    let nx00 = lerp(n000, n100, u.x)
+    let nx10 = lerp(n010, n110, u.x)
+    let nx01 = lerp(n001, n101, u.x)
+    let nx11 = lerp(n011, n111, u.x)
+    
+    let nxy0 = lerp(nx00, nx10, u.y)
+    let nxy1 = lerp(nx01, nx11, u.y)
+    
+    return lerp(nxy0, nxy1, u.z)
+
+# Sample Volume Noise
+# Generates 3D noise for volumetric density
+# pos: 3D world position
+# scale: Noise frequency scale
+# octaves: Number of FBM octaves
+# Returns: Noise value [0-1]
+@blueprint
+pub fn sample_volume_noise(pos: Vec3, scale: Float, octaves: Int) -> Float:
+    return fbm3(pos * scale, octaves)
+
+# Cloud Density Function
+# Calculates cloud density with height falloff and animated noise
+# pos: World position
+# time: Animation time
+# cloud_base: Bottom of cloud layer (world Y)
+# cloud_top: Top of cloud layer (world Y)
+# noise_scale: Noise frequency
+# noise_octaves: FBM octaves for detail
+# Returns: Cloud density [0-1]
+@blueprint
+pub fn cloud_density(pos: Vec3, time: Float, cloud_base: Float, cloud_top: Float, noise_scale: Float, noise_octaves: Int) -> Float:
+    # Height-based density falloff
+    let height_factor = 1.0 - smoothstep(cloud_base, cloud_top, pos.y)
+    
+    # Animated noise
+    let animated_pos = pos + vec3(time * 10.0, 0.0, time * 5.0)
+    
+    # Multi-octave noise for cloud shape
+    let base_density = fbm3(animated_pos * noise_scale, noise_octaves)
+    let detail = fbm3(animated_pos * (noise_scale * 5.0), noise_octaves) * 0.5
+    
+    # Combine and threshold
+    let density = (base_density + detail - 0.4) * height_factor
+    return max(density, 0.0)
+
+# Cloud Lighting with Multiple Scattering
+# Calculates light contribution at a point in cloud volume
+# pos: Sample position in cloud
+# sun_dir: Direction to sun (normalized)
+# sun_color: Sun light color
+# time: Animation time
+# cloud_base: Bottom of cloud layer
+# cloud_top: Top of cloud layer
+# noise_scale: Noise frequency for density
+# light_steps: Number of light ray marching steps
+# step_size: Distance per light step
+# Returns: Light energy reaching the point
+@blueprint
+pub fn cloud_lighting(pos: Vec3, sun_dir: Vec3, sun_color: Vec3, time: Float, cloud_base: Float, cloud_top: Float, noise_scale: Float, light_steps: Int, step_size: Float) -> Vec3:
+    var total_density = 0.0
+    var march_pos = pos
+    
+    var i = 0
+    while i < light_steps:
+        march_pos = march_pos + sun_dir * step_size
+        let density = cloud_density(march_pos, time, cloud_base, cloud_top, noise_scale, 4)
+        total_density = total_density + density
+        i = i + 1
+    
+    let transmittance = exp(-total_density * step_size * 0.1)
+    return sun_color * transmittance
+
+# Fog Light Scattering
+# Calculates in-scattering contribution for fog
+# sample_pos: Position in fog volume
+# ray_dir: View direction (normalized)
+# light_dir: Light direction (normalized)
+# light_color: Light color
+# fog_density: Base fog density
+# fog_height: Fog layer base height
+# fog_falloff: Exponential height falloff rate
+# anisotropy: Henyey-Greenstein g parameter
+# absorption: Absorption coefficient
+# shadow_steps: Number of shadow ray steps
+# shadow_step_size: Distance per shadow step
+# Returns: Scattered light contribution
+@blueprint
+pub fn fog_scattering(sample_pos: Vec3, ray_dir: Vec3, light_dir: Vec3, light_color: Vec3, fog_density: Float, fog_height: Float, fog_falloff: Float, anisotropy: Float, absorption: Float, shadow_steps: Int, shadow_step_size: Float) -> Vec3:
+    # Height-based density
+    let height_factor = exp(-max(sample_pos.y - fog_height, 0.0) * fog_falloff)
+    let density = fog_density * height_factor
+    
+    # Phase function
+    let cos_theta = dot(ray_dir, light_dir)
+    let phase = henyey_greenstein(cos_theta, anisotropy)
+    
+    # Shadow sampling toward light
+    var shadow_density = 0.0
+    var shadow_t = 0.0
+    var i = 0
+    while i < shadow_steps:
+        let shadow_pos = sample_pos + light_dir * shadow_t
+        let shadow_h = exp(-max(shadow_pos.y - fog_height, 0.0) * fog_falloff)
+        shadow_density = shadow_density + fog_density * shadow_h * shadow_step_size
+        shadow_t = shadow_t + shadow_step_size
+        i = i + 1
+    
+    let light_occlusion = exp(-shadow_density * absorption)
+    
+    # In-scattering
+    return light_color * phase * light_occlusion * density
+
+# Volumetric Shadow
+# Calculates shadow attenuation through participating media
+# pos: Starting position
+# light_dir: Direction to light (normalized)
+# light_distance: Distance to light source
+# density_scale: Density multiplier
+# num_steps: Number of shadow ray steps
+# Returns: Shadow factor [0 = fully shadowed, 1 = fully lit]
+@blueprint
+pub fn volumetric_shadow(pos: Vec3, light_dir: Vec3, light_distance: Float, density_scale: Float, num_steps: Int) -> Float:
+    let step_size = light_distance / float(num_steps)
+    var total_density = 0.0
+    var march_pos = pos
+    
+    var i = 0
+    while i < num_steps:
+        march_pos = march_pos + light_dir * step_size
+        
+        # Sample density - placeholder, replace with actual density function
+        let density = sample_volume_noise(march_pos, 0.01, 3) * density_scale
+        total_density = total_density + density * step_size
+        
+        i = i + 1
+    
+    return exp(-total_density)
+
+# Volumetric Light Shaft (God Rays)
+# Calculates light shaft contribution along view ray
+# ray_origin: Camera position
+# ray_dir: View direction (normalized)
+# light_pos: Light source position
+# light_color: Light color
+# light_intensity: Light intensity
+# max_distance: Maximum ray distance
+# num_steps: Number of ray marching steps
+# density_scale: Volume density multiplier
+# decay_rate: Light decay factor
+# Returns: Light shaft color contribution
+@blueprint
+pub fn volumetric_light_shaft(ray_origin: Vec3, ray_dir: Vec3, light_pos: Vec3, light_color: Vec3, light_intensity: Float, max_distance: Float, num_steps: Int, density_scale: Float, decay_rate: Float) -> Vec3:
+    let step_size = max_distance / float(num_steps)
+    var accumulated_light = vec3(0.0, 0.0, 0.0)
+    var march_pos = ray_origin
+    
+    var i = 0
+    while i < num_steps:
+        march_pos = march_pos + ray_dir * step_size
+        
+        # Calculate light contribution at this point
+        let to_light = light_pos - march_pos
+        let light_dist = length(to_light)
+        let light_dir = to_light / light_dist
+        
+        # Sample density
+        let density = sample_volume_noise(march_pos, 0.02, 2) * density_scale
+        
+        # Light attenuation
+        let attenuation = light_intensity / (1.0 + light_dist * decay_rate)
+        
+        # Shadow check (simplified)
+        let shadow = volumetric_shadow(march_pos, light_dir, light_dist, density_scale * 0.5, 4)
+        
+        # Accumulate light
+        let light_contrib = light_color * attenuation * shadow * density * step_size
+        accumulated_light = accumulated_light + light_contrib
+        
+        i = i + 1
+    
+    return accumulated_light
+
+# Atmospheric Scattering - Rayleigh
+# Calculates Rayleigh scattering for atmospheric effects
+# Rayleigh scattering affects shorter wavelengths more (blue sky)
+# view_dir: View direction (normalized)
+# sun_dir: Sun direction (normalized)
+# atmosphere_height: Height of atmosphere
+# planet_radius: Radius of planet
+# scattering_coeff: Rayleigh scattering coefficient (wavelength dependent)
+# Returns: Rayleigh scattering contribution
+@blueprint
+pub fn atmospheric_scattering_rayleigh(view_dir: Vec3, sun_dir: Vec3, atmosphere_height: Float, planet_radius: Float, scattering_coeff: Vec3) -> Vec3:
+    # Rayleigh phase function (simpler than Henyey-Greenstein)
+    let cos_theta = dot(view_dir, sun_dir)
+    let phase = (3.0 / (16.0 * 3.14159265)) * (1.0 + cos_theta * cos_theta)
+    
+    # Simplified atmospheric scattering
+    # In full implementation, would ray march through atmosphere
+    let height_factor = exp(-atmosphere_height / 8000.0)
+    
+    # Wavelength-dependent scattering (RGB channels)
+    let scatter_r = scattering_coeff.x * phase * height_factor
+    let scatter_g = scattering_coeff.y * phase * height_factor
+    let scatter_b = scattering_coeff.z * phase * height_factor
+    
+    return vec3(scatter_r, scatter_g, scatter_b)
+
+# Atmospheric Scattering - Mie
+# Calculates Mie scattering for atmospheric effects
+# Mie scattering affects all wavelengths equally (haze, fog)
+# view_dir: View direction (normalized)
+# sun_dir: Sun direction (normalized)
+# atmosphere_height: Height of atmosphere
+# scattering_coeff: Mie scattering coefficient
+# anisotropy: Mie phase function g parameter (typically 0.76)
+# Returns: Mie scattering contribution
+@blueprint
+pub fn atmospheric_scattering_mie(view_dir: Vec3, sun_dir: Vec3, atmosphere_height: Float, scattering_coeff: Float, anisotropy: Float) -> Vec3:
+    # Mie phase function (forward scattering)
+    let cos_theta = dot(view_dir, sun_dir)
+    let phase = henyey_greenstein(cos_theta, anisotropy)
+    
+    # Height-based density (Mie particles concentrated near surface)
+    let height_factor = exp(-atmosphere_height / 1200.0)
+    
+    # Mie scattering is wavelength-independent
+    let scatter = scattering_coeff * phase * height_factor
+    
+    return vec3(scatter, scatter, scatter)
+
+# Volume Ray March with Jitter
+# Ray marching with temporal jitter to reduce banding artifacts
+# ray_origin: Starting point of ray
+# ray_dir: Ray direction (normalized)
+# t_near: Near clipping distance
+# t_far: Far clipping distance
+# max_steps: Number of ray marching steps
+# jitter_seed: Random seed for jitter (e.g., screen UV + time)
+# Returns: Vec4(accumulated_light.rgb, opacity)
+@blueprint
+pub fn volume_ray_march_with_jitter(ray_origin: Vec3, ray_dir: Vec3, t_near: Float, t_far: Float, max_steps: Int, jitter_seed: Vec2) -> Vec4:
+    let step_size = (t_far - t_near) / float(max_steps)
+    
+    # Temporal jitter to reduce banding
+    let jitter = frac(sin(dot(jitter_seed, vec2(12.9898, 78.233))) * 43758.5453) * step_size
+    
+    var transmittance = 1.0
+    var accumulated_light = vec3(0.0, 0.0, 0.0)
+    var t = t_near + jitter
+    
+    var i = 0
+    while i < max_steps:
+        let sample_pos = ray_origin + ray_dir * t
+        
+        # Sample density - placeholder
+        let density = sample_volume_noise(sample_pos, 0.01, 3)
+        
+        if density > 0.001:
+            let sample_transmittance = exp(-density * step_size)
+            let light_contribution = vec3(1.0, 1.0, 1.0) * density * transmittance * step_size
+            accumulated_light = accumulated_light + light_contribution
+            transmittance = transmittance * sample_transmittance
+            
+            if transmittance < 0.01:
+                i = max_steps
+        
+        t = t + step_size
+        i = i + 1
+    
+    let opacity = 1.0 - transmittance
+    return vec4(accumulated_light.x, accumulated_light.y, accumulated_light.z, opacity)
+
+# Multi-Scattering Approximation (General)
+# Approximates multiple scattering events in participating media
+# More general than powder_effect, works for various media types
+# optical_depth: Integrated density along light path
+# albedo: Single scattering albedo [0-1]
+# cos_theta: Cosine of scattering angle
+# Returns: Multi-scattering factor
+@blueprint
+pub fn multi_scattering_approximation(optical_depth: Float, albedo: Float, cos_theta: Float) -> Float:
+    # First-order scattering
+    let single_scatter = exp(-optical_depth)
+    
+    # Approximate multiple scattering with empirical formula
+    # Based on diffusion approximation
+    let multi_scatter = albedo * (1.0 - exp(-optical_depth * 2.0)) / (optical_depth + 0.001)
+    
+    # Blend based on scattering angle
+    let forward_bias = smoothstep(-0.5, 0.5, cos_theta)
+    
+    return lerp(single_scatter, multi_scatter, forward_bias * albedo)
+
+# Isotropic Phase Function
+# Uniform scattering in all directions
+# Returns: Constant phase function value
+@blueprint
+pub fn phase_function_isotropic() -> Float:
+    return 1.0 / (4.0 * 3.14159265)
+
+# Transmittance Integral
+# Calculates integrated transmittance along a ray
+# ray_origin: Starting point
+# ray_dir: Ray direction (normalized)
+# distance: Ray length
+# num_steps: Integration steps
+# extinction_coeff: Extinction coefficient (absorption + out-scattering)
+# Returns: Transmittance factor [0-1]
+@blueprint
+pub fn transmittance_integral(ray_origin: Vec3, ray_dir: Vec3, distance: Float, num_steps: Int, extinction_coeff: Float) -> Float:
+    let step_size = distance / float(num_steps)
+    var optical_depth = 0.0
+    var march_pos = ray_origin
+    
+    var i = 0
+    while i < num_steps:
+        march_pos = march_pos + ray_dir * step_size
+        
+        # Sample density - placeholder
+        let density = sample_volume_noise(march_pos, 0.01, 2)
+        optical_depth = optical_depth + density * extinction_coeff * step_size
+        
+        i = i + 1
+    
+    return exp(-optical_depth)
+
+# ============================================================================
+# Subsurface Scattering Functions
+# ============================================================================
+# Functions for realistic subsurface scattering effects in skin, foliage,
+# wax, marble, and other translucent materials. Based on Burley diffusion
+# profile and physically-based light transport.
+# ============================================================================
+
+# Burley Diffusion Profile
+# Calculates subsurface scattering weight using Burley's normalized diffusion profile
+# Used for realistic skin, wax, and other translucent materials
+# world_dist: Distance in world units from sample point
+# falloff: Diffusion falloff parameter (controls scatter distance)
+# Returns: Scattering weight for this distance
+@blueprint
+pub fn sss_diffusion_profile(world_dist: Float, falloff: Float) -> Float:
+    """
+    Burley diffusion profile: S(r) = A*exp(-r/d)/r + A*exp(-r/(3d))/(3r)
+    
+    This is a physically-based approximation of light diffusion through
+    translucent materials. The dual-lobe structure captures both near-surface
+    and deep subsurface scattering.
+    
+    Parameters:
+    - world_dist: Distance from sample point in world units
+    - falloff: Diffusion falloff (smaller = tighter scatter, larger = wider)
+    
+    Returns: Scattering weight [0-inf], typically normalized by sum of weights
+    
+    Example usage:
+    ```
+    let dist = length(sample_pos - center_pos)
+    let weight = sss_diffusion_profile(dist, 0.5)
+    accumulated_color = accumulated_color + sample_color * weight
+    ```
+    """
+    let s = 3.67 * falloff
+    let safe_dist = world_dist + 0.001
+    
+    # Dual-lobe Burley profile
+    let near_lobe = exp(-safe_dist * s) / safe_dist
+    let far_lobe = exp(-safe_dist * s / 3.0) / (3.0 * safe_dist)
+    
+    return near_lobe + far_lobe
+
+# Beer-Lambert Transmittance
+# Calculates light transmittance through a material using Beer-Lambert law
+# Accounts for wavelength-dependent absorption (RGB channels)
+# thickness: Material thickness in world units
+# absorption_r: Red channel absorption coefficient
+# absorption_g: Green channel absorption coefficient
+# absorption_b: Blue channel absorption coefficient
+# Returns: RGB transmittance factor [0-1]
+@blueprint
+pub fn sss_transmittance(thickness: Float, absorption_r: Float, absorption_g: Float, absorption_b: Float) -> Vec3:
+    """
+    Beer-Lambert law: I = I0 * exp(-absorption * thickness)
+    
+    Models how light is absorbed as it travels through a material.
+    Different wavelengths (RGB) are absorbed at different rates,
+    creating the characteristic color of transmitted light.
+    
+    Parameters:
+    - thickness: Material thickness (from thickness map or geometry)
+    - absorption_r/g/b: Per-channel absorption coefficients
+      Higher values = more absorption = less transmission
+    
+    Returns: Vec3 transmittance factor to multiply with light color
+    
+    Example usage:
+    ```
+    let thickness = sample(thickness_map, uv).r
+    let transmit = sss_transmittance(thickness, 2.0, 3.0, 4.0)
+    let transmitted_light = light_color * transmit * backlight_intensity
+    ```
+    
+    Typical absorption values:
+    - Skin: R=2.0, G=3.0, B=4.0 (red penetrates deeper)
+    - Wax: R=1.5, G=1.8, B=2.0
+    - Marble: R=0.5, G=0.6, B=0.7
+    """
+    let r = exp(-thickness * absorption_r)
+    let g = exp(-thickness * absorption_g)
+    let b = exp(-thickness * absorption_b)
+    
+    return vec3(r, g, b)
+
+# Wrap Lighting for SSS
+# Softens diffuse lighting by wrapping around surface edges
+# Essential for subsurface scattering to avoid harsh terminator lines
+# n_dot_l: Dot product of normal and light direction
+# wrap_amount: How much light wraps around [0-1]
+# Returns: Modified diffuse term [0-1]
+@blueprint
+pub fn sss_wrap_lighting(n_dot_l: Float, wrap_amount: Float) -> Float:
+    """
+    Wrap lighting softens the diffuse terminator by allowing light to
+    "wrap around" surface edges. This simulates subsurface scattering's
+    effect of light penetrating and scattering within the material.
+    
+    Parameters:
+    - n_dot_l: Standard Lambert term (dot(normal, light_dir))
+    - wrap_amount: Wrap factor [0-1]
+      0.0 = standard Lambert (hard terminator)
+      0.5 = moderate wrap (good for skin)
+      1.0 = full wrap (very soft, good for thin materials)
+    
+    Returns: Modified diffuse term [0-1]
+    
+    Example usage:
+    ```
+    let n_dot_l = dot(world_normal, light_dir)
+    let wrapped = sss_wrap_lighting(n_dot_l, 0.5)
+    let diffuse = albedo * light_color * wrapped
+    ```
+    """
+    return max((n_dot_l + wrap_amount) / (1.0 + wrap_amount), 0.0)
+
+# Translucency Effect
+# Calculates back-face translucency for thin materials
+# Simulates light passing through material from behind
+# n_dot_l: Dot product of normal and light direction
+# translucency: Translucency strength [0-1]
+# power: Falloff power (higher = tighter hotspot)
+# Returns: Translucency factor [0-1]
+@blueprint
+pub fn sss_translucency(n_dot_l: Float, translucency: Float, power: Float) -> Float:
+    """
+    Translucency effect for thin materials like leaves, ears, fingers.
+    When light hits the back of the surface, some passes through,
+    creating a characteristic glow.
+    
+    Parameters:
+    - n_dot_l: dot(normal, light_dir) - can be negative for backfaces
+    - translucency: Overall translucency strength [0-1]
+    - power: Falloff exponent (1.0 = linear, 2.0+ = tighter hotspot)
+    
+    Returns: Translucency contribution [0-1]
+    
+    Example usage:
+    ```
+    let n_dot_l = dot(world_normal, light_dir)
+    let translucent = sss_translucency(n_dot_l, 0.8, 2.0)
+    let backlight = light_color * translucent * thickness_factor
+    ```
+    
+    Typical values:
+    - Skin (ears, nose): translucency=0.5, power=2.0
+    - Leaves: translucency=0.8, power=1.5
+    - Thin fabric: translucency=0.6, power=2.5
+    """
+    let backface_factor = clamp(-n_dot_l, 0.0, 1.0)
+    let shaped = pow(backface_factor, power)
+    return shaped * translucency
+
+# Skin Scattering
+# Specialized SSS for realistic skin rendering
+# Combines epidermis and dermis layers with blood absorption
+# thickness: Skin thickness from thickness map [0-1]
+# epidermis_scatter: Epidermis scattering distance
+# dermis_scatter: Dermis scattering distance
+# blood_absorption: Blood absorption strength
+# Returns: Vec3 color modulation for scattered light
+@blueprint
+pub fn skin_scattering(thickness: Float, epidermis_scatter: Float, dermis_scatter: Float, blood_absorption: Float) -> Vec3:
+    """
+    Two-layer skin model with epidermis (outer) and dermis (inner) layers.
+    Accounts for hemoglobin absorption in blood vessels.
+    
+    Skin structure:
+    - Epidermis: Thin outer layer, scatters all wavelengths equally
+    - Dermis: Thicker inner layer with blood vessels
+    - Blood: Absorbs green/blue, transmits red (creates red glow)
+    
+    Parameters:
+    - thickness: Normalized thickness [0-1] from thickness map
+    - epidermis_scatter: Epidermis scattering distance (typically 0.5-1.0)
+    - dermis_scatter: Dermis scattering distance (typically 2.0-4.0)
+    - blood_absorption: Blood absorption strength (typically 3.0-5.0)
+    
+    Returns: RGB color modulation for scattered light
+    
+    Example usage:
+    ```
+    let thickness = sample(thickness_map, uv).r
+    let skin_color = skin_scattering(thickness, 0.8, 3.0, 4.0)
+    let sss_result = blurred_irradiance * skin_color * sss_strength
+    ```
+    """
+    # Epidermis: wavelength-independent scattering
+    let epidermis_factor = exp(-thickness / epidermis_scatter * 2.0)
+    
+    # Dermis: deeper scattering with wavelength dependence
+    let dermis_r = exp(-thickness / dermis_scatter * 2.0)
+    let dermis_g = exp(-thickness / dermis_scatter * 3.0)
+    let dermis_b = exp(-thickness / dermis_scatter * 4.0)
+    
+    # Blood absorption (hemoglobin absorbs green/blue more than red)
+    let blood_factor = 1.0 - exp(-thickness * blood_absorption)
+    let blood_tint_r = 1.0
+    let blood_tint_g = 0.3
+    let blood_tint_b = 0.2
+    
+    # Combine layers
+    let r = epidermis_factor * dermis_r * (1.0 + blood_factor * blood_tint_r)
+    let g = epidermis_factor * dermis_g * (1.0 + blood_factor * blood_tint_g)
+    let b = epidermis_factor * dermis_b * (1.0 + blood_factor * blood_tint_b)
+    
+    return vec3(r, g, b)
+
+# Foliage Scattering
+# Specialized SSS for leaves and plant materials
+# Emphasizes green/yellow transmission with chlorophyll absorption
+# thickness: Leaf thickness [0-1]
+# chlorophyll_density: Chlorophyll concentration [0-1]
+# translucency: Overall translucency strength [0-1]
+# Returns: Vec3 color modulation for transmitted light
+@blueprint
+pub fn foliage_scattering(thickness: Float, chlorophyll_density: Float, translucency: Float) -> Vec3:
+    """
+    Foliage scattering model accounting for chlorophyll absorption.
+    Chlorophyll strongly absorbs red and blue, transmits green/yellow.
+    
+    Creates the characteristic green glow when light passes through leaves.
+    
+    Parameters:
+    - thickness: Leaf thickness [0-1] - thinner leaves transmit more
+    - chlorophyll_density: Chlorophyll concentration [0-1]
+      Higher density = more green, less red/blue transmission
+    - translucency: Overall translucency strength [0-1]
+    
+    Returns: RGB transmission color
+    
+    Example usage:
+    ```
+    let thickness = sample(thickness_map, uv).r
+    let foliage_color = foliage_scattering(thickness, 0.7, 0.8)
+    let transmitted = backlight * foliage_color
+    ```
+    
+    Typical values:
+    - Fresh leaves: chlorophyll=0.7, translucency=0.8
+    - Dry leaves: chlorophyll=0.3, translucency=0.5
+    - Thick leaves: thickness=0.8, chlorophyll=0.8
+    """
+    # Chlorophyll absorption spectrum
+    # Red: strongly absorbed
+    # Green: weakly absorbed (transmitted)
+    # Blue: strongly absorbed
+    let red_absorption = 3.0 * chlorophyll_density
+    let green_absorption = 0.5 * chlorophyll_density
+    let blue_absorption = 2.5 * chlorophyll_density
+    
+    # Beer-Lambert transmission
+    let r = exp(-thickness * red_absorption) * translucency
+    let g = exp(-thickness * green_absorption) * translucency
+    let b = exp(-thickness * blue_absorption) * translucency
+    
+    # Boost green/yellow for characteristic foliage look
+    let green_boost = 1.0 + (1.0 - thickness) * 0.5
+    
+    return vec3(r, g * green_boost, b)
+
+# Wax Scattering
+# Specialized SSS for wax, candles, and similar materials
+# Uniform scattering with warm color shift
+# thickness: Wax thickness [0-1]
+# scatter_distance: How far light scatters
+# warmth: Warm color bias [0-1]
+# Returns: Vec3 color modulation for scattered light
+@blueprint
+pub fn wax_scattering(thickness: Float, scatter_distance: Float, warmth: Float) -> Vec3:
+    """
+    Wax scattering model with characteristic warm glow.
+    Wax has relatively uniform scattering across wavelengths,
+    with slight warm bias (yellow/orange tint).
+    
+    Parameters:
+    - thickness: Wax thickness [0-1]
+    - scatter_distance: Scattering distance (typically 1.5-3.0)
+      Lower = tighter scatter, higher = more diffuse
+    - warmth: Warm color bias [0-1]
+      0.0 = neutral white, 1.0 = warm orange glow
+    
+    Returns: RGB transmission color
+    
+    Example usage:
+    ```
+    let thickness = sample(thickness_map, uv).r
+    let wax_color = wax_scattering(thickness, 2.0, 0.6)
+    let candle_glow = backlight * wax_color * glow_intensity
+    ```
+    
+    Typical values:
+    - White candle: warmth=0.3, scatter_distance=2.0
+    - Colored wax: warmth=0.5, scatter_distance=2.5
+    - Thin wax: thickness=0.3, scatter_distance=1.5
+    """
+    # Relatively uniform scattering
+    let base_scatter = exp(-thickness / scatter_distance)
+    
+    # Warm color shift (boost red/yellow, reduce blue)
+    let warm_r = 1.0 + warmth * 0.3
+    let warm_g = 1.0 + warmth * 0.15
+    let warm_b = 1.0 - warmth * 0.2
+    
+    let r = base_scatter * warm_r
+    let g = base_scatter * warm_g
+    let b = base_scatter * warm_b
+    
+    return vec3(r, g, b)
+
+# Marble Scattering
+# Specialized SSS for marble and translucent stone
+# Cool color shift with crystalline structure
+# thickness: Stone thickness [0-1]
+# crystallinity: Crystal structure density [0-1]
+# coolness: Cool color bias [0-1]
+# Returns: Vec3 color modulation for transmitted light
+@blueprint
+pub fn marble_scattering(thickness: Float, crystallinity: Float, coolness: Float) -> Vec3:
+    """
+    Marble scattering model with cool, crystalline appearance.
+    Marble has complex internal structure with varying translucency.
+    
+    Parameters:
+    - thickness: Stone thickness [0-1]
+    - crystallinity: Crystal structure density [0-1]
+      Higher = more structured, less uniform transmission
+    - coolness: Cool color bias [0-1]
+      0.0 = neutral, 1.0 = cool blue/cyan tint
+    
+    Returns: RGB transmission color
+    
+    Example usage:
+    ```
+    let thickness = sample(thickness_map, uv).r
+    let marble_color = marble_scattering(thickness, 0.6, 0.4)
+    let transmitted = backlight * marble_color
+    ```
+    
+    Typical values:
+    - White marble: coolness=0.3, crystallinity=0.5
+    - Colored marble: coolness=0.5, crystallinity=0.7
+    - Thin slabs: thickness=0.4, crystallinity=0.6
+    """
+    # Base transmission with crystalline structure
+    let base_scatter = exp(-thickness * (1.5 + crystallinity * 0.5))
+    
+    # Crystalline structure creates slight wavelength separation
+    let crystal_r = 1.0 - crystallinity * 0.1
+    let crystal_g = 1.0
+    let crystal_b = 1.0 + crystallinity * 0.1
+    
+    # Cool color shift (boost blue, reduce red)
+    let cool_r = 1.0 - coolness * 0.2
+    let cool_g = 1.0 + coolness * 0.1
+    let cool_b = 1.0 + coolness * 0.3
+    
+    let r = base_scatter * crystal_r * cool_r
+    let g = base_scatter * crystal_g * cool_g
+    let b = base_scatter * crystal_b * cool_b
+    
+    return vec3(r, g, b)
+
+# SSS Rim Lighting
+# Adds rim/edge lighting effect for SSS materials
+# Enhances the perception of translucency at grazing angles
+# normal: Surface normal (world space)
+# view_dir: View direction (world space, normalized)
+# light_dir: Light direction (world space, normalized)
+# rim_power: Rim falloff exponent (higher = tighter rim)
+# rim_intensity: Rim brightness multiplier
+# Returns: Rim lighting contribution [0-1]
+@blueprint
+pub fn sss_rim_lighting(normal: Vec3, view_dir: Vec3, light_dir: Vec3, rim_power: Float, rim_intensity: Float) -> Float:
+    """
+    Rim lighting for SSS materials enhances translucency perception.
+    At grazing angles, more light scatters toward the viewer,
+    creating a characteristic glow around edges.
+    
+    Parameters:
+    - normal: Surface normal (world space, normalized)
+    - view_dir: Direction to camera (world space, normalized)
+    - light_dir: Direction to light (world space, normalized)
+    - rim_power: Falloff exponent (typically 2.0-4.0)
+      Higher = tighter rim, lower = broader glow
+    - rim_intensity: Brightness multiplier (typically 0.1-0.5)
+    
+    Returns: Rim contribution to add to final color
+    
+    Example usage:
+    ```
+    let rim = sss_rim_lighting(world_normal, view_dir, light_dir, 3.0, 0.2)
+    let rim_color = light_color * rim
+    final_color = final_color + rim_color
+    ```
+    """
+    let n_dot_v = max(dot(normal, view_dir), 0.0)
+    let rim_factor = pow(1.0 - n_dot_v, rim_power)
+    
+    # Modulate by light direction (rim is stronger when backlit)
+    let n_dot_l = dot(normal, light_dir)
+    let backlight_boost = smoothstep(-0.5, 0.5, -n_dot_l)
+    
+    return rim_factor * rim_intensity * (1.0 + backlight_boost)
+
+# ============================================================================
+# POST-PROCESSING EFFECTS
+# ============================================================================
+
+# Bloom Extract
+# Extracts bright areas from the scene for bloom effect
+# Uses soft knee threshold for smooth transition
+# color: Input color
+# threshold: Brightness threshold for bloom
+# soft_knee: Soft knee factor for smooth falloff
+# Returns: Extracted bloom color
+@blueprint
+pub fn bloom_extract(color: Vec3, threshold: Float, soft_knee: Float) -> Vec3:
+    let brightness = dot(color, vec3(0.2126, 0.7152, 0.0722))
+    
+    # Soft knee threshold
+    let knee = threshold * soft_knee
+    let soft = brightness - threshold + knee
+    let soft_clamped = clamp(soft, 0.0, 2.0 * knee)
+    let contribution = if brightness > threshold - knee:
+        soft_clamped * soft_clamped / (4.0 * knee + 0.00001)
+    else:
+        0.0
+    
+    let extracted = color * contribution / max(brightness, 0.0001)
+    return extracted
+
+# Bloom Composite
+# Combines scene color with bloom
+# scene_color: Original scene color
+# bloom_color: Blurred bloom texture
+# bloom_strength: Bloom intensity multiplier
+# Returns: Final composited color
+@blueprint
+pub fn bloom(scene_color: Vec3, bloom_color: Vec3, bloom_strength: Float) -> Vec3:
+    return scene_color + bloom_color * bloom_strength
+
+# Gaussian Blur (1D Separable)
+# Performs 9-tap Gaussian blur in one direction
+# Used for bloom, DOF, and other blur effects
+# uv: Texture coordinate
+# direction: Blur direction (1,0) for horizontal, (0,1) for vertical
+# texel_size: Size of one texel (1/resolution)
+# blur_radius: Blur radius multiplier
+# Returns: Blurred color (requires texture sampling in actual implementation)
+@blueprint
+pub fn gaussian_blur_1d(uv: Vec2, direction: Vec2, texel_size: Vec2, blur_radius: Float) -> Vec3:
+    # 9-tap Gaussian kernel weights
+    # In actual implementation, would sample texture at each offset
+    # This is a helper that returns the kernel structure
+    # Weights: [0.0162, 0.0541, 0.1216, 0.1946, 0.2270, 0.1946, 0.1216, 0.0541, 0.0162]
+    # Offsets: [-4, -3, -2, -1, 0, 1, 2, 3, 4]
+    
+    # Placeholder - actual implementation requires texture sampling
+    return vec3(1.0, 1.0, 1.0)
+
+# Lens Flare
+# Creates lens flare ghosts and halo effects
+# uv: Screen UV coordinates
+# light_screen_pos: Screen-space position of light source
+# intensity: Flare intensity
+# num_ghosts: Number of ghost reflections
+# halo_radius: Radius of halo effect
+# halo_thickness: Thickness of halo ring
+# Returns: Lens flare contribution
+@blueprint
+pub fn lens_flare(uv: Vec2, light_screen_pos: Vec2, intensity: Float, num_ghosts: Int, halo_radius: Float, halo_thickness: Float) -> Vec3:
+    let center = vec2(0.5, 0.5)
+    let to_center = center - uv
+    let to_light = light_screen_pos - uv
+    
+    var flare_color = vec3(0.0, 0.0, 0.0)
+    
+    # Ghost reflections
+    var i = 0
+    while i < num_ghosts:
+        let ghost_offset = float(i + 1) / float(num_ghosts)
+        let ghost_pos = center + to_center * ghost_offset
+        let ghost_dist = length(uv - ghost_pos)
+        let ghost_size = 0.05 * (1.0 + float(i) * 0.2)
+        let ghost_contrib = exp(-ghost_dist * ghost_dist / (ghost_size * ghost_size))
+        
+        # Chromatic aberration on ghosts
+        let r = ghost_contrib * 1.0
+        let g = ghost_contrib * 0.8
+        let b = ghost_contrib * 0.6
+        flare_color = flare_color + vec3(r, g, b) * intensity * 0.1
+        
+        i = i + 1
+    
+    # Halo effect
+    let light_dist = length(to_light)
+    let halo_dist = abs(light_dist - halo_radius)
+    let halo = exp(-halo_dist * halo_dist / (halo_thickness * halo_thickness))
+    flare_color = flare_color + vec3(halo, halo, halo) * intensity * 0.5
+    
+    return flare_color
+
+# Depth of Field (Circle of Confusion)
+# Calculates blur amount based on depth and focus settings
+# depth: Scene depth at pixel
+# focus_distance: Distance to focus plane
+# focus_range: Range of acceptable focus
+# aperture: Camera aperture (f-stop)
+# focal_length: Camera focal length
+# coc_scale: Circle of confusion scale factor
+# max_blur_size: Maximum blur radius
+# Returns: Blur amount for this pixel
+@blueprint
+pub fn depth_of_field(depth: Float, focus_distance: Float, focus_range: Float, aperture: Float, focal_length: Float, coc_scale: Float, max_blur_size: Float) -> Float:
+    # Circle of confusion calculation
+    let focus_diff = abs(depth - focus_distance)
+    let coc = (focus_diff / focus_range) * coc_scale * aperture
+    let blur_amount = min(coc, max_blur_size)
+    
+    return blur_amount
+
+# Motion Blur
+# Applies motion blur based on velocity
+# uv: Screen UV coordinates
+# velocity: Screen-space velocity vector
+# blur_intensity: Motion blur strength
+# blur_samples: Number of samples along motion vector
+# velocity_scale: Velocity multiplier
+# max_blur_radius: Maximum blur distance
+# Returns: Motion blurred color (requires texture sampling in actual implementation)
+@blueprint
+pub fn motion_blur(uv: Vec2, velocity: Vec2, blur_intensity: Float, blur_samples: Int, velocity_scale: Float, max_blur_radius: Float) -> Vec3:
+    let blur_vec = velocity * velocity_scale * blur_intensity
+    let blur_length = min(length(blur_vec), max_blur_radius)
+    let blur_dir = normalize(blur_vec)
+    
+    # In actual implementation, would sample texture along motion vector
+    # and accumulate samples
+    # This returns the blur parameters for the shader
+    
+    # Placeholder - actual implementation requires texture sampling
+    return vec3(1.0, 1.0, 1.0)
+
+# Screen Space Reflections (SSR)
+# Calculates screen-space reflections using ray marching
+# world_pos: World position of pixel
+# normal: Surface normal
+# view_dir: View direction
+# roughness: Surface roughness
+# ssr_intensity: SSR strength
+# max_ray_distance: Maximum ray march distance
+# max_steps: Number of ray march steps
+# Returns: Reflection color contribution
+@blueprint
+pub fn screen_space_reflections(world_pos: Vec3, normal: Vec3, view_dir: Vec3, roughness: Float, ssr_intensity: Float, max_ray_distance: Float, max_steps: Int) -> Vec3:
+    # Calculate reflection direction
+    let reflect_dir = reflect(-view_dir, normal)
+    
+    # Reflection strength based on roughness
+    let reflection_strength = ssr_intensity * (1.0 - roughness)
+    
+    # In actual implementation, would ray march in screen space
+    # checking depth buffer for intersections
+    # This is a simplified version
+    
+    # Fake reflection color based on reflection direction
+    let sky_color = vec3(0.5, 0.6, 0.7)
+    let reflection_color = sky_color * reflection_strength
+    
+    return reflection_color
+
+# Screen Space Ambient Occlusion (SSAO)
+# Calculates ambient occlusion using screen-space sampling
+# uv: Screen UV coordinates
+# world_pos: World position of pixel
+# normal: Surface normal
+# ao_radius: Sampling radius
+# ao_bias: Bias to prevent self-occlusion
+# ao_samples: Number of samples
+# ao_intensity: AO strength
+# ao_power: AO contrast power
+# Returns: Ambient occlusion factor [0-1]
+@blueprint
+pub fn screen_space_ambient_occlusion(uv: Vec2, world_pos: Vec3, normal: Vec3, ao_radius: Float, ao_bias: Float, ao_samples: Int, ao_intensity: Float, ao_power: Float) -> Float:
+    var occlusion = 0.0
+    
+    # Spiral sampling pattern
+    let golden_angle = 2.39996323
+    var i = 0
+    while i < ao_samples:
+        let angle = float(i) * golden_angle
+        let radius = (float(i) / float(ao_samples)) * ao_radius
+        let sample_offset = vec2(cos(angle), sin(angle)) * radius
+        
+        # In actual implementation, would sample depth buffer
+        # and compare depths to determine occlusion
+        # This is simplified
+        occlusion = occlusion + 1.0 / float(ao_samples)
+        
+        i = i + 1
+    
+    let ao = pow(1.0 - occlusion * ao_intensity, ao_power)
+    return ao
+
+# Color Grading with LUT
+# Applies color grading using a 3D LUT texture
+# color: Input color
+# exposure: Exposure adjustment
+# contrast: Contrast adjustment
+# saturation: Saturation adjustment
+# temperature: Color temperature shift
+# tint: Tint shift (green/magenta)
+# shadows: Shadow color tint
+# midtones: Midtone color tint
+# highlights: Highlight color tint
+# Returns: Graded color
+@blueprint
+pub fn color_grading_lut(color: Vec3, exposure: Float, contrast: Float, saturation: Float, temperature: Float, tint: Float, shadows: Vec3, midtones: Vec3, highlights: Vec3) -> Vec3:
+    var graded = color
+    
+    # Exposure
+    graded = graded * pow(2.0, exposure)
+    
+    # Temperature and tint (white balance)
+    let temp_shift = vec3(temperature * 0.1, 0.0, -temperature * 0.1)
+    let tint_shift = vec3(0.0, -tint * 0.05, tint * 0.05)
+    graded = graded + temp_shift + tint_shift
+    
+    # Contrast around middle gray (0.18)
+    graded = (graded - 0.18) * contrast + 0.18
+    
+    # Saturation
+    let lum = dot(graded, vec3(0.2126, 0.7152, 0.0722))
+    graded = graded * saturation + vec3(lum, lum, lum) * (1.0 - saturation)
+    
+    # Three-way color correction
+    let shadow_weight = 1.0 - smoothstep(0.0, 0.5, lum)
+    let highlight_weight = smoothstep(0.5, 1.0, lum)
+    let midtone_weight = 1.0 - shadow_weight - highlight_weight
+    
+    graded = graded * (shadows * shadow_weight + midtones * midtone_weight + highlights * highlight_weight)
+    
+    return clamp(graded, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+
+# Film Grain
+# Adds film grain noise to the image
+# uv: Screen UV coordinates
+# color: Input color
+# time: Time value for animation
+# intensity: Grain intensity
+# response: How much dark areas get more grain
+# Returns: Color with film grain applied
+@blueprint
+pub fn film_grain(uv: Vec2, color: Vec3, time: Float, intensity: Float, response: Float) -> Vec3:
+    let lum = dot(color, vec3(0.2126, 0.7152, 0.0722))
+    
+    # Animated noise using pseudo-random function
+    let noise_seed = uv + vec2(time * 0.1, time * 0.07)
+    let noise = frac(sin(dot(noise_seed, vec2(12.9898, 78.233))) * 43758.5453) * 2.0 - 1.0
+    
+    # More grain in shadows
+    let response_factor = 1.0 + (1.0 - lum) * response
+    let grain = noise * intensity * response_factor
+    
+    let graded = color + vec3(grain, grain, grain)
+    return clamp(graded, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+
+# Sharpen Filter
+# Applies unsharp mask sharpening
+# center_color: Color at center pixel
+# neighbor_sum: Sum of neighboring pixels
+# num_neighbors: Number of neighbors sampled
+# sharpen_intensity: Sharpening strength
+# sharpen_threshold: Threshold to prevent over-sharpening
+# Returns: Sharpened color
+@blueprint
+pub fn sharpen(center_color: Vec3, neighbor_sum: Vec3, num_neighbors: Int, sharpen_intensity: Float, sharpen_threshold: Float) -> Vec3:
+    let neighbor_avg = neighbor_sum / float(num_neighbors)
+    let edge = center_color - neighbor_avg
+    let edge_strength = length(edge)
+    
+    # Only sharpen if edge is above threshold
+    let sharpen_amount = if edge_strength > sharpen_threshold:
+        sharpen_intensity
+    else:
+        0.0
+    
+    let sharpened = center_color + edge * sharpen_amount
+    return clamp(sharpened, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+
+# Edge Detection (Sobel)
+# Detects edges using Sobel operator
+# Uses 3x3 kernel for gradient calculation
+# center: Center pixel luminance
+# top: Top pixel luminance
+# bottom: Bottom pixel luminance
+# left: Left pixel luminance
+# right: Right pixel luminance
+# top_left: Top-left diagonal luminance
+# top_right: Top-right diagonal luminance
+# bottom_left: Bottom-left diagonal luminance
+# bottom_right: Bottom-right diagonal luminance
+# Returns: Edge strength [0-1]
+@blueprint
+pub fn edge_detect(center: Float, top: Float, bottom: Float, left: Float, right: Float, top_left: Float, top_right: Float, bottom_left: Float, bottom_right: Float) -> Float:
+    # Sobel operator
+    # Gx = [-1  0  1]    Gy = [-1 -2 -1]
+    #      [-2  0  2]         [ 0  0  0]
+    #      [-1  0  1]         [ 1  2  1]
+    
+    let gx = -top_left + top_right - 2.0 * left + 2.0 * right - bottom_left + bottom_right
+    let gy = -top_left - 2.0 * top - top_right + bottom_left + 2.0 * bottom + bottom_right
+    
+    let edge_strength = sqrt(gx * gx + gy * gy)
+    return clamp(edge_strength, 0.0, 1.0)
+
+# Outline Effect
+# Creates outline/silhouette effect using depth and normal discontinuities
+# depth_center: Depth at center pixel
+# depth_neighbors: Array of neighbor depths (4 or 8 samples)
+# normal_center: Normal at center pixel
+# normal_neighbors: Array of neighbor normals
+# depth_threshold: Depth discontinuity threshold
+# normal_threshold: Normal discontinuity threshold
+# outline_color: Color of the outline
+# outline_thickness: Thickness multiplier
+# Returns: Outline color contribution
+@blueprint
+pub fn outline(depth_center: Float, depth_neighbor_sum: Float, num_depth_neighbors: Int, normal_center: Vec3, normal_neighbor_sum: Vec3, num_normal_neighbors: Int, depth_threshold: Float, normal_threshold: Float, outline_color: Vec3, outline_thickness: Float) -> Vec3:
+    # Depth discontinuity
+    let depth_avg = depth_neighbor_sum / float(num_depth_neighbors)
+    let depth_diff = abs(depth_center - depth_avg)
+    let depth_edge = if depth_diff > depth_threshold: 1.0 else: 0.0
+    
+    # Normal discontinuity
+    let normal_avg = normalize(normal_neighbor_sum / float(num_normal_neighbors))
+    let normal_diff = 1.0 - dot(normal_center, normal_avg)
+    let normal_edge = if normal_diff > normal_threshold: 1.0 else: 0.0
+    
+    # Combine edges
+    let edge_strength = max(depth_edge, normal_edge) * outline_thickness
+    
+    return outline_color * edge_strength
+
+# Chromatic Aberration (Advanced)
+# Simulates lens chromatic aberration with RGB channel separation
+# uv: Screen UV coordinates
+# intensity: Aberration intensity
+# center: Center point for radial aberration
+# Returns: RGB channel offsets for sampling
+@blueprint
+pub fn chromatic_aberration_rgb(uv: Vec2, intensity: Float, center: Vec2) -> Vec3:
+    # Direction from center
+    let dir = uv - center
+    let dist = length(dir)
+    let offset = dir * dist * intensity
+    
+    # Return offset multipliers for R, G, B channels
+    # In actual implementation, would sample texture at:
+    # R: uv + offset
+    # G: uv
+    # B: uv - offset
+    
+    # Return offset strength for each channel
+    return vec3(1.0 + dist * intensity, 1.0, 1.0 - dist * intensity)
+
+# Vignette Effect (Advanced)
+# Darkens the edges of the screen with advanced controls
+# uv: Screen UV coordinates
+# intensity: Vignette intensity
+# smoothness: Falloff smoothness
+# roundness: Aspect ratio compensation
+# center: Center point of vignette
+# Returns: Vignette multiplier [0-1]
+@blueprint
+pub fn vignette_advanced(uv: Vec2, intensity: Float, smoothness: Float, roundness: Float, center: Vec2) -> Float:
+    let dist = length((uv - center) * vec2(1.0, roundness))
+    let vignette_factor = 1.0 - smoothstep(1.0 - smoothness - intensity, 1.0 - smoothness, dist)
+    return vignette_factor
+
+
+# ============================================================================
+# SDF (Signed Distance Field) Functions
+# ============================================================================
+# Signed distance fields represent 3D geometry as distance functions.
+# Used for ray marching, procedural modeling, and CSG operations.
+# All SDF functions return the signed distance to the surface:
+# - Negative values = inside the shape
+# - Positive values = outside the shape
+# - Zero = on the surface
+# ============================================================================
+
+# Returns signed distance to a sphere centered at origin
+# p: Sample point in 3D space
+# radius: Sphere radius
+# Returns: Distance to sphere surface (negative inside, positive outside)
+@blueprint
+pub fn sdf_sphere(p: Vec3, radius: Float) -> Float:
+    return length(p) - radius
+
+# Returns signed distance to an axis-aligned box centered at origin
+# p: Sample point in 3D space
+# size: Half-extents of the box (full size is size * 2)
+# Returns: Distance to box surface
+# Example: sdf_box(p, vec3(1.0, 2.0, 0.5)) creates a 2x4x1 box
+@blueprint
+pub fn sdf_box(p: Vec3, size: Vec3) -> Float:
+    let q = abs(p) - size
+    return length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)
+
+# Returns signed distance to a torus (donut shape) in XZ plane
+# p: Sample point in 3D space
+# major_radius: Distance from torus center to tube center
+# minor_radius: Radius of the tube itself
+# Returns: Distance to torus surface
+# Example: sdf_torus(p, 1.0, 0.3) creates a donut with 1.0 ring radius and 0.3 tube thickness
+@blueprint
+pub fn sdf_torus(p: Vec3, major_radius: Float, minor_radius: Float) -> Float:
+    let q = vec2(length(vec2(p.x, p.z)) - major_radius, p.y)
+    return length(q) - minor_radius
+
+# Returns signed distance to a cylinder along Y axis
+# p: Sample point in 3D space
+# height: Half-height of cylinder
+# radius: Cylinder radius
+# Returns: Distance to cylinder surface
+@blueprint
+pub fn sdf_cylinder(p: Vec3, height: Float, radius: Float) -> Float:
+    let d = abs(vec2(length(vec2(p.x, p.z)), p.y)) - vec2(radius, height)
+    return min(max(d.x, d.y), 0.0) + length(max(d, vec2(0.0)))
+
+# Returns signed distance to an infinite plane
+# p: Sample point in 3D space
+# normal: Plane normal vector (should be normalized)
+# offset: Distance from origin along normal
+# Returns: Signed distance to plane
+# Example: sdf_plane(p, vec3(0.0, 1.0, 0.0), 0.0) creates a ground plane at Y=0
+@blueprint
+pub fn sdf_plane(p: Vec3, normal: Vec3, offset: Float) -> Float:
+    return dot(p, normal) + offset
+
+# ============================================================================
+# CSG (Constructive Solid Geometry) Operations
+# ============================================================================
+# Combine multiple SDFs to create complex shapes
+# ============================================================================
+
+# Union of two SDFs (combines both shapes)
+# d1: Distance to first shape
+# d2: Distance to second shape
+# Returns: Distance to the union (closest surface)
+@blueprint
+pub fn sdf_union(d1: Float, d2: Float) -> Float:
+    return min(d1, d2)
+
+# Intersection of two SDFs (only where both shapes overlap)
+# d1: Distance to first shape
+# d2: Distance to second shape
+# Returns: Distance to the intersection
+@blueprint
+pub fn sdf_intersection(d1: Float, d2: Float) -> Float:
+    return max(d1, d2)
+
+# Subtraction of second SDF from first (carves d2 out of d1)
+# d1: Distance to base shape
+# d2: Distance to shape to subtract
+# Returns: Distance to the subtracted result
+# Example: sdf_subtraction(sphere, box) creates a sphere with a box-shaped hole
+@blueprint
+pub fn sdf_subtraction(d1: Float, d2: Float) -> Float:
+    return max(d1, -d2)
+
+# Smooth union with polynomial blending (creates organic blends)
+# d1: Distance to first shape
+# d2: Distance to second shape
+# k: Blend radius (larger = smoother transition)
+# Returns: Distance to smoothly blended union
+# Example: sdf_smooth_union(sphere1, sphere2, 0.3) creates metaball-like blending
+@blueprint
+pub fn sdf_smooth_union(d1: Float, d2: Float, k: Float) -> Float:
+    let h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0)
+    return mix(d2, d1, h) - k * h * (1.0 - h)
+
+# ============================================================================
+# SDF Utility Functions
+# ============================================================================
+
+# Estimates surface normal from SDF using central differences
+# p: Point on or near the surface
+# sdf_func: The SDF function to sample (must be called externally)
+# Returns: Normalized surface normal vector
+# Note: This is a simplified version. In practice, you'd pass the SDF result
+# from multiple samples taken at p +/- epsilon in each axis direction.
+# Example usage in shader:
+#   let eps = 0.001
+#   let nx = scene_sdf(p + vec3(eps, 0, 0)) - scene_sdf(p - vec3(eps, 0, 0))
+#   let ny = scene_sdf(p + vec3(0, eps, 0)) - scene_sdf(p - vec3(0, eps, 0))
+#   let nz = scene_sdf(p + vec3(0, 0, eps)) - scene_sdf(p - vec3(0, 0, eps))
+#   let normal = normalize(vec3(nx, ny, nz))
+@blueprint
+pub fn estimate_normal_sdf(gradient_x: Float, gradient_y: Float, gradient_z: Float) -> Vec3:
+    return normalize(vec3(gradient_x, gradient_y, gradient_z))
+
+# ============================================================================
+# Procedural Generation Functions
+# ============================================================================
+# Comprehensive procedural generation library for terrain, vegetation,
+# celestial bodies, and natural phenomena. Extracted from AlphaGen and
+# KainCosmosGod shader systems.
+# ============================================================================
+
+# Terrain Height Generation
+# Generates terrain heightmap using multi-octave noise with tectonic features
+# uv: Terrain UV coordinates [0-1]
+# scale: Base frequency of terrain features
+# octaves: Number of detail layers (3-8 recommended)
+# seed: Random seed for variation
+# tectonic_strength: Influence of tectonic plate simulation (0-1)
+# erosion_factor: Simulated erosion effect (0-1)
+# Returns: Height value [0-1]
+@blueprint
+pub fn generate_terrain_height(uv: Vec2, scale: Float, octaves: Int, seed: Float, tectonic_strength: Float, erosion_factor: Float) -> Float:
+    # Base tectonic noise (large-scale continental features)
+    let tectonic_uv = uv * scale * 0.1 + vec2(seed, seed)
+    let tectonic = fbm2(tectonic_uv, 3)
+    
+    # Continental shelf features
+    let continental = fbm2(uv * scale * 0.5 + vec2(seed * 1.3, seed * 0.7), 4)
+    
+    # Fine detail terrain noise
+    let detail = fbm2(uv * scale + vec2(seed * 2.1, seed * 1.9), octaves)
+    
+    # Combine layers with tectonic influence
+    let base_height = lerp(detail, tectonic * 0.5 + continental * 0.5, tectonic_strength)
+    
+    # Apply erosion (reduces sharp peaks, deepens valleys)
+    let erosion_mask = pow(base_height, 1.0 + erosion_factor * 0.5)
+    let eroded = lerp(base_height, erosion_mask, erosion_factor)
+    
+    return clamp(eroded, 0.0, 1.0)
+
+# Terrain Normal Calculation
+# Calculates terrain normal from heightmap using finite differences
+# uv: Terrain UV coordinates
+# height_center: Height at center point
+# height_left: Height at left neighbor
+# height_right: Height at right neighbor
+# height_top: Height at top neighbor
+# height_bottom: Height at bottom neighbor
+# strength: Normal strength multiplier (higher = more pronounced)
+# Returns: Normal vector (normalized)
+@blueprint
+pub fn generate_terrain_normal(uv: Vec2, height_center: Float, height_left: Float, height_right: Float, height_top: Float, height_bottom: Float, strength: Float) -> Vec3:
+    # Calculate gradients using finite differences
+    let dx = (height_right - height_left) * strength
+    let dy = (height_bottom - height_top) * strength
+    
+    # Construct tangent space normal
+    let normal = vec3(-dx, -dy, 1.0)
+    
+    return normalize(normal)
+
+# Cave System Generation
+# Generates 3D cave/tunnel network using Worley noise
+# pos: 3D world position
+# scale: Cave density (higher = more caves)
+# threshold: Cave formation threshold (0.3-0.7 typical)
+# seed: Random seed
+# tunnel_width: Width of tunnels (0.1-0.5)
+# vertical_bias: Vertical stretching factor (>1 = horizontal caves)
+# Returns: Cave mask [0 = solid, 1 = air]
+@blueprint
+pub fn generate_cave_system(pos: Vec3, scale: Float, threshold: Float, seed: Float, tunnel_width: Float, vertical_bias: Float) -> Float:
+    # Apply vertical bias to create horizontal cave layers
+    let scaled_pos = vec3(pos.x, pos.y * vertical_bias, pos.z) * scale
+    
+    # Primary cave structure using 3D noise
+    let cave_noise1 = noise3(scaled_pos + vec3(seed, seed, seed))
+    let cave_noise2 = noise3(scaled_pos * 2.3 + vec3(seed * 1.7, seed * 0.9, seed * 1.3))
+    
+    # Combine noises for complex cave structure
+    let cave_value = cave_noise1 * 0.6 + cave_noise2 * 0.4
+    
+    # Apply threshold with smooth transition
+    let cave_mask = smoothstep(threshold - tunnel_width, threshold + tunnel_width, cave_value)
+    
+    return cave_mask
+
+# River Network Generation
+# Generates river and erosion patterns using flow simulation
+# uv: Terrain UV coordinates
+# height: Terrain height at this point
+# scale: River network density
+# seed: Random seed
+# flow_strength: River carving strength
+# tributary_density: Number of tributary branches
+# Returns: River mask [0 = no river, 1 = river]
+@blueprint
+pub fn generate_river_network(uv: Vec2, height: Float, scale: Float, seed: Float, flow_strength: Float, tributary_density: Float) -> Float:
+    # Main river channels using ridged noise (creates valleys)
+    let river_noise = ridged_noise(uv, scale, 5, seed)
+    
+    # Tributary branches using Worley noise
+    let tributary = worley_noise(uv, scale * tributary_density, 0.8, seed * 1.5)
+    
+    # Rivers only form in lower elevations
+    let elevation_mask = 1.0 - smoothstep(0.3, 0.7, height)
+    
+    # Combine main rivers and tributaries
+    let river_base = river_noise * 0.7 + tributary * 0.3
+    
+    # Apply flow strength and elevation mask
+    let river_mask = pow(river_base, 1.0 / flow_strength) * elevation_mask
+    
+    # Threshold to create distinct river channels
+    return smoothstep(0.4, 0.6, river_mask)
+
+# Vegetation Distribution
+# Generates vegetation placement patterns based on terrain conditions
+# uv: Terrain UV coordinates
+# height: Terrain height
+# moisture: Moisture/humidity value
+# temperature: Temperature value
+# scale: Vegetation cluster scale
+# seed: Random seed
+# density: Overall vegetation density (0-1)
+# Returns: Vegetation density [0-1]
+@blueprint
+pub fn generate_vegetation_distribution(uv: Vec2, height: Float, moisture: Float, temperature: Float, scale: Float, seed: Float, density: Float) -> Float:
+    # Vegetation clusters using Worley noise
+    let cluster_noise = worley_noise(uv, scale, 0.9, seed)
+    
+    # Fine detail variation
+    let detail = noise2(uv * scale * 3.0 + vec2(seed, seed))
+    
+    # Combine cluster and detail
+    let base_distribution = cluster_noise * 0.7 + detail * 0.3
+    
+    # Vegetation prefers moderate elevations
+    let height_suitability = 1.0 - abs(height - 0.5) * 2.0
+    
+    # Vegetation needs moisture
+    let moisture_suitability = smoothstep(0.2, 0.6, moisture)
+    
+    # Temperature range preference (not too hot, not too cold)
+    let temp_suitability = 1.0 - abs(temperature - 0.5) * 1.5
+    
+    # Combine all factors
+    let suitability = height_suitability * moisture_suitability * temp_suitability
+    
+    # Apply density and suitability
+    let vegetation = base_distribution * suitability * density
+    
+    return clamp(vegetation, 0.0, 1.0)
+
+# Rock Placement
+# Generates rock and boulder distribution patterns
+# uv: Terrain UV coordinates
+# height: Terrain height
+# slope: Terrain slope (0 = flat, 1 = steep)
+# scale: Rock cluster scale
+# seed: Random seed
+# size_variation: Rock size randomness (0-1)
+# slope_preference: How much rocks prefer slopes (0-1)
+# Returns: Rock placement mask [0-1]
+@blueprint
+pub fn generate_rock_placement(uv: Vec2, height: Float, slope: Float, scale: Float, seed: Float, size_variation: Float, slope_preference: Float) -> Float:
+    # Rock clusters using Voronoi cells
+    let voronoi_result = voronoi(uv, scale, 1.0, seed)
+    let rock_clusters = voronoi_result.x
+    
+    # Size variation per cluster
+    let size_noise = hash2(floor(uv * scale) + vec2(seed, seed))
+    let size_factor = lerp(1.0 - size_variation, 1.0, size_noise)
+    
+    # Rocks prefer slopes (rockslides, erosion)
+    let slope_factor = lerp(1.0, slope, slope_preference)
+    
+    # Rocks more common at higher elevations
+    let elevation_factor = smoothstep(0.4, 0.8, height)
+    
+    # Combine factors
+    let rock_mask = rock_clusters * size_factor * slope_factor * elevation_factor
+    
+    # Threshold to create distinct rocks
+    return smoothstep(0.3, 0.5, rock_mask)
+
+# Cloud Shape Generation
+# Generates realistic cloud shapes using multi-scale noise
+# uv: Sky UV coordinates
+# scale: Cloud size scale
+# coverage: Cloud coverage amount (0-1)
+# sharpness: Cloud edge sharpness (0-1)
+# seed: Random seed
+# wind_offset: Wind animation offset
+# Returns: Cloud density [0-1]
+@blueprint
+pub fn generate_cloud_shape(uv: Vec2, scale: Float, coverage: Float, sharpness: Float, seed: Float, wind_offset: Vec2) -> Float:
+    # Animated UV with wind
+    let cloud_uv = uv * scale + wind_offset
+    
+    # Large-scale cloud formations
+    let large_clouds = fbm2(cloud_uv + vec2(seed, seed), 3)
+    
+    # Medium detail
+    let medium_detail = fbm2(cloud_uv * 2.5 + vec2(seed * 1.3, seed * 0.7), 4)
+    
+    # Fine detail (cloud wisps)
+    let fine_detail = fbm2(cloud_uv * 6.0 + vec2(seed * 2.1, seed * 1.9), 5)
+    
+    # Combine scales
+    let cloud_base = large_clouds * 0.5 + medium_detail * 0.3 + fine_detail * 0.2
+    
+    # Apply coverage threshold
+    let cloud_mask = smoothstep(1.0 - coverage, 1.0 - coverage + 0.1, cloud_base)
+    
+    # Apply sharpness
+    let sharpened = pow(cloud_mask, 1.0 / (sharpness + 0.1))
+    
+    return clamp(sharpened, 0.0, 1.0)
+
+# Galaxy Spiral Generation
+# Generates spiral galaxy pattern with arms and core
+# uv: Galaxy UV coordinates (centered at 0.5, 0.5)
+# arm_count: Number of spiral arms (2-8 typical)
+# arm_width: Width of spiral arms
+# arm_twist: Tightness of spiral (higher = tighter)
+# core_size: Size of galactic core
+# seed: Random seed
+# Returns: Galaxy density [0-1]
+@blueprint
+pub fn generate_galaxy_spiral(uv: Vec2, arm_count: Int, arm_width: Float, arm_twist: Float, core_size: Float, seed: Float) -> Float:
+    # Center coordinates
+    let centered = uv - vec2(0.5, 0.5)
+    let dist = length(centered)
+    let angle = atan2(centered.y, centered.x)
+    
+    # Galactic core (bright center)
+    let core = exp(-dist * dist / (core_size * core_size))
+    
+    # Spiral arms
+    let spiral_angle = angle + dist * arm_twist
+    let arm_pattern = sin(spiral_angle * float(arm_count)) * 0.5 + 0.5
+    
+    # Arm falloff with distance
+    let arm_falloff = exp(-dist * 2.0)
+    
+    # Arm width modulation
+    let arm_mask = smoothstep(0.5 - arm_width, 0.5 + arm_width, arm_pattern)
+    
+    # Star field noise
+    let star_noise = fbm2(uv * 50.0 + vec2(seed, seed), 4)
+    
+    # Combine core, arms, and stars
+    let galaxy = core * 2.0 + arm_mask * arm_falloff + star_noise * 0.3
+    
+    return clamp(galaxy, 0.0, 1.0)
+
+# Planet Surface Generation
+# Generates planet surface features (continents, oceans, polar caps)
+# uv: Spherical UV coordinates
+# planet_type: Planet type factor (0 = oceanic, 1 = terrestrial)
+# scale: Feature scale
+# seed: Random seed
+# polar_cap_size: Size of polar ice caps
+# continent_coverage: Land coverage percentage
+# Returns: Surface type [0 = ocean, 0.5 = land, 1 = ice]
+@blueprint
+pub fn generate_planet_surface(uv: Vec2, planet_type: Float, scale: Float, seed: Float, polar_cap_size: Float, continent_coverage: Float) -> Float:
+    # Continental plates using large-scale noise
+    let continents = fbm2(uv * scale + vec2(seed, seed), 4)
+    
+    # Apply continent coverage threshold
+    let land_mask = smoothstep(1.0 - continent_coverage, 1.0 - continent_coverage + 0.2, continents)
+    
+    # Polar caps (based on UV.y distance from poles)
+    let polar_dist = min(uv.y, 1.0 - uv.y) * 2.0
+    let ice_caps = smoothstep(polar_cap_size, polar_cap_size + 0.1, polar_dist)
+    
+    # Combine land and ice
+    let surface = land_mask * 0.5
+    let surface_with_ice = lerp(1.0, surface, ice_caps)
+    
+    # Apply planet type (more ocean for oceanic planets)
+    let final_surface = lerp(surface_with_ice * 0.3, surface_with_ice, planet_type)
+    
+    return clamp(final_surface, 0.0, 1.0)
+
+# Asteroid Field Generation
+# Generates asteroid distribution in 3D space
+# pos: 3D position in space
+# density: Asteroid field density
+# scale: Asteroid cluster scale
+# seed: Random seed
+# size_min: Minimum asteroid size
+# size_max: Maximum asteroid size
+# Returns: Asteroid presence and size [0 = empty, >0 = asteroid size]
+@blueprint
+pub fn generate_asteroid_field(pos: Vec3, density: Float, scale: Float, seed: Float, size_min: Float, size_max: Float) -> Float:
+    # Asteroid clusters using 3D Voronoi
+    let cluster_scale = scale * 0.5
+    let cluster_uv = vec2(pos.x, pos.y) * cluster_scale
+    let voronoi_result = voronoi(cluster_uv, 1.0, 0.9, seed)
+    
+    # Individual asteroids using 3D noise
+    let asteroid_noise = noise3(pos * scale + vec3(seed, seed, seed))
+    
+    # Density threshold
+    let presence = smoothstep(1.0 - density, 1.0, asteroid_noise)
+    
+    # Size variation per asteroid
+    let size_seed = floor(pos * scale) + vec3(seed, seed, seed)
+    let size_hash = hash3(size_seed)
+    let asteroid_size = lerp(size_min, size_max, size_hash)
+    
+    # Cluster influence (asteroids cluster together)
+    let cluster_influence = 1.0 - voronoi_result.x
+    
+    # Combine presence, size, and clustering
+    let asteroid = presence * asteroid_size * (0.5 + cluster_influence * 0.5)
+    
+    return asteroid
+
+// ============================================================================
+// source: ue5/skeletal_mesh.kn
+// ============================================================================
+# Skeletal Mesh Functions
+# Animation and skeletal mesh control for character systems
+
+# Animation Playback
+@extern
+pub fn PlayAnimation(mesh: SkeletalMesh, anim_name: String)
+
+@extern
+pub fn StopAnimation(mesh: SkeletalMesh)
+
+@extern
+pub fn SetAnimationSpeed(mesh: SkeletalMesh, speed: Float)
+
+@extern
+pub fn IsAnimationPlaying(mesh: SkeletalMesh) -> Bool
+
+# Bone Manipulation
+@extern
+pub fn GetBoneLocation(mesh: SkeletalMesh, bone_name: String) -> Vec3
+
+@extern
+pub fn GetBoneRotation(mesh: SkeletalMesh, bone_name: String) -> Rotator
+
+@extern
+pub fn SetBoneTransform(mesh: SkeletalMesh, bone_name: String, location: Vec3, rotation: Rotator)
+
+# Socket Operations
+@extern
+pub fn AttachToSocket(mesh: SkeletalMesh, socket_name: String, target: Actor)
+
+@extern
+pub fn GetSocketLocation(mesh: SkeletalMesh, socket_name: String) -> Vec3
+
+@extern
+pub fn GetSocketRotation(mesh: SkeletalMesh, socket_name: String) -> Rotator
+
+# Physics and Ragdoll
+@extern
+pub fn EnableRagdoll(mesh: SkeletalMesh)
+
+@extern
+pub fn DisableRagdoll(mesh: SkeletalMesh)
+
+@extern
+pub fn AddImpulseToBone(mesh: SkeletalMesh, bone_name: String, impulse: Vec3)
+
+# Morph Targets
+@extern
+pub fn SetMorphTarget(mesh: SkeletalMesh, morph_name: String, value: Float)
+
+@extern
+pub fn GetMorphTarget(mesh: SkeletalMesh, morph_name: String) -> Float
+
+# Animation Montage
+@extern
+pub fn PlayAnimMontage(mesh: SkeletalMesh, montage_name: String, play_rate: Float) -> Float
+
+@extern
+pub fn StopAnimMontage(mesh: SkeletalMesh, montage_name: String)
+
+@extern
+pub fn GetCurrentMontage(mesh: SkeletalMesh) -> String
+
+@extern
+pub fn IsPlayingMontage(mesh: SkeletalMesh) -> Bool
+
+# Advanced Bone Manipulation
+@extern
+pub fn SetBoneLocationByName(mesh: SkeletalMesh, bone_name: String, location: Vec3)
+
+@extern
+pub fn SetBoneRotationByName(mesh: SkeletalMesh, bone_name: String, rotation: Rotator)
+
+@extern
+pub fn SetBoneTransformByName(mesh: SkeletalMesh, bone_name: String, location: Vec3, rotation: Rotator, scale: Vec3)
+
+@extern
+pub fn GetBoneIndex(mesh: SkeletalMesh, bone_name: String) -> Int
+
+# Socket Queries
+@extern
+pub fn GetSocketByName(mesh: SkeletalMesh, socket_name: String) -> Socket
+
+@extern
+pub fn GetAllSocketNames(mesh: SkeletalMesh) -> Array<String>
+
+@extern
+pub fn DoesSocketExist(mesh: SkeletalMesh, socket_name: String) -> Bool
+
+# Animation Blueprint
+@extern
+pub fn GetAnimInstance(mesh: SkeletalMesh) -> AnimInstance
+
+@extern
+pub fn SetAnimInstanceClass(mesh: SkeletalMesh, anim_class: String)
+
+# Morph Target Management
+@extern
+pub fn ClearMorphTargets(mesh: SkeletalMesh)
+
+@extern
+pub fn GetAllMorphTargetNames(mesh: SkeletalMesh) -> Array<String>
+
+# Physics Simulation
+@extern
+pub fn SetAllBodiesSimulatePhysics(mesh: SkeletalMesh, simulate: Bool)
+
+@extern
+pub fn SetAllBodiesPhysicsBlendWeight(mesh: SkeletalMesh, weight: Float)
+
+@extern
+pub fn AddForceToAllBodiesBelow(mesh: SkeletalMesh, bone_name: String, force: Vec3)
+
+// ============================================================================
+// source: ue5/utilities.kn
+// ============================================================================
+# Utility Functions
+# Pure KAIN helper functions for common operations
+
+# Math Utilities
+@blueprint
+pub fn remap(value: Float, in_min: Float, in_max: Float, out_min: Float, out_max: Float) -> Float:
+    let normalized = (value - in_min) / (in_max - in_min)
+    return out_min + normalized * (out_max - out_min)
+
+@blueprint
+pub fn smooth_step(edge0: Float, edge1: Float, x: Float) -> Float:
+    let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+@blueprint
+pub fn lerp_color(a: Vec3, b: Vec3, alpha: Float) -> Vec3:
+    let r = a.x + (b.x - a.x) * alpha
+    let g = a.y + (b.y - a.y) * alpha
+    let b_val = a.z + (b.z - a.z) * alpha
+    return vec3(r, g, b_val)
+
+@blueprint
+pub fn distance_2d(a: Vec2, b: Vec2) -> Float:
+    let dx = b.x - a.x
+    let dy = b.y - a.y
+    return sqrt(dx * dx + dy * dy)
+
+# Random Utilities
+@blueprint
+pub fn random_range(min: Float, max: Float) -> Float:
+    let rand_val = random()
+    return min + rand_val * (max - min)
+
+@blueprint
+pub fn random_int_range(min: Int, max: Int) -> Int:
+    let range = max - min + 1
+    let rand_val = random()
+    return min + floor(rand_val * range)
+
+@blueprint
+pub fn random_bool(probability: Float) -> Bool:
+    return random() < probability
+
+@blueprint
+pub fn weighted_random(weights: Array<Float>) -> Int:
+    let total_weight = 0.0
+    let i = 0
+    while i < weights.len():
+        total_weight = total_weight + weights[i]
+        i = i + 1
+    
+    let rand_val = random() * total_weight
+    let cumulative = 0.0
+    let j = 0
+    while j < weights.len():
+        cumulative = cumulative + weights[j]
+        if rand_val <= cumulative:
+            return j
+        j = j + 1
+    
+    return weights.len() - 1
+
+# Clamping and Normalization
+@blueprint
+pub fn clamp_01(value: Float) -> Float:
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+@blueprint
+pub fn normalize_angle(angle: Float) -> Float:
+    let normalized = angle
+    while normalized > 180.0:
+        normalized = normalized - 360.0
+    while normalized < -180.0:
+        normalized = normalized + 360.0
+    return normalized
+
+# Formatting Utilities
+@blueprint
+pub fn format_time(seconds: Float) -> String:
+    let total_seconds = floor(seconds)
+    let minutes = floor(total_seconds / 60.0)
+    let remaining_seconds = total_seconds - (minutes * 60.0)
+    
+    if minutes > 0.0:
+        return "{minutes}m {remaining_seconds}s"
+    return "{remaining_seconds}s"
+
+@blueprint
+pub fn format_number(value: Float, decimals: Int) -> String:
+    let multiplier = pow(10.0, decimals)
+    let rounded = round(value * multiplier) / multiplier
+    return "{rounded}"
+
+# Advanced Math Utilities
+@blueprint
+pub fn remap_clamped(value: Float, in_min: Float, in_max: Float, out_min: Float, out_max: Float) -> Float:
+    let clamped = clamp(value, in_min, in_max)
+    let normalized = (clamped - in_min) / (in_max - in_min)
+    return out_min + normalized * (out_max - out_min)
+
+@blueprint
+pub fn inverse_lerp(a: Float, b: Float, value: Float) -> Float:
+    if abs(b - a) < 0.0001:
+        return 0.0
+    return (value - a) / (b - a)
+
+@blueprint
+pub fn ease_in_out(t: Float) -> Float:
+    let clamped = clamp_01(t)
+    return clamped * clamped * (3.0 - 2.0 * clamped)
+
+# Vector Utilities
+@blueprint
+pub fn random_unit_vector() -> Vec3:
+    let theta = random() * 6.28318530718
+    let phi = acos(2.0 * random() - 1.0)
+    let x = sin(phi) * cos(theta)
+    let y = sin(phi) * sin(theta)
+    let z = cos(phi)
+    return vec3(x, y, z)
+
+@blueprint
+pub fn random_point_in_sphere(radius: Float) -> Vec3:
+    let dir = random_unit_vector()
+    let r = pow(random(), 0.333333) * radius
+    return vec3(dir.x * r, dir.y * r, dir.z * r)
+
+@blueprint
+pub fn clamp_vector(v: Vec3, min_val: Float, max_val: Float) -> Vec3:
+    let x = clamp(v.x, min_val, max_val)
+    let y = clamp(v.y, min_val, max_val)
+    let z = clamp(v.z, min_val, max_val)
+    return vec3(x, y, z)
+
+@blueprint
+pub fn clamp_angle(angle: Float, min_angle: Float, max_angle: Float) -> Float:
+    let normalized = normalize_angle(angle)
+    return clamp(normalized, min_angle, max_angle)
+
+# Numeric Utilities
+@blueprint
+pub fn sign(value: Float) -> Float:
+    if value > 0.0:
+        return 1.0
+    if value < 0.0:
+        return -1.0
+    return 0.0
+
+@blueprint
+pub fn wrap(value: Float, min_val: Float, max_val: Float) -> Float:
+    let range = max_val - min_val
+    if range <= 0.0:
+        return min_val
+    let offset = value - min_val
+    return min_val + (offset - floor(offset / range) * range)
+
+@blueprint
+pub fn ping_pong(t: Float, length: Float) -> Float:
+    let t_mod = t - floor(t / length) * length
+    return length - abs(t_mod - length)
+
+# String Formatting Utilities
+@blueprint
+pub fn format_vector(v: Vec3) -> String:
+    return "({v.x}, {v.y}, {v.z})"
+
+@blueprint
+pub fn format_percentage(value: Float) -> String:
+    let percent = value * 100.0
+    return "{percent}%"
+
+@blueprint
+pub fn parse_float(str: String) -> Float:
+    return 0.0
+
+@blueprint
+pub fn parse_int(str: String) -> Int:
+    return 0
+
+// ============================================================================
+// source: ue5/world.kn
+// ============================================================================
+# World Functions
+# Common UWorld functions for time, spawning, and world queries
+
+# Time Functions
+@extern
+pub fn GetWorldTimeSeconds() -> Float
+
+@extern
+pub fn GetWorldDeltaSeconds() -> Float
+
+# Network Context
+@extern
+pub fn IsServer() -> Bool
+
+@extern
+pub fn IsClient() -> Bool
+
+@extern
+pub fn IsStandalone() -> Bool
+
+# Actor Spawning
+@extern
+pub fn SpawnActor(class_name: String, location: Vec3, rotation: Rotator) -> Actor
+
+@extern
+pub fn SpawnActorDeferred(class_name: String, location: Vec3, rotation: Rotator) -> Actor
+
+@extern
+pub fn FinishSpawningActor(spawned: Actor)
+
+# Debug Output
+@extern
+pub fn PrintToScreen(message: String)
+
+@extern
+pub fn PrintToLog(message: String)
+
+# Game Framework
+@extern
+pub fn GetGameMode() -> Actor
+
+@extern
+pub fn GetGameState() -> Actor
+
+@extern
+pub fn GetPlayerController() -> Actor
+
+@extern
+pub fn GetPlayerPawn() -> Actor
+
+# Line Traces
+@extern
+pub fn LineTraceSingle(start: Vec3, end: Vec3, channel: Int) -> Bool
+
+@extern
+pub fn LineTraceMulti(start: Vec3, end: Vec3, channel: Int) -> Array<Actor>
+
+@extern
+pub fn SphereTraceSingle(start: Vec3, end: Vec3, radius: Float, channel: Int) -> Bool
+
+@extern
+pub fn BoxTraceSingle(start: Vec3, end: Vec3, half_size: Vec3, channel: Int) -> Bool
+
+# Additional Line Traces
+@extern
+pub fn SphereTraceMulti(start: Vec3, end: Vec3, radius: Float, channel: Int) -> Array<Actor>
+
+@extern
+pub fn BoxTraceMulti(start: Vec3, end: Vec3, half_size: Vec3, channel: Int) -> Array<Actor>
+
+@extern
+pub fn CapsuleTraceSingle(start: Vec3, end: Vec3, radius: Float, half_height: Float, channel: Int) -> Bool
+
+@extern
+pub fn CapsuleTraceMulti(start: Vec3, end: Vec3, radius: Float, half_height: Float, channel: Int) -> Array<Actor>
+
+# Sound Functions
+@extern
+pub fn SpawnSound2D(sound_asset: String, volume: Float, pitch: Float) -> Bool
+
+@extern
+pub fn SpawnSoundAtLocation(sound_asset: String, location: Vec3, volume: Float, pitch: Float) -> Bool
+
+@extern
+pub fn SpawnSoundAttached(sound_asset: String, attach_component: Component, volume: Float, pitch: Float) -> Bool
+
+# Debug Drawing
+@extern
+pub fn DrawDebugLine(start: Vec3, end: Vec3, color: Vec3, duration: Float, thickness: Float)
+
+@extern
+pub fn DrawDebugSphere(center: Vec3, radius: Float, color: Vec3, duration: Float)
+
+@extern
+pub fn DrawDebugBox(center: Vec3, extent: Vec3, color: Vec3, duration: Float)
+
+@extern
+pub fn DrawDebugCapsule(center: Vec3, half_height: Float, radius: Float, color: Vec3, duration: Float)
+
+@extern
+pub fn DrawDebugString(location: Vec3, text: String, color: Vec3, duration: Float)
+
+@extern
+pub fn DrawDebugArrow(start: Vec3, end: Vec3, color: Vec3, duration: Float, thickness: Float)
+
+# World Queries
+@extern
+pub fn GetAllActorsOfClass(class_name: String) -> Array<Actor>
+
+@extern
+pub fn GetAllActorsWithTag(tag: String) -> Array<Actor>
+
+@extern
+pub fn GetActorCount() -> Int
+
+# Gravity and Physics
+@extern
+pub fn GetGravityZ() -> Float
+
+@extern
+pub fn SetGravityZ(gravity: Float)
+
+

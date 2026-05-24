@@ -1420,10 +1420,12 @@ pub(crate) fn load_kn_files_from_dir(path: &std::path::Path) -> Option<String> {
 
 const DEFAULT_PROFILE_ORDER: &[&str] = &[""];
 
+// UE targets now drink from the root stdlib by default.
+// The old `stdlib/ue5` overlay is deprecated and no longer assumed here.
 const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
-    (CompileTarget::Ue5, &["ue5"]),
-    (CompileTarget::Ue5Editor, &["ue5"]),
-    (CompileTarget::Usf, &["ue5"]),
+    (CompileTarget::Ue5, &[""]),
+    (CompileTarget::Ue5Editor, &[""]),
+    (CompileTarget::Usf, &[""]),
     (CompileTarget::Hlsl, &[""]),
     (CompileTarget::Spirv, &[""]),
     (CompileTarget::Cuda, &[""]),
@@ -1875,12 +1877,12 @@ mod tests {
         assert!(!cuda_stdlib.contains("// ue5 stdlib"));
 
         let ue5_stdlib = load_stdlib_from_profiles(&roots, &ue5_profiles);
-        assert!(ue5_stdlib.contains("// ue5 stdlib"));
-        assert!(!ue5_stdlib.contains("// root stdlib"));
+        assert!(ue5_stdlib.contains("// root stdlib"));
+        assert!(!ue5_stdlib.contains("// ue5 stdlib"));
 
         let usf_stdlib = load_stdlib_from_profiles(&roots, &usf_profiles);
-        assert!(usf_stdlib.contains("// ue5 stdlib"));
-        assert!(!usf_stdlib.contains("// root stdlib"));
+        assert!(usf_stdlib.contains("// root stdlib"));
+        assert!(!usf_stdlib.contains("// ue5 stdlib"));
 
         let llvm_stdlib = load_stdlib_from_profiles(&roots, &llvm_profiles);
         assert!(llvm_stdlib.contains("// root stdlib"));

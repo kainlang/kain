@@ -488,7 +488,10 @@ fn register_python_env(env: &mut Env) {
     env.register_native_fn("py_exec", py_exec_native);
     env.register_native_fn("py_import", py_import_native);
     env.register_native_fn("py_import_with_context", py_import_with_context_native);
-    env.register_native_fn("py_import_from_with_context", py_import_from_with_context_native);
+    env.register_native_fn(
+        "py_import_from_with_context",
+        py_import_from_with_context_native,
+    );
     env.register_native_fn("py_call", py_call_native);
     env.register_native_fn("py_call_raw", py_call_raw_native);
     env.register_native_fn("py_getattr", py_getattr_native);
@@ -670,11 +673,7 @@ fn py_import_from_with_context_native(env: &mut Env, args: Vec<Value>) -> KainRe
     })
 }
 
-fn py_import_with_context(
-    env: &mut Env,
-    args: Vec<Value>,
-    raw_result: bool,
-) -> KainResult<Value> {
+fn py_import_with_context(env: &mut Env, args: Vec<Value>, raw_result: bool) -> KainResult<Value> {
     if !(1..=2).contains(&args.len()) {
         return Err(KainError::runtime(
             "py_import: expected (module) or (module, importer_file)",
@@ -755,9 +754,9 @@ fn import_python_module_with_context<'py>(
         }
         KainError::runtime(format!("Python import error for '{module_name}': {err}"))
     })?;
-    scope_dict
-        .set_item(module_name, module)
-        .map_err(|err| KainError::runtime(format!("Failed to set module '{module_name}': {err}")))?;
+    scope_dict.set_item(module_name, module).map_err(|err| {
+        KainError::runtime(format!("Failed to set module '{module_name}': {err}"))
+    })?;
     Ok(module.into_py(py))
 }
 
@@ -830,7 +829,10 @@ fn append_python_search_roots(roots: &mut Vec<PathBuf>, importer_file: Option<&P
     }
 }
 
-fn prepare_local_python_import(py: Python<'_>, local: &LocalPythonModuleResolution) -> KainResult<()> {
+fn prepare_local_python_import(
+    py: Python<'_>,
+    local: &LocalPythonModuleResolution,
+) -> KainResult<()> {
     let sys = py
         .import("sys")
         .map_err(|err| KainError::runtime(format!("Python sys import error: {err}")))?;
@@ -845,7 +847,8 @@ fn prepare_local_python_import(py: Python<'_>, local: &LocalPythonModuleResoluti
 
     let root = local.sys_path_root.to_string_lossy().to_string();
     let root_already_present = sys_path.iter().any(|entry| {
-        entry.extract::<String>()
+        entry
+            .extract::<String>()
             .map(|value| value == root)
             .unwrap_or(false)
     });
@@ -866,7 +869,9 @@ fn prepare_local_python_import(py: Python<'_>, local: &LocalPythonModuleResoluti
         .keys()
         .iter()
         .filter_map(|key| key.extract::<String>().ok())
-        .filter(|name| name == &root_name || name == &local.module_name || name.starts_with(&candidate_prefix))
+        .filter(|name| {
+            name == &root_name || name == &local.module_name || name.starts_with(&candidate_prefix)
+        })
         .collect::<Vec<_>>();
 
     for key in keys {
@@ -4864,8 +4869,8 @@ mod tests {
     fn python_bridge_projects_shared_contracts_as_bytearrays() {
         let result = interpret_source(
             r#"
-use std::python::bridge
-use std::interop::bridge
+use std::python
+use std::interop
 
 fn main():
     py_exec("def inspect_shared_contracts(image, snapshot):\n    return [image['contract'], isinstance(image['bytes'], bytearray), image['bytes'][2], snapshot['contract'], isinstance(snapshot['bytes'], bytearray), snapshot['bytes'][1]]")
@@ -5645,8 +5650,8 @@ fn main():
         );
         let module_file = temp_dir.join(format!("{module_name}.py"));
         let entry_file = temp_dir.join("entry.kn");
-    let source = format!(
-        r#"
+        let source = format!(
+            r#"
 from {module_name} import double as py_double
 
 fn main() -> Int:
@@ -5732,7 +5737,9 @@ fn main() -> Int:
 
         let tokens = Lexer::new(source).tokenize().unwrap();
         let span_mapper = SpanMapper::new(source);
-        let mut ast = Parser::new(&tokens, &span_mapper, "<test>").parse().unwrap();
+        let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .unwrap();
         stamp_python_import_source_file(&mut ast, filename);
         kain_core::comptime::eval_program(&mut ast).unwrap();
         let typed = types::check(&ast, &span_mapper, "<test>").unwrap();

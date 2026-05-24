@@ -1,7 +1,7 @@
 ---
 name: lang-stdlib
 description: >-
-  Use when authoring, explaining, reviewing, repairing, extending, benchmarking, or certifying Kain root `std::*` work: choosing public stdlib imports, querying exact symbols, adding or expanding top-level `stdlib/*.kn` modules, closing capability gaps tracked in `stdlib/requirements.md`, meshing new surfaces into `smoketest/`, and routing stdlib-backed compiler/runtime issues to the owning bootstrap/runtime lanes. Use for both consuming the existing root stdlib and building it toward v1 completeness; do not use this as the primary skill for overlay-only work under `stdlib/python`, `stdlib/javascript`, `stdlib/ue5`, `stdlib/c`, or `stdlib/interop` unless that work is explicitly in service of a root stdlib surface.
+  Use when authoring, explaining, reviewing, repairing, extending, benchmarking, or certifying Kain root `std::*` work: choosing public stdlib imports, querying exact symbols, adding or expanding top-level `stdlib/*.kn` modules, closing capability gaps tracked in `stdlib/requirements.md`, meshing new surfaces into `smoketest/`, and routing stdlib-backed compiler/runtime issues to the owning bootstrap/runtime lanes. Use for both consuming the existing root stdlib and building it toward v1 completeness; do not use this as the primary skill for overlay-only work under non-root helper trees unless that work is explicitly in service of a root stdlib surface.
 ---
 
 # Lang Stdlib
@@ -365,7 +365,7 @@ Use donors for pressure from categories such as:
 - Do not paste the full generated atlas into context to find one symbol.
 - Do not author examples against private `abi_*` helpers.
 - Do not invent a parallel `std::native.*` tree for user-facing work.
-- Do not count overlay-only work under `stdlib/python`, `stdlib/javascript`, `stdlib/ue5`, `stdlib/c`, or `stdlib/interop` as root completion by itself.
+- Do not count overlay-only work under non-root helper trees as root completion by itself.
 - Do not ship new root APIs as raw string blobs when a typed public record or enum is clearly warranted.
 - Do not stop at a blade-local proof when the capability belongs in the root stdlib contract.
 - Do not skip `smoketest/` meshing, atlas regeneration, or requirement-row updates after changing top-level `stdlib/*.kn`.

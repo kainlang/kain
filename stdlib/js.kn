@@ -1,0 +1,255 @@
+// Root JavaScript surface for Kain.
+//
+// This module folds the old `stdlib/javascript/*` helpers into one root
+// `std::js` lane. Raw host-backed JS builtins stay global, while this module
+// gives authored Kain one stable import for bridge, Node, web, and site flows.
+
+pub fn js_bridge_exec(code: String):
+    js_exec(code)
+
+pub fn js_bridge_eval(code: String) -> Any:
+    return js_eval(code)
+
+pub fn js_bridge_eval_raw(code: String) -> Any:
+    return js_eval_raw(code)
+
+pub fn js_bridge_import(specifier: String) -> Any:
+    return js_import(specifier)
+
+pub fn js_bridge_require(specifier: String) -> Any:
+    return js_require(specifier)
+
+pub fn js_bridge_require_raw(specifier: String) -> Any:
+    return js_require_raw(specifier)
+
+pub fn node_import(specifier: String) -> Any:
+    return js_import(specifier)
+
+pub fn node_require(specifier: String) -> Any:
+    return js_require(specifier)
+
+pub fn js_bridge_call(target: Any, args: Any) -> Any:
+    return js_call(target, args)
+
+pub fn js_bridge_call_raw(target: Any, args: Any) -> Any:
+    return js_call_raw(target, args)
+
+pub fn js_bridge_call_method(target: Any, name: String, args: Any) -> Any:
+    return js_call_method(target, name, args)
+
+pub fn js_bridge_call_method_raw(target: Any, name: String, args: Any) -> Any:
+    return js_call_method_raw(target, name, args)
+
+pub fn js_bridge_getattr(target: Any, name: String) -> Any:
+    return js_getattr(target, name)
+
+pub fn js_bridge_getattr_raw(target: Any, name: String) -> Any:
+    return js_getattr_raw(target, name)
+
+pub fn js_bridge_setattr(target: Any, name: String, value: Any):
+    js_setattr(target, name, value)
+
+pub fn js_bridge_hasattr(target: Any, name: String) -> Bool:
+    return js_hasattr(target, name)
+
+pub fn js_bridge_buffer_info(target: Any) -> Any:
+    return js_buffer_info(target)
+
+pub fn js_bridge_buffer_bytes(target: Any) -> Any:
+    return js_buffer_bytes(target)
+
+pub fn js_bridge_document_info(target: Any) -> Any:
+    return js_document_info(target)
+
+pub fn js_bridge_document_text(target: Any) -> String:
+    return js_document_text(target)
+
+pub fn js_bridge_image_info(target: Any) -> Any:
+    return js_image_info(target)
+
+pub fn js_bridge_image_text(target: Any) -> String:
+    return js_image_text(target)
+
+pub fn js_bridge_image_bytes(target: Any) -> Any:
+    return js_image_bytes(target)
+
+pub fn js_bridge_image_buffer(target: Any) -> Any:
+    return js_image_buffer(target)
+
+pub fn js_web_fs() -> Any:
+    return js_bridge_import("node:fs")
+
+pub fn js_web_path() -> Any:
+    return js_bridge_import("node:path")
+
+pub fn js_web_json() -> Any:
+    return js_bridge_eval_raw("JSON")
+
+pub fn js_web_write_text(path: String, text: String):
+    js_bridge_call_method(js_web_fs(), "writeFileSync", [path, text])
+
+pub fn js_web_read_text(path: String) -> String:
+    return js_bridge_call_method(js_web_fs(), "readFileSync", [path, "utf8"])
+
+pub fn js_web_path_basename(path: String) -> String:
+    return js_bridge_call_method(js_web_path(), "basename", [path])
+
+pub fn js_web_path_join(parts: Any) -> String:
+    return js_bridge_call_method(js_web_path(), "join", parts)
+
+pub fn js_web_json_stringify(value: Any) -> String:
+    return js_bridge_call_method(js_web_json(), "stringify", [value])
+
+pub fn js_web_json_parse(text: String) -> Any:
+    return js_bridge_call_method(js_web_json(), "parse", [text])
+
+pub fn js_web_buffer_info(target: Any) -> Any:
+    return js_bridge_buffer_info(target)
+
+pub fn js_web_buffer_bytes(target: Any) -> Any:
+    return js_bridge_buffer_bytes(target)
+
+pub fn js_web_document_info(target: Any) -> Any:
+    return js_bridge_document_info(target)
+
+pub fn js_web_document_text(target: Any) -> String:
+    return js_bridge_document_text(target)
+
+pub fn js_web_document_write(path: String, target: Any):
+    js_web_write_text(path, js_web_document_text(target))
+
+pub fn js_web_image_info(target: Any) -> Any:
+    return js_bridge_image_info(target)
+
+pub fn js_web_canvas_info(target: Any) -> Any:
+    return js_web_image_info(target)
+
+pub fn js_web_image_text(target: Any) -> String:
+    return js_bridge_image_text(target)
+
+pub fn js_web_image_bytes(target: Any) -> Any:
+    return js_bridge_image_bytes(target)
+
+pub fn js_web_canvas_bytes(target: Any) -> Any:
+    return js_bridge_image_bytes(target)
+
+pub fn js_web_image_buffer(target: Any) -> Any:
+    return js_bridge_image_buffer(target)
+
+pub fn js_web_image_write(path: String, target: Any):
+    let info = js_web_image_info(target)
+    if info.mime_type == "image/svg+xml" or info.mime_type == "text/plain":
+        js_web_write_text(path, js_web_image_text(target))
+        return
+    js_bridge_call_method(js_web_fs(), "writeFileSync", [path, js_web_image_buffer(target)])
+
+pub fn js_web_canvas_write(path: String, target: Any):
+    js_web_image_write(path, target)
+
+pub fn js_web_shared_buffer(target: Any) -> Any:
+    return kain_shared_buffer_from_js(target)
+
+pub fn js_web_shared_image(target: Any) -> Any:
+    return kain_shared_image_from_js(target)
+
+pub fn js_web_html_document(title: String, body: String, background: String, accent: String) -> String:
+    let html = "<!doctype html>\n"
+    let html = html + "<html lang='en'>\n"
+    let html = html + "<head>\n"
+    let html = html + "  <meta charset='utf-8' />\n"
+    let html = html + "  <meta name='viewport' content='width=device-width, initial-scale=1' />\n"
+    let html = html + "  <title>" + title + "</title>\n"
+    let html = html + "  <style>\n"
+    let html = html + "    :root { color-scheme: dark; }\n"
+    let html = html + "    * { box-sizing: border-box; }\n"
+    let html = html + "    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: " + background + "; font-family: Consolas, 'Courier New', monospace; color: #eef6ff; }\n"
+    let html = html + "    main { width: min(92vw, 1100px); border: 1px solid " + accent + "; background: rgba(7, 8, 18, 0.74); padding: 18px; border-radius: 24px; box-shadow: 0 28px 120px rgba(0, 0, 0, 0.55); }\n"
+    let html = html + "    .title { margin: 0 0 12px; letter-spacing: 0.28em; font-size: 13px; text-transform: uppercase; color: " + accent + "; }\n"
+    let html = html + "    svg { width: 100%; height: auto; display: block; border-radius: 18px; }\n"
+    let html = html + "  </style>\n"
+    let html = html + "</head>\n"
+    let html = html + "<body>\n"
+    let html = html + "  <main>\n"
+    let html = html + "    <p class='title'>" + title + "</p>\n"
+    let html = html + body + "\n"
+    let html = html + "  </main>\n"
+    let html = html + "</body>\n"
+    let html = html + "</html>\n"
+    return html
+
+pub fn js_site_runtime() -> Any:
+    return js_bridge_import("./helpers/web_runtime.mjs")
+
+pub fn js_site_load_app(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "loadAppConfig", [path])
+
+pub fn js_site_build_experience(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildExperience", [path, experience_id])
+
+pub fn js_site_bundle_client(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "bundleClient", [path])
+
+pub fn js_site_default_experience(path: String) -> String:
+    return js_bridge_call_method(js_site_runtime(), "defaultExperience", [path])
+
+pub fn js_site_bundle_and_build(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "bundleAndBuild", [path])
+
+pub fn js_site_build(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildSite", [path])
+
+pub fn js_site_serve(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "serveSite", [path, experience_id])
+
+pub fn js_site_serve_default(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "serveDefault", [path])
+
+pub fn js_site_catalog(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildCatalog", [path])
+
+pub fn js_site_build_matrix(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildMatrix", [path])
+
+pub fn js_site_write_matrix(path: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "writeMatrix", [path])
+
+pub fn js_site_actor_plan(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildActorServerPlan", [path, experience_id])
+
+pub fn js_site_system_contract(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildSiteSystemContract", [path, experience_id])
+
+pub fn js_site_ui_schema(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_site_runtime(), "buildExperienceUiSchema", [path, experience_id])
+
+pub fn js_site_actor_report(path: String, experience_id: String) -> String:
+    return js_bridge_call_method(js_site_runtime(), "actorServerReport", [path, experience_id])
+
+pub fn js_site_build_report(app_manifest_path: String, template_name: String, archetypes: String, outputs: String) -> String:
+    let summary = js_site_write_matrix(app_manifest_path)
+    let catalog = js_site_catalog(app_manifest_path)
+    let app = js_site_load_app(app_manifest_path)
+    let client_features = app.site_runtime.client_features
+
+    let report = "Kain web template build\n"
+    let report = report + "template: " + template_name + "\n"
+    let report = report + "default_experience: " + summary.default_experience + "\n"
+    let report = report + "experience_count: " + str(summary.experience_count) + "\n"
+    let report = report + "artifact_count: " + str(summary.artifact_count) + "\n"
+    let report = report + "output_root: " + summary.output_root + "\n"
+    let report = report + "server_port: " + str(summary.server_port) + "\n"
+    let report = report + "modes: " + str(summary.modes) + "\n"
+    let report = report + "catalog_default: " + catalog.default_experience + "\n"
+    let report = report + "client_features: " + str(client_features) + "\n"
+    let report = report + "outputs: " + outputs + "\n"
+    let report = report + "archetypes: " + archetypes
+    return report
+
+pub fn js_actor_runtime() -> Any:
+    return js_site_runtime()
+
+pub fn js_actor_server_plan(path: String, experience_id: String) -> Any:
+    return js_bridge_call_method(js_actor_runtime(), "buildActorServerPlan", [path, experience_id])
+
+pub fn js_actor_server_report(path: String, experience_id: String) -> String:
+    return js_bridge_call_method(js_actor_runtime(), "actorServerReport", [path, experience_id])

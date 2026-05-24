@@ -1,5 +1,5 @@
 use std::graphics
-use std::interop::bridge
+use std::interop
 use std::math
 
 pub const GPU_STAGE_VERTEX: Int = 1

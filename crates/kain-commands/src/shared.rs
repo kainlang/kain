@@ -73,12 +73,12 @@ const KN_SHORTCUTS: &[&str] = &[
     "kn doctor --repair <file> --profile aggressive",
 ];
 
-const KN_PYTHON_FFI_MODULES: &[&str] = &[
-    "std::python",
-    "std::python::numpy",
-    "std::python::torch",
-    "std::python::pygame",
-    "std::python::trimesh",
+const KN_PYTHON_INTEROP_HINTS: &[&str] = &[
+    "use std::python",
+    "use std::js",
+    "use std::interop",
+    "import numpy as np",
+    "import mypyfile",
 ];
 
 pub fn render_launcher_menu(launcher: LauncherKind) -> Option<String> {
@@ -95,13 +95,13 @@ pub fn render_launcher_menu(launcher: LauncherKind) -> Option<String> {
     }
     menu.push('\n');
     menu.push_str(" Python interop is already wired in:\n");
-    for module in KN_PYTHON_FFI_MODULES {
-        menu.push_str("   - use ");
-        menu.push_str(module);
+    for hint in KN_PYTHON_INTEROP_HINTS {
+        menu.push_str("   - ");
+        menu.push_str(hint);
         menu.push('\n');
     }
     menu.push('\n');
     menu.push_str(" Example:\n");
-    menu.push_str("   kn smoketest/python/numpy_supernova/smoke.kn\n");
+    menu.push_str("   sibling `mypyfile.py` can be imported directly from `main.kn`\n");
     Some(menu)
 }

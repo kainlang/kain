@@ -1652,66 +1652,7 @@ fn fabric_semantic_globals() -> Vec<(String, ResolvedType)> {
 }
 
 fn render_kain_interop_prelude() -> &'static str {
-    r#"struct KainSharedBufferInfo:
-    contract: String
-    contract_version: Int
-    element_type: String
-    element_size: Int
-    shape: Any
-    strides: Any
-    format: Any
-    mime_type: Any
-    source_runtime: String
-    source_backend: Any
-    ownership: String
-    labels: Any
-    byte_length: Int
-    element_count: Int
-
-struct KainSharedImageInfo:
-    contract: String
-    contract_version: Int
-    representation: String
-    width: Int
-    height: Int
-    channels: Int
-    layout: String
-    pixel_format: String
-    mime_type: String
-    row_stride: Int
-    color_space: String
-    alpha_mode: String
-    source_runtime: String
-    source_backend: Any
-    ownership: String
-    labels: Any
-    byte_length: Int
-
-@extern fn kain_shared_buffer_info(target: _InteropTarget) -> KainSharedBufferInfo
-@extern fn kain_shared_buffer_bytes(target: _InteropTarget) -> Array<Int>
-@extern fn kain_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any
-@extern fn kain_shared_image_info(target: _InteropTarget) -> KainSharedImageInfo
-@extern fn kain_shared_image_bytes(target: _InteropTarget) -> Array<Int>
-@extern fn kain_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any
-
-fn interop_shared_buffer_info(target: _InteropTarget) -> KainSharedBufferInfo:
-    return kain_shared_buffer_info(target)
-
-fn interop_shared_buffer_bytes(target: _InteropTarget) -> Array<Int>:
-    return kain_shared_buffer_bytes(target)
-
-fn interop_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any:
-    return kain_shared_buffer_from_bytes(bytes, element_type, shape, format, mime_type)
-
-fn interop_shared_image_info(target: _InteropTarget) -> KainSharedImageInfo:
-    return kain_shared_image_info(target)
-
-fn interop_shared_image_bytes(target: _InteropTarget) -> Array<Int>:
-    return kain_shared_image_bytes(target)
-
-fn interop_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any:
-    return kain_shared_image_from_bytes(bytes, width, height, channels, layout, pixel_format, mime_type)
-"#
+    "use std::interop\n"
 }
 
 fn register_fabric_extensions() {
@@ -1747,18 +1688,18 @@ fn render_python_output_projection(
         .map(|output| {
             let field_name = kain_string_literal(&output.name);
             let value_expr = match output.kind {
-                FabricContractKind::Value => format!(
-                    "py_bridge_call(\"__kain_fabric_output_field\", [{field_name}])"
-                ),
+                FabricContractKind::Value => {
+                    format!("py_call(\"__kain_fabric_output_field\", [{field_name}])")
+                }
                 FabricContractKind::SharedBuffer => format!(
-                    "py_bridge_shared_buffer(py_bridge_call_raw(\"__kain_fabric_output_field\", [{field_name}]))"
+                    "kain_shared_buffer_from_py(py_call_raw(\"__kain_fabric_output_field\", [{field_name}]))"
                 ),
                 FabricContractKind::SharedImage => format!(
-                    "py_bridge_shared_image(py_bridge_call_raw(\"__kain_fabric_output_field\", [{field_name}]))"
+                    "kain_shared_image_from_py(py_call_raw(\"__kain_fabric_output_field\", [{field_name}]))"
                 ),
-                FabricContractKind::ComputePlan => format!(
-                    "py_bridge_call(\"__kain_fabric_output_field\", [{field_name}])"
-                ),
+                FabricContractKind::ComputePlan => {
+                    format!("py_call(\"__kain_fabric_output_field\", [{field_name}])")
+                }
             };
             format!("{}: {value_expr}", output.name)
         })
@@ -1832,59 +1773,33 @@ fn render_fabric_inputs_binding(
     ))
 }
 
-fn render_python_bridge_prelude() -> &'static str {
-    r#"@extern fn json_parse(source: String) -> Any
-@extern fn py_exec(code: String) -> Unit
-@extern fn py_import(name: String) -> Any
-@extern fn py_call(target: _PyTarget, args: _PyArgs) -> Any
-@extern fn py_call_raw(target: _PyTarget, args: _PyArgs) -> Any
-@extern fn py_getattr(target: _PyTarget, name: String) -> Any
-@extern fn py_getattr_raw(target: _PyTarget, name: String) -> Any
-@extern fn py_hasattr(target: _PyTarget, name: String) -> Bool
-@extern fn kain_shared_buffer_from_py(target: _PyTarget) -> Any
-@extern fn kain_shared_image_from_py(target: _PyTarget) -> Any
+fn render_python_prelude() -> &'static str {
+    ""
+}
 
-fn py_bridge_exec(code: String):
-    py_exec(code)
-
-fn py_bridge_require_module(name: String) -> Any:
-    return py_import(name)
-
-fn py_bridge_call(target: _PyTarget, args: _PyArgs) -> Any:
-    return py_call(target, args)
-
-fn py_bridge_call_attr(target: _PyTarget, attr: String, args: _PyArgs) -> Any:
-    let callable = py_getattr(target, attr)
-    return py_call(callable, args)
-
-fn py_bridge_call_raw(target: _PyTarget, args: _PyArgs) -> Any:
-    return py_call_raw(target, args)
-
-fn py_bridge_call_attr_raw(target: _PyTarget, attr: String, args: _PyArgs) -> Any:
-    let callable = py_getattr_raw(target, attr)
-    return py_call_raw(callable, args)
-
-fn py_bridge_getattr(target: _PyTarget, name: String) -> Any:
-    return py_getattr(target, name)
-
-fn py_bridge_getattr_raw(target: _PyTarget, name: String) -> Any:
-    return py_getattr_raw(target, name)
-
-fn py_bridge_hasattr(target: _PyTarget, name: String) -> Bool:
-    return py_hasattr(target, name)
-
-fn py_bridge_shared_buffer(target: _PyTarget) -> Any:
-    return kain_shared_buffer_from_py(target)
-
-fn py_bridge_shared_image(target: _PyTarget) -> Any:
-    return kain_shared_image_from_py(target)
-"#
+fn render_python_entry_bootstrap(entry_path: &Path) -> String {
+    let entry_literal = kain_string_literal(&entry_path.display().to_string());
+    let entry_dir_literal = kain_string_literal(
+        &entry_path
+            .parent()
+            .unwrap_or(entry_path)
+            .display()
+            .to_string(),
+    );
+    format!(
+        "import sys as __kain_sys\nif {entry_dir_literal} not in __kain_sys.path:\n    __kain_sys.path.insert(0, {entry_dir_literal})\n__file__ = {entry_literal}\n"
+    )
 }
 
 fn render_python_harness(context: &FabricAdapterContext) -> Result<String, FabricFailureReason> {
     let runtime_call = python_call_expression(context)?;
     let fabric_inputs_binding = render_fabric_inputs_binding(context)?;
-    let bridge_prelude = render_python_bridge_prelude();
+    let python_prelude = render_python_prelude();
+    let prelude_block = if python_prelude.is_empty() {
+        String::new()
+    } else {
+        format!("{python_prelude}\n")
+    };
     let return_type = if context.step.outputs.len() > 1 {
         "FabricPythonOutputs"
     } else {
@@ -1894,7 +1809,7 @@ fn render_python_harness(context: &FabricAdapterContext) -> Result<String, Fabri
         .map(|definition| format!("{definition}\n\n"))
         .unwrap_or_default();
     Ok(format!(
-        "{bridge_prelude}\n{output_struct}fn main() -> {return_type}:\n    {fabric_inputs_binding}\n    {runtime_call}\n"
+        "{prelude_block}{output_struct}fn main() -> {return_type}:\n    {fabric_inputs_binding}\n    {runtime_call}\n"
     ))
 }
 
@@ -1912,13 +1827,14 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             .module
             .clone()
             .unwrap_or_else(|| "run".to_string());
+        let bootstrap_source = kain_string_literal(&render_python_entry_bootstrap(&resolved_entry));
         let exec_source = kain_string_literal(&source);
         let callable = kain_string_literal(&callable_name);
         if multi_output_step {
             let projection =
                 render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
             Ok(format!(
-                "py_bridge_exec({exec_source})\n    py_bridge_exec({python_output_helper})\n    let fabric_result = py_bridge_call_raw({callable}, [fabric_inputs])\n    py_bridge_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}"
+                "py_exec({bootstrap_source})\n    py_exec({exec_source})\n    py_exec({python_output_helper})\n    let fabric_result = py_call_raw({callable}, [fabric_inputs])\n    py_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}"
             ))
         } else {
             let single_output_kind = context
@@ -1928,25 +1844,17 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
                 .map(|output| output.kind)
                 .unwrap_or(FabricContractKind::Value);
             let result_expr = match single_output_kind {
-                FabricContractKind::Value => {
-                    format!("py_bridge_call({callable}, [fabric_inputs])")
-                }
+                FabricContractKind::Value => format!("py_call({callable}, [fabric_inputs])"),
                 FabricContractKind::SharedBuffer => {
-                    format!(
-                        "py_bridge_shared_buffer(py_bridge_call_raw({callable}, [fabric_inputs]))"
-                    )
+                    format!("kain_shared_buffer_from_py(py_call_raw({callable}, [fabric_inputs]))")
                 }
                 FabricContractKind::SharedImage => {
-                    format!(
-                        "py_bridge_shared_image(py_bridge_call_raw({callable}, [fabric_inputs]))"
-                    )
+                    format!("kain_shared_image_from_py(py_call_raw({callable}, [fabric_inputs]))")
                 }
-                FabricContractKind::ComputePlan => {
-                    format!("py_bridge_call({callable}, [fabric_inputs])")
-                }
+                FabricContractKind::ComputePlan => format!("py_call({callable}, [fabric_inputs])"),
             };
             Ok(format!(
-                "py_bridge_exec({exec_source})\n    return {result_expr}"
+                "py_exec({bootstrap_source})\n    py_exec({exec_source})\n    return {result_expr}"
             ))
         }
     } else {
@@ -1960,11 +1868,12 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
             )
         })?;
         let module_literal = kain_string_literal(&module_name);
+        let importer_literal = kain_string_literal(&context.manifest_path.display().to_string());
         if multi_output_step {
             let projection =
                 render_python_output_projection("FabricPythonOutputs", &context.step.outputs);
             Ok(format!(
-                "py_bridge_exec({python_output_helper})\n    let fabric_module = py_bridge_require_module({module_literal})\n    let fabric_result = py_bridge_call_attr_raw(fabric_module, \"run\", [fabric_inputs])\n    py_bridge_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}"
+                "py_exec({python_output_helper})\n    let fabric_module = py_import_with_context({module_literal}, {importer_literal})\n    let fabric_result = py_call_raw(fabric_module, \"run\", [fabric_inputs])\n    py_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}"
             ))
         } else {
             let single_output_kind = context
@@ -1974,19 +1883,17 @@ fn python_call_expression(context: &FabricAdapterContext) -> Result<String, Fabr
                 .map(|output| output.kind)
                 .unwrap_or(FabricContractKind::Value);
             let result_expr = match single_output_kind {
-                FabricContractKind::Value => {
-                    format!(
-                        "py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs])"
-                    )
-                }
+                FabricContractKind::Value => format!(
+                    "py_call(py_import_with_context({module_literal}, {importer_literal}), \"run\", [fabric_inputs])"
+                ),
                 FabricContractKind::SharedBuffer => format!(
-                    "py_bridge_shared_buffer(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs]))"
+                    "kain_shared_buffer_from_py(py_call_raw(py_import_with_context({module_literal}, {importer_literal}), \"run\", [fabric_inputs]))"
                 ),
                 FabricContractKind::SharedImage => format!(
-                    "py_bridge_shared_image(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs]))"
+                    "kain_shared_image_from_py(py_call_raw(py_import_with_context({module_literal}, {importer_literal}), \"run\", [fabric_inputs]))"
                 ),
                 FabricContractKind::ComputePlan => format!(
-                    "py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs])"
+                    "py_call(py_import_with_context({module_literal}, {importer_literal}), \"run\", [fabric_inputs])"
                 ),
             };
             Ok(format!("return {result_expr}"))
@@ -2063,49 +1970,7 @@ fn render_node_harness(context: &FabricAdapterContext) -> Result<String, FabricF
 }
 
 fn render_node_bridge_prelude() -> &'static str {
-    r#"@extern fn json_parse(source: String) -> Any
-@extern fn js_import(specifier: String) -> Any
-@extern fn js_import_raw(specifier: String) -> Any
-@extern fn js_call(target: _JsTarget, args: _JsArgs) -> Any
-@extern fn js_call_raw(target: _JsTarget, args: _JsArgs) -> Any
-@extern fn js_call_method(target: _JsTarget, name: String, args: _JsArgs) -> Any
-@extern fn js_call_method_raw(target: _JsTarget, name: String, args: _JsArgs) -> Any
-@extern fn js_getattr(target: _JsTarget, name: String) -> Any
-@extern fn js_getattr_raw(target: _JsTarget, name: String) -> Any
-@extern fn js_hasattr(target: _JsTarget, name: String) -> Bool
-@extern fn kain_shared_buffer_from_js(target: _JsTarget) -> Any
-@extern fn kain_shared_image_from_js(target: _JsTarget) -> Any
-
-fn js_bridge_import(specifier: String) -> Any:
-    return js_import_raw(specifier)
-
-fn js_bridge_call(target: _JsTarget, args: _JsArgs) -> Any:
-    return js_call(target, args)
-
-fn js_bridge_call_raw(target: _JsTarget, args: _JsArgs) -> Any:
-    return js_call_raw(target, args)
-
-fn js_bridge_call_method(target: _JsTarget, name: String, args: _JsArgs) -> Any:
-    return js_call_method(target, name, args)
-
-fn js_bridge_call_method_raw(target: _JsTarget, name: String, args: _JsArgs) -> Any:
-    return js_call_method_raw(target, name, args)
-
-fn js_bridge_getattr(target: _JsTarget, name: String) -> Any:
-    return js_getattr(target, name)
-
-fn js_bridge_getattr_raw(target: _JsTarget, name: String) -> Any:
-    return js_getattr_raw(target, name)
-
-fn js_bridge_hasattr(target: _JsTarget, name: String) -> Bool:
-    return js_hasattr(target, name)
-
-fn js_web_shared_buffer(target: _JsTarget) -> Any:
-    return kain_shared_buffer_from_js(target)
-
-fn js_web_shared_image(target: _JsTarget) -> Any:
-    return kain_shared_image_from_js(target)
-"#
+    ""
 }
 
 fn read_step_source(
@@ -2654,11 +2519,12 @@ mod tests {
 
         assert!(harness.contains("struct FabricPythonOutputs:"));
         assert!(harness.contains("__kain_fabric_output_field"));
-        assert!(harness.contains("py_bridge_call_attr_raw(fabric_module, \"run\""));
+        assert!(harness.contains("py_import_with_context(\"fabric_python_bridge\", "));
+        assert!(harness.contains("py_call_raw(fabric_module, \"run\""));
         assert!(harness.contains("[fabric_inputs]"));
         assert!(!harness.contains("fabric_serialized_inputs"));
-        assert!(harness.contains("py_bridge_shared_image("));
-        assert!(harness.contains("py_bridge_shared_buffer("));
+        assert!(harness.contains("kain_shared_image_from_py("));
+        assert!(harness.contains("kain_shared_buffer_from_py("));
     }
 
     #[test]
@@ -2948,21 +2814,12 @@ mod tests {
     fn polyglot_fixture_executes_all_runtime_kinds() {
         let fixture_root = stable_fabric_test_root("fab-smoke");
         prepare_fabric_test_workspace(&fixture_root);
-        copy_fixture(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join("smoketest")
-                .join("fabric")
-                .join("polyglot_local")
-                .as_path(),
-            &fixture_root,
-        );
+        let init =
+            kain_omni::init_fabric_manifest(&fixture_root, kain_omni::FabricTemplateKind::Polyglot)
+                .unwrap();
         compile_fixture_shared_library(&fixture_root);
 
-        let result = execute_fabric_manifest_path(&fixture_root.join("KAIN.fabric.toml")).unwrap();
+        let result = execute_fabric_manifest_path(&init.manifest_path).unwrap();
 
         assert_eq!(
             result.status,
@@ -3149,7 +3006,7 @@ mod tests {
         kfs::create_dir_all(seed_path.parent().expect("seed parent")).expect("create seed parent");
         kfs::write_text(
             &seed_path,
-            "use std::interop::bridge\n\nstruct SeedOutputs:\n    image: Any\n    snapshot: Any\n\nfn main() -> SeedOutputs:\n    let image = interop_shared_image_from_bytes([1, 2, 3, 4], 1, 1, 4, \"HWC\", \"rgba8\", \"image/x-kain-raster\")\n    let snapshot = interop_shared_buffer_from_bytes([10, 20, 30, 40], \"u8\", [4], \"bytes\", \"application/octet-stream\")\n    return SeedOutputs { image: image, snapshot: snapshot }\n",
+            "use std::interop\n\nstruct SeedOutputs:\n    image: Any\n    snapshot: Any\n\nfn main() -> SeedOutputs:\n    let image = interop_shared_image_from_bytes([1, 2, 3, 4], 1, 1, 4, \"HWC\", \"rgba8\", \"image/x-kain-raster\")\n    let snapshot = interop_shared_buffer_from_bytes([10, 20, 30, 40], \"u8\", [4], \"bytes\", \"application/octet-stream\")\n    return SeedOutputs { image: image, snapshot: snapshot }\n",
         )
         .expect("write seed source");
 

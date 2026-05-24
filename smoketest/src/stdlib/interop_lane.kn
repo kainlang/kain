@@ -1,0 +1,71 @@
+use std::gpu
+use std::interop
+
+pub fn smoke_interop_lane() -> Int:
+    let shared_buffer = interop_shared_buffer_from_bytes(
+        [1, 2, 3, 4],
+        "u8",
+        [4],
+        "bytes",
+        "application/octet-stream"
+    )
+    let buffer_info = interop_shared_buffer_info(shared_buffer)
+    if buffer_info.byte_length != 4 or buffer_info.element_count != 4:
+        return 1
+
+    interop_shared_buffer_replace_bytes(shared_buffer, [9, 8, 7, 6])
+    let buffer_bytes = interop_shared_buffer_bytes(shared_buffer)
+    if len(buffer_bytes) != 4 or buffer_bytes[1] != 8:
+        return 2
+
+    let buffer_policy = gpu_resource_policy(
+        gpu_shared_memory_policy(
+            GPU_ACCESS_READ_WRITE,
+            GPU_QUEUE_COMPUTE,
+            GPU_LAYOUT_TIGHT,
+            GPU_DESCRIPTOR_STORAGE_BUFFER
+        ),
+        GPU_BUFFER_USAGE_STORAGE,
+        "smoketest.shared.buffer"
+    )
+    let gpu_buffer = gpu_import_shared_buffer(shared_buffer, buffer_policy)
+    if gpu_buffer.byte_length != 4 or gpu_policy_valid(gpu_buffer.policy) == false:
+        return 3
+
+    let shared_image = interop_shared_image_from_bytes(
+        [0, 0, 0, 255],
+        1,
+        1,
+        4,
+        "HWC",
+        "rgba8",
+        "image/x-kain-raster"
+    )
+    let image_info = interop_shared_image_info(shared_image)
+    if image_info.width != 1 or image_info.height != 1 or image_info.byte_length != 4:
+        return 4
+
+    interop_shared_image_replace_bytes(shared_image, [5, 6, 7, 255])
+    let image_bytes = interop_shared_image_bytes(shared_image)
+    if len(image_bytes) != 4 or image_bytes[2] != 7:
+        return 5
+
+    let image_policy = gpu_resource_policy(
+        gpu_shared_memory_policy(
+            GPU_ACCESS_READ_WRITE,
+            GPU_QUEUE_GRAPHICS,
+            GPU_LAYOUT_RASTER_HWC,
+            GPU_DESCRIPTOR_STORAGE_IMAGE
+        ),
+        GPU_IMAGE_USAGE_STORAGE,
+        "smoketest.shared.image"
+    )
+    let gpu_image = gpu_import_shared_image(shared_image, image_policy)
+    if gpu_image.byte_length != 4 or gpu_image.channels != 4:
+        return 6
+
+    let descriptor = gpu_buffer_descriptor(gpu_buffer)
+    if descriptor.byte_length != 4 or descriptor.policy_valid == false:
+        return 7
+
+    return 0

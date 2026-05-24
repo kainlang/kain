@@ -28,10 +28,10 @@ authoring model.
 Use this skill for:
 
 - Kain source with `use c::...`, `use rust::...`, `use std::platform`, bridge calls, or generated native package modules.
-- Kain source with Python imports such as `import numpy as np`, `import trimesh`, `from mypyfile import run as py_run`, or `import tools.mathish as mathish`.
+- Kain source with Python imports such as `import numpy as np`, `import fastmcp as fastmcp`, `from python_lab.bridge import tensor_signature as py_tensor_signature`, or `import python_lab.bridge as py_lab`.
 - A task that mentions C ABI, FFI, DLL, dylib, shared library, object file, static library, bitcode, inline C, package bridge, platform SDK, OS API, Vulkan/Win32/CUDA/etc. boundary, callback, raw buffer, native handle, Python module, local `.py` helper, or host bridge.
 - Designing the authored Kain facade around a native library or a Python package.
-- Deciding whether a boundary should be raw `import ...`, `std::python::*`, `std::dcc::*`, Fabric `runtime = "python"`, `use c::...`, or `use rust::...`.
+- Deciding whether a boundary should be raw `import ...`, `use std::python`, `use std::interop`, `kain_*_from_py`, `use c::...`, or `use rust::...`.
 - Reviewing whether a native or Python boundary has correct status, lifetime, buffer, handle, ownership, string, and teardown shape.
 - Explaining why Kain can touch OS, vendor, and full Python ecosystem surfaces without letting those surfaces own the application.
 
@@ -48,7 +48,7 @@ Every boundary needs five answers before code gets clever:
 - **Who owns lifetime?** One-call borrow, Kain `collapse`/`observe`/`decay`, explicit `open`/`close`, bridge-owned cache, runtime service, package session, or Python-owner-backed zero-copy view.
 - **Who owns failure?** Integer status, null/zero handle, diagnostic string, last-error slot, Python import failure, Python exception, `Result`, test assertion, or benchmark mismatch.
 - **Who owns policy?** Kain should own the semantic decision. Native code or Python should do the thing only native code or Python can do.
-- **Who owns live runtime state?** Embedded Python scope, Fabric Python step, node host, C global state, explicit session handle, or runtime service.
+- **Who owns live runtime state?** Embedded Python scope, node host, C global state, explicit session handle, or runtime service.
 
 If those answers are fuzzy, the code will work once and rot.
 
@@ -66,7 +66,7 @@ Kain has several layers that make interop more than a dumb foreign call:
 - `kain-foreign-abi` normalizes scalar, pointer, ownership, callback, aggregate, and calling-convention shape.
 - `kain-c-ffi` extracts headers, classifies callable/stubbed/unsupported symbols, emits Kain extern modules, reports, manifests, and bridge crates.
 - `stdlib/platform.kn` gives Kain a handle-oriented dynamic library surface for explicit OS loader work.
-- `stdlib/interop`, `stdlib/c`, `stdlib/python`, and `stdlib/dcc` expose shared-buffer/image/tensor/geometry and host-language bridge vocabulary.
+- `stdlib/interop`, `stdlib/python`, and the registered `kain_*_from_py` / `kain_*_to_py` builtins expose shared-buffer/image/tensor/geometry and host-language bridge vocabulary.
 - `runtime/native` keeps ABI/service headers in C so Kain-authored code can bind to stable machine contracts.
 - The embedded Python scope is persistent for the Kain execution, which means repeated `import`, `py_exec`, `py_call`, and host-object access share one live Python world instead of cold-starting on every call.
 
@@ -84,15 +84,15 @@ Use this order:
 4. **Blade/package-owned bridge:** if the app/package owns a small C wrapper, use `use c::<bridge>` plus optional `[c_ffi]` metadata near that blade/package.
 5. **Generated import preflight:** if the header shape is unknown, run `kain import-c` to inspect what Kain can represent before hand-authoring the final facade.
 6. **Platform package lock:** if the target is a vendor/system SDK, use `kain import platform` to produce target-aware lock and generated thunk artifacts.
-7. **Python wrapper/materialization lane:** if the task needs stable authored package helpers, explicit ownership, DCC adapters, or shared-vs-owned data control, move from raw `import ...` to `std::python::*` and `std::dcc::*`.
-8. **Whole-file foreign step:** if an entire Fabric stage should just be Python, use Fabric `runtime = "python"` rather than shoving the whole step through inline bridge strings.
-9. **Runtime/compiler handoff:** if the authored shape is good but import/lowering/loading/host-object dispatch is broken, stop blaming the Kain file and fix the substrate with the owner skill.
+7. **Python bridge/materialization lane:** if the task needs explicit bridge calls, ownership policy, or shared-vs-owned data control, move from raw `import ...` to `use std::python`, `use std::interop`, and the `kain_*_from_py` helpers.
+8. **Runtime/compiler handoff:** if the authored shape is good but import/lowering/loading/host-object dispatch is broken, stop blaming the Kain file and fix the substrate with the owner skill.
 
 ## Fast Discovery
 
 ```powershell
 rg -n "use c::|use rust::|\[c_ffi\]|kain_dynlib|shared_lib|tier =|import platform|import-c" . agents blades benchmark library_of_kain runtime stdlib crates
-rg -n "^import |^from .* import |py_bridge_|py_import|py_call|py_getattr|kain_.*_from_py|runtime = \"python\"" . agents blades benchmark smoketest stdlib crates
+rg -n "^import |^from .* import |py_import|py_call|py_getattr|kain_(image|tensor|geometry|shared_(buffer|image))_from_py|python_(module_available|require_module)" . agents blades benchmark smoketest stdlib crates
+rg -n "numpy|fastmcp|torch|python_lab" blades smoketest stdlib crates .agents
 rg -n "abi_|platform_library|host_bridge|shared_buffer|shared_image|shared_tensor|shared_geometry" stdlib runtime/native/include runtime/native/src crates/kain-python
 rg --files | rg "(ffi|bridge|interop|platform|host_bridge|foreign_abi|c_ffi|crate_ffi|python|dcc)"
 ```
@@ -126,10 +126,9 @@ kain bridge serve --entry bridge_entry.kn --dispatch-function kain_bridge_dispat
 Authored Kain validation:
 
 ```powershell
-kain check smoke.kn --target interpret
-kain run smoke.kn --target interpret
 kain check smoke.kn --target llvm
 kain build smoke.kn --target llvm -o .kain/run/smoke.exe
+kain run smoke.kn --target llvm
 python benchmark/run.py --case ffi_shared_call_stress --languages kain --runs 1 --warmups 0 --timeout 900
 ```
 
@@ -337,7 +336,7 @@ Rules:
 For host objects, prefer shared-buffer/image helpers instead of raw pointers:
 
 ```kn
-use std::interop::bridge
+use std::interop
 
 fn replace_shared_payload(target: Any, bytes: Any):
     interop_shared_buffer_replace_bytes(target, bytes)
@@ -352,10 +351,12 @@ Supported authored forms:
 
 - `import numpy`
 - `import numpy as np`
+- `import fastmcp as fastmcp`
 - `import pkg.subpkg.module`
 - `import pkg.subpkg.module as alias`
 - `from torch.utils import data`
 - `from torch.utils import data as torch_data`
+- `from python_lab.bridge import tensor_signature as py_tensor_signature`
 - `from mypyfile import run as py_run`
 
 Not supported in this lane:
@@ -366,14 +367,16 @@ Important authored rule:
 
 - Kain passes the exact module string to Python. There is no blessed allowlist.
 - If CPython can import the module from the local search roots or active Python environment, Kain can bind it.
-- Real package names matter. If the environment exposes `torch`, use `import torch`. If it exposes some other module name, import that exact name.
+- Real package names matter. If the environment exposes `torch`, use `import torch`. If it exposes `fastmcp`, use `import fastmcp as fastmcp`. If it exposes some other module name, import that exact name.
 
 Binding semantics match Python closely:
 
 - `import numpy` binds `numpy`
 - `import numpy as np` binds `np`
+- `import fastmcp as fastmcp` binds `fastmcp`
 - `import pkg.tools.mathish` binds `pkg` unless you alias it
 - `import pkg.tools.mathish as mathish` binds `mathish`
+- `from python_lab.bridge import tensor_signature as py_tensor_signature` binds `py_tensor_signature`
 - `from torch.utils import data as torch_data` binds `torch_data`
 
 That means the authored default for deep module paths should usually be an alias:
@@ -396,7 +399,7 @@ understands arbitrary Python package surfaces.
 
 Runtime behavior:
 
-- `np.linspace(...)`, `trimesh.creation.box(...)`, `mesh.export(...)`, and `runner(...)` use normal Kain `.` and call syntax.
+- `np.linspace(...)`, `fastmcp.FastMCP(...)`, `py_lab.make_numpy_grid(...)`, and `runner(...)` use normal Kain `.` and call syntax.
 - If the value is a Python-backed host object, field access routes through the Python bridge rather than normal Kain struct lookup.
 - If the runtime is missing the Python bridge, host-object field access fails loudly instead of silently lying.
 
@@ -408,7 +411,7 @@ Return conversion is best-effort and deliberate:
 - Python `list` and `tuple` become Kain arrays/tuples
 - Python `dict` with string keys becomes a Kain struct-like value
 - NumPy-like array objects with `tolist()` and shape/array metadata can materialize into Kain values
-- non-scalar `torch.Tensor`, module objects, classes, scenes, meshes, and other rich foreign objects stay as Python host objects unless you explicitly materialize them
+- non-scalar `torch.Tensor`, module objects, classes, `FastMCP` apps, and other rich foreign objects stay as Python host objects unless you explicitly materialize them
 
 That split is the whole point:
 
@@ -510,8 +513,8 @@ member or a nested module import cleanly.
 Think of the Python lane as three levels:
 
 1. **Raw `import ...` and host objects:** best when you want natural module/object calls and minimal ceremony.
-2. **`std::python::*` wrappers:** best when you want package-shaped authored helpers like `py_numpy_*`, `py_trimesh_*`, `py_torch_*`, `py_bridge_*`.
-3. **`std::dcc::*` adapters:** best when images, tensors, and meshes should become Kain-native carriers with explicit ownership and mutation semantics.
+2. **`use std::python`:** best when you need explicit bridge calls, module checks, attribute dispatch, or deliberate raw-vs-materialized return control.
+3. **Ownership helpers:** best when tensors, images, geometry, or shared contracts should become Kain-owned or explicitly shared through `python_*`, `interop_*`, and `kain_*_from_py`.
 
 Use raw `import` when the package surface itself is the API you want:
 
@@ -522,27 +525,28 @@ fn sample() -> Any:
     return np.linspace(0.0, 1.0, 5)
 ```
 
-Use `std::python::*` when repeated low-level package calls should get a Kain
-wrapper surface:
+Use `use std::python` when repeated low-level foreign calls should get a small
+Kain surface:
 
 ```kn
-use std::python::numpy
+use std::python
 
 fn sample() -> Any:
-    return py_numpy_linspace(0.0, 1.0, 5)
+    let fastmcp = python_require_module("fastmcp")
+    let app = python_call_attr_raw(fastmcp, "FastMCP", ["kain-python-lab"])
+    return python_getattr(app, "name")
 ```
 
-Use `std::dcc::*` when the real question is ownership and native manipulation:
+Use ownership helpers when the real question is mutation and lifetime:
 
 ```kn
 import numpy as np
-use std::dcc::image
+use std::python
 
 fn banner() -> Any:
-    let rgba = np.zeros([128, 256, 4], "uint8")
-    let img = dcc_image_from_python_auto(rgba)
-    dcc_image_set_pixel(img, 12, 12, [255, 120, 40, 255])
-    return dcc_image_to_numpy(img)
+    let image = python_image_shared(np.zeros([128, 256, 4], "uint8"))
+    kain_image_set_pixel(image, 12, 12, [255, 120, 40, 255])
+    return python_image_to(image, "numpy")
 ```
 
 Raw bridge helpers still matter for sharp work:
@@ -572,7 +576,7 @@ Ownership modes mean:
 - `auto`: prefer shared when possible, otherwise fall back to owned
 
 Use `shared` when you want mutation to sync back into the Python owner such as a
-NumPy array, CPU Torch tensor, or Trimesh mesh arrays.
+NumPy array or CPU Torch tensor.
 
 Use `owned` when you want deterministic detached mutation on the Kain side.
 
@@ -582,44 +586,17 @@ depends on it.
 
 The info APIs exist so authored code can prove the contract instead of guessing:
 
-- `dcc_image_info(image).ownership`
-- `dcc_tensor_info(tensor).ownership`
-- `dcc_mesh_info(mesh).vertex_ownership`
+- `kain_image_info(image).ownership`
+- `kain_tensor_info(tensor).ownership`
+- `interop_shared_buffer_info(handle).ownership`
+- `interop_shared_image_info(handle).ownership`
 
 If the task is "call a Python function and keep using Python objects," stay in
-raw `import` or `py_bridge_*`.
+raw `import` or `use std::python`.
 
 If the task is "bring bytes, pixels, tensor values, or geometry under Kain's
-ownership model," graduate into `std::dcc::*`.
-
-## Fabric Python Runtime Pattern
-
-Not every Python interaction should be an embedded import. If an entire Fabric
-step is naturally a Python program, use the Python runtime lane directly.
-
-Manifest shape:
-
-```toml
-runtime = "python"
-entry = "scripts/python_step.py"
-```
-
-Expected authored shape:
-
-- the host loads the target `.py` file
-- executes it in the Python runtime
-- then looks for a `run(fabric_inputs)` entrypoint
-
-Use this pattern when:
-
-- the whole step is already Python-shaped
-- the Kain layer only needs to orchestrate inputs/outputs between stages
-- the script should live as a real `.py` file instead of a large bridge string
-
-Do not use this when:
-
-- the task is just "I want to call a couple ecosystem APIs from authored Kain"
-- a narrow `import ...` plus DCC materialization would keep the flow more Kain-owned
+ownership model," graduate into `use std::python`, `use std::interop`, and the
+`kain_*_from_py` helpers.
 
 ## Callback And Event Pump Pattern
 
@@ -694,12 +671,14 @@ fn write_probe_tone(path: String, hz: Float) -> ToneReport:
 Same rule for Python:
 
 ```kn
-import trimesh
-use std::dcc::mesh
+import fastmcp as fastmcp
+import python_lab.bridge as py_lab
+use std::python
 
-fn make_probe_mesh() -> Any:
-    let sphere = trimesh.creation.icosphere(2, 1.0)
-    return dcc_mesh_from_python_shared(sphere)
+fn launch_probe(plan_text: String) -> String:
+    let app = python_call_attr_raw(fastmcp, "FastMCP", ["kain-python-lab"])
+    let _grid = py_lab.make_numpy_grid(plan_text, 7)
+    return python_getattr(app, "name")
 ```
 
 This keeps agents from sprinkling low-level bridge or host-object calls
@@ -771,7 +750,7 @@ Use these when you need implementation truth:
 - `crates/cli/src/import_c.rs`, `crates/cli/src/import_platform.rs`, `crates/cli/src/import_crate.rs`, `crates/cli/src/bridge.rs`: command behavior.
 - `runtime/native/include/host_bridge.h` and `runtime/native/src/core/host_bridge.c`: host bridge registry, foreign runtime lanes, service descriptors, bridge contracts.
 - `runtime/native/include/platform_library.h` and `runtime/native/src/platform/platform_library.c`: dynamic library handle/status surface.
-- `stdlib/platform.kn`, `stdlib/c/bridge.kn`, `stdlib/interop/bridge.kn`, `stdlib/python/bridge.kn`, `stdlib/python/*.kn`, `stdlib/dcc/*.kn`: authored stdlib bridge vocabulary.
+- `stdlib/platform.kn`, `stdlib/js.kn`, `stdlib/interop.kn`, `stdlib/python.kn`: authored stdlib bridge vocabulary.
 - `crates/kain-import/tests/abi_corpus/manifest.json`: C ABI layout cases for pragma pack, explicit alignment, named pack stacks, bitfields, and unions.
 
 Use examples as probes:
@@ -781,10 +760,9 @@ Use examples as probes:
 - `blades/kain-test/fabric_FFI/c_ffi/beacon_math`: scalar, bool, float, string, and intentionally unsupported pointer declarations.
 - `blades/kain-test/fabric_FFI/c_ffi/miniaudio_tone_lab`: native audio file generation/probe through a small C bridge.
 - `blades/kain-test/fabric_FFI/c_ffi/cgltf_scene_probe`: handle lifecycle over a third-party parser.
-- `blades/kain-test/fabric_FFI/python/numpy_supernova`: NumPy image/tensor/point-cloud bridge and export lane.
-- `blades/kain-test/fabric_FFI/python/trimesh_glb`: Trimesh scene/mesh/export lane.
-- `blades/kain-test/fabric_FFI/python/pygame_poster`: Pygame-to-image bridge lane.
-- `blades/kain-test/fabric_FFI/fabric/polyglot_local`: Fabric whole-file Python runtime lane.
+- `blades/python`: canonical first-class Python import lab using `import numpy`, `import fastmcp`, local `python_lab.bridge`, and Kain world/teleport/ownership semantics over Python-backed tensors.
+- `crates/kain-python/src/lib.rs`: executable source snippets for zero-copy NumPy/Torch materialization, shared-vs-owned mutation, and export back into Python objects.
+- `smoketest/src/stdlib/interop_lane.kn`: shared-contract vocabulary and stdlib integration pressure.
 
 Do not make Vulkain the default example for generic interop. Use
 `package-vulkain` only when the task is specifically the Vulkain package or a
@@ -803,11 +781,11 @@ For authored interop:
 
 For authored Python import work:
 
-1. Decide whether the right shape is raw `import ...`, `std::python::*`, `std::dcc::*`, or Fabric `runtime = "python"`.
+1. Decide whether the right shape is raw `import ...`, `use std::python`, `use std::interop`, or direct `kain_*_from_py` helpers.
 2. Prove the import shape first with the smallest real on-disk case.
 3. If local resolution matters, use a real sibling `.kn` + `.py` or package directory with `__init__.py`.
 4. If the result is supposed to stay foreign, keep it as a host object and prove the member/call path.
-5. If the result is supposed to become Kain-owned, materialize it and inspect ownership metadata.
+5. If the result is supposed to become Kain-owned, materialize it and inspect ownership metadata with `kain_tensor_info`, `kain_image_info`, or `interop_shared_*_info`.
 6. If the claim includes zero-copy sync, mutate one side and prove visibility on the other side.
 
 For low-level memory or handle math:
@@ -848,6 +826,7 @@ For low-level memory or handle math:
 - Expecting `from pkg import *` to work in this lane.
 - Forgetting aliases when imported Python names collide with Kain syntax or read badly in authored code.
 - Using raw host objects forever when the actual requirement is explicit Kain-owned image/tensor/geometry state.
+- Routing first-class Python imports through dead bridge folders or one-off host harnesses when a local `.py` module plus `import ...` already expresses the boundary.
 
 ## Final Taste Check
 

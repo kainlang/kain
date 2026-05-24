@@ -1,0 +1,232 @@
+use std::runtime
+use std::intent
+use std::fs
+use std::json
+use std::python
+
+import numpy as np
+import fastmcp as fastmcp
+import python_lab.bridge as py_lab
+from python_lab.bridge import fastmcp_name as py_fastmcp_name
+from python_lab.bridge import make_numpy_grid as py_make_numpy_grid
+from python_lab.bridge import module_digest as py_module_digest
+from python_lab.bridge import tensor_signature as py_tensor_signature
+from python_lab.bridge import tensor_tail as py_tensor_tail
+
+const PYTHON_LAB_MODULUS: Int = 1000000007
+const PYTHON_LAB_CONFIG_PATH: String = "data/lab_config.json"
+
+component PythonInteropPanel():
+    render <panel title="Kain Python Lab" />
+
+world PythonInteropAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state health: Int = 100
+    state module_score: Int = 0
+    surface native_ui => PythonInteropPanel
+
+world PythonInteropMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state health_copy: Int = 100
+    state module_score_copy: Int = 0
+    surface web => PythonInteropPanel
+
+entangle PythonInteropAuthority.signal <-> PythonInteropMirror.signal_copy with single_writer
+entangle PythonInteropAuthority.epoch <-> PythonInteropMirror.epoch_copy with single_writer
+entangle PythonInteropAuthority.health <-> PythonInteropMirror.health_copy with single_writer
+entangle PythonInteropAuthority.module_score <-> PythonInteropMirror.module_score_copy with single_writer
+
+shatter struct PythonInteropShard:
+    bias: Int
+    phase: Int
+    salt: Int
+    hot: Bool
+
+law python_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < PYTHON_LAB_MODULUS
+
+patch commit_python_signal(authority: PythonInteropAuthority, value: Int, module_score: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.health = authority.health + 1
+    authority.module_score = module_score
+    return authority.signal
+
+fn config_text() -> String:
+    return fs_read_text(PYTHON_LAB_CONFIG_PATH)
+
+fn config_plan(plan_text: String) -> Any:
+    return json_parse_text(plan_text)
+
+fn config_int(plan: Any, key: String, fallback: Int) -> Int:
+    return json_int_or(plan, key, fallback)
+
+fn config_string(plan: Any, key: String, fallback: String) -> String:
+    return json_string_or(plan, key, fallback)
+
+fn module_probe_lane(plan: Any, plan_text: String) -> Int:
+    if python_module_available("numpy") == false:
+        return 10
+    if python_module_available("fastmcp") == false:
+        return 11
+
+    let preview_samples = config_int(plan, "preview_samples", 5)
+    let preview = python_call_attr(np, "linspace", [0.0, 1.0, preview_samples])
+    if len(preview) != preview_samples:
+        return 12
+
+    let helper_shape = py_lab.grid_shape(plan_text)
+    if len(helper_shape) != 2:
+        return 13
+
+    let server_name = config_string(plan, "fastmcp_server_name", "kain-python-lab")
+    let direct_app = python_call_attr_raw(fastmcp, "FastMCP", [server_name])
+    if python_getattr(direct_app, "name") != server_name:
+        return 14
+    if py_fastmcp_name(plan_text) != server_name:
+        return 15
+    if py_module_digest(plan_text) <= 0:
+        return 16
+
+    if python_module_available("torch"):
+        let torch = python_require_module("torch")
+        let torch_tensor = python_call_attr_raw(torch, "arange", [0, 6])
+        let native = python_tensor(torch_tensor)
+        if kain_tensor_info(native).shape[0] != 6:
+            return 17
+
+    return 0
+
+fn tensor_semantics_lane(plan: Any, plan_text: String) -> Int with Unsafe:
+    let authority = PythonInteropAuthority
+    let rounds = config_int(plan, "rounds", 4)
+    let rows = config_int(plan, "tensor_rows", 3)
+    let cols = config_int(plan, "tensor_cols", 4)
+    let authority_seed = config_int(plan, "authority_seed", 17)
+    let teleport_bias = config_int(plan, "teleport_bias", 5)
+    let teleport_phase = config_int(plan, "teleport_phase", 11)
+    let teleport_salt = config_int(plan, "teleport_salt", 19)
+    let module_score = py_module_digest(plan_text)
+
+    if rounds <= 0 or rows <= 1 or cols <= 1:
+        return 20
+
+    // ============================================================================
+    //                        python tensor pressure cooker
+    // ============================================================================
+    // Kain owns the world state and ownership policy.
+    // Python owns the ecosystem math and the live host objects.
+    let mut cells: ptr<Int> = alloc_zeroed(rounds, "Int")
+    var checksum: Int = authority_seed
+    var last_signal: Int = authority_seed
+    var lane_error: Int = 0
+
+    collapse cells:
+        var round: Int = 0
+        while round < rounds and lane_error == 0:
+            let shard = PythonInteropShard {
+                bias: teleport_bias + round,
+                phase: teleport_phase + (round * 2),
+                salt: teleport_salt + (round * 3),
+                hot: (round & 1) == 0
+            }
+            let moved = teleport shard from PythonInteropAuthority to PythonInteropMirror via python_tensor_bus
+
+            let numpy_signal = py_make_numpy_grid(plan_text, moved.bias + round)
+            let shared_tensor = python_tensor_shared(numpy_signal)
+            let shared_info = kain_tensor_info(shared_tensor)
+            if shared_info.ownership != "shared":
+                lane_error = 21
+            else:
+                if shared_info.shape[0] != rows or shared_info.shape[1] != cols:
+                    lane_error = 22
+                else:
+                    let signature_before = py_tensor_signature(numpy_signal)
+                    let row = round % rows
+                    let col = (round + moved.phase) % cols
+                    let write_value = to_float((moved.bias * 7) + moved.phase + moved.salt + round)
+                    kain_tensor_set(shared_tensor, [row, col], write_value)
+
+                    let signature_after = py_tensor_signature(numpy_signal)
+                    if signature_after == signature_before:
+                        lane_error = 23
+                    else:
+                        let owned_tensor = python_tensor_owned(numpy_signal)
+                        let owned_info = kain_tensor_info(owned_tensor)
+                        if owned_info.ownership != "owned":
+                            lane_error = 24
+                        else:
+                            let detached_before = py_tensor_signature(numpy_signal)
+                            kain_tensor_set(owned_tensor, [0, 0], 999.0 + round)
+                            let detached_after = py_tensor_signature(numpy_signal)
+                            if detached_after != detached_before:
+                                lane_error = 25
+                            else:
+                                let exported_tail = py_tensor_tail(python_tensor_to(owned_tensor, "numpy"))
+                                let signal = commit_python_signal(
+                                    authority,
+                                    (checksum + signature_after + to_int(exported_tail) + moved.bias + moved.phase + moved.salt + module_score) % PYTHON_LAB_MODULUS,
+                                    module_score
+                                )
+                                if python_signal_in_bounds(signal) == false:
+                                    lane_error = 26
+                                else:
+                                    checksum = (checksum + signal + signature_after + to_int(exported_tail)) % PYTHON_LAB_MODULUS
+                                    last_signal = signal
+                                    mem_store(ptr_offset(cells, round, "Int"), checksum, "Int")
+            if lane_error == 0:
+                round = round + 1
+        0
+
+    if lane_error != 0:
+        decay cells
+        return lane_error
+
+    let observed: Int = observe cells:
+        var slot: Int = 0
+        var acc: Int = 0
+        while slot < rounds:
+            acc = (acc + mem_load(ptr_offset(cells, slot, "Int"), "Int")) % PYTHON_LAB_MODULUS
+            slot = slot + 1
+        acc
+
+    decay cells
+
+    if patch_journal_count() < rounds:
+        return 27
+    if entangle_propagation_count() < rounds:
+        return 28
+    if runtime_machine_teleport_count() < rounds:
+        return 29
+    if runtime_heap_validate() < 0:
+        return 30
+
+    let final_score = (checksum + observed + last_signal + module_score) % PYTHON_LAB_MODULUS
+    if final_score < 0:
+        return 31
+    return 0
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let plan_text = config_text()
+    let plan = config_plan(plan_text)
+
+    let module_status = module_probe_lane(plan, plan_text)
+    if module_status != 0:
+        let shutdown_early = runtime_shutdown()
+        if shutdown_early != 0:
+            return 200 + shutdown_early
+        return module_status
+
+    let tensor_status = tensor_semantics_lane(plan, plan_text)
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 300 + shutdown
+    if tensor_status != 0:
+        return tensor_status
+    return 0

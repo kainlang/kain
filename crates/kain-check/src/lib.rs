@@ -383,6 +383,21 @@ mod tests {
     }
 
     #[test]
+    fn check_source_allows_std_interop_root_in_llvm_frontend_checks() {
+        let report = check_source(
+            "<test>",
+            "use std::interop\n\nfn main() -> Int:\n    let payload = interop_shared_buffer_from_bytes([1, 2, 3, 4], \"u8\", [4], \"bytes\", \"application/octet-stream\")\n    return interop_shared_buffer_info(payload).byte_length\n",
+            &CheckOptions::new(CompileTarget::Llvm),
+        );
+
+        assert!(
+            report.passed(),
+            "llvm frontend checks should see std::interop globals: {:?}",
+            report.error
+        );
+    }
+
+    #[test]
     fn discover_kain_files_skips_generated_directories() {
         let temp = tempfile::tempdir().expect("temp dir");
         kfs::write_text(
